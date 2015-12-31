@@ -2,12 +2,25 @@
 import pyvex
 import simuvex
 
+
 class CFGNode(object):
     """
     This class stands for each single node in CFG.
     """
-    def __init__(self, callstack_key, addr, size, cfg, input_state=None, simprocedure_name=None, syscall_name=None,
-                 looping_times=0, no_ret=False, is_syscall=False, syscall=None, simrun=None, function_address=None,
+    def __init__(self,
+                 addr,
+                 size,
+                 cfg,
+                 callstack_key=None,
+                 input_state=None,
+                 simprocedure_name=None,
+                 syscall_name=None,
+                 looping_times=0,
+                 no_ret=False,
+                 is_syscall=False,
+                 syscall=None,
+                 simrun=None,
+                 function_address=None,
                  final_states=None):
         """
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
@@ -58,7 +71,6 @@ class CFGNode(object):
     def is_simprocedure(self):
         return self.simprocedure_name is not None
 
-
     def downsize(self):
         """
         Drop saved states.
@@ -69,18 +81,19 @@ class CFGNode(object):
         self.final_states = [ ]
 
     def copy(self):
-        c = CFGNode(self.callstack_key,
-                    self.addr,
+        c = CFGNode(self.addr,
                     self.size,
                     self._cfg,
-                    self.input_state,
-                    self.simprocedure_name,
-                    self.looping_times,
-                    self.no_ret,
-                    self.is_syscall,
-                    self.syscall,
-                    self.function_address,
-                    final_states=self.final_states[ :: ])
+                    callstack_key=self.callstack_key,
+                    input_state=self.input_state,
+                    simprocedure_name=self.simprocedure_name,
+                    looping_times=self.looping_times,
+                    no_ret=self.no_ret,
+                    is_syscall=self.is_syscall,
+                    syscall=self.syscall,
+                    function_address=self.function_address,
+                    final_states=self.final_states[ :: ]
+                    )
         c.instruction_addrs = self.instruction_addrs[ :: ]
         return c
 

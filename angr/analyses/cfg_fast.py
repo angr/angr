@@ -229,6 +229,20 @@ class SegmentList(object):
         return self._bytes_occupied
 
 
+class CFGEntry(object):
+    """
+    Defines an entry to resume the CFG recovery
+    """
+
+    def __init__(self, addr, func_addr, jumpkind, ret_target=None, last_addr=None, src_node=None):
+        self.addr = addr
+        self.func_addr = func_addr
+        self.jumpkind = jumpkind
+        self.ret_target = ret_target
+        self.last_addr = last_addr
+        self.src_node = src_node
+
+
 class CFGFast(Analysis):
     """
     We find functions inside the given binary, and build a control-flow graph in very fast manners: instead of
@@ -277,9 +291,6 @@ class CFGFast(Analysis):
                 key=lambda x: x[0]
         )
         self._valid_memory_region_size = sum([(end - start) for start, end in self._valid_memory_regions])
-
-        # Size of each basic block
-        self._block_size = {}
 
         self._next_addr = self._start - 1
 
@@ -497,46 +508,46 @@ class CFGFast(Analysis):
     def _scan_code(self, traced_addresses, function_exits, initial_state, starting_address):
         # Saving tuples like (current_function_addr, next_exit_addr)
         # Current_function_addr == -1 for exits not inside any function
-        remaining_exits = set()
+        remaining_entries = set()
         next_addr = starting_address
 
-        # Initialize the remaining_exits set
-        remaining_exits.add(
-            (
-                next_addr,
-                next_addr,
-                next_addr,
-                initial_state.copy()
-            )
-        )
+        # Initialize the remaining_entries set
+        ce = CFGEntry(next_addr, next_addr, 'Ijk_Boring', last_addr=None)
+        remaining_entries.add(ce)
 
-        while len(remaining_exits):
-            current_function_addr, previous_addr, parent_addr, state = \
-                remaining_exits.pop()
-            if previous_addr in traced_addresses:
+        while len(remaining_entries):
+            ce = remaining_entries.pop()
+
+            current_function_addr = ce.func_addr
+            addr = ce.addr
+            jumpkind = ce.jumpkind
+            src_node = ce.src_node
+
+            if addr in traced_addresses:
                 continue
-
-            # Add this node to the CFG first, in case this is a dangling node
-            self.graph.add_node(previous_addr)
 
             if current_function_addr != -1:
                 l.debug("Tracing new exit 0x%08x in function 0x%08x",
-                        previous_addr, current_function_addr)
+                        addr, current_function_addr)
             else:
-                l.debug("Tracing new exit 0x%08x", previous_addr)
-            traced_addresses.add(previous_addr)
+                l.debug("Tracing new exit 0x%08x", addr)
+            traced_addresses.add(addr)
 
-            self._scan_block(previous_addr, current_function_addr, function_exits, remaining_exits, traced_addresses)
+            self._scan_block(addr, current_function_addr, function_exits, remaining_entries, traced_addresses,
+                             jumpkind, src_node)
 
-    def _scan_block(self, addr, current_function_addr, function_exits, remaining_exits, traced_addresses):
+    def _scan_block(self, addr, current_function_addr, function_exits, remaining_entries, traced_addresses,
+                    previous_jumpkind, previous_src_node):
         """
         Scan a basic block starting at a specific address
 
         :param addr: The address to begin scanning
         :param current_function_addr: Address of the current function
         :param function_exits: Exits of the current function
-        :param remaining_exits: Remaining exits
+        :param remaining_entries: Remaining exits
         :param traced_addresses: Addresses that have already been traced
+        :param previous_jumpkind: The jumpkind of the edge going to this node
+        :param previous_src_node: The previous CFGNode
         :return: None
         """
 
@@ -545,11 +556,13 @@ class CFGFast(Analysis):
         try:
             irsb = self.project.factory.block(addr).vex
 
-            # Log the size of this basic block
-            self._block_size[addr] = irsb.size
+            # Create a CFG node, and add it to the graph
+            cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr)
+            self.graph.add_edge(previous_src_node, cfg_node, jumpkind=previous_jumpkind)
 
-            # Occupy the block
+            # Occupy the block in segment list
             self._seg_list.occupy(addr, irsb.size)
+
         except (AngrTranslationError, AngrMemoryError):
             return
 
@@ -568,8 +581,8 @@ class CFGFast(Analysis):
                 next_addr = None
 
             if jumpkind == 'Ijk_Boring' and next_addr is not None:
-                remaining_exits.add((current_function_addr, next_addr,
-                                     addr, None))
+                ce = CFGEntry(next_addr, current_function_addr, jumpkind, last_addr=addr, src_node=cfg_node)
+                remaining_entries.add(ce)
 
             elif jumpkind == 'Ijk_Call' and next_addr is not None:
                 self.function_manager._create_function_if_not_exist(next_addr)
@@ -586,9 +599,11 @@ class CFGFast(Analysis):
                     )
 
                 # Keep tracing from the call
-                remaining_exits.add((new_function_addr, next_addr, addr, None))
+                ce = CFGEntry(next_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node)
+                remaining_entries.add(ce)
                 # Also, keep tracing from the return site
-                remaining_exits.add((current_function_addr, return_site, addr, None))
+                ce = CFGEntry(return_site, current_function_addr, 'Ijk_Ret', last_addr=addr, src_node=cfg_node)
+                remaining_entries.add(ce)
 
             elif jumpkind == "Ijk_Boring" or jumpkind == "Ijk_Ret":
                 if current_function_addr != -1:
@@ -800,6 +815,8 @@ class CFGFast(Analysis):
         """
         Generate a list of all recovered basic blocks.
         """
+
+        # TODO: Reimplement this method
 
         lst = []
         for irsb_addr in self.graph.nodes():

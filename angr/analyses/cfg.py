@@ -440,10 +440,10 @@ class CFG(Analysis, CFGBase):
                 if node_key not in self._nodes:
                     # Generate a PathTerminator node
                     addr = self._simrun_key_addr(node_key)
-                    pt = CFGNode(callstack_key=self._simrun_key_callstack_key(node_key),
-                                 addr=self._simrun_key_addr(node_key),
-                                 size=None,
-                                 cfg=self,
+                    pt = CFGNode(self._simrun_key_addr(node_key),
+                                 None,
+                                 self,
+                                 callstack_key=self._simrun_key_callstack_key(node_key),
                                  input_state=None,
                                  simprocedure_name="PathTerminator",
                                  function_address=self._simrun_key_addr(node_key))
@@ -1069,10 +1069,10 @@ class CFG(Analysis, CFGBase):
             if (syscall is None and simrun.NO_RET) or (syscall is not None and simrun.syscall.NO_RET):
                 no_ret = True
 
-            cfg_node = CFGNode(call_stack_suffix,
-                               simrun.addr,
+            cfg_node = CFGNode(simrun.addr,
                                None,
                                self,
+                               callstack_key=call_stack_suffix,
                                input_state=None,
                                simprocedure_name=simproc_name,
                                syscall_name=syscall,
@@ -1082,10 +1082,10 @@ class CFG(Analysis, CFGBase):
                                function_address=simrun.addr)
 
         else:
-            cfg_node = CFGNode(call_stack_suffix,
-                               simrun.addr,
+            cfg_node = CFGNode(simrun.addr,
                                simrun.irsb.size,
                                self,
+                               callstack_key=call_stack_suffix,
                                input_state=None,
                                is_syscall=is_syscall,
                                syscall=syscall,
@@ -1990,7 +1990,7 @@ class CFG(Analysis, CFGBase):
 
                 if new_node is None:
                     # Create a new one
-                    new_node = CFGNode(callstack_key, n.addr, new_size, self, function_address=n.function_address)
+                    new_node = CFGNode(n.addr, new_size, self, callstack_key=callstack_key, function_address=n.function_address)
                     # Copy instruction addresses
                     new_node.instruction_addrs = [ins_addr for ins_addr in n.instruction_addrs
                                                   if ins_addr < n.addr + new_size]
