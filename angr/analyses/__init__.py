@@ -1,3 +1,4 @@
+from .cfg_fast import CFGFast
 from .cfg import CFG
 from .cdg import CDG
 from .ddg import DDG
