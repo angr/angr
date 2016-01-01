@@ -2,8 +2,6 @@ import logging
 import string
 import math
 import re
-import os
-import pickle
 from datetime import datetime
 from collections import defaultdict
 
@@ -12,6 +10,7 @@ import progressbar
 
 import simuvex
 import pyvex
+import cle
 
 from ..analysis import Analysis, register_analysis
 from ..surveyors import Slicecutor
@@ -259,7 +258,7 @@ class CFGFast(Analysis):
     """
 
     def __init__(self, binary=None, start=None, end=None, pickle_intermediate_results=False,
-                 symbols=True, function_prologues=True):
+                 symbols=True, function_prologues=True, resolve_indirect_jumps=True, force_segment=False):
         """
         Constructor
 
@@ -269,7 +268,10 @@ class CFGFast(Analysis):
         :param pickle_intermediate_results:
         :param symbols: Get function beginnings from symbols in the binary.
         :param function_prologues: Scan the binary for function prologues, and use those positions as function
-                                    beginnings
+                beginnings
+        :param resolve_indirect_jumps: Try to resolve indirect jumps. This is necessary to resolve jump targets from jump
+                tables, etc.
+        :param force_segment: Force CFGFast to rely on binary segments instead of sections.
         :return: None
         """
 
@@ -281,15 +283,13 @@ class CFGFast(Analysis):
 
         self._use_symbols = symbols
         self._use_function_prologues = function_prologues
+        self._resolve_indirect_jumps = resolve_indirect_jumps
+        self._force_segment = force_segment
 
         l.debug("Starts at 0x%08x and ends at 0x%08x.", self._start, self._end)
 
         # Get all valid memory regions
-        self._valid_memory_regions = sorted(
-                [(self._binary.rebase_addr + start, self._binary.rebase_addr + start + len(cbacker))
-                 for start, cbacker in self.project.loader.memory.cbackers],
-                key=lambda x: x[0]
-        )
+        self._valid_memory_regions = self._executable_memory_regions()
         self._valid_memory_region_size = sum([(end - start) for start, end in self._valid_memory_regions])
 
         self._next_addr = self._start - 1
@@ -351,6 +351,65 @@ class CFGFast(Analysis):
     #
     # Private methods
     #
+
+    def _executable_memory_regions(self):
+        """
+        Get all executable memory regions from the binary
+
+        :return: A sorted list of tuples (beginning_address, end_address)
+        """
+
+        memory_regions = [ ]
+        rebase_addr = self._binary.rebase_addr
+
+        if isinstance(self._binary, cle.ELF):
+            # If we have sections, we get result from sections
+            if not self._force_segment and self._binary.sections:
+                # Get all executable sections
+                for section in self._binary.sections:
+                    if section.is_executable:
+                        tpl = (rebase_addr + section.vaddr, rebase_addr + section.vaddr + section.memsize)
+                        memory_regions.append(tpl)
+
+            else:
+                # Get all executable segments
+                for segment in self._binary.segments:
+                    if segment.is_executable:
+                        tpl = (rebase_addr + segment.vaddr, rebase_addr + segment.vaddr + segment.memsize)
+                        memory_regions.append(tpl)
+
+        elif isinstance(self._binary, cle.PE):
+            for section in self._binary.sections:
+                if section.is_executable:
+                    tpl = (rebase_addr + section.vaddr, rebase_addr + section.vaddr + section.memsize)
+                    memory_regions.append(tpl)
+
+        else:
+            memory_regions = [
+                (self._binary.rebase_addr + start, self._binary.rebase_addr + start + len(cbacker))
+                for start, cbacker in self.project.loader.memory.cbackers
+                ]
+
+        memory_regions = sorted(memory_regions, key=lambda x: x[0])
+
+        return memory_regions
+
+    def _addr_in_memory_regions(self, addr):
+        """
+        Check if the rebased address locates inside any of the valid memory regions
+        :param addr: A rebased address
+        :return: True/False
+        """
+
+        for start, end in self._valid_memory_regions:
+            if addr < start:
+                # The list is ordered!
+                break
+
+            if addr >= start and addr < end:
+                return True
+
+        return False
 
     # Methods for scanning the entire image
 
@@ -489,7 +548,7 @@ class CFGFast(Analysis):
         # TODO: We shouldn't directly access the _memory of main_bin. An interface
         # TODO: to that would be awesome.
 
-        strides = self.project.loader.main_bin.memory.stride_repr
+        strides = self._binary.memory.stride_repr
 
         unassured_functions = []
 
@@ -499,13 +558,14 @@ class CFGFast(Analysis):
                 for mo in regex.finditer(bytes_):
                     position = mo.start() + start_
                     if position % self.project.arch.instruction_alignment == 0:
-                        unassured_functions.append(position)
+                        if self._addr_in_memory_regions(self._binary.rebase_addr + position):
+                            unassured_functions.append(position)
 
         return unassured_functions
 
     # Basic block scanning
 
-    def _scan_code(self, traced_addresses, function_exits, initial_state, starting_address):
+    def _scan_code(self, traced_addresses, function_exits, initial_state, starting_address, maybe_function):
         # Saving tuples like (current_function_addr, next_exit_addr)
         # Current_function_addr == -1 for exits not inside any function
         remaining_entries = set()
@@ -514,6 +574,10 @@ class CFGFast(Analysis):
         # Initialize the remaining_entries set
         ce = CFGEntry(next_addr, next_addr, 'Ijk_Boring', last_addr=None)
         remaining_entries.add(ce)
+
+        if maybe_function:
+            # Add it to function manager
+            self.function_manager._create_function_if_not_exist(next_addr)
 
         while len(remaining_entries):
             ce = remaining_entries.pop()
@@ -531,6 +595,11 @@ class CFGFast(Analysis):
                         addr, current_function_addr)
             else:
                 l.debug("Tracing new exit 0x%08x", addr)
+
+            # If we have traced it before, don't trace it anymore
+            if addr in traced_addresses:
+                continue
+
             traced_addresses.add(addr)
 
             self._scan_block(addr, current_function_addr, function_exits, remaining_entries, traced_addresses,
@@ -577,41 +646,51 @@ class CFGFast(Analysis):
 
             if type(target) is pyvex.IRExpr.Const:
                 next_addr = target.con.value
+            elif type(target) in (pyvex.IRConst.U32, pyvex.IRConst.U64):
+                next_addr = target.value
             else:
                 next_addr = None
 
-            if jumpkind == 'Ijk_Boring' and next_addr is not None:
-                ce = CFGEntry(next_addr, current_function_addr, jumpkind, last_addr=addr, src_node=cfg_node)
-                remaining_entries.add(ce)
+            if jumpkind == 'Ijk_Boring':
+                if next_addr is not None:
+                    ce = CFGEntry(next_addr, current_function_addr, jumpkind, last_addr=addr, src_node=cfg_node)
+                    remaining_entries.add(ce)
 
-            elif jumpkind == 'Ijk_Call' and next_addr is not None:
-                self.function_manager._create_function_if_not_exist(next_addr)
+                else:
+                    l.debug('(%s) Indirect jump at %#x. Not supported at the moment', jumpkind, addr)
 
-                new_function_addr = next_addr
-                return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
+            elif jumpkind == 'Ijk_Call':
+                if next_addr is not None:
+                    self.function_manager._create_function_if_not_exist(next_addr)
 
-                if current_function_addr != -1:
-                    self.function_manager.call_to(
-                        current_function_addr,
-                        addr,
-                        next_addr,
-                        return_site
-                    )
+                    new_function_addr = next_addr
+                    return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
 
-                # Keep tracing from the call
-                ce = CFGEntry(next_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node)
-                remaining_entries.add(ce)
-                # Also, keep tracing from the return site
-                ce = CFGEntry(return_site, current_function_addr, 'Ijk_Ret', last_addr=addr, src_node=cfg_node)
-                remaining_entries.add(ce)
+                    if current_function_addr != -1:
+                        self.function_manager.call_to(
+                            current_function_addr,
+                            addr,
+                            next_addr,
+                            return_site
+                        )
 
-            elif jumpkind == "Ijk_Boring" or jumpkind == "Ijk_Ret":
+                    # Keep tracing from the call
+                    ce = CFGEntry(next_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node)
+                    remaining_entries.add(ce)
+                    # Also, keep tracing from the return site
+                    ce = CFGEntry(return_site, current_function_addr, 'Ijk_Ret', last_addr=addr, src_node=cfg_node)
+                    remaining_entries.add(ce)
+
+                else:
+                    l.debug('(%s) Indirect jump at %#x. Not supported at the moment', jumpkind, addr)
+
+            elif jumpkind == "Ijk_Ret":
                 if current_function_addr != -1:
                     function_exits[current_function_addr].add(next_addr)
 
-                # If we have traced it before, don't trace it anymore
-                if next_addr in traced_addresses:
-                    return
+            else:
+                # TODO: Support more jumpkinds
+                l.debug("Unsupported jumpkind %s", jumpkind)
 
     def _process_indirect_jumps(self):
         """
@@ -756,17 +835,21 @@ class CFGFast(Analysis):
 
         starting_points = set()
 
+        rebase_addr = self._binary.rebase_addr
+
         if self._use_symbols:
-            starting_points |= set(self._func_addrs_from_symbols())
+            starting_points |= set([ addr + rebase_addr for addr in self._func_addrs_from_symbols() ])
 
         if self._use_function_prologues:
-            starting_points |= set(self._func_addrs_from_prologues())
+            starting_points |= set([ addr + rebase_addr for addr in self._func_addrs_from_prologues() ])
 
         starting_points = sorted(list(starting_points), reverse=True)
 
         while True:
+            maybe_function = False
             if starting_points:
                 next_addr = starting_points.pop()
+                maybe_function = True
 
                 if self._seg_list.is_occupied(next_addr):
                     continue
@@ -785,7 +868,7 @@ class CFGFast(Analysis):
                 l.info('No more addr to analyze. Progress %0.04f%%', percentage)
                 break
 
-            self._scan_code(traced_address, function_exits, initial_state, next_addr)
+            self._scan_code(traced_address, function_exits, initial_state, next_addr, maybe_function)
 
         pb.finish()
         end_time = datetime.now()
