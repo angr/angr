@@ -25,9 +25,12 @@ def cfg_fast(arch, binary_path, func_addrs):
     proj = angr.Project(path, load_options={'auto_load_libs': False})
 
     cfg = proj.analyses.CFGFast()
-
     function_manager = cfg.function_manager
+    nose.tools.assert_true(set(function_manager.functions.keys()).issuperset(func_addrs))
 
+    # Segment only
+    cfg = proj.analyses.CFGFast(force_segment=True)
+    function_manager = cfg.function_manager
     nose.tools.assert_true(set(function_manager.functions.keys()).issuperset(func_addrs))
 
 def test_cfg_0():
@@ -48,8 +51,25 @@ def test_cfg_0():
     for arch in arches:
         yield cfg_fast, arch, filename, functions[arch]
 
+def test_cfg_0_pe():
+    filename = 'cfg_0_pe'
+    functions = {
+        'x86_64': {
+            # 0x40150a,  # currently angr identifies 0x40150e due to the way _func_addrs_from_prologues() is
+                         # implemented. this issue can be resolved with a properly implemented approach like Byte-Weight
+            0x4014f0,
+        }
+    }
+    arches = functions.keys()
+
+    for arch in arches:
+        yield cfg_fast, arch, filename, functions[arch]
+
 def main():
     for func, arch, filename, functions in test_cfg_0():
+        func(arch, filename, functions)
+
+    for func, arch, filename, functions in test_cfg_0_pe():
         func(arch, filename, functions)
 
 if __name__ == "__main__":
