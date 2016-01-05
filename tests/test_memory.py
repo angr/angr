@@ -480,7 +480,7 @@ def test_fullpage_write():
     assert b is a
 
 def test_symbolic_write():
-    s = simuvex.SimState(arch='AMD64')
+    s = simuvex.SimState(arch='AMD64', add_options={simuvex.options.SYMBOLIC_WRITE_ADDRESSES})
     x = s.se.BVS('x', 64)
     y = s.se.BVS('y', 64)
     a = s.se.BVV('A'*0x10)
@@ -488,7 +488,6 @@ def test_symbolic_write():
     c = s.se.BVV('C')
     d = s.se.BVV('D')
 
-    s.memory._default_write_strategy = [ 'symbolic', 'max' ]
     s.memory.store(0x10, a)
     s.add_constraints(x >= 0x10, x < 0x20)
     s.memory.store(x, b)
