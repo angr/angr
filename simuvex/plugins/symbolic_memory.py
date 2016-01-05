@@ -239,15 +239,12 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if any([ "multiwrite" in c for c in self.state.se.variables(addr) ]):
                 l.debug("... defaulting to symbolic write!")
                 strategy = self._default_symbolic_write_strategy
-                limit = self._symbolic_write_address_range if limit is None else limit
-                approx_limit = self._symbolic_write_address_range_approx if approx_limit is None else limit
             else:
                 l.debug("... defaulting to concrete write!")
                 strategy = self._default_write_strategy
-                limit = self._write_address_range if limit is None else limit
-                approx_limit = self._write_address_range_approx if approx_limit is None else approx_limit
-        limit = self._write_address_range if limit is None else limit
 
+        approx_limit = self._write_address_range_approx if approx_limit is None else approx_limit
+        limit = self._write_address_range if limit is None else limit
         return self._concretize_addr(addr, strategy=strategy, limit=limit, approx_limit=approx_limit)
 
     def concretize_read_addr(self, addr, strategy=None, limit=None):
