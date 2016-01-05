@@ -223,15 +223,19 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         self.mem.state = s
 
         if self.state is not None and self._default_read_strategy is None:
-            # default strategies
+            self._default_read_strategy = ['symbolic', 'any']
+            self._default_symbolic_write_strategy = [ 'symbolic_nonzero', 'any' ]
+            self._default_write_strategy = [ 'max' ] #[ 'norepeats',  'any' ]
+
             if options.APPROXIMATE_MEMORY_INDICES in self.state.options:
-                self._default_read_strategy = [ 'symbolic_approx', 'symbolic', 'any' ]
-                self._default_symbolic_write_strategy = [ 'symbolic_nonzero_approx', 'symbolic_nonzero', 'any' ]
-                self._default_write_strategy = [ 'max_approx', 'max' ] #[ 'norepeats',  'any' ]
-            else:
-                self._default_read_strategy = ['symbolic', 'any']
-                self._default_symbolic_write_strategy = [ 'symbolic_nonzero', 'any' ]
-                self._default_write_strategy = [ 'max' ] #[ 'norepeats',  'any' ]
+                self._default_read_strategy.insert(0, 'symbolic_approx')
+                self._default_symbolic_write_strategy.insert(0, 'symbolic_nonzero_approx')
+                self._default_write_strategy.insert(0, 'max_approx')
+
+            if options.SYMBOLIC_WRITE_ADDRESSES in self.state.options:
+                self._default_write_strategy.insert(0, 'symbolic_nonzero')
+                if options.APPROXIMATE_MEMORY_INDICES in self.state.options:
+                    self._default_write_strategy.insert(0, 'symbolic_nonzero_approx')
 
     def _ana_getstate(self):
         return self.__dict__.copy()
