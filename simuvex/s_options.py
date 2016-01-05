@@ -93,6 +93,9 @@ ABSTRACT_MEMORY = "ABSTRACT_MEMORY"
 AVOID_MULTIVALUED_READS = "AVOID_SYMBOLIC_READS"
 AVOID_MULTIVALUED_WRITES = "AVOID_SYMBOLIC_WRITES"
 
+# This causes angr to support fully symbolic writes. It is very likely that speed will suffer.
+SYMBOLIC_WRITE_ADDRESSES = "SYMBOLIC_WRITE_ADDRESSES"
+
 # This causes symbolic memory to avoid concretizing memory address to a single value when the
 # range check fails.
 CONSERVATIVE_WRITE_STRATEGY = "CONSERVATIVE_WRITE_STRATEGY"
