@@ -48,6 +48,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                               endness=self.endness,
                               abstract_backer=self._abstract_backer)
 
+        c._default_read_strategy = list(self._default_read_strategy)
+        c._default_write_strategy = list(self._default_write_strategy)
+        c._default_symbolic_write_strategy = list(self._default_symbolic_write_strategy)
         return c
 
     def merge(self, others, flag, flag_values):
