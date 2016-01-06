@@ -35,6 +35,10 @@ rex:
     script: "angr-test rex"
     tags: [angr]
 
+pwnrex:
+    script: "angr-test pwnrex"
+    tags: [angr]
+
 docs:
     script: "angr-test docs"
     tags: [angr]
