@@ -14,6 +14,7 @@ import simuvex.procedures
 from .procedures import SimProcedures
 from .s_run import *
 import simuvex.s_options as o
+import simuvex.s_options as options
 from .s_pcap import *
 from .plugins import *
 from .vex.irsb import SimIRSB

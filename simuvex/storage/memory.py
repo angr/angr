@@ -273,15 +273,11 @@ class SimMemory(SimStatePlugin):
         # These are some performance-critical thresholds
         #
 
-        # The maximum range of a specifically-symbolic write address. If an address range is greater
-        # than this number, SimMemory will simply concretize it.
-        self._symbolic_write_address_range = 17
-        self._symbolic_write_address_range_approx = 17
-
         # The maximum range of a normal write operation. If an address range is greater than this number,
-        # SimMemory will simply concretize it.
-        self._write_address_range = 1
-        self._write_address_range_approx = 1
+        # SimMemory will simply concretize it to a single value. Note that this is only relevant when
+        # the "symbolic" concretization strategy is enabled for writes.
+        self._write_address_range = 128
+        self._write_address_range_approx = 128
 
         # The maximum range of a symbolic read address. If an address range is greater than this number,
         # SimMemory will simply concretize it.

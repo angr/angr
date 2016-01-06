@@ -479,7 +479,34 @@ def test_fullpage_write():
     b = s.memory.load(0, 0x1000000)
     assert b is a
 
+def test_symbolic_write():
+    s = simuvex.SimState(arch='AMD64', add_options={simuvex.options.SYMBOLIC_WRITE_ADDRESSES})
+    x = s.se.BVS('x', 64)
+    y = s.se.BVS('y', 64)
+    a = s.se.BVV('A'*0x10)
+    b = s.se.BVV('B')
+    c = s.se.BVV('C')
+    d = s.se.BVV('D')
+
+    s.memory.store(0x10, a)
+    s.add_constraints(x >= 0x10, x < 0x20)
+    s.memory.store(x, b)
+
+    for i in range(0x10, 0x20):
+        assert len(s.se.any_n_int(s.memory.load(i, 1), 10)) == 2
+
+    s.memory.store(x, c)
+    for i in range(0x10, 0x20):
+        assert len(s.se.any_n_int(s.memory.load(i, 1), 10)) == 2
+
+    s2 = s.copy()
+    s2.add_constraints(y >= 0x10, y < 0x20)
+    s2.memory.store(y, d)
+    for i in range(0x10, 0x20):
+        assert len(s2.se.any_n_int(s2.memory.load(i, 1), 10)) == 3
+
 if __name__ == '__main__':
+    test_symbolic_write()
     test_fullpage_write()
     test_memory()
     test_copy()
@@ -487,4 +514,3 @@ if __name__ == '__main__':
     test_abstract_memory()
     test_abstract_memory_find()
     test_registers()
-
