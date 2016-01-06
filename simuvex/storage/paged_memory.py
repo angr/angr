@@ -16,10 +16,11 @@ l = logging.getLogger('simuvex.storage.paged_memory')
 #pylint:disable=unidiomatic-typecheck
 
 class SimPagedMemory(collections.MutableMapping):
-    def __init__(self, backer=None, pages=None, name_mapping=None, hash_mapping=None, page_size=None):
+    def __init__(self, backer=None, pages=None, sinkholes=None, name_mapping=None, hash_mapping=None, page_size=None):
         self._cowed = { }
         self._backer = { } if backer is None else backer
         self._pages = { } if pages is None else pages
+        self._sinkholes = { } if sinkholes is None else sinkholes
         self._page_size = 0x1000 if page_size is None else page_size
         self.state = None
 
@@ -32,6 +33,7 @@ class SimPagedMemory(collections.MutableMapping):
         return {
             '_backer': self._backer,
             '_pages': self._pages,
+            '_sinkholes': self._sinkholes,
             '_page_size': self._page_size,
             'state': self.state,
             '_name_mapping': self._name_mapping,
@@ -42,12 +44,12 @@ class SimPagedMemory(collections.MutableMapping):
         self.__dict__.update(s)
 
     def branch(self):
-        new_pages = { k:v.branch() for k,v in self._pages.iteritems() }
         new_name_mapping = self._name_mapping.branch() if options.REVERSE_MEMORY_NAME_MAP in self.state.options else self._name_mapping
         new_hash_mapping = self._hash_mapping.branch() if options.REVERSE_MEMORY_HASH_MAP in self.state.options else self._hash_mapping
 
         m = SimPagedMemory(backer=self._backer,
-                           pages=new_pages,
+                           pages=dict(self._pages),
+                           sinkholes=dict(self._sinkholes),
                            page_size=self._page_size,
                            name_mapping=new_name_mapping,
                            hash_mapping=new_hash_mapping)
@@ -92,7 +94,7 @@ class SimPagedMemory(collections.MutableMapping):
                 the_bytes[i] = b
 
                 page = self._get_page(page_num, write=False)
-                if page._sinkholed and len(page) == 0:
+                if self._sinkholed(page_num) and len(page) == 0:
                     i += self._page_size - actual_addr%self._page_size
                 else:
                     i += 1
@@ -171,6 +173,20 @@ class SimPagedMemory(collections.MutableMapping):
 
         return page
 
+    def _sinkhole(self, page_num, value, wipe=True):
+        #self._sinkholes[page_num] = value
+        #if wipe:
+        #   self._get_page(page_num, write=True)[:] = [None]*self._page_size
+        self._get_page(page_num).sinkhole(value, wipe=wipe)
+
+    def _sinkholed(self, page_num):
+        #return page_num in self._sinkholes
+        return self._get_page(page_num)._sinkholed
+
+    def _sinkhole_value(self, page_num):
+        #return self._sinkholes[page_num]
+        return self._get_page(page_num)._sinkhole_value
+
     def __contains__(self, addr):
         try:
             self.__getitem__(addr)
@@ -182,7 +198,7 @@ class SimPagedMemory(collections.MutableMapping):
         for k in self._backer:
             yield k
         for p in self._pages:
-            if not self._pages[p]._sinkholed:
+            if not self._sinkholed(p):
                 for a in self._pages[p]:
                     yield p*self._page_size + a
             else:
@@ -190,7 +206,7 @@ class SimPagedMemory(collections.MutableMapping):
                     yield p*self._page_size + a
 
     def __len__(self):
-        return sum((len(v) if not self._pages._sinkholed else self._page_size) for v in self._pages.itervalues())
+        return sum((len(self._pages[k]) if not self._sinkholed(k) else self._page_size) for k in self._pages.iterkeys())
 
     def changed_bytes(self, other):
         '''
@@ -226,7 +242,7 @@ class SimPagedMemory(collections.MutableMapping):
                 our_changes, our_deletions = our_page.changes_since(common_ancestor)
                 their_changes, their_deletions = their_page.changes_since(common_ancestor)
 
-            if our_page._sinkholed or their_page._sinkholed and our_page._sinkhole_value is not their_page._sinkhole_value:
+            if self._sinkholed(p) or other._sinkholed(p) and self._sinkhole_value(p) is not other._sinkhole_value(p):
                 sinkhole_changes = set(range(self._page_size)) - set(their_page.iterkeys()) - set(our_page.iterkeys())
             else:
                 sinkhole_changes = set()
@@ -295,7 +311,7 @@ class SimPagedMemory(collections.MutableMapping):
 
             if mo.base <= p and mo.base + mo.length >= p + self._page_size:
                 # takes up the whole page
-                page.sinkhole(mo, wipe=overwrite)
+                self._sinkhole(page_num, mo, wipe=overwrite)
             else:
                 for a in range(max(mo.base, p), min(mo.base+mo.length, p+self._page_size)):
                     if overwrite or a%self._page_size not in page:
