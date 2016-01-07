@@ -149,13 +149,11 @@ class SimPagedMemory(collections.MutableMapping):
     # Page management
     #
 
-    @staticmethod
-    def _create_page():
-        #return [None]*self._page_size
-        return { }
+    def _create_page(self):
+        return [None]*self._page_size
 
     def _copy_page(self, page_num):
-        return dict(self._pages[page_num])
+        return list(self._pages[page_num])
 
     def _initialize_page(self, n, new_page):
         if n in self._initialized:
@@ -233,8 +231,7 @@ class SimPagedMemory(collections.MutableMapping):
 
     def __contains__(self, addr):
         try:
-            self.__getitem__(addr)
-            return True
+            return self.__getitem__(addr) is not None
         except KeyError:
             return False
 
@@ -250,7 +247,7 @@ class SimPagedMemory(collections.MutableMapping):
                     yield p*self._page_size + a
 
     def __len__(self):
-        return sum((len(self._pages[k]) if not self._sinkholed(k) else self._page_size) for k in self._pages.iterkeys())
+        return sum((sum(v for v in self._pages[k] if v is not None) if not self._sinkholed(k) else self._page_size) for k in self._pages.iterkeys())
 
     def changed_bytes(self, other):
         '''
@@ -270,24 +267,27 @@ class SimPagedMemory(collections.MutableMapping):
 
         candidates = set()
         for p in their_additions:
-            candidates.update([ (p*self._page_size)+i for i in other._pages[p] ])
+            the_keys = set(e for e,v in enumerate(other._pages[p]) if v is not None)
+            candidates.update([ (p*self._page_size)+i for i in the_keys ])
         for p in our_additions:
-            candidates.update([ (p*self._page_size)+i for i in self._pages[p] ])
+            the_keys = set(e for e,v in enumerate(self._pages[p]) if v is not None)
+            candidates.update([ (p*self._page_size)+i for i in the_keys ])
 
         for p in common_pages:
             our_page = self._pages[p]
             their_page = other._pages[p]
+            changes = [ i for i in range(self._page_size) if our_page[i] is not their_page[i] ]
+            candidates.update([ (p*self._page_size)+i for i in changes ])
 
-            our_changes, our_deletions = set(our_page.iterkeys()), set()
-            their_changes, their_deletions = set(their_page.iterkeys()), set()
+        our_sinkholes = set(self._sinkholes.keys())
+        their_sinkholes = set(other._sinkholes.keys())
+        sinkhole_changes = (our_sinkholes - their_sinkholes) | (their_sinkholes - our_sinkholes)
+        for s in our_sinkholes & their_sinkholes:
+            if self._sinkholes[s] is not other._sinkholes[s]:
+                sinkhole_changes.add(s)
 
-            if self._sinkhole_value(p) is not other._sinkhole_value(p):
-                sinkhole_changes = set(range(self._page_size)) - set(their_page.iterkeys()) - set(our_page.iterkeys())
-            else:
-                sinkhole_changes = set()
-
-
-            candidates.update([ (p*self._page_size)+i for i in our_changes | our_deletions | their_changes | their_deletions | sinkhole_changes ])
+        for s in sinkhole_changes:
+            candidates.update(range(s*self._page_size, (s+1)*self._page_size))
 
         #both_changed = our_changes & their_changes
         #ours_changed_only = our_changes - both_changed
