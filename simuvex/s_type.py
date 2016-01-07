@@ -102,15 +102,19 @@ class SimTypeReg(SimType):
         return state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
 
     def store(self, state, addr, value):
+        store_endness = state.arch.memory_endness
+
         if isinstance(value, claripy.ast.BV):
             if value.size() != self.size:
                 raise ValueError("size of expression is wrong size for type")
         elif isinstance(value, (int, long)):
             value = state.se.BVV(value, self.size)
+        elif isinstance(value, str):
+            store_endness = 'Iend_BE'
         else:
             raise TypeError("unrecognized expression type for SimType {}".format(type(self).__name__))
 
-        state.memory.store(addr, value, endness=state.arch.memory_endness)
+        state.memory.store(addr, value, endness=store_endness)
 
 class SimTypeInt(SimTypeReg):
     '''
