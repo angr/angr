@@ -60,7 +60,10 @@ class SimPagedMemory(collections.MutableMapping):
         page_idx = addr % self._page_size
         #print "GET", addr, page_num, page_idx
 
-        return self._get_page(page_num, write=False)[page_idx]
+        if self._sinkholed(page_num):
+            return self._get_page(page_num, write=False).get(page_idx, self._sinkhole_value(page_num))
+        else:
+            return self._get_page(page_num, write=False)[page_idx]
 
     def __setitem__(self, addr, v):
         page_num = addr / self._page_size
@@ -87,13 +90,16 @@ class SimPagedMemory(collections.MutableMapping):
         i = 0
         while i < num_bytes:
             actual_addr = addr + i
-            page_num = actual_addr/self._page_size
+            page_num = actual_addr / self._page_size
+            page_idx = actual_addr % self._page_size
 
             try:
-                b = self[actual_addr]
-                the_bytes[i] = b
-
                 page = self._get_page(page_num, write=False)
+                if self._sinkholed(page_num) and page_idx not in page:
+                    the_bytes[i] = self._sinkhole_value(page_num)
+                else:
+                    the_bytes[i] = page[page_idx]
+
                 if self._sinkholed(page_num) and len(page) == 0:
                     i += self._page_size - actual_addr%self._page_size
                 else:
@@ -115,10 +121,10 @@ class SimPagedMemory(collections.MutableMapping):
     @staticmethod
     def _create_page():
         #return [None]*self._page_size
-        return cooldict.SinkholeCOWDict()
+        return { }
 
     def _copy_page(self, page_num):
-        return self._pages[page_num].branch()
+        return dict(self._pages[page_num])
 
     def _initialize_page(self, n):
         new_page = self._create_page()
@@ -174,18 +180,15 @@ class SimPagedMemory(collections.MutableMapping):
         return page
 
     def _sinkhole(self, page_num, value, wipe=True):
-        #self._sinkholes[page_num] = value
-        #if wipe:
-        #   self._get_page(page_num, write=True)[:] = [None]*self._page_size
-        self._get_page(page_num).sinkhole(value, wipe=wipe)
+        self._sinkholes[page_num] = value
+        if wipe:
+            self._get_page(page_num, write=True).clear()
 
     def _sinkholed(self, page_num):
-        #return page_num in self._sinkholes
-        return self._get_page(page_num)._sinkholed
+        return page_num in self._sinkholes
 
     def _sinkhole_value(self, page_num):
-        #return self._sinkholes[page_num]
-        return self._get_page(page_num)._sinkhole_value
+        return self._sinkholes.get(page_num, None)
 
     def __contains__(self, addr):
         try:
@@ -234,15 +237,10 @@ class SimPagedMemory(collections.MutableMapping):
             our_page = self._pages[p]
             their_page = other._pages[p]
 
-            common_ancestor = our_page.common_ancestor(their_page)
-            if common_ancestor == None:
-                our_changes, our_deletions = set(our_page.iterkeys()), set()
-                their_changes, their_deletions = set(their_page.iterkeys()), set()
-            else:
-                our_changes, our_deletions = our_page.changes_since(common_ancestor)
-                their_changes, their_deletions = their_page.changes_since(common_ancestor)
+            our_changes, our_deletions = set(our_page.iterkeys()), set()
+            their_changes, their_deletions = set(their_page.iterkeys()), set()
 
-            if self._sinkholed(p) or other._sinkholed(p) and self._sinkhole_value(p) is not other._sinkhole_value(p):
+            if self._sinkhole_value(p) is not other._sinkhole_value(p):
                 sinkhole_changes = set(range(self._page_size)) - set(their_page.iterkeys()) - set(our_page.iterkeys())
             else:
                 sinkhole_changes = set()
