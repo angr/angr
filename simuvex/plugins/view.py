@@ -54,6 +54,10 @@ class SimMemView(SimStatePlugin):
     def set_state(self, state):
         super(SimMemView, self).set_state(state)
 
+        # Make sure self._addr is always an AST
+        if isinstance(self._addr, (int, long)):
+            self._addr = self.state.se.BVV(self._addr, self.state.arch.bits)
+
     def _deeper(self, **kwargs):
         if 'ty' not in kwargs:
             kwargs['ty'] = self._type
