@@ -313,7 +313,7 @@ class Project(object):
 
         if not isinstance(obj, (int, long)):
             pseudo_addr = self._extern_obj.get_pseudo_addr(ident)
-            pseudo_vaddr = pseudo_addr = self._extern_obj.rebase_addr
+            pseudo_vaddr = pseudo_addr - self._extern_obj.rebase_addr
 
             if self.is_hooked(pseudo_addr):
                 l.warning("Re-hooking symbol " + symbol_name)
