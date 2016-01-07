@@ -119,7 +119,11 @@ class SimPagedMemory(collections.MutableMapping):
                     page = self._get_page(page_num)
                     old_page_num = page_num
 
-                v = page[page_idx]
+                try:
+                    v = page[page_idx]
+                except KeyError:
+                    v = None
+
                 if v is not None:
                     # this value is present
                     the_bytes[i] = v
@@ -236,18 +240,30 @@ class SimPagedMemory(collections.MutableMapping):
             return False
 
     def __iter__(self):
-        for k in self._backer:
-            yield k
+        sofar = set()
+        for s in self._sinkholes:
+            sofar.update(range(s*self._page_size, (s+1)*self._page_size))
+
+        sofar.update(self._backer.keys())
+
         for p in self._pages:
             if not self._sinkholed(p):
-                for a in self._pages[p]:
-                    yield p*self._page_size + a
+                sofar.update(p*self._page_size + a for a in self._page_keys(self._pages[p]))
             else:
-                for a in range(self._page_size):
-                    yield p*self._page_size + a
+                sofar.update(range(p*self._page_size, (p+1)*self._page_size))
+
+        for i in sofar:
+            yield i
 
     def __len__(self):
-        return sum((sum(v for v in self._pages[k] if v is not None) if not self._sinkholed(k) else self._page_size) for k in self._pages.iterkeys())
+        return sum((len(self._page_keys(k)) if not self._sinkholed(k) else self._page_size) for k in self._pages.iterkeys())
+
+    @staticmethod
+    def _page_keys(page):
+        if type(page) is list:
+            return set(e for e,v in enumerate(page) if v is not None)
+        else:
+            return set(page.keys())
 
     def changed_bytes(self, other):
         '''
@@ -267,16 +283,16 @@ class SimPagedMemory(collections.MutableMapping):
 
         candidates = set()
         for p in their_additions:
-            the_keys = set(e for e,v in enumerate(other._pages[p]) if v is not None)
-            candidates.update([ (p*self._page_size)+i for i in the_keys ])
+            candidates.update([ (p*self._page_size)+i for i in self._page_keys(other._pages[p]) ])
         for p in our_additions:
-            the_keys = set(e for e,v in enumerate(self._pages[p]) if v is not None)
-            candidates.update([ (p*self._page_size)+i for i in the_keys ])
+            candidates.update([ (p*self._page_size)+i for i in self._page_keys(self._pages[p]) ])
 
         for p in common_pages:
             our_page = self._pages[p]
             their_page = other._pages[p]
-            changes = [ i for i in range(self._page_size) if our_page[i] is not their_page[i] ]
+            our_keys = self._page_keys(our_page)
+            their_keys = self._page_keys(their_page)
+            changes = (our_keys - their_keys) | (their_keys - our_keys) | { i for i in (our_keys & their_keys) if our_page[i] is not their_page[i] }
             candidates.update([ (p*self._page_size)+i for i in changes ])
 
         our_sinkholes = set(self._sinkholes.keys())
@@ -346,7 +362,7 @@ class SimPagedMemory(collections.MutableMapping):
         else:
             page = self._get_page(page_num, write=True, create=True) if page is None else page
             for a in range(max(mo.base, page_base), min(mo.base+mo.length, page_base+self._page_size)):
-                if overwrite or page[a%self._page_size] is None:
+                if overwrite or (type(page) is list and page[a%self._page_size] is None) or (type(page) is not list and a%self._page_size not in page):
                     page[a%self._page_size] = mo
             return True
 
