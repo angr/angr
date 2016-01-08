@@ -21,4 +21,16 @@ from .simos import SimOS
 from .path_group import PathGroup
 from .surveyors.caller import Callable
 from .log import Loggers
-loggers = Loggers(logging.ERROR)
+
+import sys
+i = 0
+while True:
+    i += 1
+    module = sys._getframe(i).f_globals.get('__name__')
+    if module == '__main__':
+        loggers = Loggers()
+        break
+    elif module == 'nose.importer':
+        break
+
+del sys, i, module
