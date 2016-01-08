@@ -124,7 +124,7 @@ class Project(object):
         self._parallel = parallel
         self._support_selfmodifying_code = support_selfmodifying_code
         self._ignore_functions = ignore_functions
-        self._extern_obj = AngrExternObject()
+        self._extern_obj = AngrExternObject(self.arch)
         self.loader.add_object(self._extern_obj)
 
         self._cfg = None
@@ -138,9 +138,6 @@ class Project(object):
 
         projects[self.filename] = self
 
-        # Step 4: Register simprocedures as appropriate for library functions
-        self._use_sim_procedures()
-
         # Step 5: determine the host OS and perform additional initialization
         # in the SimOS constructor
         if isinstance(simos, type) and issubclass(simos, SimOS):
@@ -150,6 +147,9 @@ class Project(object):
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
         self._simos.configure_project()
+
+        # Step 4: Register simprocedures as appropriate for library functions
+        self._use_sim_procedures()
 
     def _use_sim_procedures(self):
         """
@@ -312,7 +312,7 @@ class Project(object):
             ident += '.' + kwargs['resolves']
 
         if not isinstance(obj, (int, long)):
-            pseudo_addr = self._extern_obj.get_pseudo_addr(ident)
+            pseudo_addr = self._simos.prepare_function_symbol(ident)
             pseudo_vaddr = pseudo_addr - self._extern_obj.rebase_addr
 
             if self.is_hooked(pseudo_addr):

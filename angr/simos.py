@@ -111,6 +111,12 @@ class SimOS(object):
 
         return new_state
 
+    def prepare_function_symbol(self, symbol_name):
+        '''
+        Prepare the address space with the data necessary to perform relocations pointing to the given symbol
+        '''
+        return self.proj._extern_obj.get_pseudo_addr(symbol_name)
+
 class SimLinux(SimOS):
     """OS-specific configuration for *nix-y OSes"""
     def __init__(self, *args, **kwargs):
@@ -302,6 +308,18 @@ class SimLinux(SimOS):
         kwargs['addr'] = self.proj._extern_obj.get_pseudo_addr('angr##loader')
         return super(SimLinux, self).state_full_init(**kwargs)
 
+    def prepare_function_symbol(self, symbol_name):
+        '''
+        Prepare the address space with the data necessary to perform relocations pointing to the given symbol
+        '''
+        if self.arch.name == 'PPC64':
+            pseudo_hookaddr = self.proj._extern_obj.get_pseudo_addr(symbol_name + '#func')
+            pseudo_toc = self.proj._extern_obj.get_pseudo_addr(symbol_name + '#func', size=0x18)
+            self.proj._extern_obj.memory.write_addr_at(pseudo_toc, pseudo_hookaddr)
+            return pseudo_hookaddr
+        else:
+            return self.proj._extern_obj.get_pseudo_addr(symbol_name)
+
 class SimCGC(SimOS):
     def state_blank(self, fs=None, **kwargs):
 
@@ -312,7 +330,7 @@ class SimCGC(SimOS):
             all_options |= kwargs['options']
         if 'add_options' in kwargs:
             all_options |= kwargs['add_options']
-        if (o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in all_options):
+        if o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in all_options:
             # s.options.add(o.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
             kwargs['add_options'] = kwargs['add_options'] if 'add_options' in kwargs else set()
             kwargs['add_options'].add(o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
