@@ -2,7 +2,8 @@
 
 import logging
 l = logging.getLogger("simuvex.storage.memory")
-
+l.setLevel("DEBUG")
+from claripy.ast.bv import BV
 import claripy
 from ..plugins.plugin import SimStatePlugin
 
@@ -543,6 +544,12 @@ class SimMemory(SimStatePlugin):
 
             <A If(condition, BVV(0x41, 32), fallback)>
         '''
+        l.debug("Addr: %s", addr)
+        # if isinstance(addr, BV) and addr.concrete and addr._model_concrete.value == 0x8049B84:
+        #     import ipdb
+        #     ipdb.set_trace()
+
+
         add_constraints = True if add_constraints is None else add_constraints
 
         addr_e = _raw_ast(addr)

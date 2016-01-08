@@ -4,6 +4,7 @@ import logging
 l = logging.getLogger("simuvex.s_run")
 
 import simuvex.s_options as o
+from claripy.ast.bv import BV
 
 class SimRun(object):
     def __init__(self, state, addr=None, inline=False, custom_name=None):
@@ -100,13 +101,13 @@ class SimRun(object):
                 addrs = state.se.any_n_int(target, 257)
 
                 if len(addrs) > 256:
-                    l.warning("Exit state has over 257 possible solutions. Likely unconstrained; skipping.")
+                    l.warning("Exit state has over 257 possible solutions. Likely unconstrained; skipping. %s", target)
                     self.unconstrained_successors.append(state.copy())
                 else:
                     for a in addrs:
                         split_state = state.copy()
                         split_state.add_constraints(target == a, action=True)
-                        split_state.regs.ip = a
+                        split_state.regs.ip = target
                         self.flat_successors.append(split_state)
                     self.successors.append(state)
             except SimSolverModeError:
@@ -122,7 +123,9 @@ class SimRun(object):
             else:
                 return self._custom_name
         elif self.addr is not None:
-            if self.addr >= 0:
+            if isinstance(self.addr, BV):
+                return str(self.addr)
+            elif self.addr >= 0:
                 return "0x%x" % self.addr
             elif self.addr == -1:
                 # This is a syscall
