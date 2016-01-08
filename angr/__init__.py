@@ -30,7 +30,7 @@ while True:
     if module == '__main__':
         loggers = Loggers()
         break
-    elif module.startswith('nose.'):
+    elif module is not None and module.startswith('nose.'):
         break
 
 del sys, i, module
