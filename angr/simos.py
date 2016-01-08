@@ -315,7 +315,7 @@ class SimLinux(SimOS):
         if self.arch.name == 'PPC64':
             pseudo_hookaddr = self.proj._extern_obj.get_pseudo_addr(symbol_name + '#func')
             pseudo_toc = self.proj._extern_obj.get_pseudo_addr(symbol_name + '#func', size=0x18)
-            self.proj._extern_obj.memory.write_addr_at(pseudo_toc, pseudo_hookaddr)
+            self.proj._extern_obj.memory.write_addr_at(pseudo_toc - self.proj._extern_obj.rebase_addr, pseudo_hookaddr)
             return pseudo_hookaddr
         else:
             return self.proj._extern_obj.get_pseudo_addr(symbol_name)
