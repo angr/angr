@@ -159,7 +159,7 @@ class SimSolver(SimStatePlugin):
             return f
 
     def __dir__(self):
-        return sorted(set(dir(super(SimSolver, self)) + dir(claripy._all_operations)))
+        return sorted(set(dir(super(SimSolver, self)) + dir(claripy._all_operations) + dir(self.__class__)))
 
     #
     # Branching stuff
