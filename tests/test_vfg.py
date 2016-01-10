@@ -45,7 +45,7 @@ def run_vfg_0(arch):
     nose.tools.assert_greater(len(vfg.final_states), 0)
     states = vfg.final_states
     nose.tools.assert_equal(len(states), 2)
-    stack_check_fail = proj._extern_obj.get_pseudo_addr('simuvex.procedures.libc___so___6.__stack_chk_fail.__stack_chk_fail')
+    stack_check_fail = proj._extern_obj.get_pseudo_addr('symbol hook: __stack_chk_fail')
     nose.tools.assert_equal(set([ s.se.exactly_int(s.ip) for s in states ]),
                             {
                                 stack_check_fail,

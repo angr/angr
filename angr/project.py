@@ -124,7 +124,7 @@ class Project(object):
         self._parallel = parallel
         self._support_selfmodifying_code = support_selfmodifying_code
         self._ignore_functions = ignore_functions
-        self._extern_obj = AngrExternObject()
+        self._extern_obj = AngrExternObject(self.arch)
         self.loader.add_object(self._extern_obj)
 
         self._cfg = None
@@ -138,9 +138,6 @@ class Project(object):
 
         projects[self.filename] = self
 
-        # Step 4: Register simprocedures as appropriate for library functions
-        self._use_sim_procedures()
-
         # Step 5: determine the host OS and perform additional initialization
         # in the SimOS constructor
         if isinstance(simos, type) and issubclass(simos, SimOS):
@@ -149,10 +146,97 @@ class Project(object):
             self._simos = os_mapping[self.loader.main_bin.os](self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
+
+        # Step 4: Register simprocedures as appropriate for library functions
+        self._use_sim_procedures()
         self._simos.configure_project()
+
+    def _use_sim_procedures(self):
+        """
+        This is all the automatic simprocedure related initialization work
+        It's too big to just get pasted into the initializer
+        """
+
+        # Step 1: Get the appropriate libraries of SimProcedures from simuvex
+        libs = []
+        for lib_name in self.loader.requested_objects:
+            if isinstance(self.loader.main_bin, cle.backends.pe.PE):
+                # File names are case-insensitive on Windows. Make them all lowercase
+                lib_name = lib_name.lower()
+
+            # Hack that should go somewhere else:
+            if lib_name == 'libc.so.0':
+                lib_name = 'libc.so.6'
+            if lib_name == 'ld-uClibc.so.0':
+                lib_name = 'ld-uClibc.so.6'
+
+            if lib_name not in simuvex.procedures.SimProcedures:
+                l.debug("There are no simprocedures for library %s :(", lib_name)
+            else:
+                libs.append(lib_name)
+
+        # Step 2: Categorize every "import" symbol in each object.
+        # If it's IGNORED, mark it for stubbing
+        # If it's blacklisted, don't process it
+        # If it matches a simprocedure we have, replace it
+        already_resolved = set()
+        for obj in self.loader.all_objects:
+            unresolved = []
+            for reloc in obj.imports.itervalues():
+                func = reloc.symbol
+                if func.name in already_resolved:
+                    continue
+                if not func.is_function:
+                    continue
+                elif func.name in self._ignore_functions:
+                    unresolved.append(func)
+                    continue
+                elif self._should_exclude_sim_procedure(func.name):
+                    continue
+
+                elif self._should_use_sim_procedures:
+                    for lib in libs:
+                        simfuncs = simuvex.procedures.SimProcedures[lib]
+                        if func.name in simfuncs:
+                            l.info("Providing %s from %s with SimProcedure", func.name, lib)
+                            self.hook_symbol(func.name, simfuncs[func.name])
+                            already_resolved.add(func.name)
+                            break
+                    else: # we could not find a simprocedure for this function
+                        if not func.resolved:   # the loader couldn't find one either
+                            unresolved.append(func)
+                # in the case that simprocedures are off and an object in the PLT goes
+                # unresolved, we still want to replace it with a retunconstrained.
+                elif not func.resolved and func.name in obj.jmprel:
+                    unresolved.append(func)
+
+        # Step 3: Stub out unresolved symbols
+        # This is in the form of a simprocedure that either doesn't return
+        # or returns an unconstrained value
+            for func in unresolved:
+                # Don't touch weakly bound symbols, they are allowed to go unresolved
+                if func.is_weak:
+                    continue
+                l.info("[U] %s", func.name)
+                procedure = simuvex.SimProcedures['stubs']['NoReturnUnconstrained']
+                if func.name not in procedure.use_cases:
+                    procedure = simuvex.SimProcedures['stubs']['ReturnUnconstrained']
+                self.hook_symbol(func.name, procedure, {'resolves': func.name})
+                already_resolved.add(func.name)
+
+    def _should_exclude_sim_procedure(self, f):
+        """
+        Has symbol name `f` been marked for exclusion by any of the user
+        parameters?
+        """
+        return (f in self._exclude_sim_procedures_list) or \
+               ( self._exclude_sim_procedures_func is not None and \
+                 self._exclude_sim_procedures_func(f)
+               )
 
     #
     # Public methods
+    # They're all related to hooking!
     #
 
     def hook(self, addr, func, length=0, kwargs=None):
@@ -209,6 +293,40 @@ class Project(object):
 
         return self._sim_procedures[addr][0]
 
+    def hook_symbol(self, symbol_name, obj, kwargs=None):
+        """
+         Resolve a dependency in a binary. Uses the "externs object"
+         (project._extern_obj) to provide addresses for hook functions
+
+         @param symbol_name The name of the dependency to resolve
+         @param obj         The thing with which to satisfy the dependency.
+                            May be a SimProcedure class or a python function
+                            (as an appropriate argument to hook()), or a python
+                            integer/long.
+         @param kwargs      An optional dictionary of arguments to be passed
+                            to the simprocedure's run() method.
+        """
+        if kwargs is None: kwargs = {}
+        ident = 'symbol hook: ' + symbol_name
+        if 'resolves' in kwargs:
+            ident += '.' + kwargs['resolves']
+
+        if not isinstance(obj, (int, long)):
+            pseudo_addr = self._simos.prepare_function_symbol(ident)
+            pseudo_vaddr = pseudo_addr - self._extern_obj.rebase_addr
+
+            if self.is_hooked(pseudo_addr):
+                l.warning("Re-hooking symbol " + symbol_name)
+                self.unhook(pseudo_addr)
+
+            self.hook(pseudo_addr, obj, kwargs=kwargs)
+            l.debug("\t -> setting SimProcedure with pseudo_addr 0x%x...", pseudo_addr)
+        else:
+            # This is pretty intensely sketchy
+            pseudo_vaddr = obj - self._extern_obj.rebase_addr
+
+        self.loader.provide_symbol(self._extern_obj, symbol_name, pseudo_vaddr)
+
     #
     # Pickling
     #
@@ -226,104 +344,6 @@ class Project(object):
         self.factory = AngrObjectFactory(self)
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
-
-    #
-    # Private project stuff for simprocedures
-    #
-
-    def _should_exclude_sim_procedure(self, f):
-        return (f in self._exclude_sim_procedures_list) or \
-               ( self._exclude_sim_procedures_func is not None and \
-                 self._exclude_sim_procedures_func(f)
-               )
-
-    def _find_sim_libraries(self):
-        """ Look for libaries that we can replace with their simuvex
-        simprocedures counterpart
-        This function returns the list of libraries that were found in simuvex
-        """
-        simlibs = []
-
-        for lib_name in self.loader.requested_objects:
-            if isinstance(self.loader.main_bin, cle.backends.pe.PE):
-                # File names are case-insensitive on Windows. Make them all lowercase
-                lib_name = lib_name.lower()
-
-            # Hack that should go somewhere else:
-            if lib_name == 'libc.so.0':
-                lib_name = 'libc.so.6'
-
-            if lib_name == 'ld-uClibc.so.0':
-                lib_name = 'ld-uClibc.so.6'
-
-            if lib_name not in simuvex.procedures.SimProcedures:
-                l.debug("There are no simprocedures for library %s :(", lib_name)
-            else:
-                simlibs.append(lib_name)
-
-        return simlibs
-
-    def _use_sim_procedures(self):
-        """ Use simprocedures where we can """
-        libs = self._find_sim_libraries()
-        for obj in self.loader.all_objects:
-            unresolved = []
-            for reloc in obj.imports.itervalues():
-                func = reloc.symbol
-                if not func.is_function:
-                    continue
-                elif func.name in self._ignore_functions:
-                    unresolved.append(func)
-                    continue
-                elif self._should_exclude_sim_procedure(func.name):
-                    continue
-
-                elif self._should_use_sim_procedures:
-                    for lib in libs:
-                        simfun = simuvex.procedures.SimProcedures[lib]
-                        if func.name in simfun:
-                            l.info("[R] %s:", func.name)
-                            l.debug("\t -> matching SimProcedure in %s :)", lib)
-                            self.set_sim_procedure(obj, func.name, simfun[func.name], None)
-                            break
-                    else: # we could not find a simprocedure for this function
-                        if not func.resolved:   # the loader couldn't find one either
-                            unresolved.append(func)
-                # in the case that simprocedures are off and an object in the PLT goes
-                # unresolved, we still want to replace it with a retunconstrained.
-                elif not func.resolved and func.name in obj.jmprel:
-                    unresolved.append(func)
-
-            for func in unresolved:
-                # Don't touch weakly bound symbols, they are allowed to go unresolved
-                if func.is_weak:
-                    continue
-                l.info("[U] %s", func.name)
-                procedure = simuvex.SimProcedures['stubs']['NoReturnUnconstrained']
-                if func.name not in procedure.use_cases:
-                    procedure = simuvex.SimProcedures['stubs']['ReturnUnconstrained']
-                self.set_sim_procedure(obj, func.name, procedure, {'resolves': func.name})
-
-    def set_sim_procedure(self, binary, func_name, sim_proc, kwargs=None):
-        """
-         Use a simprocedure to resolve a dependency in a binary.
-
-         @param binary      The CLE binary whose dependency is to be resolve
-         @param func_name   The name of the dependency to resolve
-         @param sim_proc    The class of the SimProcedure to use
-         @param kwargs      An optional dictionary of arguments to be passed
-                            to the simprocedure's run() method.
-        """
-        if kwargs is None: kwargs = {}
-        ident = sim_proc.__module__ + '.' + sim_proc.__name__
-        if 'resolves' in kwargs:
-            ident += '.' + kwargs['resolves']
-        pseudo_addr = self._extern_obj.get_pseudo_addr(ident)
-        binary.set_got_entry(func_name, pseudo_addr)
-
-        if not self.is_hooked(pseudo_addr):     # Do not add duplicate simprocedures
-            self.hook(pseudo_addr, sim_proc, kwargs=kwargs)
-            l.debug("\t -> setting SimProcedure with pseudo_addr 0x%x...", pseudo_addr)
 
 from .errors import AngrError
 from .factory import AngrObjectFactory
