@@ -1,4 +1,3 @@
-import collections
 import cooldict
 import claripy
 import cffi
@@ -15,7 +14,7 @@ l = logging.getLogger('simuvex.storage.paged_memory')
 
 #pylint:disable=unidiomatic-typecheck
 
-class SimPagedMemory(collections.MutableMapping):
+class SimPagedMemory(object):
     def __init__(self, backer=None, pages=None, sinkholes=None, initialized=None, name_mapping=None, hash_mapping=None, page_size=None):
         self._cowed = { }
         self._backer = { } if backer is None else backer
@@ -239,7 +238,7 @@ class SimPagedMemory(collections.MutableMapping):
         except KeyError:
             return False
 
-    def __iter__(self):
+    def keys(self):
         sofar = set()
         for s in self._sinkholes:
             sofar.update(range(s*self._page_size, (s+1)*self._page_size))
@@ -252,8 +251,7 @@ class SimPagedMemory(collections.MutableMapping):
             else:
                 sofar.update(range(p*self._page_size, (p+1)*self._page_size))
 
-        for i in sofar:
-            yield i
+        return sofar
 
     def __len__(self):
         return sum((len(self._page_keys(k)) if not self._sinkholed(k) else self._page_size) for k in self._pages.iterkeys())
