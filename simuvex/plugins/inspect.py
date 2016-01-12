@@ -158,6 +158,9 @@ class SimInspector(SimStatePlugin):
         for i in inspect_attributes:
             setattr(self, i, None)
 
+    def __dir__(self):
+        return sorted(set(dir(super(SimInspector, self)) + dir(inspect_attributes) + dir(self.__class__)))
+
     def action(self, event_type, when, **kwargs):
         '''
         Called from within SimuVEX when events happens. This function checks all breakpoints registered
