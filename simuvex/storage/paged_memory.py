@@ -12,6 +12,10 @@ _ffi = cffi.FFI()
 import logging
 l = logging.getLogger('simuvex.storage.paged_memory')
 
+#_storage = cooldict.SinkholeCOWDict
+#_storage = list
+_storage = dict
+
 #pylint:disable=unidiomatic-typecheck
 
 class SimPagedMemory(object):
@@ -20,6 +24,7 @@ class SimPagedMemory(object):
         self._backer = { } if backer is None else backer
         self._pages = { } if pages is None else pages
         self._sinkholes = { } if sinkholes is None else sinkholes
+        self._sinkholes_cowed = False
         self._initialized = set() if initialized is None else initialized
         self._page_size = 0x1000 if page_size is None else page_size
         self.state = None
@@ -48,9 +53,15 @@ class SimPagedMemory(object):
         new_name_mapping = self._name_mapping.branch() if options.REVERSE_MEMORY_NAME_MAP in self.state.options else self._name_mapping
         new_hash_mapping = self._hash_mapping.branch() if options.REVERSE_MEMORY_HASH_MAP in self.state.options else self._hash_mapping
 
+        if _storage is cooldict.SinkholeCOWDict:
+            new_pages = { k:v.branch() for k,v in self._pages.iteritems() }
+        else:
+            new_pages = dict(self._pages)
+
+        self._sinkholes_cowed = False
         m = SimPagedMemory(backer=self._backer,
-                           pages=dict(self._pages),
-                           sinkholes=dict(self._sinkholes),
+                           pages=new_pages,
+                           sinkholes=self._sinkholes,
                            initialized=set(self._initialized),
                            page_size=self._page_size,
                            name_mapping=new_name_mapping,
@@ -92,13 +103,16 @@ class SimPagedMemory(object):
         #        change them back to what they were in the backer dict
 
     def _next_not(self, page, page_idx, addr_end, what):
-        for j in range(page_idx, min(self._page_size, page_idx+addr_end)):
-            try:
-                if page[j] is not what:
+        if _storage is cooldict.SinkholeCOWDict:
+            return 0 if len(page.keys()) != 0 else min(self._page_size, page_idx+addr_end) - page_idx
+        else:
+            for j in range(page_idx, min(self._page_size, page_idx+addr_end)):
+                try:
+                    if page[j] is not what:
+                        return j - page_idx
+                except KeyError:
                     return j - page_idx
-            except KeyError:
-                return j - page_idx
-        return min(self._page_size, page_idx+addr_end) - page_idx
+            return min(self._page_size, page_idx+addr_end) - page_idx
 
     def load_bytes(self, addr, num_bytes):
         missing = [ ]
@@ -152,11 +166,18 @@ class SimPagedMemory(object):
     # Page management
     #
 
-    def _create_page(self):
-        return [None]*self._page_size
+    def _create_page(self): #pylint:disable=no-self-use,unused-argument
+        if _storage is list:
+            return [None]*self._page_size
+        else:
+            return _storage()
 
-    def _copy_page(self, page_num):
-        return list(self._pages[page_num])
+    @staticmethod
+    def _copy_page(page):
+        if _storage is cooldict.SinkholeCOWDict:
+            return page.branch()
+        else:
+            return _storage(page)
 
     def _initialize_page(self, n, new_page):
         if n in self._initialized:
@@ -182,12 +203,10 @@ class SimPagedMemory(object):
                 write_start = max(new_page_addr, addr + snip_start)
                 write_size = self._page_size - write_start%self._page_size
 
-                #print hex(addr), hex(snip_start), write_size, hex(write_start)
-                #import ipdb; ipdb.set_trace()
-
                 snip = _ffi.buffer(backer)[snip_start:snip_start+write_size]
                 mo = SimMemoryObject(claripy.BVV(snip), write_start)
-                initialized |= self._apply_object_to_page(n*self._page_size, mo, page=new_page)
+                self._apply_object_to_page(n*self._page_size, mo, page=new_page)
+                initialized = True
         elif len(self._backer) < self._page_size:
             for i in self._backer:
                 if new_page_addr <= i and i <= new_page_addr + self._page_size:
@@ -213,8 +232,10 @@ class SimPagedMemory(object):
                 raise
 
             page = self._create_page()
-            if not create and not self._initialize_page(page_num, page):
-                raise
+            if initialize:
+                initialized = self._initialize_page(page_num, page)
+                if not initialized and not create:
+                    raise
 
             self._pages[page_num] = page
             self._cowed.add(page_num)
@@ -227,17 +248,37 @@ class SimPagedMemory(object):
 
         return page
 
-    def _sinkhole(self, page_num, value, wipe=True):
-        self._sinkholes[page_num] = value
-        if wipe and page_num in self._pages:
-            del self._pages[page_num]
-            self._cowed.discard(page_num)
+    def _sinkhole(self, page_num, value, page=None, wipe=True):
+        if _storage is cooldict.SinkholeCOWDict:
+            if page is None:
+                page = self._get_page(page_num, initialize=False, create=True, write=True)
+            page.sinkhole(value, wipe=wipe) #pylint:disable=no-member
+        else:
+            if not self._sinkholes_cowed:
+                self._sinkholes_cowed = True
+                self._sinkholes = dict(self._sinkholes)
+
+            self._sinkholes[page_num] = value
+            if wipe:
+                try:
+                    del self._pages[page_num]
+                except KeyError:
+                    pass
 
     def _sinkholed(self, page_num):
-        return page_num in self._sinkholes
+        if _storage is cooldict.SinkholeCOWDict:
+            return False if page_num not in self._pages else self._pages[page_num]._sinkholed
+        else:
+            return page_num in self._sinkholes
 
     def _sinkhole_value(self, page_num):
-        return self._sinkholes.get(page_num, None)
+        if _storage is cooldict.SinkholeCOWDict:
+            return self._pages[page_num]._sinkhole_value
+        else:
+            try:
+                return self._sinkholes[page_num]
+            except KeyError:
+                return None
 
     def __contains__(self, addr):
         try:
@@ -263,10 +304,11 @@ class SimPagedMemory(object):
     def __len__(self):
         return sum((len(self._page_keys(k)) if not self._sinkholed(k) else self._page_size) for k in self._pages.iterkeys())
 
-    @staticmethod
-    def _page_keys(page):
-        if type(page) is list:
+    def _page_keys(self, page):
+        if _storage is list:
             return set(e for e,v in enumerate(page) if v is not None)
+        elif _storage is cooldict.SinkholeCOWDict:
+            return set(page.keys()) if not page._sinkholed else set(range(0, self._page_size))
         else:
             return set(page.keys())
 
@@ -297,6 +339,8 @@ class SimPagedMemory(object):
             their_page = other._pages[p]
 
             if our_page is their_page:
+                continue
+            if _storage is cooldict.SinkholeCOWDict and our_page.common_ancestor(their_page) is not None:
                 continue
 
             our_keys = self._page_keys(our_page)
@@ -366,8 +410,8 @@ class SimPagedMemory(object):
         page_num = page_base / self._page_size
         if mo.base <= page_base and mo.base + mo.length >= page_base + self._page_size:
             # takes up the whole page
-            self._sinkhole(page_num, mo, wipe=overwrite)
-            return False
+            self._sinkhole(page_num, mo, page=page, wipe=overwrite)
+            return False if _storage is not cooldict.SinkholeCOWDict else True
         else:
             page = self._get_page(page_num, write=True, create=True) if page is None else page
             for a in range(max(mo.base, page_base), min(mo.base+mo.length, page_base+self._page_size)):
