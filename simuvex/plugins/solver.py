@@ -135,15 +135,38 @@ class SimSolver(SimStatePlugin):
             else:
                 l.debug("Creating new unconstrained BV named %s", name)
                 if o.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
-                    r = claripy.BVS(name, bits, uninitialized=True, **kwargs)
+                    r = self.BVS(name, bits, uninitialized=True, **kwargs)
                 else:
-                    r = claripy.BVS(name, bits, **kwargs)
+                    r = self.BVS(name, bits, **kwargs)
 
-            self.state.log.add_event('unconstrained', name=iter(r.variables).next(), bits=bits, **kwargs)
             return r
         else:
             # Return a default value, aka. 0
             return claripy.BVV(0, bits)
+
+    def BVS(self, name, size, min=None, max=None, stride=None, uninitialized=False, explicit_name=None, **kwargs): #pylint:disable=redefined-builtin
+        '''
+        Creates a bit-vector symbol (i.e., a variable).
+
+        @param name: the name of the symbol
+        @param size: the size (in bits) of the bit-vector
+        @param min: the minimum value of the symbol
+        @param max: the maximum value of the symbol
+        @param stride: the stride of the symbol
+        @param uninitialized: whether this value should be counted as an
+                              "uninitialized" value in the course of an analysis.
+        @param explicit_name: if False, an identifier is appended to the name to ensure
+                              uniqueness.
+
+        Other **kwargs are passed directly on to the constructor of claripy.ast.BV.
+
+        @returns a BV object representing this symbol
+        '''
+
+        r = claripy.BVS(name, size, min=min, max=max, stride=stride, uninitialized=uninitialized, explicit_name=explicit_name, **kwargs)
+        self.state._inspect('symbolic_variable', BP_AFTER, symbolic_name=next(iter(r.variables)), symbolic_size=size, symbolic_expr=r)
+        self.state.log.add_event('unconstrained', name=iter(r.variables).next(), bits=size, **kwargs)
+        return r
 
     #
     # Operation passthroughs to claripy
@@ -366,4 +389,5 @@ class SimSolver(SimStatePlugin):
 
 SimStatePlugin.register_default('solver_engine', SimSolver)
 from .. import s_options as o
+from .inspect import BP_AFTER
 from ..s_errors import SimValueError, SimUnsatError, SimSolverModeError
