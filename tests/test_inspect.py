@@ -17,6 +17,7 @@ def test_inspect():
         statement = 0
         instruction = 0
         constraints = 0
+        variables = 0
 
     def act_mem_read(state): #pylint:disable=unused-argument
         counts.mem_read += 1
@@ -36,6 +37,9 @@ def test_inspect():
         counts.statement += 1
     def act_instruction(state): #pylint:disable=unused-argument
         counts.instruction += 1
+    def act_variables(state): #pylint:disable=unused-argument
+        #print "CREATING:", state.inspect.symbolic_name
+        counts.variables += 1
 #   def act_constraints(state): #pylint:disable=unused-argument
 #       counts.constraints += 1
 
@@ -88,6 +92,11 @@ def test_inspect():
     nose.tools.assert_equals(counts.constraints, 0)
     nose.tools.assert_equals(counts.mem_write, 1)
     nose.tools.assert_equals(counts.mem_read, 4)
+
+    s = SimState(arch="AMD64", mode="symbolic")
+    s.inspect.b('symbolic_variable', when=simuvex.BP_AFTER, action=act_variables)
+    s.memory.load(0, 10)
+    nose.tools.assert_equals(counts.variables, 1)
 
 if __name__ == '__main__':
     test_inspect()
