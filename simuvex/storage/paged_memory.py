@@ -16,7 +16,7 @@ l = logging.getLogger('simuvex.storage.paged_memory')
 
 class SimPagedMemory(object):
     def __init__(self, backer=None, pages=None, sinkholes=None, initialized=None, name_mapping=None, hash_mapping=None, page_size=None):
-        self._cowed = { }
+        self._cowed = set()
         self._backer = { } if backer is None else backer
         self._pages = { } if pages is None else pages
         self._sinkholes = { } if sinkholes is None else sinkholes
@@ -91,14 +91,14 @@ class SimPagedMemory(object):
         #     2. if the page throws a key error, the backer dict is accessed. Thus, deleting things would simply
         #        change them back to what they were in the backer dict
 
-    def _next_not(self, page, page_idx, what):
-        for j in range(page_idx, self._page_size):
+    def _next_not(self, page, page_idx, addr_end, what):
+        for j in range(page_idx, min(self._page_size, page_idx+addr_end)):
             try:
                 if page[j] is not what:
                     return j - page_idx
             except KeyError:
                 return j - page_idx
-        return self._page_size - page_idx
+        return min(self._page_size, page_idx+addr_end) - page_idx
 
     def load_bytes(self, addr, num_bytes):
         missing = [ ]
@@ -126,15 +126,15 @@ class SimPagedMemory(object):
                 if v is not None:
                     # this value is present
                     the_bytes[i] = v
-                    i += 1 + self._next_not(page, page_idx+1, v)
+                    i += 1 + self._next_not(page, page_idx+1, num_bytes-i, v)
                 elif self._sinkholed(page_num):
                     # this is a sinkholed value
                     the_bytes[i] = self._sinkhole_value(page_num)
-                    i += 1 + self._next_not(page, page_idx+1, None)
+                    i += 1 + self._next_not(page, page_idx+1, num_bytes-i, None)
                 else:
                     # missing value
                     missing.append(i)
-                    i += 1 + self._next_not(page, page_idx+1, None)
+                    i += 1 + self._next_not(page, page_idx+1, num_bytes-i, None)
             except KeyError:
                 if self._sinkholed(page_num):
                     # missing page, but sinkholed value
@@ -206,25 +206,32 @@ class SimPagedMemory(object):
         return initialized
 
     def _get_page(self, page_num, write=False, create=False, initialize=True):
-        if page_num not in self._pages:
-            page = self._create_page()
-            if not ((initialize and self._initialize_page(page_num, page)) or create):
-                raise KeyError(page_num)
-            self._pages[page_num] = page
-            self._cowed[page_num] = True
-        elif write and not self._cowed.get(page_num, False):
-            page = self._copy_page(page_num)
-            self._cowed[page_num] = True
-            self._pages[page_num] = page
-        else:
+        try:
             page = self._pages[page_num]
+        except KeyError:
+            if not (initialize or create):
+                raise
+
+            page = self._create_page()
+            if not create and not self._initialize_page(page_num, page):
+                raise
+
+            self._pages[page_num] = page
+            self._cowed.add(page_num)
+            return page
+
+        if write and page_num not in self._cowed:
+            page = self._copy_page(page)
+            self._cowed.add(page_num)
+            self._pages[page_num] = page
 
         return page
 
     def _sinkhole(self, page_num, value, wipe=True):
         self._sinkholes[page_num] = value
-        if wipe:
-            self._get_page(page_num, write=True).clear()
+        if wipe and page_num in self._pages:
+            del self._pages[page_num]
+            self._cowed.discard(page_num)
 
     def _sinkholed(self, page_num):
         return page_num in self._sinkholes
@@ -288,6 +295,10 @@ class SimPagedMemory(object):
         for p in common_pages:
             our_page = self._pages[p]
             their_page = other._pages[p]
+
+            if our_page is their_page:
+                continue
+
             our_keys = self._page_keys(our_page)
             their_keys = self._page_keys(their_page)
             changes = (our_keys - their_keys) | (their_keys - our_keys) | { i for i in (our_keys & their_keys) if our_page[i] is not their_page[i] }
