@@ -21,9 +21,11 @@ class SimRegNameView(SimStatePlugin):
             v = self.state.se.BVV(v, self.state.arch.registers[k][1]*8)
 
         try:
-            return self.state.registers.store(self.state.arch.registers[k][0], v)
+            reg_offset = self.state.arch.registers[k][0]
         except KeyError:
             raise AttributeError(k)
+
+        return self.state.registers.store(reg_offset, v)
 
     def __dir__(self):
         return self.state.arch.registers.keys()

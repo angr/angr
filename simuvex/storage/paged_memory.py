@@ -1,4 +1,3 @@
-import collections
 import cooldict
 import claripy
 import cffi
@@ -13,12 +12,20 @@ _ffi = cffi.FFI()
 import logging
 l = logging.getLogger('simuvex.storage.paged_memory')
 
+#_storage = cooldict.SinkholeCOWDict
+#_storage = list
+_storage = dict
+
 #pylint:disable=unidiomatic-typecheck
 
-class SimPagedMemory(collections.MutableMapping):
-    def __init__(self, backer=None, pages=None, name_mapping=None, hash_mapping=None, page_size=None):
+class SimPagedMemory(object):
+    def __init__(self, backer=None, pages=None, sinkholes=None, initialized=None, name_mapping=None, hash_mapping=None, page_size=None):
+        self._cowed = set()
         self._backer = { } if backer is None else backer
         self._pages = { } if pages is None else pages
+        self._sinkholes = { } if sinkholes is None else sinkholes
+        self._sinkholes_cowed = False
+        self._initialized = set() if initialized is None else initialized
         self._page_size = 0x1000 if page_size is None else page_size
         self.state = None
 
@@ -31,6 +38,8 @@ class SimPagedMemory(collections.MutableMapping):
         return {
             '_backer': self._backer,
             '_pages': self._pages,
+            '_sinkholes': self._sinkholes,
+            '_initialized': self._initialized,
             '_page_size': self._page_size,
             'state': self.state,
             '_name_mapping': self._name_mapping,
@@ -41,12 +50,19 @@ class SimPagedMemory(collections.MutableMapping):
         self.__dict__.update(s)
 
     def branch(self):
-        new_pages = { k:v.branch() for k,v in self._pages.iteritems() }
         new_name_mapping = self._name_mapping.branch() if options.REVERSE_MEMORY_NAME_MAP in self.state.options else self._name_mapping
         new_hash_mapping = self._hash_mapping.branch() if options.REVERSE_MEMORY_HASH_MAP in self.state.options else self._hash_mapping
 
+        if _storage is cooldict.SinkholeCOWDict:
+            new_pages = { k:v.branch() for k,v in self._pages.iteritems() }
+        else:
+            new_pages = dict(self._pages)
+
+        self._sinkholes_cowed = False
         m = SimPagedMemory(backer=self._backer,
                            pages=new_pages,
+                           sinkholes=self._sinkholes,
+                           initialized=set(self._initialized),
                            page_size=self._page_size,
                            name_mapping=new_name_mapping,
                            hash_mapping=new_hash_mapping)
@@ -57,9 +73,17 @@ class SimPagedMemory(collections.MutableMapping):
         page_idx = addr % self._page_size
         #print "GET", addr, page_num, page_idx
 
-        if page_num not in self._pages:
-            self._initialize_page(page_num)
-        return self._pages[page_num][page_idx]
+        try:
+            v = self._get_page(page_num)[page_idx]
+        except KeyError:
+            v = None
+
+        if v is not None:
+            return v
+        elif self._sinkholed(page_num):
+            return self._sinkhole_value(page_num)
+        else:
+            raise KeyError(addr)
 
     def __setitem__(self, addr, v):
         page_num = addr / self._page_size
@@ -67,9 +91,7 @@ class SimPagedMemory(collections.MutableMapping):
         #print "SET", addr, page_num, page_idx
 
         self._update_mappings(addr, v.object)
-        if page_num not in self._pages:
-            self._initialize_page(page_num)
-        self._pages[page_num][page_idx] = v
+        self._get_page(page_num, write=True, create=True)[page_idx] = v
         #print "...",id(self._pages[page_num])
 
     def __delitem__(self, addr):
@@ -80,13 +102,17 @@ class SimPagedMemory(collections.MutableMapping):
         #     2. if the page throws a key error, the backer dict is accessed. Thus, deleting things would simply
         #        change them back to what they were in the backer dict
 
-        #page_num = addr / self._page_size
-        #page_idx = addr % self._page_size
-        ##print "DEL", addr, page_num, page_idx
-
-        #if page_num not in self._pages:
-        #     self._pages[page_num] = cooldict.BranchingDict(d=self._backer)
-        #del self._pages[page_num][page_idx]
+    def _next_not(self, page, page_idx, addr_end, what):
+        if _storage is cooldict.SinkholeCOWDict:
+            return 0 if len(page.keys()) != 0 else min(self._page_size, page_idx+addr_end) - page_idx
+        else:
+            for j in range(page_idx, min(self._page_size, page_idx+addr_end)):
+                try:
+                    if page[j] is not what:
+                        return j - page_idx
+                except KeyError:
+                    return j - page_idx
+            return min(self._page_size, page_idx+addr_end) - page_idx
 
     def load_bytes(self, addr, num_bytes):
         missing = [ ]
@@ -94,66 +120,73 @@ class SimPagedMemory(collections.MutableMapping):
 
         l.debug("Reading from memory at %#x", addr)
         i = 0
+        old_page_num = None
+
         while i < num_bytes:
             actual_addr = addr + i
-            page_num = actual_addr/self._page_size
+            page_num = actual_addr / self._page_size
+            page_idx = actual_addr % self._page_size
 
             try:
-                b = self[actual_addr]
-                the_bytes[i] = b
+                if old_page_num != page_num:
+                    page = self._get_page(page_num)
+                    old_page_num = page_num
 
-                page = self._pages[page_num]
-                if page._sinkholed and len(page) == 0:
-                    i += self._page_size - actual_addr%self._page_size
+                try:
+                    v = page[page_idx]
+                except KeyError:
+                    v = None
+
+                if v is not None:
+                    # this value is present
+                    the_bytes[i] = v
+                    i += 1 + self._next_not(page, page_idx+1, num_bytes-i, v)
+                elif self._sinkholed(page_num):
+                    # this is a sinkholed value
+                    the_bytes[i] = self._sinkhole_value(page_num)
+                    i += 1 + self._next_not(page, page_idx+1, num_bytes-i, None)
                 else:
-                    i += 1
-            except KeyError: # this one is from missing bytes
-                missing.append(i)
-                if len(self._pages[page_num]) == 0: # the whole page is missing!
-                    i += self._page_size - actual_addr%self._page_size
+                    # missing value
+                    missing.append(i)
+                    i += 1 + self._next_not(page, page_idx+1, num_bytes-i, None)
+            except KeyError:
+                if self._sinkholed(page_num):
+                    # missing page, but sinkholed value
+                    the_bytes[i] = self._sinkhole_value(page_num)
                 else:
-                    i += 1
+                    # missing page, missing value
+                    missing.append(i)
+                i += self._page_size - actual_addr%self._page_size
+
 
         l.debug("... %d found, %d missing", len(the_bytes), len(missing))
         return the_bytes, missing
 
-    def store_memory_object(self, mo, overwrite=True):
-        '''
-        This function optimizes a large store by storing a single reference to
-        the SimMemoryObject instead of one for each byte.
+    #
+    # Page management
+    #
 
-        @param memory_object: the memory object to store
-        '''
+    def _create_page(self): #pylint:disable=no-self-use,unused-argument
+        if _storage is list:
+            return [None]*self._page_size
+        else:
+            return _storage()
 
-        self._update_range_mappings(mo.base, mo.object, mo.length)
+    @staticmethod
+    def _copy_page(page):
+        if _storage is cooldict.SinkholeCOWDict:
+            return page.branch()
+        else:
+            return _storage(page)
 
-        mo_start = mo.base
-        mo_end = mo.base + mo.length
-        page_start = mo_start - mo_start%self._page_size
-        page_end = mo_end + (self._page_size - mo_end%self._page_size) if mo_end % self._page_size else mo_end
-        pages = [ b for b in range(page_start, page_end, self._page_size) ]
-
-        for p in pages:
-            page_num = p / self._page_size
-            if page_num not in self._pages:
-                self._initialize_page(page_num)
-            page = self._pages[page_num]
-
-            #print (mo.base, mo.length), (p, p + self._page_size)
-
-            if mo.base <= p and mo.base + mo.length >= p + self._page_size:
-                # takes up the whole page
-                page.sinkhole(mo, wipe=overwrite)
-            else:
-                for a in range(max(mo.base, p), min(mo.base+mo.length, p+self._page_size)):
-                    if overwrite or a%self._page_size not in page:
-                        page[a%self._page_size] = mo
-
-    def _initialize_page(self, n):
-        new_page = cooldict.SinkholeCOWDict()
-        self._pages[n] = new_page
+    def _initialize_page(self, n, new_page):
+        if n in self._initialized:
+            return False
+        self._initialized.add(n)
 
         new_page_addr = n*self._page_size
+        initialized = False
+
         if self._backer is None:
             pass
         elif isinstance(self._backer, cle.Clemory):
@@ -170,43 +203,114 @@ class SimPagedMemory(collections.MutableMapping):
                 write_start = max(new_page_addr, addr + snip_start)
                 write_size = self._page_size - write_start%self._page_size
 
-                #print hex(addr), hex(snip_start), write_size, hex(write_start)
-                #import ipdb; ipdb.set_trace()
-
                 snip = _ffi.buffer(backer)[snip_start:snip_start+write_size]
                 mo = SimMemoryObject(claripy.BVV(snip), write_start)
-                self.store_memory_object(mo)
+                self._apply_object_to_page(n*self._page_size, mo, page=new_page)
+                initialized = True
         elif len(self._backer) < self._page_size:
             for i in self._backer:
                 if new_page_addr <= i and i <= new_page_addr + self._page_size:
-                    self.store_memory_object(SimMemoryObject(claripy.BVV(self._backer[i]), i))
+                    mo = SimMemoryObject(claripy.BVV(self._backer[i]), i)
+                    self._apply_object_to_page(n*self._page_size, mo, page=new_page)
+                    initialized = True
         elif len(self._backer) > self._page_size:
             for i in range(self._page_size):
                 try:
-                    self.store_memory_object(SimMemoryObject(claripy.BVV(self._backer[i]), new_page_addr+i))
+                    mo = SimMemoryObject(claripy.BVV(self._backer[i]), new_page_addr+i)
+                    self._apply_object_to_page(n*self._page_size, mo, page=new_page)
+                    initialized = True
                 except KeyError:
                     pass
 
+        return initialized
+
+    def _get_page(self, page_num, write=False, create=False, initialize=True):
+        try:
+            page = self._pages[page_num]
+        except KeyError:
+            if not (initialize or create):
+                raise
+
+            page = self._create_page()
+            if initialize:
+                initialized = self._initialize_page(page_num, page)
+                if not initialized and not create:
+                    raise
+
+            self._pages[page_num] = page
+            self._cowed.add(page_num)
+            return page
+
+        if write and page_num not in self._cowed:
+            page = self._copy_page(page)
+            self._cowed.add(page_num)
+            self._pages[page_num] = page
+
+        return page
+
+    def _sinkhole(self, page_num, value, page=None, wipe=True):
+        if _storage is cooldict.SinkholeCOWDict:
+            if page is None:
+                page = self._get_page(page_num, initialize=False, create=True, write=True)
+            page.sinkhole(value, wipe=wipe) #pylint:disable=no-member
+        else:
+            if not self._sinkholes_cowed:
+                self._sinkholes_cowed = True
+                self._sinkholes = dict(self._sinkholes)
+
+            self._sinkholes[page_num] = value
+            if wipe:
+                try:
+                    del self._pages[page_num]
+                except KeyError:
+                    pass
+
+    def _sinkholed(self, page_num):
+        if _storage is cooldict.SinkholeCOWDict:
+            return False if page_num not in self._pages else self._pages[page_num]._sinkholed
+        else:
+            return page_num in self._sinkholes
+
+    def _sinkhole_value(self, page_num):
+        if _storage is cooldict.SinkholeCOWDict:
+            return self._pages[page_num]._sinkhole_value
+        else:
+            try:
+                return self._sinkholes[page_num]
+            except KeyError:
+                return None
+
     def __contains__(self, addr):
         try:
-            self.__getitem__(addr)
-            return True
+            return self.__getitem__(addr) is not None
         except KeyError:
             return False
 
-    def __iter__(self):
-        for k in self._backer:
-            yield k
+    def keys(self):
+        sofar = set()
+        for s in self._sinkholes:
+            sofar.update(range(s*self._page_size, (s+1)*self._page_size))
+
+        sofar.update(self._backer.keys())
+
         for p in self._pages:
-            if not self._pages[p]._sinkholed:
-                for a in self._pages[p]:
-                    yield p*self._page_size + a
+            if not self._sinkholed(p):
+                sofar.update(p*self._page_size + a for a in self._page_keys(self._pages[p]))
             else:
-                for a in range(self._page_size):
-                    yield p*self._page_size + a
+                sofar.update(range(p*self._page_size, (p+1)*self._page_size))
+
+        return sofar
 
     def __len__(self):
-        return sum((len(v) if not self._pages._sinkholed else self._page_size) for v in self._pages.itervalues())
+        return sum((len(self._page_keys(k)) if not self._sinkholed(k) else self._page_size) for k in self._pages.iterkeys())
+
+    def _page_keys(self, page):
+        if _storage is list:
+            return set(e for e,v in enumerate(page) if v is not None)
+        elif _storage is cooldict.SinkholeCOWDict:
+            return set(page.keys()) if not page._sinkholed else set(range(0, self._page_size))
+        else:
+            return set(page.keys())
 
     def changed_bytes(self, other):
         '''
@@ -226,29 +330,33 @@ class SimPagedMemory(collections.MutableMapping):
 
         candidates = set()
         for p in their_additions:
-            candidates.update([ (p*self._page_size)+i for i in other._pages[p] ])
+            candidates.update([ (p*self._page_size)+i for i in self._page_keys(other._pages[p]) ])
         for p in our_additions:
-            candidates.update([ (p*self._page_size)+i for i in self._pages[p] ])
+            candidates.update([ (p*self._page_size)+i for i in self._page_keys(self._pages[p]) ])
 
         for p in common_pages:
             our_page = self._pages[p]
             their_page = other._pages[p]
 
-            common_ancestor = our_page.common_ancestor(their_page)
-            if common_ancestor == None:
-                our_changes, our_deletions = set(our_page.iterkeys()), set()
-                their_changes, their_deletions = set(their_page.iterkeys()), set()
-            else:
-                our_changes, our_deletions = our_page.changes_since(common_ancestor)
-                their_changes, their_deletions = their_page.changes_since(common_ancestor)
+            if our_page is their_page:
+                continue
+            if _storage is cooldict.SinkholeCOWDict and our_page.common_ancestor(their_page) is not None:
+                continue
 
-            if our_page._sinkholed or their_page._sinkholed and our_page._sinkhole_value is not their_page._sinkhole_value:
-                sinkhole_changes = set(range(self._page_size)) - set(their_page.iterkeys()) - set(our_page.iterkeys())
-            else:
-                sinkhole_changes = set()
+            our_keys = self._page_keys(our_page)
+            their_keys = self._page_keys(their_page)
+            changes = (our_keys - their_keys) | (their_keys - our_keys) | { i for i in (our_keys & their_keys) if our_page[i] is not their_page[i] }
+            candidates.update([ (p*self._page_size)+i for i in changes ])
 
+        our_sinkholes = set(self._sinkholes.keys())
+        their_sinkholes = set(other._sinkholes.keys())
+        sinkhole_changes = (our_sinkholes - their_sinkholes) | (their_sinkholes - our_sinkholes)
+        for s in our_sinkholes & their_sinkholes:
+            if self._sinkholes[s] is not other._sinkholes[s]:
+                sinkhole_changes.add(s)
 
-            candidates.update([ (p*self._page_size)+i for i in our_changes | our_deletions | their_changes | their_deletions | sinkhole_changes ])
+        for s in sinkhole_changes:
+            candidates.update(range(s*self._page_size, (s+1)*self._page_size))
 
         #both_changed = our_changes & their_changes
         #ours_changed_only = our_changes - both_changed
@@ -286,6 +394,49 @@ class SimPagedMemory(collections.MutableMapping):
     #
     # Memory object management
     #
+
+    def _apply_object_to_page(self, page_base, mo, page=None, overwrite=True):
+        '''
+        Writes a memory object to a page, sinkholing if appropriate.
+
+        @param page_base: the base address of the page
+        @param mo: the memory object
+        @param page: (optionally) the page to use
+        @param overwrite: if False, only write to currently-empty
+                          memory
+        @returns True if the write went to the page, False if it got
+                 sinkholed
+        '''
+        page_num = page_base / self._page_size
+        if mo.base <= page_base and mo.base + mo.length >= page_base + self._page_size:
+            # takes up the whole page
+            self._sinkhole(page_num, mo, page=page, wipe=overwrite)
+            return False if _storage is not cooldict.SinkholeCOWDict else True
+        else:
+            page = self._get_page(page_num, write=True, create=True) if page is None else page
+            for a in range(max(mo.base, page_base), min(mo.base+mo.length, page_base+self._page_size)):
+                if overwrite or (type(page) is list and page[a%self._page_size] is None) or (type(page) is not list and a%self._page_size not in page):
+                    page[a%self._page_size] = mo
+            return True
+
+    def store_memory_object(self, mo, overwrite=True):
+        '''
+        This function optimizes a large store by storing a single reference to
+        the SimMemoryObject instead of one for each byte.
+
+        @param memory_object: the memory object to store
+        '''
+
+        self._update_range_mappings(mo.base, mo.object, mo.length)
+
+        mo_start = mo.base
+        mo_end = mo.base + mo.length
+        page_start = mo_start - mo_start%self._page_size
+        page_end = mo_end + (self._page_size - mo_end%self._page_size) if mo_end % self._page_size else mo_end
+        pages = [ b for b in range(page_start, page_end, self._page_size) ]
+
+        for p in pages:
+            self._apply_object_to_page(p, mo, overwrite=overwrite)
 
     def replace_memory_object(self, old, new_content):
         '''
