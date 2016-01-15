@@ -134,7 +134,7 @@ class FormatString(object):
 
                     # TODO all of these should be delimiters we search for above
                     # add that the contents of the string cannot be any scanf %s string delimiters
-                    for delimiter in FormatString.SCANF_DELIMITERS:
+                    for delimiter in set(FormatString.SCANF_DELIMITERS) - {'\x00'}:
                         delim_bvv = self.parser.state.se.BVV(delimiter)
                         for i in range(length):
                             self.parser.state.add_constraints(region.load(position + i, 1) != delim_bvv)
