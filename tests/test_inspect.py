@@ -1,6 +1,7 @@
 import nose
-import simuvex
 import pyvex
+import simuvex
+import claripy
 import archinfo
 
 def test_inspect():
@@ -96,5 +97,66 @@ def test_inspect():
     s.memory.load(0, 10)
     nose.tools.assert_equals(counts.variables, 1)
 
+def test_inspect_concretization():
+    # some values for the test
+    x = claripy.BVS('x', 64)
+    y = claripy.BVS('y', 64)
+
+    #
+    # This tests concretization-time address redirection.
+    #
+
+    def change_symbolic_target(state):
+        if state.inspect.address_concretization_action == 'store':
+            state.inspect.address_concretization_expr = claripy.BVV(0x1000, state.arch.bits)
+
+    s = simuvex.SimState()
+    s.inspect.b('address_concretization', simuvex.BP_BEFORE, action=change_symbolic_target)
+    s.memory.store(x, 'A')
+    assert list(s.se.eval(x, 10)) == [ 0x1000 ]
+    assert list(s.se.eval(s.memory.load(0x1000, 1), 10)) == [ 0x41 ]
+
+    #
+    # This tests disabling constraint adding through siminspect -- the write still happens
+    #
+
+    def dont_add_constraints(state):
+        state.inspect.address_concretization_add_constraints = False
+
+    s = simuvex.SimState()
+    s.inspect.b('address_concretization', simuvex.BP_BEFORE, action=dont_add_constraints)
+    s.memory.store(x, 'A')
+    assert len(s.se.eval(x, 10)) == 10
+
+    #
+    # This tests raising an exception if symbolic concretization fails (i.e., if the address
+    # is too unconstrained). The write aborts.
+    #
+
+    class UnconstrainedAbort(Exception):
+        def __init__(self, message, state):
+            Exception.__init__(self, message)
+            self.state = state
+
+    def abort_unconstrained(state):
+        print state.inspect.address_concretization_strategy, state.inspect.address_concretization_result
+        if state.inspect.address_concretization_strategy == 'symbolic' and state.inspect.address_concretization_result == None:
+            raise UnconstrainedAbort("uh oh", state)
+
+    s = simuvex.SimState()
+    s.memory._default_write_strategy.insert(0, 'symbolic')
+    s.add_constraints(y == 10)
+    s.inspect.b('address_concretization', simuvex.BP_AFTER, action=abort_unconstrained)
+    s.memory.store(y, 'A')
+    assert list(s.se.eval(s.memory.load(y, 1), 10)) == [ 0x41 ]
+
+    try:
+        s.memory.store(x, 'A')
+        print "THIS SHOULD NOT BE REACHED"
+        assert False
+    except UnconstrainedAbort as e:
+        assert e.state.memory is s.memory
+
 if __name__ == '__main__':
+    test_inspect_concretization()
     test_inspect()
