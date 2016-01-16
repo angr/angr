@@ -3,8 +3,6 @@ import simuvex
 import pyvex
 import archinfo
 
-from simuvex import SimState
-
 def test_inspect():
     class counts: #pylint:disable=no-init
         mem_read = 0
@@ -44,7 +42,7 @@ def test_inspect():
 #       counts.constraints += 1
 
 
-    s = SimState(arch="AMD64", mode="symbolic")
+    s = simuvex.SimState(arch="AMD64", mode="symbolic")
 
     s.inspect.b('mem_write', when=simuvex.BP_AFTER, action=act_mem_write)
     nose.tools.assert_equals(counts.mem_write, 0)
@@ -93,7 +91,7 @@ def test_inspect():
     nose.tools.assert_equals(counts.mem_write, 1)
     nose.tools.assert_equals(counts.mem_read, 4)
 
-    s = SimState(arch="AMD64", mode="symbolic")
+    s = simuvex.SimState(arch="AMD64", mode="symbolic")
     s.inspect.b('symbolic_variable', when=simuvex.BP_AFTER, action=act_variables)
     s.memory.load(0, 10)
     nose.tools.assert_equals(counts.variables, 1)
