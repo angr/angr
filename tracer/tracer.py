@@ -85,6 +85,8 @@ class Tracer(object):
 
         # does the input cause a crash?
         self.crash_mode = False
+        # if the input causes a crash, what address does it crash at?
+        self.crash_addr = None
 
         # will set crash_mode correctly
         self.trace = self._dynamic_trace()
@@ -257,6 +259,13 @@ class Tracer(object):
 
                 # time to recover the crashing state
 
+                # step to the end of the crashing basic block, to capture its actions
+                inst_cnt = len(self._p.factory.block(self.previous.addr).instruction_addrs)
+                insts = 0 if inst_cnt == 0 else inst_cnt - 1
+                succs = self.previous.step(num_inst=insts)
+                if len(succs) > 0:
+                    self.previous = succs[0]
+
                 # remove the preconstraints
                 l.debug("removing preconstraints")
                 self.remove_preconstraints(self.previous)
@@ -264,13 +273,6 @@ class Tracer(object):
 
                 l.debug("reconstraining... ")
                 self.reconstrain(self.previous)
-
-                # step to the end of the crashing basic block, to capture its actions
-                inst_cnt = len(self._p.factory.block(self.previous.addr).instruction_addrs)
-                insts = 0 if inst_cnt == 0 else inst_cnt - 1
-                succs = self.previous.step(num_inst=insts)
-                if len(succs) > 0:
-                    self.previous = succs[0]
 
                 l.debug("final step...")
                 self.previous.step()
@@ -441,6 +443,10 @@ class Tracer(object):
         addrs = [int(v.split('[')[1].split(']')[0], 16)
                  for v in trace.split('\n')
                  if v.startswith('Trace')]
+
+        # grab the faulting address
+        if self.crash_mode:
+            self.crash_addr = int(trace.split('\n')[-2].split('[')[1].split(']')[0], 16)
 
         os.remove(logname)
 
