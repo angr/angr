@@ -407,6 +407,7 @@ class SimMemory(SimStatePlugin):
         if self.category == 'reg': self.state._inspect('reg_write', BP_AFTER)
         if self.category == 'mem': self.state._inspect('mem_write', BP_AFTER)
 
+        add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
         if add_constraints and len(request.constraints) > 0:
             self.state.add_constraints(*request.constraints)
 
@@ -463,6 +464,7 @@ class SimMemory(SimStatePlugin):
         fallback_e = self.load(addr, max_bits/8, add_constraints=add_constraints, endness=endness) if fallback_e is None else fallback_e
 
         req = self._store_cases(addr_e, contents_e, conditions_e, fallback_e, endness=endness)
+        add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
         if add_constraints:
             self.state.add_constraints(*req.constraints)
 
@@ -575,6 +577,7 @@ class SimMemory(SimStatePlugin):
                 l.debug('Under-constrained symbolic execution: assigned a new memory region @ %s to %s', mem_region, addr_e)
 
         a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
+        add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
         if add_constraints:
             self.state.add_constraints(*c)
 
