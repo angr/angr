@@ -145,6 +145,8 @@ def test_inspect_concretization():
 
     s = simuvex.SimState()
     s.memory._default_write_strategy.insert(0, 'symbolic')
+    s.memory._write_address_range = 1
+    s.memory._write_address_range_approx = 1
     s.add_constraints(y == 10)
     s.inspect.b('address_concretization', simuvex.BP_AFTER, action=abort_unconstrained)
     s.memory.store(y, 'A')
