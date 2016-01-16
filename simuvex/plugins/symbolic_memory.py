@@ -380,7 +380,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         self._repeat_min = r[0] + self._repeat_granularity
         return r
 
-    def _concretize_addr(self, v, strategy, limit, approx_limit):
+    def _concretize_addr(self, v, strategy, limit, approx_limit, action):
         # if there's only one option, let's do it
         if not self.state.se.symbolic(v):
             l.debug("... concrete value")
@@ -391,6 +391,12 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         for s in strategy:
             l.debug("... trying strategy %s", s)
             try:
+                self.state._inspect('address_concretization', BP_BEFORE, address_concretization_strategy=s, address_concretization_action=action, address_concretization_memory_id=self.id, address_concretization_expr=v, address_concretization_limit=limit, address_concretization_approx_limit=approx_limit, address_concretization_add_constraints=True)
+                s = self.state._inspect_getattr('address_concretization_strategy', s)
+                v = self.state._inspect_getattr('address_concretization_expr', v)
+                limit = self.state._inspect_getattr('address_concretization_limit', limit)
+                approx_limit = self.state._inspect_getattr('address_concretization_approx_limit', approx_limit)
+
                 result = getattr(self, '_concretization_strategy_'+s)(v, limit, approx_limit)
                 if options.VALIDATE_APPROXIMATIONS in self.state.options and hasattr(self, '_concretization_strategy_'+s+'_approx'):
                     c = self.state.copy()
@@ -398,6 +404,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     new_result = getattr(c.memory, '_concretization_strategy_'+s)(v, limit, approx_limit)
                     if result != new_result or (approx_result is not None and result is not None and not set(result).issubset(set(approx_result))):
                         raise Exception("WTF")
+
+                self.state._inspect('address_concretization', BP_AFTER, address_concretization_result=result)
+                result = self.state._inspect_getattr('address_concretization_result', result)
 
                 if result is not None:
                     return result
@@ -436,7 +445,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         approx_limit = self._write_address_range_approx if approx_limit is None else approx_limit
         limit = self._write_address_range if limit is None else limit
-        return self._concretize_addr(addr, strategy=strategy, limit=limit, approx_limit=approx_limit)
+        return self._concretize_addr(addr, strategy=strategy, limit=limit, approx_limit=approx_limit, action='store')
 
     def concretize_read_addr(self, addr, strategy=None, limit=None):
         '''
@@ -456,7 +465,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         limit = self._read_address_range if limit is None else limit
         approx_limit = self._read_address_range_approx if limit is None else limit
 
-        return self._concretize_addr(addr, strategy=strategy, limit=limit, approx_limit=approx_limit)
+        return self._concretize_addr(addr, strategy=strategy, limit=limit, approx_limit=approx_limit, action='load')
 
     def normalize_address(self, addr, is_write=False):
         return self.concretize_read_addr(addr)
@@ -641,7 +650,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             addr = dst
         elif self.state.se.symbolic(dst):
             try:
-                addr = self._concretize_addr(dst, strategy=['allocated'], limit=1, approx_limit=1)[0]
+                addr = self._concretize_addr(dst, strategy=['allocated'], limit=1, approx_limit=1, action='load')[0]
             except SimMemoryError:
                 return False
         else:
@@ -1044,3 +1053,4 @@ SimSymbolicMemory.register_default('memory', SimSymbolicMemory)
 SimSymbolicMemory.register_default('registers', SimSymbolicMemory)
 from ..s_errors import SimUnsatError, SimMemoryError, SimMemoryLimitError, SimMemoryAddressError
 from .. import s_options as options
+from .inspect import BP_AFTER, BP_BEFORE
