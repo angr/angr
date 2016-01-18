@@ -6,9 +6,9 @@ import logging
 l = logging.getLogger('angr.factory')
 
 class AngrObjectFactory(object):
-    def __init__(self, project):
+    def __init__(self, project, translation_cache=False):
         self._project = project
-        self._lifter = Lifter(project)
+        self._lifter = Lifter(project, cache=translation_cache)
         self.block = self._lifter.lift
 
     def sim_block(self, state, stmt_whitelist=None, last_stmt=None,

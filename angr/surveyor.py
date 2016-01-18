@@ -138,10 +138,7 @@ class Surveyor(object):
         """
 
         self._project = project
-        if project._parallel:
-            self._max_concurrency = multiprocessing.cpu_count() if max_concurrency is None else max_concurrency
-        else:
-            self._max_concurrency = 1
+        self._max_concurrency = 1 if max_concurrency is None else max_concurrency
         self._max_active = multiprocessing.cpu_count() if max_active is None else max_active
         self._pickle_paths = False if pickle_paths is None else pickle_paths
         self._save_deadends = True if save_deadends is None else save_deadends
