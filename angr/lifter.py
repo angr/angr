@@ -13,9 +13,11 @@ VEX_IRSB_MAX_INST = 99
 VEX_DEFAULT_OPT_LEVEL = 1
 
 class Lifter:
-    def __init__(self, project):
+    def __init__(self, project, cache=False):
         self._project = project
         self._thumbable = isinstance(project.arch, ArchARM)
+        self._cache_enabled = cache
+        self._block_cache = { }
 
     def lift(self, addr, arch=None, insn_bytes=None, max_size=None, num_inst=None,
              traceflags=0, thumb=False, backup_state=None, opt_level=None):
@@ -47,6 +49,10 @@ class Lifter:
 
         if thumb:
             addr &= ~1
+
+        cache_key = (addr, insn_bytes, max_size, num_inst, thumb, opt_level)
+        if self._cache_enabled and cache_key in self._block_cache:
+            return self._block_cache[cache_key]
 
         # TODO: FIXME: figure out what to do if we're about to exhaust the memory
         # (we can probably figure out how many instructions we have left by talking to IDA)
@@ -133,7 +139,10 @@ class Lifter:
                     break
 
         irsb = self._post_process(irsb)
-        return Block(buff, irsb, thumb)
+        b = Block(buff, irsb, thumb)
+        if self._cache_enabled:
+            self._block_cache[cache_key] = b
+        return b
 
     @staticmethod
     def _bytes_from_state(backup_state, addr, max_size):
