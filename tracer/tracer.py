@@ -240,10 +240,29 @@ class Tracer(object):
 
         return rpg
 
-    def run(self):
+    def _dont_add_constraints(self, state):
+        '''
+        obnoxious way to handle this, should ONLY be called from 'run'
+        '''
+
+        to_indices = lambda x: sorted(map(lambda y: int(y.split("_")[3], 16), x))
+
+        # for each constrained addrs check to see if the variables match, if so keep the constraints
+        hit_indices = to_indices(state.inspect.address_concretization_expr.variables)
+
+        add_constraints = False
+        for action in self.constrained_addrs:
+            var_indices = to_indices(action.addr.variables)
+            if var_indices == hit_indices:
+                add_constraints = True
+                break
+        state.inspect.address_concretization_add_constraints = add_constraints
+
+    def run(self, constrained_addrs=None):
         '''
         run a trace to completion
 
+        :param constrained_addrs: addresses which have had constraints applied to them and should not be removed
         :return: a deadended path of a complete symbolic run of the program
                  with self.input
         '''
@@ -258,6 +277,12 @@ class Tracer(object):
                 l.info("crash occured in basic block %x", self.trace[self.bb_cnt - 1])
 
                 # time to recover the crashing state
+
+                # before we step through and collect the actions we have to set up a special case
+                # for address concretization in the case of a controlled read or write vulnerability
+
+                self.constrained_addrs = [] if constrained_addrs is None else constrained_addrs
+                self.previous.state.inspect.b('address_concretization', simuvex.BP_BEFORE, action=self._dont_add_constraints)
 
                 # step to the end of the crashing basic block, to capture its actions
                 inst_cnt = len(self._p.factory.block(self.previous.addr).instruction_addrs)
