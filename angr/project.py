@@ -40,7 +40,7 @@ class Project(object):
                  exclude_sim_procedures_list=(),
                  arch=None, simos=None,
                  load_options=None,
-                 parallel=False,
+                 translation_cache=False,
                  support_selfmodifying_code=False):
         """
         This constructs a Project object.
@@ -77,8 +77,8 @@ class Project(object):
                        }
                      }
                    }
-         @param parallel
-             whether to use parallel processing analyzing this binary
+         @param translation_cache
+            If True, caches translated basic blocks rather than re-translating them.
          @param support_selfmodifying_code
              Whether we support self-modifying code. When enabled, Project.sim_block() will try to read code from the
              given state, not only from the initial memory regions.
@@ -121,7 +121,6 @@ class Project(object):
         self._exclude_sim_procedures_func = exclude_sim_procedures_func
         self._exclude_sim_procedures_list = exclude_sim_procedures_list
         self._should_use_sim_procedures = use_sim_procedures
-        self._parallel = parallel
         self._support_selfmodifying_code = support_selfmodifying_code
         self._ignore_functions = ignore_functions
         self._extern_obj = AngrExternObject(self.arch)
@@ -132,7 +131,7 @@ class Project(object):
         self._cdg = None
 
         self.entry = self.loader.main_bin.entry
-        self.factory = AngrObjectFactory(self)
+        self.factory = AngrObjectFactory(self, translation_cache=translation_cache)
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
 
