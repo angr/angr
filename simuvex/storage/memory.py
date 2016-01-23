@@ -2,8 +2,7 @@
 
 import logging
 l = logging.getLogger("simuvex.storage.memory")
-l.setLevel("DEBUG")
-from claripy.ast.bv import BV
+
 import claripy
 from ..plugins.plugin import SimStatePlugin
 

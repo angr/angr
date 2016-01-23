@@ -222,13 +222,21 @@ class SimPagedMemory(object):
         elif len(self._backer) < self._page_size:
             for i in self._backer:
                 if new_page_addr <= i and i <= new_page_addr + self._page_size:
-                    mo = SimMemoryObject(claripy.BVV(self._backer[i]), i)
+                    if isinstance(self._backer[i], claripy.ast.Base):
+                        backer = self._backer[i]
+                    else:
+                        backer = claripy.BVV(self._backer[i])
+                    mo = SimMemoryObject(backer, i)
                     self._apply_object_to_page(n*self._page_size, mo, page=new_page)
                     initialized = True
         elif len(self._backer) > self._page_size:
             for i in range(self._page_size):
                 try:
-                    mo = SimMemoryObject(claripy.BVV(self._backer[i]), new_page_addr+i)
+                    if isinstance(self._backer[i], claripy.ast.Base):
+                        backer = self._backer[i]
+                    else:
+                        backer = claripy.BVV(self._backer[i])
+                    mo = SimMemoryObject(backer, new_page_addr+i)
                     self._apply_object_to_page(n*self._page_size, mo, page=new_page)
                     initialized = True
                 except KeyError:
