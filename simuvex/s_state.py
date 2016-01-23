@@ -86,6 +86,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         # this is a global condition, applied to all added constraints, memory reads, etc
         self._global_condition = None
+        self.eip_constraints = []
 
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
@@ -326,6 +327,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
         state._special_memory_filler = self._special_memory_filler
+        state.eip_constraints = self.eip_constraints
 
         return state
 
