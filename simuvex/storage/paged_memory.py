@@ -192,12 +192,10 @@ class SimPagedMemory(object):
             pass
         elif isinstance(self._backer, cle.Clemory):
             # first, find the right clemory backer
-            for addr, backer, obj in self._backer.cbackers:
+            for addr, backer in self._backer.cbackers:
                 start_backer = new_page_addr - addr
                 if isinstance(start_backer, BV):
                     continue
-                    start_backer = obj._concretize_address(start_backer)
-
                 if start_backer < 0 and abs(start_backer) > self._page_size:
                     continue
                 if start_backer > len(backer):
@@ -211,13 +209,6 @@ class SimPagedMemory(object):
                 mo = SimMemoryObject(claripy.BVV(snip), write_start)
                 self._apply_object_to_page(n*self._page_size, mo, page=new_page)
                 initialized = True
-                if isinstance(obj, cle.NamedClemory):
-                    # import ipdb
-                    # ipdb.set_trace()
-                    for addrss, val in obj._updates.iteritems():
-                        if not isinstance(val, claripy.ast.Base):
-                            val = claripy.BVV(val, 8)
-                        self[addrss] = SimMemoryObject(val, addrss)
 
         elif len(self._backer) < self._page_size:
             for i in self._backer:
