@@ -30,7 +30,7 @@ merge_counter = itertools.count()
 class SimState(ana.Storable): # pylint: disable=R0904
     '''The SimState represents the state of a program, including its memory, registers, and so forth.'''
 
-    def __init__(self, arch="AMD64", plugins=None, memory_backer=None, mode=None, options=None, add_options=None, remove_options=None, special_memory_filler=None):
+    def __init__(self, arch="AMD64", plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None, add_options=None, remove_options=None, special_memory_filler=None):
         # the architecture is used for function simulations (autorets) and the bitness
         if isinstance(arch, str):
             self.arch = arch_from_id(arch)
@@ -68,9 +68,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 if memory_backer is not None:
                     memory_backer = {'global': memory_backer}
 
+                # TODO: support permissions backer in SimAbstractMemory
                 self.register_plugin('memory', SimAbstractMemory(memory_backer, memory_id="mem"))
             else:
-                self.register_plugin('memory', SimSymbolicMemory(memory_backer, memory_id="mem"))
+                self.register_plugin('memory', SimSymbolicMemory(memory_backer, permissions_backer, memory_id="mem"))
         if not self.has_plugin('registers'):
             self.register_plugin('registers', SimSymbolicMemory(memory_id="reg", endness=self.arch.register_endness))
 
