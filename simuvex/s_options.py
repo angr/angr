@@ -186,8 +186,8 @@ OPTIMIZE_IR = "OPTIMIZE_IR"
 
 SPECIAL_MEMORY_FILL = "SPECIAL_MEMORY_FILL"
 
-# using this option the value inside the register eip is keeped symbolic
-KEEP_EIP_SYMBOLIC = "KEEP_EIP_SYMBOLIC"
+# using this option the value inside the register ip is keeped symbolic
+KEEP_IP_SYMBOLIC = "KEEP_IP_SYMBOLIC"
 #
 # CGC specific state options
 #

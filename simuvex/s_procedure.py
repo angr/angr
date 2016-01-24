@@ -160,19 +160,17 @@ class SimProcedure(SimRun):
                 self.state.options.discard(o.AST_DEPS)
                 self.state.options.discard(o.AUTO_REFS)
 
-            if isinstance(self.addr, claripy.ast.Base):
-                # TODO maybe i wanto to still be symbolic
+            if o.KEEP_IP_SYMBOLIC in self.state.options and isinstance(self.addr, claripy.ast.Base):
+                # TODO maybe i want to keep address symbolic
                 s = claripy.Solver()
-                addrs = s.eval(self.state.regs.ip, 257, extra_constraints=tuple(self.state.eip_constraints))
+                addrs = s.eval(self.state.regs.ip, 257, extra_constraints=tuple(self.state.ip_constraints))
                 if len(addrs) > 256:
                     addrs = self.state.se.any_n_int(self.state.regs.ip, 1)
 
                 self.addr = addrs[0]
 
-            ret_irsb = pyvex.IRSB(
-                arch=self.state.arch, bytes=self.state.arch.ret_instruction, mem_addr=self.addr)
-            ret_simirsb = SimIRSB(
-                self.state, ret_irsb, inline=True, addr=self.addr)
+            ret_irsb = pyvex.IRSB(arch=self.state.arch, bytes=self.state.arch.ret_instruction, mem_addr=self.addr)
+            ret_simirsb = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr)
             if not ret_simirsb.flat_successors + ret_simirsb.unsat_successors:
                 ret_state = ret_simirsb.default_exit
             else:

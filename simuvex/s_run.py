@@ -98,9 +98,9 @@ class SimRun(object):
             self.flat_successors.append(state.copy())
         else:
             try:
-                if o.KEEP_EIP_SYMBOLIC in state.options:
+                if o.KEEP_IP_SYMBOLIC in state.options:
                     s = claripy.Solver()
-                    addrs = s.eval(target, 257, extra_constraints=tuple(state.eip_constraints))
+                    addrs = s.eval(target, 257, extra_constraints=tuple(state.ip_constraints))
                     if len(addrs) > 256:
                         # It is not a library
                         l.debug("It is not a Library")
@@ -117,7 +117,7 @@ class SimRun(object):
                 else:
                     for a in addrs:
                         split_state = state.copy()
-                        if o.KEEP_EIP_SYMBOLIC in split_state.options:
+                        if o.KEEP_IP_SYMBOLIC in split_state.options:
                             split_state.regs.ip = target
                         else:
                             split_state.add_constraints(target == a, action=True)
