@@ -603,6 +603,13 @@ class FunctionDiff(object):
                                                            function.startpoint)
 
     @staticmethod
+    def _block_diff_constants(block_a, block_b):
+        diff_constants = []
+        for irsb_a, irsb_b in zip(block_a.blocks, block_b.blocks):
+            diff_constants += differing_constants(irsb_a, irsb_b)
+        return diff_constants
+
+    @staticmethod
     def _distances_from_function_exit(function):
         """
         :param function: A normalized Function object
@@ -734,7 +741,6 @@ class FunctionDiff(object):
         except AngrTranslationError:
             return sorted(succ)
 
-
     def _get_block_matches(self, attributes_a, attributes_b, filter_set_a=None, filter_set_b=None, delta=(0, 0, 0),
                            tiebreak_with_block_similarity=False):
         """
@@ -838,20 +844,33 @@ class BinDiff(Analysis):
     """
     This class computes the a diff between two binaries represented by angr Projects
     """
-    def __init__(self, other_project, enable_advanced_backward_slicing=False):
+    def __init__(self, other_project, enable_advanced_backward_slicing=False, cfg_a=None, cfg_b=None):
         """
         :param other_project: The second project to diff
         """
         l.debug("Computing cfg's")
         back_traversal = not enable_advanced_backward_slicing
-        self.cfg_a = self.project.analyses.CFG(context_sensitivity_level=1,
-                                               keep_state=True,
-                                               enable_symbolic_back_traversal=back_traversal,
-                                               enable_advanced_backward_slicing=enable_advanced_backward_slicing)
-        self.cfg_b = other_project.analyses.CFG(context_sensitivity_level=1,
-                                                keep_state=True,
-                                                enable_symbolic_back_traversal=back_traversal,
-                                                enable_advanced_backward_slicing=enable_advanced_backward_slicing)
+
+        if cfg_a is None:
+            self.cfg_a = self.project.analyses.CFG(context_sensitivity_level=1,
+                                                   keep_state=True,
+                                                   enable_symbolic_back_traversal=back_traversal,
+                                                   enable_advanced_backward_slicing=enable_advanced_backward_slicing)
+            self.cfg_b = other_project.analyses.CFG(context_sensitivity_level=1,
+                                                    keep_state=True,
+                                                    enable_symbolic_back_traversal=back_traversal,
+                                                    enable_advanced_backward_slicing=enable_advanced_backward_slicing)
+        else:
+            self.cfg_a = cfg_a
+            self.cfg_b = cfg_b
+            self.cfg_a.project = self.project
+            self.cfg_a.function_manager.project = self.project
+            for f in cfg_a.function_manager.functions.values():
+                f.project = self.project
+            self.cfg_b.project = other_project
+            self.cfg_b.function_manager.project = other_project
+            for f in cfg_b.function_manager.functions.values():
+                f.project = other_project
 
         l.debug("Done computing cfg's")
 
@@ -914,7 +933,7 @@ class BinDiff(Analysis):
         return different_funcs
 
     @property
-    def all_differing_blocks(self):
+    def differing_blocks(self):
         """
         :return: A list of block matches that appear to differ
         """
@@ -922,6 +941,26 @@ class BinDiff(Analysis):
         for (func_a, func_b) in self.function_matches:
             differing_blocks.extend(self.get_function_diff(func_a, func_b).differing_blocks)
         return differing_blocks
+
+    @property
+    def identical_blocks(self):
+        """
+        :return A list of all block matches that appear to be identical
+        """
+        identical_blocks = []
+        for (func_a, func_b) in self.function_matches:
+            identical_blocks.extend(self.get_function_diff(func_a, func_b).identical_blocks)
+        return identical_blocks
+
+    @property
+    def blocks_with_differing_constants(self):
+        """
+        :return: A dict of block matches with differing constants to the tuple of constants
+        """
+        diffs = dict()
+        for (func_a, func_b) in self.function_matches:
+            diffs.update(self.get_function_diff(func_a, func_b).blocks_with_differing_constants)
+        return diffs
 
     @property
     def unmatched_functions(self):
@@ -950,6 +989,7 @@ class BinDiff(Analysis):
         # the attributes we use are the number of basic blocks, number of edges, and number of subfunction calls
         all_funcs = set(cfg.function_manager.interfunction_graph.nodes())
         attributes = dict()
+        all_funcs = set(cfg.function_manager.interfunction_graph.nodes())
         for function_addr in cfg.function_manager.functions:
             if cfg.function_manager.function(function_addr) is not None:
                 normalized_funtion = NormalizedFunction(cfg.function_manager.function(function_addr))
