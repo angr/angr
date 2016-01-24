@@ -134,7 +134,7 @@ class Project(object):
         self.factory = AngrObjectFactory(self, translation_cache=translation_cache)
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
-        self.model = Artifacts(self, self.loader.main_bin, self.loader.shared_objects)
+        self.artifacts = Artifacts(self, self.loader.main_bin, self.loader.shared_objects)
 
         projects[self.filename] = self
 

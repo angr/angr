@@ -917,4 +917,4 @@ register_analysis(CFGFast, 'CFGFast')
 from .cfg_node import CFGNode
 from ..blade import Blade
 from ..errors import AngrGirlScoutError, AngrTranslationError, AngrMemoryError
-from ..functionmanager import FunctionManager
+from ..artifacts.function_manager import FunctionManager

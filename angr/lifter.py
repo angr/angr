@@ -299,4 +299,4 @@ class Lifter:
 		return src_stmt_ids
 
 from .errors import AngrMemoryError, AngrTranslationError
-from .model import Block
+from .artifacts import Block

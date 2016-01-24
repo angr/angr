@@ -9,7 +9,7 @@ import simuvex
 import claripy
 from archinfo import ArchARM
 
-from ..functionmanager import FunctionManager
+from ..artifacts.function_manager import FunctionManager
 from ..entry_wrapper import EntryWrapper
 from ..analysis import Analysis, register_analysis
 from ..errors import AngrCFGError, AngrError

@@ -5,7 +5,6 @@ import logging
 logging.getLogger("angr").addHandler(logging.NullHandler())
 
 from .project import *
-from .functionmanager import *
 from .variableseekr import *
 from .regmap import *
 from .path import *

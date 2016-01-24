@@ -2,7 +2,7 @@ import capstone
 import pyvex
 
 import logging
-l = logging.getLogger("angr.model.block")
+l = logging.getLogger("angr.artifacts.block")
 
 class Block(object):
     def __init__(self, byte_string, vex, thumb):

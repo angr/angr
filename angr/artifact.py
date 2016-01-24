@@ -1,7 +1,7 @@
 """Representing the artifacts of a project."""
 
-from .data import Data
-from .code import Code
+from .artifacts.data import Data
+from .artifacts.code import Code
 
 
 class Artifact(object):
