@@ -849,6 +849,7 @@ class BinDiff(Analysis):
         :param other_project: The second project to diff
         """
         l.debug("Computing cfg's")
+
         back_traversal = not enable_advanced_backward_slicing
 
         if cfg_a is None:
