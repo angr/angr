@@ -1,7 +1,7 @@
 """Representing the artifacts of a project."""
 
 from .artifacts.data import Data
-from .artifacts.code import Code
+from .artifacts.function_manager import FunctionManager
 
 
 class Artifact(object):
@@ -13,32 +13,15 @@ class Artifact(object):
         self._project = project
         self.obj = obj
         self.data = Data(self)
-        self.code = Code(self)
+        self.functions = FunctionManager(self)
 
     @property
-    def functions(self):
-        """The functions of the artifact."""
-        return []
+    def callgraph(self):
+        return self.functions.callgraph
 
-    @property
-    def blocks(self):
-        """The blocks of the artifact."""
-        return []
-
-
-class Artifacts(object):
+class Artifacts(Artifact):
     """All of the artifacts of a project."""
     def __init__(self, project, program_obj, library_objs):
-        self._project = project
+        Artifact.__init__(self, project, None)
         self.program = Artifact(project, program_obj)
         self.libraries = [Artifact(project, lib_obj) for lib_obj in library_objs]
-
-    @property
-    def functions(self):
-        """All of the functions of a project."""
-        return [func for artifact in [self.program] + self.libraries for func in artifact.functions]
-
-    @property
-    def blocks(self):
-        """All of the blocks of a project."""
-        return [block for artifact in [self.program] + self.libraries for block in artifact.blocks]

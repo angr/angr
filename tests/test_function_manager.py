@@ -88,7 +88,7 @@ def test_call_to():
     project = dummy()
     project.arch = ArchAMD64()
 
-    fm = angr.FunctionManager(project, None)
+    fm = angr.artifacts.FunctionManager(project, None)
     fm.call_to(0x400000, 0x400410, 0x400420, 0x400414)
 
     nose.tools.assert_in(0x400000, fm.functions.keys())

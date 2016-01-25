@@ -9,7 +9,6 @@ import simuvex
 import claripy
 from archinfo import ArchARM
 
-from ..artifacts.function_manager import FunctionManager
 from ..entry_wrapper import EntryWrapper
 from ..analysis import Analysis, register_analysis
 from ..errors import AngrCFGError, AngrError
@@ -164,7 +163,6 @@ class CFG(Analysis, CFGBase):
         new_cfg._executable_address_ranges = self._executable_address_ranges[::]
         new_cfg._unresolvable_runs = self._unresolvable_runs.copy()
         new_cfg._overlapped_loop_headers = self._overlapped_loop_headers[::]
-        new_cfg._function_manager = self._function_manager
         new_cfg._thumb_addrs = self._thumb_addrs.copy()
         new_cfg._keep_state = self._keep_state
         new_cfg.project = self.project
@@ -219,9 +217,6 @@ class CFG(Analysis, CFGBase):
         """
 
         avoid_runs = [] if self._avoid_runs is None else self._avoid_runs
-
-        # Create the function manager
-        self._function_manager = FunctionManager(self.project, self)
 
         # Save input states of functions. It will be discarded at the end of this function.
         self._function_input_states = {}
@@ -387,7 +382,7 @@ class CFG(Analysis, CFGBase):
                                                         self._context_sensitivity_level)
                         remaining_entries.append(new_path_wrapper)
                         l.debug('Picking a function 0x%x from pending function hints.', f)
-                        self._function_manager._create_function_if_not_exist(new_path_wrapper.current_function_address)
+                        self.project.artifacts.functions._create_function_if_not_exist(new_path_wrapper.current_function_address)
                         break
 
         # Create CFG
@@ -427,7 +422,7 @@ class CFG(Analysis, CFGBase):
             cfg.add_node(self._nodes.values()[0])
 
         # Clear the transition graph of each function first
-        for f in self.function_manager.functions.values():
+        for f in self.project.artifacts.functions.values():
             f.clear_transition_graph()
 
         # Adding edges
@@ -472,7 +467,7 @@ class CFG(Analysis, CFGBase):
 
                 ret_addr = None
                 if jumpkind == 'Ijk_Call':
-                    target_function = self.function_manager.function(dest_node.addr)
+                    target_function = self.project.artifacts.functions[dest_node.addr]
                     if target_function is None or target_function.returning is not False:
                         ret_addr = src_node.return_target
 
@@ -509,7 +504,7 @@ class CFG(Analysis, CFGBase):
 
         # Update the transition graph of current function
         if jumpkind == "Ijk_Call":
-            self._function_manager.call_to(
+            self.project.artifacts.functions.add_call_to(
                 function_addr=src_func_addr,
                 from_addr=src_addr,
                 to_addr=dest_addr,
@@ -519,7 +514,7 @@ class CFG(Analysis, CFGBase):
 
         if jumpkind.startswith('Ijk_Sys'):
 
-            self._function_manager.call_to(
+            self.project.artifacts.functions.add_call_to(
                 function_addr=src_func_addr,
                 from_addr=src_addr,
                 to_addr=dest_addr,
@@ -527,19 +522,19 @@ class CFG(Analysis, CFGBase):
                 syscall=True,
             )
 
-            self._function_manager.function(dest_addr).is_syscall = True
+            self.project.artifacts.functions[dest_addr].is_syscall = True
 
         elif jumpkind == 'Ijk_Ret':
 
             # Create a return site for current function
-            self._function_manager.return_from(
+            self.project.artifacts.functions.add_return_from(
                 function_addr=src_func_addr,
                 from_addr=src_addr,
                 to_addr=dest_addr
             )
 
             # Create a returning edge in the caller function
-            self._function_manager.return_from_call(
+            self.project.artifacts.functions.add_return_from_call(
                 function_addr=dest_func_addr,
                 src_function_addr=src_func_addr,
                 to_addr=dest_addr
@@ -553,14 +548,14 @@ class CFG(Analysis, CFGBase):
             if src_obj is dest_obj:
 
                 # It's a normal transition
-                self._function_manager.transit_to(
+                self.project.artifacts.functions.add_transition_to(
                     function_addr=src_func_addr,
                     from_addr=src_addr,
                     to_addr=dest_addr
                 )
 
             else:
-                self._function_manager.call_to(
+                self.project.artifacts.functions.add_call_to(
                     function_addr=src_func_addr,
                     from_addr=src_addr,
                     to_addr=dest_addr,
@@ -963,16 +958,16 @@ class CFG(Analysis, CFGBase):
                 delta = sp - old_sp
                 func_addr = entry_wrapper.current_function_address
 
-                if self._function_manager.function(func_addr) is None:
+                if self.project.artifacts.functions.function(func_addr) is None:
                     # Create the function if it doesn't exist
                     # FIXME: But hell, why doesn't it exist in the first place?
                     l.error("Function 0x%x doesn't exist in function manager although it should be there." +
                             "Look into this issue later.",
                             func_addr)
-                    self._function_manager._create_function_if_not_exist(func_addr)
+                    self.project.artifacts.functions._create_function_if_not_exist(func_addr)
 
                 # Set sp_delta of the function
-                self._function_manager.function(func_addr).sp_delta = delta
+                self.project.artifacts.functions[func_addr].sp_delta = delta
 
         elif jumpkind == 'Ijk_FakeRet':
             # The fake return...
@@ -1047,7 +1042,7 @@ class CFG(Analysis, CFGBase):
         current_function_addr = entry_wrapper.current_function_address
         current_stack_pointer = entry_wrapper.current_stack_pointer
         accessed_registers_in_function = entry_wrapper.current_function_accessed_registers
-        current_function = self._function_manager.function(current_function_addr, create_if_not_exist=True)
+        current_function = self.project.artifacts.functions.function(current_function_addr, create_if_not_exist=True)
         jumpkind = 'Ijk_Boring' if current_entry.state.scratch.jumpkind is None else \
             current_entry.state.scratch.jumpkind
 
@@ -2185,7 +2180,7 @@ class CFG(Analysis, CFGBase):
                 # The original call failed. This pending exit must be followed.
                 continue
 
-            func = self.function_manager.function(pe.returning_source)
+            func = self.project.artifacts.functions.function(pe.returning_source)
             if func is None:
                 # Why does it happen?
                 l.warning("An expected function at %s is not found. Please report it to Fish.",
@@ -2213,7 +2208,7 @@ class CFG(Analysis, CFGBase):
 
         l.debug("Analyzing calling conventions of each function.")
 
-        for func in self._function_manager.functions.values():
+        for func in self.project.artifacts.functions.values():
             startpoint = func.startpoint
 
             #
@@ -2227,12 +2222,9 @@ class CFG(Analysis, CFGBase):
             # Set the calling convention
             func.cc = cc
 
-            # for func in self._function_manager.functions.values():
-            #    l.info(func)
-
     def _analyze_function_features(self):
         """
-        For each function in self.function_manager, try to determine if it returns or not. A function does not return if
+        For each function in the function_manager, try to determine if it returns or not. A function does not return if
         it calls another function that is known to be not returning, and this functiond does not have other exits.
 
         We might as well analyze other features of functions in the future.
@@ -2245,7 +2237,7 @@ class CFG(Analysis, CFGBase):
 
         self._graph = self._create_graph()
 
-        for func_addr, func in self.function_manager.functions.iteritems():
+        for func in self.project.artifacts.functions.values():
             if func.returning is not None:
                 # It has been determined before. Skip it
                 continue
@@ -2283,7 +2275,7 @@ class CFG(Analysis, CFGBase):
                         temporary_endpoints.append(local_endpoint)
 
                     else:
-                        for src, dst, data in out_edges:
+                        for _, dst, data in out_edges:
                             t = data['type']
 
                             if t != 'fake_return':
@@ -2305,7 +2297,7 @@ class CFG(Analysis, CFGBase):
                     # This block is not a member of the current function
                     call_target = endpoint
 
-                    call_target_func = self.function_manager.function(call_target)
+                    call_target_func = self.project.artifacts.functions.function(call_target)
                     if call_target_func is None:
                         all_endpoints_returning.append(None)
                         continue
@@ -2436,8 +2428,7 @@ class CFG(Analysis, CFGBase):
         calling some not-returning functions.
         :return: None
         """
-        function_manager = self._function_manager
-        for func in function_manager.functions.values():
+        for func in self.project.artifacts.functions.values():
             graph = func.transition_graph
             all_return_edges = [(u, v) for (u, v, data) in graph.edges(data=True) if data['type'] == 'return_from_call']
             for return_from_call_edge in all_return_edges:
@@ -2446,7 +2437,7 @@ class CFG(Analysis, CFGBase):
                 if call_func_addr is None:
                     continue
 
-                call_func = self._function_manager.function(call_func_addr)
+                call_func = self.project.artifacts.functions.function(call_func_addr)
                 if call_func is None:
                     # Weird...
                     continue
@@ -2494,7 +2485,7 @@ class CFG(Analysis, CFGBase):
             while u_ != v_:
                 while dfn[u_] < dfn[v_]:
                     u_ = idom[u_]
-                while dfn[u] > dfn[v]:
+                while dfn[u_] > dfn[v_]:
                     v_ = idom[v_]
             return u_
 
@@ -2518,7 +2509,6 @@ class CFG(Analysis, CFGBase):
     def __setstate__(self, s):
         self.project = s['project']
         self._graph = s['graph']
-        self._function_manager = s['function_manager']
         self._loop_back_edges = s['_loop_back_edges']
         self._nodes = s['_nodes']
         self.unresolved_indirect_jumps = s['unresolved_indirect_jumps']
@@ -2531,7 +2521,6 @@ class CFG(Analysis, CFGBase):
         s = {
             'project': self.project,
             'graph': self._graph,
-            'function_manager': self._function_manager,
             '_loop_back_edges': self._loop_back_edges,
             '_nodes': self._nodes,
             'unresolved_indirect_jumps': self.unresolved_indirect_jumps,

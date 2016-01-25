@@ -14,7 +14,6 @@ class CFGBase(object):
         self._edge_map = None
         self._loop_back_edges = None
         self._overlapped_loop_headers = None
-        self._function_manager = None
         self._thumb_addrs = set()
         if context_sensitivity_level < 0:
             raise Exception("Unsupported context sensitivity level %d" % context_sensitivity_level)
@@ -234,10 +233,6 @@ class CFGBase(object):
 
         if edge in self._graph:
             self._graph.remove_edge(edge)
-
-    @property
-    def function_manager(self):
-        return self._function_manager
 
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs

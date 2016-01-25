@@ -306,20 +306,8 @@ class CFGFast(Analysis):
         # All IRSBs with an indirect exit target
         self._indirect_jumps = set()
 
-        self.function_manager = FunctionManager(self.project, self)
-
         # Start working!
         self._analyze()
-
-    #
-    # Properties
-    #
-
-    def call_map(self):
-
-        # TODO: Get the call map from self.function_manager
-
-        raise NotImplementedError()
 
     #
     # Utils
@@ -552,7 +540,7 @@ class CFGFast(Analysis):
 
         unassured_functions = []
 
-        for start_, end_, bytes_ in strides:
+        for start_, _, bytes_ in strides:
             for regex in regexes:
                 # Match them!
                 for mo in regex.finditer(bytes_):
@@ -565,7 +553,7 @@ class CFGFast(Analysis):
 
     # Basic block scanning
 
-    def _scan_code(self, traced_addresses, function_exits, initial_state, starting_address, maybe_function):
+    def _scan_code(self, traced_addresses, function_exits, initial_state, starting_address, maybe_function): #pylint:disable=unused-argument
         # Saving tuples like (current_function_addr, next_exit_addr)
         # Current_function_addr == -1 for exits not inside any function
         remaining_entries = set()
@@ -577,7 +565,7 @@ class CFGFast(Analysis):
 
         if maybe_function:
             # Add it to function manager
-            self.function_manager._create_function_if_not_exist(next_addr)
+            self.project.artifacts.functions._create_function_if_not_exist(next_addr)
 
         while len(remaining_entries):
             ce = remaining_entries.pop()
@@ -605,8 +593,7 @@ class CFGFast(Analysis):
             self._scan_block(addr, current_function_addr, function_exits, remaining_entries, traced_addresses,
                              jumpkind, src_node)
 
-    def _scan_block(self, addr, current_function_addr, function_exits, remaining_entries, traced_addresses,
-                    previous_jumpkind, previous_src_node):
+    def _scan_block(self, addr, current_function_addr, function_exits, remaining_entries, traced_addresses, previous_jumpkind, previous_src_node): #pylint:disable=unused-argument
         """
         Scan a basic block starting at a specific address
 
@@ -661,13 +648,13 @@ class CFGFast(Analysis):
 
             elif jumpkind == 'Ijk_Call':
                 if next_addr is not None:
-                    self.function_manager._create_function_if_not_exist(next_addr)
+                    self.project.artifacts.functions._create_function_if_not_exist(next_addr)
 
                     new_function_addr = next_addr
                     return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
 
                     if current_function_addr != -1:
-                        self.function_manager.call_to(
+                        self.project.artifacts.functions.add_call_to(
                             current_function_addr,
                             addr,
                             next_addr,
@@ -747,7 +734,7 @@ class CFGFast(Analysis):
                 annotatedcfg = AnnotatedCFG(self.project, None, detect_loops=False)
                 annotatedcfg.from_digraph(b.slice)
 
-                for src_irsb, src_stmt_idx in sources:
+                for src_irsb, _ in sources:
                     # Use slicecutor to execute each one, and get the address
                     # We simply give up if any exception occurs on the way
 
@@ -878,22 +865,6 @@ class CFGFast(Analysis):
     # Public methods
     #
 
-    def genenare_callmap_sif(self, filepath):
-        """
-        Generate a sif file from the call map
-
-        :param filepath: Path of the sif file
-        :return: None
-        """
-        graph = self.call_map  # FIXME: get call map from self.function_manager
-
-        if graph is None:
-            raise AngrGirlScoutError('Please generate the call graph first.')
-
-        with open(filepath, "wb") as f:
-            for src, dst in graph.edges():
-                f.write("0x%x\tDirectEdge\t0x%x\n" % (src, dst))
-
     def generate_code_cover(self):
         """
         Generate a list of all recovered basic blocks.
@@ -909,12 +880,10 @@ class CFGFast(Analysis):
             lst.append((irsb_addr, irsb_size))
 
         lst = sorted(lst, key=lambda x: x[0])
-
         return lst
 
 register_analysis(CFGFast, 'CFGFast')
 
 from .cfg_node import CFGNode
 from ..blade import Blade
-from ..errors import AngrGirlScoutError, AngrTranslationError, AngrMemoryError
-from ..artifacts.function_manager import FunctionManager
+from ..errors import AngrTranslationError, AngrMemoryError
