@@ -283,13 +283,13 @@ class Function(object):
     def endpoints(self):
         return list(self._ret_sites)
 
-    def clear_transition_graph(self):
+    def _clear_transition_graph(self):
         self.blocks = { self._project.factory.block(self._addr) }
         self._transition_graph = networkx.DiGraph()
         self._transition_graph.add_node(self._addr)
         self._local_transition_graph = None
 
-    def transit_to(self, from_addr, to_addr):
+    def _transit_to(self, from_addr, to_addr):
         '''
         Registers an edge between basic blocks in this function's transition graph
 
@@ -304,7 +304,7 @@ class Function(object):
 
         self._transition_graph.add_edge(from_addr, to_addr, type='transition')
 
-    def call_to(self, from_addr, to_addr, return_target, syscall=False):
+    def _call_to(self, from_addr, to_addr, return_target, syscall=False):
         """
         Registers an edge between the caller basic block and callee basic block
 
@@ -326,12 +326,12 @@ class Function(object):
             if return_target is not None:
                 self._transition_graph.add_edge(from_addr, return_target, type='fake_return')
 
-    def return_from_call(self, src_function_addr, to_addr):
+    def _return_from_call(self, src_function_addr, to_addr):
         self._add_block_by_addr(to_addr)
 
         self._transition_graph.add_edge(src_function_addr, to_addr, type='return_from_call')
 
-    def add_block(self, addr):
+    def _add_block(self, addr):
         '''
         Registers a basic block as part of this function
 
@@ -342,7 +342,7 @@ class Function(object):
 
         self._transition_graph.add_node(addr)
 
-    def add_return_site(self, return_site_addr):
+    def _add_return_site(self, return_site_addr):
         '''
         Registers a basic block as a site for control flow to return from this function
 
@@ -350,7 +350,7 @@ class Function(object):
         '''
         self._ret_sites.add(return_site_addr)
 
-    def add_call_site(self, call_site_addr, call_target_addr, retn_addr):
+    def _add_call_site(self, call_site_addr, call_target_addr, retn_addr):
         '''
         Registers a basic block as calling a function and returning somewhere
 
@@ -433,7 +433,7 @@ class Function(object):
         '''
         Returns a representation of the list of basic blocks in this function
         '''
-        return "[%s]" % (', '.join(('0x%08x' % n) for n in self._transition_graph.nodes()))
+        return "[%s]" % (', '.join(('%#08x' % n) for n in self._transition_graph.nodes()))
 
     def dbg_draw(self, filename):
         '''
@@ -442,8 +442,8 @@ class Function(object):
         import matplotlib.pyplot as pyplot # pylint: disable=import-error
         tmp_graph = networkx.DiGraph()
         for edge in self._transition_graph.edges():
-            node_a = "0x%08x" % edge[0]
-            node_b = "0x%08x" % edge[1]
+            node_a = "%#08x" % edge[0]
+            node_b = "%#08x" % edge[1]
             if node_b in self._ret_sites:
                 node_b += "[Ret]"
             if node_a in self._call_sites:
@@ -453,7 +453,7 @@ class Function(object):
         networkx.draw(tmp_graph, pos, node_size=1200)
         pyplot.savefig(filename)
 
-    def add_argument_register(self, reg_offset):
+    def _add_argument_register(self, reg_offset):
         '''
         Registers a register offset as being used as an argument to the function
 
@@ -463,7 +463,7 @@ class Function(object):
                     reg_offset not in self._argument_registers:
             self._argument_registers.append(reg_offset)
 
-    def add_argument_stack_variable(self, stack_var_offset):
+    def _add_argument_stack_variable(self, stack_var_offset):
         if stack_var_offset not in self._argument_stack_variables:
             self._argument_stack_variables.append(stack_var_offset)
 
@@ -564,6 +564,7 @@ class Function(object):
                     l.error('normalize(): Please report it to Fish/maybe john.')
 
             end_addresses[end_addr] = [smallest_node]
+<<<<<<< c80f584720df22a098443004d6194171fa705bc6
 
     def _match_cc(self):
         '''
@@ -600,3 +601,5 @@ class Function(object):
 
         # We cannot determine the calling convention of this function.
         return simuvex.s_cc.SimCCUnknown(arch, args, ret_vals, sp_delta)
+=======
+>>>>>>> Make a whole bunch of mutating methods on function and function manager private

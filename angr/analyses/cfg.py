@@ -423,7 +423,7 @@ class CFG(Analysis, CFGBase):
 
         # Clear the transition graph of each function first
         for f in self.project.artifacts.functions.values():
-            f.clear_transition_graph()
+            f._clear_transition_graph()
 
         # Adding edges
         for tpl, targets in exit_targets.iteritems():
@@ -504,7 +504,7 @@ class CFG(Analysis, CFGBase):
 
         # Update the transition graph of current function
         if jumpkind == "Ijk_Call":
-            self.project.artifacts.functions.add_call_to(
+            self.project.artifacts.functions._add_call_to(
                 function_addr=src_func_addr,
                 from_addr=src_addr,
                 to_addr=dest_addr,
@@ -514,7 +514,7 @@ class CFG(Analysis, CFGBase):
 
         if jumpkind.startswith('Ijk_Sys'):
 
-            self.project.artifacts.functions.add_call_to(
+            self.project.artifacts.functions._add_call_to(
                 function_addr=src_func_addr,
                 from_addr=src_addr,
                 to_addr=dest_addr,
@@ -527,14 +527,14 @@ class CFG(Analysis, CFGBase):
         elif jumpkind == 'Ijk_Ret':
 
             # Create a return site for current function
-            self.project.artifacts.functions.add_return_from(
+            self.project.artifacts.functions._add_return_from(
                 function_addr=src_func_addr,
                 from_addr=src_addr,
                 to_addr=dest_addr
             )
 
             # Create a returning edge in the caller function
-            self.project.artifacts.functions.add_return_from_call(
+            self.project.artifacts.functions._add_return_from_call(
                 function_addr=dest_func_addr,
                 src_function_addr=src_func_addr,
                 to_addr=dest_addr
@@ -548,14 +548,14 @@ class CFG(Analysis, CFGBase):
             if src_obj is dest_obj:
 
                 # It's a normal transition
-                self.project.artifacts.functions.add_transition_to(
+                self.project.artifacts.functions._add_transition_to(
                     function_addr=src_func_addr,
                     from_addr=src_addr,
                     to_addr=dest_addr
                 )
 
             else:
-                self.project.artifacts.functions.add_call_to(
+                self.project.artifacts.functions._add_call_to(
                     function_addr=src_func_addr,
                     from_addr=src_addr,
                     to_addr=dest_addr,
@@ -1725,11 +1725,11 @@ class CFG(Analysis, CFGBase):
                         # TODO: What if a variable locates higher than the stack is modified as well? We probably want
                         # to make sure the accessing address falls in the range of stack
                         offset = addr - new_sp_addr
-                        func.add_argument_stack_variable(offset)
+                        func._add_argument_stack_variable(offset)
                 elif a.type == "reg":
                     offset = a.offset
                     if a.action == "read" and offset not in accessed_registers:
-                        func.add_argument_register(offset)
+                        func._add_argument_register(offset)
                     elif a.action == "write":
                         accessed_registers.add(offset)
         else:

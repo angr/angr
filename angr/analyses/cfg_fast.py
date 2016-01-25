@@ -654,7 +654,7 @@ class CFGFast(Analysis):
                     return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
 
                     if current_function_addr != -1:
-                        self.project.artifacts.functions.add_call_to(
+                        self.project.artifacts.functions._add_call_to(
                             current_function_addr,
                             addr,
                             next_addr,

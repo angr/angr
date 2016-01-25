@@ -65,7 +65,7 @@ def test_call_to():
     project = angr.Project(test_location + "/x86_64/fauxware")
     project.arch = ArchAMD64()
 
-    project.artifacts.functions.add_call_to(0x400000, 0x400410, 0x400420, 0x400414)
+    project.artifacts.functions._add_call_to(0x400000, 0x400410, 0x400420, 0x400414)
     nose.tools.assert_in(0x400000, project.artifacts.functions.keys())
     nose.tools.assert_in(0x400420, project.artifacts.functions.keys())
 
