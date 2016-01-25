@@ -284,7 +284,7 @@ class Function(object):
         return list(self._ret_sites)
 
     def clear_transition_graph(self):
-        self.blocks = { self._projects.factory.block(self._addr) }
+        self.blocks = { self._project.factory.block(self._addr) }
         self._transition_graph = networkx.DiGraph()
         self._transition_graph.add_node(self._addr)
         self._local_transition_graph = None
