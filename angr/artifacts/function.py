@@ -86,7 +86,7 @@ class Function(object):
     def has_unresolved_jumps(self):
         for addr in self._transition_graph.nodes():
             if addr in self._function_manager._artifact._unresolved_indirect_jumps:
-                b = self._function_manager.project.factory.block(addr)
+                b = self._project.factory.block(addr)
                 if b.vex.jumpkind == 'Ijk_Boring':
                     return True
         return False
@@ -95,7 +95,7 @@ class Function(object):
     def has_unresolved_calls(self):
         for addr in self._transition_graph.nodes():
             if addr in self._function_manager._artifact._unresolved_indirect_jumps:
-                b = self._function_manager.project.factory.block(addr)
+                b = self._project.factory.block(addr)
                 if b.vex.jumpkind == 'Ijk_Call':
                     return True
         return False
@@ -122,7 +122,7 @@ class Function(object):
         :return: a list of tuples of (address, string) where is address is the location of the string in memory
         """
         strings = []
-        memory = self._function_manager.project.loader.memory
+        memory = self._project.loader.memory
 
         # get known instruction addresses and call targets
         # these addresses cannot be string references, but show up frequently in the runtime values
@@ -167,12 +167,12 @@ class Function(object):
         """
         constants = set()
 
-        if not self._function_manager.project.loader.main_bin.contains_addr(self.startpoint):
+        if not self._project.loader.main_bin.contains_addr(self.startpoint):
             return constants
 
         # reanalyze function with a new initial state (use persistent registers)
         initial_state = self._function_manager._cfg.get_any_irsb(self.startpoint).initial_state
-        fresh_state = self._function_manager.project.factory.blank_state(mode="fastpath")
+        fresh_state = self._project.factory.blank_state(mode="fastpath")
         for reg in initial_state.arch.persistent_regs + ['ip']:
             fresh_state.registers.store(reg, initial_state.registers.load(reg))
 
@@ -183,14 +183,14 @@ class Function(object):
         while len(q) > 0:
             state = q.pop()
             # don't trace into simprocedures
-            if self._function_manager.project.is_hooked(state.se.any_int(state.ip)):
+            if self._project.is_hooked(state.se.any_int(state.ip)):
                 continue
             # don't trace outside of the binary
-            if not self._function_manager.project.loader.main_bin.contains_addr(state.se.any_int(state.ip)):
+            if not self._project.loader.main_bin.contains_addr(state.se.any_int(state.ip)):
                 continue
 
             # get runtime values from logs of successors
-            p = self._function_manager.project.factory.path(state)
+            p = self._project.factory.path(state)
             p.step()
             for succ in p.next_run.flat_successors + p.next_run.unsat_successors:
                 for a in succ.log.actions:
@@ -500,7 +500,7 @@ class Function(object):
 
     @property
     def callable(self):
-        return self._function_manager.project.factory.callable(self._addr)
+        return self._project.factory.callable(self._addr)
 
     def normalize(self):
         graph = self.transition_graph
