@@ -23,12 +23,10 @@ def test_amd64():
     EXPECTED_CALLSITE_RETURNS = { 4196158L, 4196180L, 4196202L, 4196212L, 4196234L, 4196256L, 4196275L, 4196295L,
                                   None }
 
-    cfg = fauxware_amd64.analyses.CFG()
-    func_man = cfg.function_manager
-    functions = func_man.functions
-    nose.tools.assert_equal(set([ k for k in functions.keys() if k < 0x500000 ]), EXPECTED_FUNCTIONS)
+    fauxware_amd64.analyses.CFG()
+    nose.tools.assert_equal(set([ k for k in fauxware_amd64.artifacts.functions.keys() if k < 0x500000 ]), EXPECTED_FUNCTIONS)
 
-    main = func_man.function(name='main')
+    main = fauxware_amd64.artifacts.functions.function(name='main')
     nose.tools.assert_equal(main.startpoint, 0x40071D)
     nose.tools.assert_equal(set(main.basic_blocks), EXPECTED_BLOCKS)
     nose.tools.assert_equal([0x4007D3], main.endpoints)
@@ -37,7 +35,7 @@ def test_amd64():
     nose.tools.assert_equal(set(map(main.get_call_return, main.get_call_sites())), EXPECTED_CALLSITE_RETURNS)
     nose.tools.assert_true(main.has_return)
 
-    rejected = func_man.function(name='rejected')
+    rejected = fauxware_amd64.artifacts.functions.function(name='rejected')
     nose.tools.assert_equal(rejected.returning, False)
 
     # transition graph
@@ -64,35 +62,12 @@ def test_amd64():
     #l.info("PNG files generated.")
 
 def test_call_to():
-    # pylint: disable=unused-argument,no-self-use,attribute-defined-outside-init
-    class dummy(object):
-        '''
-        This is a mock object.
-        '''
-
-        def __init__(self):
-            self._attrs = { }
-
-        def __getattr__(self, item):
-            if item not in self._attrs:
-                self._attrs[item] = dummy()
-
-            return self._attrs[item]
-
-        def find_symbol_name(self, *args, **kwargs):
-            return 'unknown'
-
-        def is_hooked(self, addr):
-            return False
-
-    project = dummy()
+    project = angr.Project(test_location + "/x86_64/fauxware")
     project.arch = ArchAMD64()
 
-    fm = angr.artifacts.FunctionManager(project, None)
-    fm.call_to(0x400000, 0x400410, 0x400420, 0x400414)
-
-    nose.tools.assert_in(0x400000, fm.functions.keys())
-    nose.tools.assert_in(0x400420, fm.functions.keys())
+    project.artifacts.functions.add_call_to(0x400000, 0x400410, 0x400420, 0x400414)
+    nose.tools.assert_in(0x400000, project.artifacts.functions.keys())
+    nose.tools.assert_in(0x400420, project.artifacts.functions.keys())
 
 if __name__ == "__main__":
     test_call_to()
