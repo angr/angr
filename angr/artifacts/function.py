@@ -1,6 +1,7 @@
 import logging
 import networkx
 import string
+from collections import defaultdict
 
 import simuvex
 import claripy
@@ -29,7 +30,7 @@ class Function(object):
         self._function_manager = function_manager
         self.is_syscall = syscall
 
-        project = self._function_manager._artifact._project
+        self._project = project = self._function_manager._artifact._project
 
         if name is None:
             # Try to get a name from project.loader
@@ -39,7 +40,6 @@ class Function(object):
             if name is not None:
                 name = 'plt.' + name
         if project.is_hooked(addr):
-
             hooker = project.hooked_by(addr)
             if hooker is simuvex.SimProcedures['stubs']['ReturnUnconstrained']:
                 kwargs_dict = project._sim_procedures[addr][1]
@@ -72,7 +72,14 @@ class Function(object):
         self.prepared_registers = set()
         self.prepared_stack_variables = set()
         self.registers_read_afterwards = set()
-        self.blocks = { addr }
+        self.blocks = { self._project.factory.block(addr) }
+
+    def _add_block_by_addr(self, addr):
+        self.blocks.add(self._project.factory.block(addr))
+
+    @property
+    def block_addrs(self):
+        return [block.addr for block in self.blocks]
 
     @property
     def has_unresolved_jumps(self):
@@ -97,14 +104,7 @@ class Function(object):
         '''
         All of the operations that are done by this functions.
         '''
-        operations = [ ]
-        for b in self.basic_blocks:
-            if b in self._function_manager.project.loader.memory:
-                try:
-                    operations.extend(self._function_manager.project.factory.block(b).vex.operations)
-                except AngrTranslationError:
-                    continue
-        return operations
+        return [op for block in self.blocks for op in block.vex.operations]
 
     @property
     def code_constants(self):
@@ -112,14 +112,7 @@ class Function(object):
         All of the constants that are used by this functions's code.
         '''
         # TODO: remove link register values
-        constants = [ ]
-        for b in self.basic_blocks:
-            if b in self._function_manager.project.loader.memory:
-                try:
-                    constants.extend(v.value for v in self._function_manager.project.factory.block(b).vex.constants)
-                except AngrTranslationError:
-                    continue
-        return constants
+        return [const for block in self.blocks for const in block.vex.constants]
 
     def string_references(self, minimum_length=1):
         """
@@ -133,10 +126,8 @@ class Function(object):
         # get known instruction addresses and call targets
         # these addresses cannot be string references, but show up frequently in the runtime values
         known_executable_addresses = set()
-        for b in self.basic_blocks:
-            if b in memory:
-                sirsb = self._function_manager.project.factory.block(b)
-                known_executable_addresses.update(sirsb.instruction_addrs)
+        for block in self.blocks:
+            known_executable_addresses.update(block.instruction_addrs)
         for node in self._function_manager._cfg.nodes():
             known_executable_addresses.add(node.addr)
 
@@ -211,7 +202,7 @@ class Function(object):
                 # add successors to the queue to analyze
                 if not succ.se.symbolic(succ.ip):
                     succ_ip = succ.se.any_int(succ.ip)
-                    if succ_ip in self.basic_blocks and succ_ip not in analyzed:
+                    if succ_ip in self.block_addrs and succ_ip not in analyzed:
                         analyzed.add(succ_ip)
                         q.insert(0, succ)
 
@@ -219,7 +210,7 @@ class Function(object):
             # (this is a slightly hacky way to force it to explore all the nodes in the function)
             missing = set(self.transition_graph.successors(state.se.any_int(state.ip))) - analyzed
             for succ_addr in missing:
-                l.info("Forcing jump to missing successor: 0x%x", succ_addr)
+                l.info("Forcing jump to missing successor: %#x", succ_addr)
                 if succ_addr not in analyzed:
                     all_successors = p.next_run.unconstrained_successors + p.next_run.flat_successors + \
                                      p.next_run.unsat_successors
@@ -230,7 +221,7 @@ class Function(object):
                         analyzed.add(succ_addr)
                         q.insert(0, succ)
                     else:
-                        l.warning("Could not reach successor: 0x%x", succ_addr)
+                        l.warning("Could not reach successor: %#x", succ_addr)
 
         return constants
 
@@ -240,7 +231,7 @@ class Function(object):
         All of the concrete values used by this function at runtime (i.e., including passed-in arguments and global values).
         '''
         constants = set()
-        for b in self.basic_blocks:
+        for b in self.block_addrs:
             for sirsb in self._function_manager._cfg.get_all_irsbs(b):
                 for s in sirsb.successors + sirsb.unsat_successors:
                     for a in s.log.actions:
@@ -263,9 +254,9 @@ class Function(object):
 
     def __str__(self):
         if self.name is None:
-            s = 'Function [0x%x]\n' % (self._addr)
+            s = 'Function [%#x]\n' % (self._addr)
         else:
-            s = 'Function %s [0x%x]\n' % (self.name, self._addr)
+            s = 'Function %s [%#x]\n' % (self.name, self._addr)
         s += '  Syscall: %s\n' % self.is_syscall
         s += '  SP difference: %d\n' % self.sp_delta
         s += '  Has return: %s\n' % self.has_return
@@ -273,15 +264,15 @@ class Function(object):
         s += '  Arguments: reg: %s, stack: %s\n' % \
             (self._argument_registers,
              self._argument_stack_variables)
-        s += '  Blocks: [%s]\n' % ", ".join([hex(i) for i in self.blocks])
+        s += '  Blocks: [%s]\n' % ", ".join(['%#x' % i for i in self.block_addrs])
         s += "  Calling convention: %s" % self.cc
         return s
 
     def __repr__(self):
         if self.name is None:
-            return '<Function 0x%x>' % (self._addr)
+            return '<Function %#x>' % (self._addr)
         else:
-            return '<Function %s (0x%x)>' % (self.name, self._addr)
+            return '<Function %s (%#x)>' % (self.name, self._addr)
 
     @property
     def startpoint(self):
@@ -292,7 +283,7 @@ class Function(object):
         return list(self._ret_sites)
 
     def clear_transition_graph(self):
-        self.blocks = { self._addr }
+        self.blocks = { self._projects.factory.block(self._addr) }
         self._transition_graph = networkx.DiGraph()
         self._transition_graph.add_node(self._addr)
         self._local_transition_graph = None
@@ -307,8 +298,8 @@ class Function(object):
                                     flow enters during this transition
         '''
 
-        self.blocks.add(from_addr)
-        self.blocks.add(to_addr)
+        self._add_block_by_addr(from_addr)
+        self._add_block_by_addr(to_addr)
 
         self._transition_graph.add_edge(from_addr, to_addr, type='transition')
 
@@ -324,7 +315,7 @@ class Function(object):
         :param syscall: Whether this call is a syscall or nor.
         """
 
-        self.blocks.add(from_addr)
+        self._add_block_by_addr(from_addr)
 
         if syscall:
             self._transition_graph.add_edge(from_addr, to_addr, type='syscall')
@@ -335,8 +326,7 @@ class Function(object):
                 self._transition_graph.add_edge(from_addr, return_target, type='fake_return')
 
     def return_from_call(self, src_function_addr, to_addr):
-
-        self.blocks.add(to_addr)
+        self._add_block_by_addr(to_addr)
 
         self._transition_graph.add_edge(src_function_addr, to_addr, type='return_from_call')
 
@@ -347,7 +337,7 @@ class Function(object):
         @param addr                 The address of the basic block to add
         '''
 
-        self.blocks.add(addr)
+        self._add_block_by_addr(addr)
 
         self._transition_graph.add_node(addr)
 
@@ -423,15 +413,15 @@ class Function(object):
 
         g = networkx.DiGraph()
         for src, dst, data in self._transition_graph.edges_iter(data=True):
-            if src in self.blocks and dst in self.blocks:
+            if src in self.block_addrs and dst in self.block_addrs:
                 g.add_edge(src, dst, attr_dict=data)
-            elif src in self.blocks:
+            elif src in self.block_addrs:
                 g.add_node(src)
-            elif dst in self.blocks:
+            elif dst in self.block_addrs:
                 g.add_node(dst)
 
         for node in self._transition_graph.nodes_iter():
-            if node in self.blocks:
+            if node in self.block_addrs:
                 g.add_node(node)
 
         self._local_transition_graph = g
@@ -514,5 +504,64 @@ class Function(object):
     @property
     def callable(self):
         return self._function_manager.project.factory.callable(self._addr)
+
+    def normalize(self):
+        graph = self.transition_graph
+        end_addresses = defaultdict(list)
+
+        for block in self.blocks:
+            end_addr = block.addr + block.size
+            end_addresses[end_addr].append(block)
+
+        while any([len(x) > 1 for x in end_addresses.itervalues()]):
+            end_addr, all_nodes = \
+                next((end_addr, x) for (end_addr, x) in end_addresses.iteritems() if len(x) > 1)
+
+            all_nodes = sorted(all_nodes, key=lambda node: node.size)
+            smallest_node = all_nodes[0]
+            other_nodes = all_nodes[1:]
+
+            # Break other nodes
+            for n in other_nodes:
+                new_size = smallest_node.addr - n.addr
+                if new_size == 0:
+                    # This is the node that has the same size as the smallest one
+                    continue
+
+                new_end_addr = n.addr + new_size
+
+                # Does it already exist?
+                new_node = None
+                if new_end_addr in end_addresses:
+                    nodes = [i for i in end_addresses[new_end_addr] if i.addr == n.addr]
+                    if len(nodes) > 0:
+                        new_node = nodes[0]
+
+                if new_node is None:
+                    # Create a new one
+                    new_node = self._project.factory.block(n.addr, max_size=new_size)
+                    # Put the newnode into end_addresses
+                    end_addresses[new_end_addr].append(new_node)
+
+                # Modify the CFG
+                original_predecessors = list(graph.in_edges_iter([n], data=True))
+                for p, _, _ in original_predecessors:
+                    graph.remove_edge(p, n)
+                graph.remove_node(n)
+
+                for p, _, data in original_predecessors:
+                    graph.add_edge(p, new_node, data)
+
+                # We should find the correct successor
+                new_successors = [i for i in all_nodes
+                                  if i.addr == smallest_node.addr]
+                if new_successors:
+                    new_successor = new_successors[0]
+                    graph.add_edge(new_node, new_successor, jumpkind='Ijk_Boring')
+                else:
+                    # We gotta create a new one
+                    l.error('normalize(): Please report it to Fish/maybe john.')
+
+            end_addresses[end_addr] = [smallest_node]
 
 from ..errors import AngrTranslationError
