@@ -573,7 +573,7 @@ class Function(object):
         If a CFG is not provided or we cannot find the given function address in the given CFG, we will generate
         a local CFG of the function to detect how it is using the arguments.
         '''
-        arch = self._function_manager._artifact.project.arch
+        arch = self._project.arch
 
         args = [ ]
         ret_vals = [ ]

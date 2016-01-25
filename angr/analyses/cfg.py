@@ -2209,7 +2209,8 @@ class CFG(Analysis, CFGBase):
         l.debug("Analyzing calling conventions of each function.")
 
         for func in self.project.artifacts.functions.values():
-            startpoint = func.startpoint
+            if func.cc is not None:
+                continue
 
             #
             # Refining arguments of a function by analyzing its call-sites
@@ -2217,10 +2218,8 @@ class CFG(Analysis, CFGBase):
             callsites = self._get_callsites(func.startpoint)
             self._refine_function_arguments(func, callsites)
 
-            cc = simuvex.SimCC.match(self.project, startpoint)
-
             # Set the calling convention
-            func.cc = cc
+            func.cc = func._match_cc()
 
     def _analyze_function_features(self):
         """
