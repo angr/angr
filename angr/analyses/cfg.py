@@ -382,7 +382,7 @@ class CFG(Analysis, CFGBase):
                                                         self._context_sensitivity_level)
                         remaining_entries.append(new_path_wrapper)
                         l.debug('Picking a function 0x%x from pending function hints.', f)
-                        self.project.artifacts.functions._create_function_if_not_exist(new_path_wrapper.current_function_address)
+                        self.artifacts.functions._create_function_if_not_exist(new_path_wrapper.current_function_address)
                         break
 
         # Create CFG
@@ -422,7 +422,7 @@ class CFG(Analysis, CFGBase):
             cfg.add_node(self._nodes.values()[0])
 
         # Clear the transition graph of each function first
-        for f in self.project.artifacts.functions.values():
+        for f in self.artifacts.functions.values():
             f._clear_transition_graph()
 
         # Adding edges
@@ -467,7 +467,7 @@ class CFG(Analysis, CFGBase):
 
                 ret_addr = None
                 if jumpkind == 'Ijk_Call':
-                    target_function = self.project.artifacts.functions.function(dest_node.addr)
+                    target_function = self.artifacts.functions.function(dest_node.addr)
                     if target_function is None or target_function.returning is not False:
                         ret_addr = src_node.return_target
 
@@ -504,7 +504,7 @@ class CFG(Analysis, CFGBase):
 
         # Update the transition graph of current function
         if jumpkind == "Ijk_Call":
-            self.project.artifacts.functions._add_call_to(
+            self.artifacts.functions._add_call_to(
                 function_addr=src_func_addr,
                 from_addr=src_addr,
                 to_addr=dest_addr,
@@ -514,7 +514,7 @@ class CFG(Analysis, CFGBase):
 
         if jumpkind.startswith('Ijk_Sys'):
 
-            self.project.artifacts.functions._add_call_to(
+            self.artifacts.functions._add_call_to(
                 function_addr=src_func_addr,
                 from_addr=src_addr,
                 to_addr=dest_addr,
@@ -522,19 +522,19 @@ class CFG(Analysis, CFGBase):
                 syscall=True,
             )
 
-            self.project.artifacts.functions[dest_addr].is_syscall = True
+            self.artifacts.functions[dest_addr].is_syscall = True
 
         elif jumpkind == 'Ijk_Ret':
 
             # Create a return site for current function
-            self.project.artifacts.functions._add_return_from(
+            self.artifacts.functions._add_return_from(
                 function_addr=src_func_addr,
                 from_addr=src_addr,
                 to_addr=dest_addr
             )
 
             # Create a returning edge in the caller function
-            self.project.artifacts.functions._add_return_from_call(
+            self.artifacts.functions._add_return_from_call(
                 function_addr=dest_func_addr,
                 src_function_addr=src_func_addr,
                 to_addr=dest_addr
@@ -548,14 +548,14 @@ class CFG(Analysis, CFGBase):
             if src_obj is dest_obj:
 
                 # It's a normal transition
-                self.project.artifacts.functions._add_transition_to(
+                self.artifacts.functions._add_transition_to(
                     function_addr=src_func_addr,
                     from_addr=src_addr,
                     to_addr=dest_addr
                 )
 
             else:
-                self.project.artifacts.functions._add_call_to(
+                self.artifacts.functions._add_call_to(
                     function_addr=src_func_addr,
                     from_addr=src_addr,
                     to_addr=dest_addr,
@@ -958,16 +958,16 @@ class CFG(Analysis, CFGBase):
                 delta = sp - old_sp
                 func_addr = entry_wrapper.current_function_address
 
-                if self.project.artifacts.functions.function(func_addr) is None:
+                if self.artifacts.functions.function(func_addr) is None:
                     # Create the function if it doesn't exist
                     # FIXME: But hell, why doesn't it exist in the first place?
                     l.error("Function 0x%x doesn't exist in function manager although it should be there." +
                             "Look into this issue later.",
                             func_addr)
-                    self.project.artifacts.functions._create_function_if_not_exist(func_addr)
+                    self.artifacts.functions._create_function_if_not_exist(func_addr)
 
                 # Set sp_delta of the function
-                self.project.artifacts.functions[func_addr].sp_delta = delta
+                self.artifacts.functions[func_addr].sp_delta = delta
 
         elif jumpkind == 'Ijk_FakeRet':
             # The fake return...
@@ -1042,7 +1042,7 @@ class CFG(Analysis, CFGBase):
         current_function_addr = entry_wrapper.current_function_address
         current_stack_pointer = entry_wrapper.current_stack_pointer
         accessed_registers_in_function = entry_wrapper.current_function_accessed_registers
-        current_function = self.project.artifacts.functions.function(current_function_addr, create_if_not_exist=True)
+        current_function = self.artifacts.functions.function(current_function_addr, create_if_not_exist=True)
         jumpkind = 'Ijk_Boring' if current_entry.state.scratch.jumpkind is None else \
             current_entry.state.scratch.jumpkind
 
@@ -2180,7 +2180,7 @@ class CFG(Analysis, CFGBase):
                 # The original call failed. This pending exit must be followed.
                 continue
 
-            func = self.project.artifacts.functions.function(pe.returning_source)
+            func = self.artifacts.functions.function(pe.returning_source)
             if func is None:
                 # Why does it happen?
                 l.warning("An expected function at %s is not found. Please report it to Fish.",
@@ -2208,7 +2208,7 @@ class CFG(Analysis, CFGBase):
 
         l.debug("Analyzing calling conventions of each function.")
 
-        for func in self.project.artifacts.functions.values():
+        for func in self.artifacts.functions.values():
             if func.cc is not None:
                 continue
 
@@ -2236,7 +2236,7 @@ class CFG(Analysis, CFGBase):
 
         self._graph = self._create_graph()
 
-        for func in self.project.artifacts.functions.values():
+        for func in self.artifacts.functions.values():
             if func.returning is not None:
                 # It has been determined before. Skip it
                 continue
@@ -2296,7 +2296,7 @@ class CFG(Analysis, CFGBase):
                     # This block is not a member of the current function
                     call_target = endpoint
 
-                    call_target_func = self.project.artifacts.functions.function(call_target)
+                    call_target_func = self.artifacts.functions.function(call_target)
                     if call_target_func is None:
                         all_endpoints_returning.append(None)
                         continue
@@ -2427,7 +2427,7 @@ class CFG(Analysis, CFGBase):
         calling some not-returning functions.
         :return: None
         """
-        for func in self.project.artifacts.functions.values():
+        for func in self.artifacts.functions.values():
             graph = func.transition_graph
             all_return_edges = [(u, v) for (u, v, data) in graph.edges(data=True) if data['type'] == 'return_from_call']
             for return_from_call_edge in all_return_edges:
@@ -2436,7 +2436,7 @@ class CFG(Analysis, CFGBase):
                 if call_func_addr is None:
                     continue
 
-                call_func = self.project.artifacts.functions.function(call_func_addr)
+                call_func = self.artifacts.functions.function(call_func_addr)
                 if call_func is None:
                     # Weird...
                     continue

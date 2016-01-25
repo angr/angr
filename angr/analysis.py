@@ -72,6 +72,7 @@ class Analyses(object):
     def _specialize_analysis(self, analysis, name):
         def make_analysis(*args, **kwargs): # pylint: disable=unused-argument
             fail_fast = kwargs.pop('fail_fast', False)
+            artifacts = kwargs.pop('artifacts', self.project.artifacts)
 
             oself = analysis.__new__(analysis)
             oself.named_errors = {}
@@ -81,6 +82,7 @@ class Analyses(object):
             oself._fail_fast = fail_fast
             oself._name = name
             oself.project = self.project
+            oself.artifacts = artifacts
 
             oself.__init__(*args, **kwargs)
             return oself
