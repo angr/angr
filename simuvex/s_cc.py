@@ -165,50 +165,6 @@ class SimCC(object):
             mem_addr = args_mem_base + (index * stack_step) + self.STACKARG_SP_BUFF
             state.memory.store(mem_addr, expr, endness=state.arch.memory_endness)
 
-    @staticmethod
-    def match(project, function_address, cfg=None):
-        '''
-        Try to decide the arguments to this function.
-        `cfg` is not necessary, but providing a CFG makes our life easier and will give you a better analysis
-        result (i.e. we have an idea of how this function is called in its call-sites).
-        If a CFG is not provided or we cannot find the given function address in the given CFG, we will generate
-        a local CFG of the function to detect how it is using the arguments.
-        '''
-        arch = project.arch
-
-        args = [ ]
-        ret_vals = [ ]
-        sp_delta = 0
-
-        #
-        # Determine how many arguments this function has.
-        #
-        func = cfg.function_manager.function(function_address)
-        if func is not None:
-            reg_args, stack_args = func.arguments
-
-            for arg in reg_args:
-                a = SimRegArg(project.arch.register_names[arg])
-                args.append(a)
-
-            for arg in stack_args:
-                a = SimStackArg(arg)
-                args.append(a)
-
-            sp_delta = func.sp_delta
-
-            for c in CC:
-                if c._match(project, args, sp_delta):
-                    return c(project.arch, args, ret_vals, sp_delta)
-
-        else:
-            # TODO:
-            pass
-
-        # We cannot determine the calling convention of this function.
-
-        return SimCCUnknown(arch, args, ret_vals, sp_delta)
-
     @property
     def arguments(self):
         return self.args
