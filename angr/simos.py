@@ -46,7 +46,7 @@ class SimOS(object):
             kwargs['mode'] = self.proj._default_analysis_mode
         if kwargs.get('permissions_backer', None) is None:
             # just a dict of address ranges to permission bits
-            permissions_backer = { }
+            permission_map = { }
             for obj in self.proj.loader.all_objects:
                 for seg in obj.segments:
                     perms = 0
@@ -57,7 +57,8 @@ class SimOS(object):
                         perms |= 2 # PROT_WRITE
                     if seg.is_executable:
                         perms |= 4 # PROT_EXEC
-                    permissions_backer[(obj.rebase_addr + seg.min_addr, obj.rebase_addr + seg.max_addr)] = perms
+                    permission_map[(obj.rebase_addr + seg.min_addr, obj.rebase_addr + seg.max_addr)] = perms
+            permissions_backer = (self.proj.loader.main_bin.execstack, permission_map)
             kwargs['permissions_backer'] = permissions_backer
         if kwargs.get('memory_backer', None) is None:
             kwargs['memory_backer'] = self.proj.loader.memory
