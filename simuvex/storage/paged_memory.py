@@ -21,11 +21,27 @@ class Page(object):
     Page object, allowing for more flexibilty than just a raw dict
     '''
 
-    def __init__(self, page_size):
+    PROT_READ = 1
+    PROT_WRITE = 2
+    PROT_EXEC = 4
+
+    def __init__(self, page_size, executable=False):
+        '''
+        Create a new page object. Carries permissions information. Permissions default to RW unless
+        `executable` is True in which case permissions default to RWX.
+
+        :param page_size: self-explanatory
+        :param executable: if the page is executable, typically this will depend on whether the binary has an
+            executbale stack
+        '''
 
         self._page_size = page_size
         self._storage = [None]*page_size if _internal_storage is list else _internal_storage()
-        self.permissions = claripy.BVS('page_permissions', 3) # big enough for PROT_EXEC, PROT_WRITE, PROT_READ, PROT_NONE
+
+        perms = Page.PROT_READ|Page.PROT_WRITE
+        if executable:
+            perms |= Page.PROT_EXEC
+        self.permissions = claripy.BVV(perms, 3) # 3 bits is enough for PROT_EXEC, PROT_WRITE, PROT_READ, PROT_NONE
 
     def keys(self):
 
