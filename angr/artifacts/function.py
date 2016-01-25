@@ -4,6 +4,7 @@ import string
 from collections import defaultdict
 
 import simuvex
+import simuvex.s_cc
 import claripy
 
 l = logging.getLogger(name="angr.artifacts.function")
@@ -564,4 +565,38 @@ class Function(object):
 
             end_addresses[end_addr] = [smallest_node]
 
-from ..errors import AngrTranslationError
+    def _match_cc(self):
+        '''
+        Try to decide the arguments to this function.
+        `cfg` is not necessary, but providing a CFG makes our life easier and will give you a better analysis
+        result (i.e. we have an idea of how this function is called in its call-sites).
+        If a CFG is not provided or we cannot find the given function address in the given CFG, we will generate
+        a local CFG of the function to detect how it is using the arguments.
+        '''
+        arch = self._function_manager._artifact.project.arch
+
+        args = [ ]
+        ret_vals = [ ]
+        sp_delta = 0
+
+        #
+        # Determine how many arguments this function has.
+        #
+        reg_args, stack_args = self.arguments
+
+        for arg in reg_args:
+            a = simuvex.s_cc.SimRegArg(arch.register_names[arg])
+            args.append(a)
+
+        for arg in stack_args:
+            a = simuvex.s_cc.SimStackArg(arg)
+            args.append(a)
+
+        sp_delta = self.sp_delta
+
+        for c in simuvex.s_cc.CC:
+            if c._match(arch, args, sp_delta):
+                return c(arch, args, ret_vals, sp_delta)
+
+        # We cannot determine the calling convention of this function.
+        return simuvex.s_cc.SimCCUnknown(arch, args, ret_vals, sp_delta)
