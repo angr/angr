@@ -162,8 +162,6 @@ class CFG(Analysis, CFGBase):
         new_cfg._thumb_addrs = self._thumb_addrs.copy()
         new_cfg._keep_state = self._keep_state
         new_cfg.project = self.project
-        new_cfg.artifacts.resolved_indirect_jumps = self.artifacts.resolved_indirect_jumps.copy()
-        new_cfg.artifacts.unresolved_indirect_jumps = self.artifacts.unresolved_indirect_jumps.copy()
 
         return new_cfg
 
@@ -1284,11 +1282,11 @@ class CFG(Analysis, CFGBase):
 
                         l.debug('The indirect jump is successfully resolved.')
 
-                        self.artifacts.resolved_indirect_jumps.add(simrun.addr)
+                        self.artifacts._resolved_indirect_jumps.add(simrun.addr)
 
                     else:
                         l.debug('We failed to resolve the indirect jump.')
-                        self.artifacts.unresolved_indirect_jumps.add(simrun.addr)
+                        self.artifacts._unresolved_indirect_jumps.add(simrun.addr)
 
             else:
                 if not all_successors:
@@ -1336,12 +1334,12 @@ class CFG(Analysis, CFGBase):
                         all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
                         # mark jump as resolved if we got successors
                         if len(all_successors):
-                            self.artifacts.resolved_indirect_jumps.add(simrun.addr)
+                            self.artifacts._resolved_indirect_jumps.add(simrun.addr)
                         else:
-                            self.artifacts.unresolved_indirect_jumps.add(simrun.addr)
+                            self.artifacts._unresolved_indirect_jumps.add(simrun.addr)
                         l.debug("Got %d concrete exits in symbolic mode.", len(all_successors))
                     else:
-                        self.artifacts.unresolved_indirect_jumps.add(simrun.addr)
+                        self.artifacts._unresolved_indirect_jumps.add(simrun.addr)
                         # keep fake_rets
                         all_successors = [s for s in all_successors if s.scratch.jumpkind == "Ijk_FakeRet"]
 
@@ -1358,12 +1356,12 @@ class CFG(Analysis, CFGBase):
 
                         # mark jump as resolved if we got successors
                         if len(all_successors):
-                            self.artifacts.resolved_indirect_jumps.add(simrun.addr)
+                            self.artifacts._resolved_indirect_jumps.add(simrun.addr)
                         else:
-                            self.artifacts.unresolved_indirect_jumps.add(simrun.addr)
+                            self.artifacts._unresolved_indirect_jumps.add(simrun.addr)
                         l.debug('Got %d concrete exits in symbolic mode', len(all_successors))
                     else:
-                        self.artifacts.unresolved_indirect_jumps.add(simrun.addr)
+                        self.artifacts._unresolved_indirect_jumps.add(simrun.addr)
                         all_successors = []
 
                 elif len(all_successors) > 0 and all([ex.scratch.jumpkind == 'Ijk_Ret' for ex in all_successors]):
@@ -1371,7 +1369,7 @@ class CFG(Analysis, CFGBase):
 
                 else:
                     l.warning('It seems that we cannot resolve this indirect jump: %s', cfg_node)
-                    self.artifacts.unresolved_indirect_jumps.add(simrun.addr)
+                    self.artifacts._unresolved_indirect_jumps.add(simrun.addr)
 
         # If we have additional edges for this simrun, add them in
         if addr in self._additional_edges:
