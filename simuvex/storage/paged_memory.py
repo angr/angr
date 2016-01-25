@@ -76,7 +76,9 @@ class SimPagedMemory(object):
     def __init__(self, memory_backer=None, permissions_backer=None, pages=None, sinkholes=None, initialized=None, name_mapping=None, hash_mapping=None, page_size=None):
         self._cowed = set()
         self._memory_backer = { } if memory_backer is None else memory_backer
-        self._permissions_backer = { } if permissions_backer is None else permissions_backer
+        self._permissions_backer = permissions_backer # saved for copying
+        self._executable_pages = False if permissions_backer is None else permissions_backer[0]
+        self._permission_map = { } if permissions_backer is None else permissions_backer[1]
         self._pages = { } if pages is None else pages
         self._sinkholes = { } if sinkholes is None else sinkholes
         self._sinkholes_cowed = False
@@ -92,7 +94,8 @@ class SimPagedMemory(object):
     def __getstate__(self):
         return {
             '_memory_backer': self._memory_backer,
-            '_permissions_backer': self._permissions_backer,
+            '_executable_pages': self._executable_pages,
+            '_permission_map': self._permission_map,
             '_pages': self._pages,
             '_sinkholes': self._sinkholes,
             '_initialized': self._initialized,
@@ -227,7 +230,7 @@ class SimPagedMemory(object):
         if _storage is list:
             return [None]*self._page_size
         else:
-            return Page(self._page_size)
+            return Page(self._page_size, executable=self._executable_pages)
 
     @staticmethod
     def _copy_page(page):
@@ -259,9 +262,9 @@ class SimPagedMemory(object):
                 # find permission backer associated with the address, there should be a
                 # memory backer that matches the start_backer
                 flags = None
-                for start, end in self._permissions_backer:
+                for start, end in self._permission_map:
                     if start == addr:
-                        flags = self._permissions_backer[(start, end)]
+                        flags = self._permission_map[(start, end)]
                         break
 
                 snip_start = max(0, start_backer)
