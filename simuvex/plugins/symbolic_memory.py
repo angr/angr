@@ -1052,6 +1052,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def permissions(self, addr):
         return self.mem.permissions(addr)
 
+    def map_page(self, addr, permissions):
+        return self.mem.map_page(addr, permissions)
+
 SimSymbolicMemory.register_default('memory', SimSymbolicMemory)
 SimSymbolicMemory.register_default('registers', SimSymbolicMemory)
 from ..s_errors import SimUnsatError, SimMemoryError, SimMemoryLimitError, SimMemoryAddressError

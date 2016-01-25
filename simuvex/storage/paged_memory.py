@@ -256,7 +256,7 @@ class SimPagedMemory(object):
                 mo = SimMemoryObject(claripy.BVV(snip), write_start)
                 self._apply_object_to_page(n*self._page_size, mo, page=new_page)
 
-                new_page.permissions = claripy.BVV(flags, self.state.arch.bits)
+                new_page.permissions = claripy.BVV(flags, 3)
                 initialized = True
         elif len(self._memory_backer) < self._page_size:
             for i in self._memory_backer:
@@ -711,6 +711,33 @@ class SimPagedMemory(object):
         Returns the permissions for a page at address, `addr`.
         '''
 
+        if self.state.se.symbolic(addr):
+            raise ValueError("page permissions cannot currently be looked up for symbolic addresses")
+
+        if isinstance(addr, claripy.ast.bv.BV):
+            addr = self.state.se.any_int(addr)
+
         page_num = addr / self._page_size
 
         return self._get_page(page_num).permissions
+
+    def map_page(self, addr, permissions):
+
+        page_num = addr / self._page_size
+
+        page_exists = False
+        try:
+            self._get_page(page_num)
+            page_exists = True
+        except KeyError:
+            pass
+
+        if page_exists:
+            raise ValueError("map_page received address which was already mapped")
+
+        self._pages[page_num] = Page(self._page_size)
+
+        if isinstance(permissions, (int, long)):
+            permissions = claripy.BVV(permissions, 3)
+
+        self._pages[page_num].permissions = permissions
