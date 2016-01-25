@@ -282,7 +282,7 @@ class NormalizedFunction(object):
     # a more normalized function
     def __init__(self, function):
         # start by copying the graph
-        self.graph = function.local_transition_graph.copy()
+        self.graph = function.graph.copy()
         self.project = function._function_manager._artifact._project
         self.call_sites = dict()
         self.startpoint = function.startpoint

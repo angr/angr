@@ -117,6 +117,7 @@ class Analysis(object):
     :type project:  angr.Project
     """
     project = None
+    artifacts = None
     _fail_fast = None
     _name = None
     errors = []

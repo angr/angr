@@ -65,7 +65,7 @@ class Function(object):
         self._sp_delta = 0
 
         # Calling convention
-        self.cc = None
+        self.call_convention = None
 
         # Whether this function returns or not. `None` means it's not determined yet
         self.returning = None
@@ -85,7 +85,7 @@ class Function(object):
     @property
     def has_unresolved_jumps(self):
         for addr in self._transition_graph.nodes():
-            if addr in self._function_manager._cfg.unresolved_indirect_jumps:
+            if addr in self._function_manager._artifact._unresolved_indirect_jumps:
                 b = self._function_manager.project.factory.block(addr)
                 if b.vex.jumpkind == 'Ijk_Boring':
                     return True
@@ -94,7 +94,7 @@ class Function(object):
     @property
     def has_unresolved_calls(self):
         for addr in self._transition_graph.nodes():
-            if addr in self._function_manager._cfg.unresolved_indirect_jumps:
+            if addr in self._function_manager._artifact._unresolved_indirect_jumps:
                 b = self._function_manager.project.factory.block(addr)
                 if b.vex.jumpkind == 'Ijk_Call':
                     return True
@@ -266,7 +266,7 @@ class Function(object):
             (self._argument_registers,
              self._argument_stack_variables)
         s += '  Blocks: [%s]\n' % ", ".join(['%#x' % i for i in self.block_addrs])
-        s += "  Calling convention: %s" % self.cc
+        s += "  Calling convention: %s" % self.call_convention
         return s
 
     def __repr__(self):
@@ -396,15 +396,11 @@ class Function(object):
         return None
 
     @property
-    def basic_blocks(self):
-        return self.blocks
-
-    @property
     def transition_graph(self):
         return self._transition_graph
 
     @property
-    def local_transition_graph(self):
+    def graph(self):
         """
         Return a local transition graph that only contain nodes in current function.
         """
@@ -469,10 +465,10 @@ class Function(object):
 
     @property
     def arguments(self):
-        if self.cc is None:
+        if self.call_convention is None:
             return self._argument_registers, self._argument_stack_variables
         else:
-            return self.cc.arguments
+            return self.call_convention.arguments
 
     @property
     def bp_on_stack(self):

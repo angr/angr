@@ -15,6 +15,10 @@ class Artifact(object):
         self.data = Data(self)
         self.functions = FunctionManager(self)
 
+        # a set of unresolved and a set of resolved indirect jumps
+        self._unresolved_indirect_jumps = set()
+        self._resolved_indirect_jumps = set()
+
     @property
     def callgraph(self):
         return self.functions.callgraph

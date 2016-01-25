@@ -136,10 +136,6 @@ class CFG(Analysis, CFGBase):
         if self._enable_advanced_backward_slicing and not self._keep_state:
             raise AngrCFGError('Keep state must be enabled if advanced backward slicing is enabled.')
 
-        # Addresses of basic blocks who has an indirect jump as their default exit
-        self.resolved_indirect_jumps = set()
-        self.unresolved_indirect_jumps = set()
-
         self._executable_address_ranges = []
         self._initialize_executable_ranges()
 
@@ -166,8 +162,8 @@ class CFG(Analysis, CFGBase):
         new_cfg._thumb_addrs = self._thumb_addrs.copy()
         new_cfg._keep_state = self._keep_state
         new_cfg.project = self.project
-        new_cfg.resolved_indirect_jumps = self.resolved_indirect_jumps.copy()
-        new_cfg.unresolved_indirect_jumps = self.unresolved_indirect_jumps.copy()
+        new_cfg.artifacts.resolved_indirect_jumps = self.artifacts.resolved_indirect_jumps.copy()
+        new_cfg.artifacts.unresolved_indirect_jumps = self.artifacts.unresolved_indirect_jumps.copy()
 
         return new_cfg
 
@@ -1288,11 +1284,11 @@ class CFG(Analysis, CFGBase):
 
                         l.debug('The indirect jump is successfully resolved.')
 
-                        self.resolved_indirect_jumps.add(simrun.addr)
+                        self.artifacts.resolved_indirect_jumps.add(simrun.addr)
 
                     else:
                         l.debug('We failed to resolve the indirect jump.')
-                        self.unresolved_indirect_jumps.add(simrun.addr)
+                        self.artifacts.unresolved_indirect_jumps.add(simrun.addr)
 
             else:
                 if not all_successors:
@@ -1340,12 +1336,12 @@ class CFG(Analysis, CFGBase):
                         all_successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
                         # mark jump as resolved if we got successors
                         if len(all_successors):
-                            self.resolved_indirect_jumps.add(simrun.addr)
+                            self.artifacts.resolved_indirect_jumps.add(simrun.addr)
                         else:
-                            self.unresolved_indirect_jumps.add(simrun.addr)
+                            self.artifacts.unresolved_indirect_jumps.add(simrun.addr)
                         l.debug("Got %d concrete exits in symbolic mode.", len(all_successors))
                     else:
-                        self.unresolved_indirect_jumps.add(simrun.addr)
+                        self.artifacts.unresolved_indirect_jumps.add(simrun.addr)
                         # keep fake_rets
                         all_successors = [s for s in all_successors if s.scratch.jumpkind == "Ijk_FakeRet"]
 
@@ -1362,12 +1358,12 @@ class CFG(Analysis, CFGBase):
 
                         # mark jump as resolved if we got successors
                         if len(all_successors):
-                            self.resolved_indirect_jumps.add(simrun.addr)
+                            self.artifacts.resolved_indirect_jumps.add(simrun.addr)
                         else:
-                            self.unresolved_indirect_jumps.add(simrun.addr)
+                            self.artifacts.unresolved_indirect_jumps.add(simrun.addr)
                         l.debug('Got %d concrete exits in symbolic mode', len(all_successors))
                     else:
-                        self.unresolved_indirect_jumps.add(simrun.addr)
+                        self.artifacts.unresolved_indirect_jumps.add(simrun.addr)
                         all_successors = []
 
                 elif len(all_successors) > 0 and all([ex.scratch.jumpkind == 'Ijk_Ret' for ex in all_successors]):
@@ -1375,7 +1371,7 @@ class CFG(Analysis, CFGBase):
 
                 else:
                     l.warning('It seems that we cannot resolve this indirect jump: %s', cfg_node)
-                    self.unresolved_indirect_jumps.add(simrun.addr)
+                    self.artifacts.unresolved_indirect_jumps.add(simrun.addr)
 
         # If we have additional edges for this simrun, add them in
         if addr in self._additional_edges:
@@ -2209,7 +2205,7 @@ class CFG(Analysis, CFGBase):
         l.debug("Analyzing calling conventions of each function.")
 
         for func in self.artifacts.functions.values():
-            if func.cc is not None:
+            if func.call_convention is not None:
                 continue
 
             #
@@ -2219,7 +2215,7 @@ class CFG(Analysis, CFGBase):
             self._refine_function_arguments(func, callsites)
 
             # Set the calling convention
-            func.cc = func._match_cc()
+            func.call_convention = func._match_cc()
 
     def _analyze_function_features(self):
         """
@@ -2251,10 +2247,8 @@ class CFG(Analysis, CFGBase):
             # blocks of it. We check all its current nodes in transition graph whose out degree is 0 (call them
             # temporary endpoints)
 
-            func_transition_graph = func.local_transition_graph
-
-            temporary_local_endpoints = [a for a in func_transition_graph.nodes()
-                                         if func_transition_graph.out_degree(a) == 0]
+            temporary_local_endpoints = [a for a in func.graph.nodes()
+                                         if func.graph.out_degree(a) == 0]
 
             if not temporary_local_endpoints:
                 # It might be empty if our transition graph is fucked up (for example, the freaking
@@ -2510,8 +2504,6 @@ class CFG(Analysis, CFGBase):
         self._graph = s['graph']
         self._loop_back_edges = s['_loop_back_edges']
         self._nodes = s['_nodes']
-        self.unresolved_indirect_jumps = s['unresolved_indirect_jumps']
-        self.resolved_indirect_jumps = s['resolved_indirect_jumps']
         self._thumb_addrs = s['_thumb_addrs']
         self._unresolvable_runs = s['_unresolvable_runs']
         self._executable_address_ranges = s['_executable_address_ranges']
@@ -2522,8 +2514,6 @@ class CFG(Analysis, CFGBase):
             'graph': self._graph,
             '_loop_back_edges': self._loop_back_edges,
             '_nodes': self._nodes,
-            'unresolved_indirect_jumps': self.unresolved_indirect_jumps,
-            'resolved_indirect_jumps': self.resolved_indirect_jumps,
             '_thumb_addrs': self._thumb_addrs,
             '_unresolvable_runs': self._unresolvable_runs,
             '_executable_address_ranges': self._executable_address_ranges,
