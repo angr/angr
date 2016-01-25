@@ -601,7 +601,7 @@ class VFG(Analysis):
 
             # Check if that function is returning
             if self._cfg is not None:
-                func = self._cfg.function_manager.function(call_target)
+                func = self.project.artifacts.functions.function(call_target)
                 if func is not None and func.returning is False and len(all_successors) == 2:
                     # Remove the fake return as it is not returning anyway...
                     del all_successors[-1]
@@ -644,7 +644,7 @@ class VFG(Analysis):
 
             # Clear the useless values (like return addresses, parameters) on stack if needed
             if self._cfg is not None:
-                current_function = self._cfg.function_manager.function(call_target)
+                current_function = self.project.artifacts.functions.function(call_target)
                 if current_function is not None:
                     sp_difference = current_function.sp_delta
                 else:

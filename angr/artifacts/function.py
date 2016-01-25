@@ -29,7 +29,7 @@ class Function(object):
         self._function_manager = function_manager
         self.is_syscall = syscall
 
-        project = self._function_manager.project
+        project = self._function_manager._artifact._project
 
         if name is None:
             # Try to get a name from project.loader
@@ -468,7 +468,7 @@ class Function(object):
 
         @param reg_offset           The offset of the register to register
         '''
-        if reg_offset in self._function_manager.arg_registers and \
+        if reg_offset in self._function_manager._arg_registers and \
                     reg_offset not in self._argument_registers:
             self._argument_registers.append(reg_offset)
 

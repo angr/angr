@@ -16,6 +16,9 @@ class FunctionManager(collections.MutableMapping):
         self._function_map = {}
         self.callgraph = networkx.DiGraph()
 
+        # Registers used for passing arguments around
+        self._arg_registers = artifact._project.arch.argument_registers
+
     def _genenare_callmap_sif(self, filepath):
         '''
         Generate a sif file from the call map

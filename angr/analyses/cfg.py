@@ -2217,7 +2217,7 @@ class CFG(Analysis, CFGBase):
             callsites = self._get_callsites(func.startpoint)
             self._refine_function_arguments(func, callsites)
 
-            cc = simuvex.SimCC.match(self.project, startpoint, self)
+            cc = simuvex.SimCC.match(self.project, startpoint)
 
             # Set the calling convention
             func.cc = cc
