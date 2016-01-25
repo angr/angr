@@ -467,7 +467,7 @@ class CFG(Analysis, CFGBase):
 
                 ret_addr = None
                 if jumpkind == 'Ijk_Call':
-                    target_function = self.project.artifacts.functions[dest_node.addr]
+                    target_function = self.project.artifacts.functions.function(dest_node.addr)
                     if target_function is None or target_function.returning is not False:
                         ret_addr = src_node.return_target
 
