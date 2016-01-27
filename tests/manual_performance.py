@@ -72,6 +72,7 @@ def time_one(args, test, queue):
     with Timer() as t:
         func(filepath)
     queue.put(t.msecs)
+    queue.put(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1000.0)
 
 
 parser = argparse.ArgumentParser(description='Angr performance tests')
@@ -128,7 +129,7 @@ for test in tests:
         p.start()
         p.join()
         runs.append(queue.get())
-        mems.append(resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss / 1000.0)
+        mems.append(queue.get())
         pbar.update(i + 1)
     print('')
     tests[test]['runs'] = runs
