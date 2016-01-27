@@ -1,56 +1,137 @@
 #!/usr/bin/env python
 
-import time
-#import nose
-import logging
-l = logging.getLogger("angr_tests.counter")
-
-try:
-    # pylint: disable=W0611,F0401
-    import standard_logging
-    import angr_debug
-except ImportError:
-    pass
-
-l.setLevel(logging.INFO)
-
-
-addresses_counter = {
-    'armel': None,
-    'armhf': None,  # addr+1 to force thumb
-    'i386': None,
-    'mips': None,
-    'mipsel': None,
-    'ppc': None,
-    'ppc64': None,
-    'x86_64': None
-}
-
 import angr
-
+import argparse
+import sys
+import time
 import os
-location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+import numpy
+import random
+import resource
+import multiprocessing
 
-def run_counter(arch):
-    p = angr.Project(location + '/' + arch + '/counter')
+from tabulate import tabulate
+
+from os.path import join, dirname, realpath
+
+from progressbar import ProgressBar, Percentage, Bar
+
+test_location = str(join(dirname(realpath(__file__)), '../../binaries/tests'))
+
+
+class Timer(object):
+
+    def __enter__(self):
+        self.start = time.time()
+        return self
+
+    def __exit__(self, *args):
+        self.end = time.time()
+        self.msecs = (self.end - self.start) * 1000
+
+
+def print_results(tests):
+    table_runs = []
+    table_mems = []
+    for name, test in tests.items():
+        runs = test['runs']
+        table_runs.append([name, str(min(runs)), str(max(runs)), str(numpy.mean(runs)), str(numpy.std(runs))])
+    for name, test in tests.items():
+        mems = test['mems']
+        table_mems.append([name, str(min(mems)), str(max(mems)), str(numpy.mean(mems)), str(numpy.std(mems))])
+    header = ['name', 'min', 'max', 'avg', 'std']
+
+    print('Timing (in milliseconds)')
+    print(tabulate(table_runs, headers=header))
+    print('Maximum RAM usage (in MB)')
+    print(tabulate(table_mems, headers=header))
+
+
+def run_counter(path):
+    p = angr.Project(path)
 
     pg = p.factory.path_group()
+    pg.step(n=500)
 
-    start = time.time()
-    pg.step(n=1000)
-    end = time.time()
 
-    l.info("Time passed: %f seconds", end-start)
+def run_cfg_analysis(path):
+    load_options = {}
+    load_options['auto_load_libs'] = False
+    p = angr.Project(path,
+                     load_options=load_options,
+                     translation_cache=True
+                     )
+    p.analyses.CFG()
 
-def test_counter():
-    for arch in addresses_counter:
-        yield run_counter, arch
 
-if __name__ == "__main__":
-    import sys
-    if len(sys.argv) == 1:
-        for func, march in test_counter():
-            print 'testing ' + march
-            func(march)
-    else:
-        run_counter(sys.argv[1])
+def time_one(args, test, queue):
+    filepath = test['filepath']
+    func = test['test_func']
+
+    random.seed(args.seed)
+    with Timer() as t:
+        func(filepath)
+    queue.put(t.msecs)
+
+
+parser = argparse.ArgumentParser(description='Angr performance tests')
+parser.add_argument(
+    '-n', '--n-runs', default=100, type=int,
+    help='How many runs to perform for each test (default: 100)')
+parser.add_argument(
+    '-s', '--seed', default=1234, type=int,
+    help='Seed for random (default: 1234)')
+
+args = parser.parse_args()
+
+tests = {
+    'fauxware_cfg_i386': {
+        'filepath': join(test_location, 'i386', 'fauxware'),
+        'test_func': run_cfg_analysis
+    }
+}
+
+# Add counter tests
+arch_counter = [
+    'i386',
+    'armel',
+    'armhf',
+    'i386',
+    'mips',
+    'mipsel',
+    'ppc',
+    'ppc64',
+    'x86_64',
+]
+
+for arch in arch_counter:
+    tests['counter_' + arch] = {
+        'filepath': join(test_location, arch, 'counter'),
+        'test_func': run_counter
+    }
+
+
+print('Seed: ' + str(args.seed))
+print('N runs: ' + str(args.n_runs))
+queue = multiprocessing.Queue()
+for test in tests:
+    runs = []
+    mems = []
+    widgets = ['',
+               Percentage(), ' ',
+               Bar()
+               ]
+    print(test)
+    pbar = ProgressBar(maxval=args.n_runs, widgets=widgets).start()
+    for i in range(0, args.n_runs):
+        p = multiprocessing.Process(target=time_one, args=(args, tests[test], queue))
+        p.start()
+        p.join()
+        runs.append(queue.get())
+        mems.append(resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss / 1000.0)
+        pbar.update(i + 1)
+    print('')
+    tests[test]['runs'] = runs
+    tests[test]['mems'] = mems
+
+print_results(tests)
