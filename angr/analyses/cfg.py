@@ -775,60 +775,77 @@ class CFG(Analysis, CFGBase):
                 jumpkind = 'Ijk_Boring' if jumpkind is None else jumpkind
                 sim_run = self.project.factory.sim_run(current_entry.state, jumpkind=jumpkind)
 
-        except (simuvex.SimFastPathError, simuvex.SimSolverModeError):
-            # Got a SimFastPathError. We wanna switch to symbolic mode for current IRSB.
-            l.debug('Switch to symbolic mode for address 0x%x', addr)
-            # Make a copy of the current 'fastpath' state
+        except (simuvex.SimFastPathError, simuvex.SimSolverModeError) as ex:
 
-            l.debug('Symbolic jumps at basic block 0x%x.' % addr)
+            if saved_state.mode == 'fastpath':
+                # Got a SimFastPathError or SimSolverModeError in FastPath mode.
+                # We wanna switch to symbolic mode for current IRSB.
+                l.debug('Switch to symbolic mode for address 0x%x', addr)
+                # Make a copy of the current 'fastpath' state
 
-            new_state = None
-            if addr != current_function_addr:
-                new_state = self._get_symbolic_function_initial_state(current_function_addr)
+                l.debug('Symbolic jumps at basic block 0x%x.' % addr)
 
-            if new_state is None:
-                new_state = current_entry.state.copy()
-                new_state.set_mode('symbolic')
-            new_state.options.add(simuvex.o.DO_RET_EMULATION)
-            # Remove bad constraints
-            # FIXME: This is so hackish...
-            new_state.se._solver.constraints = [c for c in new_state.se.constraints if
-                                                c.op != 'I' or c.args[0] is not False]
-            new_state.se._solver._result = None
-            # Swap them
-            saved_state, current_entry.state = current_entry.state, new_state
-            sim_run, error_occurred, _ = self._get_simrun(addr, current_entry)
-        except simuvex.SimIRSBError as ex:
+                new_state = None
+                if addr != current_function_addr:
+                    new_state = self._get_symbolic_function_initial_state(current_function_addr)
+
+                if new_state is None:
+                    new_state = current_entry.state.copy()
+                    new_state.set_mode('symbolic')
+                new_state.options.add(simuvex.o.DO_RET_EMULATION)
+                # Remove bad constraints
+                # FIXME: This is so hackish...
+                new_state.se._solver.constraints = [c for c in new_state.se.constraints if
+                                                    c.op != 'I' or c.args[0] is not False]
+                new_state.se._solver._result = None
+                # Swap them
+                saved_state, current_entry.state = current_entry.state, new_state
+                sim_run, error_occurred, _ = self._get_simrun(addr, current_entry)
+
+            else:
+                # Got a SimSolverModeError in symbolic mode. We are screwed.
+                # Skip this IRSB
+                l.debug("Caught a SimIRSBError. Don't panic, this is usually expected.", ex)
+                error_occurred = True
+                sim_run = \
+                    simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                        state, addr=addr)
+
+        except simuvex.SimIRSBError:
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
-            l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
+            l.debug("Caught a SimIRSBError during CFG recovery. Creating a PathTerminator.", exc_info=True)
             error_occurred = True
             sim_run = \
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                     state, addr=addr)
+
         except claripy.ClaripyError:
-            l.error("ClaripyError: ", exc_info=True)
+            l.debug("Caught a ClaripyError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             error_occurred = True
             # Generate a PathTerminator to terminate the current path
             sim_run = \
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                     state, addr=addr)
+
         except simuvex.SimError:
-            l.error("SimError: ", exc_info=True)
+            l.debug("Caught a SimError when during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
 
             error_occurred = True
             # Generate a PathTerminator to terminate the current path
             sim_run = \
                 simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
                     state, addr=addr)
-        except AngrError as ex:
+
+        except AngrError:
             section = self.project.loader.main_bin.find_section_containing(addr)
             if section is None:
                 sec_name = 'No section'
             else:
                 sec_name = section.name
-            l.error("AngrError %s when creating SimRun at 0x%x (%s)",
-                    ex, addr, sec_name)
+            # AngrError shouldn't really happen though
+            l.error("Caught an AngrError during CFG recovery at %#x (%s)",
+                    addr, sec_name, exc_info=True)
             # We might be on a wrong branch, and is likely to encounter the
             # "No bytes in memory xxx" exception
             # Just ignore it
