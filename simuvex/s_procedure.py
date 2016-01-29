@@ -22,14 +22,16 @@ class SimProcedure(SimRun):
         self.kwargs = { } if sim_kwargs is None else sim_kwargs
         SimRun.__init__(self, state, **kwargs)
 
-        self.state.scratch.bbl_addr = self.addr
+        if not self._inline:
+            # Only update scratch if we are not an inline call
+            self.state.scratch.bbl_addr = self.addr
+            self.state.scratch.sim_procedure = self.__class__.__name__
 
         self.stmt_from = -1 if stmt_from is None else stmt_from
         self.arguments = arguments
         self.ret_to = ret_to
         self.ret_expr = None
         self.symbolic_return = False
-        self.state.scratch.sim_procedure = self.__class__.__name__
         self.run_func_name = run_func_name
 
         # types
