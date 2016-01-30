@@ -1,4 +1,4 @@
-from simuvex import SimIRSB, SimProcedures, SimState, BP_BEFORE, BP_AFTER
+from simuvex import SimIRSB, SimProcedures, SimUnicorn, SimState, BP_BEFORE, BP_AFTER
 from simuvex import s_options as o, s_cc
 from .surveyors.caller import Callable
 
@@ -129,7 +129,15 @@ class AngrObjectFactory(object):
             l.debug("... %s created", r)
 
         else:
-            l.debug("Creating SimIRSB at %#x", addr)
+            if o.UNICORN in state.options and SimUnicorn.quick_check(state):
+                try:
+                    l.info('Creating SimUnicorn at %#x', addr)
+                    return SimUnicorn(state)
+                except Exception as e:
+                    l.warning('Failed in SimUnicorn %r' % e)
+                    raise
+
+            l.debug("Creating SimIRSB at 0x%x", addr)
             r = self.sim_block(state, addr=addr, **block_opts)
 
         # Peek and fix the IP for syscalls
