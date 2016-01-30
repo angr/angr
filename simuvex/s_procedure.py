@@ -22,10 +22,13 @@ class SimProcedure(SimRun):
         self.kwargs = { } if sim_kwargs is None else sim_kwargs
         SimRun.__init__(self, state, **kwargs)
 
-        if not self._inline:
-            # Only update scratch if we are not an inline call
-            self.state.scratch.bbl_addr = self.addr
-            self.state.scratch.sim_procedure = self.__class__.__name__
+        # Save scratch.bbl_addr and scratch.sim_procedure, and restore them later if this is an inlined call
+        old_bbl_addr = self.state.scratch.bbl_addr
+        old_sim_procedure = self.state.scratch.sim_procedure
+
+        # Update state.scratch
+        self.state.scratch.bbl_addr = self.addr
+        self.state.scratch.sim_procedure = self.__class__.__name__
 
         self.stmt_from = -1 if stmt_from is None else stmt_from
         self.arguments = arguments
@@ -73,6 +76,11 @@ class SimProcedure(SimRun):
         if cleanup_options:
             self.state.options.discard(o.AST_DEPS)
             self.state.options.discard(o.AUTO_REFS)
+
+        if self._inline:
+            # If this is an inlined call, restore old scratch members
+            self.state.scratch.bbl_addr = old_bbl_addr
+            self.state.scratch.sim_procedure = old_sim_procedure
 
     def run(self, *args, **kwargs): #pylint:disable=unused-argument
         raise SimProcedureError("%s does not implement a run() method" % self.__class__.__name__)
