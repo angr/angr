@@ -18,6 +18,6 @@ class __ctype_b_loc(simuvex.SimProcedure):
 
     def run(self):
 
-        table_ptr = simuvex.SimProcedures['libc.so.6']['__libc_start_main'].ctype_table_ptr
+        table_ptr = self.state.libc.ctype_table_ptr
 
         return table_ptr
