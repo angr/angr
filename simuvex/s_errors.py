@@ -156,3 +156,11 @@ class SimUCManagerError(SimError):
 
 class SimUCManagerAllocationError(SimUCManagerError):
     pass
+
+#
+# SimUnicorn errors
+#
+
+class SimUnicornUnsupport(SimError):
+    pass
+

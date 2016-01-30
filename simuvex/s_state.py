@@ -203,6 +203,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def uc_manager(self):
         return self.get_plugin('uc_manager')
 
+    @property
+    def unicorn(self):
+        return self.get_plugin('unicorn')
+
     def _inspect(self, *args, **kwargs):
         if self.has_plugin('inspector'):
             self.inspect.action(*args, **kwargs)
