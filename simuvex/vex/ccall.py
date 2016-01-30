@@ -305,9 +305,24 @@ def pc_actions_DEC(state, nbits, res, _, cc_ndep, platform=None):
     of = state.se.If(sf == arg_l[nbits-1], state.se.BVV(0, 1), state.se.BVV(1, 1))
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
-def pc_actions_ADC(*args, **kwargs):
-    l.error("Unsupported flag action ADC")
-    raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
+def pc_actions_ADC(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
+    old_c = cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_C']
+    arg_l = cc_dep1
+    arg_r = cc_dep2 ^ old_c
+    res = (arg_l + arg_r) + old_c
+
+    cf = state.se.If(
+            old_c != 0,
+            state.se.If(res <= arg_l, state.se.BVV(1, 1), state.se.BVV(0, 1)),
+            state.se.If(res < arg_l, state.se.BVV(1, 1), state.se.BVV(0, 1))
+    )
+    pf = calc_paritybit(state, res)
+    af = (res ^ arg_l ^ arg_r)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
+    zf = calc_zerobit(state, res)
+    sf = res[nbits - 1]
+    of = (arg_l ^ arg_r ^ -1) & (arg_l ^ res)
+
+    return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_SBB(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
     data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
