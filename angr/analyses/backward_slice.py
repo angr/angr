@@ -88,40 +88,76 @@ class BackwardSlice(Analysis):
         s = "BackwardSlice (to %s)" % self._targets
         return s
 
-    def dbg_repr(self):
+    def dbg_repr(self, max_display=10):
+        """
+        Debugging output of this slice.
+
+        :param max_display: The maximum number of SimRun slices to show
+        :return: A string representation
+        """
+
         s = repr(self) + "\n"
 
-        MAX_RUNS_TO_DISPLAY = 10
-
-        if len(self.chosen_statements) > MAX_RUNS_TO_DISPLAY:
-            s += "%d SimRuns in program slice, display %d.\n" % (len(self.chosen_statements), MAX_RUNS_TO_DISPLAY)
+        if len(self.chosen_statements) > max_display:
+            s += "%d SimRuns in program slice, displaying %d.\n" % (len(self.chosen_statements), max_display)
         else:
             s += "%d SimRuns in program slice.\n" % len(self.chosen_statements)
 
-        # Pretty-print the first `MAX_RUNS_TO_DISPLAY` basic blocks
-        for run_addr in self.chosen_statements.keys()[ : MAX_RUNS_TO_DISPLAY ]:
-            if self.project.is_hooked(run_addr):
-                ss = "%#x Hooked\n" % run_addr
+        # Pretty-print the first `max_display` basic blocks
+        if max_display is None:
+            # Output all
+            run_addrs = sorted(self.chosen_statements.keys())
 
-            else:
-                ss = "%#x\n" % run_addr
+        else:
+            # Only output the first "max_display" ones
+            run_addrs = sorted(self.chosen_statements.keys())[ : max_display]
 
-                chosen_statements = self.chosen_statements[run_addr]
-
-                vex_block = self.project.factory.block(run_addr).vex
-
-                statements = vex_block.statements
-                for i in range(0, len(statements)):
-                    if i in chosen_statements:
-                        line = "+"
-                    else:
-                        line = "-"
-                    line += "[% 3d] " % i
-                    line += str(statements[i])
-                    ss += line + "\n"
-            s += ss + "\n"
+        for run_addr in run_addrs:
+            s += self.dbg_repr_run(run_addr) + "\n"
 
         return s
+
+    def dbg_repr_run(self, run_addr):
+        """
+        Debugging output of a single SimRun slice.
+
+        :param run_addr: Address of the SimRun
+        :return: A string representation
+        """
+
+        if self.project.is_hooked(run_addr):
+            ss = "%#x Hooked\n" % run_addr
+
+        else:
+            ss = "%#x\n" % run_addr
+
+            # statements
+            chosen_statements = self.chosen_statements[run_addr]
+
+            vex_block = self.project.factory.block(run_addr).vex
+
+            statements = vex_block.statements
+            for i in range(0, len(statements)):
+                if i in chosen_statements:
+                    line = "+"
+                else:
+                    line = "-"
+                line += "[% 3d] " % i
+                line += str(statements[i])
+                ss += line + "\n"
+
+            # exits
+            targets = self.chosen_exits[run_addr]
+            addr_strs = [ ]
+            for exit_stmt_id, target_addr in targets:
+                if target_addr is None:
+                    addr_strs.append("default")
+                else:
+                    addr_strs.append("%#x" % target_addr)
+
+            ss += "Chosen exits: " + ", ".join(addr_strs)
+
+        return ss
 
     def annotated_cfg(self, start_point=None):
         """
