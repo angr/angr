@@ -446,7 +446,7 @@ class CFG(Analysis, CFGBase):
                                  callstack_key=self._simrun_key_callstack_key(node_key),
                                  input_state=None,
                                  simprocedure_name="PathTerminator",
-                                 function_address=self._simrun_key_addr(node_key))
+                                 function_address=self._simrun_key_current_func_addr(node_key))
                     if self._keep_state:
                         # We don't have an input state available for it (otherwise we won't have to create a
                         # PathTerminator). This is just a trick to make get_any_irsb() happy.
@@ -1006,6 +1006,10 @@ class CFG(Analysis, CFGBase):
     @staticmethod
     def _simrun_key_addr(simrun_key):
         return simrun_key[-2]
+
+    @staticmethod
+    def _simrun_key_current_func_addr(simrun_key):
+        return simrun_key[-3]
 
     def _handle_entry(self, entry_wrapper, remaining_exits, exit_targets,
                       pending_exits, traced_sim_blocks, retn_target_sources,
