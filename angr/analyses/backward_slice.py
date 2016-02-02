@@ -68,9 +68,10 @@ class BackwardSlice(Analysis):
                 else:
                     raise AngrBackwardSlicingError('Unsupported type of target %s' % t)
 
-        # Save a list of taints to beginwwith at the beginning of each SimRun
+        # Save a list of taints to begin with at the beginning of each SimRun
         self.initial_taints_per_run = None
         self.runs_in_slice = None
+        self.cfg_nodes_in_slice = None
         # IDs of all chosen statement for each SimRun
         self.chosen_statements = defaultdict(set)
         # IDs for all chosen exit statements as well as their corresponding targets
