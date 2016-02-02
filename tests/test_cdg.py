@@ -98,7 +98,7 @@ def test_dominance_frontiers():
                      use_sim_procedures=True)
 
     # Create the CDG analysis
-    cdg = p.analyses.CDG(no_construct=True)
+    cdg = p.analyses.CDG(None, no_construct=True)
 
     # Create our mock control flow graph
     g = networkx.DiGraph()

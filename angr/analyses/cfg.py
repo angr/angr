@@ -702,7 +702,7 @@ class CFG(Analysis, CFGBase):
 
         # Create a temporary block
         try:
-            tmp_block = self.project.block(function_addr)
+            tmp_block = self.project.factory.block(function_addr)
         except (simuvex.SimError, AngrError):
             return None
 
