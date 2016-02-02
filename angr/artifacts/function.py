@@ -590,6 +590,8 @@ class Function(object):
 
             end_addresses[end_addr] = [smallest_node]
 
+        self._local_transition_graph = None
+
     def _match_cc(self):
         '''
         Try to decide the arguments to this function.
