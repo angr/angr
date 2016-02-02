@@ -30,6 +30,9 @@ class Hook(Snippet):
             self.size == other.size and \
             self.sim_procedure == other.sim_procedure
 
+    def __ne__(self, other):
+        return not self == other
+
 
 class Block(Snippet):
     def __init__(self, byte_string, vex, thumb):
@@ -71,6 +74,9 @@ class Block(Snippet):
         return type(self) is type(other) and \
             self.addr == other.addr and \
             self.bytes == other.bytes
+
+    def __ne__(self, other):
+        return not self == other
 
     def pp(self):
         return self.capstone.pp()
