@@ -697,7 +697,7 @@ class CFG(Analysis, CFGBase):
 
         symbolic_initial_state = self.project.factory.entry_state(mode='symbolic')
         if fastpath_state is not None:
-            symbolic_initial_state = self.project.simos.prepare_call_state(fastpath_state,
+            symbolic_initial_state = self.project._simos.prepare_call_state(fastpath_state,
                                                                            initial_state=symbolic_initial_state)
 
         # Create a temporary block
