@@ -512,6 +512,18 @@ class BackwardSlice(Analysis):
                         self._pick_statement(predecessor.addr,
                                              self._normalize_stmt_idx(predecessor.addr, stmt_idx)
                                              )
+                        # If it's the default statement, we should also pick other conditional exit statements
+                        if stmt_idx == 'default':
+                            conditional_exits = self._conditional_exits(predecessor.addr)
+                            for conditional_exit_stmt_id in conditional_exits:
+                                cl = CodeLocation(predecessor.addr,
+                                                  self._normalize_stmt_idx(predecessor.addr, conditional_exit_stmt_id)
+                                                  )
+                                new_taints.add(cl)
+
+                                self._pick_statement(predecessor.addr,
+                                                     self._normalize_stmt_idx(predecessor.addr, conditional_exit_stmt_id)
+                                                     )
 
                     if target_addresses is not None:
 
@@ -525,6 +537,18 @@ class BackwardSlice(Analysis):
                         # Mark those exits as picked
                         for target_address in target_addresses:
                             self._pick_exit(predecessor.addr, stmt_idx, target_address)
+
+                    # On CFG, pick default exits of all nodes between predecessor and our target node
+                    # Usually this is not required if basic blocks strictly end at control flow transitions. But this is
+                    # not always the case for some architectures
+                    all_simple_paths = list(networkx.all_simple_paths(self._cfg.graph, predecessor, target_node, cutoff=3))
+
+                    previous_node = None
+                    for path in all_simple_paths:
+                        for node in path:
+                            self._pick_statement(node.addr, self._normalize_stmt_idx(node.addr, 'default'))
+                            if previous_node is not None:
+                                self._pick_exit(previous_node.addr, 'default', node.addr)
 
         return new_taints
 
@@ -591,6 +615,23 @@ class BackwardSlice(Analysis):
     #
     # Helper functions
     #
+
+    def _conditional_exits(self, block_addr):
+        """
+        Return a list of conditional statement exits with respect to a basic block.
+
+        :param block_addr: The address of the basic block
+        :return: A list of statement IDs
+        """
+
+        vex_block = self.project.factory.block(block_addr).vex
+        lst = [ ]
+
+        for i, stmt in enumerate(vex_block.statements):
+            if isinstance(stmt, pyvex.IRStmt.Exit):
+                lst.append(i)
+
+        return lst
 
     def _normalize_stmt_idx(self, block_addr, stmt_idx):
         """
