@@ -738,11 +738,12 @@ class CFG(Analysis, CFGBase):
         state = current_entry.state
         saved_state = current_entry.state  # We don't have to make a copy here
         try:
-            if self.project.is_hooked(addr) and \
+            if not self._keep_state and \
+                    self.project.is_hooked(addr) and \
                     not self.project._sim_procedures[addr][0] is simuvex.s_procedure.SimProcedureContinuation and \
                     not self.project._sim_procedures[addr][0].ADDS_EXITS and \
                     not self.project._sim_procedures[addr][0].NO_RET:
-                # DON'T CREATE USELESS SIMPROCEDURES
+                # DON'T CREATE USELESS SIMPROCEDURES if we don't care about the accuracy of states
                 # When generating CFG, a SimProcedure will not be created as it is but be created as a
                 # ReturnUnconstrained stub if it satisfies the following conditions:
                 # - It doesn't add any new exits.
