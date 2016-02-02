@@ -2,9 +2,36 @@ import capstone
 import pyvex
 
 import logging
-l = logging.getLogger("angr.artifacts.block")
+l = logging.getLogger("angr.artifacts.snippet")
 
-class Block(object):
+
+class Snippet(object):
+    def __init__(self):
+        self.addr = None
+        self.size = 0
+
+
+class Hook(Snippet):
+    def __init__(self, addr, size, sim_procedure):
+        self.addr = addr
+        self.size = size
+        self.sim_procedure = sim_procedure
+
+    def __repr__(self):
+        return '<Hook %r at %#x (size %d)>' % (self.sim_procedure, self.addr, self.size)
+
+    def __hash__(self):
+        # TODO: is this correct?
+        return hash((type(self), self.addr, self.size))
+
+    def __eq__(self, other):
+        return type(self) is type(other) and \
+            self.addr == other.addr and \
+            self.size == other.size and \
+            self.sim_procedure == other.sim_procedure
+
+
+class Block(Snippet):
     def __init__(self, byte_string, vex, thumb):
         self._bytes = byte_string
         self.vex = vex
@@ -36,6 +63,14 @@ class Block(object):
 
     def __setstate__(self, data):
         self.__dict__.update(data)
+
+    def __hash__(self):
+        return hash((type(self), self.addr, self.bytes))
+
+    def __eq__(self, other):
+        return type(self) is type(other) and \
+            self.addr == other.addr and \
+            self.bytes == other.bytes
 
     def pp(self):
         return self.capstone.pp()

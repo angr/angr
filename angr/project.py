@@ -268,7 +268,12 @@ class Project(object):
             proc = func
         elif hasattr(func, '__call__'):
             proc = simuvex.procedures.stubs.UserHook.UserHook
-            kwargs = {'user_func': func, 'user_kwargs': kwargs, 'default_return_addr': addr+length}
+            kwargs = {
+                'user_func': func,
+                'user_kwargs': kwargs,
+                'default_return_addr': addr+length,
+                'length': length,
+            }
         else:
             raise AngrError("%s is not a valid object to execute in a hook", func)
 

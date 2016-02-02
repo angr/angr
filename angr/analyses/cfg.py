@@ -2276,7 +2276,7 @@ class CFG(Analysis, CFGBase):
                 if endpoint in func.blocks:
                     # Somehow analysis terminated here (e.g. an unsupported instruction, or it doesn't generate an exit)
 
-                    n = self.get_any_node(endpoint, is_syscall=func.is_syscall)
+                    n = self.get_any_node(endpoint.addr, is_syscall=func.is_syscall)
                     if n:
                         # It might be a SimProcedure or a syscall, or even a normal block
                         all_endpoints_returning.append(not n.no_ret)

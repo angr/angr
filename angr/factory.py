@@ -14,6 +14,14 @@ class AngrObjectFactory(object):
         self._lifter = Lifter(project, cache=translation_cache)
         self.block = self._lifter.lift
 
+    def snippet(self, addr, jumpkind=None, **block_opts):
+        if self._project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
+            proc, kwargs = self._project._sim_procedures[addr]
+            size = kwargs.get('length', 0)
+            return Hook(addr, size, self._project._sim_procedures[addr])
+        else:
+            return self.block(addr, **block_opts)
+
     def sim_block(self, state, stmt_whitelist=None, last_stmt=None,
                   addr=None, opt_level=None, **block_opts):
         """
@@ -201,3 +209,4 @@ from .lifter import Lifter
 from .errors import AngrExitError, AngrError, AngrValueError
 from .path import Path
 from .path_group import PathGroup
+from .artifacts import Hook

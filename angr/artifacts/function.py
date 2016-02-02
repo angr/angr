@@ -2,6 +2,7 @@ import logging
 import networkx
 import string
 from collections import defaultdict
+import functools
 
 import simuvex
 import simuvex.s_cc
@@ -9,10 +10,21 @@ import claripy
 
 l = logging.getLogger(name="angr.artifacts.function")
 
+def ignore_memory_error(f):
+    # only works with functions that don't return a value
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            f(*args, **kwargs)
+        except AngrMemoryError:
+            pass
+    return wrapper
+
 class Function(object):
     '''
     A representation of a function and various information about it.
     '''
+    @ignore_memory_error
     def __init__(self, function_manager, addr, name=None, syscall=False):
         '''
         Function constructor
@@ -76,7 +88,14 @@ class Function(object):
         self.blocks = { self._project.factory.block(addr) }
 
     def _add_block_by_addr(self, addr):
-        self.blocks.add(self._project.factory.block(addr))
+        snippet = self._project.factory.snippet(addr)
+        if snippet.size == 0:
+            block = self._project.factory.snippet(addr, jumpkind='Ijk_NoHook')
+            self._transition_graph.add_edge(snippet, block, type='hook')
+            return [snippet, block]
+        else:
+            self.blocks.add(snippet)
+            return [snippet]
 
     @property
     def block_addrs(self):
@@ -84,18 +103,18 @@ class Function(object):
 
     @property
     def has_unresolved_jumps(self):
-        for addr in self._transition_graph.nodes():
-            if addr in self._function_manager._artifact._unresolved_indirect_jumps:
-                b = self._project.factory.block(addr)
+        for addr in self.block_addrs:
+            if addr in self._function_manager._artifact.unresolved_indirect_jumps:
+                b = self._function_manager.project.factory.block(addr)
                 if b.vex.jumpkind == 'Ijk_Boring':
                     return True
         return False
 
     @property
     def has_unresolved_calls(self):
-        for addr in self._transition_graph.nodes():
-            if addr in self._function_manager._artifact._unresolved_indirect_jumps:
-                b = self._project.factory.block(addr)
+        for addr in self.block_addrs:
+            if addr in self._function_manager._artifact.unresolved_indirect_jumps:
+                b = self._function_manager.project.factory.block(addr)
                 if b.vex.jumpkind == 'Ijk_Call':
                     return True
         return False
@@ -249,7 +268,7 @@ class Function(object):
 
     def __contains__(self, val):
         if isinstance(val, (int, long)):
-            return val in self._transition_graph
+            return val in self.block_addrs
         else:
             return False
 
@@ -283,12 +302,15 @@ class Function(object):
     def endpoints(self):
         return list(self._ret_sites)
 
+    @ignore_memory_error
     def _clear_transition_graph(self):
-        self.blocks = { self._project.factory.block(self._addr) }
+        start_block = self._project.factory.block(self._addr)
+        self.blocks = { start_block }
         self._transition_graph = networkx.DiGraph()
-        self._transition_graph.add_node(self._addr)
+        self._transition_graph.add_node(start_block)
         self._local_transition_graph = None
 
+    @ignore_memory_error
     def _transit_to(self, from_addr, to_addr):
         '''
         Registers an edge between basic blocks in this function's transition graph
@@ -299,11 +321,12 @@ class Function(object):
                                     flow enters during this transition
         '''
 
-        self._add_block_by_addr(from_addr)
-        self._add_block_by_addr(to_addr)
+        from_block = self._add_block_by_addr(from_addr)[-1]
+        to_block = self._add_block_by_addr(to_addr)[0]
 
-        self._transition_graph.add_edge(from_addr, to_addr, type='transition')
+        self._transition_graph.add_edge(from_block, to_block, type='transition')
 
+    @ignore_memory_error
     def _call_to(self, from_addr, to_addr, return_target, syscall=False):
         """
         Registers an edge between the caller basic block and callee basic block
@@ -316,21 +339,26 @@ class Function(object):
         :param syscall: Whether this call is a syscall or nor.
         """
 
-        self._add_block_by_addr(from_addr)
+        from_block = self._add_block_by_addr(from_addr)[-1]
+        to_block = self._add_block_by_addr(to_addr)[0]
 
         if syscall:
-            self._transition_graph.add_edge(from_addr, to_addr, type='syscall')
+            self._transition_graph.add_edge(from_block, to_block, type='syscall')
 
         else:
-            self._transition_graph.add_edge(from_addr, to_addr, type='call')
+            self._transition_graph.add_edge(from_block, to_block, type='call')
             if return_target is not None:
-                self._transition_graph.add_edge(from_addr, return_target, type='fake_return')
+                return_block = self._project.factory.block(return_target)
+                self._transition_graph.add_edge(from_block, return_block, type='fake_return')
 
+    @ignore_memory_error
     def _return_from_call(self, src_function_addr, to_addr):
-        self._add_block_by_addr(to_addr)
+        src_function_block = self._project.factory.block(src_function_addr)
+        to_block = self._add_block_by_addr(to_addr)[0]
 
-        self._transition_graph.add_edge(src_function_addr, to_addr, type='return_from_call')
+        self._transition_graph.add_edge(src_function_block, to_block, type='return_from_call')
 
+    @ignore_memory_error
     def _add_block(self, addr):
         '''
         Registers a basic block as part of this function
@@ -340,7 +368,8 @@ class Function(object):
 
         self._add_block_by_addr(addr)
 
-        self._transition_graph.add_node(addr)
+        # ?
+        # self._transition_graph.add_node(addr)
 
     def _add_return_site(self, return_site_addr):
         '''
@@ -410,15 +439,15 @@ class Function(object):
 
         g = networkx.DiGraph()
         for src, dst, data in self._transition_graph.edges_iter(data=True):
-            if src in self.block_addrs and dst in self.block_addrs:
+            if src in self.blocks and dst in self.blocks:
                 g.add_edge(src, dst, attr_dict=data)
-            elif src in self.block_addrs:
+            elif src in self.blocks:
                 g.add_node(src)
-            elif dst in self.block_addrs:
+            elif dst in self.blocks:
                 g.add_node(dst)
 
         for node in self._transition_graph.nodes_iter():
-            if node in self.block_addrs:
+            if node in self.blocks:
                 g.add_node(node)
 
         self._local_transition_graph = g
@@ -437,9 +466,9 @@ class Function(object):
         '''
         import matplotlib.pyplot as pyplot # pylint: disable=import-error
         tmp_graph = networkx.DiGraph()
-        for edge in self._transition_graph.edges():
-            node_a = "%#08x" % edge[0]
-            node_b = "%#08x" % edge[1]
+        for from_block, to_block in self._transition_graph.edges():
+            node_a = "%#08x" % from_block.addr
+            node_b = "%#08x" % to_block.addr
             if node_b in self._ret_sites:
                 node_b += "[Ret]"
             if node_a in self._call_sites:
@@ -560,7 +589,6 @@ class Function(object):
                     l.error('normalize(): Please report it to Fish/maybe john.')
 
             end_addresses[end_addr] = [smallest_node]
-<<<<<<< c80f584720df22a098443004d6194171fa705bc6
 
     def _match_cc(self):
         '''
@@ -597,5 +625,5 @@ class Function(object):
 
         # We cannot determine the calling convention of this function.
         return simuvex.s_cc.SimCCUnknown(arch, args, ret_vals, sp_delta)
-=======
->>>>>>> Make a whole bunch of mutating methods on function and function manager private
+
+from ..errors import AngrMemoryError
