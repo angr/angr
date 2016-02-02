@@ -440,13 +440,19 @@ class CFG(Analysis, CFGBase):
                 if node_key not in self._nodes:
                     # Generate a PathTerminator node
                     addr = self._simrun_key_addr(node_key)
+                    func_addr = self._simrun_key_current_func_addr(node_key)
+                    if func_addr is None:
+                        # We'll have to use the current SimRun address instead
+                        # TODO: Is it really OK?
+                        func_addr = self._simrun_key_addr(node_key)
+
                     pt = CFGNode(self._simrun_key_addr(node_key),
                                  None,
                                  self,
                                  callstack_key=self._simrun_key_callstack_key(node_key),
                                  input_state=None,
                                  simprocedure_name="PathTerminator",
-                                 function_address=self._simrun_key_current_func_addr(node_key))
+                                 function_address=func_addr)
                     if self._keep_state:
                         # We don't have an input state available for it (otherwise we won't have to create a
                         # PathTerminator). This is just a trick to make get_any_irsb() happy.
@@ -1009,7 +1015,16 @@ class CFG(Analysis, CFGBase):
 
     @staticmethod
     def _simrun_key_current_func_addr(simrun_key):
-        return simrun_key[-3]
+        """
+        If we don't have any information about the caller, we have no way to get the address of the current function.
+
+        :param simrun_key: SimRun key
+        :return: The function address if there is one, or None if it's not possible to get
+        """
+        if len(simrun_key) > 2:
+            return simrun_key[-3]
+        else:
+            return None
 
     def _handle_entry(self, entry_wrapper, remaining_exits, exit_targets,
                       pending_exits, traced_sim_blocks, retn_target_sources,
