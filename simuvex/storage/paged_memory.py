@@ -38,7 +38,7 @@ class Page(object):
         self._page_size = page_size
         self._storage = [None]*page_size if _internal_storage is list else _internal_storage()
 
-        if self.permissions is None:
+        if permissions is None:
             perms = Page.PROT_READ|Page.PROT_WRITE
             if executable:
                 perms |= Page.PROT_EXEC
@@ -743,21 +743,29 @@ class SimPagedMemory(object):
 
         return self._get_page(page_num).permissions
 
-    def map_page(self, addr, permissions):
+    def map_page(self, addr, length, permissions):
 
-        page_num = addr / self._page_size
+        base_page_num = addr / self._page_size
+
+        # round length
+        pages = length / self._page_size
+        if length % self._page_size > 0:
+            pages += 1
 
         page_exists = False
-        try:
-            self._get_page(page_num)
-            page_exists = True
-        except KeyError:
-            pass
+        for page in xrange(pages):
+            try:
+                self._get_page(base_page_num + page)
+                page_exists = True
+                break
+            except KeyError:
+                pass
 
         if page_exists:
-            raise ValueError("map_page received address which was already mapped")
+            raise ValueError("map_page received address and length combination which contained mapped page")
 
         if isinstance(permissions, (int, long)):
             permissions = claripy.BVV(permissions, 3)
 
-        self._pages[page_num] = Page(self._page_size, permissions)
+        for page in xrange(pages):
+            self._pages[base_page_num + page] = Page(self._page_size, permissions)
