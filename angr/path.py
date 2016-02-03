@@ -129,16 +129,17 @@ class Path(object):
             self.extra_length = 0
 
             # the path history
-            self.trace = [ ]
-            self.addr_trace = [ ]
-            self.targets = [ ]
-            self.guards = [ ]
-            self.jumpkinds = [ ]
-            self.events = [ ]
-            self.actions = [ ]
+            self.trace = []
+            self.addr_trace = []
+            self.targets = []
+            self.guards = []
+            self.jumpkinds = []
+            self.events = []
+            self.actions = []
             self.callstack = CallStack()
             self.callstack.push(CallFrame(None, self.addr, self.state.se.any_int(self.state.regs.sp), 0))
             self.popped_callframe = None
+            self.callstack_backtrace = []
 
             # the previous run
             self.previous_run = None
@@ -146,15 +147,15 @@ class Path(object):
             self.last_actions = []
 
             # A custom information store that will be passed to all its descendents
-            self.info = { }
+            self.info = {}
 
             # for merging
-            self._upcoming_merge_points = [ ]
-            self._merge_flags = [ ]
-            self._merge_values = [ ]
-            self._merge_traces = [ ]
-            self._merge_addr_traces = [ ]
-            self._merge_depths = [ ]
+            self._upcoming_merge_points = []
+            self._merge_flags = []
+            self._merge_values = []
+            self._merge_traces = []
+            self._merge_addr_traces = []
+            self._merge_depths = []
 
         else:
             # this path's information
@@ -171,6 +172,7 @@ class Path(object):
             self.actions = list(path.actions)
             self.callstack = path.callstack.copy()
             self.popped_callframe = path.popped_callframe
+            self.callstack_backtrace = list(path.callstack_backtrace)
 
             # the previous run
             self.previous_run = path._run
@@ -437,9 +439,11 @@ class Path(object):
         if self.jumpkinds[-1] == "Ijk_Call":
             callframe = CallFrame(state)
             self.callstack.push(callframe)
+            self.callstack_backtrace.append((hash(self.callstack), callframe, len(self.callstack)))
         elif self.jumpkinds[-1].startswith('Ijk_Sys'):
             callframe = CallFrame(state)
             self.callstack.push(callframe)
+            self.callstack_backtrace.append((hash(self.callstack), callframe, len(self.callstack)))
         elif self.jumpkinds[-1] == "Ijk_Ret":
             self.popped_callframe = self.callstack.pop()
             if len(self.callstack) == 0:
@@ -527,6 +531,7 @@ class Path(object):
         p.trace = list(self.trace)
         p.addr_trace = list(self.addr_trace)
         p.callstack = self.callstack.copy()
+        p.callstack_backtrace = list(self.callstack_backtrace)
         p.popped_callframe = self.popped_callframe
 
         p.guards = list(self.guards)
