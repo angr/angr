@@ -497,14 +497,17 @@ class Tracer(object):
         # parse out the predump file
         memory = {}
         regs = {}
+        permissions = { }
         with open(backingfile, "rb") as f:
             while len(regs) == 0:
                 tag = f.read(4)
                 if tag != "REGS":
                     start = struct.unpack("<I", tag)[0]
                     end = struct.unpack("<I", f.read(4))[0]
+                    prot = struct.unpack("<I", f.read(4))[0]
                     length = struct.unpack("<I", f.read(4))[0]
                     content = f.read(length)
+                    permissions[(start, end)] = prot & 0x7 # only care about PROT_EXEC|PROT_WRITE|PROT_READ
                     memory[start] = content
                 else:
                     # general purpose regs
@@ -591,7 +594,7 @@ class Tracer(object):
 
         os.remove(backingfile)
 
-        ld = cle.Loader(self.binary, main_opts={'backend': cle.backends.BackedCGC, 'memory_backer': memory, 'register_backer': regs, 'writes_backer': []})
+        ld = cle.Loader(self.binary, main_opts={'backend': cle.backends.BackedCGC, 'memory_backer': memory, 'register_backer': regs, 'writes_backer': [], 'permissions_map': permissions})
 
         return angr.Project(ld)
 
