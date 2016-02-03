@@ -30,7 +30,7 @@ class MemoryRegion(object):
             if backer_dict is None:
                 self._memory = SimSymbolicMemory(memory_id=id, endness=self._endness, abstract_backer=True)
             else:
-                self._memory = SimSymbolicMemory(backer=backer_dict, memory_id=id, endness=self._endness, abstract_backer=True)
+                self._memory = SimSymbolicMemory(memory_backer=backer_dict, memory_id=id, endness=self._endness, abstract_backer=True)
 
             self._memory.set_state(state)
 
