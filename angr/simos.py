@@ -364,6 +364,9 @@ class SimCGC(SimOS):
         return s
 
     def state_entry(self, **kwargs):
+        if isinstance(self.proj.loader.main_bin, BackedCGC):
+            kwargs['permissions_backer'] = (True, self.proj.loader.main_bin.permissions_map)
+
         state = super(SimCGC, self).state_entry(**kwargs)
 
         if isinstance(self.proj.loader.main_bin, BackedCGC):
