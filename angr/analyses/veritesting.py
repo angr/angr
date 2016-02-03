@@ -813,9 +813,9 @@ class Veritesting(Analysis):
                 merged_path.info['actions'].append(action)
         '''
 
-        # Fix backtrace of the merged path
-        merged_path.addr_backtrace.append(-1)
-        merged_path.backtrace.append('Veritesting')
+        # Fix trace of the merged path
+        merged_path.addr_trace.append(-1)
+        merged_path.trace.append('Veritesting')
 
         # Add extra constraints from original paths to the merged path
         # It's really important to not lose them. Yan has a lot to say about it.

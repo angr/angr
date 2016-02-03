@@ -10,120 +10,108 @@ import mulpyplexer
 #pylint:disable=unidiomatic-typecheck
 
 class CallFrame(object):
-    """
-        Instance variables:
-        Int             from address
-        Int             to address
-        claripy.E       pointer to from_addr
-    """
-    def __init__(self, state):
-        """
-        Int-> CallFrame
-        Create a new CallFrame with the given arguments
-        """
-        self.faddr = state.scratch.bbl_addr
-        self.taddr = state.se.any_int(state.ip)
-        self.sptr = state.regs.sp
+    '''
+    Stores the address of the function you're in and the value of SP
+    at the VERY BOTTOM of the stack, i.e. points to the return address
+    '''
+    def __init__(self, state=None, func_addr=None, stack_ptr=None, ret_addr=None):
+        '''
+        Initialize with either a state or the function address,
+        stack pointer, and return address
+        '''
+        if state is not None:
+            self.func_addr = state.se.any_int(state.ip)
+            self.stack_ptr = state.se.any_int(state.regs.sp)
 
-        self.saved_return_address = self.get_return_address(state)
-        self.saved_sp = state.regs.sp
-        self.saved_bp = state.regs.bp
-
-        self.jumpkind = state.scratch.jumpkind
-
-    @staticmethod
-    def get_return_address(state):
-        if state.arch.call_pushes_ret:
-            return state.memory.load(state.regs.sp, state.arch.bits/8, endness=state.arch.memory_endness)
+            if state.arch.call_pushes_ret:
+                self.ret_addr = state.memory.load(state.regs.sp, state.arch.bits/8, endness=state.arch.memory_endness)
+            else:
+                self.ret_addr = state.regs.lr
+            self.ret_addr = state.se.any_int(self.ret_addr)
         else:
-            return state.regs.lr
+            self.func_addr = func_addr
+            self.stack_ptr = stack_ptr
+            self.ret_addr = ret_addr
+
+        self.block_counter = collections.Counter()
+
+    def __str__(self):
+        return "Func %#x, sp=%#x, ret=%#x" % (self.func_addr, self.stack_ptr, self.ret_addr)
 
     def __repr__(self):
-        """
-        Returns a string representation of this callframe
-        """
-        return "0x%x (0x%x)" % (self.taddr, self.faddr)
+        return '<CallFrame (Func %#x)>' % (self.func_addr)
+
+    def copy(self):
+        c = CallFrame(None, self.func_addr, self.stack_ptr, self.ret_addr)
+        c.block_counter = collections.Counter(self.block_counter)
+        return c
 
 class CallStack(object):
-    """
-        Instance variables:
-        List        List of CallFrame
-    """
     def __init__(self):
-        """
-        -> CallStack
-        Create a new CallStack
-        """
-        self.callstack = []
+        self._callstack = []
 
     def __iter__(self):
         """
-        -> Generator
-        Overriding, for using the CallStack with iterators
+        Iterate through the callstack, from top to bottom
+        (most recent first)
         """
-        for cf in self.callstack:
+        for cf in reversed(self._callstack):
             yield cf
 
     def push(self, cf):
-        """
-        CallFrame ->
-        Add the given CallFrame to the list of CallFrames
-        """
-        self.callstack.append(cf)
+        self._callstack.append(cf)
 
     def pop(self):
-        """
-        -> CallFrame
-        Pop a CallFrame from the list
-        """
         try:
-            return self.callstack.pop()
+            return self._callstack.pop(-1)
         except IndexError:
-            raise IndexError("pop from empty CallStack")
+            raise ValueError("Empty CallStack")
+
+    @property
+    def top(self):
+        try:
+            return self._callstack[-1]
+        except IndexError:
+            raise ValueError("Empty CallStack")
 
     def __getitem__(self, k):
         '''
-        Returns the CallFrame at index k.
+        Returns the CallFrame at index k, indexing from the top of the stack.
         '''
-        return self.callstack[k]
+        k = -1 - k
+        return self._callstack[k]
 
     def __len__(self):
-        """
-        -> Int
-        Return the length of the stuff
-        """
-        return len(self.callstack)
+        return len(self._callstack)
 
     def __repr__(self):
-        """
-        Better representation of this callstack
-        """
-        return "CallStack (depth %d) [ %s ]" % (len(self.callstack),
-                                                ", ".join([ str(f) for f in self.callstack ]))
+        return "<CallStack (depth %d)>" % len(self._callstack)
+
+    def __str__(self):
+        return "Backtrace:\n%s" % "\n".join(str(f) for f in self)
 
     def __eq__(self, other):
-        """
-        Compare two callstacks.
-        """
-        if len(self.callstack) != len(other.callstack):
+        if not isinstance(other, CallStack):
             return False
 
-        for c1, c2 in zip(self.callstack, other.callstack):
-            if c1.faddr != c2.faddr or c1.taddr != c2.taddr:
+        if len(self) != len(other):
+            return False
+
+        for c1, c2 in zip(self._callstack, other._callstack):
+            if c1.func_addr != c2.func_addr or c1.stack_ptr != c2.stack_ptr or c1.ret_addr != c2.ret_addr:
                 return False
 
         return True
 
+    def __ne__(self, other):
+        return self != other
+
     def __hash__(self):
-        return hash(''.join([ '%d_%d' % (c.faddr, c.taddr) for c in self.callstack ]))
+        return hash(tuple((c.func_addr, c.stack_ptr, c.ret_addr) for c in self._callstack))
 
     def copy(self):
-        """
-        -> CallStack
-        Make a copy of self
-        """
         c = CallStack()
-        c.callstack = list(self.callstack)
+        c._callstack = [cf.copy() for cf in self._callstack]
         return c
 
 class Path(object):
@@ -135,61 +123,81 @@ class Path(object):
         # project
         self._project = project
 
-        # this path's information
-        self.length = 0
-        self.extra_length = 0
+        if path is None:
+            # this path's information
+            self.length = 0
+            self.extra_length = 0
 
-        # the previous run
-        self.previous_run = None
-        self.last_events = [ ]
-        self.last_actions = [ ]
-        self.fresh_variables = [ ]
+            # the path history
+            self.trace = [ ]
+            self.addr_trace = [ ]
+            self.targets = [ ]
+            self.guards = [ ]
+            self.jumpkinds = [ ]
+            self.events = [ ]
+            self.actions = [ ]
+            self.callstack = CallStack()
+            self.callstack.push(CallFrame(None, self.addr, self.state.se.any_int(self.state.regs.sp), 0))
+            self.popped_callframe = None
 
-        # the path history
-        self.backtrace = [ ]
-        self.addr_backtrace = [ ]
-        self.targets = [ ]
-        self.guards = [ ]
-        self.sources = [ ]
-        self.jumpkinds = [ ]
-        self.events = [ ]
-        self.actions = [ ]
-        self.callstack = CallStack()
-        self.callstack_backtrace = [ ]
-        self.popped_callframe = None
-        self.blockcounter_stack = [ collections.Counter() ]
+            # the previous run
+            self.previous_run = None
+            self.last_events = []
+            self.last_actions = []
 
-        # A custom information store that will be passed to all its descedents
-        self.info = { }
+            # A custom information store that will be passed to all its descendents
+            self.info = { }
 
-        # for merging
-        self._upcoming_merge_points = [ ]
-        self._merge_flags = [ ]
-        self._merge_values = [ ]
-        self._merge_backtraces = [ ]
-        self._merge_addr_backtraces = [ ]
-        self._merge_depths = [ ]
+            # for merging
+            self._upcoming_merge_points = [ ]
+            self._merge_flags = [ ]
+            self._merge_values = [ ]
+            self._merge_traces = [ ]
+            self._merge_addr_traces = [ ]
+            self._merge_depths = [ ]
 
-        # copy a path if it's given
-        if path is not None:
-            self._record_path(path)
+        else:
+            # this path's information
+            self.length = path.length + 1
+            self.extra_length = path.extra_length
+
+            # the path history
+            self.trace = list(path.trace)
+            self.addr_trace = list(path.addr_trace)
+            self.targets = list(path.targets)
+            self.guards = list(path.guards)
+            self.jumpkinds = list(path.jumpkinds)
+            self.events = list(path.events)
+            self.actions = list(path.actions)
+            self.callstack = path.callstack.copy()
+            self.popped_callframe = path.popped_callframe
+
+            # the previous run
+            self.previous_run = path._run
+            self.last_events = list(state.log.events)
+            self.last_actions = list(e for e in state.log.events if isinstance(e, simuvex.SimAction))
+            self._record_state(self.state)
+            self._record_run(path._run)
+
+            # A custom information store that will be passed to all its descendents
+            self.info = { k:copy.copy(v) for k, v in path.info.iteritems() }
+
+            self._upcoming_merge_points = list(path._upcoming_merge_points)
+            self._merge_flags = list(path._merge_flags)
+            self._merge_values = list(path._merge_values)
+            self._merge_traces = list(path._merge_traces)
+            self._merge_addr_traces = list(path._merge_addr_traces)
+            self._merge_depths = list(path._merge_depths)
 
         # for printing/ID stuff and inheritence
         self.name = str(id(self))
         self.path_id = urandom(8).encode('hex')
-
-        # Whitelist and last_stmt used for executing program slices
-        self.stmt_whitelist = None
-        self.last_stmt = None
 
         # actual analysis stuff
         self._run_args = None       # sim_run args, to determine caching
         self._run = None
         self._run_error = None
         self._reachable = None
-
-        if self.state is not None:
-            self._record_state(self.state)
 
     @property
     def addr(self):
@@ -316,12 +324,11 @@ class Path(object):
         Trims a path's history (removes actions, etc).
         '''
 
-        #self.backtrace = self.backtrace[-1:]
-        #self.addr_backtrace = self.addr_backtrace[-1:]
+        #self.trace = self.trace[-1:]
+        #self.addr_trace = self.addr_trace[-1:]
         #self.jumpkinds = self.jumpkinds[-1:]
         self.targets = self.targets[-1:]
         self.guards = self.guards[-1:]
-        self.sources = self.sources[-1:]
         self.events = self.events[-1:]
         self.actions = self.actions[-1:]
 
@@ -333,13 +340,13 @@ class Path(object):
         @returns an address (long)
         '''
 
-        for i in range(max([len(self.addr_backtrace), len(other.addr_backtrace)])):
-            if i > len(self.addr_backtrace):
-                return other.addr_backtrace[i-1]
-            elif i > len(other.addr_backtrace):
-                return self.addr_backtrace[i-1]
-            elif self.addr_backtrace[i] != other.addr_backtrace[i]:
-                return self.addr_backtrace[i-1]
+        for i in range(max([len(self.addr_trace), len(other.addr_trace)])):
+            if i > len(self.addr_trace):
+                return other.addr_trace[i-1]
+            elif i > len(other.addr_trace):
+                return self.addr_trace[i-1]
+            elif self.addr_trace[i] != other.addr_trace[i]:
+                return self.addr_trace[i-1]
 
 
     def detect_loops(self, n=None): #pylint:disable=unused-argument
@@ -351,12 +358,12 @@ class Path(object):
         '''
 
         # TODO: make this work better
-        #addr_strs = [ "%x"%x for x in self.addr_backtrace ]
+        #addr_strs = [ "%x"%x for x in self.addr_trace ]
         #bigstr = "".join(addr_strs)
 
         #candidates = [ ]
 
-        #max_iteration_length = len(self.addr_backtrace) / n
+        #max_iteration_length = len(self.addr_trace) / n
         #for i in range(max_iteration_length):
         #   candidates.append("".join(addr_strs[-i-0:]))
 
@@ -365,7 +372,7 @@ class Path(object):
         #       return n
         #return None
 
-        mc = self.blockcounter_stack[-1].most_common()
+        mc = self.callstack.top.block_counter.most_common()
         if len(mc) == 0:
             return None
         else:
@@ -413,51 +420,10 @@ class Path(object):
     # State continuation
     #
 
-    def _record_path(self, path):
-        self.last_events = list(path.last_events)
-        self.last_actions = list(path.last_actions)
-        self.events.extend(path.events)
-        self.actions.extend(path.actions)
-
-        self.backtrace.extend(path.backtrace)
-        self.addr_backtrace.extend(path.addr_backtrace)
-        self.callstack.callstack.extend(path.callstack.callstack)
-        self.callstack_backtrace.extend(path.callstack_backtrace)
-        self.popped_callframe = path.popped_callframe
-
-        self.guards.extend(path.guards)
-        self.sources.extend(path.sources)
-        self.jumpkinds.extend(path.jumpkinds)
-        self.targets.extend(path.targets)
-
-        self.length = path.length
-        self.extra_length = path.extra_length
-        self.previous_run = path._run
-
-        self.info = { k:copy.copy(v) for k, v in path.info.iteritems() }
-
-        self.blockcounter_stack = [ collections.Counter(s) for s in path.blockcounter_stack ]
-        self._upcoming_merge_points = list(path._upcoming_merge_points)
-        self._merge_flags = list(path._merge_flags)
-        self._merge_values = list(path._merge_values)
-        self._merge_backtraces = list(path._merge_backtraces)
-        self._merge_addr_backtraces = list(path._merge_addr_backtraces)
-        self._merge_depths = list(path._merge_depths)
-
-        # if a run is provided, record it
-        if path._run is not None:
-            self._record_run(path._run)
-
-
     def _record_state(self, state):
         '''
         Adds the information from the last run to the current path.
         '''
-
-        l.debug("Extending path with state %s", state)
-
-        self.last_events = list(state.log.events)
-        self.last_actions = list(e for e in state.log.events if isinstance(e, simuvex.SimAction))
 
         if simuvex.o.TRACK_ACTION_HISTORY in state.options:
             self.events.extend(self.last_events)
@@ -466,43 +432,25 @@ class Path(object):
         self.jumpkinds.append(state.scratch.jumpkind)
         self.targets.append(state.scratch.target)
         self.guards.append(state.scratch.guard)
-        self.sources.append(state.scratch.source)
 
         # maintain the blockcounter stack
         if self.jumpkinds[-1] == "Ijk_Call":
-            l.debug("... it's a call!")
             callframe = CallFrame(state)
             self.callstack.push(callframe)
-            self.callstack_backtrace.append((hash(self.callstack), callframe, len(self.callstack.callstack)))
-            self.blockcounter_stack.append(collections.Counter())
         elif self.jumpkinds[-1].startswith('Ijk_Sys'):
-            l.debug("... it's a syscall!")
             callframe = CallFrame(state)
             self.callstack.push(callframe)
-            self.callstack_backtrace.append((hash(self.callstack), callframe, len(self.callstack.callstack)))
-            self.blockcounter_stack.append(collections.Counter())
         elif self.jumpkinds[-1] == "Ijk_Ret":
-            l.debug("... it's a ret!")
-            self.blockcounter_stack.pop()
-            if len(self.blockcounter_stack) == 0:
-                l.debug("... WARNING: unbalanced callstack")
-                self.blockcounter_stack.append(collections.Counter())
+            self.popped_callframe = self.callstack.pop()
+            if len(self.callstack) == 0:
+                l.info("Path callstack unbalanced...")
+                self.callstack.push(CallFrame(None, 0, 0, 0))
 
-            if len(self.callstack) > 0:
-                self.popped_callframe = self.callstack.pop()
-
-        self.addr_backtrace.append(state.scratch.bbl_addr)
-        self.blockcounter_stack[-1][state.scratch.bbl_addr] += 1
-        self.length += 1
+        self.addr_trace.append(state.scratch.bbl_addr)
+        self.callstack.top.block_counter[state.scratch.bbl_addr] += 1
 
     def _record_run(self, run):
-        '''
-        Adds the information from the last run to the current path.
-        '''
-        l.debug("Extending path with run %s", run)
-
-        # maintain the blockstack
-        self.backtrace.append(str(run))
+        self.trace.append(str(run))
 
     #
     # Merging and splitting
@@ -551,19 +499,19 @@ class Path(object):
         new_state, merge_flag, _ = self.state.merge(*[ o.state for o in others ])
         new_path = Path(self._project, new_state, path=self)
 
-        # fix the backtraces
-        divergence_index = [ len(set(addrs)) == 1 for addrs in zip(*[ o.addr_backtrace for o in all_paths ]) ].index(False)
-        new_path.addr_backtrace = self.addr_backtrace[:divergence_index]
-        new_path.addr_backtrace.append(-1)
-        new_path.backtrace = self.backtrace[:divergence_index]
-        new_path.backtrace.append(("MERGE POINT: %s" % merge_flag))
+        # fix the traces
+        divergence_index = [ len(set(addrs)) == 1 for addrs in zip(*[ o.addr_trace for o in all_paths ]) ].index(False)
+        new_path.addr_trace = self.addr_trace[:divergence_index]
+        new_path.addr_trace.append(-1)
+        new_path.trace = self.trace[:divergence_index]
+        new_path.trace.append(("MERGE POINT: %s" % merge_flag))
 
         # reset the upcoming merge points
         new_path._upcoming_merge_points = [ ]
         new_path._merge_flags.append(merge_flag)
         new_path._merge_values.append(list(range(len(all_paths))))
-        new_path._merge_backtraces.append( [ o.backtrace for o in all_paths ] )
-        new_path._merge_addr_backtraces.append( [ o.addr_backtrace for o in all_paths ] )
+        new_path._merge_traces.append( [ o.trace for o in all_paths ] )
+        new_path._merge_addr_traces.append( [ o.addr_trace for o in all_paths ] )
         new_path._merge_depths.append(new_path.length) #
 
         return new_path
@@ -576,14 +524,12 @@ class Path(object):
         p.events = list(self.events)
         p.actions = list(self.actions)
 
-        p.backtrace = list(self.backtrace)
-        p.addr_backtrace = list(self.addr_backtrace)
+        p.trace = list(self.trace)
+        p.addr_trace = list(self.addr_trace)
         p.callstack = self.callstack.copy()
-        p.callstack_backtrace = list(self.callstack_backtrace)
         p.popped_callframe = self.popped_callframe
 
         p.guards = list(self.guards)
-        p.sources = list(self.sources)
         p.jumpkinds = list(self.jumpkinds)
         p.targets = list(self.targets)
 
@@ -594,12 +540,11 @@ class Path(object):
 
         p.info = {k: copy.copy(v) for k, v in self.info.iteritems()}
 
-        p.blockcounter_stack = [collections.Counter(s) for s in self.blockcounter_stack]
         p._upcoming_merge_points = list(self._upcoming_merge_points)
         p._merge_flags = list(self._merge_flags)
         p._merge_values = list(self._merge_values)
-        p._merge_backtraces = list(self._merge_backtraces)
-        p._merge_addr_backtraces = list(self._merge_addr_backtraces)
+        p._merge_traces = list(self._merge_traces)
+        p._merge_addr_traces = list(self._merge_addr_traces)
         p._merge_depths = list(self._merge_depths)
 
         return p
@@ -704,7 +649,7 @@ class Path(object):
             ]
 
     def __repr__(self):
-        return "<Path with %d runs (at 0x%x)>" % (len(self.backtrace), self.addr)
+        return "<Path with %d runs (at 0x%x)>" % (len(self.trace), self.addr)
 
 class ErroredPath(Path):
     def __init__(self, error, *args, **kwargs):
@@ -714,7 +659,7 @@ class ErroredPath(Path):
 
     def __repr__(self):
         return "<Errored Path with %d runs (at 0x%x, %s)>" % \
-            (len(self.backtrace), self.addr, type(self.error).__name__)
+            (len(self.trace), self.addr, type(self.error).__name__)
 
     def step(self, *args, **kwargs):
         # pylint: disable=unused-argument

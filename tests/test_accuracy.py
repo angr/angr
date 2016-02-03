@@ -39,7 +39,7 @@ def emulate(arch):
     nose.tools.assert_greater_equal(path.length, steps)
 
     # this is some wonky control flow that asserts that the items in hit_addrs appear in the path in order.
-    trace = list(path.addr_backtrace)
+    trace = list(path.addr_trace)
     reqs = list(hit_addrs)
     while len(reqs) > 0:
         req = reqs.pop(0)

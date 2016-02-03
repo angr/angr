@@ -231,10 +231,10 @@ class AnnotatedCFG(object):
         """
         Given a path, returns True if the path should be kept, False if it should be cut.
         """
-        if len(path.addr_backtrace) < 2:
+        if len(path.addr_trace) < 2:
             return True
 
-        return self.should_take_exit(path.addr_backtrace[-2], path.addr_backtrace[-1])
+        return self.should_take_exit(path.addr_trace[-2], path.addr_trace[-1])
 
     def filter_path(self, path):
         """
