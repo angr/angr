@@ -313,6 +313,9 @@ class Path(object):
     def addr(self):
         return self.state.se.any_int(self.state.regs.ip)
 
+    def __len__(self):
+        return self.length
+
     @property
     def addr_trace(self):
         return AddrIter(self.history)
