@@ -2559,7 +2559,7 @@ class CFG(Analysis, CFGBase):
         else:
             raise AngrCFGError("from and to should be of the same type")
 
-        return networkx.all_simple_paths(self.graph, n_begin, n_end)
+        return networkx.all_shortest_paths(self.graph, n_begin, n_end)
 
     def get_paths(self, begin, end, nb_max=0):
         """
