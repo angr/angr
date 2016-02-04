@@ -188,7 +188,7 @@ class Explorer(Surveyor):
         elif isinstance(self._cfg.get_any_irsb(p.addr), simuvex.SimProcedure):
             l.debug("Path %s is pointing to a SimProcedure. Counting as not lost.", p)
             return False
-        elif len(p.addr_trace) > 0 and self._cfg.get_any_irsb(p.addr_trace[-1]) is None:
+        elif p.length > 0 and self._cfg.get_any_irsb(p.addr_trace[-1]) is None:
             l.debug("not trimming, because %s is currently outside of the CFG", p)
             return False
         else:
@@ -209,7 +209,7 @@ class Explorer(Surveyor):
             self.lost.append(p)
             return False
 
-        if len(p.addr_trace) < self._min_depth:
+        if p.length < self._min_depth:
             l.debug("path %s has less than the minimum depth", p)
             return True
 

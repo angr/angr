@@ -39,7 +39,7 @@ def emulate(arch):
     nose.tools.assert_greater_equal(path.length, steps)
 
     # this is some wonky control flow that asserts that the items in hit_addrs appear in the path in order.
-    trace = list(path.addr_trace)
+    trace = path.addr_trace.hardcopy
     reqs = list(hit_addrs)
     while len(reqs) > 0:
         req = reqs.pop(0)
@@ -66,8 +66,8 @@ def test_locale():
                  )
     nose.tools.assert_equal(len(pg2.active), 0)
     nose.tools.assert_equal(len(pg2.deadended), 1)
-    nose.tools.assert_equal(pg2.deadended[0].last_events[-1].type, 'terminate')
-    nose.tools.assert_equal(pg2.deadended[0].last_events[-1].objects['exit_code'].ast._model_concrete.value, 0)
+    nose.tools.assert_equal(pg2.deadended[0].events[-1].type, 'terminate')
+    nose.tools.assert_equal(pg2.deadended[0].events[-1].objects['exit_code'].ast._model_concrete.value, 0)
 
 
 if __name__ == '__main__':
