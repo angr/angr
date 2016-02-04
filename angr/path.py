@@ -144,28 +144,6 @@ class PathHistory(object):
     def _record_run(self, run):
         self._runstr = str(run)
 
-    @property
-    def addr_trace(self):
-        return AddrIter(self)
-    @property
-    def trace(self):
-        return RunstrIter(self)
-    @property
-    def targets(self):
-        return TargetIter(self)
-    @property
-    def guards(self):
-        return GuardIter(self)
-    @property
-    def jumpkinds(self):
-        return JumpkindIter(self)
-    @property
-    def events(self):
-        return EventIter(self)
-    @property
-    def actions(self):
-        return ActionIter(self)
-
 class TreeIter(object):
     def __init__(self, hist):
         self._hist = hist
@@ -280,6 +258,7 @@ class Path(object):
 
             # the previous run
             self.previous_run = None
+            self._eref = None
 
             # A custom information store that will be passed to all its descendents
             self.info = {}
@@ -334,28 +313,31 @@ class Path(object):
     def addr(self):
         return self.state.se.any_int(self.state.regs.ip)
 
-    # History access shortcuts to ease the refactoring transition
-    @property
-    def actions(self):
-        return self.history.actions
-    @property
-    def events(self):
-        return self.history.events
-    @property
-    def jumpkinds(self):
-        return self.history.jumpkinds
-    @property
-    def guards(self):
-        return self.history.guards
-    @property
-    def targets(self):
-        return self.history.targets
-    @property
-    def trace(self):
-        return self.history.trace
     @property
     def addr_trace(self):
-        return self.history.addr_trace
+        return AddrIter(self.history)
+    @property
+    def trace(self):
+        return RunstrIter(self.history)
+    @property
+    def targets(self):
+        return TargetIter(self.history)
+    @property
+    def guards(self):
+        return GuardIter(self.history)
+    @property
+    def jumpkinds(self):
+        return JumpkindIter(self.history)
+    @property
+    def events(self):
+        return EventIter(self.history)
+    @property
+    def actions(self):
+        return ActionIter(self.history)
+
+    def trim_history(self):
+        self.history._parent = None
+
 
     #
     # Stepping methods and successor access
@@ -481,8 +463,8 @@ class Path(object):
         @returns an address (long)
         '''
 
-        trace1 = self.history.addr_trace.hardcopy
-        trace2 = other.history.addr_trace.hardcopy
+        trace1 = self.addr_trace.hardcopy
+        trace2 = other.addr_trace.hardcopy
         for i in range(max([len(trace1), len(trace2)])):
             if i > len(trace1):
                 return trace2[i-1]
@@ -632,7 +614,7 @@ class Path(object):
         new_state, merge_flag, _ = self.state.merge(*[ o.state for o in others ])
         new_path = Path(self._project, new_state, path=self)
 
-        addr_lists = [x.history.addr_trace.hardcopy for x in all_paths]
+        addr_lists = [x.addr_trace.hardcopy for x in all_paths]
 
         # fix the traces
         divergence_index = [ len(set(addrs)) == 1 for addrs in zip(*addr_lists) ].index(False)
@@ -650,7 +632,7 @@ class Path(object):
         new_path._upcoming_merge_points = []
         new_path._merge_flags.append(merge_flag)
         new_path._merge_values.append(list(range(len(all_paths))))
-        new_path._merge_traces.append([o.history.trace.hardcopy for o in all_paths])
+        new_path._merge_traces.append([o.trace.hardcopy for o in all_paths])
         new_path._merge_addr_traces.append(addr_lists)
         new_path._merge_depths.append(new_path.length)
 
@@ -773,7 +755,7 @@ class Path(object):
                 return False
             return True
 
-        return [x for x in reversed(self.history.actions) if
+        return [x for x in reversed(self.actions) if
                     (block_addr is None or x.bbl_addr == block_addr) and
                     (block_stmt is None or x.stmt_idx == block_stmt) and
                     (read_from is None or action_reads(x)) and

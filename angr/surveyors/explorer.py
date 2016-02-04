@@ -248,7 +248,7 @@ class Explorer(Surveyor):
             l.debug("Path %s appears to be looping!", p)
             self.looping.append(p)
             return False
-        elif self._max_depth is not None and len(p.trace) > self._max_depth:
+        elif self._max_depth is not None and p.length > self._max_depth:
             l.debug('Path %s exceeds the maximum depth(%d) allowed.', p, self._max_depth)
             return False
         else:
