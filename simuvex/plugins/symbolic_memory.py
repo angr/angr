@@ -16,9 +16,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     _CONCRETIZATION_STRATEGIES = [ 'symbolic', 'symbolic_approx', 'any', 'any_approx', 'max', 'max_approx', 'symbolic_nonzero', 'symbolic_nonzero_approx', 'norepeats' ]
     _SAFE_CONCRETIZATION_STRATEGIES = [ 'symbolic', 'symbolic_approx' ]
 
-    def __init__(self, backer=None, mem=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, endness=None, abstract_backer=False):
+    def __init__(self, memory_backer=None, permissions_backer=None, mem=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, endness=None, abstract_backer=False):
         SimMemory.__init__(self, endness=endness, abstract_backer=abstract_backer)
-        self.mem = SimPagedMemory(backer=backer) if mem is None else mem
+        self.mem = SimPagedMemory(memory_backer=memory_backer, permissions_backer=permissions_backer) if mem is None else mem
         self.id = memory_id
 
         # for the norepeat stuff
@@ -1048,6 +1048,24 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         with replace_memory_object(), even if they've been partially overwritten.
         '''
         return self.mem.memory_objects_for_hash(n)
+
+    def permissions(self, addr):
+        '''
+        Retrieve the permissions of the page at address `addr`.
+
+        :param addr: address to get the page permissions
+        :return: AST representing the permissions on the page
+        '''
+        return self.mem.permissions(addr)
+
+    def map_region(self, addr, length, permissions):
+        '''
+        Map a number of pages at address `addr` with permissions `permissions`.
+        :param addr: address to map the pages at
+        :param length: length in bytes of region to map, will be rounded upwards to the page size
+        :param permissions: AST of permissions to map, will be a bitvalue representing flags
+        '''
+        return self.mem.map_region(addr, length, permissions)
 
 SimSymbolicMemory.register_default('memory', SimSymbolicMemory)
 SimSymbolicMemory.register_default('registers', SimSymbolicMemory)

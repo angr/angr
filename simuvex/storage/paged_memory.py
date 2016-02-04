@@ -13,16 +13,76 @@ _ffi = cffi.FFI()
 import logging
 l = logging.getLogger('simuvex.storage.paged_memory')
 
-#_storage = cooldict.SinkholeCOWDict
-#_storage = list
-_storage = dict
+#_internal_storage = cooldict.SinkholeCOWDict
+#_internal_storage = list
+_internal_storage = dict
+
+class Page(object):
+    '''
+    Page object, allowing for more flexibilty than just a raw dict
+    '''
+
+    PROT_READ = 1
+    PROT_WRITE = 2
+    PROT_EXEC = 4
+
+    def __init__(self, page_size, permissions=None, executable=False):
+        '''
+        Create a new page object. Carries permissions information. Permissions default to RW unless
+        `executable` is True in which case permissions default to RWX.
+
+        :param page_size: self-explanatory
+        :param executable: if the page is executable, typically this will depend on whether the binary has an
+            executbale stack
+        '''
+
+        self._page_size = page_size
+        self._storage = [None]*page_size if _internal_storage is list else _internal_storage()
+
+        if permissions is None:
+            perms = Page.PROT_READ|Page.PROT_WRITE
+            if executable:
+                perms |= Page.PROT_EXEC
+            self.permissions = claripy.BVV(perms, 3) # 3 bits is enough for PROT_EXEC, PROT_WRITE, PROT_READ, PROT_NONE
+        else:
+            self.permissions = permissions
+
+    def keys(self):
+
+        return self._storage.keys()
+
+    def __contains__(self, item):
+
+        return item in self._storage
+
+    def __getitem__(self, idx):
+        '''
+        I think we assume that idx has already been modded by page_size.
+        '''
+
+        return self._storage[idx]
+
+    def __setitem__(self, idx, item):
+
+        self._storage[idx] = item
+
+    def copy(self):
+        p = Page(self._page_size)
+        p._storage = _internal_storage(self._storage)
+        p.permissions = self.permissions
+        return p
+
+_storage = Page
 
 #pylint:disable=unidiomatic-typecheck
 
 class SimPagedMemory(object):
-    def __init__(self, backer=None, pages=None, sinkholes=None, initialized=None, name_mapping=None, hash_mapping=None, page_size=None):
+    def __init__(self, memory_backer=None, permissions_backer=None, pages=None, sinkholes=None, initialized=None, name_mapping=None, hash_mapping=None, page_size=None):
         self._cowed = set()
-        self._backer = { } if backer is None else backer
+        self._memory_backer = { } if memory_backer is None else memory_backer
+        self._permissions_backer = permissions_backer # saved for copying
+        self._executable_pages = False if permissions_backer is None else permissions_backer[0]
+        self._permission_map = { } if permissions_backer is None else permissions_backer[1]
         self._pages = { } if pages is None else pages
         self._sinkholes = { } if sinkholes is None else sinkholes
         self._sinkholes_cowed = False
@@ -37,7 +97,9 @@ class SimPagedMemory(object):
 
     def __getstate__(self):
         return {
-            '_backer': self._backer,
+            '_memory_backer': self._memory_backer,
+            '_executable_pages': self._executable_pages,
+            '_permission_map': self._permission_map,
             '_pages': self._pages,
             '_sinkholes': self._sinkholes,
             '_initialized': self._initialized,
@@ -60,7 +122,8 @@ class SimPagedMemory(object):
             new_pages = dict(self._pages)
 
         self._sinkholes_cowed = False
-        m = SimPagedMemory(backer=self._backer,
+        m = SimPagedMemory(memory_backer=self._memory_backer,
+                           permissions_backer=self._permissions_backer,
                            pages=new_pages,
                            sinkholes=self._sinkholes,
                            initialized=set(self._initialized),
@@ -171,14 +234,14 @@ class SimPagedMemory(object):
         if _storage is list:
             return [None]*self._page_size
         else:
-            return _storage()
+            return Page(self._page_size, executable=self._executable_pages)
 
     @staticmethod
     def _copy_page(page):
         if _storage is cooldict.SinkholeCOWDict:
             return page.branch()
         else:
-            return _storage(page)
+            return page.copy()
 
     def _initialize_page(self, n, new_page):
         if n in self._initialized:
@@ -188,11 +251,11 @@ class SimPagedMemory(object):
         new_page_addr = n*self._page_size
         initialized = False
 
-        if self._backer is None:
+        if self._memory_backer is None:
             pass
-        elif isinstance(self._backer, cle.Clemory):
+        elif isinstance(self._memory_backer, cle.Clemory):
             # first, find the right clemory backer
-            for addr, backer in self._backer.cbackers:
+            for addr, backer in self._memory_backer.cbackers:
                 start_backer = new_page_addr - addr
                 if isinstance(start_backer, BV):
                     continue
@@ -201,6 +264,14 @@ class SimPagedMemory(object):
                 if start_backer > len(backer):
                     continue
 
+                # find permission backer associated with the address, there should be a
+                # memory backer that matches the start_backer
+                flags = None
+                for start, end in self._permission_map:
+                    if start == addr:
+                        flags = self._permission_map[(start, end)]
+                        break
+
                 snip_start = max(0, start_backer)
                 write_start = max(new_page_addr, addr + snip_start)
                 write_size = self._page_size - write_start%self._page_size
@@ -208,25 +279,27 @@ class SimPagedMemory(object):
                 snip = _ffi.buffer(backer)[snip_start:snip_start+write_size]
                 mo = SimMemoryObject(claripy.BVV(snip), write_start)
                 self._apply_object_to_page(n*self._page_size, mo, page=new_page)
+
+                new_page.permissions = claripy.BVV(flags, 3)
                 initialized = True
 
-        elif len(self._backer) < self._page_size:
-            for i in self._backer:
+        elif len(self._memory_backer) < self._page_size:
+            for i in self._memory_backer:
                 if new_page_addr <= i and i <= new_page_addr + self._page_size:
-                    if isinstance(self._backer[i], claripy.ast.Base):
-                        backer = self._backer[i]
+                    if isinstance(self._memory_backer[i], claripy.ast.Base):
+                        backer = self._memory_backer[i]
                     else:
-                        backer = claripy.BVV(self._backer[i])
+                        backer = claripy.BVV(self._memory_backer[i])
                     mo = SimMemoryObject(backer, i)
                     self._apply_object_to_page(n*self._page_size, mo, page=new_page)
                     initialized = True
-        elif len(self._backer) > self._page_size:
+        elif len(self._memory_backer) > self._page_size:
             for i in range(self._page_size):
                 try:
-                    if isinstance(self._backer[i], claripy.ast.Base):
-                        backer = self._backer[i]
+                    if isinstance(self._memory_backer[i], claripy.ast.Base):
+                        backer = self._memory_backer[i]
                     else:
-                        backer = claripy.BVV(self._backer[i])
+                        backer = claripy.BVV(self._memory_backer[i])
                     mo = SimMemoryObject(backer, new_page_addr+i)
                     self._apply_object_to_page(n*self._page_size, mo, page=new_page)
                     initialized = True
@@ -302,7 +375,7 @@ class SimPagedMemory(object):
         for s in self._sinkholes:
             sofar.update(range(s*self._page_size, (s+1)*self._page_size))
 
-        sofar.update(self._backer.keys())
+        sofar.update(self._memory_backer.keys())
 
         for p in self._pages:
             if not self._sinkholed(p):
@@ -666,3 +739,44 @@ class SimPagedMemory(object):
         '''
         return set([ self[i] for i in self.addrs_for_hash(n)])
 
+    def permissions(self, addr):
+        '''
+        Returns the permissions for a page at address, `addr`.
+        '''
+
+        if self.state.se.symbolic(addr):
+            raise ValueError("page permissions cannot currently be looked up for symbolic addresses")
+
+        if isinstance(addr, claripy.ast.bv.BV):
+            addr = self.state.se.any_int(addr)
+
+        page_num = addr / self._page_size
+
+        return self._get_page(page_num).permissions
+
+    def map_page(self, addr, length, permissions):
+
+        base_page_num = addr / self._page_size
+
+        # round length
+        pages = length / self._page_size
+        if length % self._page_size > 0:
+            pages += 1
+
+        page_exists = False
+        for page in xrange(pages):
+            try:
+                self._get_page(base_page_num + page)
+                page_exists = True
+                break
+            except KeyError:
+                pass
+
+        if page_exists:
+            raise ValueError("map_page received address and length combination which contained mapped page")
+
+        if isinstance(permissions, (int, long)):
+            permissions = claripy.BVV(permissions, 3)
+
+        for page in xrange(pages):
+            self._pages[base_page_num + page] = Page(self._page_size, permissions)
