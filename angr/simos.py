@@ -44,6 +44,22 @@ class SimOS(object):
     def state_blank(self, addr=None, initial_prefix=None, **kwargs):
         if kwargs.get('mode', None) is None:
             kwargs['mode'] = self.proj._default_analysis_mode
+        if kwargs.get('permissions_backer', None) is None:
+            # just a dict of address ranges to permission bits
+            permission_map = { }
+            for obj in self.proj.loader.all_objects:
+                for seg in obj.segments:
+                    perms = 0
+                    # bit values based off of protection bit values from sys/mman.h
+                    if seg.is_readable:
+                        perms |= 1 # PROT_READ
+                    if seg.is_writable:
+                        perms |= 2 # PROT_WRITE
+                    if seg.is_executable:
+                        perms |= 4 # PROT_EXEC
+                    permission_map[(obj.rebase_addr + seg.min_addr, obj.rebase_addr + seg.max_addr)] = perms
+            permissions_backer = (self.proj.loader.main_bin.execstack, permission_map)
+            kwargs['permissions_backer'] = permissions_backer
         if kwargs.get('memory_backer', None) is None:
             kwargs['memory_backer'] = self.proj.loader.memory
         if kwargs.get('arch', None) is None:
@@ -348,6 +364,9 @@ class SimCGC(SimOS):
         return s
 
     def state_entry(self, **kwargs):
+        if isinstance(self.proj.loader.main_bin, BackedCGC):
+            kwargs['permissions_backer'] = (True, self.proj.loader.main_bin.permissions_map)
+
         state = super(SimCGC, self).state_entry(**kwargs)
 
         if isinstance(self.proj.loader.main_bin, BackedCGC):
