@@ -6,6 +6,7 @@ import cle
 from ..s_errors import SimMemoryError
 from .. import s_options as options
 from .memory_object import SimMemoryObject
+from claripy.ast.bv import BV
 
 _ffi = cffi.FFI()
 
@@ -256,7 +257,8 @@ class SimPagedMemory(object):
             # first, find the right clemory backer
             for addr, backer in self._memory_backer.cbackers:
                 start_backer = new_page_addr - addr
-
+                if isinstance(start_backer, BV):
+                    continue
                 if start_backer < 0 and abs(start_backer) > self._page_size:
                     continue
                 if start_backer > len(backer):
@@ -280,16 +282,25 @@ class SimPagedMemory(object):
 
                 new_page.permissions = claripy.BVV(flags, 3)
                 initialized = True
-        elif len(self._memory_backer) < self._page_size:
-            for i in self._memory_backer:
+
+        elif len(self._backer) < self._page_size:
+            for i in self._backer:
                 if new_page_addr <= i and i <= new_page_addr + self._page_size:
-                    mo = SimMemoryObject(claripy.BVV(self._memory_backer[i]), i)
+                    if isinstance(self._backer[i], claripy.ast.Base):
+                        backer = self._backer[i]
+                    else:
+                        backer = claripy.BVV(self._backer[i])
+                    mo = SimMemoryObject(backer, i)
                     self._apply_object_to_page(n*self._page_size, mo, page=new_page)
                     initialized = True
         elif len(self._memory_backer) > self._page_size:
             for i in range(self._page_size):
                 try:
-                    mo = SimMemoryObject(claripy.BVV(self._memory_backer[i]), new_page_addr+i)
+                    if isinstance(self._backer[i], claripy.ast.Base):
+                        backer = self._backer[i]
+                    else:
+                        backer = claripy.BVV(self._backer[i])
+                    mo = SimMemoryObject(backer, new_page_addr+i)
                     self._apply_object_to_page(n*self._page_size, mo, page=new_page)
                     initialized = True
                 except KeyError:

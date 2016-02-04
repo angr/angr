@@ -3,7 +3,7 @@
 import inspect
 import itertools
 import pyvex
-
+import claripy
 import logging
 l = logging.getLogger(name = "simuvex.s_procedure")
 
@@ -160,6 +160,15 @@ class SimProcedure(SimRun):
                 self.state.options.discard(o.AST_DEPS)
                 self.state.options.discard(o.AUTO_REFS)
 
+            if o.KEEP_IP_SYMBOLIC in self.state.options and isinstance(self.addr, claripy.ast.Base):
+                # TODO maybe i want to keep address symbolic
+                s = claripy.Solver()
+                addrs = s.eval(self.state.regs.ip, 257, extra_constraints=tuple(self.state.ip_constraints))
+                if len(addrs) > 256:
+                    addrs = self.state.se.any_n_int(self.state.regs.ip, 1)
+
+                self.addr = addrs[0]
+
             ret_irsb = pyvex.IRSB(arch=self.state.arch, bytes=self.state.arch.ret_instruction, mem_addr=self.addr)
             ret_simirsb = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr)
             if not ret_simirsb.flat_successors + ret_simirsb.unsat_successors:
@@ -178,7 +187,10 @@ class SimProcedure(SimRun):
             cc = self.cc
 
         call_state = self.state.copy()
-        ret_addr = self.state.se.BVV(self.state.procedure_data.hook_addr, self.state.arch.bits)
+        if isinstance(self.state.procedure_data.hook_addr, claripy.ast.Base):
+            ret_addr = self.state.procedure_data.hook_addr
+        else:
+            ret_addr = self.state.se.BVV(self.state.procedure_data.hook_addr, self.state.arch.bits)
         saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
         simcallstack_entry = (self.__class__, continue_at, cc.stack_space(self.state, args), saved_local_vars, self.kwargs)
         cc.setup_callsite(call_state, ret_addr, args)

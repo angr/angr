@@ -624,7 +624,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     l.debug("... found concrete")
                     break
                 else:
-                    if remaining_symbolic is not None:
+                    if b.symbolic and remaining_symbolic is not None:
                         remaining_symbolic -= 1
 
         if self.state.mode == 'static':
