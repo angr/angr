@@ -6,6 +6,8 @@ import os
 import tempfile
 
 internaltest_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+internaltest_files = [ 'argc_decide', 'argc_symbol', 'argv_test', 'counter', 'fauxware', 'fauxware.idb', 'manysum', 'pw', 'strlen', 'test_arrays', 'test_division', 'test_loops' ]
+internaltest_arch = [ 'i386', 'armel' ]
 
 def internaltest_vfg(p, cfg):
     state = tempfile.TemporaryFile()
@@ -45,11 +47,9 @@ def internaltest_project(p):
 def test_serialization():
     ana.set_dl(pickle_dir='/tmp/ana')
 
-    internaltest_arch = [ 'i386', 'armel' ]
     for d in internaltest_arch:
-        tests = os.path.join(internaltest_location, d)
-        for f in os.listdir(tests):
-            fpath = os.path.join(tests,f)
+        for f in internaltest_files:
+            fpath = os.path.join(internaltest_location, d,f)
             if os.path.isfile(fpath) and os.access(fpath, os.X_OK):
                 p = angr.Project(fpath)
                 internaltest_project(p)
