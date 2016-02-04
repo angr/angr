@@ -1050,10 +1050,22 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         return self.mem.memory_objects_for_hash(n)
 
     def permissions(self, addr):
+        '''
+        Retrieve the permissions of the page at address `addr`.
+
+        :param addr: address to get the page permissions
+        :return: AST representing the permissions on the page
+        '''
         return self.mem.permissions(addr)
 
-    def map_page(self, addr, permissions):
-        return self.mem.map_page(addr, permissions)
+    def map_region(self, addr, length, permissions):
+        '''
+        Map a number of pages at address `addr` with permissions `permissions`.
+        :param addr: address to map the pages at
+        :param length: length in bytes of region to map, will be rounded upwards to the page size
+        :param permissions: AST of permissions to map, will be a bitvalue representing flags
+        '''
+        return self.mem.map_region(addr, length, permissions)
 
 SimSymbolicMemory.register_default('memory', SimSymbolicMemory)
 SimSymbolicMemory.register_default('registers', SimSymbolicMemory)
