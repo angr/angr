@@ -495,21 +495,13 @@ class Tracer(object):
 
 
         # parse out the predump file
-        memory = {}
-        regs = {}
+        memory = { }
+        regs = { }
         permissions = { }
         with open(backingfile, "rb") as f:
             while len(regs) == 0:
                 tag = f.read(4)
-                if tag != "REGS":
-                    start = struct.unpack("<I", tag)[0]
-                    end = struct.unpack("<I", f.read(4))[0]
-                    prot = struct.unpack("<I", f.read(4))[0]
-                    length = struct.unpack("<I", f.read(4))[0]
-                    content = f.read(length)
-                    permissions[(start, end)] = prot & 0x7 # only care about PROT_EXEC|PROT_WRITE|PROT_READ
-                    memory[start] = content
-                else:
+                if tag == "REGS":
                     # general purpose regs
                     regs['eax'] = struct.unpack("<I", f.read(4))[0]
                     regs['ebx'] = struct.unpack("<I", f.read(4))[0]
@@ -592,9 +584,20 @@ class Tracer(object):
                     regs['xmm7'] = struct.unpack("<Q", f.read(8))[0]
                     regs['xmm7'] |= struct.unpack("<Q", f.read(8))[0] << 64
 
+                elif tag == "HEAP":
+                    current_allocation_base = struct.unpack("<I", f.read(4))[0]
+                else:
+                    start = struct.unpack("<I", tag)[0]
+                    end = struct.unpack("<I", f.read(4))[0]
+                    prot = struct.unpack("<I", f.read(4))[0]
+                    length = struct.unpack("<I", f.read(4))[0]
+                    content = f.read(length)
+                    permissions[(start, end)] = prot & 0x7 # only care about PROT_EXEC|PROT_WRITE|PROT_READ
+                    memory[start] = content
+
         os.remove(backingfile)
 
-        ld = cle.Loader(self.binary, main_opts={'backend': cle.backends.BackedCGC, 'memory_backer': memory, 'register_backer': regs, 'writes_backer': [], 'permissions_map': permissions})
+        ld = cle.Loader(self.binary, main_opts={'backend': cle.backends.BackedCGC, 'memory_backer': memory, 'register_backer': regs, 'writes_backer': [], 'permissions_map': permissions, 'current_allocation_base': current_allocation_base})
 
         return angr.Project(ld)
 

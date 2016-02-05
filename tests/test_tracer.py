@@ -18,6 +18,9 @@ def test_cgc_0b32aa01_01_raw():
     t = tracer.Tracer(os.path.join(bin_location, "cgc_scored_event_1/cgc/0b32aa01_01"), "racecar\n")
     result_path, crash_state = t.run()
 
+    # make sure the heap base is correct and hasn't been altered from the default
+    nose.tools.assert_equal(result_path.state.cgc.allocation_base, 0xb8000000)
+
     # make sure there is no crash state
     nose.tools.assert_equal(crash_state, None)
 
@@ -36,6 +39,17 @@ def test_cgc_0b32aa01_01_raw():
     nose.tools.assert_not_equal(crash_path, None)
     nose.tools.assert_not_equal(crash_state, None)
 
+def test_allocation_base_continuity():
+    '''
+    Make sure the heap base is correct in angr after concrete heap manipulation
+    '''
+
+    t = tracer.Tracer(os.path.join(bin_location, "tests/i386/vuln_vptr_smash"), "A" * 400)
+
+    crash_path, crash_state = t.run()
+
+    nose.tools.assert_equal(crash_state.cgc.allocation_base, 0xb7fc0000)
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
@@ -45,7 +59,6 @@ def run_all():
 
 
 if __name__ == "__main__":
-    logging.getLogger("angrop.rop").setLevel(logging.DEBUG)
 
     import sys
     if len(sys.argv) > 1:
