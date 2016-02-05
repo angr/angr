@@ -754,7 +754,13 @@ class SimPagedMemory(object):
 
         return self._get_page(page_num).permissions
 
-    def map_page(self, addr, length, permissions):
+    def map_region(self, addr, length, permissions):
+
+        if self.state.se.symbolic(addr):
+            raise ValueError("cannot map region with a symbolic address")
+
+        if isinstance(addr, claripy.ast.bv.BV):
+            addr = self.state.se.max_int(addr)
 
         base_page_num = addr / self._page_size
 
@@ -763,17 +769,9 @@ class SimPagedMemory(object):
         if length % self._page_size > 0:
             pages += 1
 
-        page_exists = False
         for page in xrange(pages):
-            try:
-                self._get_page(base_page_num + page)
-                page_exists = True
-                break
-            except KeyError:
-                pass
-
-        if page_exists:
-            raise ValueError("map_page received address and length combination which contained mapped page")
+            if base_page_num + page in self._pages:
+                raise ValueError("map_page received address and length combination which contained mapped page")
 
         if isinstance(permissions, (int, long)):
             permissions = claripy.BVV(permissions, 3)
