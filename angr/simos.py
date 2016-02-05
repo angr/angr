@@ -391,6 +391,9 @@ class SimCGC(SimOS):
                 else:
                     l.error("What is this register %s I have to translate?", reg)
 
+            # Update allocation base
+            state.cgc.allocation_base = self.proj.loader.main_bin.current_allocation_base
+
             # Do all the writes
             writes_backer = self.proj.loader.main_bin.writes_backer
             stdout = 1
