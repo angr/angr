@@ -38,7 +38,13 @@ class __libc_start_main(simuvex.SimProcedure):
         self.call(self.init, (self.argc, self.argv), 'after_init')
 
     def after_init(self, main, argc, argv, init, fini, exit_addr=0):
+        if isinstance(self.state.arch, ArchAMD64):
+            # (rsp+8) must be aligned to 16 as required by System V ABI
+            # ref: http://www.x86-64.org/documentation/abi.pdf , page 16
+            self.state.regs.rsp = (self.state.regs.rsp & 0xfffffffffffffff0) - 8
         self.call(self.main, (self.argc, self.argv), 'after_main')
 
     def after_main(self, main, argc, argv, init, fini, exit_addr=0):
         self.inline_call(simuvex.SimProcedures['libc.so.6']['exit'], 0)
+
+from archinfo import ArchAMD64
