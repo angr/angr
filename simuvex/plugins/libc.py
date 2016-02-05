@@ -105,6 +105,7 @@ class SimStateLibc(SimStatePlugin):
         c.strtok_token_size = self.strtok_token_size
         c.strdup_stack = self.strdup_stack[:]
         c.ppc64_abiv = self.ppc64_abiv
+        c.ctype_table_ptr = self.ctype_table_ptr
         #c.aa = self.aa
 
         return c
