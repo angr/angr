@@ -231,6 +231,24 @@ class SimInspector(SimStatePlugin):
             c._breakpoints[t].extend(a)
         return c
 
+    def downsize(self):
+        """
+        Remove previously stored attributes from this plugin instance to save memory.
+        This method is supposed to be called by breakpoint implementors. A typical workflow looks like the following:
+
+        > self.state.inspect(xxxxxx, attr0=yyyy, attr1=zzzz) # self.state.inspect will then have `attr0` and `attr1`
+        > # Get new attributes out of SimInspect in case they are modified by the user
+        > new_attr0 = self.state._inspect.attr0
+        > new_attr1 = self.state._inspect.attr1
+        > # Remove them from SimInspect
+        > self.state._inspect.downsize()
+
+        :return: None
+        """
+        for k in inspect_attributes:
+            if hasattr(self, k):
+                setattr(self, k, None)
+
     def merge(self, others, merge_flag, merge_values): # pylint: disable=unused-argument
         for t in event_types:
             seen = { id(e) for e in self._breakpoints[t] }
