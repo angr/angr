@@ -85,7 +85,8 @@ class Function(object):
         self.prepared_registers = set()
         self.prepared_stack_variables = set()
         self.registers_read_afterwards = set()
-        self.blocks = { self._project.factory.block(addr) }
+        self.startpoint = self._project.factory.block(addr)
+        self.blocks = { self.startpoint }
 
     def _add_block_by_addr(self, addr):
         snippet = self._project.factory.snippet(addr)
@@ -186,11 +187,11 @@ class Function(object):
         """
         constants = set()
 
-        if not self._project.loader.main_bin.contains_addr(self.startpoint):
+        if not self._project.loader.main_bin.contains_addr(self._addr):
             return constants
 
         # reanalyze function with a new initial state (use persistent registers)
-        initial_state = self._function_manager._cfg.get_any_irsb(self.startpoint).initial_state
+        initial_state = self._function_manager._cfg.get_any_irsb(self._addr).initial_state
         fresh_state = self._project.factory.blank_state(mode="fastpath")
         for reg in initial_state.arch.persistent_regs + ['ip']:
             fresh_state.registers.store(reg, initial_state.registers.load(reg))
@@ -295,10 +296,6 @@ class Function(object):
             return '<Function %s (%#x)>' % (self.name, self._addr)
 
     @property
-    def startpoint(self):
-        return self._addr
-
-    @property
     def endpoints(self):
         return list(self._ret_sites)
 
@@ -377,7 +374,7 @@ class Function(object):
 
         @param return_site_addr     The address of the basic block ending with a return
         '''
-        self._ret_sites.add(return_site_addr)
+        self._ret_sites.add(self._project.factory.block(return_site_addr))
 
     def _add_call_site(self, call_site_addr, call_target_addr, retn_addr):
         '''
@@ -467,7 +464,7 @@ class Function(object):
             node_b = "%#08x" % to_block.addr
             if node_b in self._ret_sites:
                 node_b += "[Ret]"
-            if node_a in self._call_sites:
+            if node_a.addr in self._call_sites:
                 node_a += "[Call]"
             tmp_graph.add_edge(node_a, node_b)
         pos = networkx.graphviz_layout(tmp_graph, prog='fdp')
