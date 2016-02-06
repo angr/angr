@@ -33,7 +33,7 @@ class Function(object):
         @param name             (Optional) The name of the function
         @param syscall          (Optional) Whether this function is a sycall or not
         '''
-        self._transition_graph = networkx.DiGraph()
+        self.transition_graph = networkx.DiGraph()
         self._local_transition_graph = None
 
         self._ret_sites = set()
@@ -91,7 +91,7 @@ class Function(object):
         snippet = self._project.factory.snippet(addr)
         if snippet.size == 0:
             block = self._project.factory.snippet(addr, jumpkind='Ijk_NoHook')
-            self._transition_graph.add_edge(snippet, block, type='hook')
+            self.transition_graph.add_edge(snippet, block, type='hook')
             return [snippet, block]
         else:
             self.blocks.add(snippet)
@@ -306,8 +306,8 @@ class Function(object):
     def _clear_transition_graph(self):
         start_block = self._project.factory.block(self._addr)
         self.blocks = { start_block }
-        self._transition_graph = networkx.DiGraph()
-        self._transition_graph.add_node(start_block)
+        self.transition_graph = networkx.DiGraph()
+        self.transition_graph.add_node(start_block)
         self._local_transition_graph = None
 
     @ignore_memory_error
@@ -324,7 +324,7 @@ class Function(object):
         from_block = self._add_block_by_addr(from_addr)[-1]
         to_block = self._add_block_by_addr(to_addr)[0]
 
-        self._transition_graph.add_edge(from_block, to_block, type='transition')
+        self.transition_graph.add_edge(from_block, to_block, type='transition')
 
     @ignore_memory_error
     def _call_to(self, from_addr, to_addr, return_target, syscall=False):
@@ -343,20 +343,20 @@ class Function(object):
         to_block = self._add_block_by_addr(to_addr)[0]
 
         if syscall:
-            self._transition_graph.add_edge(from_block, to_block, type='syscall')
+            self.transition_graph.add_edge(from_block, to_block, type='syscall')
 
         else:
-            self._transition_graph.add_edge(from_block, to_block, type='call')
+            self.transition_graph.add_edge(from_block, to_block, type='call')
             if return_target is not None:
                 return_block = self._project.factory.block(return_target)
-                self._transition_graph.add_edge(from_block, return_block, type='fake_return')
+                self.transition_graph.add_edge(from_block, return_block, type='fake_return')
 
     @ignore_memory_error
     def _return_from_call(self, src_function_addr, to_addr):
         src_function_block = self._project.factory.block(src_function_addr)
         to_block = self._add_block_by_addr(to_addr)[0]
 
-        self._transition_graph.add_edge(src_function_block, to_block, type='return_from_call')
+        self.transition_graph.add_edge(src_function_block, to_block, type='return_from_call')
 
     @ignore_memory_error
     def _add_block(self, addr):
@@ -369,7 +369,7 @@ class Function(object):
         self._add_block_by_addr(addr)
 
         # ?
-        # self._transition_graph.add_node(addr)
+        # self.transition_graph.add_node(addr)
 
     def _add_return_site(self, return_site_addr):
         '''
@@ -425,10 +425,6 @@ class Function(object):
         return None
 
     @property
-    def transition_graph(self):
-        return self._transition_graph
-
-    @property
     def graph(self):
         """
         Return a local transition graph that only contain nodes in current function.
@@ -438,7 +434,7 @@ class Function(object):
             return self._local_transition_graph
 
         g = networkx.DiGraph()
-        for src, dst, data in self._transition_graph.edges_iter(data=True):
+        for src, dst, data in self.transition_graph.edges_iter(data=True):
             if src in self.blocks and dst in self.blocks:
                 g.add_edge(src, dst, attr_dict=data)
             elif src in self.blocks:
@@ -446,7 +442,7 @@ class Function(object):
             elif dst in self.blocks:
                 g.add_node(dst)
 
-        for node in self._transition_graph.nodes_iter():
+        for node in self.transition_graph.nodes_iter():
             if node in self.blocks:
                 g.add_node(node)
 
@@ -458,7 +454,7 @@ class Function(object):
         '''
         Returns a representation of the list of basic blocks in this function
         '''
-        return "[%s]" % (', '.join(('%#08x' % n) for n in self._transition_graph.nodes()))
+        return "[%s]" % (', '.join(('%#08x' % n) for n in self.transition_graph.nodes()))
 
     def dbg_draw(self, filename):
         '''
@@ -466,7 +462,7 @@ class Function(object):
         '''
         import matplotlib.pyplot as pyplot # pylint: disable=import-error
         tmp_graph = networkx.DiGraph()
-        for from_block, to_block in self._transition_graph.edges():
+        for from_block, to_block in self.transition_graph.edges():
             node_a = "%#08x" % from_block.addr
             node_b = "%#08x" % to_block.addr
             if node_b in self._ret_sites:
