@@ -51,7 +51,7 @@ class Project(object):
                  exclude_sim_procedures_list=(),
                  arch=None, simos=None,
                  load_options=None,
-                 translation_cache=False,
+                 translation_cache=True,
                  support_selfmodifying_code=False):
         """
         This constructs a Project object.
