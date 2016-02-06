@@ -1,6 +1,7 @@
-import angr
 import networkx
 import logging
+
+from ..analysis import Analysis, register_analysis
 
 l = logging.getLogger('angr.analyses.loops')
 
@@ -23,7 +24,7 @@ class Loop(object):
                     self.has_calls = True
                     break
 
-class LoopFinder(angr.Analysis):
+class LoopFinder(Analysis):
     """
     Extracts all the loops from all the functions in a binary
     """
@@ -121,4 +122,4 @@ class LoopFinder(angr.Analysis):
             out += self._parse_loop_graph(subg, graph)
         return out
 
-angr.register_analysis(LoopFinder, 'LoopFinder')
+register_analysis(LoopFinder, 'LoopFinder')
