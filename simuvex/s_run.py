@@ -51,6 +51,8 @@ class SimRun(object):
     def add_successor(self, state, target, guard, jumpkind, exit_stmt_idx=None, source=None):
         '''
         Add a successor state of the SimRun.
+        This procedure stores method parameters into state.scratch, does some necessary cleaning, and then calls out to
+        _add_successor() to properly put the state into successor lists (like flat_successors, etc.).
 
         @param state: the successor state
         @param target: the target (of the jump/call/ret)
@@ -73,6 +75,17 @@ class SimRun(object):
         # clean up the state
         state.options.discard(o.AST_DEPS)
         state.options.discard(o.AUTO_REFS)
+
+        return self._add_successor(state, target)
+
+    def _add_successor(self, state, target):
+        """
+        Append state into successor lists.
+
+        :param state: a SimState instance
+        :param target: The target (of the jump/call/ret)
+        :return: The state
+        """
 
         self.all_successors.append(state)
 
