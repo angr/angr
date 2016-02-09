@@ -93,15 +93,15 @@ class FunctionManager(collections.Mapping):
         for i in sorted(self._function_map.keys()):
             yield i
 
-    def function(self, addr=None, name=None, create_if_not_exist=False):
+    def function(self, addr=None, name=None, create=False):
         '''
         Get a function object from the function manager
         Pass one of the kwargs addr or name, with the appropriate values.
         '''
-        if addr:
-            if addr in self._function_map or create_if_not_exist:
+        if addr is not None:
+            if addr in self._function_map or create:
                 return self._function_map[addr]
-        elif name:
+        elif name is not None:
             for func in self._function_map.itervalues():
                 if func.name == name:
                     return func

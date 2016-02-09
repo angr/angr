@@ -376,7 +376,7 @@ class CFG(Analysis, CFGBase):
                                                         self._context_sensitivity_level)
                         remaining_entries.append(new_path_wrapper)
                         l.debug('Picking a function 0x%x from pending function hints.', f)
-                        self.artifacts.functions._create_function_if_not_exist(new_path_wrapper.current_function_address)
+                        self.artifacts.functions.function(new_path_wrapper.current_function_address, create=True)
                         break
 
         # Create CFG
@@ -494,7 +494,7 @@ class CFG(Analysis, CFGBase):
 
         # Update the transition graph of current function
         if jumpkind == "Ijk_Call":
-            ret_node = self.artifacts.functions.function(src_node.function_address, create_if_not_exist=True)._get_block(ret_addr).codenode if ret_addr else None
+            ret_node = self.artifacts.functions.function(src_node.function_address, create=True)._get_block(ret_addr).codenode if ret_addr else None
             self.artifacts.functions._add_call_to(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
@@ -952,10 +952,10 @@ class CFG(Analysis, CFGBase):
                     l.error("Function 0x%x doesn't exist in function manager although it should be there." +
                             "Look into this issue later.",
                             func_addr)
-                    self.artifacts.functions._create_function_if_not_exist(func_addr)
+                    self.artifacts.functions.function(func_addr, create=True)
 
                 # Set sp_delta of the function
-                self.artifacts.functions[func_addr].sp_delta = delta
+                self.artifacts.functions.function(func_addr, create=True).sp_delta = delta
 
         elif jumpkind == 'Ijk_FakeRet':
             # The fake return...
@@ -1030,7 +1030,7 @@ class CFG(Analysis, CFGBase):
         current_function_addr = entry_wrapper.current_function_address
         current_stack_pointer = entry_wrapper.current_stack_pointer
         accessed_registers_in_function = entry_wrapper.current_function_accessed_registers
-        current_function = self.artifacts.functions.function(current_function_addr, create_if_not_exist=True)
+        current_function = self.artifacts.functions.function(current_function_addr, create=True)
         jumpkind = 'Ijk_Boring' if current_entry.state.scratch.jumpkind is None else \
             current_entry.state.scratch.jumpkind
 
