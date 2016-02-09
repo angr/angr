@@ -467,10 +467,8 @@ class CFG(Analysis, CFGBase):
 
                 # Update transition graph for functions
                 self._update_function_transition_graph(jumpkind,
-                                                       src_node.function_address,
-                                                       src_node.addr,
-                                                       dest_node.function_address,
-                                                       dest_node.addr,
+                                                       src_node,
+                                                       dest_node,
                                                        ret_addr=ret_addr
                                                        )
 
@@ -483,77 +481,73 @@ class CFG(Analysis, CFGBase):
 
         return cfg
 
-    def _update_function_transition_graph(self, jumpkind, src_func_addr, src_addr, dest_func_addr, dest_addr,
+    def _update_function_transition_graph(self, jumpkind, src_node, dest_node,
                                           ret_addr=None):
         """
         Update transition graphs of functions in function manager based on information passed in.
 
         :param jumpkind: Jumpkind.
-        :param src_func_addr: Function address of source address
-        :param src_addr: Source address
-        :param dest_func_addr: Function address of destination address
-        :param dest_addr: Destination address
+        :param src_node: Source CFGNode
+        :param dest_node: Destionation CFGNode
         :param ret_addr: The theoretical return address for calls
         """
 
         # Update the transition graph of current function
         if jumpkind == "Ijk_Call":
+            ret_node = self.artifacts.functions.function(src_node.function_address, create_if_not_exist=True)._get_block(ret_addr).codenode if ret_addr else None
             self.artifacts.functions._add_call_to(
-                function_addr=src_func_addr,
-                from_addr=src_addr,
-                to_addr=dest_addr,
-                retn_addr=ret_addr,
+                function_addr=src_node.function_address,
+                from_node=src_node.to_codenode(),
+                to_addr=dest_node.addr,
+                retn_node=ret_node,
                 syscall=False
             )
 
         if jumpkind.startswith('Ijk_Sys'):
 
             self.artifacts.functions._add_call_to(
-                function_addr=src_func_addr,
-                from_addr=src_addr,
-                to_addr=dest_addr,
-                retn_addr=src_addr,  # For syscalls, they are returning to the address of themselves
+                function_addr=src_node.function_address,
+                from_node=src_node.to_codenode(),
+                to_addr=dest_node.addr,
+                retn_node=src_node.to_codenode(),  # For syscalls, they are returning to the address of themselves
                 syscall=True,
             )
 
-            self.artifacts.functions[dest_addr].is_syscall = True
-
         elif jumpkind == 'Ijk_Ret':
-
             # Create a return site for current function
             self.artifacts.functions._add_return_from(
-                function_addr=src_func_addr,
-                from_addr=src_addr,
-                to_addr=dest_addr
+                function_addr=src_node.function_address,
+                from_node=src_node.to_codenode(),
+                to_node=dest_node.to_codenode()
             )
 
             # Create a returning edge in the caller function
             self.artifacts.functions._add_return_from_call(
-                function_addr=dest_func_addr,
-                src_function_addr=src_func_addr,
-                to_addr=dest_addr
+                function_addr=dest_node.function_address,
+                src_function_addr=src_node.function_address,
+                to_node=dest_node.to_codenode()
             )
 
         elif jumpkind == 'Ijk_Boring':
 
-            src_obj = self.project.loader.addr_belongs_to_object(src_addr)
-            dest_obj = self.project.loader.addr_belongs_to_object(dest_addr)
+            src_obj = self.project.loader.addr_belongs_to_object(src_node.addr)
+            dest_obj = self.project.loader.addr_belongs_to_object(dest_node.addr)
 
             if src_obj is dest_obj:
 
                 # It's a normal transition
                 self.artifacts.functions._add_transition_to(
-                    function_addr=src_func_addr,
-                    from_addr=src_addr,
-                    to_addr=dest_addr
+                    function_addr=src_node.function_address,
+                    from_node=src_node.to_codenode(),
+                    to_node=dest_node.to_codenode()
                 )
 
             else:
                 self.artifacts.functions._add_call_to(
-                    function_addr=src_func_addr,
-                    from_addr=src_addr,
-                    to_addr=dest_addr,
-                    retn_addr=None,  # TODO
+                    function_addr=src_node.function_address,
+                    from_node=src_node.to_codenode(),
+                    to_addr=dest_node.addr,
+                    retn_node=None,  # TODO
                     syscall=False
                 )
 
@@ -2209,7 +2203,7 @@ class CFG(Analysis, CFGBase):
             #
             # Refining arguments of a function by analyzing its call-sites
             #
-            callsites = self._get_callsites(func.startpoint)
+            callsites = self._get_callsites(func.addr)
             self._refine_function_arguments(func, callsites)
 
             # Set the calling convention
@@ -2273,7 +2267,7 @@ class CFG(Analysis, CFGBase):
                                 temporary_endpoints.append(dst)
 
             for endpoint in temporary_endpoints:
-                if endpoint in func.blocks:
+                if endpoint in func.nodes:
                     # Somehow analysis terminated here (e.g. an unsupported instruction, or it doesn't generate an exit)
 
                     n = self.get_any_node(endpoint.addr, is_syscall=func.is_syscall)

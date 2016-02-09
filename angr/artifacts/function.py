@@ -2,7 +2,6 @@ import logging
 import networkx
 import string
 from collections import defaultdict
-import functools
 
 import simuvex
 import simuvex.s_cc
@@ -10,21 +9,10 @@ import claripy
 
 l = logging.getLogger(name="angr.artifacts.function")
 
-def ignore_memory_error(f):
-    # only works with functions that don't return a value
-    @functools.wraps(f)
-    def wrapper(*args, **kwargs):
-        try:
-            f(*args, **kwargs)
-        except AngrMemoryError:
-            pass
-    return wrapper
-
 class Function(object):
     '''
     A representation of a function and various information about it.
     '''
-    @ignore_memory_error
     def __init__(self, function_manager, addr, name=None, syscall=False):
         '''
         Function constructor
@@ -39,7 +27,7 @@ class Function(object):
         self._ret_sites = set()
         self._call_sites = {}
         self._retn_addr_to_call_site = {}
-        self._addr = addr
+        self.addr = addr
         self._function_manager = function_manager
         self.is_syscall = syscall
 
@@ -71,10 +59,10 @@ class Function(object):
         self._argument_stack_variables = []
 
         # These properties are set by VariableManager
-        self._bp_on_stack = False
-        self._retaddr_on_stack = False
+        self.bp_on_stack = False
+        self.retaddr_on_stack = False
 
-        self._sp_delta = 0
+        self.sp_delta = 0
 
         # Calling convention
         self.call_convention = None
@@ -85,22 +73,32 @@ class Function(object):
         self.prepared_registers = set()
         self.prepared_stack_variables = set()
         self.registers_read_afterwards = set()
-        self.startpoint = self._project.factory.block(addr)
-        self.blocks = { self.startpoint }
 
-    def _add_block_by_addr(self, addr):
-        snippet = self._project.factory.snippet(addr)
-        if snippet.size == 0:
-            block = self._project.factory.snippet(addr, jumpkind='Ijk_NoHook')
-            self.transition_graph.add_edge(snippet, block, type='hook')
-            return [snippet, block]
-        else:
-            self.blocks.add(snippet)
-            return [snippet]
+        self.startpoint = None
+
+        self._block_sizes = {}  # map addresses to block sizes
+        self._block_cache = {}  # a cache of real, hard data Block objects
 
     @property
-    def block_addrs(self):
-        return [block.addr for block in self.blocks]
+    def blocks(self):
+        for blockaddr in self._block_sizes:
+            yield self._get_block(blockaddr)
+
+    def _get_block(self, addr):
+        if addr in self._block_cache:
+            return self._block_cache[addr]
+        else:
+            if addr in self._block_sizes:
+                block = self._project.factory.block(addr, max_size=self._block_sizes[addr])
+                self._block_cache[addr] = block
+                return block
+            block = self._project.factory.block(addr)
+            self._block_sizes[addr] = block.size
+            return block
+
+    @property
+    def nodes(self):
+        return self.transition_graph.nodes_iter()
 
     @property
     def has_unresolved_jumps(self):
@@ -187,11 +185,11 @@ class Function(object):
         """
         constants = set()
 
-        if not self._project.loader.main_bin.contains_addr(self._addr):
+        if not self._project.loader.main_bin.contains_addr(self.addr):
             return constants
 
         # reanalyze function with a new initial state (use persistent registers)
-        initial_state = self._function_manager._cfg.get_any_irsb(self._addr).initial_state
+        initial_state = self._function_manager._cfg.get_any_irsb(self.addr).initial_state
         fresh_state = self._project.factory.blank_state(mode="fastpath")
         for reg in initial_state.arch.persistent_regs + ['ip']:
             fresh_state.registers.store(reg, initial_state.registers.load(reg))
@@ -223,7 +221,7 @@ class Function(object):
                 # add successors to the queue to analyze
                 if not succ.se.symbolic(succ.ip):
                     succ_ip = succ.se.any_int(succ.ip)
-                    if succ_ip in self.block_addrs and succ_ip not in analyzed:
+                    if succ_ip in self and succ_ip not in analyzed:
                         analyzed.add(succ_ip)
                         q.insert(0, succ)
 
@@ -252,7 +250,7 @@ class Function(object):
         All of the concrete values used by this function at runtime (i.e., including passed-in arguments and global values).
         '''
         constants = set()
-        for b in self.block_addrs:
+        for b in self._block_sizes:
             for sirsb in self._function_manager._cfg.get_all_irsbs(b):
                 for s in sirsb.successors + sirsb.unsat_successors:
                     for a in s.log.actions:
@@ -269,15 +267,12 @@ class Function(object):
 
     def __contains__(self, val):
         if isinstance(val, (int, long)):
-            return val in self.block_addrs
+            return val in self._block_sizes
         else:
             return False
 
     def __str__(self):
-        if self.name is None:
-            s = 'Function [%#x]\n' % (self._addr)
-        else:
-            s = 'Function %s [%#x]\n' % (self.name, self._addr)
+        s = 'Function %s [%#x]\n' % (self.name, self.addr)
         s += '  Syscall: %s\n' % self.is_syscall
         s += '  SP difference: %d\n' % self.sp_delta
         s += '  Has return: %s\n' % self.has_return
@@ -285,88 +280,75 @@ class Function(object):
         s += '  Arguments: reg: %s, stack: %s\n' % \
             (self._argument_registers,
              self._argument_stack_variables)
-        s += '  Blocks: [%s]\n' % ", ".join(['%#x' % i for i in self.block_addrs])
+        s += '  Blocks: [%s]\n' % ", ".join(['%#x' % i for i in self._block_sizes])
         s += "  Calling convention: %s" % self.call_convention
         return s
 
     def __repr__(self):
-        if self.name is None:
-            return '<Function %#x>' % (self._addr)
-        else:
-            return '<Function %s (%#x)>' % (self.name, self._addr)
+        return '<Function %s (%#x)>' % (self.name, self.addr)
 
     @property
     def endpoints(self):
         return list(self._ret_sites)
 
-    @ignore_memory_error
     def _clear_transition_graph(self):
-        start_block = self._project.factory.block(self._addr)
-        self.blocks = { start_block }
+        self._block_cache = {}
+        self._block_sizes = {}
+        self.startpoint = None
         self.transition_graph = networkx.DiGraph()
-        self.transition_graph.add_node(start_block)
         self._local_transition_graph = None
 
-    @ignore_memory_error
-    def _transit_to(self, from_addr, to_addr):
+    def _transit_to(self, from_node, to_node):
         '''
-        Registers an edge between basic blocks in this function's transition graph
+        Registers an edge between basic blocks in this function's transition graph.
+        Arguments are CodeNode objects.
 
-        @param from_addr            The address of the basic block that control
+        @param from_node            The address of the basic block that control
                                     flow leaves during this transition
-        @param to_addr              The address of the basic block that control
+        @param to_node              The address of the basic block that control
                                     flow enters during this transition
         '''
 
-        from_block = self._add_block_by_addr(from_addr)[-1]
-        to_block = self._add_block_by_addr(to_addr)[0]
+        self._register_nodes(from_node, to_node)
+        self.transition_graph.add_edge(from_node, to_node, type='transition')
 
-        self.transition_graph.add_edge(from_block, to_block, type='transition')
-
-    @ignore_memory_error
-    def _call_to(self, from_addr, to_addr, return_target, syscall=False):
+    def _call_to(self, from_node, to_func, ret_node):
         """
-        Registers an edge between the caller basic block and callee basic block
+        Registers an edge between the caller basic block and callee function
 
-        :param from_addr: The address of the basic block that control flow leaves during the transition
-        :param to_addr: The address of the basic block that control flow enters during the transition, which is also
-                        the address of the target function to call
-        :param return_target: The address of instruction to execute after returning from the function. `None` indicates
-                            the call does not return.
-        :param syscall: Whether this call is a syscall or nor.
+        :param from_addr: The basic block that control flow leaves during the transition
+                          Should be a CodeNode object
+        :param to_func:   The function that we are calling
+                          Should be a Function object
+        :param ret_node   The basic block that control flow should return to after the
+                          function call
+                          Should be a CodeNode object, or None
         """
 
-        from_block = self._add_block_by_addr(from_addr)[-1]
-        to_block = self._add_block_by_addr(to_addr)[0]
+        self._register_nodes(from_node)
 
-        if syscall:
-            self.transition_graph.add_edge(from_block, to_block, type='syscall')
-
+        if to_func.is_syscall:
+            self.transition_graph.add_edge(from_node, to_func, type='syscall')
         else:
-            self.transition_graph.add_edge(from_block, to_block, type='call')
-            if return_target is not None:
-                return_block = self._project.factory.block(return_target)
-                self.transition_graph.add_edge(from_block, return_block, type='fake_return')
+            self.transition_graph.add_edge(from_node, to_func, type='call')
+            if ret_node is not None:
+                self._fakeret_to(from_node, ret_node)
 
-    @ignore_memory_error
-    def _return_from_call(self, src_function_addr, to_addr):
-        src_function_block = self._project.factory.block(src_function_addr)
-        to_block = self._add_block_by_addr(to_addr)[0]
+    def _fakeret_to(self, from_node, to_node):
+        self._register_nodes(from_node, to_node)
+        self.transition_graph.add_edge(from_node, to_node, type='fake_return')
 
-        self.transition_graph.add_edge(src_function_block, to_block, type='return_from_call')
+    def _return_from_call(self, from_func, to_node):
+        self.transition_graph.add_edge(from_func, to_node, type='real_return')
 
-    @ignore_memory_error
-    def _add_block(self, addr):
-        '''
-        Registers a basic block as part of this function
-
-        @param addr                 The address of the basic block to add
-        '''
-
-        self._add_block_by_addr(addr)
-
-        # ?
-        # self.transition_graph.add_node(addr)
+    def _register_nodes(self, *nodes):
+        for node in nodes:
+            node._graph = self.transition_graph
+            if node.addr not in self._block_sizes or self._block_sizes[node.addr] == 0:
+                self._block_sizes[node.addr] = node.size
+            if node.addr == self.addr:
+                if self.startpoint is None or not self.startpoint.is_hook:
+                    self.startpoint = node
 
     def _add_return_site(self, return_site_addr):
         '''
@@ -374,14 +356,14 @@ class Function(object):
 
         @param return_site_addr     The address of the basic block ending with a return
         '''
-        self._ret_sites.add(self._project.factory.block(return_site_addr))
+        self._ret_sites.add(return_site_addr)
 
     def _add_call_site(self, call_site_addr, call_target_addr, retn_addr):
         '''
         Registers a basic block as calling a function and returning somewhere
 
-        @param call_site_addr       The basic block that ends in a call
-        @param call_target_addr     The target of said call
+        @param call_site_addr       The address of a basic block that ends in a call
+        @param call_target_addr     The address of the target of said call
         @param retn_addr            The address that said call will return to
         '''
         self._call_sites[call_site_addr] = (call_target_addr, retn_addr)
@@ -391,7 +373,7 @@ class Function(object):
         '''
         Gets a list of all the basic blocks that end in calls
 
-        @returns                    What the hell do you think?
+        @returns                    A list of the addresses of the blocks that end in calls
         '''
         return self._call_sites.keys()
 
@@ -399,10 +381,10 @@ class Function(object):
         '''
         Get the target of a call
 
-        @param callsite_addr        The address of the basic block that ends in
-                                    a call
+        @param callsite_addr        The address of a basic block that ends in a call
 
-        @returns                    The target of said call
+        @returns                    The target of said call, or None if callsite_addr is not a
+                                    callsite.
         '''
         if callsite_addr in self._call_sites:
             return self._call_sites[callsite_addr][0]
@@ -412,10 +394,10 @@ class Function(object):
         '''
         Get the hypothetical return address of a call
 
-        @param callsite_addr        The address of the basic block that ends in
-                                    a call
+        @param callsite_addr        The address of the basic block that ends in a call
 
-        @returns                    The likely return target of said call
+        @returns                    The likely return target of said call, or None if callsite_addr
+                                    is not a callsite.
         '''
         if callsite_addr in self._call_sites:
             return self._call_sites[callsite_addr][1]
@@ -432,16 +414,8 @@ class Function(object):
 
         g = networkx.DiGraph()
         for src, dst, data in self.transition_graph.edges_iter(data=True):
-            if src in self.blocks and dst in self.blocks:
+            if 'type' in data and data['type'] in ('transition', 'fake_return', 'syscall'):
                 g.add_edge(src, dst, attr_dict=data)
-            elif src in self.blocks:
-                g.add_node(src)
-            elif dst in self.blocks:
-                g.add_node(dst)
-
-        for node in self.transition_graph.nodes_iter():
-            if node in self.blocks:
-                g.add_node(node)
 
         self._local_transition_graph = g
 
@@ -467,7 +441,7 @@ class Function(object):
             if node_a.addr in self._call_sites:
                 node_a += "[Call]"
             tmp_graph.add_edge(node_a, node_b)
-        pos = networkx.graphviz_layout(tmp_graph, prog='fdp')
+        pos = networkx.graphviz_layout(tmp_graph, prog='fdp')   # pylint: disable=no-member
         networkx.draw(tmp_graph, pos, node_size=1200)
         pyplot.savefig(filename)
 
@@ -493,42 +467,18 @@ class Function(object):
             return self.call_convention.arguments
 
     @property
-    def bp_on_stack(self):
-        return self._bp_on_stack
-
-    @bp_on_stack.setter
-    def bp_on_stack(self, value):
-        self._bp_on_stack = value
-
-    @property
-    def retaddr_on_stack(self):
-        return self._retaddr_on_stack
-
-    @retaddr_on_stack.setter
-    def retaddr_on_stack(self, value):
-        self._retaddr_on_stack = value
-
-    @property
-    def sp_delta(self):
-        return self._sp_delta
-
-    @sp_delta.setter
-    def sp_delta(self, value):
-        self._sp_delta = value
-
-    @property
     def has_return(self):
         return len(self._ret_sites) > 0
 
     @property
     def callable(self):
-        return self._project.factory.callable(self._addr)
+        return self._project.factory.callable(self.addr)
 
     def normalize(self):
         graph = self.transition_graph
         end_addresses = defaultdict(list)
 
-        for block in self.blocks:
+        for block in self.nodes:
             end_addr = block.addr + block.size
             end_addresses[end_addr].append(block)
 
@@ -557,8 +507,10 @@ class Function(object):
                         new_node = nodes[0]
 
                 if new_node is None:
+                    # TODO: Do this correctly for hook nodes
                     # Create a new one
-                    new_node = self._project.factory.block(n.addr, max_size=new_size)
+                    new_node = BlockNode(n.addr, new_size, graph=graph)
+                    self._block_sizes[n.addr] = new_size
                     # Put the newnode into end_addresses
                     end_addresses[new_end_addr].append(new_node)
 
@@ -621,4 +573,4 @@ class Function(object):
         # We cannot determine the calling convention of this function.
         return simuvex.s_cc.SimCCUnknown(arch, args, ret_vals, sp_delta)
 
-from ..errors import AngrMemoryError
+from .codenode import BlockNode

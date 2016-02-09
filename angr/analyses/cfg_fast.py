@@ -563,10 +563,6 @@ class CFGFast(Analysis):
         ce = CFGEntry(next_addr, next_addr, 'Ijk_Boring', last_addr=None)
         remaining_entries.add(ce)
 
-        if maybe_function:
-            # Add it to function manager
-            self.artifacts.functions._create_function_if_not_exist(next_addr)
-
         while len(remaining_entries):
             ce = remaining_entries.pop()
 
@@ -648,7 +644,6 @@ class CFGFast(Analysis):
 
             elif jumpkind == 'Ijk_Call':
                 if next_addr is not None:
-                    self.artifacts.functions._create_function_if_not_exist(next_addr)
 
                     new_function_addr = next_addr
                     return_site = addr + irsb.size  # We assume the program will always return to the succeeding position

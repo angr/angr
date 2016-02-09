@@ -12,9 +12,10 @@ def test_amd64():
     logging.getLogger('angr.analyses.cfg').setLevel(logging.DEBUG)
 
     fauxware_amd64 = angr.Project(test_location + "/x86_64/fauxware")
-    EXPECTED_FUNCTIONS = { 0x400580, 0x400540, 0x400520, 0x4006ed, 0x400664, 0x4007e0, 0x40071d, 0x400880,
-                           0x4005ac, 0x4004e0, 0x400530, 0x400510, 0x400560, 0x400550, 0x4006fd, 0x400570,
-                           0x400640 }
+
+    EXPECTED_FUNCTIONS = { 0x4004e0, 0x400510, 0x400520, 0x400530, 0x400540, 0x400550, 0x400560, 0x400570,
+                           0x400580, 0x4005ac, 0x400640, 0x400664, 0x4006ed, 0x4006fd, 0x40071d, 0x4007e0,
+                           0x400880 }
     EXPECTED_BLOCKS = { 0x40071D, 0x40073E, 0x400754, 0x40076A, 0x400774, 0x40078A, 0x4007A0, 0x4007B3, 0x4007C7,
                         0x4007C9, 0x4007BD, 0x4007D3 }
     EXPECTED_CALLSITES = { 0x40071D, 0x40073E, 0x400754, 0x40076A, 0x400774, 0x40078A, 0x4007A0, 0x4007BD, 0x4007C9 }
@@ -27,9 +28,9 @@ def test_amd64():
     nose.tools.assert_equal(set([ k for k in fauxware_amd64.artifacts.functions.keys() if k < 0x500000 ]), EXPECTED_FUNCTIONS)
 
     main = fauxware_amd64.artifacts.functions.function(name='main')
-    nose.tools.assert_equal(main.startpoint, 0x40071D)
-    nose.tools.assert_equal(set(main.basic_blocks), EXPECTED_BLOCKS)
-    nose.tools.assert_equal([0x4007D3], main.endpoints)
+    nose.tools.assert_equal(main.startpoint.addr, 0x40071D)
+    nose.tools.assert_equal(set(main.block_addrs), EXPECTED_BLOCKS)
+    nose.tools.assert_equal([0x4007D3], [bl.addr for bl in main.endpoints])
     nose.tools.assert_equal(set(main.get_call_sites()), EXPECTED_CALLSITES)
     nose.tools.assert_equal(set(map(main.get_call_target, main.get_call_sites())), EXPECTED_CALLSITE_TARGETS)
     nose.tools.assert_equal(set(map(main.get_call_return, main.get_call_sites())), EXPECTED_CALLSITE_RETURNS)
