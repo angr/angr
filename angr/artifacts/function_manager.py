@@ -41,6 +41,10 @@ class FunctionManager(collections.Mapping):
                 f.write("%#x\tDirectEdge\t%#x\n" % (src, dst))
 
     def _add_call_to(self, function_addr, from_node, to_addr, retn_node, syscall=False):
+        if type(from_node) in (int, long):
+            from_node = self._artifact._project.factory.snippet(from_node)
+        if type(retn_node) in (int, long):
+            retn_node = self._artifact._project.factory.snippet(retn_node)
         dest_func = self._function_map[to_addr]
         dest_func.is_syscall = syscall
         self._function_map[function_addr]._call_to(from_node, dest_func, retn_node)
@@ -48,12 +52,20 @@ class FunctionManager(collections.Mapping):
         self.callgraph.add_edge(function_addr, to_addr)
 
     def _add_return_from(self, function_addr, from_node, to_node=None): #pylint:disable=unused-argument
+        if type(from_node) in (int, long):
+            from_node = self._artifact._project.factory.snippet(from_node)
         self._function_map[function_addr]._add_return_site(from_node)
 
     def _add_transition_to(self, function_addr, from_node, to_node):
+        if type(from_node) in (int, long):
+            from_node = self._artifact._project.factory.snippet(from_node)
+        if type(to_node) in (int, long):
+            to_node = self._artifact._project.factory.snippet(to_node)
         self._function_map[function_addr]._transit_to(from_node, to_node)
 
     def _add_return_from_call(self, function_addr, src_function_addr, to_node):
+        if type(to_node) in (int, long):
+            to_node = self._artifact._project.factory.snippet(to_node)
         self._function_map[function_addr]._return_from_call(self._function_map[src_function_addr], to_node)
 
     #
