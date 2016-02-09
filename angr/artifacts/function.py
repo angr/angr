@@ -81,14 +81,17 @@ class Function(object):
 
     @property
     def blocks(self):
-        for blockaddr in self._block_sizes:
-            yield self._get_block(blockaddr)
+        for blockaddr in self.block_addrs:
+            try:
+                yield self._get_block(blockaddr)
+            except AngrTranslationError:
+                pass
 
     def _get_block(self, addr):
         if addr in self._block_cache:
             return self._block_cache[addr]
         else:
-            if addr in self._block_sizes:
+            if addr in self.block_addrs:
                 block = self._project.factory.block(addr, max_size=self._block_sizes[addr])
                 self._block_cache[addr] = block
                 return block
@@ -250,7 +253,7 @@ class Function(object):
         All of the concrete values used by this function at runtime (i.e., including passed-in arguments and global values).
         '''
         constants = set()
-        for b in self._block_sizes:
+        for b in self.block_addrs:
             for sirsb in self._function_manager._cfg.get_all_irsbs(b):
                 for s in sirsb.successors + sirsb.unsat_successors:
                     for a in s.log.actions:
@@ -264,6 +267,10 @@ class Function(object):
     @property
     def num_arguments(self):
         return len(self._argument_registers) + len(self._argument_stack_variables)
+
+    @property
+    def block_addrs(self):
+        return self._block_sizes.iterkeys()
 
     def __contains__(self, val):
         if isinstance(val, (int, long)):
@@ -280,7 +287,7 @@ class Function(object):
         s += '  Arguments: reg: %s, stack: %s\n' % \
             (self._argument_registers,
              self._argument_stack_variables)
-        s += '  Blocks: [%s]\n' % ", ".join(['%#x' % i for i in self._block_sizes])
+        s += '  Blocks: [%s]\n' % ", ".join(['%#x' % i for i in self.block_addrs])
         s += "  Calling convention: %s" % self.call_convention
         return s
 
@@ -344,7 +351,7 @@ class Function(object):
     def _register_nodes(self, *nodes):
         for node in nodes:
             node._graph = self.transition_graph
-            if node.addr not in self._block_sizes or self._block_sizes[node.addr] == 0:
+            if node.addr not in self or self._block_sizes[node.addr] == 0:
                 self._block_sizes[node.addr] = node.size
             if node.addr == self.addr:
                 if self.startpoint is None or not self.startpoint.is_hook:
@@ -574,3 +581,4 @@ class Function(object):
         return simuvex.s_cc.SimCCUnknown(arch, args, ret_vals, sp_delta)
 
 from .codenode import BlockNode
+from ..errors import AngrTranslationError
