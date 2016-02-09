@@ -34,6 +34,12 @@ class CodeNode(object):
             raise ValueError("Cannot calculate predecessors for graphless node")
         return self._graph.predecessors(self)
 
+    def __getstate__(self):
+        return (self.addr, self.size)
+
+    def __setstate__(self, dat):
+        self.__init__(*dat)
+
     is_hook = None
 
 class BlockNode(CodeNode):
@@ -44,6 +50,12 @@ class BlockNode(CodeNode):
 
     def __repr__(self):
         return '<BlockNode at %#x (size %d)>' % (self.addr, self.size)
+
+    def __getstate__(self):
+        return (self.addr, self.size, self.bytestr)
+
+    def __setstate__(self, dat):
+        self.__init__(*dat)
 
 class HookNode(CodeNode):
     is_hook = True
@@ -60,5 +72,11 @@ class HookNode(CodeNode):
     def __eq__(self, other):
         return super(HookNode, self).__eq__(other) and \
             self.sim_procedure == other.sim_procedure
+
+    def __getstate__(self):
+        return (self.addr, self.size, self.sim_procedure)
+
+    def __setstate__(self, dat):
+        self.__init__(*dat)
 
 from ..lifter import Block
