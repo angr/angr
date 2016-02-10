@@ -1,3 +1,5 @@
+import types
+
 import simuvex
 import simuvex.s_cc
 
@@ -56,6 +58,23 @@ class handler(simuvex.SimProcedure):
         self._syscall=None
         self.callname = None
         syscall_num = self.syscall_num()
+
+        if len(self.state.posix.queued_syscall_returns):
+            #self.set_convention(simuvex.s_cc.SyscallCC[self.state.arch.name](self.state.arch))
+            override = self.state.posix.queued_syscall_returns.pop(0)
+            if override is None:
+                pass
+            elif isinstance(override, types.FunctionType):
+                try:
+                    override(self.state, run=self)
+                except TypeError:
+                    override(self.state)
+                self.overriding_no_ret = False
+                return
+            else:
+                self.overriding_no_ret = False
+                return override
+
         if syscall_num.symbolic and simuvex.o.NO_SYMBOLIC_SYSCALL_RESOLUTION in self.state.options:
             self.overriding_no_ret = False
             l.debug("Not resolving symbolic syscall")
