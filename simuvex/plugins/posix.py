@@ -20,7 +20,7 @@ class SimStateSystem(SimStatePlugin):
 
     def __init__(self, initialize=True, files=None, concrete_fs=False, chroot=None, sockets=None,
             pcap_backer=None, inetd=False, argv=None, argc=None, environ=None, auxv=None, tls_modules=None,
-            fs=None):
+            fs=None, queued_syscall_returns=None):
         SimStatePlugin.__init__(self)
         self.maximum_symbolic_syscalls = 255
         self.files = { } if files is None else files
@@ -36,6 +36,7 @@ class SimStateSystem(SimStatePlugin):
         self.concrete_fs = concrete_fs
         self.chroot = chroot
         self.tls_modules = tls_modules if tls_modules is not None else {}
+        self.queued_syscall_returns = [ ] if queued_syscall_returns is None else queued_syscall_returns
 
         if initialize:
             l.debug("Initializing files...")
@@ -241,7 +242,7 @@ class SimStateSystem(SimStatePlugin):
             if f in self.sockets:
                 sockets[f] = files[f]
 
-        return SimStateSystem(initialize=False, files=files, concrete_fs=self.concrete_fs, chroot=self.chroot, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, auxv=self.auxv, tls_modules=self.tls_modules, fs=self.fs)
+        return SimStateSystem(initialize=False, files=files, concrete_fs=self.concrete_fs, chroot=self.chroot, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, auxv=self.auxv, tls_modules=self.tls_modules, fs=self.fs, queued_syscall_returns=list(self.queued_syscall_returns))
 
     def merge(self, others, merge_flag, flag_values):
         all_files = set.union(*(set(o.files.keys()) for o in [ self ] + others))
