@@ -128,7 +128,7 @@ pip install -I --no-use-wheel angr-z3
 ## Claripy and z3 on Windows
 Z3 might compile on windows if you have a l33t enough build environment. If
 this isn't the case for you, you should download a wheel from somewhere on the
-internet. I found one once, but can't seem to find it again while writing this.
+internet. One location for pre-built Windows wheel files is <https://github.com/Owlz/angr-Windows>.
 
 If you build z3 from source, make sure you're using the unstable branch of z3,
 which includes floating point support. In addition, make sure to have
