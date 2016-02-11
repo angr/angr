@@ -10,9 +10,31 @@ class __libc_start_main(simuvex.SimProcedure):
     NO_RET = True
     local_vars = ('main', 'argc', 'argv', 'init', 'fini')
 
+    def _initialize_ctype_table(self):
+        """
+        Initialize ptable for ctype
+
+        See __ctype_b_loc.c in libc implementation
+        """
+        malloc = simuvex.SimProcedures['libc.so.6']['malloc']
+        table = self.inline_call(malloc, 384).ret_expr
+        table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
+
+        for pos, c in enumerate(self.state.libc.LOCALE_ARRAY):
+            self.state.memory.store(table + pos, self.state.se.BVV(c, 8))
+        self.state.memory.store(table_ptr,
+                                table + 128,
+                                size=self.state.arch.bits / 8,
+                                endness=self.state.arch.memory_endness
+                                )
+
+        self.state.libc.ctype_table_ptr = table_ptr
+
     def run(self, main, argc, argv, init, fini):
         # TODO: handle symbolic and static modes
         # TODO: add argument types
+
+        self._initialize_ctype_table()
 
         self.main = main
         self.argc = argc
