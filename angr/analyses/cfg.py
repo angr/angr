@@ -1351,7 +1351,8 @@ class CFG(Analysis, CFGBase):
                         l.debug("Got %d concrete exits in symbolic mode.", len(all_successors))
                     else:
                         self.unresolved_indirect_jumps.add(simrun.addr)
-                        all_successors = []
+                        # keep fake_rets
+                        all_successors = [s for s in all_successors if s.scratch.jumpkind == "Ijk_FakeRet"]
 
                 elif isinstance(simrun, simuvex.SimIRSB) and \
                         any([ex.scratch.jumpkind != 'Ijk_Ret' for ex in all_successors]):
