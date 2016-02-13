@@ -2560,7 +2560,8 @@ class CFG(Analysis, CFGBase):
         else:
             raise AngrCFGError("from and to should be of the same type")
 
-        return networkx.all_shortest_paths(self.graph, n_begin, n_end)
+        graph = self._remove_fakerets(self.graph)
+        return networkx.all_shortest_paths(graph, n_begin, n_end)
 
     def get_paths(self, begin, end, nb_max=0):
         """
@@ -2576,6 +2577,21 @@ class CFG(Analysis, CFGBase):
             runs = map(self.irsb_from_node, p)
             a_paths.append(make_path(self.project, runs))
         return a_paths
+
+    @staticmethod
+    def _remove_fakerets(graph):
+        """
+        Get rid of fake rets (i.e., Ijk_FakeRet edges)
+        :param graph: a CFG graph
+        Returns: a copy of @graph with fake rets removed
+        """
+        fakeret_edges = [ (src, dst) for src, dst, data in graph.edges_iter(data=True)
+                         if data['jumpkind'] == 'Ijk_FakeRet' ]
+        g2 = graph.copy()
+        g2.remove_edges_from(fakeret_edges)
+        return g2
+
+
 
     def _quasi_topological_sort(self):
         """
