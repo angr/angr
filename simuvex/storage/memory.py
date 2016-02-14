@@ -333,7 +333,7 @@ class SimMemory(SimStatePlugin):
 
         return data_e
 
-    def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None, enable_write_bp=True):
+    def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None, inspect=True):
         '''
         Stores content into memory.
 
@@ -367,7 +367,7 @@ class SimMemory(SimStatePlugin):
         if type(size_e) in (int, long):
             size_e = self.state.se.BVV(size_e, self.state.arch.bits)
 
-        if enable_write_bp is True:
+        if inspect is True:
             if self.category == 'reg':
                 self.state._inspect(
                     'reg_write',
@@ -405,7 +405,7 @@ class SimMemory(SimStatePlugin):
         request = MemoryStoreRequest(addr_e, data=data_e, size=size_e, condition=condition_e, endness=endness)
         self._store(request)
 
-        if enable_write_bp is True:
+        if inspect is True:
             if self.category == 'reg': self.state._inspect('reg_write', BP_AFTER)
             if self.category == 'mem': self.state._inspect('mem_write', BP_AFTER)
 
@@ -523,7 +523,7 @@ class SimMemory(SimStatePlugin):
             req = MemoryStoreRequest(addr, data=ite, endness=endness)
             return self._store(req)
 
-    def load(self, addr, size=None, condition=None, fallback=None, add_constraints=None, action=None, endness=None, enable_read_bp=True):
+    def load(self, addr, size=None, condition=None, fallback=None, add_constraints=None, action=None, endness=None, inspect=True):
         '''
         Loads size bytes from dst.
 
@@ -564,7 +564,7 @@ class SimMemory(SimStatePlugin):
             size = self.state.arch.bits / 8
             size_e = size
 
-        if enable_read_bp is True:
+        if inspect is True:
             if self.category == 'reg': self.state._inspect('reg_read', BP_BEFORE, reg_read_offset=addr_e, reg_read_length=size_e)
             if self.category == 'mem': self.state._inspect('mem_read', BP_BEFORE, mem_read_address=addr_e, mem_read_length=size_e)
 
@@ -605,7 +605,7 @@ class SimMemory(SimStatePlugin):
         if endness == "Iend_LE":
             r = r.reversed
 
-        if enable_read_bp is True:
+        if inspect is True:
             if self.category == 'mem': self.state._inspect('mem_read', BP_AFTER, mem_read_expr=r)
             if self.category == 'reg': self.state._inspect('reg_read', BP_AFTER, reg_read_expr=r)
 
