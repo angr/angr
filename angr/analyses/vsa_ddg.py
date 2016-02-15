@@ -409,4 +409,14 @@ class VSA_DDG(Analysis):
             self._new = True
             l.info("New edge: %s --> %s", s_a, s_b)
 
+    def get_all_nodes(self, simrun_addr, stmt_idx):
+        """
+        Get all DDG nodes matching the given basic block address and statement index.
+        """
+        nodes=[]
+        for n in self.graph.nodes():
+            if n.simrun_addr == simrun_addr and n.stmt_idx == stmt_idx:
+                nodes.add(n)
+        return nodes
+
 register_analysis(VSA_DDG, 'VSA_DDG')
