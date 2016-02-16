@@ -44,7 +44,7 @@ def amd64g_dirtyhelper_CPUID_baseline(state, _):
             state.registers.store('rdx', d, size=8, condition=cond)
 
     SET_ABCD(0x00000000, 0x00000000, 0x00000000, 0x00000000)
-    SET_ABCD(0x00000001, 0x68747541, 0x444d4163, 0x69746e65, 0)
+    SET_ABCD(0x00000001, 0x72676e41, 0x21444955, 0x50432079, 0)
     SET_ABCD(0x00000f5a, 0x01000800, 0x00000000, 0x078bfbff, 1)
     SET_ABCD(0x80000018, 0x68747541, 0x444d4163, 0x69746e65, 0x80000000)
     SET_ABCD(0x00000f5a, 0x00000505, 0x00000000, 0x21d3fbff, 0x80000001)
@@ -156,7 +156,7 @@ def x86g_dirtyhelper_CPUID_sse0(state, _):
             state.registers.store('edx', d, size=4, condition=cond)
 
     SET_ABCD(0x543, 0, 0, 0x8001bf)
-    SET_ABCD(0x1, 0x756e6547, 0x6c65746e, 0x49656e69, 0)
+    SET_ABCD(0x1, 0x72676e41, 0x21444955, 0x50432079, 0)
 
     return None, [ ]
 
