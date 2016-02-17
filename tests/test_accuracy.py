@@ -5,8 +5,8 @@ import os
 test_location = os.path.join(os.path.dirname(os.path.realpath(str(__file__))), '../../binaries/tests/')
 
 arch_data = { # (steps, [hit addrs], finished)
-    'x86_64':  (363, (0x1021c20, 0x1021980, 0x1021be0, 0x4004b0, 0x400440, 0x400570), True),  # Finishes
-    'i386':    (232, (0x90198e0, 0x90195c0, 0x9019630, 0x90198a0, 0x8048370, 0x80482f8, 0x8048440), False),  # blocked on syscalls
+    'x86_64':  (331, (0x1021c20, 0x1021980, 0x1021be0, 0x4004b0, 0x400440, 0x400570), True),  # Finishes
+    'i386':    (214, (0x90198e0, 0x90195c0, 0x9019630, 0x90198a0, 0x8048370, 0x80482f8, 0x8048440), False),  # blocked on syscalls
     'ppc':     (197, (0x11022f50, 0x11022eb0, 0x10000340, 0x100002e8), False),  # blocked on syscalls
     'ppc64':   (184,  (0x11047490, 0x100003fc, 0x10000368), False),     # blocked on syscalls
     'mips':    (160, (0x1016f20, 0x400500, 0x400470), False),   # blocked on some very weird TLS initialization?
