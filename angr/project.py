@@ -28,8 +28,19 @@ def deprecated(f):
 
 class Project(object):
     """
-    This is the main class of the Angr module. It is meant to contain a set of
-    binaries and the relationships between them, and perform analyses on them.
+    This is the main class of the Angr module. It is meant to contain a set of binaries and the relationships between
+    them, and perform analyses on them.
+
+    :ivar analyses: The available analyses.
+    :type analyses: angr.analysis.Analyses
+    :ivar entry:    The program entrypoint.
+    :ivar factory:  Provides access to important analysis elements such as path groups and symbolic execution results.
+    :type factory:  AngrObjectFactory
+    :ivar filename: The filename of the executable.
+    :ivar loader:   The program loader.
+    :type loader:   cle.Loader
+    :ivar surveyor: The available surveyors.
+    :type surveyor: angr.surveyor.Surveyors
     """
 
     def __init__(self, thing,
@@ -45,44 +56,33 @@ class Project(object):
         """
         This constructs a Project object.
 
-        Arguments:
-         @param thing
-             the path to the main executable object to analyze, or a CLE Loader object
-         @param default_analysis_mode
-             the mode of analysis to use by default. Defaults to 'symbolic'.
-         @param ignore_functions
-             a list of function names that, when imported from shared libraries,
-             should never be stepped into in analysis (calls will return an
-             unconstrained value)
-         @param use_sim_procedure
-             whether to replace resolved dependencies for which simprocedures
-             are available with said simprocedures
-         @param exclude_sim_procedures_func
-             a function that, when passed a function name, returns whether
-             or not to wrap it with a simprocedure
-         @param exclude_sim_procedures_list
-             a list of functions to *not* wrap with simprocedures
-         @param arch
-             optional target architecture (auto-detected otherwise)
-             in the form of an archinfo.Arch or a string
-         @param simos
-             a SimOS class to use for this project
-         @param load_options
-             a dict of keyword arguments to the CLE loader. See CLE's docs.
-             e.g., { 'auto_load_libs': False,
-                     'skip_libs': 'ld.so.2',
-                     'lib_opts': {
-                       'libc.so.6': {
-                         'custom_base_addr': 0x55555400
-                       }
-                     }
-                   }
-         @param translation_cache
-            If True, caches translated basic blocks rather than re-translating them.
-         @param support_selfmodifying_code
-             Whether we support self-modifying code. When enabled, Project.sim_block() will try to read code from the
-             given state, not only from the initial memory regions.
-        """
+
+        :param thing:                       The path to the main executable object to analyze, or a CLE Loader object.
+        :param default_analysis_mode:       The mode of analysis to use by default. Defaults to 'symbolic'.
+        :param ignore_functions:            A list of function names that, when imported from shared libraries, should
+                                            never be stepped into in analysis (calls will return an unconstrained value).
+        :param use_sim_procedure:           Whether to replace resolved dependencies for which simprocedures are
+                                            available with said simprocedures.
+        :param exclude_sim_procedures_func: A function that, when passed a function name, returns whether or not to wrap
+                                            it with a simprocedure.
+        :param exclude_sim_procedures_list: A list of functions to *not* wrap with simprocedures.
+        :param arch:                        The target architecture (auto-detected otherwise).
+        :param simos:                       a SimOS class to use for this project.
+        :param load_options:                a dict of keyword arguments to the CLE loader. See CLE's docs.
+                                            { 'auto_load_libs': False,
+                                              'skip_libs': 'ld.so.2',
+                                              'lib_opts': {
+                                                'libc.so.6': {
+                                                'custom_base_addr': 0x55555400
+                                                }
+                                              }
+                                            }
+        :param translation_cache:           If True, cache translated basic blocks rather than re-translating them.
+        :param support_selfmodifying_code:  Whether we support self-modifying code. When enabled, Project.sim_block()
+                                            will try to read code from the given state, not only from the initial memory
+                                            regions.
+        :type  support_selfmodifying_code:  bool
+    """
 
         # Step 1: Load the binary
         if isinstance(thing, cle.Loader):
@@ -153,7 +153,7 @@ class Project(object):
     def _use_sim_procedures(self):
         """
         This is all the automatic simprocedure related initialization work
-        It's too big to just get pasted into the initializer
+        It's too big to just get pasted into the initializer.
         """
 
         # Step 1: Get the appropriate libraries of SimProcedures from simuvex
@@ -240,23 +240,21 @@ class Project(object):
 
     def hook(self, addr, func, length=0, kwargs=None):
         """
-         Hook a section of code with a custom function.
+        Hook a section of code with a custom function.
 
-         @param addr        The address to hook
-         @param func        A python function or SimProcedure class that will perform an action when
-                            execution reaches the hooked address
-         @param length      How many bytes you'd like to skip over with your hook. Can be zero.
-         @param kwargs      A dictionary of keyword arguments to be passed to your function or
-                            your SimProcedure's run function.
+        If func is a function, it takes a :class:`SimState` and the given kwargs. It can return None, in which case it
+        will generate a single exit to the instruction at addr+length, or it can return an array of successor states.
 
-         If func is a function, it takes a SimState and the given kwargs. It can return nothing
-         (None), in which case it will generate a single exit to the instruction at addr+length,
-         or it can return an array of successor states.
+        If func is a `SimProcedure`, it will be run instead of a `SimBlock` at that address.
 
-         If func is a SimProcedure, it will be run instead of a SimBlock at that address.
+        If length is zero, the block at the hooked address will be executed immediately after the hook function.
 
-         If length is zero, the block at the hooked address will be executed immediately
-         after the hook function.
+
+        :param addr:        The address to hook.
+        :param func:        The function that will perform an action when execution reaches the hooked address.
+        :param length:      How many bytes you'd like to skip over with your hook. Can be zero.
+        :param **kwargs:    A dictionary of keyword arguments to be passed to your function or your
+                            :class:`SimProcedure`'s run function.
         """
 
         if self.is_hooked(addr):
@@ -276,9 +274,20 @@ class Project(object):
         self._sim_procedures[addr] = (proc, kwargs)
 
     def is_hooked(self, addr):
+        """
+        Returns True if `addr` is hooked.
+
+        :param addr: An address.
+        :returns:    True if addr is hooked, False otherwise.
+        """
         return addr in self._sim_procedures
 
     def unhook(self, addr):
+        """
+        Remove a hook.
+
+        :param addr:    The address of the hook.
+        """
         if not self.is_hooked(addr):
             l.warning("Address %#x not hooked", addr)
             return
@@ -286,6 +295,15 @@ class Project(object):
         del self._sim_procedures[addr]
 
     def hooked_by(self, addr):
+        """
+        Returns the current hook for `addr`.
+
+
+        :param addr: An address.
+
+        :returns:    None if the address is not hooked.
+        """
+
         if not self.is_hooked(addr):
             l.warning("Address %#x is not hooked", addr)
             return None
@@ -294,16 +312,14 @@ class Project(object):
 
     def hook_symbol(self, symbol_name, obj, kwargs=None):
         """
-         Resolve a dependency in a binary. Uses the "externs object"
-         (project._extern_obj) to provide addresses for hook functions
+        Resolve a dependency in a binary. Uses the "externs object" (project._extern_obj) to provide addresses for
+        hook functions.
 
-         @param symbol_name The name of the dependency to resolve
-         @param obj         The thing with which to satisfy the dependency.
-                            May be a SimProcedure class or a python function
-                            (as an appropriate argument to hook()), or a python
-                            integer/long.
-         @param kwargs      An optional dictionary of arguments to be passed
-                            to the simprocedure's run() method.
+
+        :param symbol_name: The name of the dependency to resolve.
+        :param obj:         The thing with which to satisfy the dependency. May be a SimProcedure class or a python
+                            function (as an appropriate argument to hook()), or a python integer/long.
+        :param **kwargs:    An optional dictionary of arguments to be passed to the SimProcedure's run() method.
         """
         if kwargs is None: kwargs = {}
         ident = 'symbol hook: ' + symbol_name
