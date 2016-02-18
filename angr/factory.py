@@ -128,17 +128,15 @@ class AngrObjectFactory(object):
             state._inspect('call', BP_AFTER, function_name=sim_proc_class.__name__)
             l.debug("... %s created", r)
 
-        else:
-            if o.UNICORN in state.options and SimUnicorn.quick_check(state):
-                try:
-                    l.info('Creating SimUnicorn at %#x', addr)
-                    return SimUnicorn(state)
-                except Exception as e:
-                    l.warning('Failed in SimUnicorn %r' % e)
-                    raise
+        elif o.UNICORN in state.options and SimUnicorn.quick_check(state):
+            l.info('Creating SimUnicorn at %#x', addr)
+            step = 1000000 if o.UNICORN_FAST in state.options else 1
+            r = SimUnicorn(state, step=step)
+            if r.success:
+                return r
 
-            l.debug("Creating SimIRSB at 0x%x", addr)
-            r = self.sim_block(state, addr=addr, **block_opts)
+        l.debug("Creating SimIRSB at 0x%x", addr)
+        r = self.sim_block(state, addr=addr, **block_opts)
 
         # Peek and fix the IP for syscalls
         if r.successors and r.successors[0].scratch.jumpkind.startswith('Ijk_Sys'):
