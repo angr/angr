@@ -1,11 +1,12 @@
 import os
 import sys
 import ctypes
+import struct
 import logging
 l = logging.getLogger('simuvex.plugins.unicorn')
 
 from .plugin import SimStatePlugin
-from ..s_errors import SimValueError
+from ..s_errors import SimValueError, SimUnicornUnsupport
 from .. import s_options as o
 
 class MEM_PATCH(ctypes.Structure): # mem_update_t
@@ -33,15 +34,17 @@ class Unicorn(SimStatePlugin):
     UC_CONFIG = {} # config cache for each arch
     UC_NATIVE = None # native implemenation of hooks
 
-    def __init__(self, arch=None):
+    def __init__(self, uc=None):
         SimStatePlugin.__init__(self)
 
         self.uc = None
-        self.arch = arch
+        self.arch = None
+        self._syscall_pc = None
         self.jumpkind = 'Ijk_Boring'
         self.error = None
-        if arch is not None:
-            self._setup_unicorn(arch)
+        self.errno = 0
+
+        self.last_miss = 0 if uc is None else uc.last_miss
 
         self._dirty = {}
         self.cur_steps = 0
@@ -61,7 +64,7 @@ class Unicorn(SimStatePlugin):
         self._uc_state = None
 
     def set_state(self, state):
-
+        # l.warning('set_state %r, %r', self, state)
         super(Unicorn, self).set_state(state)
 
         if self.uc is None:
@@ -79,7 +82,7 @@ class Unicorn(SimStatePlugin):
 
     @staticmethod
     def load_arch(arch):
-        if arch not in Unicorn.UC_CONFIG:
+        if str(arch) not in Unicorn.UC_CONFIG:
             if arch.qemu_name == 'x86_64':
                 uc_args = (unicorn.UC_ARCH_X86, unicorn.UC_MODE_64)
                 uc_const = unicorn.x86_const
@@ -99,25 +102,36 @@ class Unicorn(SimStatePlugin):
                 if hasattr(uc_const, reg_name):
                     uc_regs[r] = getattr(uc_const, reg_name)
 
-            Unicorn.UC_CONFIG[arch] = (uc_const, uc_prefix, uc_regs, uc_args)
+            Unicorn.UC_CONFIG[str(arch)] = (uc_const, uc_prefix, uc_regs, uc_args)
 
             # here is a good place to do initialization, try to load native plugin
             if Unicorn.UC_NATIVE is None:
                 Unicorn.UC_NATIVE = Unicorn._load_native()
 
-        return Unicorn.UC_CONFIG[arch]
+        return Unicorn.UC_CONFIG[str(arch)]
 
     @staticmethod
     def _load_native():
-        libpath = os.path.join(os.path.dirname(os.path.abspath( __file__ )), '..', '..', 'simuvex_c')
         if sys.platform == 'darwin':
-            libfile = os.path.join(libpath, 'sim_unicorn.dylib')
+            libfile = 'sim_unicorn.dylib'
         else:
-            libfile = os.path.join(libpath, 'sim_unicorn.so')
+            libfile = 'sim_unicorn.so'
+        _simuvex_paths = [ os.path.join(os.path.dirname(__file__), '..', '..', 'simuvex_c', libfile), os.path.join(sys.prefix, 'lib', libfile) ]
         try:
-            h = ctypes.CDLL(libfile)
+            h = None
 
+            for f in _simuvex_paths:
+                l.debug('checking %r', f)
+                if os.path.exists(f):
+                    h = ctypes.CDLL(f)
+                    break
+
+            if h is None:
+                return False
+
+            uc_err = ctypes.c_int
             state_t = ctypes.c_void_p
+            stop_t = ctypes.c_int
             uc_engine_t = ctypes.c_void_p
 
             def _setup_prototype(handle, func, restype, *argtypes):
@@ -128,11 +142,12 @@ class Unicorn(SimStatePlugin):
             _setup_prototype(h, 'dealloc', None, state_t)
             _setup_prototype(h, 'hook', None, state_t)
             _setup_prototype(h, 'unhook', None, state_t)
-            _setup_prototype(h, 'start', None, state_t, ctypes.c_uint64, ctypes.c_uint64)
-            _setup_prototype(h, 'stop', None, state_t, ctypes.c_uint64)
+            _setup_prototype(h, 'start', uc_err, state_t, ctypes.c_uint64, ctypes.c_uint64)
+            _setup_prototype(h, 'stop', None, state_t, stop_t)
             _setup_prototype(h, 'sync', ctypes.POINTER(MEM_PATCH), state_t)
             _setup_prototype(h, 'destroy', None, ctypes.POINTER(MEM_PATCH))
             _setup_prototype(h, 'step', ctypes.c_uint64, state_t)
+            _setup_prototype(h, 'stop_reason', stop_t, state_t)
             _setup_prototype(h, 'activate', None, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p)
 
             l.info('native plugin is enabled')
@@ -152,29 +167,37 @@ class Unicorn(SimStatePlugin):
     def hook(self):
         # some hooks are generic hooks, only hook them once
         if self._mem_unmapped_hook is None:
-            self._mem_unmapped_hook = self.uc.hook_add(unicorn.UC_HOOK_MEM_UNMAPPED, self._hook_mem_unmapped)
+            self._mem_unmapped_hook = self.uc.hook_add(unicorn.UC_HOOK_MEM_UNMAPPED, self._hook_mem_unmapped, None, 1, 0)
 
         # FIXME x86_64 only
-        if self._syscall_hook is not None:
-            self._syscall_hook = self.uc.hook_add(unicorn.UC_HOOK_INSN, self._hook_syscall_x86_64, None,
-                    self._uc_const.UC_X86_INS_SYSCALL)
+        if self._syscall_hook is None:
+            arch = self.state.arch.qemu_name
+            if arch == 'x86_64':
+                self._syscall_hook = self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
+                self.uc.hook_add(unicorn.UC_HOOK_INSN, self._hook_syscall_x86_64, None,
+                        self._uc_const.UC_X86_INS_SYSCALL)
+            elif arch == 'i386':
+                self._syscall_hook = self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
+            else:
+                raise SimUnicornUnsupport
 
         if self.UC_NATIVE is False:
             # do not support native speedup
 
             if self._mem_prot_hook is None:
-                self._mem_prot_hook = self.uc.hook_add(unicorn.UC_HOOK_MEM_PROT, self._hook_mem_prot)
+                self._mem_prot_hook = self.uc.hook_add(unicorn.UC_HOOK_MEM_PROT, self._hook_mem_prot, None, 1, 0)
 
             # hook for mem access *in python* is not used for tainting, since
             # any page mapped as writable is marked as tainted. this hook is
             # just used for debugging.
             if self._mem_access_hook is None and l.level <= logging.DEBUG:
                 # this hook is just for debugging
-                self._mem_access_hook = self.uc.hook_add(unicorn.UC_HOOK_MEM_READ | unicorn.UC_HOOK_MEM_WRITE, self._hook_mem_access)
+                self._mem_access_hook = self.uc.hook_add(unicorn.UC_HOOK_MEM_READ | unicorn.UC_HOOK_MEM_WRITE, self._hook_mem_access, None, 1, 0)
 
             if self._block_hook is None:
-                self._block_hook = self.uc.hook_add(unicorn.UC_HOOK_BLOCK, self._hook_block)
+                self._block_hook = self.uc.hook_add(unicorn.UC_HOOK_BLOCK, self._hook_block, None, 1, 0)
         else:
+            l.debug('adding native hooks')
             self.UC_NATIVE.hook(self._uc_state)
 
     def _unhook(self, hook_name):
@@ -202,10 +225,31 @@ class Unicorn(SimStatePlugin):
         else:
             self.cur_steps += 1
 
+    def _hook_intr_x86(self, uc, intno, user_data):
+        if intno == 0x80:
+            if self.state.arch.bits == 32:
+                self._hook_syscall_i386(uc, user_data)
+            else:
+                self._hook_syscall_x86_64(uc, user_data)
+        else:
+            l.warning('unhandled interrupt')
+
     def _hook_syscall_x86_64(self, uc, user_data):
-        rax = self.uc.reg_read(self._uc_regs['rax'])
-        rip = self.uc.reg_read(self._uc_regs['rip'])
-        l.warning('hit sys_%d at %#x', rax, rip)
+        sysno = self.uc.reg_read(self._uc_regs['rax'])
+        pc = self.uc.reg_read(self._uc_regs['rip'])
+        l.warning('hit sys_%d at %#x', sysno, pc)
+        self._syscall_pc = pc + 2 # skip syscall instruction
+        self._handle_syscall(uc, user_data)
+
+    def _hook_syscall_i386(self, uc, user_data):
+        sysno = self.uc.reg_read(self._uc_regs['eax'])
+        pc = self.uc.reg_read(self._uc_regs['eip'])
+        l.warning('hit sys_%d at %#x', sysno, pc)
+        self._syscall_pc = pc + 2
+        if self.state.has_plugin('cgc') and sysno == 2:
+            # cheating for sys_transmit!
+            self.uc.reg_write(self._uc_regs['eax'], 0)
+            return
         self._handle_syscall(uc, user_data)
 
     def _handle_syscall(self, uc, user_data):
@@ -233,8 +277,9 @@ class Unicorn(SimStatePlugin):
 
         if start == 0:
             # sometimes it happens because of %fs is not correctly set
-            l.warning('accessing zero page')
-            self.error = 'accessing zero page [%#x, %#x]' % (address, address + size)
+            self.error = 'accessing zero page [%#x, %#x] (%#x)' % (address, address + size, access)
+            l.warning(self.error)
+            l.debug('pc = %#x', self.uc.reg_read(self._uc_regs['eip']))
             if self.UC_NATIVE is not False:
                 # tell uc_state to rollback
                 self.UC_NATIVE.stop(self._uc_state, STOP.STOP_ZEROPAGE)
@@ -243,9 +288,9 @@ class Unicorn(SimStatePlugin):
         the_bytes, missing = self.state.memory.mem.load_bytes(start, length)
 
         if access == unicorn.UC_MEM_FETCH_UNMAPPED and len(the_bytes) == 0:
-            l.warning('fetching empty page')
             # we can not initalize an empty page then execute on it
             self.error = 'fetching empty page [%#x, %#x]' % (address, address + size)
+            l.warning(self.error)
             if self.UC_NATIVE is not False:
                 self.UC_NATIVE.stop(self._uc_state, STOP.STOP_EXECNONE)
             return False
@@ -260,9 +305,11 @@ class Unicorn(SimStatePlugin):
         for i in xrange(len(offsets)-1):
             pos = offsets[i]
             chunk = the_bytes[pos]
-            size = min(len(chunk), offsets[i + 1] - pos)
+            size = min((chunk.base + len(chunk) / 8) - (start + pos), offsets[i + 1] - pos)
             d = chunk.bytes_at(start + pos, size)
-            if d.symbolic:
+            # if not self.state.se.unique(d):
+            s = self.state.se.any_str(d)
+            if d.symbolic and not self.state.se.unique(d):
                 if self.UC_NATIVE is not False:
                     l.debug('loading symbolic memory [%#x, %#x]', start + pos, start + pos + size)
 
@@ -270,11 +317,11 @@ class Unicorn(SimStatePlugin):
                         taint = ctypes.create_string_buffer(length)
                         partial_symbolic = True
 
-                    ctypes.memset(byref(taint, pos), 0x2, size) # mark them as TAINT_SYMBOLIC
+                    ctypes.memset(ctypes.byref(taint, pos), 0x2, size) # mark them as TAINT_SYMBOLIC
                 else:
                     l.warning('partial symbolic memory is not support in python hooks')
                     return False
-            data[pos:] = self.state.se.any_str(d)
+            data[pos:pos + size] = s
 
         if access == unicorn.UC_MEM_WRITE_UNMAPPED:
             l.info('mmap [%#x, %#x] rwx', start, start + length)
@@ -312,6 +359,7 @@ class Unicorn(SimStatePlugin):
         # we should keep track of there dirty pages
         l.info('mprotect [%#x, %#x] rwx', start, start + length)
         self.uc.mem_protect(start, length, unicorn.UC_PROT_ALL)
+        self.uc.mem_write(address, struct.pack('<Q', value)[:size]) # FIXME endianness?
         self._dirty[start] = length
         return True
 
@@ -319,17 +367,17 @@ class Unicorn(SimStatePlugin):
         self.set_regs()
         addr = self.state.se.any_int(self.state.ip)
 
-        # step = 1000000
-
         self.cur_steps = 0
         self.max_steps = step
+        self.jumpkind = 'Ijk_Boring'
 
         l.debug('emu_start at %#x (%d steps)', addr, step)
 
         if self.UC_NATIVE is False:
             self.uc.emu_start(addr, until=0)
+            self.errno = 0 # FIXME get real errno
         else:
-            self.UC_NATIVE.start(self._uc_state, addr, step)
+            self.errno = self.UC_NATIVE.start(self._uc_state, addr, step)
 
     def finish(self):
         self.get_regs()
@@ -349,19 +397,28 @@ class Unicorn(SimStatePlugin):
 
         l.debug('finished emulation after %d steps', self.cur_steps)
 
+        if self.UC_NATIVE is not False:
+            self.stop_reason = self.UC_NATIVE.stop_reason(self._uc_state)
+            # STOP.STOP_SYSCALL/STOP_EXECNONE/STOP_ZEROPAGE is already handled
+            l.debug('deallocting native state %r', self._uc_state)
+            self.UC_NATIVE.dealloc(self._uc_state)
+            self.uc = None
+            self._uc_state = None
+
     def set_regs(self):
         ''' setting unicorn registers '''
         for r, c in self._uc_regs.iteritems():
             v = getattr(self.state.regs, r)
-            if v.concrete:
+            if self.state.se.unique(v):
+                # l.debug('setting $%s = %#x', r, self.state.se.any_int(v))
                 self.uc.reg_write(c, self.state.se.any_int(v))
             else:
                 raise SimValueError('setting a symbolic register')
 
         if self.arch.qemu_name == 'x86_64':
             # segment registers like %fs, %gs might be tricky in unicorn
-            self.uc.reg_write(self._uc_const.UC_X86_REG_FS, 0x41414141)
-            self.uc.reg_write(self._uc_const.UC_X86_REG_GS, 0x41414141)
+            # self.uc.reg_write(self._uc_const.UC_X86_REG_FS, 0x3010000)
+            # self.uc.reg_write(self._uc_const.UC_X86_REG_GS, 0x3010000)
             pass
         elif self.arch.qemu_name == 'i386':
             pass
@@ -370,12 +427,13 @@ class Unicorn(SimStatePlugin):
         ''' loading registers from unicorn '''
         for r, c in self._uc_regs.iteritems():
             v = self.uc.reg_read(c)
+            # l.debug('getting $%s = %#x', r, v)
             setattr(self.state.regs, r, v)
 
     def sync(self):
         for address, length in self._dirty.iteritems():
-            l.debug('syncing [%#x, %#x]', address, address + length)
             s = self.uc.mem_read(address, length)
+            l.debug('syncing [%#x, %#x] = %s', address, address + length, str(s).encode('hex'))
             self.state.memory.store(address, str(s))
         self._dirty.clear()
 

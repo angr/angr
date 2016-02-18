@@ -1,4 +1,5 @@
 UNICORN_PATH?=../unicorn
+QEMU_PATH := ${UNICORN_PATH}/qemu
 
 UNAME := $(shell uname)
 ifeq ($(UNAME), Darwin)
@@ -8,8 +9,21 @@ ifeq ($(UNAME), Linux)
 	LIB_SIM_UNICORN=sim_unicorn.so
 endif
 
-${LIB_SIM_UNICORN}: sim_unicorn.cpp ${UNICORN_PATH}/libunicorn.so
-	g++ -g -std=c++11 -shared -fPIC -I${UNICORN_PATH}/include/unicorn -o ${LIB_SIM_UNICORN} $^
+CC := gcc
+CFLAGS := -I ${UNICORN_PATH}/include -I ${UNICORN_PATH}/include/unicorn -I ${QEMU_PATH} -I ${QEMU_PATH}/include `pkg-config --cflags glib-2.0`
+LIBS := -lglib-2.0
+OBJS := log.o arch/x86.o
+
+all: ${LIB_SIM_UNICORN}
+
+log.o: log.c log.h
+	${CC} -fPIC -c -O3 -o $@ $<
+
+arch/x86.o: arch/x86.c
+	${CC} -fPIC ${CFLAGS} -I ${QEMU_PATH}/target-i386 -I ${QEMU_PATH}/x86_64-softmmu -o $@ -c $<
+
+${LIB_SIM_UNICORN}: sim_unicorn.cpp ${UNICORN_PATH}/libunicorn.a ${OBJS}
+	g++ -g -std=c++11 -shared -fPIC ${CFLAGS} -o $@ $^ ${LIBS}
 
 clean:
-	rm -f ${LIB_SIM_UNICORN}
+	rm -f ${LIB_SIM_UNICORN} *.o arch/*.o

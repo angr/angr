@@ -3,9 +3,8 @@ import sys
 import urllib2
 import subprocess
 from setuptools import setup
-from setuptools.distutils.errors import LibError
-import setuptools.command.build as _build
-import setuptools.command.develop as _develop
+from distutils.errors import LibError
+from distutils.command.build import build as _build
 
 UNICORN_PATH = 'unicorn'
 
@@ -13,14 +12,15 @@ def _build_unicorn():
     global UNICORN_PATH
 
     if not os.path.exists(UNICORN_PATH):
-        UNICORN_URL = 'https://github.com/unicorn-engine/unicorn/archive/0.9.tar.gz'
-        with open('unicorn-0.9.tar.gz', 'w') as v:
-            v.write(urllib2.urlopen(UNICORN_URL).read())
-        if subprocess.call(['tar', 'xzf', 'unicorn-0.9.tar.gz']) != 0:
-            raise LibError('Unable to retrieve unicorn')
-        UNICORN_PATH = 'unicorn-0.9'
+        UNICORN_PATH = 'unicorn-master'
+        if not os.path.exists(UNICORN_PATH):
+            UNICORN_URL = 'https://github.com/unicorn-engine/unicorn/archive/master.zip'
+            with open('unicorn-master.zip', 'w') as v:
+                v.write(urllib2.urlopen(UNICORN_URL).read())
+            if subprocess.call(['unzip', 'unicorn-master.zip']) != 0:
+                raise LibError('Unable to retrieve unicorn')
 
-    if subprocess.call(['make', cwd=UNICORN_PATH]) != 0:
+    if subprocess.call(['make'], cwd=UNICORN_PATH) != 0:
         raise LibError('Unable to compile libunicorn')
 
     if subprocess.call(['make', 'install'], cwd=os.path.join(UNICORN_PATH, 'bindings', 'python')) != 0:
@@ -33,27 +33,20 @@ def _build_sim_unicorn():
         raise LibError('Unable to build sim_unicorn')
 
 class build(_build):
-    def run(self):
+    def run(self, *args):
+        global data_files
         try:
             self.execute(_build_unicorn, (), msg='Building libunicorn')
             self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
+            data_files.append(('lib', (os.path.join('simuvex_c', 'sim_unicorn.so'),),))
         except LibError:
             pass
-        _build.run(self)
-
-class develop(_develop):
-    def run(self):
-        try:
-            self.execute(_build_unicorn, (), msg='Building libunicorn')
-            self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
-        except LibError:
-            pass
-        _develop.run(self)
+        _build.run(self, *args)
 
 cmdclass = {
         'build': build,
-        'develop': develop,
         }
+data_files = []
 
 setup(
     name='simuvex',
@@ -70,4 +63,6 @@ setup(
         'cooldict',
         'ana',
     ],
+    data_files=data_files,
+    cmdclass=cmdclass,
 )
