@@ -1,4 +1,4 @@
-from ..errors import AngrMemoryError
+from ..errors import AngrMemoryError, AngrTranslationError
 from ..analysis import Analysis, register_analysis
 
 from collections import deque
@@ -201,7 +201,9 @@ def compare_statement_dict(statement_1, statement_2):
 
     # constants
     if isinstance(statement_1, (int, long, float, str)):
-        if statement_1 == statement_2:
+        if isinstance(statement_1, float) and math.isnan(statement_1) and math.isnan(statement_2):
+            return []
+        elif statement_1 == statement_2:
             return []
         else:
             return [Difference(None, statement_1, statement_2)]
@@ -296,10 +298,12 @@ class NormalizedFunction(object):
                     bl = self.project.factory.block(node)
                 except AngrMemoryError:
                     continue
-                # merge if it ends with a single call, and the successor has only one predecessor
+                except AngrTranslationError:
+                    continue
+                # merge if it ends with a single call, and the successor has only one predecessor and succ is after
                 successors = self.graph.successors(node)
                 if bl.vex.jumpkind == "Ijk_Call" and len(successors) == 1 and \
-                        len(self.graph.predecessors(successors[0])) == 1:
+                        len(self.graph.predecessors(successors[0])) == 1 and successors[0] > node:
                     # add edges to the successors of its successor, and delete the original successors
                     succ = self.graph.successors(node)[0]
                     for s in self.graph.successors(succ):
@@ -391,6 +395,23 @@ class FunctionDiff(object):
         return differing_blocks
 
     @property
+    def blocks_with_differing_constants(self):
+        """
+        :return: A list of block matches which appear to differ
+        """
+        differing_blocks = []
+        diffs = dict()
+        for (block_a, block_b) in self._block_matches:
+            if self.blocks_probably_identical(block_a, block_b) and \
+                    not self.blocks_probably_identical(block_a, block_b, check_constants=True):
+                differing_blocks.append((block_a, block_b))
+        for block_a, block_b in differing_blocks:
+            ba = NormalizedBlock(block_a, self._function_a)
+            bb = NormalizedBlock(block_b, self._function_b)
+            diffs[(block_a, block_b)] = FunctionDiff._block_diff_constants(ba, bb)
+        return diffs
+
+    @property
     def block_matches(self):
         return self._block_matches
 
@@ -426,10 +447,14 @@ class FunctionDiff(object):
             block_a = NormalizedBlock(block_a, self._function_a)
         except AngrMemoryError:
             block_a = None
+        except AngrTranslationError:
+            block_a = None
 
         try:
             block_b = NormalizedBlock(block_b, self._function_b)
         except AngrMemoryError:
+            block_b = None
+        except AngrTranslationError:
             block_b = None
 
         # if both were None then they are assumed to be the same, if only one was the same they are assumed to differ
@@ -466,10 +491,11 @@ class FunctionDiff(object):
 
         return similarity
 
-    def blocks_probably_identical(self, block_a, block_b):
+    def blocks_probably_identical(self, block_a, block_b, check_constants=False):
         """
         :param block_a: the first block address
         :param block_b: the second block address
+        :param check_constants: whether or not to require matching constants in blocks
         :return: Whether or not the blocks appear to be identical
         """
         # handle sim procedure blocks
@@ -480,10 +506,14 @@ class FunctionDiff(object):
             block_a = NormalizedBlock(block_a, self._function_a)
         except AngrMemoryError:
             block_a = None
+        except AngrTranslationError:
+            block_a = None
 
         try:
             block_b = NormalizedBlock(block_b, self._function_b)
         except AngrMemoryError:
+            block_b = None
+        except AngrTranslationError:
             block_b = None
 
         # if both were None then they are assumed to be the same, if only one was None they are assumed to differ
@@ -497,12 +527,13 @@ class FunctionDiff(object):
             return False
 
         # check differing constants
-        diff_constants = []
-        for irsb_a, irsb_b in zip(block_a.blocks, block_b.blocks):
-            try:
-                diff_constants += differing_constants(irsb_a, irsb_b)
-            except UnmatchedStatementsException:
-                return False
+        try:
+            diff_constants = FunctionDiff._block_diff_constants(block_a, block_b)
+        except UnmatchedStatementsException:
+            return False
+
+        if not check_constants:
+            return True
 
         # get values of differences that probably indicate no change
         acceptable_differences = self._get_acceptable_constant_differences(block_a, block_b)
@@ -528,6 +559,13 @@ class FunctionDiff(object):
 
         # the blocks appear to be identical
         return True
+
+    @staticmethod
+    def _block_diff_constants(block_a, block_b):
+        diff_constants = []
+        for irsb_a, irsb_b in zip(block_a.blocks, block_b.blocks):
+            diff_constants += differing_constants(irsb_a, irsb_b)
+        return diff_constants
 
     @staticmethod
     def _compute_block_attributes(function):
@@ -693,6 +731,8 @@ class FunctionDiff(object):
             return ordered_succ
         except AngrMemoryError:
             return sorted(succ)
+        except AngrTranslationError:
+            return sorted(succ)
 
 
     def _get_block_matches(self, attributes_a, attributes_b, filter_set_a=None, filter_set_b=None, delta=(0, 0, 0),
@@ -798,17 +838,21 @@ class BinDiff(Analysis):
     """
     This class computes the a diff between two binaries represented by angr Projects
     """
-    def __init__(self, other_project):
+    def __init__(self, other_project, enable_advanced_backward_slicing=False):
         """
         :param other_project: The second project to diff
         """
         l.debug("Computing cfg's")
+        back_traversal = not enable_advanced_backward_slicing
         self.cfg_a = self.project.analyses.CFG(context_sensitivity_level=1,
                                                keep_state=True,
-                                               enable_symbolic_back_traversal=True)
+                                               enable_symbolic_back_traversal=back_traversal,
+                                               enable_advanced_backward_slicing=enable_advanced_backward_slicing)
         self.cfg_b = other_project.analyses.CFG(context_sensitivity_level=1,
                                                 keep_state=True,
-                                                enable_symbolic_back_traversal=True)
+                                                enable_symbolic_back_traversal=back_traversal,
+                                                enable_advanced_backward_slicing=enable_advanced_backward_slicing)
+
         l.debug("Done computing cfg's")
 
         self._p2 = other_project
@@ -822,7 +866,7 @@ class BinDiff(Analysis):
 
         self._compute_diff()
 
-    def functions_probably_identical(self, func_a_addr, func_b_addr):
+    def functions_probably_identical(self, func_a_addr, func_b_addr, check_consts=False):
         """
         :param func_a_addr: The address of the first function (in the first binary)
         :param func_b_addr: The address of the second function (in the second binary)
@@ -832,6 +876,9 @@ class BinDiff(Analysis):
             return self.cfg_a.project._sim_procedures[func_a_addr] == self.cfg_b.project._sim_procedures[func_b_addr]
 
         func_diff = self.get_function_diff(func_a_addr, func_b_addr)
+        if check_consts:
+            return func_diff.probably_identical_with_consts
+
         return func_diff.probably_identical
 
     @property
@@ -853,6 +900,16 @@ class BinDiff(Analysis):
         different_funcs = []
         for (func_a, func_b) in self.function_matches:
             if not self.functions_probably_identical(func_a, func_b):
+                different_funcs.append((func_a, func_b))
+        return different_funcs
+
+    def differing_functions_with_consts(self):
+        """
+        :return: A list of function matches that appear to differ including just by constants
+        """
+        different_funcs = []
+        for (func_a, func_b) in self.function_matches:
+            if not self.functions_probably_identical(func_a, func_b, check_consts=True):
                 different_funcs.append((func_a, func_b))
         return different_funcs
 
@@ -891,12 +948,20 @@ class BinDiff(Analysis):
         :return: a dictionary of function addresses to tuples of attributes
         """
         # the attributes we use are the number of basic blocks, number of edges, and number of subfunction calls
+        all_funcs = set(cfg.function_manager.interfunction_graph.nodes())
         attributes = dict()
         for function_addr in cfg.function_manager.functions:
-            normalized_funtion = NormalizedFunction(cfg.function_manager.function(function_addr))
-            number_of_basic_blocks = len(normalized_funtion.graph.nodes())
-            number_of_edges = len(normalized_funtion.graph.edges())
-            number_of_subfunction_calls = len(cfg.function_manager.interfunction_graph.successors(function_addr))
+            if cfg.function_manager.function(function_addr) is not None:
+                normalized_funtion = NormalizedFunction(cfg.function_manager.function(function_addr))
+                number_of_basic_blocks = len(normalized_funtion.graph.nodes())
+                number_of_edges = len(normalized_funtion.graph.edges())
+            else:
+                number_of_basic_blocks = 0
+                number_of_edges = 0
+            if function_addr in all_funcs:
+                number_of_subfunction_calls = len(cfg.function_manager.interfunction_graph.successors(function_addr))
+            else:
+                number_of_subfunction_calls = 0
             attributes[function_addr] = (number_of_basic_blocks, number_of_edges, number_of_subfunction_calls)
 
         return attributes
@@ -979,6 +1044,10 @@ class BinDiff(Analysis):
             l.debug("Processing (%#x, %#x)", func_a, func_b)
 
             # we could find new matches in the successors or predecessors of functions
+            if not self.project.loader.main_bin.contains_addr(func_a):
+                continue
+            if not self._p2.loader.main_bin.contains_addr(func_b):
+                continue
             func_a_succ = self.cfg_a.function_manager.interfunction_graph.successors(func_a)
             func_b_succ = self.cfg_b.function_manager.interfunction_graph.successors(func_b)
             func_a_pred = self.cfg_a.function_manager.interfunction_graph.predecessors(func_a)
@@ -1014,7 +1083,11 @@ class BinDiff(Analysis):
                         to_process.appendleft((x, y))
 
         # reformat matches into a set of pairs
-        self.function_matches = set((x, y) for (x, y) in matched_a.items())
+        self.function_matches = set()
+        for x,y in matched_a.items():
+            # only keep if the pair is in the binary ranges
+            if self.project.loader.main_bin.contains_addr(x) and self._p2.loader.main_bin.contains_addr(y):
+                self.function_matches.add((x, y))
 
         # get the unmatched blocks
         self._unmatched_functions_from_a = set(x for x in self.cfg_a.function_manager.functions if x not in matched_a)
