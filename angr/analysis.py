@@ -57,8 +57,9 @@ class Analyses(object):
         """
         Creates an Analyses object
 
-        @param p: the angr.Project object
-        @param analysis_results: the result cache
+        :ivar p:                A project
+        :type p:                angr.Project
+        :ivar analysis_results: The result cache.
         """
         self.project = p
         self._registered_analyses = {}
@@ -106,6 +107,13 @@ class Analyses(object):
 
 
 class Analysis(object):
+    """
+    This class represents an analysis on the program.
+
+
+    :ivar project:  The project for this analysis.
+    :type project:  angr.Project
+    """
     project = None
     _fail_fast = None
     _name = None

@@ -70,10 +70,10 @@ class Surveyors(object):
         self.started.remove(proxy)
 
     def _start_surveyor(self, surveyor, *args, **kwargs):
-        '''
+        """
         Calls a surveyor and adds result to the .started list. See
         the arguments for the specific surveyor for its documentation.
-        '''
+        """
         s = surveyor(self._project, *args, **kwargs)
         self.started.append(weakref.proxy(s, self._surveyor_finished))
         return s
@@ -90,51 +90,45 @@ class Surveyor(object):
     provides a base upon which analyses can be implemented. It has the
     following overloadable functions/properties:
 
-        done: returns True if the analysis is done (by default, this is when
-              self.active is empty)
-        run: runs a loop of tick()ing and spill()ing until self.done is
-             True
-        tick: ticks all paths forward. The default implementation calls
-              tick_path() on every path
-        tick_path: moves a provided path forward, returning a set of new
-                   paths
-        spill: spills all paths, in-place. The default implementation first
-              calls spill_path() on every path, then spill_paths() on the
-              resulting sequence, then keeps the rest.
-        spill_path: returns a spilled sequence of paths from a provided
-                   sequence of paths
-        spill_paths: spills a path
+    done: returns True if the analysis is done (by default, this is when self.active is empty).
+    run: runs a loop of tick()ing and spill()ing until self.done is True.
+    tick: ticks all paths forward. The default implementation calls tick_path() on every path.
+    tick_path: moves a provided path forward, returning a set of new paths.
+    spill: spills all paths, in-place. The default implementation first calls spill_path() on every path, then
+    spill_paths() on the resulting sequence, then keeps the rest.
+    spill_path: returns a spilled sequence of paths from a provided sequence of paths.
+    spill_paths: spills a path.
 
     An analysis can overload either the specific sub-portions of surveyor
     (i.e, the tick_path and spill_path functions) or bigger and bigger pieces
     to implement more and more customizeable analyses.
 
-    Surveyor provides at lest the following members:
+    Surveyor provides at least the following members:
 
-        active - the paths that are still active in the analysis
-        deadended - the paths that are still active in the analysis
-        spilled - the paths that are still active in the analysis
-        errored - the paths that have at least one error-state exit
-        pruned - paths that were pruned because their ancestors were unsat
-        unconstrained - paths that have a successor with an unconstrained instruction pointer
+    active - the paths that are still active in the analysis.
+    deadended - the paths that are still active in the analysis.
+    spilled - the paths that are still active in the analysis.
+    errored - the paths that have at least one error-state exit.
+    pruned - paths that were pruned because their ancestors were unsat.
+    unconstrained - paths that have a successor with an unconstrained instruction pointer.
     """
 
-    path_lists = ['active', 'deadended', 'spilled', 'errored', 'unconstrained', 'suspended', 'pruned' ] # TODO: what about errored? It's a problem cause those paths are duplicates, and could cause confusion...
-
+    # TODO: what about errored? It's a problem cause those paths are duplicates, and could cause confusion...
+    path_lists = ['active', 'deadended', 'spilled', 'errored', 'unconstrained', 'suspended', 'pruned' ]
     def __init__(self, project, start=None, max_active=None, max_concurrency=None, pickle_paths=None,
                  save_deadends=None, enable_veritesting=False, veritesting_options=None, keep_pruned=None):
         """
         Creates the Surveyor.
 
-            @param project: the angr.Project to analyze
-            @param starts: a path (or set of paths) to start the analysis from
-            @param max_active: the maximum number of paths to explore at a time
-            @param max_concurrency: the maximum number of worker threads
-            @param pickle_paths: pickle spilled paths to save memory
-            @param save_deadends: save deadended paths
-            @param enable_veritesting: use static symbolic execution to speed up exploration
-            @param veritesting_options: special options to be passed to Veritesting
-            @param keep_pruned: keep pruned unsat states
+        :param project:             the angr.Project to analyze.
+        :param start:               a path (or set of paths) to start the analysis from
+        :param max_active:          the maximum number of paths to explore at a time
+        :param max_concurrency:     the maximum number of worker threads
+        :param pickle_paths:        pickle spilled paths to save memory
+        :param save_deadends:       save deadended paths
+        :param enable_veritesting:  use static symbolic execution to speed up exploration
+        :param veritesting_options: special options to be passed to Veritesting
+        :param keep_pruned:         keep pruned unsat states
         """
 
         self._project = project
@@ -222,11 +216,10 @@ class Surveyor(object):
 
     def run(self, n=None):
         """
-        Runs the analysis through completion (until done() returns True) or,
-        if n is provided, n times.
+        Runs the analysis through completion (until done() returns True) or, if n is provided, n times.
 
-            @params n: the maximum number of ticks
-            @returns itself for chaining
+        :param n: the maximum number of ticks
+        :returnss itself for chaining
         """
         global STOP_RUNS, PAUSE_RUNS  # pylint: disable=W0602,
 
@@ -276,10 +269,9 @@ class Surveyor(object):
 
     def tick(self):
         """
-        Takes one step in the analysis. Typically, this moves all active paths
-        forward.
+        Takes one step in the analysis. Typically, this moves all active paths forward.
 
-            @returns itself, for chaining
+        :returnss: itself, for chaining
         """
         new_active = []
 
@@ -479,8 +471,8 @@ class Surveyor(object):
         """
         Suspends and returns a state.
 
-        @param p: the path
-        @returns the path
+        :param p: the path
+        :returns: the path
         """
         # TODO: Path doesn't provide suspend() now. What should we replace it with?
         # p.suspend(do_pickle=self._pickle_paths)
