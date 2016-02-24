@@ -37,9 +37,6 @@ class AngrBladeError(AngrError):
 class AngrAnnotatedCFGError(AngrError):
     pass
 
-class AngrCFGError(AngrError):
-    pass
-
 class AngrBackwardSlicingError(AngrError):
     pass
 
@@ -50,6 +47,23 @@ class AngrCallableError(AngrSurveyorError):
     pass
 
 class AngrCallableMultistateError(AngrCallableError):
+    pass
+
+#
+# ForwardAnalysis errors
+#
+
+class AngrForwardAnalysisError(AngrError):
+    pass
+
+class AngrForwardAnalysisSkipEntry(AngrForwardAnalysisError):
+    pass
+
+#
+# CFG errors
+#
+
+class AngrCFGError(AngrError):
     pass
 
 #

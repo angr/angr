@@ -11,10 +11,11 @@ from archinfo import ArchARM
 
 from ..entry_wrapper import EntryWrapper
 from ..analysis import Analysis, register_analysis
-from ..errors import AngrCFGError, AngrError
+from ..errors import AngrCFGError, AngrError, AngrForwardAnalysisSkipEntry
 from ..path import make_path
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase
+from .forward_analysis import ForwardAnalysis
 
 l = logging.getLogger(name="angr.analyses.cfg")
 
@@ -50,7 +51,7 @@ class PendingExit(object):
                                                               self.returning_source) if self.returning_source is not None else 'Unknown')
 
 
-class CFG(Analysis, CFGBase):
+class CFG(Analysis, ForwardAnalysis, CFGBase):
     """
     This class represents a control-flow graph.
     """
@@ -86,6 +87,7 @@ class CFG(Analysis, CFGBase):
                             successors to manually include and analyze forward from.
         :param no_construct: Skip the construction procedure. Only used in unit-testing.
         """
+        ForwardAnalysis.__init__(self)
         CFGBase.__init__(self, self.project, context_sensitivity_level)
         self._symbolic_function_initial_state = {}
         self._function_input_states = None
@@ -124,7 +126,7 @@ class CFG(Analysis, CFGBase):
         self._initialize_executable_ranges()
 
         if not no_construct:
-            self._construct()
+            self._analyze()
 
     #
     # Public methods
@@ -617,12 +619,15 @@ class CFG(Analysis, CFGBase):
     # CFG construction
     # The main loop and sub-methods
 
-    def _pre_construction(self):
+    def _init_analysis(self):
         """
-        Initialization work before _construct() is called.
+        Initialization work.
 
         :return: None
         """
+
+        # First call _init_analysis() from base class
+        ForwardAnalysis._init_analysis(self)
 
         self._initialize_cfg()
 
@@ -641,24 +646,6 @@ class CFG(Analysis, CFGBase):
         # It's actually a multi-dict, as we care about contexts.
         self._nodes = {}
 
-    def _construct(self):
-        """
-        Construct the CFG.
-
-        Fastpath means the CFG generation will work in an IDA-like way, in
-        which it will not try to execute every single statement in the emulator,
-        but will just do the decoding job. This is much faster than the old
-        way.
-
-        :return: None
-        """
-
-        l.debug('Begin CFG construction.')
-
-        self._pre_construction()
-
-        remaining_entries = [ ]
-
         # For each call, we are always getting two exits: an Ijk_Call that
         # stands for the real call exit, and an Ijk_Ret that is a simulated exit
         # for the retn address. There are certain cases that the control flow
@@ -667,11 +654,19 @@ class CFG(Analysis, CFGBase):
         # exits here to increase our code coverage. Of course the real retn from
         # that call always precedes those "fake" retns.
         # Tuple --> (Initial state, call_stack, bbl_stack)
-        pending_entries = {}
+        self._pending_entries = { }
 
         # Counting how many times a basic block is traced into
-        traced_addrs = defaultdict(lambda: defaultdict(int))
+        self._traced_addrs = defaultdict(lambda: defaultdict(int))
 
+        self._exit_targets = self._edge_map
+
+        # A dict that collects essential parameters to properly reconstruct initial state for a SimRun
+        self._simrun_info_collection = {}
+        self._analyzed_addrs = set()
+        self._non_returning_functions = set()
+
+        # Fill up self._starts
         for item in self._starts:
             if isinstance(item, tuple):
                 # (addr, jumpkind)
@@ -688,58 +683,66 @@ class CFG(Analysis, CFGBase):
             entry_path = self.project.factory.path(state)
             path_wrapper = EntryWrapper(entry_path, self._context_sensitivity_level)
 
-            remaining_entries.append(path_wrapper)
+            self._entries.append(path_wrapper)
 
-        exit_targets = self._edge_map
-        # A dict that collects essential parameters to properly reconstruct initial state for a SimRun
-        simrun_info_collection = {}
-        analyzed_addrs = set()
-        non_returning_functions = set()
+    def _pre_analysis(self):
+        """
+        Not much to do here
+        :return: None
+        """
+        pass
 
-        # Iteratively analyze every exit
-        while len(remaining_entries) > 0:
-            entry = remaining_entries.pop()
-            # Process the popped entry
-            self._handle_entry(entry, remaining_entries, exit_targets, pending_entries, traced_addrs,
-                               self.return_target_sources, simrun_info_collection, analyzed_addrs,
-                               non_returning_functions
-                               )
+    def _intra_analysis(self):
+        """
 
-            if not len(remaining_entries) and len(pending_entries):
-                # There are no more remaining entries, but only pending entries left. Each pending entry corresponds to
-                # a previous entry that does not return properly.
-                # Now it's a good time to analyze each function (that we have so far) and determine if it is a)
-                # returning, b) not returning, or c) unknown. For those functions that are definitely not returning,
-                # remove the corresponding pending exits from `pending_entries` array. Perform this procedure iteratively
-                # until no new not-returning functions appear. Then we pick a pending exit based on the following
-                # priorities:
-                # - Entry pended by a returning function
-                # - Entry pended by an unknown function
+        :return:
+        """
 
-                while True:
-                    new_changes = self._analyze_function_features()
-                    if not new_changes['functions_do_not_return']:
-                        break
+        # TODO: Why was the former two conditions there in the first place?
+        # if remaining_entries and pending_entries and self._pending_function_hints:
+        if self._pending_function_hints:
+            self._process_hints(self._analyzed_addrs, self._pending_entries)
 
-                self._clean_pending_exits(pending_entries)
+    def _entry_list_empty(self):
+        """
 
-            while len(remaining_entries) == 0 and len(pending_entries) > 0:
-                # We don't have any exits remaining. Let's pop out a pending exit
-                path_wrapper = self._process_pending_entry(exit_targets, pending_entries)
-                if path_wrapper is None:
-                    continue
+        :return:
+        """
 
-                remaining_entries.append(path_wrapper)
-                break
+        if len(self._pending_entries):
+            # There are no more remaining entries, but only pending entries left. Each pending entry corresponds to
+            # a previous entry that does not return properly.
+            # Now it's a good time to analyze each function (that we have so far) and determine if it is a)
+            # returning, b) not returning, or c) unknown. For those functions that are definitely not returning,
+            # remove the corresponding pending exits from `pending_entries` array. Perform this procedure iteratively
+            # until no new not-returning functions appear. Then we pick a pending exit based on the following
+            # priorities:
+            # - Entry pended by a returning function
+            # - Entry pended by an unknown function
 
-            if remaining_entries and pending_entries and self._pending_function_hints:
-                self._process_hints(analyzed_addrs, pending_entries)
+            while True:
+                new_changes = self._analyze_function_features()
+                if not new_changes['functions_do_not_return']:
+                    break
 
-        self._post_construction()
+            self._clean_pending_exits(self._pending_entries)
+
+        while len(self._pending_entries) > 0:
+            # We don't have any exits remaining. Let's pop out a pending exit
+            path_wrapper = self._process_pending_entry(self._exit_targets, self._pending_entries)
+            if path_wrapper is None:
+                continue
+
+            self._entries.append(path_wrapper)
+            break
 
     def _create_initial_state(self, ip, jumpkind):
         """
         Obtain a SimState object for a specific address
+
+        Fastpath means the CFG generation will work in an IDA-like way, in which it will not try to execute every
+        single statement in the emulator, but will just do the decoding job. This is much faster than the old way.
+
         :param int ip: The instruction pointer
         :param str jumpkind: The jumpkind upon executing the block
         :return: The newly-generated state
@@ -796,9 +799,9 @@ class CFG(Analysis, CFGBase):
 
         path = self.project.factory.path(pending_exit_state)
         path_wrapper = EntryWrapper(path,
-                                        self._context_sensitivity_level,
-                                        call_stack=pending_exit_call_stack,
-                                        bbl_stack=pending_exit_bbl_stack
+                                    self._context_sensitivity_level,
+                                    call_stack=pending_exit_call_stack,
+                                    bbl_stack=pending_exit_bbl_stack
                                     )
         l.debug("Tracing a missing return exit %s", self._simrun_key_repr(pending_exit_tuple))
 
@@ -832,7 +835,7 @@ class CFG(Analysis, CFGBase):
                 self.artifacts.functions.function(new_path_wrapper.current_function_address, create=True)
                 break
 
-    def _post_construction(self):
+    def _post_analysis(self):
         """
         Post-CFG-construction
 
@@ -856,41 +859,40 @@ class CFG(Analysis, CFGBase):
 
     # Entry handling
 
-    def _handle_entry(self, entry, remaining_exits, exit_targets, pending_exits, traced_sim_blocks,
-                      retn_target_sources, simrun_info_collection, analyzed_addrs, non_returning_functions):
+    def _pre_entry_handling(self, entry, _locals):
         """
-        Handles an entry.
 
-        In static mode, we create a unique stack region for each function, and
-        normalize its stack pointer to the default stack offset.
+        :param entry:
+        :param _locals:
+        :return:
         """
 
         # Extract initial info from entry_wrapper
-        current_entry = entry.path
-        call_stack_suffix = entry.call_stack_suffix()
-        addr = current_entry.addr
-        func_addr = entry.current_function_address
-        current_stack_pointer = entry.current_stack_pointer
-        accessed_registers_in_function = entry.current_function_accessed_registers
-        current_function = self.artifacts.functions.function(func_addr, create=True)
-        jumpkind = 'Ijk_Boring' if current_entry.state.scratch.jumpkind is None else \
-            current_entry.state.scratch.jumpkind
+        path = _locals['path'] = entry.path
+        call_stack_suffix = _locals['call_stack_suffix'] = entry.call_stack_suffix()
+        addr = _locals['addr'] = entry.path.addr
+        func_addr = _locals['func_addr'] = entry.current_function_address
+        _locals['current_stack_pointer'] = entry.current_stack_pointer
+        _locals['accessed_registers_in_function'] = entry.current_function_accessed_registers
+        _locals['current_function'] = self.artifacts.functions.function(_locals['func_addr'], create=True)
+        jumpkind = _locals['jumpkind'] = 'Ijk_Boring' if entry.path.state.scratch.jumpkind is None else \
+            entry.path.state.scratch.jumpkind
 
         # Log this address
         if l.level == logging.DEBUG:
-            analyzed_addrs.add(addr)
+            self._analyzed_addrs.add(addr)
 
         if addr == func_addr:
             # Store the input state of this function
-            self._function_input_states[func_addr] = current_entry.state
+            self._function_input_states[func_addr] = path.state
 
         # Get a SimRun out of current SimExit
-        simrun, error_occurred, _ = self._get_simrun(addr, current_entry, current_function_addr=func_addr)
+        simrun, error_occurred, _ = self._get_simrun(addr, path, current_function_addr=func_addr)
         if simrun is None:
             # We cannot retrieve the SimRun...
-            return
+            raise AngrForwardAnalysisSkipEntry()
 
-        self._update_thumb_addrs(simrun, current_entry.state)
+        self._update_thumb_addrs(simrun, path.state)
 
         # We store the function hints first. Function hints will be checked at the end of the analysis to avoid
         # any duplication with existing jumping targets
@@ -903,7 +905,7 @@ class CFG(Analysis, CFGBase):
         simrun_key = self._generate_simrun_key(call_stack_suffix, addr, jumpkind.startswith('Ijk_Sys'))
 
         # Increment tracing count for this SimRun
-        traced_sim_blocks[call_stack_suffix][addr] += 1
+        self._traced_addrs[call_stack_suffix][addr] += 1
 
         # Create the CFGNode object
         cfg_node = self._create_cfgnode(simrun, call_stack_suffix, func_addr)
@@ -914,7 +916,33 @@ class CFG(Analysis, CFGBase):
         self._nodes[simrun_key] = cfg_node
 
         simrun_info = self.project.arch.gather_info_from_state(simrun.initial_state)
-        simrun_info_collection[addr] = simrun_info
+        self._simrun_info_collection[addr] = simrun_info
+
+        _locals['simrun'] = simrun
+        _locals['simrun_key'] = simrun_key
+        _locals['cfg_node'] = cfg_node
+        _locals['error_occurred'] = error_occurred
+
+        # For debugging purposes!
+        _locals['successor_status'] = {}
+
+    def _get_successors(self, entry, _locals):
+        """
+
+        :param entry:
+        :param _locals:
+        :return:
+        """
+
+        simrun = _locals['simrun']
+        addr = _locals['addr']
+        cfg_node = _locals['cfg_node']
+        func_addr = _locals['func_addr']
+        current_function = _locals['current_function']
+        error_occurred = _locals['error_occurred']
+        simrun_key = _locals['simrun_key']
+        current_stack_pointer = _locals['current_stack_pointer']
+        accessed_registers_in_function = _locals['accessed_registers_in_function']
 
         # Get all successors of this SimRun
         successors = (simrun.flat_successors + simrun.unsat_successors) if addr not in self._avoid_runs else []
@@ -922,12 +950,15 @@ class CFG(Analysis, CFGBase):
         # Post-process successors
         successors, extra_info = self._post_process_successors(simrun, successors)
 
+        _locals['extra_info'] = extra_info
+
         if self._keep_state:
             cfg_node.final_states = successors[::]
 
         # Try to resolve indirect jumps
         successors = self._resolve_indirect_jumps(simrun, cfg_node, func_addr, successors, error_occurred,
-                                                      simrun_info_collection)
+                                                  self._simrun_info_collection
+                                                  )
 
         # Ad additional edges supplied by the user
         successors = self._add_additional_edges(simrun, cfg_node, successors)
@@ -952,7 +983,7 @@ class CFG(Analysis, CFGBase):
                         retn_target,
                         False
                     )  # You can never return to a syscall
-                    exit_targets[simrun_key].append((exit_target_tpl, 'Ijk_Ret', 'default'))
+                    self._exit_targets[simrun_key].append((exit_target_tpl, 'Ijk_Ret', 'default'))
 
             else:
                 # Well, there is just no successors. What can you expect?
@@ -967,21 +998,19 @@ class CFG(Analysis, CFGBase):
             self._handle_actions(successors[0], simrun, current_function, current_stack_pointer,
                                  accessed_registers_in_function)
 
-        # For debugging purposes!
-        successor_status = {}
+        return successors
 
-        # Then handles each successor state
-        for successor_state in successors:
-            path_wrapper = self._handle_successor_state(simrun, simrun_key, addr, func_addr,
-                                                        successor_state, successors, entry, pending_exits,
-                                                        retn_target_sources, traced_sim_blocks, extra_info,
-                                                        call_stack_suffix, exit_targets, successor_status)
+    def _post_entry_handling(self, entry, successors, _locals):
+        """
 
-            if extra_info['is_call_jump'] and extra_info['call_target'] in non_returning_functions:
-                extra_info['skip_fakeret'] = True
+        :param entry:
+        :param successors:
+        :param _locals:
+        :return:
+        """
 
-            if path_wrapper:
-                remaining_exits.append(path_wrapper)
+        extra_info = _locals['extra_info']
+        cfg_node = _locals['cfg_node']
 
         # Finally, post-process CFG Node and log the return target
         if extra_info['is_call_jump'] and extra_info['return_target'] is not None:
@@ -990,8 +1019,7 @@ class CFG(Analysis, CFGBase):
         # Debugging output if needed
         if l.level == logging.DEBUG:
             # Only in DEBUG mode do we process and output all those shit
-            self._post_handle_entry_debug(simrun, call_stack_suffix, extra_info, successors, remaining_exits,
-                                          pending_exits, successor_status, analyzed_addrs)
+            self._post_handle_entry_debug(entry, successors, _locals)
 
     def _post_process_successors(self, simrun, successors):
         """
@@ -1039,8 +1067,9 @@ class CFG(Analysis, CFGBase):
                     can_produce_exits.add(cs_insn.address)
 
             successors = filter(lambda state: state.scratch.ins_addr in can_produce_exits or
-                                                  state.scratch.stmt_idx == simrun.num_stmts,
-                                    successors)
+                                              state.scratch.stmt_idx == simrun.num_stmts,
+                                    successors
+                                )
 
         # If there is a call exit, we shouldn't put the default exit (which
         # is artificial) into the CFG. The exits will be Ijk_Call and
@@ -1068,12 +1097,16 @@ class CFG(Analysis, CFGBase):
 
         return successors, extra_info
 
-    def _post_handle_entry_debug(self, simrun, call_stack_suffix, extra_info, successors, remaining_exits, pending_exits,
-                                 successor_status, analyzed_addrs):
+    def _post_handle_entry_debug(self, entry, successors, _locals):
         """
 
         :return:
         """
+
+        simrun = _locals['simrun']
+        call_stack_suffix = _locals['call_stack_suffix']
+        extra_info = _locals['extra_info']
+        successor_status = _locals['successor_status']
 
         function_name = self.project.loader.find_symbol_name(simrun.addr)
         module_name = self.project.loader.find_module_name(simrun.addr)
@@ -1094,8 +1127,8 @@ class CFG(Analysis, CFGBase):
             except (simuvex.SimValueError, simuvex.SimSolverModeError):
                 l.debug("|    target cannot be concretized. %s [%s] %s", successor_status[suc], exit_type_str,
                         jumpkind)
-        l.debug("%d exits remaining, %d exits pending.", len(remaining_exits), len(pending_exits))
-        l.debug("%d unique basic blocks are analyzed so far.", len(analyzed_addrs))
+        l.debug("%d exits remaining, %d exits pending.", len(self._entries), len(self._pending_entries))
+        l.debug("%d unique basic blocks are analyzed so far.", len(self._analyzed_addrs))
 
     def _clean_pending_exits(self, pending_exits):
         """
@@ -1155,13 +1188,24 @@ class CFG(Analysis, CFGBase):
         if jumpkind == "Ijk_Call":
             extra_info['last_call_exit_target'] = target_addr
 
-    def _handle_successor_state(self, simrun, simrun_key, addr, current_function_addr, state, all_successor_states,
-                                entry_wrapper, pending_exits, retn_target_sources, traced_sim_blocks, extra_info,
-                                call_stack_suffix, exit_targets, successor_status):
+    def _handle_successor(self, entry, successor, successors, _locals):
         """
         Returns a new PathWrapper instance for further analysis, or None if there is no immediate state to perform the
         analysis on.
         """
+
+        state = successor
+        all_successor_states = successors
+        entry_wrapper = entry
+
+        simrun = _locals['simrun']
+        simrun_key = _locals['simrun_key']
+        addr = _locals['addr']
+        func_addr = _locals['func_addr']
+        call_stack_suffix = _locals['call_stack_suffix']
+        extra_info = _locals['extra_info']
+        # retn_target_sources, extra_info
+        successor_status = _locals['successor_status']
 
         # The PathWrapper instance to return
         pw = None
@@ -1210,9 +1254,9 @@ class CFG(Analysis, CFGBase):
         # Remove pending targets - type 2
         # TODO: Support other context_sensitivity levels other than 2
         tpl = self._generate_simrun_key((None, None), target_addr, suc_jumpkind.startswith('Ijk_Suc'))
-        if tpl in pending_exits:
+        if tpl in self._pending_entries:
             l.debug("Removing pending exits (type 2) to %s", hex(target_addr))
-            del pending_exits[tpl]
+            del self._pending_entries[tpl]
 
         if suc_jumpkind == "Ijk_FakeRet":
             if target_addr == extra_info['last_call_exit_target']:
@@ -1248,13 +1292,13 @@ class CFG(Analysis, CFGBase):
         if isinstance(simrun, simuvex.SimIRSB):
             self._detect_loop(simrun,
                               new_tpl,
-                              exit_targets,
+                              self._exit_targets,
                               simrun_key,
                               new_call_stack_suffix,
                               target_addr,
                               suc_jumpkind,
                               entry_wrapper,
-                              current_function_addr)
+                              func_addr)
 
         # Generate the new BBL stack of target block
         if suc_jumpkind == "Ijk_Call" or suc_jumpkind.startswith('Ijk_Sys'):
@@ -1263,23 +1307,23 @@ class CFG(Analysis, CFGBase):
             new_bbl_stack.push(new_call_stack_suffix, target_addr, target_addr)
         elif suc_jumpkind == "Ijk_Ret":
             new_bbl_stack = entry_wrapper.bbl_stack_copy()
-            new_bbl_stack.ret(call_stack_suffix, current_function_addr)
+            new_bbl_stack.ret(call_stack_suffix, func_addr)
         elif suc_jumpkind == "Ijk_FakeRet":
             new_bbl_stack = entry_wrapper.bbl_stack_copy()
         else:
             new_bbl_stack = entry_wrapper.bbl_stack_copy()
-            new_bbl_stack.push(new_call_stack_suffix, current_function_addr, target_addr)
+            new_bbl_stack.push(new_call_stack_suffix, func_addr, target_addr)
 
         # Generate new exits
         if suc_jumpkind == "Ijk_Ret":
             # This is the real return exit
             # Remember this retn!
-            retn_target_sources[target_addr].append(simrun_key)
+            self.return_target_sources[target_addr].append(simrun_key)
             # Check if this retn is inside our pending_exits set
-            if new_tpl in pending_exits:
-                del pending_exits[new_tpl]
+            if new_tpl in self._pending_entries:
+                del self._pending_entries[new_tpl]
 
-            if traced_sim_blocks[new_call_stack_suffix][target_addr] < 1:
+            if self._traced_addrs[new_call_stack_suffix][target_addr] < 1:
                 new_path = self.project.factory.path(new_state)
                 pw = EntryWrapper(new_path,
                                   self._context_sensitivity_level,
@@ -1301,7 +1345,7 @@ class CFG(Analysis, CFGBase):
             st.set_mode('fastpath')
 
             pe = PendingExit(extra_info['call_target'], st, new_bbl_stack, new_call_stack)
-            pending_exits[new_tpl] = pe
+            self._pending_entries[new_tpl] = pe
             successor_status[state] = "Pended"
 
         elif (suc_jumpkind == 'Ijk_Call' or suc_jumpkind.startswith('Ijk_Sys')) and \
@@ -1315,7 +1359,7 @@ class CFG(Analysis, CFGBase):
             # We skip this call
             successor_status[state] = "Skipped"
 
-        elif traced_sim_blocks[new_call_stack_suffix][target_addr] < 1:
+        elif self._traced_addrs[new_call_stack_suffix][target_addr] < 1:
             new_path = self.project.factory.path(new_state)
 
             # We might have changed the mode for this basic block
@@ -1329,7 +1373,7 @@ class CFG(Analysis, CFGBase):
                               bbl_stack=new_bbl_stack)
             successor_status[state] = "Appended"
 
-        elif traced_sim_blocks[new_call_stack_suffix][target_addr] >= 1 and suc_jumpkind == "Ijk_Ret":
+        elif self._traced_addrs[new_call_stack_suffix][target_addr] >= 1 and suc_jumpkind == "Ijk_Ret":
             # This is a corner case for the f****** ARM instruction
             # like
             # BLEQ <address>
@@ -1339,9 +1383,13 @@ class CFG(Analysis, CFGBase):
             # for it afterwards.
             pass
 
-        exit_targets[simrun_key].append((new_tpl, suc_jumpkind, suc_exit_stmt_idx))
+        self._exit_targets[simrun_key].append((new_tpl, suc_jumpkind, suc_exit_stmt_idx))
 
-        return pw
+        if extra_info['is_call_jump'] and extra_info['call_target'] in self._non_returning_functions:
+            extra_info['skip_fakeret'] = True
+
+        if pw:
+            self._entries.append(pw)
 
     # SimAction handling
 
