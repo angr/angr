@@ -91,7 +91,7 @@ class SimIRSB(SimRun):
         try:
             self._handle_statements()
         except (SimSolverError, SimMemoryAddressError):
-            l.warning("%s hit an when analyzing statements", self, exc_info=True)
+            l.warning("%s hit an error while analyzing statement %d", self, self.state.scratch.stmt_idx, exc_info=True)
 
         # some finalization
         self.num_stmts = len(self.irsb.statements)
