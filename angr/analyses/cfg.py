@@ -874,7 +874,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         func_addr = _locals['func_addr'] = entry.current_function_address
         _locals['current_stack_pointer'] = entry.current_stack_pointer
         _locals['accessed_registers_in_function'] = entry.current_function_accessed_registers
-        _locals['current_function'] = self.artifacts.functions.function(_locals['func_addr'], create=True)
+        current_function = _locals['current_function'] = self.artifacts.functions.function(_locals['func_addr'], create=True)
         jumpkind = _locals['jumpkind'] = 'Ijk_Boring' if entry.path.state.scratch.jumpkind is None else \
             entry.path.state.scratch.jumpkind
 
@@ -1279,9 +1279,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             return
 
         # Create the new call stack of target block
-        new_call_stack = self._create_new_call_stack(addr, all_successor_states,
-                                                     entry_wrapper,
-                                                     target_addr,
+        new_call_stack = self._create_new_call_stack(addr, all_successor_states, entry_wrapper, target_addr,
                                                      suc_jumpkind)
         # Create the callstack suffix
         new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
@@ -2347,8 +2345,14 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             new_call_stack = entry_wrapper.call_stack
 
         else:
-            # Normal control flow transition
-            new_call_stack = entry_wrapper.call_stack
+            # although the jumpkind is not Ijk_Call, it may still jump to a new function... let's see
+            if self.project.is_hooked(exit_target): # TODO: Check whether it's a simprocedure
+                new_call_stack = entry_wrapper.call_stack_copy()
+                new_call_stack._stack[-1] = (addr, exit_target)
+
+            else:
+                # Normal control flow transition
+                new_call_stack = entry_wrapper.call_stack
 
         return new_call_stack
 
@@ -2530,7 +2534,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
     def _analyze_function_features(self):
         """
         For each function in the function_manager, try to determine if it returns or not. A function does not return if
-        it calls another function that is known to be not returning, and this functiond does not have other exits.
+        it calls another function that is known to be not returning, and this function does not have other exits.
 
         We might as well analyze other features of functions in the future.
         """
@@ -2554,7 +2558,17 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                 continue
 
             # This function does not have endpoints. It's either because it does not return, or we haven't analyzed all
-            # blocks of it. We check all its current nodes in transition graph whose out degree is 0 (call them
+            # blocks of it.
+
+            # Let's first see if it's a known SimProcedure that does not return
+            if self.project.is_hooked(func.addr):
+                hooker = self.project.hooked_by(func.addr)
+                if hasattr(hooker, 'NO_RET') and hooker.NO_RET:
+                    func.returning = False
+                    changes['functions_do_not_return'].append(func)
+                    continue
+
+            # We check all its current nodes in transition graph whose out degree is 0 (call them
             # temporary endpoints)
 
             temporary_local_endpoints = [a for a in func.graph.nodes()
@@ -2588,13 +2602,18 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                 if endpoint in func.nodes:
                     # Somehow analysis terminated here (e.g. an unsupported instruction, or it doesn't generate an exit)
 
-                    n = self.get_any_node(endpoint.addr, is_syscall=func.is_syscall)
-                    if n:
-                        # It might be a SimProcedure or a syscall, or even a normal block
-                        all_endpoints_returning.append(not n.no_ret)
+                    from ..artifacts import Function
+                    if isinstance(endpoint, Function):
+                        all_endpoints_returning.append(endpoint.returning)
 
                     else:
-                        all_endpoints_returning.append(None)
+                        n = self.get_any_node(endpoint.addr, is_syscall=func.is_syscall)
+                        if n:
+                            # It might be a SimProcedure or a syscall, or even a normal block
+                            all_endpoints_returning.append(not n.no_ret)
+
+                        else:
+                            all_endpoints_returning.append(None)
 
                 else:
                     # This block is not a member of the current function

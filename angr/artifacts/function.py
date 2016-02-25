@@ -420,6 +420,7 @@ class Function(object):
             return self._local_transition_graph
 
         g = networkx.DiGraph()
+        g.add_node(self.startpoint)
         for src, dst, data in self.transition_graph.edges_iter(data=True):
             if 'type' in data and data['type'] in ('transition', 'fake_return', 'syscall'):
                 g.add_edge(src, dst, attr_dict=data)
