@@ -231,7 +231,8 @@ def test_thumb_mode():
     # Functions in function manager
     for f_addr, f in p.artifacts.functions.items():
         check_addr(f_addr)
-        check_addr(f.startpoint)
+        if f.startpoint is not None:
+            check_addr(f.startpoint.addr)
 
 def run_all():
     functions = globals()
