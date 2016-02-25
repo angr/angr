@@ -2897,8 +2897,8 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         else:
             raise AngrCFGError("from and to should be of the same type")
 
-        graph = self._remove_fakerets(self.graph)
-        return networkx.all_shortest_paths(graph, n_begin, n_end)
+        self.remove_fakerets()
+        return networkx.all_shortest_paths(self.graph, n_begin, n_end)
 
     def _quasi_topological_sort(self):
         """
