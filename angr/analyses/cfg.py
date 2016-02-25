@@ -1252,8 +1252,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         self._pre_handle_successor_state(extra_info, suc_jumpkind, target_addr)
 
         # Remove pending targets - type 2
-        # TODO: Support other context_sensitivity levels other than 2
-        tpl = self._generate_simrun_key((None, None), target_addr, suc_jumpkind.startswith('Ijk_Suc'))
+        tpl = self._generate_simrun_key(call_stack_suffix, target_addr, suc_jumpkind.startswith('Ijk_Sys'))
         if tpl in self._pending_entries:
             l.debug("Removing pending exits (type 2) to %s", hex(target_addr))
             del self._pending_entries[tpl]
