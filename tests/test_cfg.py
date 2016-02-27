@@ -190,7 +190,7 @@ def test_cfg_6():
                         use_sim_procedures=True,
                         load_options={'auto_load_libs': False})
     cfg = proj.analyses.CFG(context_sensitivity_level=1)
-    nose.tools.assert_greater_equal(len(cfg.function_manager.functions), 92)
+    nose.tools.assert_greater_equal(len(cfg.function_manager.functions), 58)
     simuvex.o.modes['fastpath'] ^= {simuvex.s_options.DO_CCALLS}
 
 def test_fauxware():
