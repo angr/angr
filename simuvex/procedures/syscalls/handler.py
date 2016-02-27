@@ -6,47 +6,6 @@ import simuvex.s_cc
 import logging
 l = logging.getLogger('simuvex.procedures.syscalls')
 
-# TODO: per-OS and per-arch
-syscall_map = { }
-
-syscall_map['AMD64'] = { }
-syscall_map['AMD64'][0] = 'read'
-syscall_map['AMD64'][1] = 'write'
-syscall_map['AMD64'][2] = 'open'
-syscall_map['AMD64'][3] = 'close'
-syscall_map['AMD64'][4] = 'stat'
-syscall_map['AMD64'][5] = 'fstat'
-syscall_map['AMD64'][6] = 'stat'
-syscall_map['AMD64'][9] = 'mmap'
-syscall_map['AMD64'][60] = 'exit'
-syscall_map['AMD64'][231] = 'exit' # really exit_group, but close enough
-
-syscall_map['X86'] = { }
-syscall_map['X86'][1] = 'exit'
-syscall_map['X86'][3] = 'read'
-syscall_map['X86'][4] = 'write'
-syscall_map['X86'][5] = 'open'
-syscall_map['X86'][6] = 'close'
-syscall_map['X86'][252] = 'exit'    # exit_group
-
-syscall_map['PPC32'] = {}
-syscall_map['PPC64'] = {}
-syscall_map['MIPS32'] = {}
-syscall_map['MIPS64'] = {}
-syscall_map['ARM'] = {}
-syscall_map['ARMEL'] = syscall_map['ARM']
-syscall_map['ARMHF'] = syscall_map['ARM']
-syscall_map['AARCH64'] = {}
-
-syscall_map['CGC'] = { }
-syscall_map['CGC'][1] = '_terminate'
-syscall_map['CGC'][2] = 'transmit'
-syscall_map['CGC'][3] = 'receive'
-syscall_map['CGC'][4] = 'fdwait'
-syscall_map['CGC'][5] = 'allocate'
-syscall_map['CGC'][6] = 'deallocate'
-syscall_map['CGC'][7] = 'random'
-
 class handler(simuvex.SimProcedure):
     # The NO_RET flag of handler is set to True, since normally it does not return - the real syscall would return.
     # However, if coming across an unsupported syscall, we will override this flag to False, since the real syscall is
@@ -101,7 +60,7 @@ class handler(simuvex.SimProcedure):
                 map_name = self.state.arch.name
                 syscall_lib = 'syscalls'
 
-            if n not in syscall_map[map_name]:
+            if n not in syscall_table[map_name]:
                 self.overriding_no_ret = False
                 l.error("no syscall %d for arch %s", n, map_name)
                 if simuvex.o.BYPASS_UNSUPPORTED_SYSCALL in self.state.options:
@@ -110,7 +69,7 @@ class handler(simuvex.SimProcedure):
                 else:
                     raise simuvex.UnsupportedSyscallError("no syscall %d for arch %s" % (n, map_name))
 
-            self.callname = syscall_map[map_name][n]
+            self.callname = syscall_table[map_name][n]
             l.debug("Routing to syscall %s", self.callname)
 
             cc = simuvex.s_cc.SyscallCC[self.state.arch.name](self.state.arch)
@@ -144,3 +103,4 @@ class handler(simuvex.SimProcedure):
 
 from ...s_errors import UnsupportedSyscallError
 from ...s_errors import SimUnsatError
+from . import syscall_table
