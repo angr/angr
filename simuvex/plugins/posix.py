@@ -157,10 +157,7 @@ class SimStateSystem(SimStatePlugin):
             raise SimPosixError("Symbolic fd ?")
 
         fd = self.state.se.any_int(fd)
-        try:
-            del self.files[fd]
-        except KeyError:
-            l.error("Could not close fd 0x%x", fd)
+        self.get_file(fd).close()
 
     def fstat(self, fd): #pylint:disable=unused-argument
         # sizes are AMD64-specific for now

@@ -41,7 +41,7 @@ def _deps_unpack(a):
 
 class SimFile(SimStatePlugin):
     # Creates a SimFile
-    def __init__(self, name, mode, pos=0, content=None, size=None):
+    def __init__(self, name, mode, pos=0, content=None, size=None, closed=None):
         super(SimFile, self).__init__()
         self.name = name
         self.mode = mode
@@ -51,6 +51,7 @@ class SimFile(SimStatePlugin):
         self.size = size
 
         self.content = SimSymbolicMemory(memory_id="file_%s_%d" % (name, file_counter.next())) if content is None else content
+        self.closed = False if closed is None else closed
 
     @property
     def read_pos(self):
@@ -79,11 +80,17 @@ class SimFile(SimStatePlugin):
 
         self.content.set_state(st)
 
+    def close(self):
+        l.debug("File %s closed.", self.name)
+        self.closed = True
+
     def read(self, dst_addr, length):
         '''
         Reads some data from the current (or provided) position of the file.
         If dst_addr is specified, write it to that address.
         '''
+
+        # TODO: check file close status
 
         read_length = length
         if self.size is not None:
@@ -97,6 +104,8 @@ class SimFile(SimStatePlugin):
 
     def read_from(self, length):
 
+        # TODO: check file close status
+
         read_length = length
         if self.size is not None:
             remaining = self.size - self.pos
@@ -109,19 +118,23 @@ class SimFile(SimStatePlugin):
     # Writes some data to the current position of the file.
     def write(self, content, length):
         # TODO: something about length
+        # TODO: check file close status
+
         self.content.store(self.pos, content)
         self.write_pos += _deps_unpack(length)[0]
         return length
 
     # Seeks to a position in the file.
     def seek(self, where):
+        # TODO: check file close status
+
         if isinstance(where, (int, long)):
             where = self.state.se.BVV(where, self.state.arch.bits)
         self.pos = where
 
     # Copies the SimFile object.
     def copy(self):
-        return SimFile(self.name, self.mode, pos=self.pos, content=self.content.copy(), size=self.size)
+        return SimFile(self.name, self.mode, pos=self.pos, content=self.content.copy(), size=self.size, closed=self.closed)
 
     def all_bytes(self):
         indexes = self.content.mem.keys()
