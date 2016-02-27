@@ -10,6 +10,7 @@ syscall_table['AMD64'][4] = 'stat'
 syscall_table['AMD64'][5] = 'fstat'
 syscall_table['AMD64'][6] = 'stat'
 syscall_table['AMD64'][9] = 'mmap'
+syscall_table['AMD64'][12] = 'brk'
 syscall_table['AMD64'][60] = 'exit'
 syscall_table['AMD64'][231] = 'exit' # really exit_group, but close enough
 
@@ -19,6 +20,7 @@ syscall_table['X86'][3] = 'read'
 syscall_table['X86'][4] = 'write'
 syscall_table['X86'][5] = 'open'
 syscall_table['X86'][6] = 'close'
+syscall_table['X86'][45] = 'brk'
 syscall_table['X86'][252] = 'exit'  # exit_group
 
 syscall_table['PPC32'] = {}

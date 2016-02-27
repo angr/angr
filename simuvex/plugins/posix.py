@@ -37,6 +37,7 @@ class SimStateSystem(SimStatePlugin):
         self.chroot = chroot
         self.tls_modules = tls_modules if tls_modules is not None else {}
         self.queued_syscall_returns = [ ] if queued_syscall_returns is None else queued_syscall_returns
+        self.brk = None
 
         if initialize:
             l.debug("Initializing files...")
@@ -50,6 +51,11 @@ class SimStateSystem(SimStatePlugin):
         else:
             if len(self.files) == 0:
                 l.debug("Not initializing files...")
+
+    def set_brk(self, new_brk):
+        cur_brk = self.brk if self.brk is not None else self.state.se.BVV(0x1b00000, self.state.arch.bits)
+        self.brk = self.state.se.If(new_brk == 0, cur_brk, new_brk)
+        return self.brk
 
     #to keep track of sockets
     def add_socket(self, fd):
