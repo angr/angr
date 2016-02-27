@@ -9,7 +9,7 @@ syscall_table['AMD64'][3] = 'close'
 syscall_table['AMD64'][4] = 'stat'
 syscall_table['AMD64'][5] = 'fstat'
 syscall_table['AMD64'][6] = 'stat'
-syscall_table['AMD64'][9] = 'mtable'
+syscall_table['AMD64'][9] = 'mmap'
 syscall_table['AMD64'][60] = 'exit'
 syscall_table['AMD64'][231] = 'exit' # really exit_group, but close enough
 
