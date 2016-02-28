@@ -91,6 +91,10 @@ class Unicorn(SimStatePlugin):
                 uc_args = (unicorn.UC_ARCH_X86, unicorn.UC_MODE_32)
                 uc_const = unicorn.x86_const
                 uc_prefix = 'UC_X86_'
+            elif arch.qemu_name == 'mips':
+                uc_args = (unicorn.UC_ARCH_MIPS, unicorn.UC_MODE_MIPS32 | unicorn.UC_MODE_BIG_ENDIAN)
+                uc_const = unicorn.mips_const
+                uc_prefix = 'UC_MIPS_'
             else:
                 # TODO add more arch
                 raise NotImplementedError('unsupported arch %r', arch)
@@ -169,7 +173,6 @@ class Unicorn(SimStatePlugin):
         if self._mem_unmapped_hook is None:
             self._mem_unmapped_hook = self.uc.hook_add(unicorn.UC_HOOK_MEM_UNMAPPED, self._hook_mem_unmapped, None, 1, 0)
 
-        # FIXME x86_64 only
         if self._syscall_hook is None:
             arch = self.state.arch.qemu_name
             if arch == 'x86_64':
@@ -178,6 +181,8 @@ class Unicorn(SimStatePlugin):
                         self._uc_const.UC_X86_INS_SYSCALL)
             elif arch == 'i386':
                 self._syscall_hook = self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
+            elif arch == 'mips':
+                self._syscall_hook = self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_mips, None, 1, 0)
             else:
                 raise SimUnicornUnsupport
 
@@ -225,6 +230,16 @@ class Unicorn(SimStatePlugin):
         else:
             self.cur_steps += 1
 
+    def _hook_intr_mips(self, uc, intno, user_data):
+        if intno == 17: # EXCP_SYSCALL
+            sysno = self.uc.reg_read(self._uc_regs['v0'])
+            pc = self.uc.reg_read(self._uc_regs['pc'])
+            l.warning('hit sys_%d at %#x', sysno, pc)
+            self._syscall_pc = pc + 4
+            self._handle_syscall(uc, user_data)
+        else:
+            l.warning('unhandled interrupt %d', intno)
+
     def _hook_intr_x86(self, uc, intno, user_data):
         if intno == 0x80:
             if self.state.arch.bits == 32:
@@ -232,7 +247,7 @@ class Unicorn(SimStatePlugin):
             else:
                 self._hook_syscall_x86_64(uc, user_data)
         else:
-            l.warning('unhandled interrupt')
+            l.warning('unhandled interrupt %d', intno)
 
     def _hook_syscall_x86_64(self, uc, user_data):
         sysno = self.uc.reg_read(self._uc_regs['rax'])
@@ -272,6 +287,9 @@ class Unicorn(SimStatePlugin):
 
     def _hook_mem_unmapped(self, uc, access, address, size, value, user_data):
         ''' load memory from current state'''
+
+        # FIXME check angr hooks at `address`
+
         start = address & (0xffffffffffffff000)
         length = ((address + size + 0xfff) & (0xffffffffffffff000)) - start
 
@@ -279,7 +297,6 @@ class Unicorn(SimStatePlugin):
             # sometimes it happens because of %fs is not correctly set
             self.error = 'accessing zero page [%#x, %#x] (%#x)' % (address, address + size, access)
             l.warning(self.error)
-            l.debug('pc = %#x', self.uc.reg_read(self._uc_regs['eip']))
             if self.UC_NATIVE is not False:
                 # tell uc_state to rollback
                 self.UC_NATIVE.stop(self._uc_state, STOP.STOP_ZEROPAGE)

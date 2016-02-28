@@ -12,6 +12,7 @@
 #define MAX_REG_SIZE 0x2000 // hope it's big enough
 
 extern "C" void x86_reg_update(uc_engine *uc, uint8_t *buf, int save);
+extern "C" void mips_reg_update(uc_engine *uc, uint8_t *buf, int save);
 
 typedef enum taint: uint8_t {
 	TAINT_NONE = 0,
@@ -72,6 +73,9 @@ public:
 		switch (*(uc_arch *)uc) { // tricky:)
 				case UC_ARCH_X86:
 						*(void **)&uc_reg_update = (void *)x86_reg_update;
+						break;
+				case UC_ARCH_MIPS:
+						*(void **)&uc_reg_update = (void *)mips_reg_update;
 						break;
 				default:
 						*(void **)&uc_reg_update = (void *)0xdeadbeef;

@@ -38,7 +38,7 @@
 
 static int log_fd = STDERR_FILENO;
 static bool log_fd_isatty = true;
-enum llevel_t log_level = WARNING;
+enum llevel_t log_level = DEBUG;
 pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void logSetLogLevel(enum llevel_t level) {
