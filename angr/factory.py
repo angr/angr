@@ -134,9 +134,13 @@ class AngrObjectFactory(object):
             r = SimUnicorn(state, step=step)
             if r.success:
                 return r
+            else:
+                r = self.sim_block(state, addr=addr, **block_opts)
 
-        l.debug("Creating SimIRSB at 0x%x", addr)
-        r = self.sim_block(state, addr=addr, **block_opts)
+        else:
+
+            l.debug("Creating SimIRSB at 0x%x", addr)
+            r = self.sim_block(state, addr=addr, **block_opts)
 
         # Peek and fix the IP for syscalls
         if r.successors and r.successors[0].scratch.jumpkind.startswith('Ijk_Sys'):
