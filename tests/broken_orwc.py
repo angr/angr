@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-'''
+"""
 This is the first of many syscall tests
-'''
+"""
 
 import logging
 l = logging.getLogger("angr.tests")

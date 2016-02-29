@@ -22,7 +22,7 @@ from ..annocfg import AnnotatedCFG
 l = logging.getLogger("angr.analyses.girlscout")
 
 class GirlScout(Analysis):
-    '''
+    """
     We find functions inside the given binary, try to decide the base address if needed, and build a control-flow
     graph on top of that to see if there is an entry or not. Obviously if the binary is not loaded as a blob (not
     using Blob as its backend), GirlScout will not try to determine the base address.
@@ -31,7 +31,7 @@ class GirlScout(Analysis):
     the entire binary since it's time consuming.
 
     You probably need a BoyScout to determine the possible architecture and endianess of your binary blob.
-    '''
+    """
 
     def __init__(self, binary=None, start=None, end=None, pickle_intermediate_results=False, perform_full_code_scan=False):
         self._binary = binary if binary is not None else self.project.loader.main_bin
@@ -115,11 +115,10 @@ class GirlScout(Analysis):
             return None
 
     def _get_next_code_addr(self, initial_state):
-        '''
-        Besides calling _get_next_addr, we will check if data locates at that
-        address seems to be code or not. If not, we'll move on to request for
-        next valid address.
-        '''
+        """
+        Besides calling _get_next_addr, we will check if data locates at that address seems to be code or not. If not, 
+        we'll move on to request for next valid address.
+        """
         next_addr = self._get_next_addr_to_search()
         if next_addr is None:
             return None
@@ -172,13 +171,13 @@ class GirlScout(Analysis):
         return start_addr
 
     def _symbolic_reconnoiter(self, addr, target_addr, max_depth=10):
-        '''
+        """
         When an IRSB has more than two exits (for example, a jumptable), we
         cannot concretize their exits in concrete mode. Hence we statically
         execute the function from beginning in this method, and then switch to
         symbolic mode for the final IRSB to get all possible exits of that
         IRSB.
-        '''
+        """
         state = self.project.factory.blank_state(addr=addr,
                                                   mode="symbolic",
                                                   add_options={simuvex.o.CALLLESS}
@@ -432,14 +431,14 @@ class GirlScout(Analysis):
                 raise Exception("NotImplemented")
 
     def _scan_function_prologues(self, traced_address, function_exits, initial_state):
-        '''
+        """
         Scan the entire program space for prologues, and start code scanning at those positions
         :param traced_address:
         :param function_exits:
         :param initial_state:
         :param next_addr:
-        :return:
-        '''
+        :returns:
+        """
 
         # Precompile all regexes
         regexes = set()
@@ -472,10 +471,10 @@ class GirlScout(Analysis):
                             l.info("Skipping %xh", position)
 
     def _process_indirect_jumps(self):
-        '''
+        """
         Execute each basic block with an indeterminiable exit target
-        :return:
-        '''
+        :returns:
+        """
 
         function_starts = set()
         print "We have %d indirect jumps" % len(self._indirect_jumps)
@@ -565,13 +564,13 @@ class GirlScout(Analysis):
         return function_starts
 
     def _solve_forbase_address(self, function_starts, functions):
-        '''
+        """
         Voting for the most possible base address.
 
         :param function_starts:
         :param functions:
-        :return:
-        '''
+        :returns:
+        """
 
         pseudo_base_addr = self.project.loader.main_bin.get_min_addr()
 
@@ -606,7 +605,7 @@ class GirlScout(Analysis):
             self._full_code_scan()
 
     def _determinebase_address(self):
-        '''
+        """
         The basic idea is simple: start from a specific point, try to construct
         functions as much as we can, and maintain a function distribution graph
         and a call graph simultaneously. Repeat searching until we come to the
@@ -619,7 +618,7 @@ class GirlScout(Analysis):
         space, we first try to search for instruction patterns that a function
         may start with, and start scanning at those positions. Then we try to
         decode anything that is left.
-        '''
+        """
 
         traced_address = set()
         self.functions = set()

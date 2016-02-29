@@ -115,10 +115,10 @@ class AnnotatedCFG(object):
         self._addr_to_last_stmt_id[simrun_addr] = stmt_id
 
     def add_loop(self, loop_tuple):
-        '''
+        """
         A loop tuple contains a series of IRSB addresses that form a loop. Ideally
         it always starts with the first IRSB that we meet during the execution.
-        '''
+        """
         self._loops.append(loop_tuple)
 
     def set_path_merge_points(self, points):
@@ -147,9 +147,9 @@ class AnnotatedCFG(object):
         return None
 
     def get_whitelisted_statements(self, addr):
-        '''
-        @return: True if all statements are whitelisted
-        '''
+        """
+        :returns: True if all statements are whitelisted
+        """
         if addr in self._run_statement_whitelist:
             if self._run_statement_whitelist[addr] is True:
                 return None # This is the default value used in SimuVEX to say
@@ -254,9 +254,9 @@ class AnnotatedCFG(object):
             return set()
 
     def path_priority(self, path):
-        '''
+        """
         Given a path, returns the path priority. A lower number means a higher priority.
-        '''
+        """
         return self._path_prioritizer.get_priority(path)
 
     def successor_func(self, path):

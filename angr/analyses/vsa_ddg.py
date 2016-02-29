@@ -44,15 +44,15 @@ class VSA_DDG(Analysis):
 
                  ):
         """
-        Construtor.
+        Constructor.
 
-        :param vfg: An already constructed VFG. If not specified, a new VFG will be created with other specified
-                    parameters. `vfg` and `start_addr` cannot both be unspecified.
-        :param start_addr: The address where to start the analysis (typically, a function's entry point)
+        :param vfg:                 An already constructed VFG. If not specified, a new VFG will be created with other
+                                    specified parameters. `vfg` and `start_addr` cannot both be unspecified.
+        :param start_addr:          The address where to start the analysis (typically, a function's entry point).
         :param interfunction_level: See VFG analysis.
         :param context_sensitivity_level: See VFG analysis.
-        :param keep_data: whether we keep set of addresses as edges in the graph, or just the cardinality of the sets,
-                which can be used as a "weight".
+        :param keep_data:           Whether we keep set of addresses as edges in the graph, or just the cardinality of
+                                    the sets, which can be used as a "weight".
         """
 
         # sanity check
@@ -80,10 +80,10 @@ class VSA_DDG(Analysis):
 
     def __contains__(self, code_location):
         """
-        If code_location is in the graph
+        If `code_location` is in the graph.
 
-        :param code_location: A CodeLocation instance
-        :return: True/False
+        :param code_location:   A CodeLocation instance.
+        :returns:               True/False.
         """
 
         return code_location in self.graph
@@ -94,10 +94,10 @@ class VSA_DDG(Analysis):
 
     def get_predecessors(self, code_location):
         """
-        Returns all predecessors of the code location
+        Returns all predecessors of `code_location`.
 
-        :param code_location: A CodeLocation instance
-        :return: a list of all predecessors
+        :param code_location:   A CodeLocation instance.
+        :returns:               A list of all predecessors.
         """
 
         return self.graph.predecessors(code_location)
@@ -190,9 +190,9 @@ class VSA_DDG(Analysis):
         Given all live definitions prior to this program point, track the changes, and return a new list of live
         definitions. We scan through the action list of the new state to track the changes.
 
-        :param state: The input state at that program point.
-        :param live_defs: A list of all live definitions prior to reaching this program point.
-        :return: A list of new live definitions.
+        :param state:       The input state at that program point.
+        :param live_defs:   A list of all live definitions prior to reaching this program point.
+        :returns:           A list of new live definitions.
         """
 
         # Make a copy of live_defs
@@ -212,9 +212,9 @@ class VSA_DDG(Analysis):
         def _annotate_edges_in_dict(dict_, key, **new_labels):
             """
 
-            :param dict_: The dict, can be either `temps_to_edges` or `regs_to_edges`
-            :param key: The key used in finding elements in the dict
-            :param new_labels: New labels to be added to those edges
+            :param dict_:       The dict, can be either `temps_to_edges` or `regs_to_edges`
+            :param key:         The key used in finding elements in the dict
+            :param new_labels:  New labels to be added to those edges
             """
 
             for edge_tuple in dict_[key]:
@@ -231,8 +231,8 @@ class VSA_DDG(Analysis):
             """
             Pick an edge from the dict based on the key specified, add it to our graph, and remove the key from dict.
 
-            :param dict_: The dict, can be either `temps_to_edges` or `regs_to_edges`
-            :param key: The key used in finding elements in the dict
+            :param dict_:   The dict, can be either `temps_to_edges` or `regs_to_edges`.
+            :param key:     The key used in finding elements in the dict.
             """
             for edge_tuple in dict_[key]:
                 # unpack it
@@ -342,15 +342,15 @@ class VSA_DDG(Analysis):
 
         return live_defs
 
+    # TODO : This docstring is out of date, what is addr_list?
     def _def_lookup(self, live_defs, variable):
         """
         This is a backward lookup in the previous defs.
-        @addr_list is a list of normalized addresses.
-        Note that, as we are using VSA, it is possible that @a is affected by
-        several definitions.
-        Returns: a dict {stmt:labels} where label is the number of individual
-        addresses of @addr_list (or the actual set of addresses depending on the
-        keep_addrs flag) that are definted by stmt.
+
+        :param addr_list: a list of normalized addresses.
+                        Note that, as we are using VSA, it is possible that @a is affected by several definitions.
+        :returns:        a dict {stmt:labels} where label is the number of individual addresses of addr_list (or the
+                        actual set of addresses depending on the keep_addrs flag) that are definted by stmt.
         """
 
         prevdefs = { }
@@ -387,7 +387,7 @@ class VSA_DDG(Analysis):
 
     def _kill(self, live_defs, variable, code_loc):
         """
-        Kill previous defs. @addr_list is a list of normalized addresses
+        Kill previous defs. `addr_list` is a list of normalized addresses.
         """
 
         # Case 1: address perfectly match, we kill
@@ -399,8 +399,8 @@ class VSA_DDG(Analysis):
 
     def _add_edge(self, s_a, s_b, **edge_labels):
         """
-         Add an edge in the graph from @s_a to statment @s_b, where @s_a and
-         @s_b are tuples of statements of the form (irsb_addr, stmt_idx)
+        Add an edge in the graph from `s_a` to statement `s_b`, where `s_a` and `s_b` are tuples of statements of the
+        form (irsb_addr, stmt_idx).
         """
         # Is that edge already in the graph ?
         # If at least one is new, then we are not redoing the same path again

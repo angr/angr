@@ -27,7 +27,7 @@ class AngrObjectFactory(object):
         """
         Returns a SimIRSB object with execution based on state.
 
-        :param state: The state to tick forward with this block.
+        :param state:           The state to tick forward with this block.
 
         The following parameters are optional:
 
@@ -142,6 +142,8 @@ class AngrObjectFactory(object):
         :keyword concrete_fs: bool describing whether the host filesystem should be consulted when opening files.
         :keyword chroot:      A path to use as a fake root directory, Behaves similarly to a real chroot. Used only
                               when concrete_fs is set to True.
+        :return:              The blank state.
+        :rtype:               simuvex.SimState
         """
         return self._project._simos.state_blank(**kwargs)
 
@@ -149,12 +151,14 @@ class AngrObjectFactory(object):
         """
         Returns a state object representing the program at its entry point.
 
-        Additional keyword arguments will be passed into the appropriate SimOS's blank_state method:
+        Additional keyword arguments will be passed into the appropriate SimOS's entry_state method:
 
-        :param fs:          a dictionary of file names with associated preset SimFile objects
-        :param concrete_fs: boolean describing whether the host filesystem should be consulted when opening files
+        :param fs:          a dictionary of file names with associated preset SimFile objects.
+        :param concrete_fs: boolean describing whether the host filesystem should be consulted when opening files.
         :param chroot:      a path to use as a fake root directory, behaves similar to a real chroot. used only when
-                            concrete_fs is set to True
+                            concrete_fs is set to True.
+        :return:            The entry state.
+        :rtype:             simuvex.SimState
         """
 
         return self._project._simos.state_entry(**kwargs)

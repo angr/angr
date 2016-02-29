@@ -54,11 +54,11 @@ class CallStack(object):
 
     @staticmethod
     def stack_suffix_to_string(stack_suffix):
-        '''
+        """
         Convert a stack suffix to a human-readable string representation.
         :param stack_suffix:
         :return: A string
-        '''
+        """
         s = "[" + ",".join([("0x%x" % i) if i is not None else "Unspecified" for i in stack_suffix]) + "]"
         return s
 

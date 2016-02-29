@@ -72,7 +72,6 @@ class CFGNode(object):
     def downsize(self):
         """
         Drop saved states.
-        :return: None
         """
 
         self.input_state = None

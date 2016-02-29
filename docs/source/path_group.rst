@@ -1,3 +1,9 @@
+:mod:`angr.path` --- Paths
+==========================
+
+.. automodule:: angr.path
+   :members:
+
 :mod:`angr.path_group` --- Path Groups
 ======================================
 

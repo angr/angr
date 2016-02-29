@@ -4,10 +4,10 @@ import pyvex
 import simuvex
 
 class Blade(object):
-    '''
+    """
     Blade is a light-weight program slicer that works with networkx DiGraph containing SimIRSBs.
     It is meant to be used in angr for small or on-the-fly analyses.
-    '''
+    """
     def __init__(self, graph, dst_run, dst_stmt_idx, direction='backward', project=None):
         self._graph = graph
         self._dst_run = dst_run
@@ -81,7 +81,7 @@ class Blade(object):
         infodict['prev'] = tpl
 
     def _backward_slice(self):
-        '''
+        """
         Backward slicing.
 
         We support the following IRStmts:
@@ -94,7 +94,7 @@ class Blade(object):
         # Const
 
         :return:
-        '''
+        """
 
         temps = set()
         regs = set()
