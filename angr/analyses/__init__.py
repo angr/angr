@@ -9,3 +9,4 @@ from .backward_slice import BackwardSlice
 from .veritesting import Veritesting
 from .vsa_ddg import VSA_DDG
 from .bindiff import BinDiff
+from .dfg import DFG
