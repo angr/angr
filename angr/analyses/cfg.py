@@ -123,6 +123,9 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         # A copy of all entry points in this CFG. Integers
         self._entry_points = []
 
+        self._nodes = {}
+        self._nodes_by_addr = defaultdict(list)
+
         self._sanitize_parameters()
 
         self._executable_address_ranges = []
