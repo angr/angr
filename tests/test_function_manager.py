@@ -21,7 +21,7 @@ def test_amd64():
     EXPECTED_CALLSITES = { 0x40071D, 0x40073E, 0x400754, 0x40076A, 0x400774, 0x40078A, 0x4007A0, 0x4007BD, 0x4007C9 }
     EXPECTED_CALLSITE_TARGETS = { 4195600L, 4195632L, 4195632L, 4195600L, 4195632L, 4195632L, 4195940L, 4196077L,
                                   4196093L }
-    EXPECTED_CALLSITE_RETURNS = { 4196158L, 4196180L, 4196202L, 4196212L, 4196234L, 4196256L, 4196275L, 4196295L,
+    EXPECTED_CALLSITE_RETURNS = { 0x40073e, 0x400754, 0x40076a, 0x400774, 0x40078a, 0x4007a0, 0x4007b3, 0x4007c7,
                                   None }
 
     fauxware_amd64.analyses.CFG()
@@ -41,15 +41,21 @@ def test_amd64():
 
     # transition graph
     main_g = main.transition_graph
-    main_g_edges = main_g.edges(data=True)
+    main_g_edges_ = main_g.edges(data=True)
+
+    # Convert nodes those edges from blocks to addresses
+    main_g_edges = [ ]
+    for src_node, dst_node, data in main_g_edges_:
+        main_g_edges.append((src_node.addr, dst_node.addr, data))
+
     nose.tools.assert_true((0x40071d, 0x400510, {'type': 'call'}) in main_g_edges)
-    nose.tools.assert_true((0x40071d, 0x40073e, {'type': 'fake_return'}) in main_g_edges)
+    nose.tools.assert_true((0x40071d, 0x40073e, {'type': 'fake_return', 'confirmed': True}) in main_g_edges)
     nose.tools.assert_true((0x40073e, 0x400530, {'type': 'call'}) in main_g_edges)
-    nose.tools.assert_true((0x40073e, 0x400754, {'type': 'fake_return'}) in main_g_edges)
+    nose.tools.assert_true((0x40073e, 0x400754, {'type': 'fake_return', 'confirmed': True}) in main_g_edges)
 
     # rejected() does not return
     nose.tools.assert_true((0x4007c9, 0x4006fd, {'type': 'call'}) in main_g_edges)
-    nose.tools.assert_false((0x4007c9, 0x4007d3, {'type': 'fake_return'}) in main_g_edges)
+    nose.tools.assert_true((0x4007c9, 0x4007d3, {'type': 'fake_return'}) in main_g_edges)
 
     # These tests fail for reasons of fastpath, probably
     #nose.tools.assert_true(main.bp_on_stack)

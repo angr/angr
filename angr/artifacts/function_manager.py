@@ -48,8 +48,11 @@ class FunctionManager(collections.Mapping):
         dest_func = self._function_map[to_addr]
         dest_func.is_syscall = syscall
         self._function_map[function_addr]._call_to(from_node, dest_func, retn_node)
-        self._function_map[function_addr]._add_call_site(from_node.addr, to_addr, retn_node)
+        self._function_map[function_addr]._add_call_site(from_node.addr, to_addr, retn_node.addr if retn_node else None)
         self.callgraph.add_edge(function_addr, to_addr)
+
+    def _add_fakeret_to(self, function_addr, from_node, to_node):
+        self._function_map[function_addr]._fakeret_to(from_node, to_node)
 
     def _add_return_from(self, function_addr, from_node, to_node=None): #pylint:disable=unused-argument
         if type(from_node) in (int, long):

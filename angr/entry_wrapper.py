@@ -211,9 +211,13 @@ class BBLStack(object):
         return "\n".join(s)
 
 class EntryWrapper(object):
-    def __init__(self, path, context_sensitivity_level, jumpkind=None, call_stack=None, bbl_stack=None, is_narrowing=False):
+    def __init__(self, path, context_sensitivity_level, src_simrun_key, src_exit_stmt_idx, jumpkind=None,
+                 call_stack=None, bbl_stack=None, is_narrowing=False, skip=False):
         self._path = path
         self.jumpkind = jumpkind
+        self.src_simrun_key = src_simrun_key
+        self.src_exit_stmt_idx = src_exit_stmt_idx
+        self.skip = skip
 
         # Other parameters
         self._context_sensitivity_level = context_sensitivity_level

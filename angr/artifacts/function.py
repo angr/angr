@@ -26,7 +26,6 @@ class Function(object):
 
         self._ret_sites = set()
         self._call_sites = {}
-        self._retn_addr_to_call_site = {}
         self.addr = addr
         self._function_manager = function_manager
         self.is_syscall = syscall
@@ -347,6 +346,9 @@ class Function(object):
 
     def _return_from_call(self, from_func, to_node):
         self.transition_graph.add_edge(from_func, to_node, type='real_return')
+        for s, _, data in self.transition_graph.in_edges(to_node, data=True):
+            if 'type' in data and data['type'] == 'fake_return':
+                data['confirmed'] = True
 
     def _register_nodes(self, *nodes):
         for node in nodes:
@@ -374,7 +376,6 @@ class Function(object):
         @param retn_addr            The address that said call will return to
         '''
         self._call_sites[call_site_addr] = (call_target_addr, retn_addr)
-        self._retn_addr_to_call_site[retn_addr] = call_site_addr
 
     def get_call_sites(self):
         '''
@@ -420,10 +421,14 @@ class Function(object):
             return self._local_transition_graph
 
         g = networkx.DiGraph()
-        g.add_node(self.startpoint)
+        if self.startpoint is not None:
+            g.add_node(self.startpoint)
         for src, dst, data in self.transition_graph.edges_iter(data=True):
-            if 'type' in data and data['type'] in ('transition', 'fake_return', 'syscall'):
-                g.add_edge(src, dst, attr_dict=data)
+            if 'type' in data:
+                if data['type'] in ('transition', 'syscall'):
+                    g.add_edge(src, dst, attr_dict=data)
+                elif data['type'] == 'fake_return' and 'confirmed' in data:
+                    g.add_edge(src, dst, attr_dict=data)
 
         self._local_transition_graph = g
 

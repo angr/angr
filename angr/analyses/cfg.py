@@ -12,6 +12,7 @@ from archinfo import ArchARM
 from ..entry_wrapper import EntryWrapper
 from ..analysis import Analysis, register_analysis
 from ..errors import AngrCFGError, AngrError, AngrForwardAnalysisSkipEntry
+from ..artifacts import Function
 from ..path import make_path
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase
@@ -21,7 +22,7 @@ l = logging.getLogger(name="angr.analyses.cfg")
 
 
 class PendingExit(object):
-    def __init__(self, returning_source, state, bbl_stack, call_stack):
+    def __init__(self, returning_source, state, src_simrun_key, src_exit_stmt_idx, bbl_stack, call_stack):
         """
         PendingExit is whatever will be put into our pending_exit list. A pending exit is an entry that created by the
         returning of a call or syscall. It is "pending" since we cannot immediately figure out whether this entry will
@@ -42,6 +43,8 @@ class PendingExit(object):
 
         self.returning_source = returning_source
         self.state = state
+        self.src_simrun_key = src_simrun_key
+        self.src_exit_stmt_idx = src_exit_stmt_idx
         self.bbl_stack = bbl_stack
         self.call_stack = call_stack
 
@@ -148,6 +151,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         # Intelligently (or stupidly... you tell me) fill it up
         new_cfg._graph = networkx.DiGraph(self._graph)
         new_cfg._nodes = self._nodes.copy()
+        new_cfg._nodes_by_addr = self._nodes_by_addr.copy()
         new_cfg._edge_map = self._edge_map.copy()
         new_cfg._loop_back_edges_set = self._loop_back_edges_set.copy()
         new_cfg._loop_back_edges = self._loop_back_edges[::]
@@ -495,6 +499,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         self._graph = s['graph']
         self._loop_back_edges = s['_loop_back_edges']
         self._nodes = s['_nodes']
+        self._nodes_by_addr = s['_nodes_by_addr']
         self._thumb_addrs = s['_thumb_addrs']
         self._unresolvable_runs = s['_unresolvable_runs']
         self._executable_address_ranges = s['_executable_address_ranges']
@@ -505,6 +510,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             'graph': self._graph,
             '_loop_back_edges': self._loop_back_edges,
             '_nodes': self._nodes,
+            '_nodes_by_addr': self._nodes_by_addr,
             '_thumb_addrs': self._thumb_addrs,
             '_unresolvable_runs': self._unresolvable_runs,
             '_executable_address_ranges': self._executable_address_ranges,
@@ -639,12 +645,12 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         self._pending_function_hints = set()
         # A dict to log edges and the jumpkind between each basic block
         self._edge_map = defaultdict(list)
-        # A dict to record all blocks that returns to a specific address
-        self.return_target_sources = defaultdict(list)
 
         # Traverse all the IRSBs, and put the corresponding CFGNode objects to a dict
-        # It's actually a multi-dict, as we care about contexts.
+        # CFGNodes dict indexed by SimRun key
         self._nodes = {}
+        # CFGNodes dict indexed by addresses of each SimRun
+        self._nodes_by_addr = defaultdict(list)
 
         # For each call, we are always getting two exits: an Ijk_Call that
         # stands for the real call exit, and an Ijk_Ret that is a simulated exit
@@ -658,8 +664,6 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
 
         # Counting how many times a basic block is traced into
         self._traced_addrs = defaultdict(lambda: defaultdict(int))
-
-        self._exit_targets = self._edge_map
 
         # A dict that collects essential parameters to properly reconstruct initial state for a SimRun
         self._simrun_info_collection = {}
@@ -681,7 +685,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             self._symbolic_function_initial_state[ip] = state
 
             entry_path = self.project.factory.path(state)
-            path_wrapper = EntryWrapper(entry_path, self._context_sensitivity_level)
+            path_wrapper = EntryWrapper(entry_path, self._context_sensitivity_level, None, None)
 
             self._entries.append(path_wrapper)
 
@@ -694,8 +698,9 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
 
     def _intra_analysis(self):
         """
+        During the analysis. We process function hints here.
 
-        :return:
+        :return: None
         """
 
         # TODO: Why was the former two conditions there in the first place?
@@ -729,11 +734,11 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
 
         while len(self._pending_entries) > 0:
             # We don't have any exits remaining. Let's pop out a pending exit
-            path_wrapper = self._process_pending_entry(self._exit_targets, self._pending_entries)
-            if path_wrapper is None:
+            pending_entry = self._get_pending_entry()
+            if pending_entry is None:
                 continue
 
-            self._entries.append(path_wrapper)
+            self._entries.append(pending_entry)
             break
 
     def _create_initial_state(self, ip, jumpkind):
@@ -775,40 +780,47 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
 
         return state
 
-    def _process_pending_entry(self, exit_targets, pending_entries):
+    def _get_pending_entry(self):
+        """
+        Retrieve a pending entry from all pended ones.
+
+        :return: An EntryWrapper instance or None
         """
 
-        :return: None
-        """
-
-        pending_exit_tuple = pending_entries.keys()[0]
-        pending_exit = pending_entries.pop(pending_exit_tuple)
+        pending_exit_tuple = self._pending_entries.keys()[0]
+        pending_exit = self._pending_entries.pop(pending_exit_tuple)
         pending_exit_state = pending_exit.state
         pending_exit_call_stack = pending_exit.call_stack
         pending_exit_bbl_stack = pending_exit.bbl_stack
+        pending_entry_src_simrun_key = pending_exit.src_simrun_key
+        pending_entry_src_exit_stmt_idx = pending_exit.src_exit_stmt_idx
 
-        pending_exit_addr = self._simrun_key_addr(pending_exit_tuple)
         # Let's check whether this address has been traced before.
-        if any(r == pending_exit_tuple for r in exit_targets):
-            # That block has been traced before. Let's forget about it
-            l.debug("Target 0x%08x has been traced before." + "Trying the next one...", pending_exit_addr)
-            return None
+        if pending_exit_tuple in self._nodes:
+            node = self._nodes[pending_exit_tuple]
+            if node in self.graph:
+                pending_exit_addr = self._simrun_key_addr(pending_exit_tuple)
+                # That block has been traced before. Let's forget about it
+                l.debug("Target 0x%08x has been traced before. " + "Trying the next one...", pending_exit_addr)
+                return None
 
-        # pretend it's a Ret jump now
-        pending_exit_state.scratch.jumpkind = 'Ijk_Ret'
+        pending_exit_state.scratch.jumpkind = 'Ijk_FakeRet'
 
         path = self.project.factory.path(pending_exit_state)
-        path_wrapper = EntryWrapper(path,
+        entry = EntryWrapper(path,
                                     self._context_sensitivity_level,
+                                    pending_entry_src_simrun_key,
+                                    pending_entry_src_exit_stmt_idx,
                                     call_stack=pending_exit_call_stack,
                                     bbl_stack=pending_exit_bbl_stack
                                     )
         l.debug("Tracing a missing return exit %s", self._simrun_key_repr(pending_exit_tuple))
 
-        return path_wrapper
+        return entry
 
     def _process_hints(self, analyzed_addrs, remaining_entries):
         """
+        Process function hints in the binary.
 
         :return: None
         """
@@ -842,9 +854,6 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         :return: None
         """
 
-        # Create CFG
-        self._graph = self._create_graph(return_target_sources=self.return_target_sources)
-
         # Remove those edges that will never be taken!
         self._remove_non_return_edges()
 
@@ -861,10 +870,15 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
 
     def _pre_entry_handling(self, entry, _locals):
         """
+        Before processing an entry.
+        Right now each SimRun is traced at most once. If it is traced more than once, we will mark it as "should_skip"
+        before tracing it.
+        An AngrForwardAnalysisSkipEntry exception is raised in order to skip analyzing the entry.
 
-        :param entry:
-        :param _locals:
-        :return:
+        :param EntryWrapper entry: The entry object
+        :param dict _locals: A bunch of local variables that will be kept around when handling this entry and its
+                        corresponding successors.
+        :return: None
         """
 
         # Extract initial info from entry_wrapper
@@ -874,9 +888,11 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         func_addr = _locals['func_addr'] = entry.current_function_address
         _locals['current_stack_pointer'] = entry.current_stack_pointer
         _locals['accessed_registers_in_function'] = entry.current_function_accessed_registers
-        current_function = _locals['current_function'] = self.artifacts.functions.function(_locals['func_addr'], create=True)
+        _locals['current_function'] = self.artifacts.functions.function(_locals['func_addr'], create=True)
         jumpkind = _locals['jumpkind'] = 'Ijk_Boring' if entry.path.state.scratch.jumpkind is None else \
             entry.path.state.scratch.jumpkind
+        src_simrun_key = entry.src_simrun_key
+        src_exit_stmt_idx = entry.src_exit_stmt_idx
 
         # Log this address
         if l.level == logging.DEBUG:
@@ -886,10 +902,30 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             # Store the input state of this function
             self._function_input_states[func_addr] = path.state
 
+        # Generate a unique key for this SimRun
+        simrun_key = self._generate_simrun_key(call_stack_suffix, addr, jumpkind.startswith('Ijk_Sys'))
+
+        # Should we skip tracing this SimRun?
+        should_skip = False
+        if self._traced_addrs[call_stack_suffix][addr] > 1:
+            should_skip = True
+        elif (jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys')) and \
+                (self._call_depth is not None and
+                         len(entry.call_stack) > self._call_depth and
+                     (
+                            self._call_tracing_filter is None or
+                            self._call_tracing_filter(path.state, jumpkind)
+                     )
+                 ):
+            should_skip = True
+
         # Get a SimRun out of current SimExit
         simrun, error_occurred, _ = self._get_simrun(addr, path, current_function_addr=func_addr)
-        if simrun is None:
+        if simrun is None or should_skip:
             # We cannot retrieve the SimRun...
+            # But we create the edge anyway. It will be an edge from the previous node to a PathTerminator
+            self._graph_add_edge(src_simrun_key, simrun_key, jumpkind=jumpkind, exit_stmt_idx=src_exit_stmt_idx)
+            self._update_function_transition_graph(src_simrun_key, simrun_key, jumpkind=jumpkind)
             raise AngrForwardAnalysisSkipEntry()
 
         self._update_thumb_addrs(simrun, path.state)
@@ -901,9 +937,6 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             for f in function_hints:
                 self._pending_function_hints.add(f)
 
-        # Generate a unique key for this SimRun
-        simrun_key = self._generate_simrun_key(call_stack_suffix, addr, jumpkind.startswith('Ijk_Sys'))
-
         # Increment tracing count for this SimRun
         self._traced_addrs[call_stack_suffix][addr] += 1
 
@@ -914,6 +947,10 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             cfg_node.input_state = simrun.initial_state
 
         self._nodes[simrun_key] = cfg_node
+        self._nodes_by_addr[cfg_node.addr].append((simrun_key, cfg_node))
+
+        self._graph_add_edge(src_simrun_key, simrun_key, jumpkind=jumpkind, exit_stmt_idx=src_exit_stmt_idx)
+        self._update_function_transition_graph(src_simrun_key, simrun_key, jumpkind=jumpkind)
 
         simrun_info = self.project.arch.gather_info_from_state(simrun.initial_state)
         self._simrun_info_collection[addr] = simrun_info
@@ -972,9 +1009,9 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                           simuvex.procedures.SimProcedures["stubs"]["PathTerminator"]):
                 # If there is no valid exit in this branch and it's not
                 # intentional (e.g. caused by a SimProcedure that does not
-                # do_return) , we should make it return to its callsite. However,
+                # do_return) , we should make it return to its call-site. However,
                 # we don't want to use its state anymore as it might be corrupted.
-                # Just create a link in the exit_targets map.
+                # Just create an edge in the graph.
                 retn_target = entry.call_stack.get_ret_target()
                 if retn_target is not None:
                     new_call_stack = entry.call_stack_copy()
@@ -983,7 +1020,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                         retn_target,
                         False
                     )  # You can never return to a syscall
-                    self._exit_targets[simrun_key].append((exit_target_tpl, 'Ijk_Ret', 'default'))
+                    self._graph_add_edge(simrun_key, exit_target_tpl, jumpkind='Ijk_Ret', exit_stmt_id='default')
 
             else:
                 # Well, there is just no successors. What can you expect?
@@ -1134,7 +1171,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         """
         Remove those pending exits if:
         a) they are the return exits of non-returning SimProcedures
-        b) they are the return exits of non-returning Syscalls
+        b) they are the return exits of non-returning syscalls
         b) they are the return exits of non-returning functions
 
         :param pending_exits: A dict of all pending exits
@@ -1159,6 +1196,13 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                 # Oops, it's not returning
                 # Remove this pending exit
                 pending_exits_to_remove.append(simrun_key)
+
+                # We want to mark that call as not returning in the current function
+                current_function_addr = self._simrun_key_current_func_addr(simrun_key)
+                if current_function_addr is not None:
+                    current_function = self.artifacts.functions.function(current_function_addr)
+                    call_site_addr = self._simrun_key_addr(pe.src_simrun_key)
+                    current_function._call_sites[call_site_addr] = (func.addr, None)
 
         for simrun_key in pending_exits_to_remove:
             l.debug('Removing a pending exit to 0x%x since the target function 0x%x does not return',
@@ -1289,7 +1333,6 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         if isinstance(simrun, simuvex.SimIRSB):
             self._detect_loop(simrun,
                               new_tpl,
-                              self._exit_targets,
                               simrun_key,
                               new_call_stack_suffix,
                               target_addr,
@@ -1311,27 +1354,27 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             new_bbl_stack = entry_wrapper.bbl_stack_copy()
             new_bbl_stack.push(new_call_stack_suffix, func_addr, target_addr)
 
+        new_path = self.project.factory.path(new_state)
+        # We might have changed the mode for this basic block
+        # before. Make sure it is still running in 'fastpath' mode
+        # new_exit.state = self.project.simos.prepare_call_state(new_exit.state, initial_state=saved_state)
+        new_path.state.set_mode('fastpath')
+        pw = EntryWrapper(new_path,
+                          self._context_sensitivity_level,
+                          simrun_key,
+                          suc_exit_stmt_idx,
+                          call_stack=new_call_stack,
+                          bbl_stack=new_bbl_stack
+                          )
+
         # Generate new exits
         if suc_jumpkind == "Ijk_Ret":
             # This is the real return exit
-            # Remember this retn!
-            self.return_target_sources[target_addr].append(simrun_key)
             # Check if this retn is inside our pending_exits set
             if new_tpl in self._pending_entries:
                 del self._pending_entries[new_tpl]
 
-            if self._traced_addrs[new_call_stack_suffix][target_addr] < 1:
-                new_path = self.project.factory.path(new_state)
-                pw = EntryWrapper(new_path,
-                                  self._context_sensitivity_level,
-                                  call_stack=new_call_stack,
-                                  bbl_stack=new_bbl_stack
-                                  )
-                successor_status[state] = "Appended"
-
-            else:
-                # Skip it
-                successor_status[state] = "Skipped"
+            successor_status[state] = "Appended"
 
         elif suc_jumpkind == "Ijk_FakeRet":
             # This is the default "fake" retn that generated at each
@@ -1341,34 +1384,12 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             st = new_state
             st.set_mode('fastpath')
 
-            pe = PendingExit(extra_info['call_target'], st, new_bbl_stack, new_call_stack)
+            pw = None # clear the EntryWrapper
+            pe = PendingExit(extra_info['call_target'], st, simrun_key, suc_exit_stmt_idx, new_bbl_stack,
+                             new_call_stack
+                             )
             self._pending_entries[new_tpl] = pe
             successor_status[state] = "Pended"
-
-        elif (suc_jumpkind == 'Ijk_Call' or suc_jumpkind.startswith('Ijk_Sys')) and \
-                (self._call_depth is not None and
-                         len(new_call_stack) > self._call_depth and
-                     (
-                                     self._call_tracing_filter is None or
-                                 self._call_tracing_filter(state, suc_jumpkind)
-                     )
-                 ):
-            # We skip this call
-            successor_status[state] = "Skipped"
-
-        elif self._traced_addrs[new_call_stack_suffix][target_addr] < 1:
-            new_path = self.project.factory.path(new_state)
-
-            # We might have changed the mode for this basic block
-            # before. Make sure it is still running in 'fastpath' mode
-            # new_exit.state = self.project.simos.prepare_call_state(new_exit.state, initial_state=saved_state)
-            new_path.state.set_mode('fastpath')
-
-            pw = EntryWrapper(new_path,
-                              self._context_sensitivity_level,
-                              call_stack=new_call_stack,
-                              bbl_stack=new_bbl_stack)
-            successor_status[state] = "Appended"
 
         elif self._traced_addrs[new_call_stack_suffix][target_addr] >= 1 and suc_jumpkind == "Ijk_Ret":
             # This is a corner case for the f****** ARM instruction
@@ -1380,7 +1401,8 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             # for it afterwards.
             pass
 
-        self._exit_targets[simrun_key].append((new_tpl, suc_jumpkind, suc_exit_stmt_idx))
+        else:
+            successor_status[state] = "Appended"
 
         if extra_info['is_call_jump'] and extra_info['call_target'] in self._non_returning_functions:
             extra_info['skip_fakeret'] = True
@@ -1424,111 +1446,101 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
 
     # Private utils - DiGraph construction and manipulation
 
-    def _create_graph(self, return_target_sources=None):
-        """
-        Create a DiGraph out of the existing edge map. Meanwhile, update transition map of each function in function
-        manager.
-
-        :param return_target_sources: Used for making up those missing returns
-        :return: A networkx.DiGraph() object
+    def _graph_get_node(self, node_key, terminator_for_nonexistent_node=False):
         """
 
-        exit_targets = self._edge_map
+        :param node_key:
+        :return:
+        """
 
-        if return_target_sources is None:
-            # We set it to a defaultdict in order to be consistent with the
-            # actual parameter.`
-            return_target_sources = defaultdict(list)
+        if node_key not in self._nodes:
+            if not terminator_for_nonexistent_node:
+                return None
+            # Generate a PathTerminator node
+            addr = self._simrun_key_addr(node_key)
+            func_addr = self._simrun_key_current_func_addr(node_key)
+            if func_addr is None:
+                # We'll have to use the current SimRun address instead
+                # TODO: Is it really OK?
+                func_addr = self._simrun_key_addr(node_key)
 
-        cfg = networkx.DiGraph()
-        # The corner case: add a node to the graph if there is only one block
-        if len(self._nodes) == 1:
-            cfg.add_node(self._nodes.values()[0])
+            pt = CFGNode(self._simrun_key_addr(node_key),
+                         None,
+                         self,
+                         callstack_key=self._simrun_key_callstack_key(node_key),
+                         input_state=None,
+                         simprocedure_name="PathTerminator",
+                         function_address=func_addr)
+            if self._keep_state:
+                # We don't have an input state available for it (otherwise we won't have to create a
+                # PathTerminator). This is just a trick to make get_any_irsb() happy.
+                pt.input_state = self.project.factory.entry_state()
+                pt.input_state.ip = pt.addr
+            self._nodes[node_key] = pt
+            self._nodes_by_addr[pt.addr].append((node_key, pt))
 
-        # Clear the transition graph of each function first
-        for f in self.artifacts.functions.values():
-            f._clear_transition_graph()
+            if isinstance(self.project.arch, ArchARM) and addr % 2 == 1:
+                self._thumb_addrs.add(addr)
+                self._thumb_addrs.add(addr - 1)
 
-        # Adding edges
-        for tpl, targets in exit_targets.iteritems():
+            l.debug("SimRun key %s does not exist. Create a PathTerminator instead.",
+                    self._simrun_key_repr(node_key))
 
-            src_node = self._nodes[tpl]  # Cannot fail :)
+        return self._nodes[node_key]
 
-            for target in targets:
-                node_key, jumpkind, exit_stmt_idx = target
-                if node_key not in self._nodes:
-                    # Generate a PathTerminator node
-                    addr = self._simrun_key_addr(node_key)
-                    func_addr = self._simrun_key_current_func_addr(node_key)
-                    if func_addr is None:
-                        # We'll have to use the current SimRun address instead
-                        # TODO: Is it really OK?
-                        func_addr = self._simrun_key_addr(node_key)
+    def _graph_add_edge(self, src_node_key, dst_node_key, **kwargs):
+        """
 
-                    pt = CFGNode(self._simrun_key_addr(node_key),
-                                 None,
-                                 self,
-                                 callstack_key=self._simrun_key_callstack_key(node_key),
-                                 input_state=None,
-                                 simprocedure_name="PathTerminator",
-                                 function_address=func_addr)
-                    if self._keep_state:
-                        # We don't have an input state available for it (otherwise we won't have to create a
-                        # PathTerminator). This is just a trick to make get_any_irsb() happy.
-                        pt.input_state = self.project.factory.entry_state()
-                        pt.input_state.ip = pt.addr
-                    self._nodes[node_key] = pt
+        :param src_node_key:
+        :param dst_node_key:
+        :param jumpkind:
+        :param exit_stmt_idx:
+        :return:
+        """
 
-                    if isinstance(self.project.arch, ArchARM) and addr % 2 == 1:
-                        self._thumb_addrs.add(addr)
-                        self._thumb_addrs.add(addr - 1)
+        dst_node = self._graph_get_node(dst_node_key, terminator_for_nonexistent_node=True)
 
-                    l.debug("SimRun key %s does not exist. Create a PathTerminator instead.",
-                            self._simrun_key_repr(node_key))
+        if src_node_key is None:
+            self.graph.add_node(dst_node)
 
-                dest_node = self._nodes[node_key]
-                cfg.add_edge(src_node, dest_node, jumpkind=jumpkind, exit_stmt_idx=exit_stmt_idx)
+        else:
+            src_node = self._graph_get_node(src_node_key, terminator_for_nonexistent_node=True)
 
-                ret_addr = None
-                if jumpkind == 'Ijk_Call':
-                    target_function = self.artifacts.functions.function(dest_node.addr)
-                    if target_function is None or target_function.returning is not False:
-                        ret_addr = src_node.return_target
+            self.graph.add_edge(src_node, dst_node, **kwargs)
 
-                # Update transition graph for functions
-                self._update_function_transition_graph(jumpkind,
-                                                       src_node,
-                                                       dest_node,
-                                                       ret_addr=ret_addr
-                                                       )
-
-                # Add edges for possibly missing returns
-                if not src_node.is_syscall and src_node.addr in return_target_sources:
-                    for src_irsb_key in return_target_sources[src_node.addr]:
-                        if src_irsb_key in self._nodes:
-                            cfg.add_edge(self._nodes[src_irsb_key],
-                                         src_node, jumpkind="Ijk_Ret", exit_stmt_idx='default')
-
-        return cfg
-
-    def _update_function_transition_graph(self, jumpkind, src_node, dest_node, ret_addr=None):
+    def _update_function_transition_graph(self, src_node_key, dst_node_key, jumpkind='Ijk_Boring'):
         """
         Update transition graphs of functions in function manager based on information passed in.
 
         :param str jumpkind: Jumpkind.
         :param CFGNode src_node: Source CFGNode
-        :param CFGNode dest_node: Destionation CFGNode
+        :param CFGNode dst_node: Destionation CFGNode
         :param int ret_addr: The theoretical return address for calls
         :return: None
         """
 
+        dst_node = self._graph_get_node(dst_node_key, terminator_for_nonexistent_node=True)
+        if src_node_key is None:
+            self.artifacts.functions.function(dst_node.function_address, create=True)._register_nodes(dst_node.to_codenode())
+            return
+
+        src_node = self._graph_get_node(src_node_key, terminator_for_nonexistent_node=True)
+
         # Update the transition graph of current function
         if jumpkind == "Ijk_Call":
-            ret_node = self.artifacts.functions.function(src_node.function_address, create=True)._get_block(ret_addr).codenode if ret_addr else None
+            ret_addr = src_node.return_target
+            ret_node = self.artifacts.functions.function(
+                src_node.function_address,
+                create=True
+            )._get_block(ret_addr).codenode if ret_addr else None
+
+            if ret_node is None:
+                l.warning("Unknown return site for call to %#x at call-site %#x", dst_node.addr, src_node.addr)
+
             self.artifacts.functions._add_call_to(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
-                to_addr=dest_node.addr,
+                to_addr=dst_node.addr,
                 retn_node=ret_node,
                 syscall=False
             )
@@ -1538,7 +1550,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             self.artifacts.functions._add_call_to(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
-                to_addr=dest_node.addr,
+                to_addr=dst_node.addr,
                 retn_node=src_node.to_codenode(),  # For syscalls, they are returning to the address of themselves
                 syscall=True,
             )
@@ -1548,20 +1560,27 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             self.artifacts.functions._add_return_from(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
-                to_node=dest_node.to_codenode()
+                to_node=dst_node.to_codenode(),
             )
 
             # Create a returning edge in the caller function
             self.artifacts.functions._add_return_from_call(
-                function_addr=dest_node.function_address,
+                function_addr=dst_node.function_address,
                 src_function_addr=src_node.function_address,
-                to_node=dest_node.to_codenode()
+                to_node=dst_node.to_codenode()
+            )
+
+        elif jumpkind == 'Ijk_FakeRet':
+            self.artifacts.functions._add_fakeret_to(
+                function_addr=src_node.function_address,
+                from_node=src_node.to_codenode(),
+                to_node=dst_node.to_codenode()
             )
 
         elif jumpkind == 'Ijk_Boring':
 
             src_obj = self.project.loader.addr_belongs_to_object(src_node.addr)
-            dest_obj = self.project.loader.addr_belongs_to_object(dest_node.addr)
+            dest_obj = self.project.loader.addr_belongs_to_object(dst_node.addr)
 
             if src_obj is dest_obj:
 
@@ -1569,14 +1588,14 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                 self.artifacts.functions._add_transition_to(
                     function_addr=src_node.function_address,
                     from_node=src_node.to_codenode(),
-                    to_node=dest_node.to_codenode()
+                    to_node=dst_node.to_codenode()
                 )
 
             else:
                 self.artifacts.functions._add_call_to(
                     function_addr=src_node.function_address,
                     from_node=src_node.to_codenode(),
-                    to_addr=dest_node.addr,
+                    to_addr=dst_node.addr,
                     retn_node=None,  # TODO
                     syscall=False
                 )
@@ -1836,7 +1855,6 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         stmt_id = [i for i, s in enumerate(simirsb.irsb.statements)
                    if isinstance(s, pyvex.IRStmt.WrTmp) and s.tmp == next_tmp][0]
 
-        self._graph = self._create_graph(return_target_sources=self.return_target_sources)
         cdg = self.project.analyses.CDG(cfg=self)
         ddg = self.project.analyses.DDG(cfg=self, start=current_function_addr, call_depth=0)
 
@@ -1962,7 +1980,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         l.debug("Start back traversal from %s", current_simrun)
 
         # Create a partial CFG first
-        temp_cfg = self._create_graph()
+        temp_cfg = networkx.DiGraph(self.graph)
         # Reverse it
         temp_cfg.reverse(copy=False)
 
@@ -2415,14 +2433,13 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
 
     # Private methods - loops and graph normalization
 
-    def _detect_loop(self, sim_run, new_tpl, exit_targets, simrun_key, new_call_stack_suffix, new_addr, new_jumpkind,
+    def _detect_loop(self, sim_run, new_tpl, simrun_key, new_call_stack_suffix, new_addr, new_jumpkind,
                      current_exit_wrapper, current_function_addr):
         """
         Loop detection.
 
         :param sim_run:
         :param new_tpl:
-        :param exit_targets:
         :param simrun_key:
         :param new_call_stack_suffix:
         :param new_addr:
@@ -2458,14 +2475,15 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             '''  # pylint:disable=W0105
             # First check if this is an overlapped loop header
             next_irsb = self._nodes[new_tpl]
-            assert next_irsb is not None
+
             other_preds = set()
-            for k_tpl, v_lst in exit_targets.items():
-                a = self._simrun_key_addr(k_tpl)
-                for v_tpl in v_lst:
-                    b = v_tpl[-2]  # The last item is the jumpkind :)
-                    if b == next_irsb.addr and a != sim_run.addr:
-                        other_preds.add(self._nodes[k_tpl])
+
+            for node_key, node in self._nodes_by_addr[next_irsb.addr]:
+                predecessors = self.graph.predecessors(node)
+                for pred in predecessors:
+                    if pred.addr != sim_run.addr:
+                        other_preds.add(pred)
+
             if len(other_preds) > 0:
                 is_overlapping = False
                 for p in other_preds:
@@ -2544,8 +2562,6 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             'functions_do_not_return': []
         }
 
-        self._graph = self._create_graph()
-
         for func in self.artifacts.functions.values():
             if func.returning is not None:
                 # It has been determined before. Skip it
@@ -2568,15 +2584,35 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                     changes['functions_do_not_return'].append(func)
                     continue
 
+            tmp_graph = networkx.DiGraph(func.graph)
+            # Remove all fakeret edges from a non-returning function
+            edges_to_remove = [ ]
+            for src, dst, data in tmp_graph.edges_iter(data=True):
+                if data['type'] == 'fake_return':
+                    edges = [ edge for edge in func.transition_graph.edges(
+                                                nbunch=[src], data=True
+                                                ) if edge[2]['type'] != 'fake_return'
+                              ]
+                    if not edges:
+                        # We don't know which function it's supposed to call
+                        # skip
+                        continue
+                    target_addr = edges[0][1].addr
+                    target_func = self.artifacts.functions.function(addr=target_addr)
+                    if target_func.returning is False:
+                        edges_to_remove.append((src, dst))
+
+            for src, dst in edges_to_remove:
+                tmp_graph.remove_edge(src, dst)
+
             # We check all its current nodes in transition graph whose out degree is 0 (call them
             # temporary endpoints)
-
-            temporary_local_endpoints = [a for a in func.graph.nodes()
-                                         if func.graph.out_degree(a) == 0]
+            temporary_local_endpoints = [a for a in tmp_graph.nodes()
+                                         if tmp_graph.out_degree(a) == 0]
 
             if not temporary_local_endpoints:
                 # It might be empty if our transition graph is fucked up (for example, the freaking
-                # SimProcedureContinuation can be used in any SimProcedures and almost always creates loops in its
+                # SimProcedureContinuation can be used in any SimProcedure and almost always creates loops in its
                 # transition graph). Just ignore it.
                 continue
 
@@ -2592,7 +2628,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                         temporary_endpoints.append(local_endpoint)
 
                     else:
-                        for _, dst, data in out_edges:
+                        for src, dst, data in out_edges:
                             t = data['type']
 
                             if t != 'fake_return':
@@ -2602,16 +2638,25 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                 if endpoint in func.nodes:
                     # Somehow analysis terminated here (e.g. an unsupported instruction, or it doesn't generate an exit)
 
-                    from ..artifacts import Function
                     if isinstance(endpoint, Function):
                         all_endpoints_returning.append(endpoint.returning)
 
                     else:
-                        n = self.get_any_node(endpoint.addr, is_syscall=func.is_syscall)
-                        if n:
-                            # It might be a SimProcedure or a syscall, or even a normal block
-                            all_endpoints_returning.append(not n.no_ret)
+                        successors = [ dst for _, dst in func.transition_graph.out_edges(endpoint) ]
+                        all_noret = True
+                        for suc in successors:
+                            if isinstance(suc, Function):
+                                if suc.returning is not False:
+                                    all_noret = False
+                            else:
+                                n = self.get_any_node(endpoint.addr, is_syscall=func.is_syscall)
+                                if n:
+                                    # It might be a SimProcedure or a syscall, or even a normal block
+                                    if n.no_ret is not True:
+                                        all_noret = False
 
+                        if all_noret:
+                            all_endpoints_returning.append(True)
                         else:
                             all_endpoints_returning.append(None)
 
