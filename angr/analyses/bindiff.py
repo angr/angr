@@ -325,12 +325,12 @@ class NormalizedFunction(object):
         # set up call sites
         for n in self.graph.nodes():
             call_targets = []
-            if n in self.orig_function.get_call_sites():
-                call_targets.append(self.orig_function.get_call_target(n))
-            if n in self.merged_blocks:
+            if n.addr in self.orig_function.get_call_sites():
+                call_targets.append(self.orig_function.get_call_target(n.addr))
+            if n.addr in self.merged_blocks:
                 for block in self.merged_blocks[n]:
-                    if block in self.orig_function.get_call_sites():
-                        call_targets.append(self.orig_function.get_call_target(block))
+                    if block.addr in self.orig_function.get_call_sites():
+                        call_targets.append(self.orig_function.get_call_target(block.addr))
             if len(call_targets) > 0:
                 self.call_sites[n] = call_targets
 
@@ -673,7 +673,7 @@ class FunctionDiff(object):
         # while queue is not empty
         while to_process:
             (block_a, block_b) = to_process.pop()
-            l.debug("FunctionDiff: Processing (%#x, %#x)", block_a, block_b)
+            l.debug("FunctionDiff: Processing (%#x, %#x)", block_a.addr, block_b.addr)
 
             # we could find new matches in the successors or predecessors of functions
             block_a_succ = self._function_a.graph.successors(block_a)
@@ -702,10 +702,10 @@ class FunctionDiff(object):
             for (x, y) in new_matches:
                 if (x, y) not in processed_matches:
                     processed_matches.add((x, y))
-                    l.debug("FunctionDiff: checking if (%#x, %#x) is better", x, y)
+                    l.debug("FunctionDiff: checking if (%#x, %#x) is better", x.addr, y.addr)
                     # if it's a better match than what we already have use it
                     if _is_better_match(x, y, matched_a, matched_b, self.attributes_a, self.attributes_b):
-                        l.debug("FunctionDiff: adding possible match (%#x, %#x)", x, y)
+                        l.debug("FunctionDiff: adding possible match (%#x, %#x)", x.addr, y.addr)
                         if x in matched_a:
                             old_match = matched_a[x]
                             del matched_b[old_match]
