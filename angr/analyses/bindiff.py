@@ -983,7 +983,6 @@ class BinDiff(Analysis):
         :return: a dictionary of function addresses to tuples of attributes
         """
         # the attributes we use are the number of basic blocks, number of edges, and number of subfunction calls
-        all_funcs = set(cfg.function_manager.interfunction_graph.nodes())
         attributes = dict()
         all_funcs = set(cfg.artifacts.callgraph.nodes())
         for function_addr in cfg.artifacts.functions:
