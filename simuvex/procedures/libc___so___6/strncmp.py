@@ -38,7 +38,6 @@ class strncmp(simuvex.SimProcedure):
 
             if (c_a_len < c_limit or c_b_len < c_limit) and c_a_len != c_b_len:
                 l.debug("lengths < limit and unmatched")
-                return self.state.se.BVV(1, self.state.arch.bits, variables=variables)
 
             concrete_run = True
             maxlen = min(c_a_len, c_b_len, c_limit)
@@ -78,7 +77,10 @@ class strncmp(simuvex.SimProcedure):
 
                 if a_conc != b_conc:
                     l.debug("... found mis-matching concrete bytes 0x%x and 0x%x", a_conc, b_conc)
-                    return self.state.se.BVV(1, self.state.arch.bits, variables=variables)
+                    if a_conc < b_conc:
+                        return self.state.se.BVV(-1, self.state.arch.bits, variables=variables)
+                    else:
+                        return self.state.se.BVV(1, self.state.arch.bits, variables=variables)
             else:
 
                 if self.state.mode == 'static':
