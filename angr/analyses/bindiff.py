@@ -241,13 +241,13 @@ def compare_statement_dict(statement_1, statement_2):
 
 class NormalizedBlock(object):
     # block may span multiple calls
-    def __init__(self, addr, function):
-        addresses = [addr]
-        if addr in function.merged_blocks:
-            for a in function.merged_blocks[addr]:
-                addresses.append(a)
+    def __init__(self, block, function):
+        addresses = [block.addr]
+        if block.addr in function.merged_blocks:
+            for a in function.merged_blocks[block.addr]:
+                addresses.append(a.addr)
 
-        self.addr = addr
+        self.addr = block.addr
         self.addresses = addresses
         self.statements = []
         self.all_constants = []
@@ -256,8 +256,8 @@ class NormalizedBlock(object):
         self.blocks = []
         self.instruction_addrs = []
 
-        if addr in function.call_sites:
-            self.call_targets = function.call_sites[addr]
+        if block.addr in function.call_sites:
+            self.call_targets = function.call_sites[block.addr]
 
         self.jumpkind = None
 
@@ -295,7 +295,7 @@ class NormalizedFunction(object):
             done = True
             for node in self.graph.nodes():
                 try:
-                    bl = self.project.factory.block(node)
+                    bl = self.project.factory.block(node.addr)
                 except AngrMemoryError:
                     continue
                 except AngrTranslationError:
@@ -303,7 +303,7 @@ class NormalizedFunction(object):
                 # merge if it ends with a single call, and the successor has only one predecessor and succ is after
                 successors = self.graph.successors(node)
                 if bl.vex.jumpkind == "Ijk_Call" and len(successors) == 1 and \
-                        len(self.graph.predecessors(successors[0])) == 1 and successors[0] > node:
+                        len(self.graph.predecessors(successors[0])) == 1 and successors[0] > node.addr:
                     # add edges to the successors of its successor, and delete the original successors
                     succ = self.graph.successors(node)[0]
                     for s in self.graph.successors(succ):
@@ -646,8 +646,10 @@ class FunctionDiff(object):
         Computes the diff of the functions and saves the result
         """
         # get the attributes for all blocks
-        l.debug("Computing diff of functions: %s, %s", hex(self._function_a.startpoint),
-                hex(self._function_b.startpoint))
+        l.debug("Computing diff of functions: %s, %s",
+                ("%#x" % self._function_a.startpoint.addr) if self._function_a.startpoint is not None else "None",
+                ("%#x" % self._function_b.startpoint.addr) if self._function_b.startpoint is not None else "None"
+                )
         self.attributes_a = self._compute_block_attributes(self._function_a)
         self.attributes_b = self._compute_block_attributes(self._function_b)
 
@@ -722,9 +724,10 @@ class FunctionDiff(object):
         self._unmatched_blocks_from_b = set(x for x in self._function_b.graph.nodes() if x not in matched_b)
 
     @staticmethod
-    def _get_ordered_successors(project, addr, succ):
+    def _get_ordered_successors(project, block, succ):
         try:
             # add them in order of the vex
+            addr = block.addr
             succ = set(succ)
             ordered_succ = []
             bl = project.factory.block(addr)
@@ -1001,6 +1004,12 @@ class BinDiff(Analysis):
 
     def _get_call_site_matches(self, func_a, func_b):
         possible_matches = set()
+
+        # Make sure those functions are not SimProcedures
+        f_a = self.cfg_a.artifacts.functions.function(func_a)
+        f_b = self.cfg_b.artifacts.functions.function(func_b)
+        if f_a.startpoint is None or f_b.startpoint is None:
+            return possible_matches
 
         fd = self.get_function_diff(func_a, func_b)
         basic_block_matches = fd.block_matches
