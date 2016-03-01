@@ -7,9 +7,9 @@ _noneset = frozenset()
 
 from .s_event import SimEvent
 class SimAction(SimEvent):
-    '''
+    """
     A SimAction represents a semantic action that an analyzed program performs.
-    '''
+    """
     #__slots__ = [ 'bbl_addr', 'inst_addr', 'stmt_idx' ]
 
     TMP = 'tmp'
@@ -17,11 +17,11 @@ class SimAction(SimEvent):
     MEM = 'mem'
 
     def __init__(self, state, region_type):
-        '''
-        Initializes the SimAction
+        """
+        Initializes the SimAction.
 
-        @param state: the state that's the SimAction is taking place in
-        '''
+        :param state: the state that's the SimAction is taking place in.
+        """
         SimEvent.__init__(self, state, 'action')
         self.type = region_type
 
@@ -80,15 +80,15 @@ class SimAction(SimEvent):
         return c
 
     def downsize(self):
-        '''
+        """
         Clears some low-level details (that take up memory) out of the SimAction.
-        '''
+        """
         pass
 
 class SimActionExit(SimAction):
-    '''
+    """
     An Exit action represents a (possibly conditional) jump.
-    '''
+    """
 
     CONDITIONAL = 'conditional'
     DEFAULT = 'default'
@@ -143,9 +143,9 @@ class SimActionConstraint(SimAction):
         return s
 
 class SimActionData(SimAction):
-    '''
-    A Data action represents a read or a write from memory, registers, or a file.
-    '''
+    """
+    A Data action represents a read or a write from memory, registers or a file.
+    """
     #__slots__ = [ 'objects' ]
 
     READ = 'read'

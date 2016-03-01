@@ -13,10 +13,12 @@ from ..storage.memory_object import SimMemoryObject
 DEFAULT_MAX_SEARCH = 8
 
 class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
-    _CONCRETIZATION_STRATEGIES = [ 'symbolic', 'symbolic_approx', 'any', 'any_approx', 'max', 'max_approx', 'symbolic_nonzero', 'symbolic_nonzero_approx', 'norepeats' ]
+    _CONCRETIZATION_STRATEGIES = [ 'symbolic', 'symbolic_approx', 'any', 'any_approx', 'max', 'max_approx',
+                                   'symbolic_nonzero', 'symbolic_nonzero_approx', 'norepeats' ]
     _SAFE_CONCRETIZATION_STRATEGIES = [ 'symbolic', 'symbolic_approx' ]
 
-    def __init__(self, memory_backer=None, permissions_backer=None, mem=None, memory_id="mem", repeat_min=None, repeat_constraints=None, repeat_expr=None, endness=None, abstract_backer=False):
+    def __init__(self, memory_backer=None, permissions_backer=None, mem=None, memory_id="mem", repeat_min=None,
+                 repeat_constraints=None, repeat_expr=None, endness=None, abstract_backer=False):
         SimMemory.__init__(self, endness=endness, abstract_backer=abstract_backer)
         self.mem = SimPagedMemory(memory_backer=memory_backer, permissions_backer=permissions_backer) if mem is None else mem
         self.id = memory_id
@@ -36,9 +38,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     #
 
     def copy(self):
-        '''
+        """
         Return a copy of the SimMemory.
-        '''
+        """
         #l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
         c = SimSymbolicMemory(mem=self.mem.branch(),
                               memory_id=self.id,
@@ -245,11 +247,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     #
 
     def make_symbolic(self, name, addr, length=None):
-        '''
-        Replaces length bytes, starting at addr, with a symbolic variable named
-        name. Adds a constraint equaling that symbolic variable to the value
-        previously at addr, and returns the variable.
-        '''
+        """
+        Replaces `length` bytes starting at `addr` with a symbolic variable named name. Adds a constraint equaling that
+        symbolic variable to the value previously at `addr`, and returns the variable.
+        """
         l.debug("making %s bytes symbolic", length)
 
         if isinstance(addr, str):
@@ -391,7 +392,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         for s in strategy:
             l.debug("... trying strategy %s", s)
             try:
-                self.state._inspect('address_concretization', BP_BEFORE, address_concretization_strategy=s, address_concretization_action=action, address_concretization_memory_id=self.id, address_concretization_expr=v, address_concretization_limit=limit, address_concretization_approx_limit=approx_limit, address_concretization_add_constraints=True)
+                self.state._inspect('address_concretization', BP_BEFORE, address_concretization_strategy=s, 
+                                    address_concretization_action=action, address_concretization_memory_id=self.id, 
+                                    address_concretization_expr=v, address_concretization_limit=limit, 
+                                    address_concretization_approx_limit=approx_limit, 
+                                    address_concretization_add_constraints=True)
                 s = self.state._inspect_getattr('address_concretization_strategy', s)
                 v = self.state._inspect_getattr('address_concretization_expr', v)
                 limit = self.state._inspect_getattr('address_concretization_limit', limit)
@@ -419,17 +424,17 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         raise SimMemoryAddressError("Unable to concretize address with the provided strategy.")
 
     def concretize_write_addr(self, addr, strategy=None, limit=None, approx_limit=None):
-        '''
+        """
         Concretizes an address meant for writing.
 
-            @param addr: an expression for the address
-            @param strategy: the strategy to use for concretization
-            @param limit: how many concrete values to limit the concretization to
-            @param approx_limit: how many concrete values to limit the concretization to,
+            :param addr: an expression for the address
+            :param strategy: the strategy to use for concretization
+            :param limit: how many concrete values to limit the concretization to
+            :param approx_limit: how many concrete values to limit the concretization to,
                                  if an approximation backend can be used for this value.
 
             @returns a list of concrete addresses
-        '''
+        """
 
         if isinstance(addr, (int, long)):
             return [addr]
@@ -448,17 +453,17 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         return self._concretize_addr(addr, strategy=strategy, limit=limit, approx_limit=approx_limit, action='store')
 
     def concretize_read_addr(self, addr, strategy=None, limit=None):
-        '''
+        """
         Concretizes an address meant for reading.
 
-            @param addr: an expression for the address
-            @param strategy: the strategy to use for concretization
-            @param limit: how many concrete values to limit the concretization to
-            @param approx_limit: how many concrete values to limit the concretization to,
-                                 if an approximation backend can be used for this value.
+            :param addr:            An expression for the address.
+            :param strategy:        The strategy to use for concretization.
+            :param limit:           How many concrete values to limit the concretization to.
+            :param approx_limit:    How many concrete values to limit the concretization to if an approximation
+                                    backend can be used for this value.
 
-            @returns a list of concrete addresses
-        '''
+            :returns:               A list of concrete addresses.
+        """
         if isinstance(addr, (int, long)):
             return [addr]
         strategy = self._default_read_strategy if strategy is None else strategy
@@ -940,9 +945,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         return merged_val
 
     def concrete_parts(self):
-        '''
+        """
         Return a dict containing the concrete values in memory.
-        '''
+        """
         d = { }
         for k,v in self.mem.iteritems():
             if not self.state.se.symbolic(v):
@@ -951,9 +956,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         return d
 
     def dbg_print(self, indent=0):
-        '''
+        """
         Print out debugging information.
-        '''
+        """
         lst = []
         more_data = False
         for i, addr in enumerate(self.mem.iterkeys()):
@@ -989,64 +994,64 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     #
 
     def changed_bytes(self, other):
-        '''
+        """
         Gets the set of changed bytes between self and other.
 
-        @param other: the other SimSymbolicMemory
+        :param other: the other SimSymbolicMemory
         @returns a set of differing bytes
-        '''
+        """
         return self.mem.changed_bytes(other.mem)
 
     def replace_all(self, old, new):
-        '''
+        """
         Replaces all instances of expression old with expression new.
 
-            @param old: a claripy expression. Must contain at least one named variable (to make
+            :param old: a claripy expression. Must contain at least one named variable (to make
                         to make it possible to use the name index for speedup)
-            @param new: the new variable to replace it with
-        '''
+            :param new: the new variable to replace it with
+        """
 
         return self.mem.replace_all(old, new)
 
     def addrs_for_name(self, n):
-        '''
+        """
         Returns addresses that contain expressions that contain a variable
         named n.
-        '''
+        """
         return self.mem.addrs_for_name(n)
 
     def addrs_for_hash(self, h):
-        '''
+        """
         Returns addresses that contain expressions that contain a variable
         with the hash of h.
-        '''
+        """
         return self.mem.addrs_for_hash(h)
 
     def replace_memory_object(self, old, new_content):
-        '''
+        """
         Replaces the memory object 'old' with a new memory object containing
         'new_content'.
 
-            @param old: a SimMemoryObject (i.e., one from memory_objects_for_hash() or
+            :param old: a SimMemoryObject (i.e., one from memory_objects_for_hash() or
                         memory_objects_for_name())
-            @param new_content: the content (claripy expression) for the new memory object
-        '''
+            :param new_content: the content (claripy expression) for the new memory object
+        """
         return self.mem.replace_memory_object(old, new_content)
 
     def memory_objects_for_name(self, n):
-        '''
+        """
         Returns a set of SimMemoryObjects that contain expressions that contain a variable
         with the name of n. This is useful for replacing those values, in one fell swoop,
         with replace_memory_object(), even if they've been partially overwritten.
-        '''
+        """
         return self.mem.memory_objects_for_name(n)
 
     def memory_objects_for_hash(self, n):
-        '''
+        """
         Returns a set of SimMemoryObjects that contain expressions that contain a variable
         with the hash of h. This is useful for replacing those values, in one fell swoop,
         with replace_memory_object(), even if they've been partially overwritten.
-        '''
+        """
         return self.mem.memory_objects_for_hash(n)
 
     def permissions(self, addr):

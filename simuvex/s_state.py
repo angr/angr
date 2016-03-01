@@ -28,9 +28,12 @@ from .plugins import default_plugins
 merge_counter = itertools.count()
 
 class SimState(ana.Storable): # pylint: disable=R0904
-    '''The SimState represents the state of a program, including its memory, registers, and so forth.'''
+    """
+    The SimState represents the state of a program, including its memory, registers, and so forth.
+    """
 
-    def __init__(self, arch="AMD64", plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None, add_options=None, remove_options=None, special_memory_filler=None):
+    def __init__(self, arch="AMD64", plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
+                 add_options=None, remove_options=None, special_memory_filler=None):
         # the architecture is used for function simulations (autorets) and the bitness
         if isinstance(arch, str):
             self.arch = arch_from_id(arch)
@@ -118,10 +121,11 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     @property
     def ip(self):
-        '''
+        """
         Get the instruction pointer expression.
+
         :return: an expression
-        '''
+        """
         return self.regs.ip
 
     @ip.setter
@@ -315,9 +319,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
         return { n: p.copy() for n,p in self.plugins.iteritems() }
 
     def copy(self):
-        '''
+        """
         Returns a copy of the state.
-        '''
+        """
 
         if self._global_condition is not None:
             raise SimStateError("global condition was not cleared before state.copy().")
@@ -333,11 +337,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
         return state
 
     def merge(self, *others):
-        '''
+        """
         Merges this state with the other states. Returns the merging result, merged state, and the merge flag.
+
         :param others: the other states to merge
         :return: (merged state, merge flag, a bool indicating if any merging occured)
-        '''
+        """
         # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
         merge_flag = self.se.BVS("state_merge_%d" % merge_counter.next(), 16)
         merge_values = range(len(others)+1)
@@ -405,20 +410,20 @@ class SimState(ana.Storable): # pylint: disable=R0904
     #############################################
 
     def reg_concrete(self, *args, **kwargs):
-        '''
+        """
         Returns the contents of a register but, if that register is symbolic,
         raises a SimValueError.
-        '''
+        """
         e = self.registers.load(*args, **kwargs)
         if self.se.symbolic(e):
             raise SimValueError("target of reg_concrete is symbolic!")
         return self.se.any_int(e)
 
     def mem_concrete(self, *args, **kwargs):
-        '''
+        """
         Returns the contents of a memory but, if the contents are symbolic,
         raises a SimValueError.
-        '''
+        """
         e = self.memory.load(*args, **kwargs)
         if self.se.symbolic(e):
             raise SimValueError("target of mem_concrete is symbolic!")
@@ -430,9 +435,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     @arch_overrideable
     def stack_push(self, thing):
-        '''
+        """
         Push 'thing' to the stack, writing the thing to memory and adjusting the stack pointer.
-        '''
+        """
         # increment sp
         sp = self.regs.sp + self.arch.stack_change
         self.regs.sp = sp
@@ -440,23 +445,22 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     @arch_overrideable
     def stack_pop(self):
-        '''
-        Pops from the stack and returns the popped thing. The length will be
-        the architecture word size.
-        '''
+        """
+        Pops from the stack and returns the popped thing. The length will be the architecture word size.
+        """
         sp = self.regs.sp
         self.regs.sp = sp - self.arch.stack_change
         return self.memory.load(sp, self.arch.bits / 8, endness=self.arch.memory_endness)
 
     @arch_overrideable
     def stack_read(self, offset, length, bp=False):
-        '''
+        """
         Reads length bytes, at an offset into the stack.
 
-        @param offset: the offset from the stack pointer
-        @param length: the number of bytes to read
-        @param bp: if True, offset from the BP instead of the SP. Default: False
-        '''
+        :param offset:  The offset from the stack pointer.
+        :param length:  The number of bytes to read.
+        :param bp:      If True, offset from the BP instead of the SP. Default: False.
+        """
         sp = self.regs.bp if bp else self.regs.sp
         return self.memory.load(sp+offset, length, endness=self.arch.memory_endness)
 

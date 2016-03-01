@@ -88,6 +88,9 @@ def error_converter(f):
 
 import claripy
 class SimSolver(SimStatePlugin):
+    """
+    Symbolic solver.
+    """
     def __init__(self, solver=None): #pylint:disable=redefined-outer-name
         l.debug("Creating SimSolverClaripy.")
         SimStatePlugin.__init__(self)
@@ -145,23 +148,21 @@ class SimSolver(SimStatePlugin):
             return claripy.BVV(0, bits)
 
     def BVS(self, name, size, min=None, max=None, stride=None, uninitialized=False, explicit_name=None, **kwargs): #pylint:disable=redefined-builtin
-        '''
-        Creates a bit-vector symbol (i.e., a variable).
+        """
+        Creates a bit-vector symbol (i.e., a variable). Other **kwargs are passed directly on to the constructor of
+        claripy.ast.BV.
 
-        @param name: the name of the symbol
-        @param size: the size (in bits) of the bit-vector
-        @param min: the minimum value of the symbol
-        @param max: the maximum value of the symbol
-        @param stride: the stride of the symbol
-        @param uninitialized: whether this value should be counted as an
-                              "uninitialized" value in the course of an analysis.
-        @param explicit_name: if False, an identifier is appended to the name to ensure
-                              uniqueness.
+        :param name:            The name of the symbol.
+        :param size:            The size (in bits) of the bit-vector.
+        :param min:             The minimum value of the symbol.
+        :param max:             The maximum value of the symbol.
+        :param stride:          The stride of the symbol.
+        :param uninitialized:   Whether this value should be counted as an "uninitialized" value in the course of an
+                                analysis.
+        :param explicit_name:   If False, an identifier is appended to the name to ensure uniqueness.
 
-        Other **kwargs are passed directly on to the constructor of claripy.ast.BV.
-
-        @returns a BV object representing this symbol
-        '''
+        :return:                A BV object representing this symbol.
+        """
 
         r = claripy.BVS(name, size, min=min, max=max, stride=stride, uninitialized=uninitialized, explicit_name=explicit_name, **kwargs)
         self.state._inspect('symbolic_variable', BP_AFTER, symbolic_name=next(iter(r.variables)), symbolic_size=size, symbolic_expr=r)

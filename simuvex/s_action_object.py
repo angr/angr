@@ -46,9 +46,9 @@ def ast_preserving_op(f, *args, **kwargs):
         return a
 
 class SimActionObject(object):
-    '''
+    """
     A SimActionObject tracks an AST and its dependencies.
-    '''
+    """
     def __init__(self, ast, reg_deps=None, tmp_deps=None):
         if type(ast) is SimActionObject:
             raise SimActionError("SimActionObject inception!!!")

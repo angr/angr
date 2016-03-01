@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-'''This module handles constraint generation for IRSBs.'''
+"""This module handles constraint generation for IRSBs."""
 
 # because pylint can't load pyvex
 # pylint: disable=F0401
@@ -20,14 +20,15 @@ class IMark(object):
 #pylint:disable=unidiomatic-typecheck
 
 class SimIRSB(SimRun):
-    '''Simbolically parses a basic block.
+    """
+    Symbolically parse a basic block.
 
-          irsb - the pyvex IRSB to parse
-          provided_state - the symbolic state at the beginning of the block
-          id - the ID of the basic block
-          whitelist - a whitelist of the statements to execute (default: all)
-          last_stmt - the statement to stop execution at
-    '''
+    :ivar irsb:             The pyvex IRSB to parse.
+    :ivar provided_state:   The symbolic state at the beginning of the block.
+    :ivar id:               The ID of the basic block.
+    :ivar whitelist:        A whitelist of the statements to execute. (default: all)
+    :ivar last_stmt:        The statement to stop execution at.
+    """
 
     def __init__(self, state, irsb, irsb_id=None, whitelist=None, last_stmt=None, **kwargs):
         SimRun.__init__(self, state, **kwargs)
@@ -175,7 +176,7 @@ class SimIRSB(SimRun):
 
         for stmt_idx, stmt in enumerate(stmts):
             if self.last_stmt is not None and stmt_idx > self.last_stmt:
-                l.debug("%s stopping analysis at statment %d.", self, self.last_stmt)
+                l.debug("%s stopping analysis at statement %d.", self, self.last_stmt)
                 break
 
             if stmt_idx < skip_stmts:

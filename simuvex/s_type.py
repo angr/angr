@@ -9,17 +9,17 @@ except ImportError:
     pycparser = None
 
 class SimType(object):
-    '''
+    """
     SimType exists to track type information for SimProcedures.
-    '''
+    """
 
     _fields = ()
     base = True
 
     def __init__(self, label=None):
-        '''
-        @param label: the type label
-        '''
+        """
+        :param label: the type label.
+        """
         self.label = label
 
     def __eq__(self, other):
@@ -59,17 +59,17 @@ class SimType(object):
         raise KeyError("{} is not a valid refinement".format(k))
 
 class SimTypeBottom(SimType):
-    '''
+    """
     SimTypeBottom basically repesents a type error.
-    '''
+    """
 
     def __repr__(self):
         return 'BOT'
 
 class SimTypeTop(SimType):
-    '''
+    """
     SimTypeTop represents any type (mostly used with a pointer for void*).
-    '''
+    """
 
     _fields = ('size',)
 
@@ -81,17 +81,17 @@ class SimTypeTop(SimType):
         return 'TOP'
 
 class SimTypeReg(SimType):
-    '''
+    """
     SimTypeReg is the base type for all types that are register-sized.
-    '''
+    """
 
     _fields = ('size',)
 
     def __init__(self, size, label=None):
-        '''
-        @param label: the type label
-        @param size: the size of the type (e.g. 32bit, 8bit, etc.)
-        '''
+        """
+        :param label: the type label.
+        :param size: the size of the type (e.g. 32bit, 8bit, etc.).
+        """
         SimType.__init__(self, label=label)
         self.size = size
 
@@ -117,18 +117,18 @@ class SimTypeReg(SimType):
         state.memory.store(addr, value, endness=store_endness)
 
 class SimTypeInt(SimTypeReg):
-    '''
+    """
     SimTypeInt is a type that specifies a signed or unsigned integer of some size.
-    '''
+    """
 
     _fields = SimTypeReg._fields + ('signed',)
 
     def __init__(self, size, signed, label=None):
-        '''
-        @param label: the type label
-        @param size: the size of the integer (e.g. 32bit, 8bit, etc.)
-        @param signed: True if signed, False if unsigned
-        '''
+        """
+        :param label:   The type label
+        :param size:    The size of the integer (e.g. 32bit, 8bit, etc.)
+        :param signed:  True if signed, False if unsigned
+        """
         SimTypeReg.__init__(self, size, label=label)
         self.signed = signed
 
@@ -136,17 +136,17 @@ class SimTypeInt(SimTypeReg):
         return ('' if self.signed else 'u') + 'int{}_t'.format(self.size)
 
 class SimTypeChar(SimTypeReg):
-    '''
+    """
     SimTypeChar is a type that specifies a character;
     this could be represented by an 8-bit int, but this is meant to be interpreted as a character.
-    '''
+    """
 
     _fields = SimTypeReg._fields
 
     def __init__(self, label=None):
-        '''
-        @param label: the type label
-        '''
+        """
+        :param label: the type label.
+        """
         SimTypeReg.__init__(self, 8, label=label) # a char better be 8 bits (I'm looking at you, DCPU-16)
         self.signed = False
 
@@ -164,16 +164,16 @@ class SimTypeChar(SimTypeReg):
                 raise
 
 class SimTypeFd(SimTypeReg):
-    '''
+    """
     SimTypeFd is a type that specifies a file descriptor.
-    '''
+    """
 
     _fields = SimTypeReg._fields
 
     def __init__(self, label=None):
-        '''
-        @param label: the type label
-        '''
+        """
+        :param label: the type label
+        """
         # file descriptors are always 32 bits, right?
         SimTypeReg.__init__(self, 32, label=label)
 
@@ -181,17 +181,17 @@ class SimTypeFd(SimTypeReg):
         return 'fd_t'
 
 class SimTypePointer(SimTypeReg):
-    '''
+    """
     SimTypePointer is a type that specifies a pointer to some other type.
-    '''
+    """
 
     _fields = SimTypeReg._fields + ('pts_to',)
 
     def __init__(self, arch, pts_to, label=None):
-        '''
-        @param label: the type label
-        @param pts_to: the type to which this pointer points to
-        '''
+        """
+        :param label:   The type label.
+        :param pts_to:  The type to which this pointer points to.
+        """
         SimTypeReg.__init__(self, arch.bits, label=label)
         self._arch = arch
         self.pts_to = pts_to
@@ -205,9 +205,9 @@ class SimTypePointer(SimTypeReg):
         return new
 
 class SimTypeFixedSizeArray(SimType):
-    '''
+    """
     SimTypeFixedSizeArray is a literal (i.e. not a pointer) fixed-size array.
-    '''
+    """
 
     def __init__(self, elem_type, length):
         SimType.__init__(self)
@@ -226,18 +226,18 @@ class SimTypeFixedSizeArray(SimType):
             self.elem_type.store(state, addr + i*self.elem_type.size, val)
 
 class SimTypeArray(SimType):
-    '''
+    """
     SimTypeArray is a type that specifies a pointer to an array; while it is a pointer, it has a semantic difference.
-    '''
+    """
 
     _fields = ('elem_type', 'length')
 
     def __init__(self, elem_type, length=None, label=None):
-        '''
-        @param label: the type label
-        @param elem_type: the type of each element in the array
-        @param length: an expression of the length of the array, if known
-        '''
+        """
+        :param label:       The type label.
+        :param elem_type:   The type of each element in the array.
+        :param length:      An expression of the length of the array, if known.
+        """
         SimType.__init__(self, label=label)
         self.elem_type = elem_type
         self.length = length
@@ -246,18 +246,18 @@ class SimTypeArray(SimType):
         return '{}[{}]'.format(self.elem_type, '' if self.length is None else self.length)
 
 class SimTypeString(SimTypeArray):
-    '''
+    """
     SimTypeString is a type that represents a C-style string,
     i.e. a NUL-terminated array of bytes.
-    '''
+    """
 
     _fields = SimTypeArray._fields + ('length',)
 
     def __init__(self, length=None, label=None):
-        '''
-        @param label: the type label
-        @param length: an expression of the length of the string, if known
-        '''
+        """
+        :param label:   The type label.
+        :param length:  An expression of the length of the string, if known.
+        """
         SimTypeArray.__init__(self, SimTypeChar(), label=label)
         self.length = length
 
@@ -272,19 +272,20 @@ class SimTypeString(SimTypeArray):
             return repr(state.se.any_str(mem))
 
 class SimTypeFunction(SimType):
-    '''
-    SimTypeFunction is a type that specifies an actual function (i.e. not a pointer) with certain types of arguments and a certain return value.
-    '''
+    """
+    SimTypeFunction is a type that specifies an actual function (i.e. not a pointer) with certain types of arguments and
+    a certain return value.
+    """
 
     _fields = ('args', 'returnty')
     base = False
 
     def __init__(self, args, returnty, label=None):
-        '''
-        @param label: the type label
-        @param args: a tuple of types representing the arguments to the function
-        @param returnty: the return type of the function
-        '''
+        """
+        :param label:   The type label
+        :param args:    A tuple of types representing the arguments to the function
+        :param returns: The return type of the function
+        """
         SimType.__init__(self, label=label)
         self.args = args
         self.returnty = returnty
@@ -293,18 +294,18 @@ class SimTypeFunction(SimType):
         return '({}) -> {}'.format(', '.join(str(a) for a in self.args), self.returnty)
 
 class SimTypeLength(SimTypeInt):
-    '''
+    """
     SimTypeLength is a type that specifies the length of some buffer in memory.
-    '''
+    """
 
     _fields = SimTypeInt._fields + ('addr', 'length') # ?
 
     def __init__(self, arch, addr=None, length=None, label=None):
-        '''
-        @param label: the type label
-        @param addr: the memory address (expression)
-        @param length: the length (expression)
-        '''
+        """
+        :param label:   The type label.
+        :param addr:    The memory address (expression).
+        :param length:  The length (expression).
+        """
         SimTypeInt.__init__(self, arch.bits, False, label=label)
         self.addr = addr
         self.length = length

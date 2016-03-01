@@ -4,9 +4,9 @@ global heap_location
 heap_location = 0xc0000000
 
 class SimStateLibc(SimStatePlugin):
-    '''
+    """
     This state plugin keeps track of various libc stuff:
-    '''
+    """
 
     #__slots__ = [ 'heap_location', 'max_str_symbolic_bytes' ]
 

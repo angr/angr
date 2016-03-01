@@ -1,9 +1,9 @@
 from .plugin import SimStatePlugin
 
 class SimStateCGC(SimStatePlugin):
-    '''
+    """
     This state plugin keeps track of CGC state.
-    '''
+    """
 
     #__slots__ = [ 'heap_location', 'max_str_symbolic_bytes' ]
 
