@@ -164,7 +164,7 @@ class Project(object):
                 lib_name = lib_name.lower()
 
             # Hack that should go somewhere else:
-            if lib_name == 'libc.so.0':
+            if lib_name in [ 'libc.so.0', 'libc.so' ]:
                 lib_name = 'libc.so.6'
             if lib_name == 'ld-uClibc.so.0':
                 lib_name = 'ld-uClibc.so.6'
