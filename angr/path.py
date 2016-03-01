@@ -149,7 +149,8 @@ class TreeIter(object):
         self._hist = hist
 
     def __iter__(self):
-        raise ValueError("Please use .hardcopy to use forward iteration")
+        for i in self.hardcopy:
+            yield i
 
     def __reversed__(self):
         raise NotImplementedError("Why are you using this class")
