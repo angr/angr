@@ -144,6 +144,16 @@ class PathHistory(object):
     def _record_run(self, run):
         self._runstr = str(run)
 
+    def copy(self):
+        c = PathHistory(parent=self._parent)
+        c.addr = self.addr
+        c._runstr = self._runstr
+        c._target = self._target
+        c._guard = self._guard
+        c._jumpkind = self._jumpkind
+        c._events = self._events
+        return c
+
 class TreeIter(object):
     def __init__(self, hist):
         self._hist = hist
@@ -645,7 +655,7 @@ class Path(object):
     def copy(self):
         p = Path(self._project, self.state.copy())
 
-        p.history = self.history
+        p.history = self.history.copy()
         p._eref = self._eref
         p.callstack = self.callstack.copy()
         p.callstack_backtrace = list(self.callstack_backtrace)
