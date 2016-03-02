@@ -382,7 +382,7 @@ class Veritesting(Analysis):
 
         # This is a special hack for CGC stuff, since the CGCAnalysis relies on correct conditions of file actions
         # Otherwise we may just save out those actions, and then copy them back when returning those paths
-        initial_path.actions = [ a for a in initial_path.actions if a.type.startswith('file') ]
+        initial_path.history._events = [ a for a in initial_path.actions if a.type.startswith('file') ]
 
         path_group = PathGroup(self.project,
                                active_paths=[ initial_path ],
@@ -652,7 +652,7 @@ class Veritesting(Analysis):
     def _merge_path_list(self, se, base_path, path_list):
         merge_info = [ ]
         for path_to_merge in path_list:
-            inputs, outputs = self._io_interface(se, path_to_merge.actions, base_path.actions)
+            inputs, outputs = self._io_interface(se, list(path_to_merge.actions), list(base_path.actions))
             merge_info.append((path_to_merge, inputs, outputs))
         l.info('Merging %d paths: [ %s ].',
                len(merge_info),
@@ -688,7 +688,8 @@ class Veritesting(Analysis):
         all_outputs = reversed(all_outputs)
         merged_path = base_path.copy()  # We make a copy first
         # merged_path.actions = [ ]
-        merged_path.last_actions = [ ]
+        merged_path.trim_history()
+        merged_path.history._events = ()
         # merged_path.events = [ ]
         merged_state = merged_path.state
         merged_path.info['actionqueue_list'].append(self._new_actionqueue((merged_path.addr, self._get_last_actionqueue(merged_path).id)))
@@ -699,7 +700,7 @@ class Veritesting(Analysis):
             all_values = [ ]
             all_guards = [ ]
 
-            for i, merge_info in enumerate(merge_info_list):
+            for _, merge_info in enumerate(merge_info_list):
                 final_path, _, outputs = merge_info
 
                 # First we should build the value
@@ -785,8 +786,7 @@ class Veritesting(Analysis):
 
             if merged_actions:
                 for merged_action in merged_actions:
-                    merged_path.actions.append(merged_action)
-                    merged_path.last_actions.append(merged_action)
+                    merged_path.history._events += (merged_action,)
                     self._get_last_actionqueue(merged_path).actions.append(merged_action)
 
         # Merge *all* actions
@@ -814,8 +814,8 @@ class Veritesting(Analysis):
         '''
 
         # Fix trace of the merged path
-        merged_path.addr_trace.append(-1)
-        merged_path.trace.append('Veritesting')
+        merged_path.history.addr = -1
+        merged_path.history._runstr = 'Veritesting'
 
         # Add extra constraints from original paths to the merged path
         # It's really important to not lose them. Yan has a lot to say about it.
