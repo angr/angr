@@ -351,6 +351,9 @@ class Path(object):
     @property
     def actions(self):
         return ActionIter(self.history)
+    @property
+    def last_actions(self):
+        return tuple(ev for ev in self.history._events if isinstance(ev, simuvex.SimAction))
 
     def trim_history(self):
         self.history._parent = None
