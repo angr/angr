@@ -75,6 +75,7 @@ class Function(object):
 
         self.startpoint = None
 
+        self._addr_to_block_node = {}  # map addresses to nodes
         self._block_sizes = {}  # map addresses to block sizes
         self._block_cache = {}  # a cache of real, hard data Block objects
 
@@ -101,6 +102,9 @@ class Function(object):
     @property
     def nodes(self):
         return self.transition_graph.nodes_iter()
+
+    def get_node(self, addr):
+        return self._addr_to_block_node[addr]
 
     @property
     def has_unresolved_jumps(self):
@@ -358,6 +362,14 @@ class Function(object):
             if node.addr == self.addr:
                 if self.startpoint is None or not self.startpoint.is_hook:
                     self.startpoint = node
+            # add BlockNodes to the addr_to_block_node cache if not already there
+            if isinstance(node, BlockNode):
+                if node.addr not in self._addr_to_block_node:
+                    self._addr_to_block_node[node.addr] = node
+                else:
+                    # FIXME remove this assert once we know everything is good
+                    # checks that we don't have multiple block nodes at a single address
+                    assert node == self._addr_to_block_node[node.addr]
 
     def _add_return_site(self, return_site_addr):
         '''
