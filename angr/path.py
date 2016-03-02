@@ -170,6 +170,9 @@ class TreeIter(object):
         # lmao
         return list(reversed(tuple(reversed(self))))
 
+    def __len__(self):
+        return len(self.hardcopy)
+
     def __getitem__(self, k):
         if isinstance(k, slice):
             raise ValueError("Please use .hardcopy to use slices")
