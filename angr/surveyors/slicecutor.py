@@ -26,9 +26,9 @@ class HappyGraph(object):
             paths.append(path)
 
         for p in paths:
-            for i in range(len(p.addr_backtrace) - 1):
-                self.jumps[(p.addr_backtrace[i], p.addr_backtrace[i+1])] = True
-            self.jumps[(p.addr_backtrace[-1], p.addr)] = True
+            for i in range(len(p.addr_trace) - 1):
+                self.jumps[(p.addr_trace[i], p.addr_trace[i+1])] = True
+            self.jumps[(p.addr_trace[-1], p.addr)] = True
 
         self._merge_points = [ ]
 
@@ -187,7 +187,7 @@ class Slicecutor(Surveyor):
     def path_comparator(self, a, b):
         if a.weighted_length != b.weighted_length:
             return b.weighted_length - a.weighted_length
-        return a.addr_backtrace.count(a.addr_backtrace[-1]) - b.addr_backtrace.count(b.addr_backtrace[-1])
+        return a.addr_trace.count(a.addr_trace[-1]) - b.addr_trace.count(b.addr_trace[-1])
         #return self._annotated_cfg.path_priority(a) - self._annotated_cfg.path_priority(b)
 
     def __repr__(self):

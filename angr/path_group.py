@@ -683,13 +683,13 @@ class PathGroup(ana.Storable):
         """
         Stash all paths containg address addr in their backtrace from stash from_stash to stash to_stash.
         """
-        return self.stash(lambda p: addr in p.addr_backtrace, from_stash=from_stash, to_stash=to_stash)
+        return self.stash(lambda p: addr in p.addr_trace, from_stash=from_stash, to_stash=to_stash)
 
     def stash_not_addr_past(self, addr, from_stash=None, to_stash=None):
         """
         Stash all paths not containg address addr in their backtrace from stash from_stash to stash to_stash.
         """
-        return self.stash(lambda p: addr not in p.addr_backtrace, from_stash=from_stash, to_stash=to_stash)
+        return self.stash(lambda p: addr not in p.addr_trace, from_stash=from_stash, to_stash=to_stash)
 
     def stash_all(self, from_stash=None, to_stash=None):
         """
@@ -707,7 +707,7 @@ class PathGroup(ana.Storable):
         """
         Unstash all paths containing address addr in their backtrace.
         """
-        return self.unstash(lambda p: addr in p.addr_backtrace, from_stash=from_stash, to_stash=to_stash)
+        return self.unstash(lambda p: addr in p.addr_trace, from_stash=from_stash, to_stash=to_stash)
 
     def unstash_not_addr(self, addr, from_stash=None, to_stash=None):
         """
@@ -719,7 +719,7 @@ class PathGroup(ana.Storable):
         """
         Unstash all paths not containing address addr in their backtrace.
         """
-        return self.unstash(lambda p: addr not in p.addr_backtrace, from_stash=from_stash, to_stash=to_stash)
+        return self.unstash(lambda p: addr not in p.addr_trace, from_stash=from_stash, to_stash=to_stash)
 
     def unstash_all(self, from_stash=None, to_stash=None):
         """

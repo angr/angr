@@ -23,7 +23,7 @@ def run_fauxware(arch, threads):
 
     pg = p.factory.path_group(threads=threads)
     nose.tools.assert_equal(len(pg.active), 1)
-    nose.tools.assert_equal(len(pg.active[0].backtrace), 0)
+    nose.tools.assert_equal(pg.active[0].length, 0)
 
     # step until the backdoor split occurs
     pg2 = pg.step(until=lambda lpg: len(lpg.active) > 1, step_func=lambda lpg: lpg.prune())

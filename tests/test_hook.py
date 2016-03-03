@@ -29,7 +29,7 @@ def test_mips():
     nose.tools.assert_equal(len(s.found), 1)
     nose.tools.assert_equal(s.found[0].state.posix.dumps(1), ''.join('%d ' % x for x in xrange(100)) + '\n')
     nose.tools.assert_equal(output, [1]*100 + [2]*100)
-    # print 'Executed %d blocks' % len(s._f.backtrace)
+    # print 'Executed %d blocks' % len(s._f.trace)
 
 if __name__ == '__main__':
     test_mips()
