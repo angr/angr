@@ -31,11 +31,25 @@ corrupt_addrs = {
     'mips': [ 0x400918, '[\xf8\x96@'[::-1], lambda s: s.registers.store('a2', 8) ]
 }
 
+divergences = {
+    'ppc': 0x10000588,
+    'x86_64': 0x40068e,
+    'i386': 0x8048559,
+    'armel': 0x8568,
+    'mips': 0x40075c,
+}
+
 def run_fauxware(arch):
     p = angr.Project(os.path.join(test_location, arch, "fauxware"))
     results = p.factory.path_group().explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
     stdin = results.found[0].state.posix.dumps(0)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
+
+    # test the divergence detection
+    ancestor = results.found[0].history.closest_common_ancestor((results.avoid + results.active)[0].history)
+    divergent_point = list(angr.path.HistoryIter(results.found[0].history, end=ancestor))[0]
+    #p.factory.block(divergent_point.addr).pp()
+    assert divergent_point.addr == divergences[arch]
 
 def run_nodecode(arch):
     p = angr.Project(os.path.join(test_location, arch, "fauxware"))

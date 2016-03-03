@@ -154,6 +154,45 @@ class PathHistory(object):
         c._events = self._events
         return c
 
+    def closest_common_ancestor(self, other):
+        """
+        Find the common ancestor between this PathHistory and 'other'.
+
+        :param other:   the PathHistory to find a common ancestor with.
+        :return:        the common ancestor PathHistory, or None if there isn't one
+        """
+        our_history_iter = reversed(HistoryIter(self))
+        their_history_iter = reversed(HistoryIter(other))
+        sofar = set()
+
+        while True:
+            our_done = False
+            their_done = False
+
+            try:
+                our_next = next(our_history_iter)
+                if our_next in sofar:
+                    # we found it!
+                    return our_next
+                sofar.add(our_next)
+            except StopIteration:
+                # we ran out of items during iteration
+                our_done = True
+
+            try:
+                their_next = next(their_history_iter)
+                if their_next in sofar:
+                    # we found it!
+                    return their_next
+                sofar.add(their_next)
+            except StopIteration:
+                # we ran out of items during iteration
+                their_done = True
+
+            # if we ran out of both lists, there's no common ancestor
+            if our_done and their_done:
+                return None
+
 class TreeIter(object):
     def __init__(self, start, end=None):
         self._start = start
