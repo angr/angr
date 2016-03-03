@@ -356,6 +356,7 @@ class Path(object):
         return tuple(ev for ev in self.history._events if isinstance(ev, simuvex.SimAction))
 
     def trim_history(self):
+        self.history = self.history.copy()
         self.history._parent = None
 
 
