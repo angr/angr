@@ -89,7 +89,7 @@ class Tracer(object):
         self.crash_addr = None
 
         # will set crash_mode correctly
-        self.trace = self._dynamic_trace()
+        self.trace = self.dynamic_trace()
 
         l.debug("trace consists of %d basic blocks", len(self.trace))
 
@@ -433,7 +433,7 @@ class Tracer(object):
             else:
                 raise TracerDynamicTraceOOBError
 
-    def _dynamic_trace(self):
+    def dynamic_trace(self):
         '''
         accumulate a basic block trace using qemu
         '''
