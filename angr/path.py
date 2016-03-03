@@ -155,8 +155,15 @@ class PathHistory(object):
         return c
 
 class TreeIter(object):
-    def __init__(self, hist):
-        self._hist = hist
+    def __init__(self, start, end=None):
+        self._start = start
+        self._end = end
+
+    def _iter_nodes(self):
+        n = self._start
+        while n is not self._end:
+            yield n
+            n = n._parent
 
     def __iter__(self):
         for i in self.hardcopy:
@@ -185,68 +192,59 @@ class TreeIter(object):
                 return item
         raise IndexError(k)
 
+class HistoryIter(TreeIter):
+    def __reversed__(self):
+        for hist in self._iter_nodes():
+            yield hist
+
 class AddrIter(TreeIter):
     def __reversed__(self):
-        hist = self._hist
-        while hist is not None:
+        for hist in self._iter_nodes():
             if hist.addr is not None:
                 yield hist.addr
-            hist = hist._parent
 
 class RunstrIter(TreeIter):
     def __reversed__(self):
-        hist = self._hist
-        while hist is not None:
+        for hist in self._iter_nodes():
             if hist._runstr is not None:
                 yield hist._runstr
-            hist = hist._parent
 
 class TargetIter(TreeIter):
     def __reversed__(self):
-        hist = self._hist
-        while hist is not None:
+        for hist in self._iter_nodes():
             if hist._target is not None:
                 yield hist._target
-            hist = hist._parent
 
 class GuardIter(TreeIter):
     def __reversed__(self):
-        hist = self._hist
-        while hist is not None:
+        for hist in self._iter_nodes():
             if hist._guard is not None:
                 yield hist._guard
-            hist = hist._parent
 
 class JumpkindIter(TreeIter):
     def __reversed__(self):
-        hist = self._hist
-        while hist is not None:
+        for hist in self._iter_nodes():
             if hist._jumpkind is not None:
                 yield hist._jumpkind
-            hist = hist._parent
 
 class EventIter(TreeIter):
     def __reversed__(self):
-        hist = self._hist
-        while hist is not None:
+        for hist in self._iter_nodes():
             try:
                 for ev in iter(hist._events):
                     yield ev
             except ReferenceError:
                 hist._events = ()
-            hist = hist._parent
 
 class ActionIter(TreeIter):
     def __reversed__(self):
-        hist = self._hist
-        while hist is not None:
+        for hist in self._iter_nodes():
             try:
                 for ev in iter(hist._events):
                     if isinstance(ev, simuvex.SimAction):
                         yield ev
             except ReferenceError:
                 hist._events = ()
-            hist = hist._parent
 
 
 class Path(object):
