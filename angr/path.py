@@ -17,7 +17,7 @@ class CallFrame(object):
     Stores the address of the function you're in and the value of SP
     at the VERY BOTTOM of the stack, i.e. points to the return address
     '''
-    def __init__(self, state=None, func_addr=None, stack_ptr=None, ret_addr=None):
+    def __init__(self, state=None, func_addr=None, stack_ptr=None, ret_addr=None, jumpkind=None):
         '''
         Initialize with either a state or the function address,
         stack pointer, and return address
@@ -36,6 +36,7 @@ class CallFrame(object):
             self.stack_ptr = stack_ptr
             self.ret_addr = ret_addr
 
+        self.jumpkind = jumpkind if jumpkind is not None else (state.scratch.jumpkind if state is not None else None)
         self.block_counter = collections.Counter()
 
     def __str__(self):
@@ -45,7 +46,9 @@ class CallFrame(object):
         return '<CallFrame (Func %#x)>' % (self.func_addr)
 
     def copy(self):
-        c = CallFrame(None, self.func_addr, self.stack_ptr, self.ret_addr)
+        c = CallFrame(state=None, func_addr=self.func_addr, stack_ptr=self.stack_ptr, ret_addr=self.ret_addr,
+                      jumpkind=self.jumpkind
+                      )
         c.block_counter = collections.Counter(self.block_counter)
         return c
 
