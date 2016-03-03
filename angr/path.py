@@ -10,6 +10,8 @@ import mulpyplexer
 
 #pylint:disable=unidiomatic-typecheck
 
+UNAVAILABLE_RET_ADDR = -1
+
 class CallFrame(object):
     '''
     Stores the address of the function you're in and the value of SP
@@ -303,7 +305,11 @@ class Path(object):
             # the path history
             self.history = PathHistory()
             self.callstack = CallStack()
-            self.callstack.push(CallFrame(None, self.addr, self.state.se.any_int(self.state.regs.sp), 0))
+            self.callstack.push(CallFrame(state=None, func_addr=self.addr,
+                                          stack_ptr=self.state.se.any_int(self.state.regs.sp),
+                                          ret_addr=UNAVAILABLE_RET_ADDR
+                                          )
+                                )
             self.popped_callframe = None
             self.callstack_backtrace = []
 
