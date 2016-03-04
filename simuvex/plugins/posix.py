@@ -157,7 +157,11 @@ class SimStateSystem(SimStatePlugin):
             raise SimPosixError("Symbolic fd ?")
 
         fd = self.state.se.any_int(fd)
-        self.get_file(fd).close()
+        retval = self.get_file(fd).close()
+        
+        # Return this as a proper sized value for this arch
+        return self.state.se.BVV(retval, self.state.arch.bits)
+
 
     def fstat(self, fd): #pylint:disable=unused-argument
         # sizes are AMD64-specific for now
