@@ -67,8 +67,9 @@ class SimStateSystem(SimStatePlugin):
         # some limits and constants
         self.sigmask_bits = 1024
         self.maximum_symbolic_syscalls = 255
-        self.files = { } if files is None else files
         self.max_length = 2 ** 16
+
+        self.files = { } if files is None else files
         self.sockets = {} if sockets is None else sockets
         self.pcap = None if pcap_backer is None else pcap_backer
         self.pflag = 0 if self.pcap is None else 1
@@ -203,7 +204,7 @@ class SimStateSystem(SimStatePlugin):
 
         fd = self.state.se.any_int(fd)
         retval = self.get_file(fd).close()
-        
+
         # Return this as a proper sized value for this arch
         return self.state.se.BVV(retval, self.state.arch.bits)
 
