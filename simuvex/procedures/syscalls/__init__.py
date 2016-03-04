@@ -13,7 +13,9 @@ syscall_table['AMD64'][9] = 'mmap'
 syscall_table['AMD64'][11] = 'munmap'
 syscall_table['AMD64'][12] = 'brk'
 syscall_table['AMD64'][14] = 'sigprocmask'
+syscall_table['AMD64'][39] = 'getpid'
 syscall_table['AMD64'][60] = 'exit'
+syscall_table['AMD64'][186] = 'gettid'
 syscall_table['AMD64'][231] = 'exit' # really exit_group, but close enough
 
 syscall_table['X86'] = { }
