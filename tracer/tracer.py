@@ -433,7 +433,7 @@ class Tracer(object):
             else:
                 raise TracerDynamicTraceOOBError
 
-    def dynamic_trace(self):
+    def dynamic_trace(self, stdout_file=None):
         '''
         accumulate a basic block trace using qemu
         '''
@@ -442,15 +442,19 @@ class Tracer(object):
         args = [self.tracer_qemu_path, "-d", "exec", "-D", logname, self.binary]
 
         with open('/dev/null', 'wb') as devnull:
+            stdout_f = devnull
+            if stdout_file is not None:
+                stdout_f = open(stdout_file, 'wb')
+
             # we assume qemu with always exit and won't block
             if self.pov_file is None:
                 l.info("tracing as raw input")
-                p = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=devnull, stderr=devnull)
+                p = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=stdout_f, stderr=devnull)
                 _, _ = p.communicate(self.input)
             else:
                 l.info("tracing as pov file")
                 in_s, out_s = socket.socketpair()
-                p = subprocess.Popen(args, stdin=in_s, stdout=devnull, stderr=devnull)
+                p = subprocess.Popen(args, stdin=in_s, stdout=stdout_f, stderr=devnull)
 
                 for write in self.pov_file.writes:
                     out_s.send(write)
@@ -463,6 +467,9 @@ class Tracer(object):
                     l.info("input caused a crash (signal %d) during dynamic tracing", abs(ret))
                     l.info("entering crash mode")
                     self.crash_mode = True
+
+            if stdout_file is not None:
+                stdout_f.close()
 
         trace = open(logname).read()
         addrs = [int(v.split('[')[1].split(']')[0], 16)
