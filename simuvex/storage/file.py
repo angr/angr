@@ -83,6 +83,7 @@ class SimFile(SimStatePlugin):
     def close(self):
         l.debug("File %s closed.", self.name)
         self.closed = True
+        return 0
 
     def read(self, dst_addr, length):
         '''
