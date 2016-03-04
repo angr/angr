@@ -61,8 +61,11 @@ class SimStateSystem(SimStatePlugin):
 
     def __init__(self, initialize=True, files=None, concrete_fs=False, chroot=None, sockets=None,
             pcap_backer=None, inetd=False, argv=None, argc=None, environ=None, auxv=None, tls_modules=None,
-            fs=None, queued_syscall_returns=None):
+            fs=None, queued_syscall_returns=None, sigmask=None):
         SimStatePlugin.__init__(self)
+
+        # some limits and constants
+        self.sigmask_bits = 1024
         self.maximum_symbolic_syscalls = 255
         self.files = { } if files is None else files
         self.max_length = 2 ** 16
@@ -79,6 +82,7 @@ class SimStateSystem(SimStatePlugin):
         self.tls_modules = tls_modules if tls_modules is not None else {}
         self.queued_syscall_returns = [ ] if queued_syscall_returns is None else queued_syscall_returns
         self.brk = None
+        self._sigmask = sigmask
 
         if initialize:
             l.debug("Initializing files...")
@@ -283,6 +287,47 @@ class SimStateSystem(SimStatePlugin):
 
         return None
 
+    def sigmask(self, sigsetsize=None):
+        """
+        Gets the current sigmask. If it's blank, a new one is created (of sigsetsize).
+
+        :param sigsetsize: the size (in *bytes* of the sigmask set)
+        :return: the sigmask
+        """
+        if self._sigmask is None:
+            if sigsetsize is not None:
+                sc = self.state.se.any_int(sigsetsize)
+                self.state.add_constraints(sc == sigsetsize)
+                self._sigmask = self.state.se.BVS('initial_sigmask', sc*8)
+            else:
+                self._sigmask = self.state.se.BVS('initial_sigmask', self.sigmask_bits)
+        return self._sigmask
+
+    def sigprocmask(self, how, new_mask, sigsetsize, valid_ptr=True):
+        """
+        Updates the signal mask.
+
+        :param how: the "how" argument of sigprocmask (see manpage)
+        :param new_mask: the mask modification to apply
+        :param sigsetsize: the size (in *bytes* of the sigmask set)
+        :param valid_ptr: is set if the new_mask was not NULL
+        """
+        oldmask = self.sigmask(sigsetsize)
+        self._sigmask = self.state.se.If(valid_ptr,
+            self.state.se.If(how == self.SIG_BLOCK,
+                oldmask | new_mask,
+                self.state.se.If(how == self.SIG_UNBLOCK,
+                    oldmask & (~new_mask),
+                    self.state.se.If(how == self.SIG_SETMASK,
+                        new_mask,
+                        oldmask
+                     )
+                )
+            ),
+            oldmask
+        )
+
+
     def copy(self):
         sockets = {}
         files = { fd:f.copy() for fd,f in self.files.iteritems() }
@@ -290,7 +335,7 @@ class SimStateSystem(SimStatePlugin):
             if f in self.sockets:
                 sockets[f] = files[f]
 
-        return SimStateSystem(initialize=False, files=files, concrete_fs=self.concrete_fs, chroot=self.chroot, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, auxv=self.auxv, tls_modules=self.tls_modules, fs=self.fs, queued_syscall_returns=list(self.queued_syscall_returns))
+        return SimStateSystem(initialize=False, files=files, concrete_fs=self.concrete_fs, chroot=self.chroot, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, auxv=self.auxv, tls_modules=self.tls_modules, fs=self.fs, queued_syscall_returns=list(self.queued_syscall_returns), sigmask=self._sigmask)
 
     def merge(self, others, merge_flag, flag_values):
         all_files = set.union(*(set(o.files.keys()) for o in [ self ] + others))
