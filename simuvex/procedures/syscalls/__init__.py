@@ -12,6 +12,7 @@ syscall_table['AMD64'][6] = 'stat'
 syscall_table['AMD64'][9] = 'mmap'
 syscall_table['AMD64'][11] = 'munmap'
 syscall_table['AMD64'][12] = 'brk'
+syscall_table['AMD64'][14] = 'sigprocmask'
 syscall_table['AMD64'][60] = 'exit'
 syscall_table['AMD64'][231] = 'exit' # really exit_group, but close enough
 
