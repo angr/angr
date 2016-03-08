@@ -283,7 +283,7 @@ class NormalizedFunction(object):
     def __init__(self, function):
         # start by copying the graph
         self.graph = function.graph.copy()
-        self.project = function._function_manager._artifact._project
+        self.project = function._function_manager._kb._project
         self.call_sites = dict()
         self.startpoint = function.startpoint
         self.merged_blocks = dict()
@@ -971,8 +971,8 @@ class BinDiff(Analysis):
         """
         pair = (function_addr_a, function_addr_b)
         if pair not in self._function_diffs:
-            function_a = self.cfg_a.artifacts.functions.function(function_addr_a)
-            function_b = self.cfg_b.artifacts.functions.function(function_addr_b)
+            function_a = self.cfg_a.kb.functions.function(function_addr_a)
+            function_b = self.cfg_b.kb.functions.function(function_addr_b)
             self._function_diffs[pair] = FunctionDiff(function_a, function_b, self)
         return self._function_diffs[pair]
 
@@ -984,17 +984,17 @@ class BinDiff(Analysis):
         """
         # the attributes we use are the number of basic blocks, number of edges, and number of subfunction calls
         attributes = dict()
-        all_funcs = set(cfg.artifacts.callgraph.nodes())
-        for function_addr in cfg.artifacts.functions:
-            if cfg.artifacts.functions.function(function_addr) is not None:
-                normalized_funtion = NormalizedFunction(cfg.artifacts.functions.function(function_addr))
+        all_funcs = set(cfg.kb.callgraph.nodes())
+        for function_addr in cfg.kb.functions:
+            if cfg.kb.functions.function(function_addr) is not None:
+                normalized_funtion = NormalizedFunction(cfg.kb.functions.function(function_addr))
                 number_of_basic_blocks = len(normalized_funtion.graph.nodes())
                 number_of_edges = len(normalized_funtion.graph.edges())
             else:
                 number_of_basic_blocks = 0
                 number_of_edges = 0
             if function_addr in all_funcs:
-                number_of_subfunction_calls = len(cfg.artifacts.callgraph.successors(function_addr))
+                number_of_subfunction_calls = len(cfg.kb.callgraph.successors(function_addr))
             else:
                 number_of_subfunction_calls = 0
             attributes[function_addr] = (number_of_basic_blocks, number_of_edges, number_of_subfunction_calls)
@@ -1005,8 +1005,8 @@ class BinDiff(Analysis):
         possible_matches = set()
 
         # Make sure those functions are not SimProcedures
-        f_a = self.cfg_a.artifacts.functions.function(func_a)
-        f_b = self.cfg_b.artifacts.functions.function(func_b)
+        f_a = self.cfg_a.kb.functions.function(func_a)
+        f_b = self.cfg_b.kb.functions.function(func_b)
         if f_a.startpoint is None or f_b.startpoint is None:
             return possible_matches
 
@@ -1049,8 +1049,8 @@ class BinDiff(Analysis):
                 plt_matches.append((addr, func_to_addr_b[name]))
 
         # remove ones that aren't in the interfunction graph, because these seem to not be consistent
-        all_funcs_a = set(self.cfg_a.artifacts.callgraph.nodes())
-        all_funcs_b = set(self.cfg_b.artifacts.callgraph.nodes())
+        all_funcs_a = set(self.cfg_a.kb.callgraph.nodes())
+        all_funcs_b = set(self.cfg_b.kb.callgraph.nodes())
         plt_matches = [x for x in plt_matches if x[0] in all_funcs_a and x[1] in all_funcs_b]
 
         return plt_matches
@@ -1089,10 +1089,10 @@ class BinDiff(Analysis):
                 continue
             if not self._p2.loader.main_bin.contains_addr(func_b):
                 continue
-            func_a_succ = self.cfg_a.artifacts.callgraph.successors(func_a)
-            func_b_succ = self.cfg_b.artifacts.callgraph.successors(func_b)
-            func_a_pred = self.cfg_a.artifacts.callgraph.predecessors(func_a)
-            func_b_pred = self.cfg_b.artifacts.callgraph.predecessors(func_b)
+            func_a_succ = self.cfg_a.kb.callgraph.successors(func_a)
+            func_b_succ = self.cfg_b.kb.callgraph.successors(func_b)
+            func_a_pred = self.cfg_a.kb.callgraph.predecessors(func_a)
+            func_b_pred = self.cfg_b.kb.callgraph.predecessors(func_b)
 
             # get possible new matches
             new_matches = set(self._get_function_matches(self.attributes_a, self.attributes_b,
@@ -1131,8 +1131,8 @@ class BinDiff(Analysis):
                 self.function_matches.add((x, y))
 
         # get the unmatched blocks
-        self._unmatched_functions_from_a = set(x for x in self.cfg_a.artifacts.functions if x not in matched_a)
-        self._unmatched_functions_from_b = set(x for x in self.cfg_b.artifacts.functions if x not in matched_b)
+        self._unmatched_functions_from_a = set(x for x in self.cfg_a.kb.functions if x not in matched_a)
+        self._unmatched_functions_from_b = set(x for x in self.cfg_b.kb.functions if x not in matched_b)
 
         # remove unneeded function diffs
         for (x, y) in dict(self._function_diffs):

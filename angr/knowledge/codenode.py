@@ -1,5 +1,5 @@
 import logging
-l = logging.getLogger("angr.artifacts.codenode")
+l = logging.getLogger("angr.knowledge.codenode")
 
 class CodeNode(object):
     def __init__(self, addr, size, graph=None):

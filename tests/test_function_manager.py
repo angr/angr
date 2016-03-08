@@ -25,9 +25,9 @@ def test_amd64():
                                   None }
 
     fauxware_amd64.analyses.CFG()
-    nose.tools.assert_equal(set([ k for k in fauxware_amd64.artifacts.functions.keys() if k < 0x500000 ]), EXPECTED_FUNCTIONS)
+    nose.tools.assert_equal(set([ k for k in fauxware_amd64.kb.functions.keys() if k < 0x500000 ]), EXPECTED_FUNCTIONS)
 
-    main = fauxware_amd64.artifacts.functions.function(name='main')
+    main = fauxware_amd64.kb.functions.function(name='main')
     nose.tools.assert_equal(main.startpoint.addr, 0x40071D)
     nose.tools.assert_equal(set(main.block_addrs), EXPECTED_BLOCKS)
     nose.tools.assert_equal([0x4007D3], [bl.addr for bl in main.endpoints])
@@ -36,7 +36,7 @@ def test_amd64():
     nose.tools.assert_equal(set(map(main.get_call_return, main.get_call_sites())), EXPECTED_CALLSITE_RETURNS)
     nose.tools.assert_true(main.has_return)
 
-    rejected = fauxware_amd64.artifacts.functions.function(name='rejected')
+    rejected = fauxware_amd64.kb.functions.function(name='rejected')
     nose.tools.assert_equal(rejected.returning, False)
 
     # transition graph
@@ -72,9 +72,9 @@ def test_call_to():
     project = angr.Project(test_location + "/x86_64/fauxware")
     project.arch = ArchAMD64()
 
-    project.artifacts.functions._add_call_to(0x400000, 0x400410, 0x400420, 0x400414)
-    nose.tools.assert_in(0x400000, project.artifacts.functions.keys())
-    nose.tools.assert_in(0x400420, project.artifacts.functions.keys())
+    project.kb.functions._add_call_to(0x400000, 0x400410, 0x400420, 0x400414)
+    nose.tools.assert_in(0x400000, project.kb.functions.keys())
+    nose.tools.assert_in(0x400420, project.kb.functions.keys())
 
 if __name__ == "__main__":
     test_call_to()

@@ -14,19 +14,19 @@ def test_simcc_x86_64():
     p = angr.Project(binary_path)
     p.analyses.CFG()
 
-    f_arg1 = p.artifacts.functions['arg1']
+    f_arg1 = p.kb.functions['arg1']
     nose.tools.assert_not_equal(f_arg1, None)
     nose.tools.assert_equal(type(f_arg1.call_convention), SimCCSystemVAMD64)
     nose.tools.assert_equal(len(f_arg1.arguments), 1)
     nose.tools.assert_equal(f_arg1.arguments[0].name, 'rdi')
 
-    f_arg7 = p.artifacts.functions['arg7']
+    f_arg7 = p.kb.functions['arg7']
     nose.tools.assert_not_equal(f_arg7, None)
     nose.tools.assert_equal(type(f_arg7.call_convention), SimCCSystemVAMD64)
     nose.tools.assert_equal(len(f_arg7.arguments), 7)
     nose.tools.assert_equal(f_arg7.arguments[1].name, 'rsi')
 
-    f_arg9 = p.artifacts.functions.function(name='arg9')
+    f_arg9 = p.kb.functions.function(name='arg9')
     nose.tools.assert_not_equal(f_arg9, None)
     nose.tools.assert_equal(type(f_arg9.call_convention), SimCCSystemVAMD64)
     nose.tools.assert_equal(len(f_arg9.arguments), 9)

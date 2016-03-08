@@ -134,7 +134,7 @@ class Project(object):
         self.factory = AngrObjectFactory(self, translation_cache=translation_cache)
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
-        self.artifacts = Artifacts(self, self.loader.main_bin, self.loader.shared_objects)
+        self.kb = KnowledgeBase(self, self.loader.main_bin)
 
         projects[self.filename] = self
 
@@ -372,4 +372,4 @@ from .simos import SimOS, os_mapping
 from .extern_obj import AngrExternObject
 from .analysis import Analyses
 from .surveyor import Surveyors
-from .artifact import Artifacts
+from .knowledge_base import KnowledgeBase

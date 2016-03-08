@@ -7,7 +7,7 @@ import simuvex
 import simuvex.s_cc
 import claripy
 
-l = logging.getLogger(name="angr.artifacts.function")
+l = logging.getLogger(name="angr.knowledge.function")
 
 class Function(object):
     '''
@@ -30,7 +30,7 @@ class Function(object):
         self._function_manager = function_manager
         self.is_syscall = syscall
 
-        self._project = project = self._function_manager._artifact._project
+        self._project = project = self._function_manager._kb._project
 
         if name is None:
             # Try to get a name from project.loader
@@ -109,7 +109,7 @@ class Function(object):
     @property
     def has_unresolved_jumps(self):
         for addr in self.block_addrs:
-            if addr in self._function_manager._artifact.unresolved_indirect_jumps:
+            if addr in self._function_manager._kb.unresolved_indirect_jumps:
                 b = self._function_manager.project.factory.block(addr)
                 if b.vex.jumpkind == 'Ijk_Boring':
                     return True
@@ -118,7 +118,7 @@ class Function(object):
     @property
     def has_unresolved_calls(self):
         for addr in self.block_addrs:
-            if addr in self._function_manager._artifact.unresolved_indirect_jumps:
+            if addr in self._function_manager._kb.unresolved_indirect_jumps:
                 b = self._function_manager.project.factory.block(addr)
                 if b.vex.jumpkind == 'Ijk_Call':
                     return True

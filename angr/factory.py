@@ -209,4 +209,4 @@ from .lifter import Lifter
 from .errors import AngrExitError, AngrError, AngrValueError
 from .path import Path
 from .path_group import PathGroup
-from .artifacts import HookNode
+from .knowledge import HookNode

@@ -23,11 +23,11 @@ def cfg_fast(arch, binary_path, func_addrs):
     proj = angr.Project(path, load_options={'auto_load_libs': False})
 
     cfg = proj.analyses.CFGFast()
-    nose.tools.assert_true(set(proj.artifacts.functions.keys()).issuperset(func_addrs))
+    nose.tools.assert_true(set(cfg.kb.functions.keys()).issuperset(func_addrs))
 
     # Segment only
     cfg = proj.analyses.CFGFast(force_segment=True)
-    nose.tools.assert_true(set(proj.artifacts.functions.keys()).issuperset(func_addrs))
+    nose.tools.assert_true(set(cfg.kb.functions.keys()).issuperset(func_addrs))
 
 def test_cfg_0():
     filename = 'cfg_0'

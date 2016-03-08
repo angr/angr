@@ -19,7 +19,7 @@ from .simos import SimOS
 from .path_group import PathGroup
 from .surveyors.caller import Callable
 from .log import Loggers
-from . import artifacts
+from . import knowledge
 
 import sys
 i = 0

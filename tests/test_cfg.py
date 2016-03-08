@@ -157,23 +157,23 @@ def test_not_returning():
     proj.analyses.CFG(context_sensitivity_level=0)
 
     # function_a returns
-    nose.tools.assert_not_equal(proj.artifacts.functions.function(name='function_a'), None)
-    nose.tools.assert_true(proj.artifacts.functions.function(name='function_a').returning)
+    nose.tools.assert_not_equal(proj.kb.functions.function(name='function_a'), None)
+    nose.tools.assert_true(proj.kb.functions.function(name='function_a').returning)
 
     # function_b does not return
-    nose.tools.assert_not_equal(proj.artifacts.functions.function(name='function_b'), None)
-    nose.tools.assert_false(proj.artifacts.functions.function(name='function_b').returning)
+    nose.tools.assert_not_equal(proj.kb.functions.function(name='function_b'), None)
+    nose.tools.assert_false(proj.kb.functions.function(name='function_b').returning)
 
     # function_c does not return
-    nose.tools.assert_not_equal(proj.artifacts.functions.function(name='function_c'), None)
-    nose.tools.assert_false(proj.artifacts.functions.function(name='function_c').returning)
+    nose.tools.assert_not_equal(proj.kb.functions.function(name='function_c'), None)
+    nose.tools.assert_false(proj.kb.functions.function(name='function_c').returning)
 
     # main does not return
-    nose.tools.assert_not_equal(proj.artifacts.functions.function(name='main'), None)
-    nose.tools.assert_false(proj.artifacts.functions.function(name='main').returning)
+    nose.tools.assert_not_equal(proj.kb.functions.function(name='main'), None)
+    nose.tools.assert_false(proj.kb.functions.function(name='main').returning)
 
     # function_d should not be reachable
-    nose.tools.assert_equal(proj.artifacts.functions.function(name='function_d'), None)
+    nose.tools.assert_equal(proj.kb.functions.function(name='function_d'), None)
 
 def disabled_cfg_5():
     binary_path = test_location + "/mipsel/busybox"
@@ -189,7 +189,7 @@ def test_cfg_6():
                         use_sim_procedures=True,
                         load_options={'auto_load_libs': False})
     proj.analyses.CFG(context_sensitivity_level=1)
-    nose.tools.assert_greater_equal(len(proj.artifacts.functions), 58)
+    nose.tools.assert_greater_equal(len(proj.kb.functions), 58)
     simuvex.o.modes['fastpath'] ^= {simuvex.s_options.DO_CCALLS}
 
 def test_fauxware():
@@ -229,7 +229,7 @@ def test_thumb_mode():
         check_addr(a)
 
     # Functions in function manager
-    for f_addr, f in p.artifacts.functions.items():
+    for f_addr, f in p.kb.functions.items():
         check_addr(f_addr)
         if f.startpoint is not None:
             check_addr(f.startpoint.addr)

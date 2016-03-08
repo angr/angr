@@ -12,7 +12,7 @@ from archinfo import ArchARM
 from ..entry_wrapper import EntryWrapper
 from ..analysis import Analysis, register_analysis
 from ..errors import AngrCFGError, AngrError, AngrForwardAnalysisSkipEntry
-from ..artifacts import Function
+from ..knowledge import Function
 from ..path import make_path
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase
@@ -847,7 +847,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                                                 )
                 remaining_entries.append(new_path_wrapper)
                 l.debug('Picking a function 0x%x from pending function hints.', f)
-                self.artifacts.functions.function(new_path_wrapper.current_function_address, create=True)
+                self.kb.functions.function(new_path_wrapper.current_function_address, create=True)
                 break
 
     def _post_analysis(self):
@@ -891,7 +891,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         func_addr = _locals['func_addr'] = entry.current_function_address
         _locals['current_stack_pointer'] = entry.current_stack_pointer
         _locals['accessed_registers_in_function'] = entry.current_function_accessed_registers
-        _locals['current_function'] = self.artifacts.functions.function(_locals['func_addr'], create=True)
+        _locals['current_function'] = self.kb.functions.function(_locals['func_addr'], create=True)
         jumpkind = _locals['jumpkind'] = 'Ijk_Boring' if entry.path.state.scratch.jumpkind is None else \
             entry.path.state.scratch.jumpkind
         src_simrun_key = entry.src_simrun_key
@@ -1188,7 +1188,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                 # The original call failed. This pending exit must be followed.
                 continue
 
-            func = self.artifacts.functions.function(pe.returning_source)
+            func = self.kb.functions.function(pe.returning_source)
             if func is None:
                 # Why does it happen?
                 l.warning("An expected function at %s is not found. Please report it to Fish.",
@@ -1203,7 +1203,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                 # We want to mark that call as not returning in the current function
                 current_function_addr = self._simrun_key_current_func_addr(simrun_key)
                 if current_function_addr is not None:
-                    current_function = self.artifacts.functions.function(current_function_addr)
+                    current_function = self.kb.functions.function(current_function_addr)
                     call_site_addr = self._simrun_key_addr(pe.src_simrun_key)
                     current_function._call_sites[call_site_addr] = (func.addr, None)
 
@@ -1524,7 +1524,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
 
         dst_node = self._graph_get_node(dst_node_key, terminator_for_nonexistent_node=True)
         if src_node_key is None:
-            self.artifacts.functions.function(dst_node.function_address, create=True)._register_nodes(dst_node.to_codenode())
+            self.kb.functions.function(dst_node.function_address, create=True)._register_nodes(dst_node.to_codenode())
             return
 
         src_node = self._graph_get_node(src_node_key, terminator_for_nonexistent_node=True)
@@ -1532,7 +1532,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         # Update the transition graph of current function
         if jumpkind == "Ijk_Call":
             ret_addr = src_node.return_target
-            ret_node = self.artifacts.functions.function(
+            ret_node = self.kb.functions.function(
                 src_node.function_address,
                 create=True
             )._get_block(ret_addr).codenode if ret_addr else None
@@ -1540,7 +1540,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             if ret_node is None:
                 l.warning("Unknown return site for call to %#x at call-site %#x", dst_node.addr, src_node.addr)
 
-            self.artifacts.functions._add_call_to(
+            self.kb.functions._add_call_to(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
                 to_addr=dst_node.addr,
@@ -1550,7 +1550,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
 
         if jumpkind.startswith('Ijk_Sys'):
 
-            self.artifacts.functions._add_call_to(
+            self.kb.functions._add_call_to(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
                 to_addr=dst_node.addr,
@@ -1560,21 +1560,21 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
 
         elif jumpkind == 'Ijk_Ret':
             # Create a return site for current function
-            self.artifacts.functions._add_return_from(
+            self.kb.functions._add_return_from(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
                 to_node=dst_node.to_codenode(),
             )
 
             # Create a returning edge in the caller function
-            self.artifacts.functions._add_return_from_call(
+            self.kb.functions._add_return_from_call(
                 function_addr=dst_node.function_address,
                 src_function_addr=src_node.function_address,
                 to_node=dst_node.to_codenode()
             )
 
         elif jumpkind == 'Ijk_FakeRet':
-            self.artifacts.functions._add_fakeret_to(
+            self.kb.functions._add_fakeret_to(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
                 to_node=dst_node.to_codenode()
@@ -1588,14 +1588,14 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             if src_obj is dest_obj:
 
                 # It's a normal transition
-                self.artifacts.functions._add_transition_to(
+                self.kb.functions._add_transition_to(
                     function_addr=src_node.function_address,
                     from_node=src_node.to_codenode(),
                     to_node=dst_node.to_codenode()
                 )
 
             else:
-                self.artifacts.functions._add_call_to(
+                self.kb.functions._add_call_to(
                     function_addr=src_node.function_address,
                     from_node=src_node.to_codenode(),
                     to_addr=dst_node.addr,
@@ -1638,7 +1638,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         calling some not-returning functions.
         :return: None
         """
-        for func in self.artifacts.functions.values():
+        for func in self.kb.functions.values():
             graph = func.transition_graph
             all_return_edges = [(u, v) for (u, v, data) in graph.edges(data=True) if data['type'] == 'return_from_call']
             for return_from_call_edge in all_return_edges:
@@ -1647,7 +1647,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                 if call_func_addr is None:
                     continue
 
-                call_func = self.artifacts.functions.function(call_func_addr)
+                call_func = self.kb.functions.function(call_func_addr)
                 if call_func is None:
                     # Weird...
                     continue
@@ -1755,11 +1755,11 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
 
                         l.debug('The indirect jump is successfully resolved.')
 
-                        self.artifacts._resolved_indirect_jumps.add(simrun.addr)
+                        self.kb._resolved_indirect_jumps.add(simrun.addr)
 
                     else:
                         l.debug('We failed to resolve the indirect jump.')
-                        self.artifacts._unresolved_indirect_jumps.add(simrun.addr)
+                        self.kb._unresolved_indirect_jumps.add(simrun.addr)
 
             else:
                 if not successors:
@@ -1807,12 +1807,12 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                         successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
                         # mark jump as resolved if we got successors
                         if len(successors):
-                            self.artifacts._resolved_indirect_jumps.add(simrun.addr)
+                            self.kb._resolved_indirect_jumps.add(simrun.addr)
                         else:
-                            self.artifacts._unresolved_indirect_jumps.add(simrun.addr)
+                            self.kb._unresolved_indirect_jumps.add(simrun.addr)
                         l.debug("Got %d concrete exits in symbolic mode.", len(successors))
                     else:
-                        self.artifacts._unresolved_indirect_jumps.add(simrun.addr)
+                        self.kb._unresolved_indirect_jumps.add(simrun.addr)
                         # keep fake_rets
                         successors = [s for s in successors if s.scratch.jumpkind == "Ijk_FakeRet"]
 
@@ -1829,12 +1829,12 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
 
                         # mark jump as resolved if we got successors
                         if len(successors):
-                            self.artifacts._resolved_indirect_jumps.add(simrun.addr)
+                            self.kb._resolved_indirect_jumps.add(simrun.addr)
                         else:
-                            self.artifacts._unresolved_indirect_jumps.add(simrun.addr)
+                            self.kb._unresolved_indirect_jumps.add(simrun.addr)
                         l.debug('Got %d concrete exits in symbolic mode', len(successors))
                     else:
-                        self.artifacts._unresolved_indirect_jumps.add(simrun.addr)
+                        self.kb._unresolved_indirect_jumps.add(simrun.addr)
                         successors = []
 
                 elif len(successors) > 0 and all([ex.scratch.jumpkind == 'Ijk_Ret' for ex in successors]):
@@ -1842,7 +1842,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
 
                 else:
                     l.warning('It seems that we cannot resolve this indirect jump: %s', cfg_node)
-                    self.artifacts._unresolved_indirect_jumps.add(simrun.addr)
+                    self.kb._unresolved_indirect_jumps.add(simrun.addr)
 
         return successors
 
@@ -2350,16 +2350,16 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                 delta = sp - old_sp
                 func_addr = entry_wrapper.current_function_address
 
-                if self.artifacts.functions.function(func_addr) is None:
+                if self.kb.functions.function(func_addr) is None:
                     # Create the function if it doesn't exist
                     # FIXME: But hell, why doesn't it exist in the first place?
                     l.error("Function 0x%x doesn't exist in function manager although it should be there." +
                             "Look into this issue later.",
                             func_addr)
-                    self.artifacts.functions.function(func_addr, create=True)
+                    self.kb.functions.function(func_addr, create=True)
 
                 # Set sp_delta of the function
-                self.artifacts.functions.function(func_addr, create=True).sp_delta = delta
+                self.kb.functions.function(func_addr, create=True).sp_delta = delta
 
         elif jumpkind == 'Ijk_FakeRet':
             # The fake return...
@@ -2539,7 +2539,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
 
         l.debug("Analyzing calling conventions of each function.")
 
-        for func in self.artifacts.functions.values():
+        for func in self.kb.functions.values():
             if func.call_convention is not None:
                 continue
 
@@ -2565,7 +2565,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             'functions_do_not_return': []
         }
 
-        for func in self.artifacts.functions.values():
+        for func in self.kb.functions.values():
             if func.returning is not None:
                 # It has been determined before. Skip it
                 continue
@@ -2601,7 +2601,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                         # skip
                         continue
                     target_addr = edges[0][1].addr
-                    target_func = self.artifacts.functions.function(addr=target_addr)
+                    target_func = self.kb.functions.function(addr=target_addr)
                     if target_func.returning is False:
                         edges_to_remove.append((src, dst))
 
@@ -2667,7 +2667,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                     # This block is not a member of the current function
                     call_target = endpoint
 
-                    call_target_func = self.artifacts.functions.function(call_target)
+                    call_target_func = self.kb.functions.function(call_target)
                     if call_target_func is None:
                         all_endpoints_returning.append(None)
                         continue

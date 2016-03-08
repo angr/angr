@@ -432,4 +432,4 @@ class CapstoneBlock(object):
         return '<CapstoneBlock for %#x>' % self.addr
 
 from .errors import AngrMemoryError, AngrTranslationError
-from .artifacts.codenode import BlockNode
+from .knowledge.codenode import BlockNode

@@ -31,7 +31,7 @@ class LoopFinder(Analysis):
 
     def __init__(self, functions=None):
         if functions is None:
-            functions = self.artifacts.functions.itervalues()
+            functions = self.kb.functions.itervalues()
 
         found_any = False
         self.loops = []
