@@ -12,7 +12,7 @@ from archinfo import ArchARM
 from ..entry_wrapper import EntryWrapper
 from ..analysis import Analysis, register_analysis
 from ..errors import AngrCFGError, AngrError, AngrForwardAnalysisSkipEntry
-from ..knowledge import Function
+from ..knowledge import Function, FunctionManager
 from ..path import make_path
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase
@@ -694,10 +694,13 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
 
     def _pre_analysis(self):
         """
-        Not much to do here
+        Executed prior to the analysis.
+        - Clean up the knowledge base
+
         :return: None
         """
-        pass
+
+        self.kb.functions = FunctionManager(self.kb)
 
     def _intra_analysis(self):
         """
