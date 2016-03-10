@@ -110,7 +110,7 @@ class Function(object):
     def has_unresolved_jumps(self):
         for addr in self.block_addrs:
             if addr in self._function_manager._kb._unresolved_indirect_jumps:
-                b = self._function_manager.project.factory.block(addr)
+                b = self._function_manager._kb._project.factory.block(addr)
                 if b.vex.jumpkind == 'Ijk_Boring':
                     return True
         return False
@@ -119,7 +119,7 @@ class Function(object):
     def has_unresolved_calls(self):
         for addr in self.block_addrs:
             if addr in self._function_manager._kb._unresolved_indirect_jumps:
-                b = self._function_manager.project.factory.block(addr)
+                b = self._function_manager._kb._project.factory.block(addr)
                 if b.vex.jumpkind == 'Ijk_Call':
                     return True
         return False
