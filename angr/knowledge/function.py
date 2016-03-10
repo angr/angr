@@ -333,6 +333,7 @@ class Function(object):
 
         self._register_nodes(from_node, to_node)
         self.transition_graph.add_edge(from_node, to_node, type='transition')
+        self._local_transition_graph = None
 
     def _call_to(self, from_node, to_func, ret_node):
         """
@@ -356,15 +357,21 @@ class Function(object):
             if ret_node is not None:
                 self._fakeret_to(from_node, ret_node)
 
+        self._local_transition_graph = None
+
     def _fakeret_to(self, from_node, to_node):
         self._register_nodes(from_node, to_node)
         self.transition_graph.add_edge(from_node, to_node, type='fake_return')
+
+        self._local_transition_graph = None
 
     def _return_from_call(self, from_func, to_node):
         self.transition_graph.add_edge(from_func, to_node, type='real_return')
         for s, _, data in self.transition_graph.in_edges(to_node, data=True):
             if 'type' in data and data['type'] == 'fake_return':
                 data['confirmed'] = True
+
+        self._local_transition_graph = None
 
     def _register_nodes(self, *nodes):
         for node in nodes:
