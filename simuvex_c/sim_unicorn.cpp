@@ -5,6 +5,7 @@
 
 #include <map>
 #include <vector>
+#include <unordered_set>
 
 #define PAGE_SIZE 0x1000
 #define PAGE_SHIFT 12
@@ -58,6 +59,7 @@ private:
 
 	std::vector<mem_access_t> mem_writes;
 	std::map<uint64_t, taint_t *> active_pages;
+	std::unordered_set<uint64_t> stop_points;
 
 public:
 	uint64_t cur_steps, max_steps;
@@ -170,12 +172,16 @@ public:
 		uc_emu_stop(uc);
 	}
 
-	void step() {
+	void step(uint64_t current_address) {
 		// save current registers
 		uc_reg_update(uc, tmp_reg, 1);
 
 		if (cur_steps >= max_steps)
 			stop(STOP_NORMAL);
+		else if (stop_points.count(current_address) == 1)
+		{
+			stop(STOP_NORMAL);
+		}
 		else {
 			cur_steps++;
 		}
@@ -338,6 +344,16 @@ public:
 
 		return head;
 	}
+
+	/*
+	 * set a list of stops to stop execution at
+	 */
+
+	void set_stops(uint64_t count, uint64_t *stops)
+	{
+		for (int i = 0; i < count; i++)
+			stop_points.insert(stops[i]);
+	}
 };
 
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
@@ -450,7 +466,7 @@ static void hook_block(uc_engine *uc, uint64_t address, uint64_t size, void *use
 	LOG_I("block [%#lx, %#lx]", address, address + size);
 	State *state = (State *)user_data;
 	state->commit();
-	state->step();
+	state->step(address);
 }
 
 static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
@@ -540,6 +556,12 @@ uint64_t step(State *state) {
 extern "C"
 stop_t stop_reason(State *state) {
 	return state->stop_reason;
+}
+
+extern "C"
+void set_stops(State *state, uint64_t count, uint64_t *stops)
+{
+	state->set_stops(count, stops);
 }
 
 extern "C"

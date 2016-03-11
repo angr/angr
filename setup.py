@@ -1,40 +1,24 @@
 import os
-import sys
-import urllib2
 import subprocess
 from setuptools import setup
 from distutils.errors import LibError
 from distutils.command.build import build as _build
 
-UNICORN_PATH = 'unicorn'
-
 def _build_unicorn():
-    global UNICORN_PATH
-
-    if not os.path.exists(UNICORN_PATH):
-        UNICORN_PATH = 'unicorn-master'
-        if not os.path.exists(UNICORN_PATH):
-            UNICORN_URL = 'https://github.com/unicorn-engine/unicorn/archive/master.zip'
-            with open('unicorn-master.zip', 'w') as v:
-                v.write(urllib2.urlopen(UNICORN_URL).read())
-            if subprocess.call(['unzip', 'unicorn-master.zip']) != 0:
-                raise LibError('Unable to retrieve unicorn')
-
-    if subprocess.call(['make'], cwd=UNICORN_PATH) != 0:
-        raise LibError('Unable to compile libunicorn')
-
-    if subprocess.call(['make', 'install'], cwd=os.path.join(UNICORN_PATH, 'bindings', 'python')) != 0:
-        raise LibError('Unable to install python bindings of unicorn')
+    try:
+        import unicorn #pylint:disable=unused-import,unused-variable
+    except ImportError:
+        if subprocess.call(['./install-unicorn.sh']) != 0:
+            raise LibError('Unable to install unicorn')
 
 def _build_sim_unicorn():
     env = os.environ.copy()
-    env['UNICORN_PATH'] = os.path.join('..', UNICORN_PATH)
+    env['UNICORN_PATH'] = '../unicorn-master'
     if subprocess.call(['make'], cwd='simuvex_c', env=env) != 0:
         raise LibError('Unable to build sim_unicorn')
 
 class build(_build):
     def run(self, *args):
-        global data_files
         try:
             self.execute(_build_unicorn, (), msg='Building libunicorn')
             self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')

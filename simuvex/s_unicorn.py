@@ -11,69 +11,75 @@ from .s_run import SimRun
 class SimUnicorn(SimRun):
     ''' concrete exection in unicorn engine '''
 
-    def __init__(self, state, step=1, **kwargs):
+    def __init__(self, state, step=1, stop_points=None, **kwargs):
         '''
         :param state: current state
         :param step: how many basic blocks we want to execute. now we only
             support single step.
         '''
-        SimRun.__init__(self, state, inline=True, **kwargs) # use inline to avoid copying states
+        SimRun.__init__(self, state, **kwargs) # use inline to avoid copying states
 
         self.addr = state.se.any_int(state.ip)
         self.state.scratch.bbl_addr = self.addr
 
         # initialize unicorn plugin
-        uc = self.state.unicorn
-        uc.set_state(self.state)
-
-        uc.hook()
-        uc.start(step=step)
-        uc.finish()
+        self.state.unicorn.setup()
+        try:
+            self.state.unicorn.set_stops(stop_points)
+            self.state.unicorn.hook()
+            self.state.unicorn.start(step=step)
+            self.state.unicorn.finish()
+        finally:
+            self.state.unicorn.destroy()
 
         self.success = True
-        
+
         # FIXME what's this?
         guard = self.state.se.true
 
-        if uc.stop_reason == STOP.STOP_SYMBOLIC:
+        if self.state.unicorn.stop_reason == STOP.STOP_SYMBOLIC:
             self.success = False
 
-        if uc.error is not None:
+        if self.state.unicorn.error is not None:
             # error from hook
             self.success = False
-            raise SimUnicornError(uc.error)
+            raise SimUnicornError(self.state.unicorn.error)
 
-        if uc.errno:
+        if self.state.unicorn.errno:
             # error from unicorn
             self.success = False
-            raise unicorn.UcError(uc.errno)
+            raise unicorn.UcError(self.state.unicorn.errno)
 
-        if uc.jumpkind.startswith('Ijk_Sys'):
-            self.state.ip = uc._syscall_pc
-            self.add_successor(self.state, self.state.ip, guard, uc.jumpkind)
+        if self.state.unicorn.jumpkind.startswith('Ijk_Sys'):
+            self.state.ip = self.state.unicorn._syscall_pc
+            self.add_successor(self.state, self.state.ip, guard, self.state.unicorn.jumpkind)
         else:
-            self.add_successor(self.state, self.state.ip, guard, uc.jumpkind)
+            self.add_successor(self.state, self.state.ip, guard, self.state.unicorn.jumpkind)
 
     @staticmethod
     def quick_check(state):
         ''' check if this state might be used in unicorn (has no concrete register)'''
         try:
             _, _, uc_regs, _ = Unicorn.load_arch(state.arch)
-        except (NotImplementedError) as e:
+        except Exception:
             raise
-            return False
-        except Exception as e:
-            raise
-            return False
+
         for r in uc_regs.iterkeys():
             v = getattr(state.regs, r)
-            if not state.se.unique(v):
-                l.debug('detected symbolic register')
+            if v.symbolic:
+                l.warning('detected symbolic register %s', r)
                 return False
+
+        flags = ccall._get_flags(state)[0]
+        if flags is not None and flags.symbolic:
+            l.warning("detected symbolic rflags/eflags")
+            return False
+
         l.debug('passed quick check')
         return True
 
+    def __repr__(self):
+        return "<SimUnicorn from %#x with %d steps>" % (self.addr, self.state.unicorn.steps)
 
-from .s_errors import SimUnicornUnsupport, SimUnicornError
-from .plugins.unicorn_engine import Unicorn, STOP
-
+from .s_errors import SimUnicornError
+from .plugins.unicorn_engine import STOP
