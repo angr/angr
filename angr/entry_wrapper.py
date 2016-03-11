@@ -218,6 +218,7 @@ class EntryWrapper(object):
         self.src_simrun_key = src_simrun_key
         self.src_exit_stmt_idx = src_exit_stmt_idx
         self.skip = skip
+        self.cancelled_pending_entry = None
 
         # Other parameters
         self._context_sensitivity_level = context_sensitivity_level

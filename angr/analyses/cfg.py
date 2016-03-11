@@ -958,6 +958,14 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         self._graph_add_edge(src_simrun_key, simrun_key, jumpkind=jumpkind, exit_stmt_idx=src_exit_stmt_idx)
         self._update_function_transition_graph(src_simrun_key, simrun_key, jumpkind=jumpkind)
 
+        # See if this entry cancels another FakeRet
+        if entry.cancelled_pending_entry is not None:
+            pending_entry = entry.cancelled_pending_entry
+            self._graph_add_edge(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet',
+                                 exit_stmt_idx=pending_entry.src_exit_stmt_idx
+                                 )
+            self._update_function_transition_graph(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet')
+
         simrun_info = self.project.arch.gather_info_from_state(simrun.initial_state)
         self._simrun_info_collection[addr] = simrun_info
 
@@ -1304,6 +1312,15 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
         # Remove pending targets - type 2
         tpl = self._generate_simrun_key(call_stack_suffix, target_addr, suc_jumpkind.startswith('Ijk_Sys'))
         if tpl in self._pending_entries:
+
+            # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it in
+            # the graph
+            pending_entry = self._pending_entries[tpl]
+            self._graph_add_edge(pending_entry.src_simrun_key, tpl, jumpkind='Ijk_FakeRet',
+                                 exit_stmt_idx=pending_entry.src_exit_stmt_idx
+                                 )
+            self._update_function_transition_graph(pending_entry.src_simrun_key, tpl, jumpkind='Ijk_FakeRet')
+
             l.debug("Removing pending exits (type 2) to %s", hex(target_addr))
             del self._pending_entries[tpl]
 
@@ -1378,6 +1395,14 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             # This is the real return exit
             # Check if this retn is inside our pending_exits set
             if new_tpl in self._pending_entries:
+
+                # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
+                # in the graph. However, we don't want to create the edge here, since the destination node hasn't been
+                # created yet at this moment. So we save the pending entry to the real entry, and create the FakeRet
+                # edge when that entry is processed later.
+                pending_entry = self._pending_entries[new_tpl]
+                pw.cancelled_pending_entry = pending_entry
+
                 del self._pending_entries[new_tpl]
 
             successor_status[state] = "Appended"
