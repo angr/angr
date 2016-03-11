@@ -1173,7 +1173,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
             else:
                 exit_type_str = "-"
             try:
-                l.debug("|    target: 0x%08x %s [%s] %s", suc.se.exactly_int(suc.ip), successor_status[suc],
+                l.debug("|    target: %#x %s [%s] %s", suc.se.exactly_int(suc.ip), successor_status[suc],
                         exit_type_str, jumpkind)
             except (simuvex.SimValueError, simuvex.SimSolverModeError):
                 l.debug("|    target cannot be concretized. %s [%s] %s", successor_status[suc], exit_type_str,
@@ -1311,16 +1311,12 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
 
         # Remove pending targets - type 2
         tpl = self._generate_simrun_key(call_stack_suffix, target_addr, suc_jumpkind.startswith('Ijk_Sys'))
+        cancelled_pending_entry = None
         if tpl in self._pending_entries:
 
             # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it in
             # the graph
-            pending_entry = self._pending_entries[tpl]
-            self._graph_add_edge(pending_entry.src_simrun_key, tpl, jumpkind='Ijk_FakeRet',
-                                 exit_stmt_idx=pending_entry.src_exit_stmt_idx
-                                 )
-            self._update_function_transition_graph(pending_entry.src_simrun_key, tpl, jumpkind='Ijk_FakeRet')
-
+            cancelled_pending_entry = self._pending_entries[tpl]
             l.debug("Removing pending exits (type 2) to %s", hex(target_addr))
             del self._pending_entries[tpl]
 
@@ -1387,7 +1383,8 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                           simrun_key,
                           suc_exit_stmt_idx,
                           call_stack=new_call_stack,
-                          bbl_stack=new_bbl_stack
+                          bbl_stack=new_bbl_stack,
+                          cancelled_pending_entry=cancelled_pending_entry
                           )
 
         # Generate new exits
@@ -1401,6 +1398,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                 # created yet at this moment. So we save the pending entry to the real entry, and create the FakeRet
                 # edge when that entry is processed later.
                 pending_entry = self._pending_entries[new_tpl]
+                # TODO: is it possible that the cancelled_pending_entry has already been assigned before?
                 pw.cancelled_pending_entry = pending_entry
 
                 del self._pending_entries[new_tpl]
