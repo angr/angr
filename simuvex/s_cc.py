@@ -165,50 +165,6 @@ class SimCC(object):
             mem_addr = args_mem_base + (index * stack_step) + self.STACKARG_SP_BUFF
             state.memory.store(mem_addr, expr, endness=state.arch.memory_endness)
 
-    @staticmethod
-    def match(project, function_address, cfg=None):
-        '''
-        Try to decide the arguments to this function.
-        `cfg` is not necessary, but providing a CFG makes our life easier and will give you a better analysis
-        result (i.e. we have an idea of how this function is called in its call-sites).
-        If a CFG is not provided or we cannot find the given function address in the given CFG, we will generate
-        a local CFG of the function to detect how it is using the arguments.
-        '''
-        arch = project.arch
-
-        args = [ ]
-        ret_vals = [ ]
-        sp_delta = 0
-
-        #
-        # Determine how many arguments this function has.
-        #
-        func = cfg.function_manager.function(function_address)
-        if func is not None:
-            reg_args, stack_args = func.arguments
-
-            for arg in reg_args:
-                a = SimRegArg(project.arch.register_names[arg])
-                args.append(a)
-
-            for arg in stack_args:
-                a = SimStackArg(arg)
-                args.append(a)
-
-            sp_delta = func.sp_delta
-
-            for c in CC:
-                if c._match(project, args, sp_delta):
-                    return c(project.arch, args, ret_vals, sp_delta)
-
-        else:
-            # TODO:
-            pass
-
-        # We cannot determine the calling convention of this function.
-
-        return SimCCUnknown(arch, args, ret_vals, sp_delta)
-
     @property
     def arguments(self):
         return self.args
@@ -225,8 +181,8 @@ class SimCCCdecl(SimCC):
         state.stack_push(addr)
 
     @staticmethod
-    def _match(p, args, sp_delta):
-        if isinstance(p.arch, ArchX86) and sp_delta == 0:
+    def _match(arch, args, sp_delta):
+        if isinstance(arch, ArchX86) and sp_delta == 0:
             any_reg_args = any([a for a in args if isinstance(a, SimRegArg)])
 
             if not any_reg_args:
@@ -240,7 +196,7 @@ class SimCCX86LinuxSyscall(SimCC):
     RET_VAL_REG = 'eax'
 
     @staticmethod
-    def _match(p, args, sp_delta): # pylint: disable=unused-argument
+    def _match(arch, args, sp_delta): # pylint: disable=unused-argument
         # never appears anywhere except syscalls
         return False
 
@@ -260,8 +216,8 @@ class SimCCSystemVAMD64(SimCC):
         state.stack_push(addr)
 
     @staticmethod
-    def _match(p, args, sp_delta):
-        if isinstance(p.arch, ArchAMD64) and sp_delta == 0:
+    def _match(arch, args, sp_delta):
+        if isinstance(arch, ArchAMD64) and sp_delta == 0:
             reg_args = [ i.name for i in args if isinstance(i, SimRegArg)]
             for r in SimCCSystemVAMD64.ARG_REGS:
                 if r in reg_args:
@@ -291,7 +247,7 @@ class SimCCAMD64LinuxSyscall(SimCC):
     RET_VAL_REG = 'rax'
 
     @staticmethod
-    def _match(p, args, sp_delta):  # pylint: disable=unused-argument
+    def _match(arch, args, sp_delta):   # pylint: disable=unused-argument
         # doesn't appear anywhere but syscalls
         return False
 
@@ -304,8 +260,8 @@ class SimCCARM(SimCC):
         state.regs.lr = addr
 
     @staticmethod
-    def _match(p, args, sp_delta):
-        if isinstance(p.arch, ArchARM) and sp_delta == 0:
+    def _match(arch, args, sp_delta):
+        if isinstance(arch, ArchARM) and sp_delta == 0:
             reg_args = [ i.name for i in args if isinstance(i, SimRegArg) ]
 
             for r in SimCCARM.ARG_REGS:
@@ -328,8 +284,8 @@ class SimCCAArch64(SimCC):
         state.regs.lr = addr
 
     @staticmethod
-    def _match(p, args, sp_delta):
-        if isinstance(p.arch, ArchAArch64) and sp_delta == 0:
+    def _match(arch, args, sp_delta):
+        if isinstance(arch, ArchAArch64) and sp_delta == 0:
             reg_args = [ i.name for i in args if isinstance(i, SimRegArg) ]
 
             for r in SimCCAArch64.ARG_REGS:
@@ -353,8 +309,8 @@ class SimCCO32(SimCC):
         state.regs.lr = addr
 
     @staticmethod
-    def _match(p, args, sp_delta):
-        if isinstance(p.arch, ArchMIPS32) and sp_delta == 0:
+    def _match(arch, args, sp_delta):
+        if isinstance(arch, ArchMIPS32) and sp_delta == 0:
             reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
 
             for r in SimCCO32.ARG_REGS:
@@ -378,8 +334,8 @@ class SimCCO64(SimCC):
         state.regs.lr = addr
 
     @staticmethod
-    def _match(p, args, sp_delta):
-        if isinstance(p.arch, ArchMIPS64) and sp_delta == 0:
+    def _match(arch, args, sp_delta):
+        if isinstance(arch, ArchMIPS64) and sp_delta == 0:
             reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
 
             for r in SimCCO64.ARG_REGS:
@@ -403,8 +359,8 @@ class SimCCPowerPC(SimCC):
         state.regs.lr = addr
 
     @staticmethod
-    def _match(p, args, sp_delta):
-        if isinstance(p.arch, ArchPPC32) and sp_delta == 0:
+    def _match(arch, args, sp_delta):
+        if isinstance(arch, ArchPPC32) and sp_delta == 0:
             reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
 
             for r in SimCCPowerPC.ARG_REGS:
@@ -428,8 +384,8 @@ class SimCCPowerPC64(SimCC):
         state.regs.lr = addr
 
     @staticmethod
-    def _match(p, args, sp_delta):
-        if isinstance(p.arch, ArchPPC64) and sp_delta == 0:
+    def _match(arch, args, sp_delta):
+        if isinstance(arch, ArchPPC64) and sp_delta == 0:
             reg_args = [i.name for i in args if isinstance(i, SimRegArg)]
 
             for r in SimCCPowerPC64.ARG_REGS:
@@ -449,7 +405,7 @@ class SimCCUnknown(SimCC):
     '''
 
     @staticmethod
-    def _match(p, args, sp_delta): # pylint: disable=unused-argument
+    def _match(arch, args, sp_delta): # pylint: disable=unused-argument
         # It always returns True
         return True
 

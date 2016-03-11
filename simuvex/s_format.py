@@ -95,7 +95,10 @@ class FormatString(object):
         '''
 
         # TODO: we only support one format specifier in interpretation for now
-        assert len(filter(lambda x: isinstance(x, FormatSpecifier), self.components)) == 1, "too many format specifiers for simprocedure"
+
+        format_specifier_count = len(filter(lambda x: isinstance(x, FormatSpecifier), self.components))
+        if format_specifier_count > 1:
+            l.warning("We don't support more than one format specifiers in format strings.")
 
         if region is None:
             region = self.parser.state.memory
