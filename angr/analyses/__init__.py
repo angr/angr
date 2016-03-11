@@ -1,5 +1,5 @@
 from .cfg_fast import CFGFast
-from .cfg import CFG
+from .cfg_accurate import CFGAccurate, CFG
 from .cdg import CDG
 from .ddg import DDG
 from .vfg import VFG
