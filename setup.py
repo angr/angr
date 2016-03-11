@@ -43,9 +43,21 @@ class build(_build):
             pass
         _build.run(self, *args)
 
+from setuptools.command.develop import develop as _develop
+class develop(_develop):
+    def run(self, *args):
+        try:
+            self.execute(_build_unicorn, (), msg='Building libunicorn')
+            self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
+            data_files.append(('lib', (os.path.join('simuvex_c', 'sim_unicorn.so'),),))
+        except LibError:
+            pass
+        _develop.run(self, *args)
+
 cmdclass = {
         'build': build,
-        }
+        'develop': develop,
+}
 data_files = []
 
 setup(
