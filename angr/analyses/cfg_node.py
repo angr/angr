@@ -1,7 +1,5 @@
-
 import pyvex
 import simuvex
-
 
 class CFGNode(object):
     """
@@ -119,3 +117,11 @@ class CFGNode(object):
 
     def __hash__(self):
         return hash((self.callstack_key, self.addr, self.looping_times, self.simprocedure_name))
+
+    def to_codenode(self):
+        if self.is_simprocedure:
+            return HookNode(self.addr, self.size, self.simprocedure_name)
+        else:
+            return BlockNode(self.addr, self.size)
+
+from ..knowledge.codenode import BlockNode, HookNode

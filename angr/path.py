@@ -308,8 +308,16 @@ class Path(object):
             # the path history
             self.history = PathHistory()
             self.callstack = CallStack()
+
+            # Note that stack pointer might be symbolic, and simply calling state.se.any_int over sp will fail in that
+            # case. We should catch exceptions here.
+            try:
+                stack_ptr = self.state.se.any_int(self.state.regs.sp)
+            except (simuvex.SimSolverModeError, simuvex.SimUnsatError):
+                stack_ptr = None
+
             self.callstack.push(CallFrame(state=None, func_addr=self.addr,
-                                          stack_ptr=self.state.se.any_int(self.state.regs.sp),
+                                          stack_ptr=stack_ptr,
                                           ret_addr=UNAVAILABLE_RET_ADDR
                                           )
                                 )

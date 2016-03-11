@@ -241,13 +241,13 @@ def compare_statement_dict(statement_1, statement_2):
 
 class NormalizedBlock(object):
     # block may span multiple calls
-    def __init__(self, addr, function):
-        addresses = [addr]
-        if addr in function.merged_blocks:
-            for a in function.merged_blocks[addr]:
-                addresses.append(a)
+    def __init__(self, block, function):
+        addresses = [block.addr]
+        if block.addr in function.merged_blocks:
+            for a in function.merged_blocks[block.addr]:
+                addresses.append(a.addr)
 
-        self.addr = addr
+        self.addr = block.addr
         self.addresses = addresses
         self.statements = []
         self.all_constants = []
@@ -256,8 +256,8 @@ class NormalizedBlock(object):
         self.blocks = []
         self.instruction_addrs = []
 
-        if addr in function.call_sites:
-            self.call_targets = function.call_sites[addr]
+        if block.addr in function.call_sites:
+            self.call_targets = function.call_sites[block.addr]
 
         self.jumpkind = None
 
@@ -282,8 +282,8 @@ class NormalizedFunction(object):
     # a more normalized function
     def __init__(self, function):
         # start by copying the graph
-        self.graph = function.local_transition_graph.copy()
-        self.project = function._function_manager.project
+        self.graph = function.graph.copy()
+        self.project = function._function_manager._kb._project
         self.call_sites = dict()
         self.startpoint = function.startpoint
         self.merged_blocks = dict()
@@ -295,7 +295,7 @@ class NormalizedFunction(object):
             done = True
             for node in self.graph.nodes():
                 try:
-                    bl = self.project.factory.block(node)
+                    bl = self.project.factory.block(node.addr)
                 except AngrMemoryError:
                     continue
                 except AngrTranslationError:
@@ -303,7 +303,7 @@ class NormalizedFunction(object):
                 # merge if it ends with a single call, and the successor has only one predecessor and succ is after
                 successors = self.graph.successors(node)
                 if bl.vex.jumpkind == "Ijk_Call" and len(successors) == 1 and \
-                        len(self.graph.predecessors(successors[0])) == 1 and successors[0] > node:
+                        len(self.graph.predecessors(successors[0])) == 1 and successors[0] > node.addr:
                     # add edges to the successors of its successor, and delete the original successors
                     succ = self.graph.successors(node)[0]
                     for s in self.graph.successors(succ):
@@ -325,12 +325,12 @@ class NormalizedFunction(object):
         # set up call sites
         for n in self.graph.nodes():
             call_targets = []
-            if n in self.orig_function.get_call_sites():
-                call_targets.append(self.orig_function.get_call_target(n))
-            if n in self.merged_blocks:
+            if n.addr in self.orig_function.get_call_sites():
+                call_targets.append(self.orig_function.get_call_target(n.addr))
+            if n.addr in self.merged_blocks:
                 for block in self.merged_blocks[n]:
-                    if block in self.orig_function.get_call_sites():
-                        call_targets.append(self.orig_function.get_call_target(block))
+                    if block.addr in self.orig_function.get_call_sites():
+                        call_targets.append(self.orig_function.get_call_target(block.addr))
             if len(call_targets) > 0:
                 self.call_sites[n] = call_targets
 
@@ -603,6 +603,13 @@ class FunctionDiff(object):
                                                            function.startpoint)
 
     @staticmethod
+    def _block_diff_constants(block_a, block_b):
+        diff_constants = []
+        for irsb_a, irsb_b in zip(block_a.blocks, block_b.blocks):
+            diff_constants += differing_constants(irsb_a, irsb_b)
+        return diff_constants
+
+    @staticmethod
     def _distances_from_function_exit(function):
         """
         :param function: A normalized Function object
@@ -639,8 +646,10 @@ class FunctionDiff(object):
         Computes the diff of the functions and saves the result
         """
         # get the attributes for all blocks
-        l.debug("Computing diff of functions: %s, %s", hex(self._function_a.startpoint),
-                hex(self._function_b.startpoint))
+        l.debug("Computing diff of functions: %s, %s",
+                ("%#x" % self._function_a.startpoint.addr) if self._function_a.startpoint is not None else "None",
+                ("%#x" % self._function_b.startpoint.addr) if self._function_b.startpoint is not None else "None"
+                )
         self.attributes_a = self._compute_block_attributes(self._function_a)
         self.attributes_b = self._compute_block_attributes(self._function_b)
 
@@ -664,7 +673,7 @@ class FunctionDiff(object):
         # while queue is not empty
         while to_process:
             (block_a, block_b) = to_process.pop()
-            l.debug("FunctionDiff: Processing (%#x, %#x)", block_a, block_b)
+            l.debug("FunctionDiff: Processing (%#x, %#x)", block_a.addr, block_b.addr)
 
             # we could find new matches in the successors or predecessors of functions
             block_a_succ = self._function_a.graph.successors(block_a)
@@ -693,10 +702,10 @@ class FunctionDiff(object):
             for (x, y) in new_matches:
                 if (x, y) not in processed_matches:
                     processed_matches.add((x, y))
-                    l.debug("FunctionDiff: checking if (%#x, %#x) is better", x, y)
+                    l.debug("FunctionDiff: checking if (%#x, %#x) is better", x.addr, y.addr)
                     # if it's a better match than what we already have use it
                     if _is_better_match(x, y, matched_a, matched_b, self.attributes_a, self.attributes_b):
-                        l.debug("FunctionDiff: adding possible match (%#x, %#x)", x, y)
+                        l.debug("FunctionDiff: adding possible match (%#x, %#x)", x.addr, y.addr)
                         if x in matched_a:
                             old_match = matched_a[x]
                             del matched_b[old_match]
@@ -715,9 +724,10 @@ class FunctionDiff(object):
         self._unmatched_blocks_from_b = set(x for x in self._function_b.graph.nodes() if x not in matched_b)
 
     @staticmethod
-    def _get_ordered_successors(project, addr, succ):
+    def _get_ordered_successors(project, block, succ):
         try:
             # add them in order of the vex
+            addr = block.addr
             succ = set(succ)
             ordered_succ = []
             bl = project.factory.block(addr)
@@ -733,7 +743,6 @@ class FunctionDiff(object):
             return sorted(succ)
         except AngrTranslationError:
             return sorted(succ)
-
 
     def _get_block_matches(self, attributes_a, attributes_b, filter_set_a=None, filter_set_b=None, delta=(0, 0, 0),
                            tiebreak_with_block_similarity=False):
@@ -838,20 +847,26 @@ class BinDiff(Analysis):
     """
     This class computes the a diff between two binaries represented by angr Projects
     """
-    def __init__(self, other_project, enable_advanced_backward_slicing=False):
+    def __init__(self, other_project, enable_advanced_backward_slicing=False, cfg_a=None, cfg_b=None):
         """
         :param other_project: The second project to diff
         """
         l.debug("Computing cfg's")
+
         back_traversal = not enable_advanced_backward_slicing
-        self.cfg_a = self.project.analyses.CFG(context_sensitivity_level=1,
-                                               keep_state=True,
-                                               enable_symbolic_back_traversal=back_traversal,
-                                               enable_advanced_backward_slicing=enable_advanced_backward_slicing)
-        self.cfg_b = other_project.analyses.CFG(context_sensitivity_level=1,
-                                                keep_state=True,
-                                                enable_symbolic_back_traversal=back_traversal,
-                                                enable_advanced_backward_slicing=enable_advanced_backward_slicing)
+
+        if cfg_a is None:
+            self.cfg_a = self.project.analyses.CFG(context_sensitivity_level=1,
+                                                   keep_state=True,
+                                                   enable_symbolic_back_traversal=back_traversal,
+                                                   enable_advanced_backward_slicing=enable_advanced_backward_slicing)
+            self.cfg_b = other_project.analyses.CFG(context_sensitivity_level=1,
+                                                    keep_state=True,
+                                                    enable_symbolic_back_traversal=back_traversal,
+                                                    enable_advanced_backward_slicing=enable_advanced_backward_slicing)
+        else:
+            self.cfg_a = cfg_a
+            self.cfg_b = cfg_b
 
         l.debug("Done computing cfg's")
 
@@ -914,7 +929,7 @@ class BinDiff(Analysis):
         return different_funcs
 
     @property
-    def all_differing_blocks(self):
+    def differing_blocks(self):
         """
         :return: A list of block matches that appear to differ
         """
@@ -922,6 +937,26 @@ class BinDiff(Analysis):
         for (func_a, func_b) in self.function_matches:
             differing_blocks.extend(self.get_function_diff(func_a, func_b).differing_blocks)
         return differing_blocks
+
+    @property
+    def identical_blocks(self):
+        """
+        :return A list of all block matches that appear to be identical
+        """
+        identical_blocks = []
+        for (func_a, func_b) in self.function_matches:
+            identical_blocks.extend(self.get_function_diff(func_a, func_b).identical_blocks)
+        return identical_blocks
+
+    @property
+    def blocks_with_differing_constants(self):
+        """
+        :return: A dict of block matches with differing constants to the tuple of constants
+        """
+        diffs = dict()
+        for (func_a, func_b) in self.function_matches:
+            diffs.update(self.get_function_diff(func_a, func_b).blocks_with_differing_constants)
+        return diffs
 
     @property
     def unmatched_functions(self):
@@ -936,8 +971,8 @@ class BinDiff(Analysis):
         """
         pair = (function_addr_a, function_addr_b)
         if pair not in self._function_diffs:
-            function_a = self.cfg_a.function_manager.function(function_addr_a)
-            function_b = self.cfg_b.function_manager.function(function_addr_b)
+            function_a = self.cfg_a.kb.functions.function(function_addr_a)
+            function_b = self.cfg_b.kb.functions.function(function_addr_b)
             self._function_diffs[pair] = FunctionDiff(function_a, function_b, self)
         return self._function_diffs[pair]
 
@@ -948,18 +983,18 @@ class BinDiff(Analysis):
         :return: a dictionary of function addresses to tuples of attributes
         """
         # the attributes we use are the number of basic blocks, number of edges, and number of subfunction calls
-        all_funcs = set(cfg.function_manager.interfunction_graph.nodes())
         attributes = dict()
-        for function_addr in cfg.function_manager.functions:
-            if cfg.function_manager.function(function_addr) is not None:
-                normalized_funtion = NormalizedFunction(cfg.function_manager.function(function_addr))
+        all_funcs = set(cfg.kb.callgraph.nodes())
+        for function_addr in cfg.kb.functions:
+            if cfg.kb.functions.function(function_addr) is not None:
+                normalized_funtion = NormalizedFunction(cfg.kb.functions.function(function_addr))
                 number_of_basic_blocks = len(normalized_funtion.graph.nodes())
                 number_of_edges = len(normalized_funtion.graph.edges())
             else:
                 number_of_basic_blocks = 0
                 number_of_edges = 0
             if function_addr in all_funcs:
-                number_of_subfunction_calls = len(cfg.function_manager.interfunction_graph.successors(function_addr))
+                number_of_subfunction_calls = len(cfg.kb.callgraph.successors(function_addr))
             else:
                 number_of_subfunction_calls = 0
             attributes[function_addr] = (number_of_basic_blocks, number_of_edges, number_of_subfunction_calls)
@@ -968,6 +1003,12 @@ class BinDiff(Analysis):
 
     def _get_call_site_matches(self, func_a, func_b):
         possible_matches = set()
+
+        # Make sure those functions are not SimProcedures
+        f_a = self.cfg_a.kb.functions.function(func_a)
+        f_b = self.cfg_b.kb.functions.function(func_b)
+        if f_a.startpoint is None or f_b.startpoint is None:
+            return possible_matches
 
         fd = self.get_function_diff(func_a, func_b)
         basic_block_matches = fd.block_matches
@@ -1008,8 +1049,8 @@ class BinDiff(Analysis):
                 plt_matches.append((addr, func_to_addr_b[name]))
 
         # remove ones that aren't in the interfunction graph, because these seem to not be consistent
-        all_funcs_a = set(self.cfg_a.function_manager.interfunction_graph.nodes())
-        all_funcs_b = set(self.cfg_b.function_manager.interfunction_graph.nodes())
+        all_funcs_a = set(self.cfg_a.kb.callgraph.nodes())
+        all_funcs_b = set(self.cfg_b.kb.callgraph.nodes())
         plt_matches = [x for x in plt_matches if x[0] in all_funcs_a and x[1] in all_funcs_b]
 
         return plt_matches
@@ -1048,10 +1089,10 @@ class BinDiff(Analysis):
                 continue
             if not self._p2.loader.main_bin.contains_addr(func_b):
                 continue
-            func_a_succ = self.cfg_a.function_manager.interfunction_graph.successors(func_a)
-            func_b_succ = self.cfg_b.function_manager.interfunction_graph.successors(func_b)
-            func_a_pred = self.cfg_a.function_manager.interfunction_graph.predecessors(func_a)
-            func_b_pred = self.cfg_b.function_manager.interfunction_graph.predecessors(func_b)
+            func_a_succ = self.cfg_a.kb.callgraph.successors(func_a)
+            func_b_succ = self.cfg_b.kb.callgraph.successors(func_b)
+            func_a_pred = self.cfg_a.kb.callgraph.predecessors(func_a)
+            func_b_pred = self.cfg_b.kb.callgraph.predecessors(func_b)
 
             # get possible new matches
             new_matches = set(self._get_function_matches(self.attributes_a, self.attributes_b,
@@ -1090,8 +1131,8 @@ class BinDiff(Analysis):
                 self.function_matches.add((x, y))
 
         # get the unmatched blocks
-        self._unmatched_functions_from_a = set(x for x in self.cfg_a.function_manager.functions if x not in matched_a)
-        self._unmatched_functions_from_b = set(x for x in self.cfg_b.function_manager.functions if x not in matched_b)
+        self._unmatched_functions_from_a = set(x for x in self.cfg_a.kb.functions if x not in matched_a)
+        self._unmatched_functions_from_b = set(x for x in self.cfg_b.kb.functions if x not in matched_b)
 
         # remove unneeded function diffs
         for (x, y) in dict(self._function_diffs):

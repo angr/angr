@@ -12,25 +12,23 @@ def test_simcc_x86_64():
     binary_path = test_location + "/x86_64/simcc"
 
     p = angr.Project(binary_path)
-    cfg = p.analyses.CFG()
+    p.analyses.CFG()
 
-    fm = cfg.function_manager
-
-    f_arg1 = fm.function(name='arg1')
+    f_arg1 = p.kb.functions['arg1']
     nose.tools.assert_not_equal(f_arg1, None)
-    nose.tools.assert_equal(type(f_arg1.cc), SimCCSystemVAMD64)
+    nose.tools.assert_equal(type(f_arg1.call_convention), SimCCSystemVAMD64)
     nose.tools.assert_equal(len(f_arg1.arguments), 1)
     nose.tools.assert_equal(f_arg1.arguments[0].name, 'rdi')
 
-    f_arg7 = fm.function(name='arg7')
+    f_arg7 = p.kb.functions['arg7']
     nose.tools.assert_not_equal(f_arg7, None)
-    nose.tools.assert_equal(type(f_arg7.cc), SimCCSystemVAMD64)
+    nose.tools.assert_equal(type(f_arg7.call_convention), SimCCSystemVAMD64)
     nose.tools.assert_equal(len(f_arg7.arguments), 7)
     nose.tools.assert_equal(f_arg7.arguments[1].name, 'rsi')
 
-    f_arg9 = fm.function(name='arg9')
+    f_arg9 = p.kb.functions.function(name='arg9')
     nose.tools.assert_not_equal(f_arg9, None)
-    nose.tools.assert_equal(type(f_arg9.cc), SimCCSystemVAMD64)
+    nose.tools.assert_equal(type(f_arg9.call_convention), SimCCSystemVAMD64)
     nose.tools.assert_equal(len(f_arg9.arguments), 9)
     nose.tools.assert_equal(f_arg9.arguments[8].offset, 0x8 + 0x8 * 2)
 

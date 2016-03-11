@@ -31,9 +31,10 @@ def test_bindiff_x86_64():
 
     # check a function diff
     fdiff = bindiff.get_function_diff(0x400616, 0x400616)
-    nose.tools.assert_in((0x40064a, 0x400668), fdiff.block_matches)
-    nose.tools.assert_in((0x400616, 0x400616), fdiff.block_matches)
-    nose.tools.assert_in((0x40061e, 0x40061e), fdiff.block_matches)
+    block_matches = { (a.addr, b.addr) for a, b in fdiff.block_matches }
+    nose.tools.assert_in((0x40064a, 0x400668), block_matches)
+    nose.tools.assert_in((0x400616, 0x400616), block_matches)
+    nose.tools.assert_in((0x40061e, 0x40061e), block_matches)
 
 def run_all():
     functions = globals()

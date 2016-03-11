@@ -11,7 +11,7 @@ def test_block_cache():
     b = p.factory.block(p.entry)
     assert p.factory.block(p.entry) is b
 
-    p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"))
+    p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), translation_cache=False)
     b = p.factory.block(p.entry)
     assert p.factory.block(p.entry) is not b
 

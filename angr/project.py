@@ -51,7 +51,7 @@ class Project(object):
                  exclude_sim_procedures_list=(),
                  arch=None, simos=None,
                  load_options=None,
-                 translation_cache=False,
+                 translation_cache=True,
                  support_selfmodifying_code=False):
         """
         This constructs a Project object.
@@ -134,6 +134,7 @@ class Project(object):
         self.factory = AngrObjectFactory(self, translation_cache=translation_cache)
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
+        self.kb = KnowledgeBase(self, self.loader.main_bin)
 
         projects[self.filename] = self
 
@@ -267,7 +268,12 @@ class Project(object):
             proc = func
         elif hasattr(func, '__call__'):
             proc = simuvex.procedures.stubs.UserHook.UserHook
-            kwargs = {'user_func': func, 'user_kwargs': kwargs, 'default_return_addr': addr+length}
+            kwargs = {
+                'user_func': func,
+                'user_kwargs': kwargs,
+                'default_return_addr': addr+length,
+                'length': length,
+            }
         else:
             raise AngrError("%s is not a valid object to execute in a hook", func)
 
@@ -366,3 +372,4 @@ from .simos import SimOS, os_mapping
 from .extern_obj import AngrExternObject
 from .analysis import Analyses
 from .surveyor import Surveyors
+from .knowledge_base import KnowledgeBase

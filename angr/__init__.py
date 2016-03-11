@@ -5,8 +5,6 @@ import logging
 logging.getLogger("angr").addHandler(logging.NullHandler())
 
 from .project import *
-from .functionmanager import *
-from .variableseekr import *
 from .regmap import *
 from .path import *
 from .errors import *
@@ -21,6 +19,7 @@ from .simos import SimOS
 from .path_group import PathGroup
 from .surveyors.caller import Callable
 from .log import Loggers
+from . import knowledge
 
 import sys
 i = 0

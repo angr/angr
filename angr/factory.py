@@ -14,6 +14,14 @@ class AngrObjectFactory(object):
         self._lifter = Lifter(project, cache=translation_cache)
         self.block = self._lifter.lift
 
+    def snippet(self, addr, jumpkind=None, **block_opts):
+        if self._project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
+            _, kwargs = self._project._sim_procedures[addr]
+            size = kwargs.get('length', 0)
+            return HookNode(addr, size, self._project._sim_procedures[addr])
+        else:
+            return self.block(addr, **block_opts).codenode # pylint: disable=no-member
+
     def sim_block(self, state, stmt_whitelist=None, last_stmt=None,
                   addr=None, opt_level=None, **block_opts):
         """
@@ -46,7 +54,7 @@ class AngrObjectFactory(object):
             if state.thumb:
                 thumb = True
             else:
-                raise AngrExitError("Address 0x%x does not align to alignment %d "
+                raise AngrExitError("Address %#x does not align to alignment %d "
                                     "for architecture %s." % (addr,
                                     state.arch.instruction_alignment,
                                     state.arch.name))
@@ -97,21 +105,21 @@ class AngrObjectFactory(object):
 
         if jumpkind == 'Ijk_Exit':
             l.debug('Execution hit exit at %#x', addr)
-            return SimProcedures['stubs']['PathTerminator'](state)
+            return SimProcedures['stubs']['PathTerminator'](state, addr=addr)
 
         if jumpkind.startswith("Ijk_Sys"):
-            l.debug("Invoking system call handler (originally at 0x%x)", addr)
+            l.debug("Invoking system call handler (originally at %#x)", addr)
             return SimProcedures['syscalls']['handler'](state, addr=addr, ret_to=state.ip)
 
         if jumpkind in ("Ijk_EmFail", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
             raise AngrExitError("Cannot create run following jumpkind %s" % jumpkind)
 
         if jumpkind == "Ijk_NoDecode" and not self._project.is_hooked(addr):
-            raise AngrExitError("IR decoding error at 0x%x. You can hook this instruction with a python replacement using project.hook(0x%x, your_function, length=length_of_instruction)." % (addr, addr))
+            raise AngrExitError("IR decoding error at #%x. You can hook this instruction with a python replacement using project.hook(%#x, your_function, length=length_of_instruction)." % (addr, addr))
 
         elif self._project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
             sim_proc_class, kwargs = self._project._sim_procedures[addr]
-            l.debug("Creating SimProcedure %s (originally at 0x%x)",
+            l.debug("Creating SimProcedure %s (originally at %#x)",
                     sim_proc_class.__name__, addr)
             state._inspect('call', BP_BEFORE, function_name=sim_proc_class.__name__)
             r = sim_proc_class(state, addr=addr, sim_kwargs=kwargs)
@@ -119,7 +127,7 @@ class AngrObjectFactory(object):
             l.debug("... %s created", r)
 
         else:
-            l.debug("Creating SimIRSB at 0x%x", addr)
+            l.debug("Creating SimIRSB at %#x", addr)
             r = self.sim_block(state, addr=addr, **block_opts)
 
         return r
@@ -201,3 +209,4 @@ from .lifter import Lifter
 from .errors import AngrExitError, AngrError, AngrValueError
 from .path import Path
 from .path_group import PathGroup
+from .knowledge import HookNode

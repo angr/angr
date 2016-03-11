@@ -1,4 +1,3 @@
-
 import os
 import logging
 
@@ -8,7 +7,6 @@ import angr
 
 l = logging.getLogger("angr.tests.test_cfgfast")
 
-import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def cfg_fast(arch, binary_path, func_addrs):
@@ -25,13 +23,11 @@ def cfg_fast(arch, binary_path, func_addrs):
     proj = angr.Project(path, load_options={'auto_load_libs': False})
 
     cfg = proj.analyses.CFGFast()
-    function_manager = cfg.function_manager
-    nose.tools.assert_true(set(function_manager.functions.keys()).issuperset(func_addrs))
+    nose.tools.assert_true(set(cfg.kb.functions.keys()).issuperset(func_addrs))
 
     # Segment only
     cfg = proj.analyses.CFGFast(force_segment=True)
-    function_manager = cfg.function_manager
-    nose.tools.assert_true(set(function_manager.functions.keys()).issuperset(func_addrs))
+    nose.tools.assert_true(set(cfg.kb.functions.keys()).issuperset(func_addrs))
 
 def test_cfg_0():
     filename = 'cfg_0'
