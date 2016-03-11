@@ -1,5 +1,6 @@
 import nose
 import angr
+import simuvex
 import subprocess
 
 import logging
@@ -13,7 +14,8 @@ def run_strtol(threads):
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/strtol_test")
     b = angr.Project(test_bin)
 
-    pg = b.factory.path_group(immutable=False, threads=threads)
+    initial_state = b.factory.entry_state(remove_options={simuvex.o.LAZY_SOLVES})
+    pg = b.factory.path_group(thing=initial_state, immutable=False, threads=threads)
 
     # find the end of main
     expected_outputs = {"base 8 worked\n", "base +8 worked\n", "0x worked\n", "+0x worked\n", "base +10 worked\n",
