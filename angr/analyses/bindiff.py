@@ -627,7 +627,7 @@ class FunctionDiff(object):
         # if there were no exits (a function with a while 1) let's consider the block with the highest address to
         # be the exit. This isn't the most scientific way, but since this case is pretty rare it should be okay
         if not found_exits:
-            last = max(function.graph.nodes())
+            last = max(function.graph.nodes(), key=lambda x:x.addr)
             reverse_graph.add_edge("start", last)
 
         dists = networkx.single_source_shortest_path_length(reverse_graph, "start")
