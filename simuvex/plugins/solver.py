@@ -290,12 +290,12 @@ class SimSolver(SimStatePlugin):
     def any_int(self, e, extra_constraints=()):
         ans = self.any_n_int(e, 1, extra_constraints=extra_constraints)
         if len(ans) > 0: return ans[0]
-        else: raise SimUnsatError("Not satisfiable: %s" % e)
+        else: raise SimUnsatError("Not satisfiable: %s" % e.shallow_repr())
 
     def any_str(self, e, extra_constraints=()):
         ans = self.any_n_str(e, 1, extra_constraints=extra_constraints)
         if len(ans) > 0: return ans[0]
-        else: raise SimUnsatError("Not satisfiable: %s" % e)
+        else: raise SimUnsatError("Not satisfiable: %s" % e.shallow_repr())
 
     def any_n_str_iter(self, e, n, extra_constraints=(), exact=None):
         for s in self.eval(e, n, extra_constraints=extra_constraints, exact=exact):
