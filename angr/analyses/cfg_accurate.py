@@ -493,6 +493,10 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
 
         return subcfg
 
+    @property
+    def functions(self):
+        return self.kb.functions
+
     #
     # Serialization
     #
