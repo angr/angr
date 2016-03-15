@@ -337,6 +337,13 @@ class CFGFast(Analysis):
         return entropy
 
     #
+    # Public methods
+    #
+    @property
+    def functions(self):
+        return self.kb.functions
+
+    #
     # Private methods
     #
 
