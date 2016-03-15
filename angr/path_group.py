@@ -477,7 +477,7 @@ class PathGroup(ana.Storable):
             keep, split = old_paths[:limit], old_paths[limit:]
 
         new_stashes[from_stash] = keep
-        new_stashes[to_stash] = split if to_stash in new_stashes else new_stashes[to_stash] + split
+        new_stashes[to_stash] = split if to_stash not in new_stashes else new_stashes[to_stash] + split
         return self._successor(new_stashes)
 
     def step(self, n=None, selector_func=None, step_func=None, stash=None,
