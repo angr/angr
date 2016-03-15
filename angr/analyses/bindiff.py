@@ -303,7 +303,7 @@ class NormalizedFunction(object):
                 # merge if it ends with a single call, and the successor has only one predecessor and succ is after
                 successors = self.graph.successors(node)
                 if bl.vex.jumpkind == "Ijk_Call" and len(successors) == 1 and \
-                        len(self.graph.predecessors(successors[0])) == 1 and successors[0] > node.addr:
+                        len(self.graph.predecessors(successors[0])) == 1 and successors[0].addr > node.addr:
                     # add edges to the successors of its successor, and delete the original successors
                     succ = self.graph.successors(node)[0]
                     for s in self.graph.successors(succ):
@@ -736,13 +736,13 @@ class FunctionDiff(object):
                     ordered_succ.append(x)
 
             # add the rest (sorting might be better than no order)
-            for s in sorted(succ - set(ordered_succ)):
+            for s in sorted(succ - set(ordered_succ), key=lambda x:x.addr):
                 ordered_succ.append(s)
             return ordered_succ
         except AngrMemoryError:
-            return sorted(succ)
+            return sorted(succ, key=lambda x:x.addr)
         except AngrTranslationError:
-            return sorted(succ)
+            return sorted(succ, key=lambda x:x.addr)
 
     def _get_block_matches(self, attributes_a, attributes_b, filter_set_a=None, filter_set_b=None, delta=(0, 0, 0),
                            tiebreak_with_block_similarity=False):
