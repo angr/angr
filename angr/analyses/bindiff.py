@@ -986,6 +986,9 @@ class BinDiff(Analysis):
         attributes = dict()
         all_funcs = set(cfg.kb.callgraph.nodes())
         for function_addr in cfg.kb.functions:
+            # skip syscalls and functions which are None in the cfg
+            if cfg.kb.functions.function(function_addr) is None or cfg.kb.functions.function(function_addr).is_syscall:
+                continue
             if cfg.kb.functions.function(function_addr) is not None:
                 normalized_funtion = NormalizedFunction(cfg.kb.functions.function(function_addr))
                 number_of_basic_blocks = len(normalized_funtion.graph.nodes())
@@ -1089,6 +1092,7 @@ class BinDiff(Analysis):
                 continue
             if not self._p2.loader.main_bin.contains_addr(func_b):
                 continue
+
             func_a_succ = self.cfg_a.kb.callgraph.successors(func_a)
             func_b_succ = self.cfg_b.kb.callgraph.successors(func_b)
             func_a_pred = self.cfg_a.kb.callgraph.predecessors(func_a)
@@ -1105,6 +1109,12 @@ class BinDiff(Analysis):
 
             # for each of the possible new matches add it if it improves the matching
             for (x, y) in new_matches:
+                # skip none functions and syscalls
+                if self.cfg_a.kb.functions.function(x) is None or self.cfg_a.kb.functions.function(x).is_syscall:
+                    continue
+                if self.cfg_b.kb.functions.function(y) is None or self.cfg_b.kb.functions.function(y).is_syscall:
+                    continue
+
                 if (x, y) not in processed_matches:
                     processed_matches.add((x, y))
                     # if it's a better match than what we already have use it
@@ -1130,9 +1140,9 @@ class BinDiff(Analysis):
             if self.project.loader.main_bin.contains_addr(x) and self._p2.loader.main_bin.contains_addr(y):
                 self.function_matches.add((x, y))
 
-        # get the unmatched blocks
-        self._unmatched_functions_from_a = set(x for x in self.cfg_a.kb.functions if x not in matched_a)
-        self._unmatched_functions_from_b = set(x for x in self.cfg_b.kb.functions if x not in matched_b)
+        # get the unmatched functions
+        self._unmatched_functions_from_a = set(x for x in self.attributes_a.keys() if x not in matched_a)
+        self._unmatched_functions_from_b = set(x for x in self.attributes_b.keys() if x not in matched_b)
 
         # remove unneeded function diffs
         for (x, y) in dict(self._function_diffs):
