@@ -11,6 +11,33 @@ l = logging.getLogger("simuvex.procedures.libc.memset")
 class memset(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
+    @staticmethod
+    def _repeat_bytes(byt, rep):
+        """
+        Get a long number for a byte being repeated for many times. This is part of the effort of optimizing
+        performance of angr's memory operations.
+
+        :param int byt: the byte to repeat
+        :param int rep: times to repeat the byte
+        :return: a long integer representing the repeating bytes
+        ;rtype: int
+        """
+
+        if rep == 1:
+            return byt
+
+        remainder = rep % 2
+        quotient = rep / 2
+
+        r_ = memset._repeat_bytes(byt, quotient)
+        if remainder == 1:
+            r = r_ << ((quotient + 1) * 8)
+            r |= (r_ << 8) + byt
+        else:
+            r = r_ << (quotient * 8)
+            r |= r_
+        return r
+
     def run(self, dst_addr, char, num):
         char = char[7:0]
 
@@ -30,7 +57,12 @@ class memset(simuvex.SimProcedure):
                 self.ret(dst_addr)
                 return
 
-            write_bytes = self.state.se.Concat(*([ char ] * max_size))
+            # Concatenating many bytes is slow, so some sort of optimization is required
+            if char._model_concrete.value == 0:
+                write_bytes = self.state.se.BVV(0, max_size * 8)
+            else:
+                rb = memset._repeat_bytes(char._model_concrete.value, max_size * 8)
+                write_bytes = self.state.se.BVV(rb, max_size * 8)
             self.state.memory.store(dst_addr, write_bytes)
 
             l.debug("memset writing %d bytes", max_size)
