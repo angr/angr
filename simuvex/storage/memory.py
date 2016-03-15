@@ -565,8 +565,15 @@ class SimMemory(SimStatePlugin):
             size_e = size
 
         if inspect is True:
-            if self.category == 'reg': self.state._inspect('reg_read', BP_BEFORE, reg_read_offset=addr_e, reg_read_length=size_e)
-            if self.category == 'mem': self.state._inspect('mem_read', BP_BEFORE, mem_read_address=addr_e, mem_read_length=size_e)
+            if self.category == 'reg':
+                self.state._inspect('reg_read', BP_BEFORE, reg_read_offset=addr_e, reg_read_length=size_e)
+                addr_e = self.state._inspect_getattr("reg_read_offset", addr_e)
+                size_e = self.state._inspect_getattr("reg_read_length", size_e)
+
+            elif self.category == 'mem':
+                self.state._inspect('mem_read', BP_BEFORE, mem_read_address=addr_e, mem_read_length=size_e)
+                addr_e = self.state._inspect_getattr("mem_read_address", addr_e)
+                size_e = self.state._inspect_getattr("mem_read_length", size_e)
 
         if (o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
                 isinstance(addr_e, claripy.ast.Base) and
@@ -606,8 +613,13 @@ class SimMemory(SimStatePlugin):
             r = r.reversed
 
         if inspect is True:
-            if self.category == 'mem': self.state._inspect('mem_read', BP_AFTER, mem_read_expr=r)
-            if self.category == 'reg': self.state._inspect('reg_read', BP_AFTER, reg_read_expr=r)
+            if self.category == 'mem':
+                self.state._inspect('mem_read', BP_AFTER, mem_read_expr=r)
+                r = self.state._inspect_getattr("mem_read_expr", r)
+
+            elif self.category == 'reg':
+                self.state._inspect('reg_read', BP_AFTER, reg_read_expr=r)
+                r = self.state._inspect_getattr("reg_read_expr", r)
 
         if o.AST_DEPS in self.state.options and self.category == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))
