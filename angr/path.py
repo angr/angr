@@ -241,6 +241,13 @@ class TreeIter(object):
                 return item
         raise IndexError(k)
 
+    def count(self, v):
+        ctr = 0
+        for item in self:
+            if item == v:
+                ctr += 1
+        return ctr
+
 class HistoryIter(TreeIter):
     def __reversed__(self):
         for hist in self._iter_nodes():
