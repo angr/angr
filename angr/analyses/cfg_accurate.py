@@ -54,7 +54,7 @@ class PendingExit(object):
                                                               self.returning_source) if self.returning_source is not None else 'Unknown')
 
 
-class CFG(Analysis, ForwardAnalysis, CFGBase):
+class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
     """
     This class represents a control-flow graph.
     """
@@ -2998,4 +2998,7 @@ class CFG(Analysis, ForwardAnalysis, CFGBase):
                     self._quasi_topological_order[n] = ctr
                     ctr -= 1
 
-register_analysis(CFG, 'CFG')
+CFG = CFGAccurate
+
+register_analysis(CFGAccurate, 'CFG')
+register_analysis(CFGAccurate, 'CFGAccurate')
