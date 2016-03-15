@@ -1,3 +1,5 @@
+import time
+
 import simuvex
 import claripy
 import nose
@@ -507,6 +509,37 @@ def test_symbolic_write():
     for i in range(0x10, 0x20):
         assert len(s2.se.any_n_int(s2.memory.load(i, 1), 10)) == 3
 
+def test_concrete_memset():
+
+    def _individual_test(state, base, val, size):
+        # time it
+        start = time.time()
+        memset = simuvex.SimProcedures['libc.so.6']['memset'](state, arguments=[base, state.se.BVV(val, 8), size])
+        elapsed = time.time() - start
+
+        # should be done within 1 second
+        nose.tools.assert_less_equal(elapsed, 5)
+        # the result should be good
+        byt_0 = memset.state.memory.load(base, 1)
+        nose.tools.assert_equal(s.se.any_n_int(byt_0, 10), [val])
+        byt_1 = memset.state.memory.load(base+1, 1)
+        nose.tools.assert_equal(s.se.any_n_int(byt_1, 10), [val])
+        byt_2 = memset.state.memory.load(base+size-1, 1)
+        nose.tools.assert_equal(s.se.any_n_int(byt_2, 10), [val])
+
+    BASE = 0x800000
+    SIZE = 0x20000
+
+    # Writes many zeros
+    VAL = 0
+    s = simuvex.SimState(arch='AMD64')
+    _individual_test(s, BASE, VAL, SIZE)
+
+    # Writes many ones
+    VAL = 1
+    s = simuvex.SimState(arch='AMD64')
+    _individual_test(s, BASE, VAL, SIZE)
+
 if __name__ == '__main__':
     test_symbolic_write()
     test_fullpage_write()
@@ -516,3 +549,4 @@ if __name__ == '__main__':
     test_abstract_memory()
     test_abstract_memory_find()
     test_registers()
+    test_concrete_memset()
