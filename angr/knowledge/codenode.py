@@ -21,6 +21,9 @@ class CodeNode(object):
     def __ne__(self, other):
         return not self == other
 
+    def __cmp__(self, other):
+        raise TypeError("Comparison with a code node")
+
     def __hash__(self):
         return hash((self.addr, self.size))
 
