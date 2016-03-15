@@ -528,7 +528,7 @@ def test_concrete_memset():
         nose.tools.assert_equal(s.se.any_n_int(byt_2, 10), [val])
 
     BASE = 0x800000
-    SIZE = 0x20000
+    SIZE = 0x200000
 
     # Writes many zeros
     VAL = 0
