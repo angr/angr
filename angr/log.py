@@ -14,11 +14,11 @@ class Loggers(object):
             attr = name.replace('.', '_')
             setattr(self, attr, logger)
 
-        fmt='%(levelname)-7s | %(asctime)-23s | %(name)-8s | %(message)s'
-
-        # The default level is INFO
-        logging.basicConfig(format=fmt, level=default_level)
-        logging.StreamHandler.emit = self._emit_wrap
+        if len(logging.root.handlers) == 0:
+            # The default level is INFO
+            fmt='%(levelname)-7s | %(asctime)-23s | %(name)-8s | %(message)s'
+            logging.basicConfig(format=fmt, level=default_level)
+            logging.StreamHandler.emit = self._emit_wrap
 
     @staticmethod
     def setall(level):
@@ -27,7 +27,6 @@ class Loggers(object):
 
     @staticmethod
     def _emit_wrap(*args, **kwargs):
-        #import ipdb; ipdb.set_trace()
         record = args[1]
         color = hash(record.name) % 8 + 30
         try:
