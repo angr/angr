@@ -104,11 +104,11 @@ class SimStateSystem(SimStatePlugin):
         self.brk = self.state.se.If(new_brk == 0, cur_brk, new_brk)
         return self.brk
 
-    #to keep track of sockets
+    # to keep track of sockets
     def add_socket(self, fd):
         self.sockets[fd] = self.files[fd]
 
-    #back a file with a pcap
+    # back a file with a pcap
     def back_with_pcap(self, fd):
         #import ipdb;ipdb.set_trace()
         if self.pcap is not None:
@@ -125,13 +125,13 @@ class SimStateSystem(SimStatePlugin):
                 raise SimError("states somehow differ")
 
     def open(self, name, mode, preferred_fd=None):
-        '''
-        open a file
+        """
+        Open a symbolic file.
 
-        :param name: name of the file
-        :param mode: file operation mode
-        :param preferred_fd: assign this fd if it's not already claimed
-        '''
+        :param name:            Path of the symbolic file.
+        :param mode:            File operation mode.
+        :param preferred_fd:    Assign this fd if it's not already claimed.
+        """
         # TODO: speed this up
         fd = None
         if preferred_fd is not None and preferred_fd not in self.files:
@@ -145,8 +145,7 @@ class SimStateSystem(SimStatePlugin):
             raise SimPosixError('exhausted file descriptors')
 
         if name in self.fs:
-            # we assume we don't need to copy the file object, the file has been created just for
-            # us to use
+            # we assume we don't need to copy the file object, the file has been created just for us to use.
             f = self.fs[name]
         # if it's a device file we probably don't want to try to read in the entire thing
         elif self.concrete_fs and not os.path.abspath(name).startswith("/dev"):
@@ -183,6 +182,14 @@ class SimStateSystem(SimStatePlugin):
         return fd
 
     def read(self, fd, dst_addr, length):
+        """
+        Read from a symbolic file.
+
+        :param fd:          The file descriptor.
+        :param dst_addr:
+        :param length:      The length to read.
+        :return:
+        """
         # TODO: error handling
         # TODO: symbolic support
         return self.get_file(fd).read(dst_addr, length)
@@ -355,13 +362,31 @@ class SimStateSystem(SimStatePlugin):
         return self.merge(others, merge_flag, flag_values)
 
     def dumps(self, fd):
+        """
+        Returns the concrete content for a file descriptor.
+
+        :param fd:  A file descriptor.
+        :return:    The concrete content.
+        :rtype:     str
+        """
         return self.state.se.any_str(self.get_file(fd).all_bytes())
 
     def dump(self, fd, filename):
+        """
+        Writes the concrete content of a file descriptor to a real file.
+
+        :param fd:          A file descriptor.
+        :param filename:    The path of the file where to write the data.
+        """
         with open(filename, "w") as f:
             f.write(self.dumps(fd))
 
     def get_file(self, fd):
+        """
+
+        :param fd:  A file descriptor.
+        :return:
+        """
         fd = self.state.make_concrete_int(fd)
         if fd not in self.files:
             l.warning("Accessing non-existing file with fd %d. Creating a new file.", fd)
@@ -369,10 +394,10 @@ class SimStateSystem(SimStatePlugin):
         return self.files[fd]
 
     def _chrootize(self, name):
-        '''
+        """
         take a path and make sure if fits within the chroot
         remove '../', './', and '/' from the beginning of path
-        '''
+        """
         normalized = os.path.normpath(os.path.abspath(name))
 
         # if it starts with the chroot after absolution and normalization it's good

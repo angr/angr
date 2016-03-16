@@ -178,9 +178,10 @@ class SimVariableSet(collections.MutableSet):
 
     def complement(self, other):
         """
-        Calculate the complement of `self` and `other`
-        :param other: Another SimVariableSet instance
-        :return: The complement result
+        Calculate the complement of `self` and `other`.
+
+        :param other:   Another SimVariableSet instance.
+        :return:        The complement result.
         """
 
         s = SimVariableSet()

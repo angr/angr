@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-'''This module handles constraint generation.'''
+"""This module handles constraint generation."""
 
 import logging
 l = logging.getLogger("simuvex.vex.expressions.base")
@@ -30,9 +30,9 @@ class SimIRExpr(object):
         self.state._inspect('expr', BP_BEFORE)
 
     def process(self):
-        '''
+        """
         Process the expression in whatever ways are specified by the state options.
-        '''
+        """
 
         # this should change when additional analyses are implemented
         self._execute()
@@ -71,14 +71,14 @@ class SimIRExpr(object):
         return s/8
 
     def _translate_expr(self, expr):
-        '''Translate a single IRExpr, honoring mode and options and so forth. Also updates state...'''
+        """Translate a single IRExpr, honoring mode and options and so forth. Also updates state..."""
         e = translate_expr(expr, self.imark, self.stmt_idx, self.state)
         self._record_expr(e)
         self.child_exprs.append(e)
         return e
 
     def _translate_exprs(self, exprs):
-        '''Translates a sequence of IRExprs into SimIRExprs.'''
+        """Translates a sequence of IRExprs into SimIRExprs."""
         return [ self._translate_expr(e) for e in exprs ]
 
     # track references in other expressions
@@ -94,18 +94,18 @@ class SimIRExpr(object):
         self.expr = concrete_value
 
     def reg_deps(self):
-        '''
+        """
         Returns a set of registers that this IRExpr depends on.
-        '''
+        """
         if len(self.actions) == 0 or o.ACTION_DEPS not in self.state.options:
             return _nonset
         else:
             return frozenset.union(*[r.reg_deps for r in self.actions if type(r) == SimActionData])
 
     def tmp_deps(self):
-        '''
+        """
         Returns a set of tmps that this IRExpr depends on
-        '''
+        """
         if len(self.actions) == 0 or o.ACTION_DEPS not in self.state.options:
             return _nonset
         else:

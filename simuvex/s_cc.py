@@ -30,9 +30,9 @@ class SimStackArg(SimFunctionArgument):
         return "[%xh]" % self.offset
 
 class SimCC(object):
-    '''
+    """
     This is the base class for all calling conventions. You should not directly instantiate this class.
-    '''
+    """
     RET_VAL_REG = None
     ARG_REGS = None
     STACKARG_SP_DIFF = None
@@ -56,7 +56,7 @@ class SimCC(object):
 
     def set_args(self, state, args):
         """
-        Sets the value @expr as being the @index-th argument of a function
+        Sets the value `expr` as being the `index-th` argument of a function
         """
 
         # Normalize types of all arguments
@@ -86,19 +86,20 @@ class SimCC(object):
             self.arg_setter(state, arg, reg_offsets, state.regs.sp, index)
 
     def stack_space(self, state, args):
-        '''
-         returns the number of bytes needed on the stack for the arguments passed,
+        """
+         Returns the number of bytes needed on the stack for the arguments passed,
          i.e. the number of bytes set_args allocates.
-        '''
+        """
         stack_shift = 0
         if len(args) > len(self.ARG_REGS):
             stack_shift = (len(args) - len(self.ARG_REGS)) * state.arch.stack_change
 
         return self.STACKARG_SP_BUFF - stack_shift
 
-
-    # Returns a bitvector expression representing the nth argument of a function
     def arg(self, state, index, stackarg_mem_base=None):
+        """
+        Returns a bitvector expression representing the nth argument of a function.
+        """
         reg_offsets = self.ARG_REGS
         if reg_offsets is None:
             raise NotImplementedError('ARG_REGS is not specified for calling convention %s' % type(self))
@@ -112,8 +113,11 @@ class SimCC(object):
 
         return self.arg_getter(state, reg_offsets, stackarg_mem_base, index)
 
-    # Sets an expression as the return value. Also updates state.
+
     def set_return_expr(self, state, expr):
+        """
+        Sets an expression as the return value and updates `state`.
+        """
         expr = self._normalize_return_expr(state, expr)
 
         if self.RET_VAL_REG is None:
@@ -138,8 +142,11 @@ class SimCC(object):
     # Helper functions
     #
 
-    # Helper function to get an argument, given a list of register locations it can be and stack information for overflows.
     def arg_getter(self, state, reg_offsets, args_mem_base, index):
+        """
+        Helper function to get an argument, given a list of register locations it can be and stack information for
+        overflows.
+        """
         stack_step = -state.arch.stack_change
 
         if index < len(reg_offsets):
@@ -164,6 +171,7 @@ class SimCC(object):
             index -= len(reg_offsets)
             mem_addr = args_mem_base + (index * stack_step) + self.STACKARG_SP_BUFF
             state.memory.store(mem_addr, expr, endness=state.arch.memory_endness)
+
 
     @property
     def arguments(self):
@@ -400,9 +408,9 @@ class SimCCPowerPC64(SimCC):
         return False
 
 class SimCCUnknown(SimCC):
-    '''
-    WOW an unknown calling convention!
-    '''
+    """
+    Represent an unknown calling convention.
+    """
 
     @staticmethod
     def _match(arch, args, sp_delta): # pylint: disable=unused-argument

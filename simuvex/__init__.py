@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-'''This module handles constraint generation.'''
+"""
+This module handles constraint generation.
+"""
 
 import logging
 logging.getLogger("simuvex").addHandler(logging.NullHandler())

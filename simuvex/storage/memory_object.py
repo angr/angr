@@ -2,11 +2,11 @@ import claripy
 from ..s_errors import SimMemoryError
 
 class SimMemoryObject(object):
-    '''
+    """
     A MemoryObjectRef instance is a reference to a byte or several bytes in
     a specific object in SimSymbolicMemory. It is only used inside
     SimSymbolicMemory class.
-    '''
+    """
     def __init__(self, object, base, length=None): #pylint:disable=redefined-builtin
         if not isinstance(object, claripy.ast.Base):
             raise SimMemoryError('memory can only store claripy Expression')

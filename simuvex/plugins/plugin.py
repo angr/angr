@@ -23,7 +23,7 @@ class SimStatePlugin(ana.Storable):
         raise Exception("copy() not implement for %s", self.__class__.__name__)
 
     def merge(self, others, merge_flag, flag_values): # pylint: disable=W0613
-        '''
+        """
         Should merge the state plugin with the provided others.
 
            others - the other state plugin
@@ -33,7 +33,7 @@ class SimStatePlugin(ana.Storable):
                self.symbolic_content = self.state.se.If(merge_flag == flag_values[0], self.symbolic_content, other.se.symbolic_content)
 
             Can return a sequence of constraints to be added to the state.
-        '''
+        """
         raise Exception("merge() not implement for %s", self.__class__.__name__)
 
     def widen(self, others, merge_flag, flag_values):

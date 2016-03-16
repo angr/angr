@@ -1,14 +1,14 @@
 from claripy.fp import FSORT_FLOAT, FSORT_DOUBLE
 
 def size_bits(t):
-    '''Returns size, in BITS, of a type.'''
+    """Returns size, in BITS, of a type."""
     for s in 256, 128, 64, 32, 16, 8, 1:
         if str(s) in t:
             return s
     raise SimExpressionError("Unable to determine length of %s." % t)
 
 def size_bytes(t):
-    '''Returns size, in BYTES, of a type.'''
+    """Returns size, in BYTES, of a type."""
     s = size_bits(t)
     if s == 1:
         raise SimExpressionError("size_bytes() is seeing a bit!")

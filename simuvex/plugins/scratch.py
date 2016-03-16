@@ -51,25 +51,25 @@ class SimStateScratch(SimStatePlugin):
             self.sim_procedure = scratch.sim_procedure
 
     def tmp_expr(self, tmp):
-        '''
+        """
         Returns the Claripy expression of a VEX temp value.
 
         @param tmp: the number of the tmp
         @param simplify: simplify the tmp before returning it
         @returns a Claripy expression of the tmp
-        '''
+        """
         self.state._inspect('tmp_read', BP_BEFORE, tmp_read_num=tmp)
         v = self.temps[tmp]
         self.state._inspect('tmp_read', BP_AFTER, tmp_read_expr=v)
         return v
 
     def store_tmp(self, tmp, content):
-        '''
+        """
         Stores a Claripy expression in a VEX temp value.
 
         @param tmp: the number of the tmp
         @param content: a Claripy expression of the content
-        '''
+        """
         self.state._inspect('tmp_write', BP_BEFORE, tmp_write_num=tmp, tmp_write_expr=content)
         tmp = self.state._inspect_getattr('tmp_write_num', tmp)
         content = self.state._inspect_getattr('tmp_write_expr', content)

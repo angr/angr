@@ -65,9 +65,9 @@ class MemoryRegion(object):
         This implementation is pretty slow. But since this method won't be called frequently, we can live with the bad
         implementation for now.
 
-        :param addr: Starting addres of the memory region
-        :param size: Size of the memory region, in bytes
-        :return: A list of covered AbstractLocation objects, or an empty list if there is none
+        :param addr:    Starting address of the memory region.
+        :param size:    Size of the memory region, in bytes.
+        :return:        A list of covered AbstractLocation objects, or an empty list if there is none.
         """
 
         ret = [ ]
@@ -163,9 +163,9 @@ class MemoryRegion(object):
         return addr in self.memory
 
     def dbg_print(self, indent=0):
-        '''
+        """
         Print out debugging information
-        '''
+        """
         print "%sA-locs:" % (" " * indent)
         for aloc_id, aloc in self._alocs.items():
             print "%s<0x%x> %s" % (" " * (indent + 2), aloc_id, aloc)
@@ -174,7 +174,7 @@ class MemoryRegion(object):
         self.memory.dbg_print(indent=indent + 2)
 
 class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
-    '''
+    """
     This is an implementation of the abstract store in paper [TODO].
 
     Some differences:
@@ -184,7 +184,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
       When exiting from a function, you should cancel the previous mapping by
       calling unset_stack_address_mapping().
       Currently this is only used for stack!
-    '''
+    """
     def __init__(self, backer=None, memory_id="mem", endness=None):
         SimMemory.__init__(self, endness=endness)
 
@@ -220,14 +220,14 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         self._stack_region_map.unmap_by_address(absolute_address)
 
     def _normalize_address(self, region_id, relative_address, target_region=None):
-        '''
+        """
         If this is a stack address, we convert it to a correct region and address
 
         :param region_id: a string indicating which region the address is relative to
         :param relative_address: an address that is relative to the region parameter
         :param target_region: the ideal target region that address is normalized to. None means picking the best fit.
         :return: an AddressWrapper object
-        '''
+        """
         if self._stack_region_map.is_empty and self._generic_region_map.is_empty:
             # We don't have any mapped region right now
             return AddressWrapper(region_id, relative_address, False, None)
@@ -262,12 +262,12 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             return AddressWrapper(new_region_id, new_relative_address, False, None)
 
     def set_state(self, state):
-        '''
+        """
         Overriding the SimStatePlugin.set_state() method
 
         :param state: A SimState object
         :return: None
-        '''
+        """
         self.state = state
         for _,v in self._regions.items():
             v.set_state(state)
@@ -497,10 +497,10 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             return [ size ]
 
     def copy(self):
-        '''
+        """
         Make a copy of this SimAbstractMemory object
         :return:
-        '''
+        """
         am = SimAbstractMemory(memory_id=self._memory_id, endness=self.endness)
         for region_id, region in self._regions.items():
             am._regions[region_id] = region.copy()
@@ -510,13 +510,13 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         return am
 
     def merge(self, others, merge_flag, flag_values):
-        '''
+        """
         Merge this guy with another SimAbstractMemory instance
         :param others:
         :param merge_flag:
         :param flag_values:
         :return:
-        '''
+        """
         merging_occurred = False
 
         for o in others:

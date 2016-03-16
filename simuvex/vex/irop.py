@@ -1,5 +1,7 @@
 #!/usr/bin/python env
-'''This module contains symbolic implementations of VEX operations.'''
+"""
+This module contains symbolic implementations of VEX operations.
+"""
 
 import re
 import sys
@@ -84,6 +86,7 @@ explicit_attrs = {
     },
 }
 
+
 def make_operations():
     for p in all_operations:
         if p in ('Iop_INVALID', 'Iop_LAST'):
@@ -141,11 +144,16 @@ vector_operations = [ ]
 fp_ops = set()
 common_unsupported_generics = collections.Counter()
 
+
 def supports_vector(f):
     f.supports_vector = True
     return f
 
+
 class SimIROp(object):
+    """
+    A symbolic version of a Vex IR operation.
+    """
     def __init__(self, name, **attrs):
         l.debug("Creating SimIROp(%s)", name)
         self.name = name
@@ -442,10 +450,10 @@ class SimIROp(object):
         return claripy.ZeroExt(self._to_size - args[0].size(), args[0])
 
     def vector_args(self, args):
-        '''
+        """
          Yields each of the individual lane pairs from the arguments, in
          order from most significan to least significant
-        '''
+        """
         for i in reversed(range(self._vector_count)):
             pieces = []
             for vec in args:
@@ -459,7 +467,7 @@ class SimIROp(object):
         return op1 * op2
 
     def _op_generic_Clz(self, args):
-        '''Count the leading zeroes'''
+        """Count the leading zeroes"""
         wtf_expr = claripy.BVV(self._from_size, self._from_size)
         for a in range(self._from_size):
             bit = claripy.Extract(a, a, args[0])
@@ -467,7 +475,7 @@ class SimIROp(object):
         return wtf_expr
 
     def _op_generic_Ctz(self, args):
-        '''Count the trailing zeroes'''
+        """Count the trailing zeroes"""
         wtf_expr = claripy.BVV(self._from_size, self._from_size)
         for a in reversed(range(self._from_size)):
             bit = claripy.Extract(a, a, args[0])
@@ -599,9 +607,9 @@ class SimIROp(object):
 
     @supports_vector
     def _op_generic_HAdd(self, args):
-        '''
-         Halving add, for some ARM NEON instructions'
-        '''
+        """
+        Halving add, for some ARM NEON instructions.
+        """
         components = []
         for a, b in self.vector_args(args):
             if self.is_signed:
@@ -615,9 +623,9 @@ class SimIROp(object):
 
     @supports_vector
     def _op_generic_HSub(self, args):
-        '''
-         Halving subtract, for some ARM NEON instructions'
-        '''
+        """
+        Halving subtract, for some ARM NEON instructions.
+        """
         components = []
         for a, b in self.vector_args(args):
             if self.is_signed:
@@ -631,9 +639,9 @@ class SimIROp(object):
 
     @supports_vector
     def _op_generic_QAdd(self, args):
-        '''
-         Saturating add
-        '''
+        """
+        Saturating add.
+        """
         components = []
         for a, b in self.vector_args(args):
             top_a = a[self._vector_size-1]
@@ -652,9 +660,9 @@ class SimIROp(object):
 
     @supports_vector
     def _op_generic_QSub(self, args):
-        '''
-         Saturating subtract
-        '''
+        """
+        Saturating subtract.
+        """
         components = []
         for a, b in self.vector_args(args):
             top_a = a[self._vector_size-1]
@@ -811,6 +819,7 @@ class SimIROp(object):
                 accumulator = claripy.fpAdd(rm, accumulator, term)
 
         return accumulator
+
 
 #
 # Op Handler

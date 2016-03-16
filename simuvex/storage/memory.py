@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import logging
+
 l = logging.getLogger("simuvex.storage.memory")
 
 import claripy
@@ -16,12 +17,11 @@ class AddressWrapper(object):
         """
         Constructor for the class AddressWrapper.
 
-        :param region: Name of the memory regions it belongs to
-        :param address: An address (not a ValueSet object)
-        :param is_on_stack: Whether this address is on a stack region or not
-        :param function_address: Related function address (if any)
+        :param region:              Name of the memory regions it belongs to.
+        :param address:             An address (not a ValueSet object).
+        :param is_on_stack:         Whether this address is on a stack region or not.
+        :param function_address:    Related function address (if any).
         """
-
         self.region = region
         self.address = address
         self.is_on_stack = is_on_stack
@@ -70,8 +70,8 @@ class RegionMap(object):
         """
         Constructor
 
-        :param is_stack: Whether this is a region map for stack frames or not. Different strategies apply for stack
-                        regions.
+        :param is_stack:    Whether this is a region map for stack frames or not. Different strategies apply for stack
+                            regions.
         """
         self.is_stack = is_stack
 
@@ -118,12 +118,12 @@ class RegionMap(object):
 
     def map(self, absolute_address, region_id, related_function_address=None):
         """
-        Add a mapping between an absolute address and a region ID.
-        If this is a stack region map, all stack regions beyond (lower than) this newly added regions will be discarded.
+        Add a mapping between an absolute address and a region ID. If this is a stack region map, all stack regions
+        beyond (lower than) this newly added regions will be discarded.
 
-        :param absolute_address: An absolute memory address
-        :param region_id: ID of the memory region
-        :param related_function_address: A related function address, mostly used for stack regions
+        :param absolute_address:            An absolute memory address.
+        :param region_id:                   ID of the memory region.
+        :param related_function_address:    A related function address, mostly used for stack regions.
         """
 
         if self.is_stack:
@@ -173,11 +173,12 @@ class RegionMap(object):
 
     def absolutize(self, region_id, relative_address):
         """
-        Convert a relative address in some memory region to an absolute address
+        Convert a relative address in some memory region to an absolute address.
 
-        :param region_id: The memory region ID
-        :param relative_address: The relative memory offset in that memory region
-        :return: A absolute address if converted, or an exception is raised when region id does not exist
+        :param region_id:           The memory region ID
+        :param relative_address:    The relative memory offset in that memory region
+        :return:                    An absolute address if converted, or an exception is raised when region id does not
+                                    exist.
         """
 
         if region_id == 'global':
@@ -199,8 +200,9 @@ class RegionMap(object):
         Therefore you should only pass in address that belongs to the same category (stack or non-stack) of this region
         map.
 
-        :param absolute_address: An absolute memory address
-        :return: A tuple of the closest region ID, the relative offset, and the related function address.
+        :param absolute_address:    An absolute memory address
+        :return:                    A tuple of the closest region ID, the relative offset, and the related function
+                                    address.
         """
 
         if target_region_id is None:
@@ -232,9 +234,9 @@ class RegionMap(object):
         return descriptor.region_id, absolute_address - base_address, descriptor.related_function_address
 
 class MemoryStoreRequest(object):
-    '''
+    """
     A MemoryStoreRequest is used internally by SimMemory to track memory request data.
-    '''
+    """
 
     def __init__(self, addr, data=None, size=None, condition=None, endness=None):
         self.addr = addr
@@ -261,6 +263,9 @@ class MemoryStoreRequest(object):
 
 
 class SimMemory(SimStatePlugin):
+    """
+    Represents the memory space of the process.
+    """
     def __init__(self, endness=None, abstract_backer=None):
         SimStatePlugin.__init__(self)
         self.id = None
@@ -294,7 +299,7 @@ class SimMemory(SimStatePlugin):
     def category(self):
         """
         Return the category of this SimMemory instance. It can be one of the three following categories: reg, mem,
-        and file.
+        or file.
         """
 
         if self.id in ('reg', 'mem'):
@@ -334,19 +339,20 @@ class SimMemory(SimStatePlugin):
         return data_e
 
     def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None, inspect=True):
-        '''
+        """
         Stores content into memory.
 
-        @param addr: a claripy expression representing the address to store at
-        @param data: the data to store (claripy expression or something convertable to a
-                    claripy expression)
-        @param size: a claripy expression representing the size of the data to store
-        @param condition: (optional) a claripy expression representing a condition
-                          if the store is conditional
-        @param add_constraints: add constraints resulting from the merge (default: True)
-        @param endness: The endianness for the data
-        @param action: a SimActionData to fill out with the final written value and constraints
-        '''
+        :param addr:        A claripy expression representing the address to store at.
+        :param data:        The data to store (claripy expression or something convertable to a claripy expression).
+        :param size:        A claripy expression representing the size of the data to store.
+
+        The following parameters are optional.
+
+        :param condition:       A claripy expression representing a condition if the store is conditional.
+        :param add_constraints: Add constraints resulting from the merge (default: True).
+        :param endness:         The endianness for the data.
+        :param action:          A SimActionData to fill out with the final written value and constraints.
+        """
         addr_e = _raw_ast(addr)
         data_e = _raw_ast(data)
         size_e = _raw_ast(size)
@@ -434,21 +440,25 @@ class SimMemory(SimStatePlugin):
     def _store(self, request):
         raise NotImplementedError()
 
+    # TODO(sduquette) : endness should be renamed endianness.
     def store_cases(self, addr, contents, conditions, fallback=None, add_constraints=None, endness=None, action=None):
-        '''
+        """
         Stores content into memory, conditional by case.
 
-        @param addr: a claripy expression representing the address to store at
-        @param contents: a list of bitvectors, not necessarily of the same size. Use
-                         None to denote an empty write
-        @param conditions: a list of conditions. Must be equal in length to contents
-        @param fallback: (optional) a claripy expression representing what the write
-                         should resolve to if all conditions evaluate to false (default:
-                         whatever was there before)
-        @param add_constraints: add constraints resulting from the merge (default: True)
-        @param endness: the endianness for contents as well as fallback
-        @param action: a SimActionData to fill out with the final written value and constraints
-        '''
+        :param addr:            A claripy expression representing the address to store at.
+        :param contents:        A list of bitvectors, not necessarily of the same size. Use None to denote an empty
+                                write.
+        :param conditions:      A list of conditions. Must be equal in length to contents.
+
+        The following parameters are optional.
+
+        :param fallback:        A claripy expression representing what the write should resolve to if all conditions
+                                evaluate to false (default: whatever was there before).
+        :param add_constraints: Add constraints resulting from the merge (default: True)
+        :param endness:         The endianness for contents as well as fallback.
+        :param action:          A SimActionData to fill out with the final written value and constraints.
+        :type action:           simuvex.s_action.SimActionData
+        """
 
         if fallback is None and all(c is None for c in contents):
             l.debug("Avoiding an empty write.")
@@ -524,16 +534,16 @@ class SimMemory(SimStatePlugin):
             return self._store(req)
 
     def load(self, addr, size=None, condition=None, fallback=None, add_constraints=None, action=None, endness=None, inspect=True):
-        '''
+        """
         Loads size bytes from dst.
 
-            @param dst: the address to load from
-            @param size: the size (in bytes) of the load
-            @param condition: a claripy expression representing a condition for a conditional load
-            @param fallback: a fallback value if the condition ends up being False
-            @param add_constraints: add constraints resulting from the merge (default: True)
-            @param action: a SimActionData to fill out with the constraints
-            @param endness: the endness to load with
+        :param dst:             The address to load from.
+        :param size:            The size (in bytes) of the load.
+        :param condition:       A claripy expression representing a condition for a conditional load.
+        :param fallback:        A fallback value if the condition ends up being False.
+        :param add_constraints: Add constraints resulting from the merge (default: True).
+        :param action:          A SimActionData to fill out with the constraints.
+        :param endness:         The endness to load with.
 
         There are a few possible return values. If no condition or fallback are passed in,
         then the return is the bytes at the address, in the form of a claripy expression.
@@ -544,7 +554,7 @@ class SimMemory(SimStatePlugin):
         On the other hand, if a condition and fallback are provided, the value is conditional:
 
             <A If(condition, BVV(0x41, 32), fallback)>
-        '''
+        """
         add_constraints = True if add_constraints is None else add_constraints
 
         addr_e = _raw_ast(addr)
@@ -607,7 +617,7 @@ class SimMemory(SimStatePlugin):
                 normalized_addresses = [ (aw.region, aw.address) for aw in normalized_addresses ]
             self.state.uninitialized_access_handler(self.category, normalized_addresses, size, r, self.state.scratch.bbl_addr, self.state.scratch.stmt_idx)
 
-        # the endness
+        # the endianess
         endness = self.endness if endness is None else endness
         if endness == "Iend_LE":
             r = r.reversed
@@ -641,30 +651,28 @@ class SimMemory(SimStatePlugin):
         return r
 
     def normalize_address(self, addr, is_write=False): #pylint:disable=no-self-use,unused-argument
-        '''
-        Normalizes the address for use in static analysis (with the abstract memory
-        model). In non-abstract mode, simply returns the address in a single-element
-        list.
-        '''
+        """
+        Normalize `addr` for use in static analysis (with the abstract memory model). In non-abstract mode, simply
+        returns the address in a single-element list.
+        """
         return [ addr ]
 
     def _load(self, addr, size, condition=None, fallback=None):
         raise NotImplementedError()
 
     def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
-        '''
-        Returns the address of bytes equal to 'what', starting from 'start'. Note that,
-        if you don't specify a default value, this search could cause the state to go
-        unsat if no possible matching byte exists.
+        """
+        Returns the address of bytes equal to 'what', starting from 'start'. Note that,  if you don't specify a default
+        value, this search could cause the state to go unsat if no possible matching byte exists.
 
-            @param start: the start address
-            @param what: what to search for
-            @param max_search: search at most this many bytes
-            @param max_symbolic_bytes: search through at most this many symbolic bytes
-            @param default: the default value, if what you're looking for wasn't found
+        :param start:               The start address.
+        :param what:                What to search for;
+        :param max_search:          Search at most this many bytes.
+        :param max_symbolic_bytes:  Search through at most this many symbolic bytes.
+        :param default:             The default value, if what you're looking for wasn't found.
 
-            @returns an expression representing the address of the matching byte
-        '''
+        :returns:                   An expression representing the address of the matching byte.
+        """
         addr = _raw_ast(addr)
         what = _raw_ast(what)
         default = _raw_ast(default)
@@ -679,18 +687,20 @@ class SimMemory(SimStatePlugin):
         raise NotImplementedError()
 
     def copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None):
-        '''
+        """
         Copies data within a memory.
 
-        @param dst: claripy expression representing the address of the destination
-        @param src: claripy expression representing the address of the source
-        @param src_memory: (optional) copy data from this SimMemory instead of self
-        @param src_memory: (optional) copy data to this SimMemory instead of self
-        @param size: claripy expression representing the size of the copy
-        @param condition: claripy expression representing a condition, if the write should
-                          be conditional. If this is determined to be false, the size of
-                          the copy will be 0
-        '''
+        :param dst:         A claripy expression representing the address of the destination
+        :param src:         A claripy expression representing the address of the source
+
+        The following parameters are optional.
+
+        :param src_memory:  Copy data from this SimMemory instead of self
+        :param src_memory:  Copy data to this SimMemory instead of self
+        :param size:        A claripy expression representing the size of the copy
+        :param condition:   A claripy expression representing a condition, if the write should be conditional. If this
+                            is determined to be false, the size of the copy will be 0.
+        """
         dst = _raw_ast(dst)
         src = _raw_ast(src)
         size = _raw_ast(size)

@@ -18,23 +18,22 @@ l = logging.getLogger('simuvex.storage.paged_memory')
 _internal_storage = dict
 
 class Page(object):
-    '''
-    Page object, allowing for more flexibilty than just a raw dict
-    '''
+    """
+    Page object, allowing for more flexibility than just a raw dict.
+    """
 
     PROT_READ = 1
     PROT_WRITE = 2
     PROT_EXEC = 4
 
     def __init__(self, page_size, permissions=None, executable=False):
-        '''
-        Create a new page object. Carries permissions information. Permissions default to RW unless
-        `executable` is True in which case permissions default to RWX.
+        """
+        Create a new page object. Carries permissions information. Permissions default to RW unless `executable` is True
+        in which case permissions default to RWX.
 
-        :param page_size: self-explanatory
-        :param executable: if the page is executable, typically this will depend on whether the binary has an
-            executbale stack
-        '''
+        :param executable:  Whether the page is executable, typically this will depend on whether the binary has an
+                            executable stack.
+        """
 
         self._page_size = page_size
         self._storage = [None]*page_size if _internal_storage is list else _internal_storage()
@@ -55,10 +54,11 @@ class Page(object):
 
         return item in self._storage
 
+    # TODO: This docstring should be updated.
     def __getitem__(self, idx):
-        '''
-        I think we assume that idx has already been modded by page_size.
-        '''
+        """
+        I think we assume that `idx` has already been modded by page_size.
+        """
 
         return self._storage[idx]
 
@@ -77,7 +77,11 @@ _storage = Page
 #pylint:disable=unidiomatic-typecheck
 
 class SimPagedMemory(object):
-    def __init__(self, memory_backer=None, permissions_backer=None, pages=None, sinkholes=None, initialized=None, name_mapping=None, hash_mapping=None, page_size=None):
+    """
+    Represents paged memory.
+    """
+    def __init__(self, memory_backer=None, permissions_backer=None, pages=None, sinkholes=None, initialized=None, 
+                 name_mapping=None, hash_mapping=None, page_size=None):
         self._cowed = set()
         self._memory_backer = { } if memory_backer is None else memory_backer
         self._permissions_backer = permissions_backer # saved for copying
@@ -397,12 +401,12 @@ class SimPagedMemory(object):
             return set(page.keys())
 
     def changed_bytes(self, other):
-        '''
-        Gets the set of changed bytes between self and other.
+        """
+        Gets the set of changed bytes between `self` and `other`.
 
-        @param other: the other SimPagedMemory
-        @returns a set of differing bytes
-        '''
+        :type other:    SimPagedMemory
+        :returns:       A set of differing bytes.
+        """
         if self._page_size != other._page_size:
             raise SimMemoryError("SimPagedMemory page sizes differ. This is asking for disaster.")
 
@@ -480,17 +484,15 @@ class SimPagedMemory(object):
     #
 
     def _apply_object_to_page(self, page_base, mo, page=None, overwrite=True):
-        '''
-        Writes a memory object to a page, sinkholing if appropriate.
+        """
+        Writes a memory object to a `page`, sinkholing if appropriate.
 
-        @param page_base: the base address of the page
-        @param mo: the memory object
-        @param page: (optionally) the page to use
-        @param overwrite: if False, only write to currently-empty
-                          memory
-        @returns True if the write went to the page, False if it got
-                 sinkholed
-        '''
+        :param page_base:   The base address of the page.
+        :param mo:          The memory object.
+        :param page:        (optional) the page to use.
+        :param overwrite:   (optional) If False, only write to currently-empty memory.
+        :returns:           True if the write went to the page, False if it got sinkholed.
+        """
         page_num = page_base / self._page_size
         if mo.base <= page_base and mo.base + mo.length >= page_base + self._page_size:
             # takes up the whole page
@@ -504,12 +506,12 @@ class SimPagedMemory(object):
             return True
 
     def store_memory_object(self, mo, overwrite=True):
-        '''
-        This function optimizes a large store by storing a single reference to
-        the SimMemoryObject instead of one for each byte.
+        """
+        This function optimizes a large store by storing a single reference to the :class:`SimMemoryObject` instead of
+        one for each byte.
 
-        @param memory_object: the memory object to store
-        '''
+        :param memory_object: the memory object to store
+        """
 
         self._update_range_mappings(mo.base, mo.object, mo.length)
 
@@ -523,14 +525,13 @@ class SimPagedMemory(object):
             self._apply_object_to_page(p, mo, overwrite=overwrite)
 
     def replace_memory_object(self, old, new_content):
-        '''
-        Replaces the memory object 'old' with a new memory object containing
-        'new_content'.
+        """
+        Replaces the memory object `old` with a new memory object containing `new_content`.
 
-            @param old: a SimMemoryObject (i.e., one from memory_objects_for_hash() or
-                        memory_objects_for_name())
-            @param new_content: the content (claripy expression) for the new memory object
-        '''
+        :param old:         A SimMemoryObject (i.e., one from :func:`memory_objects_for_hash()` or :func:`
+                            memory_objects_for_name()`).
+        :param new_content: The content (claripy expression) for the new memory object.
+    """
 
         if old.object.size() != new_content.size():
             raise SimMemoryError("memory objects can only be replaced by the same length content")
@@ -549,13 +550,13 @@ class SimPagedMemory(object):
                 pass
 
     def replace_all(self, old, new):
-        '''
-        Replaces all instances of expression old with expression new.
+        """
+        Replaces all instances of expression `old` with expression `new`.
 
-            @param old: a claripy expression. Must contain at least one named variable (to make
-                        to make it possible to use the name index for speedup)
-            @param new: the new variable to replace it with
-        '''
+        :param old: A claripy expression. Must contain at least one named variable (to make it possible to use the
+                    name index for speedup).
+        :param new: The new variable to replace it with.
+        """
 
         if options.REVERSE_MEMORY_NAME_MAP not in self.state.options:
             raise SimMemoryError("replace_all is not doable without a reverse name mapping. Please add simuvex.o.REVERSE_MEMORY_NAME_MAP to the state options")
@@ -686,10 +687,9 @@ class SimPagedMemory(object):
             self._hash_mapping[h].add(actual_addr)
 
     def addrs_for_name(self, n):
-        '''
-        Returns addresses that contain expressions that contain a variable
-        named n.
-        '''
+        """
+        Returns addresses that contain expressions that contain a variable named `n`.
+        """
         if n not in self._name_mapping:
             return
 
@@ -705,10 +705,9 @@ class SimPagedMemory(object):
         self._name_mapping[n] -= to_discard
 
     def addrs_for_hash(self, h):
-        '''
-        Returns addresses that contain expressions that contain a variable
-        with the hash of h.
-        '''
+        """
+        Returns addresses that contain expressions that contain a variable with the hash of `h`.
+        """
         if h not in self._hash_mapping:
             return
 
@@ -724,25 +723,26 @@ class SimPagedMemory(object):
         self._hash_mapping[h] -= to_discard
 
     def memory_objects_for_name(self, n):
-        '''
-        Returns a set of SimMemoryObjects that contain expressions that contain a variable
-        with the name of n. This is useful for replacing those values, in one fell swoop,
-        with replace_memory_object(), even if they've been partially overwritten.
-        '''
+        """
+        Returns a set of :class:`SimMemoryObjects` that contain expressions that contain a variable with the name of
+        `n`.
+
+        This is useful for replacing those values in one fell swoop with :func:`replace_memory_object()`, even if
+        they have been partially overwritten.
+        """
         return set([ self[i] for i in self.addrs_for_name(n)])
 
     def memory_objects_for_hash(self, n):
-        '''
-        Returns a set of SimMemoryObjects that contain expressions that contain a variable
-        with the hash of h. This is useful for replacing those values, in one fell swoop,
-        with replace_memory_object(), even if they've been partially overwritten.
-        '''
+        """
+        Returns a set of :class:`SimMemoryObjects` that contain expressions that contain a variable with the hash
+        `h`.
+        """
         return set([ self[i] for i in self.addrs_for_hash(n)])
 
     def permissions(self, addr):
-        '''
-        Returns the permissions for a page at address, `addr`.
-        '''
+        """
+        Returns the permissions for a page at address `addr`.
+        """
 
         if self.state.se.symbolic(addr):
             raise ValueError("page permissions cannot currently be looked up for symbolic addresses")

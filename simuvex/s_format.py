@@ -8,14 +8,14 @@ l = logging.getLogger("simuvex.parseformat")
 
 class FormatString(object):
     """
-    describes a format string
+    Describes a format string.
     """
 
     SCANF_DELIMITERS = ["\x00", "\x09", "\x0a", "\x0b", "\x0d", "\x20"]
 
     def __init__(self, parser, components):
         """
-        takes a list of components which are either just strings or a FormatSpecifier
+        Takes a list of components which are either just strings or a FormatSpecifier.
         """
         self.components = components
         self.parser = parser
@@ -42,8 +42,8 @@ class FormatString(object):
 
     def replace(self, startpos, args):
         """
-        produce a new string based of the format string @self with args @args
-        return a new string, possibly symbolic
+        Produce a new string based of the format string self with args `args` and return a new string, possibly
+        symbolic.
         """
 
         argpos = startpos
@@ -90,9 +90,9 @@ class FormatString(object):
         return string
 
     def interpret(self, addr, startpos, args, region=None):
-        '''
-        interpret a format string, reading the data @addr in @region into @args starting at @startpos
-        '''
+        """
+        Interpret a format string, reading the data at `addr` in `region` into `args` starting at `startpos`.
+        """
 
         # TODO: we only support one format specifier in interpretation for now
 
@@ -183,7 +183,7 @@ class FormatString(object):
 
 class FormatSpecifier(object):
     """
-    describes a format specifier within a format string
+    Describes a format specifier within a format string.
     """
 
     def __init__(self, string, length_spec, size, signed):
@@ -239,8 +239,7 @@ class FormatParser(SimProcedure):
         'unsigned' : ['o', 'u', 'x', 'X']
     }
 
-    # Length modifiers and how they apply to integer conversion (signed /
-    # unsinged)
+    # Length modifiers and how they apply to integer conversion (signed / unsigned).
     int_len_mod = {
         'hh': ('char', 'uint8_t'),
         'h' : ('int16_t', 'uint16_t'),
@@ -266,10 +265,9 @@ class FormatParser(SimProcedure):
     @property
     def _mod_spec(self):
         """
-        Modified length specifiers: mapping between length modifiers and
-        conversion specifiers.  This generates all the possibilities, i.e. hhd,
-        etc.
-       """
+        Modified length specifiers: mapping between length modifiers and conversion specifiers. This generates all the
+        possibilities, i.e. hhd, etc.
+        """
         mod_spec={}
 
         for mod, sizes in self.int_len_mod.iteritems():
@@ -285,7 +283,7 @@ class FormatParser(SimProcedure):
     @property
     def _all_spec(self):
         """
-        All specifiers and their lengths
+        All specifiers and their lengths.
         """
 
         base = self._mod_spec
@@ -300,9 +298,9 @@ class FormatParser(SimProcedure):
 
     def _match_spec(self, nugget):
         """
-        match the string @nugget to a format specifer.
-        TODO: handle positional modifiers and other similar format string tricks
+        match the string `nugget` to a format specifier.
         """
+        # TODO: handle positional modifiers and other similar format string tricks.
         all_spec = self._all_spec
 
 
@@ -347,8 +345,9 @@ class FormatParser(SimProcedure):
 
     def _get_fmt(self, fmt):
         """
-        Extract the actual formats from the format string @fmt
-        Returns a FormatString object
+        Extract the actual formats from the format string `fmt`.
+
+        :returns: a FormatString object
         """
 
         # iterate over the format string looking for format specifiers
@@ -378,7 +377,7 @@ class FormatParser(SimProcedure):
 
     def _sim_atoi_inner(self, str_addr, region, base=10, read_length=None):
         """
-        Return the result of invoking the atoi simprocedure on str_addr
+        Return the result of invoking the atoi simprocedure on `str_addr`.
         """
 
         strtol = simuvex.SimProcedures['libc.so.6']['strtol']
@@ -388,7 +387,7 @@ class FormatParser(SimProcedure):
 
     def _sim_strlen(self, str_addr):
         """
-        Return the result of invoked the strlen simprocedure on std_addr
+        Return the result of invoking the strlen simprocedure on `str_addr`.
         """
 
         strlen = simuvex.SimProcedures['libc.so.6']['strlen']
@@ -399,11 +398,10 @@ class FormatParser(SimProcedure):
     def _parse(self, fmt_idx):
         """
         Parse format strings.
-        Returns: a FormatString object which can be used for replacing the format specifiers with
-        arguments or for scanning into arguments
 
-        @fmt_idx: index of the (pointer to the) format string in the arguments
-        list.
+        :param fmt_idx: The index of the (pointer to the) format string in the arguments list.
+        :returns:       A FormatString object which can be used for replacing the format specifiers with arguments or
+                        for scanning into arguments.
         """
 
         fmtstr_ptr = self.arg(fmt_idx)

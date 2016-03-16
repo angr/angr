@@ -49,20 +49,19 @@ class SimRun(object):
             delattr(self, 'state')
 
     def add_successor(self, state, target, guard, jumpkind, exit_stmt_idx=None, source=None):
-        '''
+        """
         Add a successor state of the SimRun.
         This procedure stores method parameters into state.scratch, does some necessary cleaning, and then calls out to
         _add_successor() to properly put the state into successor lists (like flat_successors, etc.).
 
-        @param state: the successor state
-        @param target: the target (of the jump/call/ret)
-        @param guard: the guard expression
-        @param jumpkind: the jumpkind (call, ret, jump, or whatnot)
-        @param exit_stmt_idx: ID of the exit statement, an integer by default. 'default' stands for the default exit,
+        :param state:         The successor state.
+        :param target:        The target (of the jump/call/ret).
+        :param guard:         The guard expression.
+        :param jumpkind:      The jumpkind (call, ret, jump, or whatnot).
+        :param exit_stmt_idx: The ID of the exit statement, an integer by default. 'default' stands for the default exit,
                               and None means it's not from a statement (for example, from a SimProcedure).
-        @param source: the source of the jump (i.e., the address of
-                       the basic block).
-        '''
+        :param source:        The source of the jump (i.e., the address of the basic block).
+        """
         state.scratch.target = _raw_ast(target)
         state.scratch.jumpkind = jumpkind
         state.scratch.guard = _raw_ast(guard)

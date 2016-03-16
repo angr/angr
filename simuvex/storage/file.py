@@ -40,6 +40,10 @@ def _deps_unpack(a):
 
 
 class SimFile(SimStatePlugin):
+    """
+    Represents a file.
+    """
+
     # Creates a SimFile
     def __init__(self, name, mode, pos=0, content=None, size=None, closed=None):
         super(SimFile, self).__init__()
@@ -92,13 +96,14 @@ class SimFile(SimStatePlugin):
         return 0
 
     def read(self, dst_addr, length):
-        '''
+        """
         Reads some data from the current (or provided) position of the file.
-        If dst_addr is specified, write it to that address.
-        '''
 
+        :param dst_addr:    If specified, the data is written to that address.
+        :param length:      The length of the read.
+        :return:            The length of the read.
+        """
         # TODO: check file close status
-
         read_length = length
         if self.size is not None:
             remaining = self.size - self.pos
@@ -155,8 +160,10 @@ class SimFile(SimStatePlugin):
             buff.append(self.content.load(i, 1))
         return self.state.se.Concat(*buff)
 
-    # Merges the SimFile object with others
     def merge(self, others, merge_flag, flag_values):
+        """
+        Merges the SimFile object with `others`.
+        """
         if not all(isinstance(oth, SimFile) for oth in others):
             raise SimMergeError("merging files of different types is not supported")
 
@@ -188,9 +195,9 @@ class SimFile(SimStatePlugin):
         return self.content.merge([ o.content for o in others ], merge_flag, flag_values)
 
 class SimDialogue(SimFile):
-    '''
+    """
     Emulates a dialogue with a program. Enables us to perform concrete short reads.
-    '''
+    """
 
     def __init__(self, name, mode=None, pos=0, content=None, size=None, dialogue_entries=None):
         super(SimDialogue, self).__init__(name, mode=mode, pos=pos, content=content, size=size)
@@ -209,16 +216,16 @@ class SimDialogue(SimFile):
         self.content.set_state(st)
 
     def add_dialogue_entry(self, dialogue_len):
-        '''
-        add a new dialogue piece to the end of the dialogue
-        '''
+        """
+        Add a new dialogue piece to the end of the dialogue.
+        """
 
         self.dialogue_entries.append(dialogue_len)
 
     def read(self, dst_addr, length):
-        '''
+        """
         Reads some data from current dialogue entry, emulates short reads.
-        '''
+        """
 
         # make sure there is a current dialogue
         try:
