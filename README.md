@@ -9,7 +9,7 @@ angr is a platform-agnostic binary analysis framework developed by the Computer 
 
 # What?
 
-Angr is a suite of python libraries that let you load a binary and do a lot of cool things to it:
+angr is a suite of python libraries that let you load a binary and do a lot of cool things to it:
 
 - Disassembly and intermediate-representation lifting
 - Program instrumentation
