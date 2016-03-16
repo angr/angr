@@ -58,6 +58,9 @@ class Project(object):
 
 
         :param thing:                       The path to the main executable object to analyze, or a CLE Loader object.
+
+        The following parameters are optional.
+
         :param default_analysis_mode:       The mode of analysis to use by default. Defaults to 'symbolic'.
         :param ignore_functions:            A list of function names that, when imported from shared libraries, should
                                             never be stepped into in analysis (calls will return an unconstrained value).
@@ -82,7 +85,7 @@ class Project(object):
                                             will try to read code from the given state, not only from the initial memory
                                             regions.
         :type  support_selfmodifying_code:  bool
-    """
+        """
 
         # Step 1: Load the binary
         if isinstance(thing, cle.Loader):
@@ -243,7 +246,7 @@ class Project(object):
         """
         Hook a section of code with a custom function.
 
-        If func is a function, it takes a :class:`SimState` and the given kwargs. It can return None, in which case it
+        If func is a function, it takes a `SimState` and the given kwargs. It can return None, in which case it
         will generate a single exit to the instruction at addr+length, or it can return an array of successor states.
 
         If func is a `SimProcedure`, it will be run instead of a `SimBlock` at that address.

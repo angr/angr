@@ -12,9 +12,9 @@ import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def compare_cfg(standard, g, function_list):
-    '''
+    """
     Standard graph comes with addresses only, and it is based on instructions, not on basic blocks
-    '''
+    """
 
     def get_function_name(addr):
         start = 0

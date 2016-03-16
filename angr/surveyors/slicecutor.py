@@ -51,7 +51,7 @@ class HappyGraph(object):
         return 1
 
 class Slicecutor(Surveyor):
-    '''The Slicecutor is a surveyor that executes provided code slices.'''
+    """The Slicecutor is a surveyor that executes provided code slices."""
 
     def __init__(self, project, annotated_cfg, start=None, targets=None, max_concurrency=None, max_active=None, max_loop_iterations=None, pickle_paths=None, merge_countdown=10):
         Surveyor.__init__(self, project, start=start, max_concurrency=max_concurrency, max_active=max_active, pickle_paths=pickle_paths)

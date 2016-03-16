@@ -15,10 +15,10 @@ class FunctionDict(dict):
         return t
 
 class FunctionManager(collections.Mapping):
-    '''
+    """
     This is a function boundaries management tool. It takes in intermediate
     results during CFG generation, and manages a function map of the binary.
-    '''
+    """
     def __init__(self, kb):
         self._kb = kb
         # A map that uses function starting address as the key, and maps
@@ -30,12 +30,12 @@ class FunctionManager(collections.Mapping):
         self._arg_registers = kb._project.arch.argument_registers
 
     def _genenare_callmap_sif(self, filepath):
-        '''
-        Generate a sif file from the call map
+        """
+        Generate a sif file from the call map.
 
-        :param filepath: Path of the sif file
-        :return: None
-        '''
+        :param filepath:    Path of the sif file
+        :return:            None
+        """
         with open(filepath, "wb") as f:
             for src, dst in self.callgraph.edges():
                 f.write("%#x\tDirectEdge\t%#x\n" % (src, dst))
@@ -97,10 +97,10 @@ class FunctionManager(collections.Mapping):
             yield i
 
     def function(self, addr=None, name=None, create=False):
-        '''
+        """
         Get a function object from the function manager
         Pass one of the kwargs addr or name, with the appropriate values.
-        '''
+        """
         if addr is not None:
             if addr in self._function_map or create:
                 return self._function_map[addr]

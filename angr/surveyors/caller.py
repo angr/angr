@@ -2,20 +2,20 @@ from .explorer import Explorer
 import simuvex, claripy
 
 class Callable(object):
-    '''
+    """
     Callable is a representation of a function in the binary that can be
     interacted with like a native python function.
-    '''
+    """
 
     def __init__(self, project, addr, concrete_only=False, prototype=None, base_state=None, toc=None):
-        '''
+        """
         :param project: the project to operate on
         :param addr: the address of the function to use
         :param concrete_only: Optional: Throw an exception if the execution splits into multiple paths
         :param prototype: Optional: A SimTypeFunction instance describing the functions args and return type
         :param base_state: Optional: The state from which to do these runs
         :param toc: Optional: The address of the table of contents for ppc64
-        '''
+        """
 
         if prototype is not None and not isinstance(prototype, simuvex.s_type.SimTypeFunction):
             raise ValueError("Prototype must be a function!")
@@ -31,10 +31,10 @@ class Callable(object):
         self._deadend_addr = project._extern_obj.get_pseudo_addr('FAKE_RETURN_ADDR')
 
     def set_base_state(self, state):
-        '''
+        """
         Swap out the state you'd like to use to perform the call
         :param state: The state to use to perform the call
-        '''
+        """
         self._base_state = state
 
     def call_get_return_val(self, *args):
@@ -121,20 +121,20 @@ class Callable(object):
             self.value = value
 
 class Caller(Explorer):
-    '''
+    """
     Caller is a surveyor that executes functions to see what they do.
-    '''
+    """
 
     def __init__(self, project, addr, args=(), start=None, num_find=None, concrete_only=False, **kwargs):
-        '''
+        """
         :param project: the project
         :param addr: the address to start calling at
-        :param args: a tuple of arguments. Any members that are None will be replaced with
-                     symbolic expressions with a length of the architecture's bitwidth
+        :param args: a tuple of arguments. Any members that are None will be replaced with symbolic expressions with a
+        length of the architecture's bitwidth.
         :param start: a path (or set of paths) to start from
         :param num_find: find at least this many returns from the function
         :param concrete_only: Throw an exception if the execution splits into multiple paths
-        '''
+        """
 
         self._fake_return_addr = project.entry
         self._cc = simuvex.DefaultCC[project.arch.name](project.arch)
@@ -171,11 +171,10 @@ class Caller(Explorer):
                 raise AngrCallableMultistateError("Execution produced multiple successors")
 
     def map_se(self, func, *args, **kwargs):
-        '''
+        """
         Maps the state.se."func" function for all the return address states. This is a generator.
 
         :param func: the function name, used as getattr(p.state.se, func). Normally any_n_int or any_n_str
-
         :param runs: the maximum number of runs to execute
         :param solutions: check only returns with this value as a possible solution
         :param sort: sort the result before yielding it
@@ -183,7 +182,7 @@ class Caller(Explorer):
         Other *args and **kwargs are passed to the called state.se.* function.
 
         yields (r, func_return) for each state.
-        '''
+        """
 
         runs = kwargs.pop('runs', None)
         solution = kwargs.pop('solution', None)
@@ -194,7 +193,7 @@ class Caller(Explorer):
             yield r, sorted(v) if sort else v
 
     def map_func(self, func, runs=None, solution=None):
-        '''
+        """
         Calls func(return_value, args_tuple, path) for each function return. This is a generator.
 
         :param func: the function to call
@@ -202,17 +201,17 @@ class Caller(Explorer):
         :param solutions: check only returns with this value as a possible solution
 
         yields the return values of func
-        '''
+        """
         for r,p in self.iter_returns(runs=runs, solution=solution):
             yield func(r, self.symbolic_args, p)
 
     def iter_returns(self, runs=None, solution=None):
-        '''
+        """
         Yields (return_value, path) for every return. This is a generator.
 
         :param runs: the maximum number of runs to execute
         :param solutions: check only returns with this value as a possible solution
-        '''
+        """
         for p in self.iter_found(runs=runs):
             r = p.state.se.simplify(self._cc.get_return_expr(p.state))
             if solution is not None and not p.state.se.solution(r, solution):

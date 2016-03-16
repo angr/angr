@@ -9,9 +9,9 @@ from ..analysis import Analysis, register_analysis
 l = logging.getLogger("angr.analyses.boyscout")
 
 class BoyScout(Analysis):
-    '''
+    """
     Try to determine the architecture and endieness of a binary blob
-    '''
+    """
     def __init__(self, cookiesize=1):
         self.arch = None
         self.endianness = None
@@ -21,11 +21,10 @@ class BoyScout(Analysis):
         self._reconnoiter()
 
     def _reconnoiter(self):
-        '''
+        """
         The implementation here is simple - just perform a pattern matching of all different architectures we support,
         and then perform a vote.
-        :return: None
-        '''
+        """
 
         # Retrieve the binary string of main binary
         strides = self.project.loader.main_bin.memory.stride_repr

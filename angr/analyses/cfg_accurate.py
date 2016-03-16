@@ -32,13 +32,13 @@ class PendingExit(object):
         return, but for some reason (for example, an unsupported instruction is met during the analysis) our analysis
         does not return properly, then the pending exit will be picked up and put into remaining_entries list.
 
-        :param returning_source: Address of the callee function. It might be None if address of the callee is not
-                                resolvable.
-        :param state: The state after returning from the callee function. Of course there is no way to get a precise
-                    state without emulating the execution of the callee, but at least we can properly adjust the stack
-                    and registers to imitate the real returned state.
-        :param bbl_stack: Basib block stack
-        :param call_stack: Callstack
+        :param returning_source:    Address of the callee function. It might be None if address of the callee is not
+                                    resolvable.
+        :param state:               The state after returning from the callee function. Of course there is no way to get
+                                    a precise state without emulating the execution of the callee, but at least we can
+                                    properly adjust the stack and registers to imitate the real returned state.
+        :param bbl_stack:           A basic block stack.
+        :param call_stack:          A callstack.
         """
 
         self.returning_source = returning_source
@@ -49,9 +49,8 @@ class PendingExit(object):
         self.call_stack = call_stack
 
     def __repr__(self):
-        return "<PendingExit to %s, from function %s>" % (self.state.ip,
-                                                          hex(
-                                                              self.returning_source) if self.returning_source is not None else 'Unknown')
+        return "<PendingExit to %s, from function %s>" % (self.state.ip, hex(
+            self.returning_source) if self.returning_source is not None else 'Unknown')
 
 
 class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
@@ -74,21 +73,22 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
                  no_construct=False
                  ):
         """
-        All of these parameters are optional.
-        :param context_sensitivity_level: The level of context-sensitivity of this CFG.
-                                        It ranges from 0 to infinity. Default 1.
-        :param avoid_runs: a list or a set of addresses to avoid. They must be the beginning address of a SimRun.
-        :param enable_function_hints: whether to use function hints or now
-        :param call_depth: How deep in the call stack to trace
-        :param call_tracing_filter: ??? what the hell is this
-        :param initial_state: An initial state to use to begin analysis
-        :param starts: A list of addresses at which to begin analysis
-        :param keep_state: Whether to keep the SimStates for each CFGNode
-        :param enable_advanced_backward_slicing
-        :param enable_symbolic_back_traversal
-        :param additional_edges: a dict mapping addresses of basic blocks to addresses of
-                            successors to manually include and analyze forward from.
-        :param no_construct: Skip the construction procedure. Only used in unit-testing.
+        All parameters are optional.
+        
+        :param context_sensitivity_level:           The level of context-sensitivity of this CFG.
+                                                    It ranges from 0 to infinity. Default 1.
+        :param avoid_runs:                          A list of runs to avoid.
+        :param enable_function_hints:               Whether to use function hints or now.
+        :param call_depth:                          How deep in the call stack to trace.
+        :param call_tracing_filter:                 ??? what the hell is this.
+        :param initial_state:                       An initial state to use to begin analysis.
+        :param starts:                              A list of addresses at which to begin analysis
+        :param keep_state:                          Whether to keep the SimStates for each CFGNode.
+        :param enable_advanced_backward_slicing:
+        :param enable_symbolic_back_traversal:
+        :param additional_edges:                    A dict mapping addresses of basic blocks to addresses of
+                                                    successors to manually include and analyze forward from.
+        :param no_construct:                        Skip the construction procedure. Only used in unit-testing.
         """
         ForwardAnalysis.__init__(self)
         CFGBase.__init__(self, self.project, context_sensitivity_level)
@@ -532,10 +532,10 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
     @property
     def unresolvables(self):
         """
-        Get those SimRuns that have non-resolvable exits
+        Get those SimRuns that have non-resolvable exits.
 
-        :return: A set of SimRuns
-        :rtype: set
+        :return:    A set of SimRuns
+        :rtype:     set
         """
         return self._unresolvable_runs
 
@@ -545,7 +545,7 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
         Get all CFGNodes that has an out-degree of 0
 
         :return: A list of CFGNode instances
-        :rtype: list
+        :rtype:  list
         """
         if self.graph is None:
             raise AngrCFGError('CFG hasn\'t been generated yet.')

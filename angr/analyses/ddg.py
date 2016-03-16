@@ -33,11 +33,11 @@ class DDG(Analysis):
         """
         The constructor.
 
-        :param cfg: Control flow graph. Please make sure each node has an associated `state` with it. You may want to
-                generate your CFG with `keep_state`=True.
-        :param start: an address, specifies where we start the generation of this data dependence graph.
-        :param call_depth: None or integers. A non-negative integer specifies how deep we would like to track in the
-                        call tree. None disables call_depth limit.
+        :param cfg:         Control flow graph. Please make sure each node has an associated `state` with it. You may
+                            want to generate your CFG with `keep_state`=True.
+        :param start:       An address, Specifies where we start the generation of this data dependence graph.
+        :param call_depth:  None or integers. A non-negative integer specifies how deep we would like to track in the
+                            call tree. None disables call_depth limit.
         """
 
         # Sanity check
@@ -66,7 +66,7 @@ class DDG(Analysis):
     @property
     def graph(self):
         """
-        :return: A networkx DiGraph instance representing the data dependence graph.
+        :returns: A networkx DiGraph instance representing the data dependence graph.
         """
         return self._graph
 
@@ -94,30 +94,30 @@ class DDG(Analysis):
 
     def __contains__(self, code_location):
         """
-        If code_location is in the graph
+        Returns whether `code_location` is in the graph.
 
-        :param code_location: A CodeLocation instance
-        :return: True/False
+        :param code_location:   A CodeLocation instance.
+        :returns:               True/False
         """
 
         return code_location in self.graph
 
     def get_predecessors(self, code_location):
         """
-        Returns all predecessors of the code location
+        Returns all predecessors of the code location.
 
-        :param code_location: A CodeLocation instance
-        :return: a list of all predecessors
+        :param code_location:   A CodeLocation instance.
+        :returns:               A list of all predecessors.
         """
 
         return self._graph.predecessors(code_location)
 
     def function_dependency_graph(self, func):
         """
-        Get a dependency graph for specific function.
+        Get a dependency graph for the function `func`.
 
-        :param func: The Function object in CFG.function_manager
-        :return: A networkx.DiGraph instance
+        :param func:    The Function object in CFG.function_manager.
+        :returns:       A networkx.DiGraph instance.
         """
 
         if self._function_data_dependencies is None:
@@ -246,9 +246,9 @@ class DDG(Analysis):
         Given all live definitions prior to this program point, track the changes, and return a new list of live
         definitions. We scan through the action list of the new state to track the changes.
 
-        :param state: The input state at that program point.
-        :param live_defs: A list of all live definitions prior to reaching this program point.
-        :return: A list of new live definitions.
+        :param state:       The input state at that program point.
+        :param live_defs:   A list of all live definitions prior to reaching this program point.
+        :returns:           A list of new live definitions.
         """
 
         # Make a copy of live_defs
@@ -268,9 +268,9 @@ class DDG(Analysis):
         def _annotate_edges_in_dict(dict_, key, **new_labels):
             """
 
-            :param dict_: The dict, can be either `temps_to_edges` or `regs_to_edges`
-            :param key: The key used in finding elements in the dict
-            :param new_labels: New labels to be added to those edges
+            :param dict_:       The dict, can be either `temps_to_edges` or `regs_to_edges`.
+            :param key:         The key used in finding elements in the dict.
+            :param new_labels:  New labels to be added to those edges.
             """
 
             for edge_tuple in dict_[key]:
@@ -287,8 +287,8 @@ class DDG(Analysis):
             """
             Pick an edge from the dict based on the key specified, add it to our graph, and remove the key from dict.
 
-            :param dict_: The dict, can be either `temps_to_edges` or `regs_to_edges`
-            :param key: The key used in finding elements in the dict
+            :param dict_:   The dict, can be either `temps_to_edges` or `regs_to_edges`.
+            :param key:     The key used in finding elements in the dict.
             """
             for edge_tuple in dict_[key]:
                 # unpack it
@@ -403,13 +403,12 @@ class DDG(Analysis):
 
     def _def_lookup(self, live_defs, variable):
         """
-        This is a backward lookup in the previous defs.
-        @addr_list is a list of normalized addresses.
-        Note that, as we are using VSA, it is possible that @a is affected by
-        several definitions.
-        Returns: a dict {stmt:labels} where label is the number of individual
-        addresses of @addr_list (or the actual set of addresses depending on the
-        keep_addrs flag) that are definted by stmt.
+        This is a backward lookup in the previous defs. Note that, as we are using VSA, it is possible that `variable`
+        is affected by several definitions.
+
+        :param addr_list:   A list of normalized addresses.
+        :returns:           A dict {stmt:labels} where label is the number of individual addresses of `addr_list` (or
+                            the actual set of addresses depending on the keep_addrs flag) that are definted by stmt.
         """
 
         prevdefs = {}
@@ -446,7 +445,7 @@ class DDG(Analysis):
 
     def _kill(self, live_defs, variable, code_loc):
         """
-        Kill previous defs. @addr_list is a list of normalized addresses
+        Kill previous defs. addr_list is a list of normalized addresses.
         """
 
         # Case 1: address perfectly match, we kill
@@ -458,8 +457,8 @@ class DDG(Analysis):
 
     def _add_edge(self, s_a, s_b, **edge_labels):
         """
-         Add an edge in the graph from @s_a to statment @s_b, where @s_a and
-         @s_b are tuples of statements of the form (irsb_addr, stmt_idx)
+         Add an edge in the graph from `s_a` to statement `s_b`, where `s_a` and `s_b` are tuples of statements of the
+         form (irsb_addr, stmt_idx).
         """
         # Is that edge already in the graph ?
         # If at least one is new, then we are not redoing the same path again
@@ -472,11 +471,11 @@ class DDG(Analysis):
         """
         Append a CFGNode and its successors into the work-list, and respect the call-depth limit
 
-        :param node_wrapper: The NodeWrapper instance to insert
-        :param worklist: The work-list, which is a list.
-        :param worklist_set: A set of all CFGNodes that are inside the work-list, just for the sake of fast look-up. It
-                            will be updated as well.
-        :return: A set of newly-inserted CFGNodes (not NodeWrapper instances)
+        :param node_wrapper:    The NodeWrapper instance to insert.
+        :param worklist:        The work-list, which is a list.
+        :param worklist_set:    A set of all CFGNodes that are inside the work-list, just for the sake of fast look-up.
+                                It will be updated as well.
+        :returns:               A set of newly-inserted CFGNodes (not NodeWrapper instances).
         """
 
         if node_wrapper.cfg_node in worklist_set:
@@ -499,8 +498,7 @@ class DDG(Analysis):
 
             for _, dst, data in edges:
                 if (dst not in traversed_nodes # which means we haven't touch this node in this appending procedure
-                        and dst not in worklist_set # which means this node is not in the work-list
-                    ):
+                        and dst not in worklist_set): # which means this node is not in the work-list
                     # We see a new node!
                     traversed_nodes.add(dst)
 
@@ -529,9 +527,7 @@ class DDG(Analysis):
 
     def _build_function_dependency_graphs(self):
         """
-        Build dependency graphs for each function, and save them in self._function_data_dependencies
-
-        :return: None
+        Build dependency graphs for each function, and save them in self._function_data_dependencies.
         """
 
         # This is a map between functions and its corresponding dependencies

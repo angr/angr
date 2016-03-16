@@ -194,12 +194,12 @@ class PathGroup(ana.Storable):
     @staticmethod
     def _condition_to_lambda(condition, default=False):
         """
-        Translates an integer, set, or list into a lambda that checks a path address against the given addresses.
+        Translates an integer, set or list into a lambda that checks a path address against the given addresses.
 
-        :param condition:   An integer, set, or list to convert to a lambda
+        :param condition:   An integer, set, or list to convert to a lambda.
         :param default:     The default return value of the lambda (in case condition is None). Default: false.
 
-        :returns;           A lambda that takes a path and returns True or False.
+        :returns:           A lambda that takes a path and returns True or False.
         """
         if condition is None:
             condition = lambda p: default
@@ -500,17 +500,17 @@ class PathGroup(ana.Storable):
 
         Additionally, you can pass in any of the following keyword args for project.factory.sim_run:
 
-        :param jumpkind:        The jumpkind of the previous exit
-        :param addr:            An address to execute at instead of the state's ip.
-        :param stmt_whitelist:  A list of stmt indexes to which to confine execution.
-        :param last_stmt:       A statement index at which to stop execution.
-        :param thumb:           Whether the block should be lifted in ARM's THUMB mode.
-        :param backup_state:    A state to read bytes from instead of using project memory.
-        :param opt_level:       The VEX optimization level to use.
-        :param insn_bytes:      A string of bytes to use for the block instead of the project.
-        :param max_size:        The maximum size of the block, in bytes.
-        :param num_inst:        The maximum number of instructions.
-        :param traceflags:      traceflags to be passed to VEX. Default: 0
+        :keyword jumpkind:        The jumpkind of the previous exit
+        :keyword addr:            An address to execute at instead of the state's ip.
+        :keyword stmt_whitelist:  A list of stmt indexes to which to confine execution.
+        :keyword last_stmt:       A statement index at which to stop execution.
+        :keyword thumb:           Whether the block should be lifted in ARM's THUMB mode.
+        :keyword backup_state:    A state to read bytes from instead of using project memory.
+        :keyword opt_level:       The VEX optimization level to use.
+        :keyword insn_bytes:      A string of bytes to use for the block instead of the project.
+        :keyword max_size:        The maximum size of the block, in bytes.
+        :keyword num_inst:        The maximum number of instructions.
+        :keyword traceflags:      traceflags to be passed to VEX. Default: 0
 
         :returns:               The resulting PathGroup.
         :rtype:                 PathGroup
@@ -736,6 +736,16 @@ class PathGroup(ana.Storable):
         A replacement for the Explorer surveyor. Tick stash "stash" forward (up to n times or until num_find paths are
         found), looking for condition "find", avoiding condition "avoid". Stashes found paths into "found_stash' and
         avoided paths into "avoid_stash".
+
+        :param stash:
+        :param n:
+        :param find:        The addresses we want to reach.
+        :param avoid:       The addresses to avoid.
+        :param num_find:    Stop when this many paths have been found.
+        :param found_stash:
+        :param avoid_stash:
+        :return:            The resulting PathGroup.
+        :rtype:             PathGroup
         """
         find = self._condition_to_lambda(find)
         avoid = self._condition_to_lambda(avoid)

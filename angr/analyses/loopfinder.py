@@ -26,7 +26,7 @@ class Loop(object):
 
 class LoopFinder(Analysis):
     """
-    Extracts all the loops from all the functions in a binary
+    Extracts all the loops from all the functions in a binary.
     """
 
     def __init__(self, functions=None):
@@ -45,13 +45,14 @@ class LoopFinder(Analysis):
             l.error("No knowledge of functions is present. Did you forget to construct a CFG?")
 
     def _parse_loop_graph(self, subg, bigg):
-        """Create a Loop object for a strongly connected graph, and any strongly
-        connected subgraphs, if possible
+        """
+        Create a Loop object for a strongly connected graph, and any strongly
+        connected subgraphs, if possible.
 
-        @param subg     A strongly connected subgraph
-        @param bigg     The graph which subg is a subgraph of
+        :param subg:    A strongly connected subgraph.
+        :param bigg:    The graph which subg is a subgraph of.
 
-        @returns        A list of Loop objects, some of which may be inside others,
+        :return:        A list of Loop objects, some of which may be inside others,
                         but all need to be documented.
         """
         loop_body_nodes = subg.nodes()[:]
@@ -107,12 +108,12 @@ class LoopFinder(Analysis):
         return subloops
 
     def _parse_loops_from_graph(self, graph):
-        """Return all Loop instances that can be extracted from a graph
+        """
+        Return all Loop instances that can be extracted from a graph.
 
-        @param graph    The graph to analyze
+        :param graph:   The graph to analyze.
 
-        @returns        A list of all the Loop instances that were found in the
-                        graph
+        :return:        A list of all the Loop instances that were found in the graph.
         """
         out = []
         for subg in networkx.strongly_connected_component_subgraphs(graph):
