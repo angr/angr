@@ -154,6 +154,10 @@ class PathHistory(object):
     def _record_run(self, run):
         self._runstr = str(run)
 
+    @property
+    def _actions(self):
+        return [ ev for ev in self._events if isinstance(ev, simuvex.SimAction) ]
+
     def copy(self):
         c = PathHistory(parent=self._parent)
         c.addr = self.addr
@@ -303,9 +307,8 @@ class ActionIter(TreeIter):
     def __reversed__(self):
         for hist in self._iter_nodes():
             try:
-                for ev in iter(hist._events):
-                    if isinstance(ev, simuvex.SimAction):
-                        yield ev
+                for ev in iter(hist._actions):
+                    yield ev
             except ReferenceError:
                 hist._events = ()
 
