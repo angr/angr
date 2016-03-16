@@ -9,14 +9,14 @@ import logging
 l = logging.getLogger("angr.surveyors.explorer")
 
 class Explorer(Surveyor):
-    '''
+    """
     Explorer implements a symbolic exploration engine!
 
-        found - paths where the target addresses have been found
-        avoided - paths where the to-avoid addresses have been found
-        deviating - paths that deviate from the restricted-to addresses
-        looping - paths that were detected as looping
-    '''
+    found - paths where the target addresses have been found.
+    avoided - paths where the to-avoid addresses have been found.
+    deviating - paths that deviate from the restricted-to addresses.
+    looping - paths that were detected as looping.
+    """
 
     path_lists = Surveyor.path_lists + [ 'found', 'avoided', 'deviating', 'looping']
 
@@ -24,28 +24,30 @@ class Explorer(Surveyor):
                  find=None, avoid=None, restrict=None, min_depth=0, max_depth=None, max_repeats=10000000,
                  num_find=1, num_avoid=None, num_deviate=1, num_loop=None, cfg=None, enable_veritesting=None,
                  veritesting_options=None, keep_pruned=None):
-        '''
-        Explores the path space until a block containing a specified address is
-        found. Parameters (other than for Surveyor):
+        """
+        Explores the path space until a block containing a specified address is found.
 
-        @param find: a tuple containing the addresses to search for
-        @param avoid: a tuple containing the addresses to avoid
-        @param restrict: a tuple containing the addresses to restrict the
-                         analysis to (i.e., avoid all others)
-        @param min_depth: the minimum number of SimRuns in the resulting path
-        @param max_depth: the maximum number of SimRuns in the resulting path
+        :param project:
 
-        @param num_find: the minimum number of paths to find (default: 1)
-        @param num_avoid: the minimum number of paths to avoid
-                          (default: infinite)
-        @param num_deviate: the minimum number of paths to deviate
-                            (default: infinite)
-        @param num_loop: the minimum number of paths to loop
-                         (default: infinite)
-        @param cfg: a CFG to use to cut any paths that have no chance of going to the target
-        @param enable_veritesting: Whether Veritesting should be enabled or not
-        @param veritesting_options: Options that should be passed to Veritesting
-        '''
+        The following parameters are optional :
+
+        :param start:
+        :param max_concurrency:
+        :param max_active:
+        :param pickle_paths:
+        :param find:                A tuple containing the addresses to search for.
+        :param avoid:               A tuple containing the addresses to avoid.
+        :param restrict:            A tuple containing the addresses to restrict the analysis to (avoid all others).
+        :param min_depth:           The minimum number of SimRuns in the resulting path.
+        :param max_depth:           The maximum number of SimRuns in the resulting path.
+        :param num_find:            The minimum number of paths to find. (default: 1)
+        :param num_avoid:           The minimum number of paths to avoid. (default: infinite)
+        :param num_deviate:         The minimum number of paths to deviate. (default: infinite)
+        :param num_loop:            The minimum number of paths to loop (default: infinite)
+        :param cfg:                 A CFG to use to cut any paths that have no chance of going to the target.
+        :param enable_veritesting:  Whether Veritesting should be enabled or not.
+        :param veritesting_options: Options that should be passed to Veritesting.
+        """
         Surveyor.__init__(self,
                           project,
                           start=start,
@@ -256,7 +258,9 @@ class Explorer(Surveyor):
             return True
 
     def __repr__(self):
-        return "<Explorer with paths: %s, %d found, %d avoided, %d deviating, %d looping, %d lost>" % (Surveyor.__repr__(self), len(self.found), len(self.avoided), len(self.deviating), len(self.looping), len(self.lost))
+        return "<Explorer with paths: %s, %d found, %d avoided, %d deviating, %d looping, %d lost>" % (
+        Surveyor.__repr__(self), len(self.found), len(self.avoided), len(self.deviating), len(self.looping),
+        len(self.lost))
 
 from ..errors import AngrMemoryError, AngrTranslationError
 

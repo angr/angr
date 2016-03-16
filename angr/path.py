@@ -13,15 +13,15 @@ import mulpyplexer
 UNAVAILABLE_RET_ADDR = -1
 
 class CallFrame(object):
-    '''
+    """
     Stores the address of the function you're in and the value of SP
     at the VERY BOTTOM of the stack, i.e. points to the return address
-    '''
+    """
     def __init__(self, state=None, func_addr=None, stack_ptr=None, ret_addr=None, jumpkind=None):
-        '''
+        """
         Initialize with either a state or the function address,
         stack pointer, and return address
-        '''
+        """
         if state is not None:
             self.func_addr = state.se.any_int(state.ip)
             self.stack_ptr = state.se.any_int(state.regs.sp)
@@ -86,9 +86,9 @@ class CallStack(object):
             raise ValueError("Empty CallStack")
 
     def __getitem__(self, k):
-        '''
+        """
         Returns the CallFrame at index k, indexing from the top of the stack.
-        '''
+        """
         k = -1 - k
         return self._callstack[k]
 
@@ -311,6 +311,13 @@ class ActionIter(TreeIter):
 
 
 class Path(object):
+    """
+    A Path represents a sequence of basic blocks for an execution of the program.
+
+    :ivar name:     A string to identify the path.
+    :ivar state:    The state of the program.
+    :type state:    simuvex.SimState
+    """
     def __init__(self, project, state, path=None):
         # this is the state of the path
         self.state = state
@@ -386,7 +393,7 @@ class Path(object):
             self._merge_addr_traces = list(path._merge_addr_traces)
             self._merge_depths = list(path._merge_depths)
 
-        # for printing/ID stuff and inheritence
+        # for printing/ID stuff and inheritance
         self.name = str(id(self))
         self.path_id = urandom(8).encode('hex')
 
@@ -438,22 +445,23 @@ class Path(object):
     #
 
     def step(self, **run_args):
-        '''
-        Step a path forward. Optionally takes any argument applicable
-        to project.factory.sim_run:
+        """
+        Step a path forward. Optionally takes any argument applicable to project.factory.sim_run.
 
-        @param jumpkind: the jumpkind of the previous exit
-        @param addr an address: to execute at instead of the state's ip
-        @param stmt_whitelist: a list of stmt indexes to which to confine execution
-        @param last_stmt: a statement index at which to stop execution
-        @param thumb: whether the block should be lifted in ARM's THUMB mode
-        @param backup_state: a state to read bytes from instead of using project memory
-        @param opt_level: the VEX optimization level to use
-        @param insn_bytes: a string of bytes to use for the block instead of the project
-        @param max_size: the maximum size of the block, in bytes
-        @param num_inst: the maximum number of instructions
-        @param traceflags: traceflags to be passed to VEX. Default: 0
-        '''
+        :keyword jumpkind:          the jumpkind of the previous exit.
+        :keyword addr an address:   to execute at instead of the state's ip.
+        :keyword stmt_whitelist:    a list of stmt indexes to which to confine execution.
+        :keyword last_stmt:         a statement index at which to stop execution.
+        :keyword thumb:             whether the block should be lifted in ARM's THUMB mode.
+        :keyword backup_state:      a state to read bytes from instead of using project memory.
+        :keyword opt_level:         the VEX optimization level to use.
+        :keyword insn_bytes:        a string of bytes to use for the block instead of #the project.
+        :keyword max_size:          the maximum size of the block, in bytes.
+        :keyword num_inst:          the maximum number of instructions.
+        :keyword traceflags:        traceflags to be passed to VEX. Default: 0
+
+        :returns:   An array of paths for the possible successors.
+        """
         if self._run_args != run_args or not self._run:
             self._run_args = run_args
             self._make_sim_run()
@@ -469,11 +477,12 @@ class Path(object):
         return out
 
     def clear(self):
-        '''
+        """
         This function clear the execution status.
-        After calling this if you call step() successors will be recomputed.
-        If you changed something into path state you probably want to call this method.
-        '''
+
+        After calling this if you call step() successors will be recomputed. If you changed something into path state
+        you probably want to call this method.
+        """
         self._run = None
 
 
@@ -550,12 +559,12 @@ class Path(object):
     #
 
     def divergence_addr(self, other):
-        '''
+        """
         Returns the basic block at which the paths diverged.
 
-        @param other: the other Path
-        @returns an address (long)
-        '''
+        :param other: The other Path.
+        :returns:     The address of the basic block.
+        """
 
         trace1 = self.addr_trace.hardcopy
         trace2 = other.addr_trace.hardcopy
@@ -569,12 +578,12 @@ class Path(object):
 
 
     def detect_loops(self, n=None): #pylint:disable=unused-argument
-        '''
+        """
         Returns the current loop iteration that a path is on.
 
-        @param n: the minimum number of iterations to check for.
-        @returns the number of the loop iteration it's in
-        '''
+        :param n:   The minimum number of iterations to check for.
+        :returns:   The number of the loop iteration it's in.
+        """
 
         # TODO: make this work better
         #addr_strs = [ "%x"%x for x in self.addr_trace ]
@@ -640,9 +649,9 @@ class Path(object):
     #
 
     def _manage_callstack(self, state):
-        '''
+        """
         Adds the information from the last run to the current path.
-        '''
+        """
 
         # maintain the blockcounter stack
         if state.scratch.jumpkind == "Ijk_Call":
@@ -666,9 +675,9 @@ class Path(object):
     #
 
     def unmerge(self):
-        '''
+        """
         Unmerges the state back into different possible states.
-        '''
+        """
 
         l.debug("Unmerging %s!", self)
 
@@ -697,9 +706,9 @@ class Path(object):
         return new_paths
 
     def merge(self, *others):
-        '''
+        """
         Returns a merger of this path with *others.
-        '''
+        """
         all_paths = list(others) + [ self ]
         if len(set([ o.addr for o in all_paths])) != 1:
             raise AngrPathError("Unable to merge paths.")
@@ -759,14 +768,14 @@ class Path(object):
         return p
 
     def filter_actions(self, block_addr=None, block_stmt=None, insn_addr=None, read_from=None, write_to=None):
-        '''
+        """
         Filter self.actions based on some common parameters.
 
-        :param block_addr: Only return actions generated in blocks starting at this address.
-        :param block_stmt: Only return actions generated in the nth statement of each block.
-        :param insn_addr: Only return actions generated in the assembly instruction at this address.
-        :param read_from: Only return actions that perform a read from the specified location.
-        :param write_to: Only return actions that perform a write to the specified location.
+        :param block_addr:  Only return actions generated in blocks starting at this address.
+        :param block_stmt:  Only return actions generated in the nth statement of each block.
+        :param insn_addr:   Only return actions generated in the assembly instruction at this address.
+        :param read_from:   Only return actions that perform a read from the specified location.
+        :param write_to:    Only return actions that perform a write to the specified location.
 
         Notes:
         If IR optimization is turned on, reads and writes may not occur in the instruction
@@ -778,7 +787,7 @@ class Path(object):
         any read or write to registers or memory, respectively), any string (representing a read
         or write to the named register), and any integer (representing a read or write to the
         memory at this address).
-        '''
+        """
         if read_from is not None:
             if write_to is not None:
                 raise ValueError("Can't handle read_from and write_to at the same time!")
@@ -882,10 +891,9 @@ class ErroredPath(Path):
 
 def make_path(project, runs):
     """
-    A helper function to generate a correct angr.Path from a list of runs corresponding
-    to a program path.
+    A helper function to generate a correct angr.Path from a list of runs corresponding to a program path.
 
-    We expect @runs to be a list of simruns corresponding to a program path
+    :param runs:    A list of simruns corresponding to a program path.
     """
 
     if len(runs) == 0:

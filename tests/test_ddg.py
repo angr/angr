@@ -32,7 +32,7 @@ def perform_one(binary_path):
 
     # Memory dependency 1
 
-    '''
+    """
     00 | ------ IMark(0x400667, 3, 0) ------
     01 | t15 = GET:I64(rbp)
     02 | t14 = Add64(t15,0xfffffffffffffffc)
@@ -47,7 +47,7 @@ def perform_one(binary_path):
     18 | t5 = Add32(t7,0x00000001)
     19 | STle(t24) = t5
     20 | PUT(rip) = 0x0000000000400671
-    '''
+    """
 
     cl1 = CodeLocation(0x400667, 3)
     in_edges = ddg.graph.in_edges(cl1, data=True)

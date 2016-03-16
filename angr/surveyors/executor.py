@@ -5,10 +5,10 @@ from ..surveyor import Surveyor
 l = logging.getLogger("angr.surveyors.executor")
 
 class Executor(Surveyor):
-    '''
+    """
     This class handles pure concrete execution related issues.
     No state splitting is ever allowed.
-    '''
+    """
     def __init__(self, project, start, final_addr=None, \
                  pickle_paths=None, max_run=50000):
         Surveyor.__init__(self, project, start=start, pickle_paths=pickle_paths)

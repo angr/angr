@@ -36,9 +36,9 @@ class CallTracingFilter(object):
         """
             The call will be skipped if it returns True.
 
-            :param call_target_state: The new state of the call target
-            :param jumpkind: Jumpkind of this call
-            :return: True if we want to skip this call, False otherwise
+            :param call_target_state: The new state of the call target.
+            :parm jumpkind:           The Jumpkind of this call.
+            :returns:                 True if we want to skip this call, False otherwise.
             """
 
         ACCEPT = False
@@ -156,8 +156,8 @@ class CallTracingFilter(object):
 class Ref(object):
     def __init__(self, type, addr, actual_addrs, bits, value, action):
         """
-        This is a reference object that is used internally in Veritesting. It holds less information than SimActions, but it
-        has a little bit better interface, and saves a lot more keystrokes.
+        This is a reference object that is used internally in Veritesting. It holds less information than SimActions,
+        but it has a little bit better interface, and saves a lot more keystrokes.
         """
 
         self.type = type
@@ -238,16 +238,16 @@ class Veritesting(Analysis):
         SSE stands for Static Symbolic Execution, and we also implemented an extended version of Veritesting (Avgerinos,
         Thanassis, et al, ICSE 2014).
 
-        :param input_path: The initial path to begin the execution with
-        :param boundaries: Addresses where execution should stop
-        :param loop_unrolling_limit: The maximum times that Veritesting should unroll a loop for
+        :param input_path:               The initial path to begin the execution with.
+        :param boundaries:               Addresses where execution should stop.
+        :param loop_unrolling_limit:     The maximum times that Veritesting should unroll a loop for
         :param enable_function_inlining: Whether we should enable function inlining and syscall inlining
-        :param terminator: A callback function that takes a path as parameter. Veritesting will terminate if this function
-                            returns True
-        :param deviation_filter: A callback function that takes a path as parameter. Veritesting will put the path into
-                                "deviated" stash if this function returns True
-        :param path_callback: A callback function that takes a path as parameter. Veritesting will call this function on every
-                            single path after their next_run is created.
+        :param terminator:               A callback function that takes a path as parameter. Veritesting will terminate
+                                         if this function returns True.
+        :param deviation_filter:         A callback function that takes a path as parameter. Veritesting will put the
+                                         path into "deviated" stash if this function returns True.
+        :param path_callback:            A callback function that takes a path as parameter. Veritesting will call this
+                                         function on every single path after their next_run is created.
         """
         self._input_path = input_path
         self._boundaries = boundaries if boundaries is not None else [ ]
@@ -279,7 +279,7 @@ class Veritesting(Analysis):
 
     def _veritesting(self):
         """
-        Perform static symbolic execution starting from the given point
+        Perform static symbolic execution starting from the given point.
         """
 
         p = self._input_path.copy()
@@ -319,7 +319,7 @@ class Veritesting(Analysis):
         will be returned.
 
         :param path: The initial path to start the execution
-        :return: A list of new states
+        :returns:    A list of new states
         """
 
         state = path.state
@@ -419,7 +419,7 @@ class Veritesting(Analysis):
 
         def is_path_overbound(path):
             """
-            Filter out all paths that run out of boundaries or loop too many times
+            Filter out all paths that run out of boundaries or loop too many times.
             """
 
             ip = path.addr
@@ -496,10 +496,10 @@ class Veritesting(Analysis):
 
         def _path_not_in_cfg(p):
             """
-            Returns if p.addr is not a proper node in our CFG
+            Returns if p.addr is not a proper node in our CFG.
 
             :param p: The Path instance to test.
-            :return: False if our CFG contains p.addr, True otherwise
+            :returns: False if our CFG contains p.addr, True otherwise.
             """
 
             n = cfg.get_any_node(p.addr, is_syscall=p.jumpkinds[-1].startswith('Ijk_Sys'))
@@ -790,7 +790,7 @@ class Veritesting(Analysis):
                     self._get_last_actionqueue(merged_path).actions.append(merged_action)
 
         # Merge *all* actions
-        '''
+        """
         for i, merge_info in enumerate(merge_info_list):
             final_path, _, _ = merge_info
 
@@ -811,7 +811,7 @@ class Veritesting(Analysis):
                     merged_path.info['actions'] = [ ]
 
                 merged_path.info['actions'].append(action)
-        '''
+        """
 
         # Fix trace of the merged path
         merged_path.history.addr = -1
@@ -874,7 +874,7 @@ class Veritesting(Analysis):
         :param se:
         :param actions:
         :param base_actions:
-        :return:
+        :returns:
         """
 
         outputs = [ ]
@@ -986,11 +986,12 @@ class Veritesting(Analysis):
 
     def _post_dominate(self, reversed_graph, n1, n2):
         """
-        Checks whether n1 post-dominates n2 in the *original* (not reversed) graph
-        :param reversed_graph: The reversed networkx.DiGraph instance
-        :param n1: Node 1
-        :param n2: Node 2
-        :return: True/False
+        Checks whether `n1` post-dominates `n2` in the *original* (not reversed) graph.
+
+        :param reversed_graph:  The reversed networkx.DiGraph instance.
+        :param n1:              Node 1.
+        :param n2:              Node 2.
+        :returns:               True/False.
         """
 
         ds = networkx.dominating_set(reversed_graph, n1)
@@ -999,8 +1000,9 @@ class Veritesting(Analysis):
     def _get_all_merge_points(self, cfg, graph_with_loops):
         """
         Return all possible merge points in this CFG.
-        :param cfg: The control flow graph, which must be acyclic
-        :return: a list of merge points
+
+        :param cfg: The control flow graph, which must be acyclic.
+        :returns:   A list of merge points.
         """
 
         graph = networkx.DiGraph(cfg.graph)

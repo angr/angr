@@ -82,7 +82,7 @@ class VFG(Analysis):
                  remove_options=None,
                  timeout=None
                  ):
-        '''
+        """
         :param project: The project object.
         :param context_sensitivity_level: The level of context-sensitivity of this VFG.
                                         It ranges from 0 to infinity. Default 2.
@@ -91,7 +91,7 @@ class VFG(Analysis):
         :param initial_state: A state to use as the initial one
         :param avoid_runs: A list of runs to avoid
         :param remove_options: State options to remove from the initial state. It only works when `initial_state` is None
-        '''
+        """
 
         # Related CFG.
         # We can still perform analysis if you don't specify a CFG. But providing a CFG may give you better result.
@@ -368,12 +368,12 @@ class VFG(Analysis):
     #
 
     def _handle_entry(self, entry_wrapper, exit_targets, pending_returns, tracing_times, retn_target_sources):
-        '''
+        """
         Handles an entry in the program.
 
         In static mode, we create a unique stack region for each function, and
         normalize its stack pointer to the default stack offset.
-        '''
+        """
 
         #
         # Extract initial values
@@ -709,7 +709,7 @@ class VFG(Analysis):
 
         :param node: An instance of VFGNode.
         :param new_state: The new input state that we want to compare against.
-        :return: A bool value indicating whether we have reached fix point, and the merge state/original state if possible.
+        :returns: A bool value indicating whether we have reached fix point, and the merge state/original state if possible.
         """
         tracing_times[node] += 1
 
@@ -793,7 +793,7 @@ class VFG(Analysis):
 
         :param old_state:
         :param new_state:
-        :return: The widened state, and whether widening has occurred
+        :returns: The widened state, and whether widening has occurred
         """
 
         # print old_state.dbg_print_stack()
@@ -818,7 +818,7 @@ class VFG(Analysis):
         :param old_state:
         :param new_state:
         :param previously_widened_state:
-        :return: The narrowed state, and whether a narrowing has occurred
+        :returns: The narrowed state, and whether a narrowing has occurred
         """
 
         l.debug('Narrowing state at IP %s', previously_widened_state.ip)
@@ -843,7 +843,7 @@ class VFG(Analysis):
 
         :param old_state:
         :param new_state:
-        :return: The merged state, and whether a merging has occurred
+        :returns: The merged state, and whether a merging has occurred
         """
 
         # print old_state.dbg_print_stack()
@@ -923,11 +923,11 @@ class VFG(Analysis):
         return s
 
     def _create_graph(self, return_target_sources=None):
-        '''
+        """
         Create a DiGraph out of the existing edge map.
         :param return_target_sources: Used for making up those missing returns
-        :return: A networkx.DiGraph() object
-        '''
+        :returns: A networkx.DiGraph() object
+        """
         exit_targets = self._edge_map
 
         if return_target_sources is None:
@@ -1055,7 +1055,7 @@ class VFG(Analysis):
         Append a new entry into the work-list.
 
         :param exit_wrapper: The wrapper to insert into the work list.
-        :return: None
+        :returns: None
         """
 
         def get_simrun_key(ew):
@@ -1101,7 +1101,7 @@ class VFG(Analysis):
         Pop an existing entry from the worklist.
         We always pop the entry based on the quasi-topological order in the recovered CFG to reduce iterations.
 
-        :return: A popped ExitWrapper, or None if the work-list is empty.
+        :returns: A popped ExitWrapper, or None if the work-list is empty.
         """
 
         elem = self._worklist[0]

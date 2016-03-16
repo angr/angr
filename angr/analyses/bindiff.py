@@ -41,9 +41,9 @@ class ConstantChange(object):
 # helper methods
 def _euclidean_dist(vector_a, vector_b):
     """
-    :param vector_a: list of numbers
-    :param vector_b: list of numbers
-    :return: the euclidean distance between the two vectors
+    :param vector_a:    A list of numbers.
+    :param vector_b:    A list of numbers.
+    :returns:           The euclidean distance between the two vectors.
     """
     dist = 0
     for (x, y) in zip(vector_a, vector_b):
@@ -53,9 +53,10 @@ def _euclidean_dist(vector_a, vector_b):
 
 def _get_closest_matches(input_attributes, target_attributes):
     """
-    :param input_attributes: first dictionary of objects to attribute tuples
-    :param target_attributes: second dictionary of blocks to attribute tuples
-    :return: dictionary of objects in the input_attributes to the closest objects in the target_attributes
+    :param input_attributes:    First dictionary of objects to attribute tuples.
+    :param target_attributes:   Second dictionary of blocks to attribute tuples.
+    :returns:                   A dictionary of objects in the input_attributes to the closest objects in the
+                                target_attributes.
     """
     closest_matches = {}
 
@@ -78,9 +79,9 @@ def _get_closest_matches(input_attributes, target_attributes):
 # from http://rosettacode.org/wiki/Levenshtein_distance
 def _levenshtein_distance(s1, s2):
     """
-    :param s1: A list or string
-    :param s2: Another list or string
-    :return: The levenshtein distance between the two
+    :param s1:  A list or string
+    :param s2:  Another list or string
+    :returns:    The levenshtein distance between the two
     """
     if len(s1) > len(s2):
         s1, s2 = s2, s1
@@ -102,10 +103,11 @@ def _normalized_levenshtein_distance(s1, s2, acceptable_differences):
     """
     This function calculates the levenshtein distance but allows for elements in the lists to be different by any number
     in the set acceptable_differences.
-    :param s1: A list
-    :param s2: Another list
-    :param acceptable_differences: A set of numbers. If (s2[i]-s1[i]) is in the set then they are considered equal
-    :return:
+
+    :param s1:                      A list.
+    :param s2:                      Another list.
+    :param acceptable_differences:  A set of numbers. If (s2[i]-s1[i]) is in the set then they are considered equal.
+    :returns:
     """
     if len(s1) > len(s2):
         s1, s2 = s2, s1
@@ -126,13 +128,13 @@ def _normalized_levenshtein_distance(s1, s2, acceptable_differences):
 
 def _is_better_match(x, y, matched_a, matched_b, attributes_dict_a, attributes_dict_b):
     """
-    :param x: the first element of a possible match
-    :param y: the second element of a possible match
-    :param matched_a: the current matches for the first set
-    :param matched_b: the current matches for the second set
-    :param attributes_dict_a: the attributes for each element in the first set
-    :param attributes_dict_b: the attributes for each element in the second set
-    :return:
+    :param x:                   The first element of a possible match.
+    :param y:                   The second element of a possible match.
+    :param matched_a:           The current matches for the first set.
+    :param matched_b:           The current matches for the second set.
+    :param attributes_dict_a:   The attributes for each element in the first set.
+    :param attributes_dict_b:   The attributes for each element in the second set.
+    :returns:                   True/False
     """
     attributes_x = attributes_dict_a[x]
     attributes_y = attributes_dict_b[y]
@@ -149,11 +151,12 @@ def _is_better_match(x, y, matched_a, matched_b, attributes_dict_a, attributes_d
 
 def differing_constants(block_a, block_b):
     """
-    Compares two basic blocks and finds all the constants that differ from the first block to the second
-    :param block_a: the first block to compare
-    :param block_b: the second block to compare
-    :return: returns a list of differing constants in the form of ConstantChange, which has the offset in the block
-             and the respective constants.
+    Compares two basic blocks and finds all the constants that differ from the first block to the second.
+
+    :param block_a: The first block to compare.
+    :param block_b: The second block to compare.
+    :returns:       Returns a list of differing constants in the form of ConstantChange, which has the offset in the
+                    block and the respective constants.
     """
     statements_a = [s for s in block_a.vex.statements if s.tag != "Ist_IMark"] + [block_a.vex.next]
     statements_b = [s for s in block_b.vex.statements if s.tag != "Ist_IMark"] + [block_b.vex.next]
@@ -337,13 +340,13 @@ class NormalizedFunction(object):
 
 class FunctionDiff(object):
     """
-    This class computes the a diff between two functions
+    This class computes the a diff between two functions.
     """
     def __init__(self, function_a, function_b, bindiff=None):
         """
-        :param function_a: The first angr Function object to diff
-        :param function_b: The second angr Function object
-        :param bindiff: An optional Bindiff object. Used for some extra normalization during basic block comparison
+        :param function_a: The first angr Function object to diff.
+        :param function_b: The second angr Function object.
+        :param bindiff:    An optional Bindiff object. Used for some extra normalization during basic block comparison.
         """
         self._function_a = NormalizedFunction(function_a)
         self._function_b = NormalizedFunction(function_b)
@@ -363,7 +366,7 @@ class FunctionDiff(object):
     @property
     def probably_identical(self):
         """
-        :return: Whether or not these two functions are identical.
+        :returns: Whether or not these two functions are identical.
         """
         if len(self._unmatched_blocks_from_a | self._unmatched_blocks_from_b) > 0:
             return False
@@ -375,7 +378,7 @@ class FunctionDiff(object):
     @property
     def identical_blocks(self):
         """
-        :return: A list of block matches which appear to be identical
+        :returns: A list of block matches which appear to be identical
         """
         identical_blocks = []
         for (block_a, block_b) in self._block_matches:
@@ -386,7 +389,7 @@ class FunctionDiff(object):
     @property
     def differing_blocks(self):
         """
-        :return: A list of block matches which appear to differ
+        :returns: A list of block matches which appear to differ
         """
         differing_blocks = []
         for (block_a, block_b) in self._block_matches:
@@ -422,18 +425,18 @@ class FunctionDiff(object):
     @staticmethod
     def get_normalized_block(addr, function):
         """
-        :param addr: where to start the normalized block
-        :param function: function containing the block address
-        :return: a normalized basic block
+        :param addr:        Where to start the normalized block.
+        :param function:    A function containing the block address.
+        :returns:           A normalized basic block.
         """
         return NormalizedBlock(addr, function)
 
     def block_similarity(self, block_a, block_b):
         """
-        :param block_a: the first block address
-        :param block_b: the second block address
-        :return: the similarity of the basic blocks, normalized for the base address of the block and function call
-        addresses
+        :param block_a: The first block address.
+        :param block_b: The second block address.
+        :returns:       The similarity of the basic blocks, normalized for the base address of the block and function
+                        call addresses.
         """
 
         # handle sim procedure blocks
@@ -493,10 +496,10 @@ class FunctionDiff(object):
 
     def blocks_probably_identical(self, block_a, block_b, check_constants=False):
         """
-        :param block_a: the first block address
-        :param block_b: the second block address
-        :param check_constants: whether or not to require matching constants in blocks
-        :return: Whether or not the blocks appear to be identical
+        :param block_a:         The first block address.
+        :param block_b:         The second block address.
+        :param check_constants: Whether or not to require matching constants in blocks.
+        :returns:               Whether or not the blocks appear to be identical.
         """
         # handle sim procedure blocks
         if self._project_a.is_hooked(block_a) and self._project_b.is_hooked(block_b):
@@ -570,8 +573,8 @@ class FunctionDiff(object):
     @staticmethod
     def _compute_block_attributes(function):
         """
-        :param function: A normalized function object
-        :return: a dictionary of basic block addresses to tuples of attributes
+        :param function:    A normalized function object.
+        :returns:           A dictionary of basic block addresses to tuples of attributes.
         """
         # The attributes we use are the distance form function start, distance from function exit and whether
         # or not it has a subfunction call
@@ -596,8 +599,8 @@ class FunctionDiff(object):
     @staticmethod
     def _distances_from_function_start(function):
         """
-        :param function: A normalized Function object
-        :return: a dictionary of basic block addresses and their distance to the start of the function
+        :param function:    A normalized Function object.
+        :returns:           A dictionary of basic block addresses and their distance to the start of the function.
         """
         return networkx.single_source_shortest_path_length(function.graph,
                                                            function.startpoint)
@@ -612,8 +615,8 @@ class FunctionDiff(object):
     @staticmethod
     def _distances_from_function_exit(function):
         """
-        :param function: A normalized Function object
-        :return: a dictionary of basic block addresses and their distance to the exit of the function
+        :param function:    A normalized Function object.
+        :returns:           A dictionary of basic block addresses and their distance to the exit of the function.
         """
         reverse_graph = function.graph.reverse()
         # we aren't guaranteed to have an exit from the function so explicitly add the node
@@ -643,7 +646,7 @@ class FunctionDiff(object):
 
     def _compute_diff(self):
         """
-        Computes the diff of the functions and saves the result
+        Computes the diff of the functions and saves the result.
         """
         # get the attributes for all blocks
         l.debug("Computing diff of functions: %s, %s",
@@ -747,12 +750,15 @@ class FunctionDiff(object):
     def _get_block_matches(self, attributes_a, attributes_b, filter_set_a=None, filter_set_b=None, delta=(0, 0, 0),
                            tiebreak_with_block_similarity=False):
         """
-        :param attributes_a: dict of blocks to their attributes
-        :param attributes_b: dict of blocks to their attributes
-        :param filter_set_a: an optional set to limit attributes_a to the blocks in this set
-        :param filter_set_b: an optional set to limit attributes_b to the blocks in this set
-        :param delta: offset to add to each vector in attributes_a
-        :return: a list of tuples of matching objects
+        :param attributes_a:    A dict of blocks to their attributes
+        :param attributes_b:    A dict of blocks to their attributes
+
+        The following parameters are optional.
+
+        :param filter_set_a:    A set to limit attributes_a to the blocks in this set.
+        :param filter_set_b:    A set to limit attributes_b to the blocks in this set.
+        :param delta:           An offset to add to each vector in attributes_a.
+        :returns:               A list of tuples of matching objects.
         """
         # get the attributes that are in the sets
         if filter_set_a is None:
@@ -883,9 +889,11 @@ class BinDiff(Analysis):
 
     def functions_probably_identical(self, func_a_addr, func_b_addr, check_consts=False):
         """
-        :param func_a_addr: The address of the first function (in the first binary)
-        :param func_b_addr: The address of the second function (in the second binary)
-        :return: whether or not the functions appear to be identical
+        Compare two functions and return True if they appear identical.
+
+        :param func_a_addr: The address of the first function (in the first binary).
+        :param func_b_addr: The address of the second function (in the second binary).
+        :returns:           Whether or not the functions appear to be identical.
         """
         if self.cfg_a.project.is_hooked(func_a_addr) and self.cfg_b.project.is_hooked(func_b_addr):
             return self.cfg_a.project._sim_procedures[func_a_addr] == self.cfg_b.project._sim_procedures[func_b_addr]
@@ -899,7 +907,7 @@ class BinDiff(Analysis):
     @property
     def identical_functions(self):
         """
-        :return: A list of function matches that appear to be identical
+        :returns: A list of function matches that appear to be identical
         """
         identical_funcs = []
         for (func_a, func_b) in self.function_matches:
@@ -910,7 +918,7 @@ class BinDiff(Analysis):
     @property
     def differing_functions(self):
         """
-        :return: A list of function matches that appear to differ
+        :returns: A list of function matches that appear to differ
         """
         different_funcs = []
         for (func_a, func_b) in self.function_matches:
@@ -931,7 +939,7 @@ class BinDiff(Analysis):
     @property
     def differing_blocks(self):
         """
-        :return: A list of block matches that appear to differ
+        :returns: A list of block matches that appear to differ
         """
         differing_blocks = []
         for (func_a, func_b) in self.function_matches:
@@ -967,7 +975,7 @@ class BinDiff(Analysis):
         """
         :param function_addr_a: The address of the first function (in the first binary)
         :param function_addr_b: The address of the second function (in the second binary)
-        :return: the FunctionDiff of the two functions
+        :returns: the FunctionDiff of the two functions
         """
         pair = (function_addr_a, function_addr_b)
         if pair not in self._function_diffs:
@@ -980,7 +988,7 @@ class BinDiff(Analysis):
     def _compute_function_attributes(cfg):
         """
         :param cfg: An angr CFG object
-        :return: a dictionary of function addresses to tuples of attributes
+        :returns:    a dictionary of function addresses to tuples of attributes
         """
         # the attributes we use are the number of basic blocks, number of edges, and number of subfunction calls
         attributes = dict()
@@ -1152,11 +1160,14 @@ class BinDiff(Analysis):
     @staticmethod
     def _get_function_matches(attributes_a, attributes_b, filter_set_a=None, filter_set_b=None):
         """
-        :param attributes_a: dict of functions to their attributes
-        :param attributes_b: dict of functions to their attributes
-        :param filter_set_a: an optional set to limit attributes_a to the functions in this set
-        :param filter_set_b: an optional set to limit attributes_b to the functions in this set
-        :return: a list of tuples of matching objects
+        :param attributes_a:    A dict of functions to their attributes
+        :param attributes_b:    A dict of functions to their attributes
+
+        The following parameters are optional.
+
+        :param filter_set_a:    A set to limit attributes_a to the functions in this set.
+        :param filter_set_b:    A set to limit attributes_b to the functions in this set.
+        :returns:               A list of tuples of matching objects.
         """
         # get the attributes that are in the sets
         if filter_set_a is None:

@@ -7,6 +7,7 @@ l = logging.getLogger("angr.analyses.cdg")
 
 from ..analysis import Analysis, register_analysis
 
+
 class TemporaryNode(object):
     """
     A temporary node.
@@ -26,6 +27,7 @@ class TemporaryNode(object):
 
     def __hash__(self):
         return hash('%s' % self._label)
+
 
 class ContainerNode(object):
     """
@@ -47,6 +49,7 @@ class ContainerNode(object):
             return self._obj == other._obj and self.index == other.index
         return False
 
+
 class CDG(Analysis):
     """
     Implements a control dependence graph.
@@ -56,9 +59,9 @@ class CDG(Analysis):
         """
         Constructor.
 
-        :param cfg: The control flow graph upon which this control dependence graph will build
-        :param start: The starting point to begin constructing the control dependence graph
-        :param no_construct: Skip the construction step. Only used in unit-testing.
+        :param cfg:             The control flow graph upon which this control dependence graph will build
+        :param start:           The starting point to begin constructing the control dependence graph
+        :param no_construct:    Skip the construction step. Only used in unit-testing.
         """
         self._binary = self.project.loader.main_bin
         self._start = start if start is not None else self.project.entry
@@ -125,7 +128,7 @@ class CDG(Analysis):
         """
         Construct a control dependence graph.
 
-        This implementtion is based on figure 6 of paper An Efficient Method of Computing Static Single Assignment
+        This implementation is based on figure 6 of paper An Efficient Method of Computing Static Single Assignment
         Form by Ron Cytron, etc.
         """
 
@@ -191,7 +194,7 @@ class CDG(Analysis):
         Form by Ron Cytron, etc.
 
         :param postdom: The post-dominator tree
-        :return: A dict of dominance frontier
+        :returns:        A dict of dominance frontier
         """
 
         DF = { }
@@ -292,10 +295,10 @@ class CDG(Analysis):
             self._normalized_cfg.add_edge(src.obj, dst.obj)
 
     def _pd_post_process(self):
-        '''
+        """
         Take care of those loop headers/tails where we manually broke their
         connection to the next BBL
-        '''
+        """
         loop_back_edges = self._cfg.get_loop_back_edges()
         for b1, b2 in loop_back_edges:
             # The edge between b1 and b2 is manually broken
