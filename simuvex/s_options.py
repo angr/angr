@@ -152,6 +152,9 @@ DOWNSIZE_Z3 = "DOWNSIZE_Z3"
 # Concretize certain registers if they're unique
 CONCRETIZE_UNIQUE_REGS = "CONCRETIZE_UNIQUE_REGS"
 
+# initialize all registers to 0 when creating the state
+INITIALIZE_ZERO_REGISTERS = "INITIALIZE_ZERO_REGISTERS"
+
 # Turn-on superfastpath mode
 SUPER_FASTPATH = "SUPER_FASTPATH"
 
