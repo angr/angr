@@ -29,11 +29,15 @@ def ast_stripping_op(f, *args, **kwargs):
         end = time.time()
         duration = end-start
 
-        if s.scratch.sim_procedure is None and s.scratch.bbl_addr is not None:
-            location = "bbl 0x%x, stmt %d (inst 0x%x)" % (s.scratch.bbl_addr, s.scratch.stmt_idx, s.scratch.ins_addr)
-        elif s.scratch.sim_procedure is not None:
-            location = "sim_procedure %s" % s.scratch.sim_procedure
-        else:
+        try:
+            if s.scratch.sim_procedure is None and s.scratch.bbl_addr is not None:
+                location = "bbl 0x%x, stmt %d (inst 0x%x)" % (s.scratch.bbl_addr, s.scratch.stmt_idx, s.scratch.ins_addr)
+            elif s.scratch.sim_procedure is not None:
+                location = "sim_procedure %s" % s.scratch.sim_procedure
+            else:
+                location = "unknown"
+        except Exception: #pylint:disable=broad-except
+            l.error("Got exception while generating timer message:", exc_info=True)
             location = "unknown"
         lt.log(int((end-start)*10), '%s took %s seconds at %s', f.__name__, round(duration, 2), location)
 
