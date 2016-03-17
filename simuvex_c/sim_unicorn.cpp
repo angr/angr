@@ -44,6 +44,8 @@ typedef struct mem_update {
 	struct mem_update *next;
 } mem_update_t;
 
+typedef std::map<uint64_t, char *> cache PageCache;
+
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
@@ -52,6 +54,7 @@ static void hook_block(uc_engine *uc, uint64_t address, uint64_t size, void *use
 class State {
 private:
 	uc_engine *uc;
+	PageCache *page_cache;
 	bool hooked;
 
 	void (*uc_reg_update)(uc_engine *uc, void *buf, int save);
@@ -60,13 +63,15 @@ private:
 	std::vector<mem_access_t> mem_writes;
 	std::map<uint64_t, taint_t *> active_pages;
 	std::unordered_set<uint64_t> stop_points;
+	std::unordered_set<uint64_t> *page_cache;
 
 public:
 	uint64_t cur_steps, max_steps;
 	uc_hook h_read, h_write, h_block, h_prot;
 	stop_t stop_reason;
 
-	State(uc_engine *_uc):uc(_uc) {
+	State(uc_engine *_uc, PageCache *_pc):uc(_uc),page_cache(_pc)
+	{
 		hooked = false;
 		h_read = h_write = h_block = h_prot = 0;
 		max_steps = cur_steps = 0;
@@ -469,6 +474,21 @@ static void hook_block(uc_engine *uc, uint64_t address, uint64_t size, void *use
 	state->step(address);
 }
 
+static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
+	State *state = (State *)user_data;
+	page_address = address & 0xfffffffffffff000;
+
+	// call into angr if the page is not in the page cache
+	if (!state->page_cache || !state->page_cache->count(page_address))
+	{
+		return state->callback(uc, accesstype, address, size, value, user_data);
+	}
+	else
+	{
+		uc_mem_map(
+	}
+}
+
 static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
 	if (type == UC_MEM_WRITE_PROT) {
 		// we only handle writing to readonly page
@@ -569,4 +589,20 @@ void activate(State *state, uint64_t address, uint64_t length, uint8_t *taint) {
 	// LOG_D("activate [%#lx, %#lx]", address, address + length);
 	for (uint64_t offset = 0; offset < length; offset += 0x1000)
 		state->page_activate(address + offset, &taint[offset]);
+}
+
+/*
+ * Page cache
+ */
+
+extern "C"
+State *alloc_cache() {
+	return new std::map<uint64_t, char *>()
+}
+
+extern "C"
+State *cache_page(std::map<uint64_t, char *> cache, uint64_t addr, char *bytes) {
+	char *copy = malloc(0x1000);
+	memcpy(copy, bytes, 0x1000);
+	cache.insert(addr, copy);
 }
