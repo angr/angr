@@ -30,4 +30,5 @@ def translate_irconst(state, c):
 from .expressions import SimIRExpr, translate_expr
 from .statements import SimIRStmt, translate_stmt
 from .irsb import SimIRSB, SimIRSBError
+from . import ccall
 from ..s_errors import SimExpressionError
