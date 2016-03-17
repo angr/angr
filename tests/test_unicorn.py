@@ -128,8 +128,8 @@ def _compare_paths(pu, pn):
 def run_similarity(binpath, depth):
     b = angr.Project(os.path.join(test_location, binpath))
 
-    s_unicorn = b.factory.entry_state(add_options=so.unicorn, remove_options={so.LAZY_SOLVES}) # unicorn
-    s_normal = b.factory.entry_state(add_options={so.INITIALIZE_ZERO_REGISTERS}, remove_options={so.LAZY_SOLVES}) # normal
+    s_unicorn = b.factory.entry_state(add_options=so.unicorn, remove_options={so.LAZY_SOLVES, so.TRACK_MEMORY_MAPPING}) # unicorn
+    s_normal = b.factory.entry_state(add_options={so.INITIALIZE_ZERO_REGISTERS}, remove_options={so.LAZY_SOLVES, so.TRACK_MEMORY_MAPPING}) # normal
     p_unicorn = b.factory.path(s_unicorn)
     p_normal = b.factory.path(s_normal)
     pg = b.factory.path_group(p_unicorn)
