@@ -131,11 +131,11 @@ class AngrObjectFactory(object):
         elif o.UNICORN in state.options and SimUnicorn.quick_check(state):
             l.info('Creating SimUnicorn at %#x', addr)
             step = 1000000 if o.UNICORN_FAST in state.options else 1
-            r = SimUnicorn(state, step=step)
+            r = SimUnicorn(state, step=step, stop_points=self._project._sim_procedures.keys())
             if r.success:
                 return r
             else:
-                r = self.sim_block(state, addr=addr, **block_opts)
+                r = self.sim_block(state, **block_opts)
 
         else:
 

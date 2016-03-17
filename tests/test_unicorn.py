@@ -1,5 +1,6 @@
 import angr
-from IPython import embed
+import simuvex
+import claripy
 
 import logging
 l = logging.getLogger("angr.tests.unicorn")
@@ -23,7 +24,7 @@ def dump_reg(s):
     for k in REGS:
         l.info('$%s = %r', k, getattr(s.regs, k))
 
-def test_unicorn():
+def broken_unicorn():
     p = angr.Project(os.path.join(test_location, './cgc_qualifier_event/cgc/99c22c01_01'))
 
     s_unicorn = p.factory.entry_state(add_options={so.UNICORN, so.UNICORN_FAST}) # unicorn
@@ -39,6 +40,7 @@ def test_unicorn():
 
     pg_unicorn = p.factory.path_group(s_unicorn)
     pg_angr = p.factory.path_group(s_angr)
+    print pg_angr, pg_unicorn
 
     # input = 'x\n\0\0\0\0'
     inp = 'L\x0alaehdamfeg\x0a10\x2f28\x2f2014\x0a-2147483647:-2147483647:-2147483647\x0ajfifloiblk\x0a126\x0a63\x0a47\x0a31\x0a3141\x0a719\x0a'
@@ -56,24 +58,159 @@ def test_unicorn():
     # run explore
     # pg_unicorn.explore()
     # pg_angr.explore()
+    #embed()
 
-    embed()
+def test_longinit():
+    p = angr.Project(os.path.join(test_location, '../binaries/tests/i386/longinit'))
+    s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
+    pg = p.factory.path_group(s_unicorn)
+    pg.explore()
+    s = pg.deadended[0].state
+    first = s.posix.files[0].content.load(0, 9)
+    second = s.posix.files[0].content.load(9, 9)
+    s.add_constraints(first == s.se.BVV('A'*9))
+    s.add_constraints(second == s.se.BVV('B'*9))
+    assert s.posix.dumps(1) == "You entered AAAAAAAAA and BBBBBBBBB!\n"
 
-def test_counter():
-    p = angr.Project(os.path.join(test_location, '../binaries/tests/i386/counter'))
-    s_unicorn = p.factory.full_init_state(add_options={so.UNICORN, so.UNICORN_FAST}) # unicorn
-    pg_unicorn = p.factory.path_group(s_unicorn)
+def broken_fauxware():
+    p = angr.Project(os.path.join(test_location, '../binaries/tests/i386/fauxware'))
+    s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
+    pg = p.factory.path_group(s_unicorn)
 
-    dump_reg(s_unicorn)
-    for k in dir(s_unicorn.regs):
-        r = getattr(s_unicorn.regs, k)
-        if r.symbolic:
-            setattr(s_unicorn.regs, k, 0)
+    pg.explore()
+    import IPython; IPython.embed()
 
-    pg_unicorn.explore()
-    print pg_unicorn.errored[0]
-    print pg_unicorn.errored[0].retry()
+def broken_palindrome():
+    b = angr.Project(os.path.join(test_location, "cgc_scored_event_2/cgc/0b32aa01_01"))
+    s_unicorn = b.factory.entry_state(add_options={so.UNICORN, so.UNICORN_FAST}, remove_options={so.LAZY_SOLVES}) # unicorn
+    pg = b.factory.path_group(s_unicorn)
+    angr.path_group.l.setLevel("DEBUG")
+    pg.step(300)
+
+def _compare_paths(pu, pn):
+    assert pu.addr == pn.addr
+    sn = pn.state
+    su = pu.state
+    joint_solver = claripy.FullFrontend(claripy.backends.z3)
+
+    # make sure the canonicalized constraints are the same
+    n_map, n_counter, n_canon_constraint = claripy.And(*sn.se.constraints).canonicalize()
+    u_map, u_counter, u_canon_constraint = claripy.And(*su.se.constraints).canonicalize()
+    joint_solver.add((n_canon_constraint, u_canon_constraint))
+    assert n_canon_constraint is u_canon_constraint
+
+    # get the differences in registers and memory
+    mem_diff = sn.memory.changed_bytes(su.memory)
+    reg_diff = sn.registers.changed_bytes(su.registers) - set(range(40, 52)) #ignore cc psuedoregisters
+
+    # make sure the differences in registers and memory are actually just renamed
+    # versions of the same ASTs
+    for diffs,(um,nm) in (
+        (mem_diff, (su.memory, sn.memory)),
+        (reg_diff, (su.registers, sn.registers))
+    ):
+        for i in diffs:
+            bn = nm.load(i, 1)
+            bu = um.load(i, 1)
+
+            bnc = bn.canonicalize(var_map=n_map, counter=n_counter)[-1]
+            buc = bu.canonicalize(var_map=u_map, counter=u_counter)[-1]
+
+            assert bnc is buc
+
+    # make sure the flags are the same
+    #print "Native flags:", simuvex.vex.ccall._get_flags(sn)
+    #print "Unicorn flags:", simuvex.vex.ccall._get_flags(su)
+    n_flags = simuvex.vex.ccall._get_flags(sn)[0].canonicalize(var_map=n_map, counter=n_counter)[-1]
+    u_flags = simuvex.vex.ccall._get_flags(su)[0].canonicalize(var_map=u_map, counter=u_counter)[-1]
+    assert n_flags is u_flags
+
+def run_similarity(binpath, depth):
+    b = angr.Project(os.path.join(test_location, binpath))
+
+    s_unicorn = b.factory.entry_state(add_options=so.unicorn, remove_options={so.LAZY_SOLVES}) # unicorn
+    s_normal = b.factory.entry_state(add_options={so.INITIALIZE_ZERO_REGISTERS}, remove_options={so.LAZY_SOLVES}) # normal
+    p_unicorn = b.factory.path(s_unicorn)
+    p_normal = b.factory.path(s_normal)
+    pg = b.factory.path_group(p_unicorn)
+    pg.stash(to_stash='unicorn')
+    pg.active.append(p_normal)
+    pg.stash(to_stash='normal')
+    pg.stash(to_stash='stashed_normal')
+    pg.stash(to_stash='stashed_unicorn')
+
+    #pg_history = [ ]
+
+    while pg.normal[0].length < depth:
+        assert len(pg.unicorn) == 1
+        assert len(pg.normal) == 1
+        assert len(pg.deadended) == 0
+        assert len(pg.errored) == 0
+        _compare_paths(pg.unicorn[0], pg.normal[0])
+
+        #pg_history.append(pg.copy())
+        pg.step(stash='unicorn')
+        assert len(pg.errored) == 0
+
+        if len(pg.unicorn) == 0:
+            assert len(pg.deadended) == 1
+            assert not isinstance(pg.deadended[0]._run, simuvex.SimUnicorn)
+            pg.step(stash='normal')
+            assert len(pg.normal) == 0
+            assert len(pg.deadended) == 2
+            pg.drop(stash='deadended')
+            assert len(pg.deadended) == 0
+        else:
+            if isinstance(pg.unicorn[0].previous_run, simuvex.SimUnicorn):
+                n = pg.unicorn[0].previous_run.state.unicorn.steps
+                pg.step(stash='normal', n=n)
+            else:
+                pg.step(stash='normal')
+
+            assert len(pg.errored) == 0
+            pg.unicorn.sort(key=lambda p: p.addr)
+            pg.normal.sort(key=lambda p: p.addr)
+
+            #print "PG:", pg
+            #print "PG paths:", pg.unicorn, pg.normal
+
+            # make sure the path groups are in the same place
+            assert len(pg.normal) == len(pg.unicorn)
+            assert pg.mp_unicorn.addr.mp_items == pg.mp_normal.addr.mp_items
+
+        # make sure the paths are the same
+        pg.stashed_unicorn[:] = pg.stashed_unicorn[::-1]
+        pg.stashed_normal[:] = pg.stashed_normal[::-1]
+        pg.move('stashed_unicorn', 'unicorn')
+        pg.move('stashed_normal', 'normal')
+        for pu,pn in zip(pg.unicorn, pg.normal):
+            _compare_paths(pu, pn)
+
+        if len(pg.normal) > 1:
+            pg.split(from_stash='normal', limit=1, to_stash='stashed_normal')
+            pg.split(from_stash='unicorn', limit=1, to_stash='stashed_unicorn')
+
+def test_similarity_01cf6c01(): run_similarity("cgc_qualifier_event/cgc/01cf6c01_01", 5170)
+def timesout_similarity_38256a01(): run_similarity("cgc_qualifier_event/cgc/38256a01_01", 125)
+def timesout_similarity_5821ad01(): run_similarity("cgc_qualifier_event/cgc/5821ad01_01", 125)
+def test_similarity_5c921501(): run_similarity("cgc_qualifier_event/cgc/5c921501_01", 250)
+def test_similarity_63cf1501(): run_similarity("cgc_qualifier_event/cgc/63cf1501_01", 125)
+def timesout_similarity_6787bf01(): run_similarity("cgc_qualifier_event/cgc/6787bf01_01", 125)
+def test_similarity_7185fe01(): run_similarity("cgc_qualifier_event/cgc/7185fe01_01", 500)
+def timesout_similarity_ab957801(): run_similarity("cgc_qualifier_event/cgc/ab957801_01", 125)
+def test_similarity_acedf301(): run_similarity("cgc_qualifier_event/cgc/acedf301_01", 600)
+def test_similarity_d009e601(): run_similarity("cgc_qualifier_event/cgc/d009e601_01", 600)
+def test_similarity_d4411101(): run_similarity("cgc_qualifier_event/cgc/d4411101_01", 500)
+def test_similarity_eae6fa01(): run_similarity("cgc_qualifier_event/cgc/eae6fa01_01", 250)
+def test_similarity_ee545a01(): run_similarity("cgc_qualifier_event/cgc/ee545a01_01", 1000)
+def timesout_similarity_f5adc401(): run_similarity("cgc_qualifier_event/cgc/f5adc401_01", 250)
 
 if __name__ == '__main__':
-    test_counter()
+    #test_palindrome()
+    #test_fauxware()
+    #test_longinit()
     #test_unicorn()
+    #test_similarity_01cf6c01()
+    #test_similarity_7185fe01()
+    import sys
+    globals()['test_similarity_' + sys.argv[1]]()
