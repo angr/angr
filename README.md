@@ -126,7 +126,7 @@ no reason, saying that it can't create some object file because some file or
 directory doesn't exist. Just retry the build:
 
 ```bash
-pip install -I --no-use-wheel angr-z3
+pip install -I --no-use-wheel angr-only-z3-custom
 ```
 
 ## Claripy and z3 on Windows
