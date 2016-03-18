@@ -777,11 +777,13 @@ class CFGFast(Analysis):
 
     def _remove_overlapping_blocks(self):
         """
-        On X86 and AMD64, sometimes there are some garbage bytes (usually nops) between functions in order to properly
-        align the succeeding function. CFGFast does a linear sweeping, which might create duplicated blocks for
-        function epilogues, where one starts before the garbage bytes, the other starts after the garbage bytes. This
-        method enumerates all blocks and deal with overlapping blocks if one of them is aligned to 0x10, and the other
+        On X86 and AMD64 there are sometimes garbage bytes (usually nops) between functions in order to properly
+        align the succeeding function. CFGFast does a linear sweeping which might create duplicated blocks for
+        function epilogues where one block starts before the garbage bytes and the other starts after the garbage bytes.
+
+        This method enumerates all blocks and remove overlapping blocks if one of them is aligned to 0x10 and the other
         contains only garbage bytes.
+
         :return: None
         """
 
