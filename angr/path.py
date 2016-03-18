@@ -246,6 +246,12 @@ class Path(object):
         self._run_error = None
         self._reachable = None
 
+        # for unicorn, we check if the previous run touched any symbolic data
+        if simuvex.o.UNICORN in self.state.options:
+            num_symbolic = len([ a for a in self.history._actions if a.type == 'mem' and a.data.symbolic ])
+            if num_symbolic != 0:
+                self.state.unicorn._runs_since_symbolic_data = 0
+
     @property
     def addr(self):
         return self.state.se.any_int(self.state.regs.ip)
