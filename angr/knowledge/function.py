@@ -484,7 +484,7 @@ class Function(object):
             node_b = "%#08x" % to_block.addr
             if node_b in self._ret_sites:
                 node_b += "[Ret]"
-            if node_a.addr in self._call_sites:
+            if node_a in self._call_sites:
                 node_a += "[Call]"
             tmp_graph.add_edge(node_a, node_b)
         pos = networkx.graphviz_layout(tmp_graph, prog='fdp')   # pylint: disable=no-member
