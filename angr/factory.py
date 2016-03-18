@@ -128,7 +128,7 @@ class AngrObjectFactory(object):
             state._inspect('call', BP_AFTER, function_name=sim_proc_class.__name__)
             l.debug("... %s created", r)
 
-        elif o.UNICORN in state.options and SimUnicorn.quick_check(state):
+        elif o.UNICORN in state.options and state.unicorn.check():
             l.info('Creating SimUnicorn at %#x', addr)
             step = 1000000 if o.UNICORN_FAST in state.options else 1
             r = SimUnicorn(state, step=step, stop_points=self._project._sim_procedures.keys())
