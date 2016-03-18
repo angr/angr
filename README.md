@@ -98,10 +98,10 @@ Synchronization of files in and out of docker is left as an excercize to the use
 # Troubleshooting
 
 ## libgomp.so.1: version `GOMP_4.0' not found
-This error represents an incompatibility between the pre-compiled version of `angr-z3` and the installed version of `libgomp`. A Z3 recompile is required. You can do this by executing:
+This error represents an incompatibility between the pre-compiled version of `angr-only-z3-custom` and the installed version of `libgomp`. A Z3 recompile is required. You can do this by executing:
 
 ```bash
-pip install -I --no-use-wheel angr-z3
+pip install -I --no-use-wheel angr-only-z3-custom
 ```
 
 ## Can't import mulpyplexer
