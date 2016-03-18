@@ -31,6 +31,9 @@ typedef enum stop {
 } stop_t;
 
 typedef taint_t PageBitmap[PAGE_SIZE];
+typedef std::map<uint64_t, char *> PageCache;
+std::map<uint64_t, PageCache*> global_cache;
+
 
 typedef struct mem_access {
 	uint64_t address;
@@ -44,10 +47,9 @@ typedef struct mem_update {
 	struct mem_update *next;
 } mem_update_t;
 
-typedef std::map<uint64_t, char *> cache PageCache;
-
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
+static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static void hook_block(uc_engine *uc, uint64_t address, uint64_t size, void *user_data);
 
@@ -63,19 +65,26 @@ private:
 	std::vector<mem_access_t> mem_writes;
 	std::map<uint64_t, taint_t *> active_pages;
 	std::unordered_set<uint64_t> stop_points;
-	std::unordered_set<uint64_t> *page_cache;
 
 public:
 	uint64_t cur_steps, max_steps;
-	uc_hook h_read, h_write, h_block, h_prot;
+	uc_hook h_read, h_write, h_block, h_prot, h_unmap;
 	stop_t stop_reason;
 
-	State(uc_engine *_uc, PageCache *_pc):uc(_uc),page_cache(_pc)
+	State(uc_engine *_uc, uint64_t cache_key):uc(_uc)
 	{
 		hooked = false;
 		h_read = h_write = h_block = h_prot = 0;
 		max_steps = cur_steps = 0;
 		stop_reason = STOP_NORMAL;
+
+		auto it = global_cache.find(cache_key);
+		if (it == global_cache.end()) {
+				page_cache = new PageCache();
+				global_cache[cache_key] = page_cache;
+		} else {
+				page_cache = it->second;
+		}
 
 		switch (*(uc_arch *)uc) { // tricky:)
 				case UC_ARCH_X86:
@@ -111,6 +120,8 @@ public:
 		err = uc_hook_add(uc, &h_block, UC_HOOK_BLOCK, (void *)hook_block, this, 1, 0);
 
 		err = uc_hook_add(uc, &h_prot, UC_HOOK_MEM_PROT, (void *)hook_mem_prot, this, 1, 0);
+		// should we only hook UC_HOOK_MEM_FETCH_UNMAPPED ?
+		err = uc_hook_add(uc, &h_unmap, UC_HOOK_MEM_UNMAPPED, (void *)hook_mem_unmapped, this, 1, 0);
 
 		hooked = true;
 	}
@@ -359,6 +370,35 @@ public:
 		for (int i = 0; i < count; i++)
 			stop_points.insert(stops[i]);
 	}
+
+	void cache_page(uint64_t address, char* bytes) {
+		// address should be aligned to 0x1000
+		char *copy = (char *)malloc(0x1000);
+		memcpy(copy, bytes, 0x1000);
+		page_cache->insert(std::pair<uint64_t, char*>(address, copy));
+	}
+
+	bool map_cache(uint64_t address) {
+		auto it = page_cache->find(address);
+
+		if (it != page_cache->end()) {
+			char *bytes = it->second;
+			LOG_D("hit cache [%#lx, %#lx]", address, address + 0x1000);
+			uc_err err = uc_mem_map_ptr(uc, address, 0x1000, UC_PROT_EXEC | UC_PROT_READ, bytes);
+			if (err) {
+				LOG_E("map_cache: %s", uc_strerror(err));
+				return false;
+			}
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	bool in_cache(uint64_t address) {
+		return page_cache->find(address) != page_cache->end();
+	}
+
 };
 
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
@@ -476,17 +516,18 @@ static void hook_block(uc_engine *uc, uint64_t address, uint64_t size, void *use
 
 static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
 	State *state = (State *)user_data;
-	page_address = address & 0xfffffffffffff000;
+	uint64_t start = address & ~0xFFFUL;
+	uint64_t end = (address + size - 1) & ~0xFFFUL;
 
-	// call into angr if the page is not in the page cache
-	if (!state->page_cache || !state->page_cache->count(page_address))
-	{
-		return state->callback(uc, accesstype, address, size, value, user_data);
+	if (type == UC_MEM_FETCH_UNMAPPED) {
+		// only hook executable pages
+		LOG_D("handle unmapped page natively");
+		if (state->map_cache(start) && (start == end || state->map_cache(end))) {
+				return true;
+		}
 	}
-	else
-	{
-		uc_mem_map(
-	}
+
+	return false;
 }
 
 static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
@@ -495,6 +536,12 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
 		LOG_I("writing to readonly page [%#lx, %#lx]", address, address + size);
 		uint64_t start = address & ~0xFFFUL;
 		uint64_t length = ((address + size + 0xFFFUL) & ~0xFFFUL) - start;
+
+		if (((State *)user_data)->in_cache(start)) {
+			// this page is a cached executable page, we should not write to it
+			LOG_E("hook_mem_prot: writing to cached executable page");
+			return false;
+		}
 
 		uc_err err = uc_mem_protect(uc, start, length, UC_PROT_ALL);
 		if (err) {
@@ -524,8 +571,8 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
  */
 
 extern "C"
-State *alloc(uc_engine *uc) {
-	State *state = new State(uc);
+State *alloc(uc_engine *uc, uint64_t cache_key) {
+	State *state = new State(uc, cache_key);
 	return state;
 }
 
@@ -596,13 +643,12 @@ void activate(State *state, uint64_t address, uint64_t length, uint8_t *taint) {
  */
 
 extern "C"
-State *alloc_cache() {
-	return new std::map<uint64_t, char *>()
-}
-
-extern "C"
-State *cache_page(std::map<uint64_t, char *> cache, uint64_t addr, char *bytes) {
-	char *copy = malloc(0x1000);
-	memcpy(copy, bytes, 0x1000);
-	cache.insert(addr, copy);
+bool cache_page(State *state, uint64_t address, uint64_t length, char *bytes) {
+	LOG_I("caching [%#lx, %#lx]", address, address + length);
+	for (uint64_t offset = 0; offset < length; offset += 0x1000) {
+		state->cache_page(address + offset, &bytes[offset]);
+		if (!state->map_cache(address + offset))
+				return false;
+	}
+	return true;
 }

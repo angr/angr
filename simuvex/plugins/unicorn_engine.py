@@ -60,7 +60,7 @@ def _load_native():
             getattr(handle, func).restype = restype
             getattr(handle, func).argtypes = argtypes
 
-        _setup_prototype(h, 'alloc', state_t, uc_engine_t)
+        _setup_prototype(h, 'alloc', state_t, uc_engine_t, ctypes.c_uint64)
         _setup_prototype(h, 'dealloc', None, state_t)
         _setup_prototype(h, 'hook', None, state_t)
         _setup_prototype(h, 'unhook', None, state_t)
@@ -73,6 +73,7 @@ def _load_native():
         _setup_prototype(h, 'activate', None, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p)
         _setup_prototype(h, 'set_stops', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'logSetLogLevel', None, ctypes.c_uint64)
+        _setup_prototype(h, 'cache_page', ctypes.c_bool, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p)
 
         l.info('native plugin is enabled')
 
@@ -96,7 +97,7 @@ class Unicorn(SimStatePlugin):
 
     UC_CONFIG = {} # config cache for each arch
 
-    def __init__(self, uc=None, syscall_hooks=None):
+    def __init__(self, uc=None, syscall_hooks=None, cache_key=None):
         SimStatePlugin.__init__(self)
 
         self.uc = None
@@ -106,6 +107,8 @@ class Unicorn(SimStatePlugin):
         self.errno = 0
 
         self.last_miss = 0 if uc is None else uc.last_miss
+
+        self.cache_key = hash(self) if cache_key is None else cache_key
 
         self._dirty = {}
         self.steps = 0
@@ -165,6 +168,9 @@ class Unicorn(SimStatePlugin):
         )
 
     def hook(self):
+        l.debug('adding native hooks')
+        _UC_NATIVE.hook(self._uc_state) # prefer to use native hooks
+
         # some hooks are generic hooks, only hook them once
         if self._mem_unmapped_hook is None:
             self._mem_unmapped_hook = self.uc.hook_add(unicorn.UC_HOOK_MEM_UNMAPPED, self._hook_mem_unmapped, None, 1, 0)
@@ -181,9 +187,6 @@ class Unicorn(SimStatePlugin):
                 self._syscall_hook = self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_mips, None, 1, 0)
             else:
                 raise SimUnicornUnsupport
-
-        l.debug('adding native hooks')
-        _UC_NATIVE.hook(self._uc_state)
 
     def _unhook(self, hook_name):
         h = getattr(self, hook_name)
@@ -294,6 +297,10 @@ class Unicorn(SimStatePlugin):
                 s = self.state.se.any_str(d)
             data[pos:pos + size] = s
 
+        if access == unicorn.UC_MEM_FETCH_UNMAPPED:
+            l.debug('caching executable pages')
+            return _UC_NATIVE.cache_page(self._uc_state, start, length, str(data))
+
         if access == unicorn.UC_MEM_WRITE_UNMAPPED:
             l.info('mmap [%#x, %#x] rwx', start, start + length)
             self.uc.mem_map(start, length, unicorn.UC_PROT_ALL)
@@ -321,7 +328,7 @@ class Unicorn(SimStatePlugin):
     def setup(self):
         self._setup_unicorn(self.state.arch)
         # tricky: using unicorn handle form unicorn.Uc object
-        self._uc_state = _UC_NATIVE.alloc(self.uc._uch)
+        self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key)
 
     def start(self, step=1):
 
@@ -417,7 +424,7 @@ class Unicorn(SimStatePlugin):
         self._dirty.clear()
 
     def copy(self):
-        u = Unicorn(syscall_hooks=dict(self.syscall_hooks))
+        u = Unicorn(syscall_hooks=dict(self.syscall_hooks), cache_key=self.cache_key)
         return u
 
 from ..vex import ccall
