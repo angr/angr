@@ -97,7 +97,7 @@ class Unicorn(SimStatePlugin):
 
     UC_CONFIG = {} # config cache for each arch
 
-    def __init__(self, uc=None, syscall_hooks=None, cache_key=None):
+    def __init__(self, uc=None, syscall_hooks=None, cache_key=None, runs_since_unicorn=0, runs_since_symbolic_data=0, register_check_count=0):
         SimStatePlugin.__init__(self)
 
         self.uc = None
@@ -107,7 +107,9 @@ class Unicorn(SimStatePlugin):
         self.errno = 0
 
         self.last_miss = 0 if uc is None else uc.last_miss
-
+        self._runs_since_unicorn = runs_since_unicorn
+        self._register_check_count = register_check_count
+        self._runs_since_symbolic_data = runs_since_symbolic_data
         self.cache_key = hash(self) if cache_key is None else cache_key
 
         self._dirty = {}
@@ -338,7 +340,7 @@ class Unicorn(SimStatePlugin):
         self.jumpkind = 'Ijk_Boring'
 
         l.debug('emu_start at %#x (%d steps)', addr, step)
-
+        self._runs_since_unicorn = 0
         self.errno = _UC_NATIVE.start(self._uc_state, addr, step)
 
     def finish(self):
@@ -424,8 +426,55 @@ class Unicorn(SimStatePlugin):
         self._dirty.clear()
 
     def copy(self):
-        u = Unicorn(syscall_hooks=dict(self.syscall_hooks), cache_key=self.cache_key)
+        u = Unicorn(
+            syscall_hooks=dict(self.syscall_hooks),
+            cache_key=self.cache_key,
+            register_check_count=self._register_check_count + 1,
+            runs_since_unicorn=self._runs_since_unicorn + 1,
+            runs_since_symbolic_data=self._runs_since_symbolic_data + 1
+        )
         return u
+
+    def _check_registers(self):
+        ''' check if this state might be used in unicorn (has no concrete register)'''
+        try:
+            _, _, uc_regs, _ = Unicorn.load_arch(self.state.arch)
+        except Exception:
+            raise
+
+        for r in uc_regs.iterkeys():
+            v = getattr(self.state.regs, r)
+            if v.symbolic:
+                #l.info('detected symbolic register %s', r)
+                return False
+
+        flags = ccall._get_flags(self.state)[0]
+        if flags is not None and flags.symbolic:
+            #l.info("detected symbolic rflags/eflags")
+            return False
+
+        #l.debug('passed quick check')
+        return True
+
+    def check(self):
+        if not self._check_registers():
+            l.debug("failed register check")
+            #self._register_check_count = 0
+            return False
+
+        if self._register_check_count < 40:
+            #l.debug("not enough passed register checks")
+            return False
+
+        if self._runs_since_symbolic_data < 40:
+            #l.debug("not enough runs since symbolic data")
+            return False
+
+        if self._runs_since_unicorn < 20:
+            #l.debug("not enough runs since last unicorn")
+            return False
+
+        return True
 
 from ..vex import ccall
 SimStatePlugin.register_default('unicorn', Unicorn)

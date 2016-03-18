@@ -56,28 +56,6 @@ class SimUnicorn(SimRun):
         else:
             self.add_successor(self.state, self.state.ip, guard, self.state.unicorn.jumpkind)
 
-    @staticmethod
-    def quick_check(state):
-        ''' check if this state might be used in unicorn (has no concrete register)'''
-        try:
-            _, _, uc_regs, _ = Unicorn.load_arch(state.arch)
-        except Exception:
-            raise
-
-        for r in uc_regs.iterkeys():
-            v = getattr(state.regs, r)
-            if v.symbolic:
-                l.warning('detected symbolic register %s', r)
-                return False
-
-        flags = ccall._get_flags(state)[0]
-        if flags is not None and flags.symbolic:
-            l.warning("detected symbolic rflags/eflags")
-            return False
-
-        l.debug('passed quick check')
-        return True
-
     def __repr__(self):
         return "<SimUnicorn from %#x with %d steps>" % (self.addr, self.state.unicorn.steps)
 
