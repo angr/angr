@@ -286,7 +286,7 @@ class CFGFast(Analysis):
         self._resolve_indirect_jumps = resolve_indirect_jumps
         self._force_segment = force_segment
 
-        l.debug("Starts at 0x%08x and ends at 0x%08x.", self._start, self._end)
+        l.debug("Starts at %#x and ends at %#x.", self._start, self._end)
 
         # Get all valid memory regions
         self._valid_memory_regions = self._executable_memory_regions()
@@ -775,6 +775,37 @@ class CFGFast(Analysis):
 
         return function_starts
 
+    def _remove_overlapping_blocks(self):
+        """
+        On X86 and AMD64, sometimes there are some garbage bytes (usually nops) between functions in order to properly
+        align the succeeding function. CFGFast does a linear sweeping, which might create duplicated blocks for
+        function epilogues, where one starts before the garbage bytes, the other starts after the garbage bytes. This
+        method enumerates all blocks and deal with overlapping blocks if one of them is aligned to 0x10, and the other
+        contains only garbage bytes.
+        :return: None
+        """
+
+        sorted_nodes = sorted(self.graph.nodes(), key=lambda n: n.addr if n is not None else 0)
+
+        for i in xrange(len(sorted_nodes) - 1):
+            a, b = sorted_nodes[i], sorted_nodes[i + 1]
+
+            if a is None or b is None:
+                continue
+
+            if a.addr <= b.addr and \
+                    (a.addr + a.size > b.addr):
+                # They are overlapping
+                if b.addr in self.kb.functions and (b.addr - a.addr < 0x10) and b.addr % 0x10 == 0:
+                    # b is the beginning of a function
+                    # a should be removed
+                    self.graph.remove_node(a)
+                else:
+                    block = self.project.factory.block(a.addr, max_size=b.addr-a.addr)
+                    if len(block.capstone.insns) == 1 and block.capstone.insns[0].insn_name() == "nop":
+                        # It's a big nop
+                        self.graph.remove_node(a)
+
     def _analyze(self):
         """
         Perform a full code scan on the target binary, and try to identify as much code as possible.
@@ -860,8 +891,11 @@ class CFGFast(Analysis):
             self._scan_code(traced_address, function_exits, initial_state, next_addr, maybe_function)
 
         pb.finish()
+
+        self._remove_overlapping_blocks()
+
         end_time = datetime.now()
-        l.info("A full code scan takes %d seconds.", (end_time - start_time).seconds)
+        l.info("Generating CFGFast takes %d seconds.", (end_time - start_time).seconds)
 
     #
     # Public methods
