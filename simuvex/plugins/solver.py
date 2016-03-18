@@ -250,26 +250,54 @@ class SimSolver(SimStatePlugin):
     @auto_actions
     @error_converter
     def max(self, e, extra_constraints=(), exact=None):
+        if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
+            ar = self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
+            er = self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints))
+            assert er <= ar
+            return ar
         return self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def min(self, e, extra_constraints=(), exact=None):
+        if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
+            ar = self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
+            er = self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints))
+            assert ar <= er
+            return ar
         return self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def solution(self, e, v, extra_constraints=(), exact=None):
+        if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
+            ar = self._solver.solution(e, v, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
+            er = self._solver.solution(e, v, extra_constraints=self._adjust_constraint_list(extra_constraints))
+            if er is True:
+                assert ar is True
+            return ar
         return self._solver.solution(e, v, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def is_true(self, e, extra_constraints=(), exact=None):
+        if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
+            ar = self._solver.is_true(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
+            er = self._solver.is_true(e, extra_constraints=self._adjust_constraint_list(extra_constraints))
+            if er is False:
+                assert ar is False
+            return ar
         return self._solver.is_true(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def is_false(self, e, extra_constraints=(), exact=None):
+        if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
+            ar = self._solver.is_false(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
+            er = self._solver.is_false(e, extra_constraints=self._adjust_constraint_list(extra_constraints))
+            if er is False:
+                assert ar is False
+            return ar
         return self._solver.is_false(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @auto_actions
@@ -280,6 +308,12 @@ class SimSolver(SimStatePlugin):
     @auto_actions
     @error_converter
     def satisfiable(self, extra_constraints=(), exact=None):
+        if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
+            er = self._solver.satisfiable(extra_constraints=self._adjust_constraint_list(extra_constraints))
+            ar = self._solver.satisfiable(extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
+            if er is True:
+                assert ar is True
+            return ar
         return self._solver.satisfiable(extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @auto_actions
