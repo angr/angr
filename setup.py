@@ -18,5 +18,6 @@ setup(
         'claripy',
         'simuvex',
         'cle',
+        'cachetools',
     ],
 )
