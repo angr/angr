@@ -801,7 +801,10 @@ class CFGFast(Analysis):
                     # a should be removed
                     self.graph.remove_node(a)
                 else:
-                    block = self.project.factory.block(a.addr, max_size=b.addr-a.addr)
+                    try:
+                        block = self.project.factory.block(a.addr, max_size=b.addr-a.addr)
+                    except AngrTranslationError:
+                        continue
                     if len(block.capstone.insns) == 1 and block.capstone.insns[0].insn_name() == "nop":
                         # It's a big nop
                         self.graph.remove_node(a)
