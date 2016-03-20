@@ -87,30 +87,35 @@ class Surveyors(object):
 class Surveyor(object):
     """
     The surveyor class eases the implementation of symbolic analyses. This
-    provides a base upon which analyses can be implemented. It has the
-    following overloadable functions/properties:
+    provides a base upon which analyses can be implemented.
 
-    done: returns True if the analysis is done (by default, this is when self.active is empty).
-    run: runs a loop of tick()ing and spill()ing until self.done is True.
-    tick: ticks all paths forward. The default implementation calls tick_path() on every path.
-    tick_path: moves a provided path forward, returning a set of new paths.
-    spill: spills all paths, in-place. The default implementation first calls spill_path() on every path, then
-    spill_paths() on the resulting sequence, then keeps the rest.
-    spill_path: returns a spilled sequence of paths from a provided sequence of paths.
-    spill_paths: spills a path.
+    Surveyors provide at least the following members:
+
+    :ivar active:           The paths that are still active in the analysis.
+    :ivar deadended:        The paths that are still active in the analysis.
+    :ivar spilled:          The paths that are still active in the analysis.
+    :ivar errored:          The paths that have at least one error-state exit.
+    :ivar pruned:           The paths that were pruned because their ancestors were unsat.
+    :ivar unconstrained:    The paths that have a successor with an unconstrained instruction pointer.
+
+    A Surveryor has the following overloadable properties:
+
+    :ivar done: returns True if the analysis is done (by default, this is when self.active is empty).
+    :ivar run: runs a loop of tick()ing and spill()ing until self.done is True.
+    :ivar tick: ticks all paths forward. The default implementation calls tick_path() on every path.
+
+    A Surveyor has the following overloadable functions :
+
+    :func:`tick_path` moves a provided path forward, returning a set of new paths.
+
+    :func:`spill` spills all paths, in-place. The default implementation first calls :func:`spill_path` on every
+    path, then :func:`spill_paths` on the resulting sequence, then keeps the rest.
+
+    :func:`spill_path` returns a spilled sequence of paths from a provided sequence of paths.
 
     An analysis can overload either the specific sub-portions of surveyor
     (i.e, the tick_path and spill_path functions) or bigger and bigger pieces
     to implement more and more customizeable analyses.
-
-    Surveyor provides at least the following members:
-
-    active - the paths that are still active in the analysis.
-    deadended - the paths that are still active in the analysis.
-    spilled - the paths that are still active in the analysis.
-    errored - the paths that have at least one error-state exit.
-    pruned - paths that were pruned because their ancestors were unsat.
-    unconstrained - paths that have a successor with an unconstrained instruction pointer.
     """
 
     # TODO: what about errored? It's a problem cause those paths are duplicates, and could cause confusion...
