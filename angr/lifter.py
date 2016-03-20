@@ -6,6 +6,8 @@ from archinfo import ArchARM
 
 import capstone
 
+from cachetools import LRUCache
+
 l = logging.getLogger("angr.lifter")
 
 VEX_IRSB_MAX_SIZE = 400
@@ -18,7 +20,7 @@ class Lifter(object):
         self._project = project
         self._thumbable = isinstance(project.arch, ArchARM)
         self._cache_enabled = cache
-        self._block_cache = {}
+        self._block_cache = LRUCache(maxsize=10000)
 
     def lift(self, addr, arch=None, insn_bytes=None, max_size=None, num_inst=None,
              traceflags=0, thumb=False, backup_state=None, opt_level=None):
