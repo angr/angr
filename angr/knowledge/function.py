@@ -424,7 +424,7 @@ class Function(object):
         """
         Get the target of a call.
 
-        :param callsite_addr        The address of a basic block that ends in a call.
+        :param callsite_addr:       The address of a basic block that ends in a call.
         :return:                    The target of said call, or None if callsite_addr is not a
                                     callsite.
         """
@@ -436,7 +436,7 @@ class Function(object):
         """
         Get the hypothetical return address of a call.
 
-        :param callsite_addr        The address of the basic block that ends in a call
+        :param callsite_addr:       The address of the basic block that ends in a call.
         :return:                    The likely return target of said call, or None if callsite_addr
                                     is not a callsite.
         """
