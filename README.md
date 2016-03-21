@@ -18,7 +18,7 @@ angr is a suite of python libraries that let you load a binary and do a lot of c
 - Data-dependency analysis
 - Value-set analysis (VSA)
 
-The most common angr operation is loading a binary: `p = angr.Program('/bin/bash')` If you do this in IPython, you can use tab-autocomplete to browse the [top-level-accessable methods][http://docs.angr.io/docs/toplevel.html] and their docstrings.
+The most common angr operation is loading a binary: `p = angr.Program('/bin/bash')` If you do this in IPython, you can use tab-autocomplete to browse the [top-level-accessable methods](http://docs.angr.io/docs/toplevel.html) and their docstrings.
 
 The short version of "how to install angr" is `mkvirtualenv angr && pip install angr`.
 
@@ -26,6 +26,6 @@ The short version of "how to install angr" is `mkvirtualenv angr && pip install 
 
 - [Install Instructions](http://docs.angr.io/INSTALL.html)
 - Documentation as [HTML](http://docs.angr.io/) and as a [Github repository](https://github.com/angr/angr-doc)
-- Dive right in: [top-level-accessable methods][http://docs.angr.io/docs/toplevel.html]
+- Dive right in: [top-level-accessable methods](http://docs.angr.io/docs/toplevel.html)
 - [Examples using angr to solve CTF challenges](https://github.com/angr/angr-doc/blob/master/examples.md).
 - [API Reference](http://angr.io/api-doc/)
