@@ -8,17 +8,39 @@ class Blade(object):
     Blade is a light-weight program slicer that works with networkx DiGraph containing SimIRSBs.
     It is meant to be used in angr for small or on-the-fly analyses.
     """
-    def __init__(self, graph, dst_run, dst_stmt_idx, direction='backward', project=None):
+    def __init__(self, graph, dst_run, dst_stmt_idx, direction='backward', project=None, cfg=None, ignore_sp=False,
+                 ignore_bp=False, max_level=3):
+        """
+        Constructor.
+
+        :param graph:
+        :param dst_run:
+        :param dst_stmt_idx:
+        :param direction:
+        :param project:
+        :param angr.analyses.CFGBase cfg: the CFG instance
+        :param ignore_sp:
+        :param ignore_bp:
+        :return: None
+        """
+
         self._graph = graph
         self._dst_run = dst_run
         self._dst_stmt_idx = dst_stmt_idx
+        self._ignore_sp = ignore_sp
+        self._ignore_bp = ignore_bp
+        self._max_level = max_level
 
         self._slice = networkx.DiGraph()
 
+        self.project = project
+        self._cfg = cfg
+        if self._cfg is None:
+            # `cfg` is made optional only for compatibility concern. It will be made a positional parameter later.
+            raise AngrBladeError('"cfg" must be specified.')
+
         if not self._in_graph(self._dst_run):
             raise AngrBladeError("The specified SimRun %s doesn't exist in graph.")
-
-        self.project = project
 
         self._run_cache = { }
 
@@ -31,11 +53,17 @@ class Blade(object):
         else:
             raise AngrBladeError("Unknown slicing direction %s", direction)
 
-    def _get_run(self, v):
-        if isinstance(v, simuvex.SimIRSB) or isinstance(v, simuvex.SimProcedure):
-            return v
+    def _get_irsb(self, v):
+        if isinstance(v, simuvex.SimProcedure):
+            raise AngrBladeSimProcError()
 
-        elif type(v) in (int, long):
+        elif isinstance(v, simuvex.SimIRSB):
+            v = v.addr
+
+        elif isinstance(v, CFGNode):
+            v = v.addr
+
+        if type(v) in (int, long):
             # Generate an IRSB from self._project
 
             if v in self._run_cache:
@@ -51,19 +79,32 @@ class Blade(object):
         else:
             raise AngrBladeError('Unsupported SimRun argument type %s', type(v))
 
+    def _get_cfgnode(self, thing):
+        """
+        Get the CFGNode corresponding to the specific address.
+
+        :param thing: Can be anything that self._normalize() accepts. Usually it's the address of the node
+        :return: the CFGNode instance
+        :rtype: CFGNode
+        """
+
+        return self._cfg.get_any_node(self._normalize(thing))
+
     def _normalize(self, v):
         if isinstance(v, simuvex.SimIRSB) or isinstance(v, simuvex.SimProcedure):
             if type(self._graph.nodes()[0]) in (int, long):
                 return v.addr
             else:
                 return v
+        elif isinstance(v, CFGNode):
+            return v.addr
         elif type(v) in (int, long):
             return v
         else:
             raise AngrBladeError('Unsupported SimRun argument type %s', type(v))
 
     def _in_graph(self, v):
-        return self._normalize(v) in self._graph
+        return self._get_cfgnode(v) in self._graph
 
 
     @property
@@ -100,7 +141,7 @@ class Blade(object):
         regs = set()
 
         # Retrieve the target: are we slicing from a register(IRStmt.Put), or a temp(IRStmt.WrTmp)?
-        stmts = self._get_run(self._dst_run).irsb.statements
+        stmts = self._get_irsb(self._dst_run).statements
 
         if self._dst_stmt_idx != -1:
             dst_stmt = stmts[self._dst_stmt_idx]
@@ -113,7 +154,7 @@ class Blade(object):
                 raise AngrBladeError('Incorrect type of the specified target statement. We only support Put and WrTmp.')
 
         else:
-            next_expr = self._get_run(self._dst_run).irsb.next
+            next_expr = self._get_irsb(self._dst_run).next
 
             if type(next_expr) is pyvex.IRExpr.RdTmp:
                 temps.add(next_expr.tmp)
@@ -126,108 +167,87 @@ class Blade(object):
             # Then we gotta start from the very last statement!
             self._dst_stmt_idx = len(stmts) - 1
 
-        slicer = simuvex.SimSlicer(stmts, temps, regs,
+        slicer = simuvex.SimSlicer(self.project.arch, stmts,
+                                   target_tmps=temps,
+                                   target_regs=regs,
+                                   target_stack_offsets=None,
                                    inslice_callback=self._inslice_callback,
                                    inslice_callback_infodict={
-                                       'irsb_addr':  self._get_run(self._dst_run).addr
+                                       'irsb_addr':  self._get_irsb(self._dst_run)._addr
                                    })
         regs = slicer.final_regs
+        if self._ignore_sp and self.project.arch.sp_offset in regs:
+            regs.remove(self.project.arch.sp_offset)
+        if self._ignore_bp and self.project.arch.bp_offset in regs:
+            regs.remove(self.project.arch.bp_offset)
+
+        stack_offsets = slicer.final_stack_offsets
 
         prev = slicer.inslice_callback_infodict['prev']
 
-        if regs:
-            predecessors = self._graph.predecessors(self._normalize(self._dst_run))
+        if regs or stack_offsets:
+            cfgnode = self._get_cfgnode(self._dst_run)
+            in_edges = self._graph.in_edges(cfgnode, data=True)
 
-            for p in predecessors:
-                if p not in self._traced_runs:
-                    self._traced_runs.add(p)
-                    self._backward_slice_recursive(p, regs, prev)
+            for pred, _, data in in_edges:
+                if pred not in self._traced_runs:
+                    self._traced_runs.add(pred)
+                    self._backward_slice_recursive(self._max_level - 1, pred, regs, stack_offsets, prev, data['stmt_idx'])
 
-    def _backward_slice_recursive(self, run, regs, prev):
+    def _backward_slice_recursive(self, level, run, regs, stack_offsets, prev, exit_stmt_idx):
+
+        if level <= 0:
+            return
+
         temps = set()
         regs = regs.copy()
 
-        stmts = self._get_run(run).irsb.statements
+        stmts = self._get_irsb(run).statements
 
-        # Initialize the temps set with whatever in the `next` attribute of this irsb
-        next_expr = self._get_run(run).irsb.next
-        if type(next_expr) is pyvex.IRExpr.RdTmp:
-            temps.add(next_expr.tmp)
+        if exit_stmt_idx is None or exit_stmt_idx == 'default':
+            # Initialize the temps set with whatever in the `next` attribute of this irsb
+            next_expr = self._get_irsb(run).next
+            if type(next_expr) is pyvex.IRExpr.RdTmp:
+                temps.add(next_expr.tmp)
 
-        slicer = simuvex.SimSlicer(stmts, temps, regs,
+        else:
+            exit_stmt = self._get_irsb(run).statements[exit_stmt_idx]
+
+            if type(exit_stmt.guard) is pyvex.IRExpr.RdTmp:
+                temps.add(exit_stmt.guard.tmp)
+
+            # Put it in our slice
+            irsb_addr = self._normalize(run)
+            self._inslice_callback(exit_stmt_idx, exit_stmt, {'irsb_addr': irsb_addr, 'prev': prev})
+            prev = (irsb_addr, exit_stmt_idx)
+
+        slicer = simuvex.SimSlicer(self.project.arch, stmts,
+                                   target_tmps=temps,
+                                   target_regs=regs,
+                                   target_stack_offsets=stack_offsets,
                                    inslice_callback=self._inslice_callback,
                                    inslice_callback_infodict={
-                                       'irsb_addr' : self._get_run(run).addr,
+                                       'irsb_addr' : self._normalize(run),
                                        'prev' : prev
                                    })
         regs = slicer.final_regs
 
+        if self._ignore_sp and self.project.arch.sp_offset in regs:
+            regs.remove(self.project.arch.sp_offset)
+        if self._ignore_bp and self.project.arch.bp_offset in regs:
+            regs.remove(self.project.arch.bp_offset)
+
+        stack_offsets = slicer.final_stack_offsets
+
         prev = slicer.inslice_callback_infodict['prev']
 
-        if regs:
-            predecessors = self._graph.predecessors(self._normalize(run))
+        if regs or stack_offsets:
+            in_edges = self._graph.in_edges(self._get_cfgnode(run), data=True)
 
-            for p in predecessors:
-                if p not in self._traced_runs:
-                    self._traced_runs.add(p)
-                    self._backward_slice_recursive(p, regs, prev)
+            for pred, _, data in in_edges:
+                if pred not in self._traced_runs:
+                    self._traced_runs.add(pred)
+                    self._backward_slice_recursive(level - 1, pred, regs, stack_offsets, prev, data['stmt_idx'])
 
-    #
-    # Backward slice IRStmt handlers
-    #
-
-    def _backward_handler_stmt_WrTmp(self, stmt, temps, regs):
-        tmp = stmt.tmp
-
-        if tmp not in temps:
-            return False
-
-        temps.remove(tmp)
-
-        self._backward_handler_expr(stmt.data, temps, regs)
-
-        return True
-
-    def _backward_handler_stmt_Put(self, stmt, temps, regs):
-        reg = stmt.offset
-
-        if reg in regs:
-            regs.remove(reg)
-
-            self._backward_handler_expr(stmt.data, temps, regs)
-
-            return True
-
-        else:
-            return False
-
-    #
-    # Backward slice IRExpr handlers
-    #
-
-    def _backward_handler_expr(self, expr, temps, regs):
-        funcname = "_backward_handler_expr_%s" % type(expr).__name__
-        in_slice = False
-        if hasattr(self, funcname):
-            in_slice = getattr(self, funcname)(expr, temps, regs)
-
-        return in_slice
-
-    def _backward_handler_expr_RdTmp(self, expr, temps, regs):
-        tmp = expr.tmp
-
-        temps.add(tmp)
-
-    def _backward_handler_expr_Get(self, expr, temps, regs):
-        reg = expr.offset
-
-        regs.add(reg)
-
-    def _backward_handler_expr_Load(self, expr, temps, regs):
-        addr = expr.addr
-
-        if type(addr) is pyvex.IRExpr.RdTmp:
-            # FIXME: Process other types
-            self._backward_handler_expr(addr, temps, regs)
-
-from .errors import AngrBladeError
+from .errors import AngrBladeError, AngrBladeSimProcError
+from .analyses.cfg_node import CFGNode
