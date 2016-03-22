@@ -157,7 +157,7 @@ class VFG(Analysis):
         for p in paths:
             runs = map(self.irsb_from_node, p)
             a_paths.append(angr.path.make_path(self.project, runs))
-            return a_paths
+        return a_paths
 
     #
     # Operations
