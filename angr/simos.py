@@ -248,7 +248,7 @@ class SimLinux(SimOS):
 
         return state
 
-    def state_entry(self, args=None, env=None, sargc=None, **kwargs):
+    def state_entry(self, args=None, env=None, argc=None, **kwargs):
         state = super(SimLinux, self).state_entry(**kwargs)
 
         # Handle default values
@@ -259,9 +259,10 @@ class SimLinux(SimOS):
             env = {}
 
         # Prepare argc
-        argc = state.se.BVV(len(args), state.arch.bits)
-        if sargc is not None:
-            argc = state.se.Unconstrained("argc", state.arch.bits)
+        if argc is None:
+            argc = state.se.BVV(len(args), state.arch.bits)
+        elif type(argc) in (int, long):
+            argc = state.se.BVV(argc, state.arch.bits)
 
         # Make string table for args/env/auxv
         table = StringTableSpec()
