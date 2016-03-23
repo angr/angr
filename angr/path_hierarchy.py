@@ -39,6 +39,7 @@ class PathHierarchy(object):
             return True
         else:
             s = se._solver.satisfiable()
+            se.downsize()
             if s:
                 self._good.add(se)
             return s
@@ -127,5 +128,7 @@ class PathHierarchy(object):
         for s in successors:
             self._parents[s.state.se] = p.state.se
             self._path_mapping[s.state.se] = s
+
+        p.state.downsize()
 
 from .errors import PathUnreachableError
