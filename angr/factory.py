@@ -134,45 +134,99 @@ class AngrObjectFactory(object):
 
     def blank_state(self, **kwargs):
         """
-        Returns a blank state object.
+        Returns a mostly-uninitialized state object. All parameters are optional.
 
-        Additional keyword arguments will be passed into the appropriate SimOS's blank_state method.
-
-        :keyword fs:          A dictionary of file names with associated preset SimFile objects.
-        :keyword concrete_fs: bool describing whether the host filesystem should be consulted when opening files.
-        :keyword chroot:      A path to use as a fake root directory, Behaves similarly to a real chroot. Used only
-                              when concrete_fs is set to True.
-        :return:              The blank state.
-        :rtype:               simuvex.SimState
+        :param addr:            The address the state should start at instead of the entry point.
+        :param initial_prefix:  If this is provided, all symbolic registers will hold symbolic values with names
+                                prefixed by this string.
+        :param fs:              A dictionary of file names with associated preset SimFile objects.
+        :param concrete_fs:     bool describing whether the host filesystem should be consulted when opening files.
+        :param chroot:          A path to use as a fake root directory, Behaves similarly to a real chroot. Used only
+                                when concrete_fs is set to True.
+        :param kwargs:          Any additional keyword args will be passed to the SimState constructor.
+        :return:                The blank state.
+        :rtype:                 simuvex.s_state.SimState
         """
         return self._project._simos.state_blank(**kwargs)
 
     def entry_state(self, **kwargs):
         """
-        Returns a state object representing the program at its entry point.
+        Returns a state object representing the program at its entry point. All parameters are optional.
 
-        Additional keyword arguments will be passed into the appropriate SimOS's entry_state method:
-
-        :param fs:          a dictionary of file names with associated preset SimFile objects.
-        :param concrete_fs: boolean describing whether the host filesystem should be consulted when opening files.
-        :param chroot:      a path to use as a fake root directory, behaves similar to a real chroot. used only when
-                            concrete_fs is set to True.
-        :return:            The entry state.
-        :rtype:             simuvex.SimState
+        :param addr:            The address the state should start at instead of the entry point.
+        :param initial_prefix:  If this is provided, all symbolic registers will hold symbolic values with names
+                                prefixed by this string.
+        :param fs:              a dictionary of file names with associated preset SimFile objects.
+        :param concrete_fs:     boolean describing whether the host filesystem should be consulted when opening files.
+        :param chroot:          a path to use as a fake root directory, behaves similar to a real chroot. used only when
+                                concrete_fs is set to True.
+        :param argc:            a custom value to use for the program's argc. May be either an int or a bitvector. If
+                                not provided, defaults to the length of args.
+        :param args:            a list of values to use as the program's argv. May be mixed strings and bitvectors.
+        :param env:             a dictionary to use as the environment for the program. Both keys and values may be
+                                mixed strings and bitvectors.
+        :return:                The entry state.
+        :rtype:                 simuvex.s_state.SimState
         """
 
         return self._project._simos.state_entry(**kwargs)
 
     def full_init_state(self, **kwargs):
+        """
+        Very much like :meth:`entry_state()`, except that instead of starting execution at the program entry point,
+        execution begins at a special SimProcedure that plays the role of the dynamic loader, calling each of the
+        initializer functions that should be called before execution reaches the entry point.
+
+        :param addr:            The address the state should start at instead of the entry point.
+        :param initial_prefix:  If this is provided, all symbolic registers will hold symbolic values with names
+                                prefixed by this string.
+        :param fs:              a dictionary of file names with associated preset SimFile objects.
+        :param concrete_fs:     boolean describing whether the host filesystem should be consulted when opening files.
+        :param chroot:          a path to use as a fake root directory, behaves similar to a real chroot. used only when
+                                concrete_fs is set to True.
+        :param argc:            a custom value to use for the program's argc. May be either an int or a bitvector. If
+                                not provided, defaults to the length of args.
+        :param args:            a list of values to use as arguments to the program. May be mixed strings and bitvectors.
+        :param env:             a dictionary to use as the environment for the program. Both keys and values may be
+                                mixed strings and bitvectors.
+        :return:                The fully initialized state.
+        :rtype:                 simuvex.s_state.SimState
+        """
         return self._project._simos.state_full_init(**kwargs)
 
     def path(self, state=None, **options):
+        """
+        Constructs a new path.
+
+        :param state:           Optional - The state to start the new path at. If not provided, an
+                                :meth:`entry_state()` will be constructed using any additional keyword arguments
+                                provided.
+        :return:                The new path.
+        :rtype:                 angr.path.Path
+        """
         if state is None:
             state = self.entry_state(**options)
 
         return Path(self._project, state)
 
     def path_group(self, thing=None, **kwargs):
+        """
+        Constructs a new path group.
+
+        :param thing:           Optional - What to put in the new path group's active stash.
+        :param kwargs:          Any additional keyword arguments will be passed to the PathGroup constructor
+        :returns:               The new path group
+        :rtype:                 angr.path_group.PathGroup
+
+        Many different types can be passed to this method:
+
+        * If nothing is passed in, the path group is seeded with a path containing a state initialized for the program
+          entry point, i.e. :meth:`entry_state()`.
+        * If a :class:`simuvex.s_state.SimState` is passed in, the path group is seeded with a path wrapping that state.
+        * If a :class:`angr.path.Path` is passed in, the path group is seeded with that path.
+        * If a list is passed in, the list must contain only SimStates and Paths, each SimState will be wrapped in a
+          Path, and the whole list will be used to seed the path group.
+        """
         if thing is None:
             thing = [self.path()]
 
@@ -194,7 +248,7 @@ class AngrObjectFactory(object):
 
     def callable(self, addr, concrete_only=False, prototype=None, base_state=None, toc=None):
         """
-        Callable is a representation of a function in the binary that can be interacted with like a native python
+        A Callable is a representation of a function in the binary that can be interacted with like a native python
         function.
 
         :param addr:            The address of the function to use.
@@ -202,6 +256,9 @@ class AngrObjectFactory(object):
         :param prototype:       Optional: A SimTypeFunction instance describing the functions args and return type.
         :param base_state:      Optional: The state from which to do these runs.
         :param toc:             Optional: The address of the table of contents for ppc64.
+        :returns:               A Callable object that can be used as a interface for executing guest code like a
+                                python function.
+        :rtype:                 angr.surveyors.caller.Callable
         """
         return Callable(self._project, addr, concrete_only, prototype, base_state, toc)
 
