@@ -1,12 +1,13 @@
-import logging
 import sys
+import logging
+import capstone
+from cachetools import LRUCache
+
 import pyvex
 import simuvex
 from archinfo import ArchARM
 
-import capstone
 
-from cachetools import LRUCache
 
 l = logging.getLogger("angr.lifter")
 
@@ -96,33 +97,25 @@ class Lifter(object):
         pyvex.set_iropt_level(opt_level)
         try:
             if passed_max_size and not passed_num_inst:
-                irsb = pyvex.IRSB(bytes=buff,
-                                  mem_addr=addr,
+                irsb = pyvex.IRSB(buff, addr, arch,
                                   num_bytes=max_size,
-                                  arch=arch,
                                   bytes_offset=byte_offset,
                                   traceflags=traceflags)
             elif not passed_max_size and passed_num_inst:
-                irsb = pyvex.IRSB(bytes=buff,
-                                  mem_addr=addr,
+                irsb = pyvex.IRSB(buff, addr, arch,
                                   num_bytes=VEX_IRSB_MAX_SIZE,
                                   num_inst=num_inst,
-                                  arch=arch,
                                   bytes_offset=byte_offset,
                                   traceflags=traceflags)
             elif passed_max_size and passed_num_inst:
-                irsb = pyvex.IRSB(bytes=buff,
-                                  mem_addr=addr,
+                irsb = pyvex.IRSB(buff, addr, arch,
                                   num_bytes=min(size, max_size),
                                   num_inst=num_inst,
-                                  arch=arch,
                                   bytes_offset=byte_offset,
                                   traceflags=traceflags)
             else:
-                irsb = pyvex.IRSB(bytes=buff,
-                                  mem_addr=addr,
+                irsb = pyvex.IRSB(buff, addr, arch,
                                   num_bytes=min(size, max_size),
-                                  arch=arch,
                                   bytes_offset=byte_offset,
                                   traceflags=traceflags)
         except pyvex.PyVEXError:
@@ -140,7 +133,9 @@ class Lifter(object):
                     continue
                 if self._project.is_hooked(stmt.addr):
                     size = stmt.addr - real_addr
-                    irsb = pyvex.IRSB(bytes=buff, mem_addr=addr, num_bytes=size, arch=arch, bytes_offset=byte_offset,
+                    irsb = pyvex.IRSB(buff, addr, arch,
+                                      num_bytes=size,
+                                      bytes_offset=byte_offset,
                                       traceflags=traceflags)
                     break
 
