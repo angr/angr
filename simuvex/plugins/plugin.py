@@ -13,10 +13,7 @@ class SimStatePlugin(ana.Storable):
 
     # Sets a new state (for example, if the state has been branched)
     def set_state(self, state):
-        if state is None or type(state).__name__ == 'weakproxy':
-            self.state = state
-        else:
-            self.state = weakref.proxy(state)
+        self.state = state
 
     # Should return a copy of the state plugin.
     def copy(self):
