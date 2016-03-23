@@ -9,12 +9,15 @@ class Callable(object):
 
     def __init__(self, project, addr, concrete_only=False, prototype=None, base_state=None, toc=None):
         """
-        :param project: the project to operate on
-        :param addr: the address of the function to use
-        :param concrete_only: Optional: Throw an exception if the execution splits into multiple paths
-        :param prototype: Optional: A SimTypeFunction instance describing the functions args and return type
-        :param base_state: Optional: The state from which to do these runs
-        :param toc: Optional: The address of the table of contents for ppc64
+        :param project:         The project to operate on
+        :param addr:            The address of the function to use
+
+        The following parameters are optional:
+
+        :param concrete_only:   Throw an exception if the execution splits into multiple paths
+        :param prototype:       A SimTypeFunction instance describing the functions args and return type
+        :param base_state:      The state from which to do these runs
+        :param toc:             The address of the table of contents for ppc64
         """
 
         if prototype is not None and not isinstance(prototype, simuvex.s_type.SimTypeFunction):
@@ -127,13 +130,13 @@ class Caller(Explorer):
 
     def __init__(self, project, addr, args=(), start=None, num_find=None, concrete_only=False, **kwargs):
         """
-        :param project: the project
-        :param addr: the address to start calling at
-        :param args: a tuple of arguments. Any members that are None will be replaced with symbolic expressions with a
-        length of the architecture's bitwidth.
-        :param start: a path (or set of paths) to start from
-        :param num_find: find at least this many returns from the function
-        :param concrete_only: Throw an exception if the execution splits into multiple paths
+        :param project:         the project
+        :param addr:            the address to start calling at
+        :param args:            a tuple of arguments. Any members that are None will be replaced with symbolic expressions with a
+                                length of the architecture's bitwidth.
+        :param start:           a path (or set of paths) to start from
+        :param num_find:        find at least this many returns from the function
+        :param concrete_only:   Throw an exception if the execution splits into multiple paths
         """
 
         self._fake_return_addr = project.entry

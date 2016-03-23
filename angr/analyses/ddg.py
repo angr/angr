@@ -31,10 +31,8 @@ class DDG(Analysis):
     """
     def __init__(self, cfg, start=None, keep_data=False, call_depth=None):
         """
-        The constructor.
-
         :param cfg:         Control flow graph. Please make sure each node has an associated `state` with it. You may
-                            want to generate your CFG with `keep_state`=True.
+                            want to generate your CFG with `keep_state=True`.
         :param start:       An address, Specifies where we start the generation of this data dependence graph.
         :param call_depth:  None or integers. A non-negative integer specifies how deep we would like to track in the
                             call tree. None disables call_depth limit.

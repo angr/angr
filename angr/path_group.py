@@ -28,7 +28,10 @@ class PathGroup(ana.Storable):
     argument to __init__.
 
     Stashes can be accessed as attributes (i.e. pg.active). A mulpyplexed stash can be retrieved by prepending the name
-    with 'mp_' (i.e., pg.mp_active).
+    with `mp_` (e.g., `pg.mp_active`).
+
+    Note that you shouldn't usually be constructing path groups directly - there are convenient shortcuts for
+    creating path groups in `Project.factory`: see :class:`angr.factory.AngrObjectFactory`.
     """
 
     ALL = '_ALL'
@@ -38,10 +41,11 @@ class PathGroup(ana.Storable):
                  veritesting_options=None, immutable=None, resilience=None, save_unconstrained=None,
                  save_unsat=None, strong_path_mapping=None, threads=None):
         """
-        Initializes a new PathGroup.
-
         :param project:         A Project instance.
         :type  project:         angr.project.Project
+
+        The following parameters are optional.
+
         :param active_paths:    Active paths to seed the "active" stash with.
         :param stashes:         A dictionary to use as the stash store.
         :param hierarchy:       A PathHierarchy object to use to track path reachability.
@@ -85,7 +89,7 @@ class PathGroup(ana.Storable):
         :param args:        Arguments to call the function with.
         :param start:       Optional, path (or paths) to start the call with.
         :param prototype:   Optional, A SimTypeFunction to typecheck arguments against.
-        :param **kwargs:    Other kwargs to pass to construct PathGroup.
+        :param kwargs:      Any other keyword args will be passed to the PathGroup constructor.
         :returns:           A PathGroup calling the function.
         :rtype:             PathGroup
         """

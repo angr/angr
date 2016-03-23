@@ -54,9 +54,6 @@ class Project(object):
                  translation_cache=True,
                  support_selfmodifying_code=False):
         """
-        This constructs a Project object.
-
-
         :param thing:                       The path to the main executable object to analyze, or a CLE Loader object.
 
         The following parameters are optional.
@@ -72,19 +69,23 @@ class Project(object):
         :param arch:                        The target architecture (auto-detected otherwise).
         :param simos:                       a SimOS class to use for this project.
         :param load_options:                a dict of keyword arguments to the CLE loader. See CLE's docs.
-                                            { 'auto_load_libs': False,
-                                              'skip_libs': 'ld.so.2',
-                                              'lib_opts': {
-                                                'libc.so.6': {
-                                                'custom_base_addr': 0x55555400
-                                                }
-                                              }
-                                            }
         :param translation_cache:           If True, cache translated basic blocks rather than re-translating them.
         :param support_selfmodifying_code:  Whether we support self-modifying code. When enabled, Project.sim_block()
                                             will try to read code from the given state, not only from the initial memory
                                             regions.
         :type  support_selfmodifying_code:  bool
+
+        A sample `load_options` value could be:
+        ::
+
+            { 'auto_load_libs': False,
+              'skip_libs': 'ld.so.2',
+              'lib_opts': {
+                'libc.so.6': {
+                'custom_base_addr': 0x55555400
+                }
+              }
+            }
         """
 
         # Step 1: Load the binary
@@ -257,7 +258,7 @@ class Project(object):
         :param addr:        The address to hook.
         :param func:        The function that will perform an action when execution reaches the hooked address.
         :param length:      How many bytes you'd like to skip over with your hook. Can be zero.
-        :param **kwargs:    A dictionary of keyword arguments to be passed to your function or your
+        :param kwargs:      Any additional keyword arguments will be passed to your function or your
                             :class:`SimProcedure`'s run function.
         """
 
@@ -328,7 +329,7 @@ class Project(object):
         :param symbol_name: The name of the dependency to resolve.
         :param obj:         The thing with which to satisfy the dependency. May be a SimProcedure class or a python
                             function (as an appropriate argument to hook()), or a python integer/long.
-        :param **kwargs:    An optional dictionary of arguments to be passed to the SimProcedure's run() method.
+        :param kwargs:      Any additional keyword arguments will be passed to the SimProcedure's run() method.
         """
         if kwargs is None: kwargs = {}
         ident = 'symbol hook: ' + symbol_name

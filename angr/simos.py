@@ -149,7 +149,7 @@ class SimOS(object):
 
 class SimLinux(SimOS):
     """
-    OS-specific configuration for *nix-y OSes.
+    OS-specific configuration for \\*nix-y OSes.
     """
     def __init__(self, *args, **kwargs):
         super(SimLinux, self).__init__(*args, **kwargs)

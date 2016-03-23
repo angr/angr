@@ -707,7 +707,7 @@ class Path(object):
 
     def merge(self, *others):
         """
-        Returns a merger of this path with *others.
+        Returns a merger of this path with `*others`.
         """
         all_paths = list(others) + [ self ]
         if len(set([ o.addr for o in all_paths])) != 1:

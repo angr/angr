@@ -224,7 +224,7 @@ class Surveyor(object):
         Runs the analysis through completion (until done() returns True) or, if n is provided, n times.
 
         :param n: the maximum number of ticks
-        :returnss itself for chaining
+        :returns: itself for chaining
         """
         global STOP_RUNS, PAUSE_RUNS  # pylint: disable=W0602,
 
