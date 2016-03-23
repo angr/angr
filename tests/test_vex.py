@@ -109,7 +109,7 @@ def test_store_simplification():
     state.regs.ebp = state.se.BVS('base_pointer', 32)
     state.regs.eax = state.se.BVS('base_eax', 32)
 
-    irsb = pyvex.IRSB(bytes='PT]\xc2\x10\x00', arch=state.arch, mem_addr=0x4000)
+    irsb = pyvex.IRSB('PT]\xc2\x10\x00', 0x4000, state.arch)
     sirsb = SimIRSB(state, irsb)
     exit_state = sirsb.default_exit
 
