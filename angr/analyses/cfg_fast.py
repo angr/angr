@@ -261,7 +261,7 @@ class CFGFast(Analysis, CFGBase):
 
     def __init__(self, binary=None, start=None, end=None, pickle_intermediate_results=False,
                  symbols=True, function_prologues=True, resolve_indirect_jumps=True, force_segment=False,
-                 force_complete_scan=True):
+                 force_complete_scan=True, indirect_jump_target_limit=100000):
         """
         Constructor
 
@@ -287,6 +287,7 @@ class CFGFast(Analysis, CFGBase):
         self._end = end if end is not None else (self._binary.rebase_addr + self._binary.get_max_addr())
 
         self._pickle_intermediate_results = pickle_intermediate_results
+        self._indirect_jump_target_limit = indirect_jump_target_limit
 
         self._use_symbols = symbols
         self._use_function_prologues = function_prologues
@@ -727,21 +728,32 @@ class CFGFast(Analysis, CFGBase):
 
         for addr, jumpkind in self._indirect_jumps:
 
-            # is it a jump table?
-            resolvable, targets = self._resolve_jump_table(addr, jumpkind)
+            resolved.add((addr, jumpkind))
 
+            # is it a jump table? try with the fast approach
+            resolvable, targets = self._resolve_jump_table_fast(addr, jumpkind)
             if resolvable:
                 all_targets |= set(targets)
-            resolved.add((addr, jumpkind))
+                continue
+
+            # is it a slightly more complex jump table? try the slow approach
+            # resolvable, targets = self._resolve_jump_table_accurate(addr, jumpkind)
+            # if resolvable:
+            #    all_targets |= set(targets)
+            #    continue
 
         for t in resolved:
             self._indirect_jumps.remove(t)
 
         return all_targets
 
-    def _resolve_jump_table(self, addr, jumpkind):
+    def _resolve_jump_table_fast(self, addr, jumpkind):
         """
         Check if the indirect jump is a jump table, and if it is, resolve it and return all possible targets.
+
+        This is a fast jump table resolution. For performance concerns, we made the following assumptions:
+        - The final jump target comes from the memory.
+        - The final jump target must be directly read out of the memory, without any further modification or altering.
 
         :param int addr: the address of the basic block
         :param str jumpkind: the jump kind of the indirect jump
@@ -756,6 +768,37 @@ class CFGFast(Analysis, CFGBase):
         # Perform a backward slicing from the jump target
         b = Blade(self.graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True)
 
+        stmt_loc = (addr, 'default')
+
+        load_stmt_loc, load_stmt = None, None
+        past_stmts = [ stmt_loc ]
+        while True:
+            preds = b.slice.predecessors(stmt_loc)
+            if len(preds) != 1:
+                return False, None
+            block_addr, stmt_idx = preds[0]
+            block = self.project.factory.block(block_addr).vex
+            stmt = block.statements[stmt_idx]
+            if isinstance(stmt, pyvex.IRStmt.WrTmp) or isinstance(stmt, pyvex.IRStmt.Put):
+                if isinstance(stmt.data, pyvex.IRExpr.Get) or isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+                    # data transferring
+                    past_stmts.append(stmt_loc)
+                    stmt_loc = (block_addr, stmt_idx)
+                    continue
+                elif isinstance(stmt.data, pyvex.IRExpr.Load):
+                    # Got it!
+                    stmt_loc = (block_addr, stmt_idx)
+                    load_stmt, load_stmt_loc = stmt, stmt_loc
+                    past_stmts.append(stmt_loc)
+            break
+
+        if load_stmt_loc is None:
+            # the load statement is not found
+            return False, None
+
+        # skip all statements before the load statement
+        b.slice.remove_nodes_from(past_stmts)
+
         # Debugging output
         for addr, stmt_idx in sorted(list(b.slice.nodes())):
             irsb = self.project.factory.block(addr).vex
@@ -763,7 +806,6 @@ class CFGFast(Analysis, CFGBase):
             print "%x: %d | " % (addr, stmt_idx),
             print "%s" % stmts[stmt_idx],
             print "%d" % b.slice.in_degree((addr, stmt_idx))
-
         print ""
 
         # Get all sources
@@ -782,7 +824,113 @@ class CFGFast(Analysis, CFGBase):
                     mode='static',
                     add_options={
                         simuvex.o.DO_RET_EMULATION,
-                        simuvex.o.TRUE_RET_EMULATION_GUARD
+                        simuvex.o.TRUE_RET_EMULATION_GUARD,
+                    }
+            )
+            start_state.regs.bp = start_state.arch.initial_sp + 0x2000
+
+            start_path = self.project.factory.path(start_state)
+
+            # Create the slicecutor
+            slicecutor = Slicecutor(self.project, annotatedcfg, start=start_path, targets=(load_stmt_loc[0],))
+
+            # Run it!
+            try:
+                slicecutor.run()
+            except KeyError as ex:
+                # This is because the program slice is incomplete.
+                # Blade will support more IRExprs and IRStmts
+                l.debug("KeyError occurred due to incomplete program slice.", exc_info=ex)
+                continue
+
+            # Get the jumping targets
+            for r in slicecutor.deadended:
+
+                all_states = r.next_run.unsat_successors
+                state = all_states[0] # Just take the first state
+
+                # Parse the memory load statement
+                load_addr_tmp = load_stmt.data.addr.tmp
+                jump_addr = state.scratch.temps[load_addr_tmp]
+                total_cases = jump_addr._model_vsa.cardinality
+                all_targets = [ ]
+
+                if total_cases > self._indirect_jump_target_limit:
+                    # We resolved too many targets for this indirect jump. Something might have gone wrong.
+                    l.warning("%d targets are resolved for the indirect jump at %#x. It may not be a jump table"
+                              , total_cases, addr)
+                    return False, None
+
+                    # Or alternatively, we can ask user, which is meh...
+                    #
+                    # jump_base_addr = int(raw_input("please give me the jump base addr: "), 16)
+                    # total_cases = int(raw_input("please give me the total cases: "))
+                    # jump_target = state.se.SI(bits=64, lower_bound=jump_base_addr, upper_bound=jump_base_addr + (total_cases - 1) * 8, stride=8)
+
+                jump_table = [ ]
+
+                for idx, a in enumerate(state.se.any_n_int(jump_addr, total_cases)):
+                    if idx % 100 == 0:
+                        l.debug("Resolved %d targets for the indirect jump at %#x", idx, addr)
+                        print("Resolved %d targets for the indirect jump at %#x" % (idx, addr))
+                    jump_target = state.memory.load(a, state.arch.bits / 8, endness=state.arch.memory_endness)
+                    target = state.se.any_int(jump_target)
+                    all_targets.append(target)
+                    jump_table.append(target)
+
+                l.info("Jump table resolution: resolved %d targets from %#x", len(all_targets), addr)
+                self._jump_tables[addr] = jump_table
+                return True, all_targets
+
+        return False, None
+
+    def _resolve_jump_table_accurate(self, addr, jumpkind):
+        """
+        Check if the indirect jump is a jump table, and if it is, resolve it and return all possible targets.
+
+        This is the accurate (or rather, slower) version jump table resolution.
+
+        :param int addr: the address of the basic block
+        :param str jumpkind: the jump kind of the indirect jump
+        :return: a bool indicating whether the indirect jump is resolved successfully, and a list of resolved targets
+        :rtype: tuple
+        """
+
+        if jumpkind != "Ijk_Boring":
+            # Currently we only support boring ones
+            return False, None
+
+        # Perform a backward slicing from the jump target
+        b = Blade(self.graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True)
+
+        # Debugging output
+        # for addr, stmt_idx in sorted(list(b.slice.nodes())):
+        #    irsb = self.project.factory.block(addr).vex
+        #    stmts = irsb.statements
+        #    print "%x: %d | " % (addr, stmt_idx),
+        #    print "%s" % stmts[stmt_idx],
+        #    print "%d" % b.slice.in_degree((addr, stmt_idx))
+        # print ""
+
+        # Get all sources
+        sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
+
+        # Create the annotated CFG
+        annotatedcfg = AnnotatedCFG(self.project, None, detect_loops=False)
+        annotatedcfg.from_digraph(b.slice)
+
+        for src_irsb, _ in sources:
+            # Use slicecutor to execute each one, and get the address
+            # We simply give up if any exception occurs on the way
+
+            start_state = self.project.factory.blank_state(
+                    addr=src_irsb,
+                    mode='static',
+                    add_options={
+                        simuvex.o.DO_RET_EMULATION,
+                        simuvex.o.TRUE_RET_EMULATION_GUARD,
+                        simuvex.o.KEEP_MEMORY_READS_DISCRETE, # Please do not merge values that are read out of the
+                                                              # memory
                     }
             )
             start_state.regs.bp = start_state.arch.initial_sp + 0x2000
@@ -804,64 +952,36 @@ class CFGFast(Analysis, CFGBase):
             # Get the jumping targets
             for r in slicecutor.reached_targets:
 
-                # Manually parse the address... this is weird :-(
-                # FIXME: DO NOT MANUALLY PARSE THE ADDRESS IN THE FUTURE
                 all_states = r.unconstrained_successor_states + [ s.state for s in r.successors ]
                 state = all_states[0]
-                irsb = self.project.factory.block(addr).vex
-                irsb_next_tmp = irsb.next.tmp
-                for stmt in reversed(list(irsb.statements)):
-                    if type(stmt) is pyvex.IRStmt.WrTmp and stmt.tmp == irsb_next_tmp:
-                        if not type(stmt.data) is pyvex.IRExpr.Load:
-                            return False, None
-                        if not type(stmt.data.addr) is pyvex.IRExpr.RdTmp:
-                            return False, None
-                        addr_tmp = stmt.data.addr.tmp
-                        jump_addr = state.scratch.temps[addr_tmp]
+                jump_target = state.ip
 
-                        total_cases = jump_addr._model_vsa.cardinality
-                        all_targets = [ ]
+                total_cases = jump_target._model_vsa.cardinality
+                all_targets = [ ]
 
-                        if total_cases > 100000:
-                            # this is a very ugly fix
-                            to_fix = jump_addr.args[0]
-                            new_arg0 = state.se.SI(bits=state.arch.bits, lower_bound=0, upper_bound=to_fix._model_vsa.upper_bound, stride=to_fix._model_vsa.stride)
-                            if jump_addr.op == "__add__":
-                                jump_addr = new_arg0 + jump_addr.args[1]
-                                total_cases = jump_addr._model_vsa.cardinality
-                            else:
-                                import ipdb; ipdb.set_trace()
+                if total_cases > self._indirect_jump_target_limit:
+                    # We resolved too many targets for this indirect jump. Something might have gone wrong.
+                    l.warning("%d targets are resolved for the indirect jump at %#x. It may not be a jump table"
+                              , addr)
+                    return False, None
 
-                        if total_cases > 100000:
-                            """
-                            if addr == 0x485a26:
-                                jump_base_addr = 0x815410
-                                total_cases = 7
-                            elif addr == 0x48d902:
-                                jump_base_addr, total_cases = 0x815190, 80
-                            elif addr == 0x646dca:
-                                jump_base_addr, total_cases = 0x814C48, 75
-                            else:
-                            """
-                            __import__('ipdb').set_trace()
-                            jump_base_addr = int(raw_input("please give me the jump base addr: "), 16)
-                            total_cases = int(raw_input("please give me the total cases: "))
+                    # Or alternatively, we can ask user, which is meh...
+                    #
+                    # jump_base_addr = int(raw_input("please give me the jump base addr: "), 16)
+                    # total_cases = int(raw_input("please give me the total cases: "))
+                    # jump_target = state.se.SI(bits=64, lower_bound=jump_base_addr, upper_bound=jump_base_addr + (total_cases - 1) * 8, stride=8)
 
-                            jump_addr = state.se.SI(bits=64, lower_bound=jump_base_addr, upper_bound=jump_base_addr + (total_cases - 1) * 8, stride=8)
+                jump_table = [ ]
 
-                        jump_table = [ ]
+                for idx, target in enumerate(state.se.any_n_int(jump_target, total_cases)):
+                    if idx % 100 == 0:
+                        l.debug("Resolved %d targets for the indirect jump at %#x", idx, addr)
+                    all_targets.append(target)
+                    jump_table.append(target)
 
-                        for idx, a in enumerate(state.se.any_n_int(jump_addr, total_cases)):
-                            if idx % 100 == 0:
-                                print idx
-                            jump_target = state.memory.load(a, state.arch.bits / 8, endness=state.arch.memory_endness)
-                            target = state.se.any_int(jump_target)
-                            all_targets.append(target)
-                            jump_table.append(target)
-
-                        l.info("Jump table resolution: resolved %d targets from %#x", len(all_targets), addr)
-                        self._jump_tables[addr] = jump_table
-                        return True, all_targets
+                    l.info("Jump table resolution: resolved %d targets from %#x", len(all_targets), addr)
+                    self._jump_tables[addr] = jump_table
+                    return True, all_targets
 
     def _resolve_indirect_calls(self):
         """
@@ -984,7 +1104,8 @@ class CFGFast(Analysis, CFGBase):
                 if b.addr in self.kb.functions and (b.addr - a.addr < 0x10) and b.addr % 0x10 == 0:
                     # b is the beginning of a function
                     # a should be removed
-                    self.graph.remove_node(a)
+                    self._remove_node(a)
+
                 else:
                     try:
                         block = self.project.factory.block(a.addr, max_size=b.addr-a.addr)
@@ -992,7 +1113,17 @@ class CFGFast(Analysis, CFGBase):
                         continue
                     if len(block.capstone.insns) == 1 and block.capstone.insns[0].insn_name() == "nop":
                         # It's a big nop
-                        self.graph.remove_node(a)
+                        self._remove_node(a)
+
+    def _remove_node(self, node):
+        self.graph.remove_node(node)
+
+        # We wanna remove the function as well
+        if node.addr in self.kb.functions:
+            del self.kb.functions[node.addr]
+
+        if node.addr in self.kb.functions.callgraph:
+            self.kb.functions.callgraph.remove_node(node.addr)
 
     def _analyze(self):
         """

@@ -153,7 +153,9 @@ class Blade(object):
             else:
                 raise AngrBladeError('Incorrect type of the specified target statement. We only support Put and WrTmp.')
 
+            prev = (self._normalize(self._dst_run), self._dst_stmt_idx)
         else:
+
             next_expr = self._get_irsb(self._dst_run).next
 
             if type(next_expr) is pyvex.IRExpr.RdTmp:
@@ -167,13 +169,16 @@ class Blade(object):
             # Then we gotta start from the very last statement!
             self._dst_stmt_idx = len(stmts) - 1
 
+            prev = (self._normalize(self._dst_run), 'default')
+
         slicer = simuvex.SimSlicer(self.project.arch, stmts,
                                    target_tmps=temps,
                                    target_regs=regs,
                                    target_stack_offsets=None,
                                    inslice_callback=self._inslice_callback,
                                    inslice_callback_infodict={
-                                       'irsb_addr':  self._get_irsb(self._dst_run)._addr
+                                       'irsb_addr':  self._get_irsb(self._dst_run)._addr,
+                                       'prev': prev,
                                    })
         regs = slicer.final_regs
         if self._ignore_sp and self.project.arch.sp_offset in regs:
