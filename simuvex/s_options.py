@@ -194,6 +194,11 @@ SPECIAL_MEMORY_FILL = "SPECIAL_MEMORY_FILL"
 
 # using this option the value inside the register ip is keeped symbolic
 KEEP_IP_SYMBOLIC = "KEEP_IP_SYMBOLIC"
+
+# Do not union values from different locations when reading from the memory for a reduced loss in precision
+# It is only applied to SimAbstractMemory
+KEEP_MEMORY_READS_DISCRETE = "KEEP_MEMORY_READS_DISCRETE"
+
 #
 # CGC specific state options
 #

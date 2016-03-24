@@ -10,6 +10,7 @@ from .symbolic_memory import SimSymbolicMemory
 l = logging.getLogger("simuvex.plugins.abstract_memory")
 
 WRITE_TARGETS_LIMIT = 2048
+READ_TARGETS_LIMIT = 4096
 
 #pylint:disable=unidiomatic-typecheck
 
@@ -297,8 +298,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
                 if len(concrete_addrs) == WRITE_TARGETS_LIMIT:
                     self.state.log.add_event('mem', message='too many targets to write to. address = %s' % addr_si)
             else:
-                concrete_addrs = addr_si.eval(WRITE_TARGETS_LIMIT)
-                if len(concrete_addrs) == WRITE_TARGETS_LIMIT:
+                concrete_addrs = addr_si.eval(READ_TARGETS_LIMIT)
+                if len(concrete_addrs) == READ_TARGETS_LIMIT:
                     self.state.log.add_event('mem', message='too many targets to read from. address = %s' % addr_si)
 
             for c in concrete_addrs:
@@ -398,8 +399,12 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         for aw in address_wrappers:
             new_val = self._do_load(aw.address, size, aw.region,
                                  is_stack=aw.is_on_stack, related_function_addr=aw.function_address)
+
             if val is None:
-                val = new_val
+                if KEEP_MEMORY_READS_DISCRETE in self.state.options:
+                    val = self.state.se.DSIS(to_conv=new_val, max_card=100000)
+                else:
+                    val = new_val
             else:
                 val = val.union(new_val)
 
@@ -569,3 +574,4 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 from ..s_errors import SimMemoryError
 from ..storage.memory import MemoryStoreRequest, RegionMap
 from claripy.vsa import ValueSet
+from ..s_options import KEEP_MEMORY_READS_DISCRETE
