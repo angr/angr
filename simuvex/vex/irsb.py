@@ -106,19 +106,30 @@ class SimIRSB(SimRun):
         if self.has_default_exit:
             l.debug("%s adding default exit.", self)
 
-            self.next_expr = translate_expr(self.irsb.next, self.last_imark, self.num_stmts, self.state)
-            self.state.log.extend_actions(self.next_expr.actions)
+            try:
+                self.next_expr = translate_expr(self.irsb.next, self.last_imark, self.num_stmts, self.state)
 
-            if o.TRACK_JMP_ACTIONS in self.state.options:
-                target_ao = SimActionObject(self.next_expr.expr, reg_deps=self.next_expr.reg_deps(), tmp_deps=self.next_expr.tmp_deps())
-                self.state.log.add_action(SimActionExit(self.state, target_ao, exit_type=SimActionExit.DEFAULT))
+                self.state.log.extend_actions(self.next_expr.actions)
 
-            self.default_exit = self.add_successor(self.state, self.next_expr.expr, self.default_exit_guard,
-                                                   self.irsb.jumpkind, 'default')
+                if o.TRACK_JMP_ACTIONS in self.state.options:
+                    target_ao = SimActionObject(self.next_expr.expr, reg_deps=self.next_expr.reg_deps(), tmp_deps=self.next_expr.tmp_deps())
+                    self.state.log.add_action(SimActionExit(self.state, target_ao, exit_type=SimActionExit.DEFAULT))
 
-            if o.FRESHNESS_ANALYSIS in self.state.options:
-                # Note: only the default exit will have ignored_variables member.
-                self.default_exit.scratch.update_ignored_variables()
+                self.default_exit = self.add_successor(self.state, self.next_expr.expr, self.default_exit_guard,
+                                                       self.irsb.jumpkind, 'default')
+
+                if o.FRESHNESS_ANALYSIS in self.state.options:
+                    # Note: only the default exit will have ignored_variables member.
+                    self.default_exit.scratch.update_ignored_variables()
+
+            except KeyError:
+                # For some reason, the temporary variable that the successor relies on does not exist. It can be
+                # intentional (e.g. when executing a program slice)
+                # We save the current state anyways
+                self.unsat_successors.append(self.state)
+                self.default_exit = None
+
+                l.debug("The temporary variable for default exit of %s is missing.", self)
         else:
             l.debug("%s has no default exit", self)
 
