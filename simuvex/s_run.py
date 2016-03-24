@@ -124,7 +124,8 @@ class SimRun(object):
                     addrs = state.se.any_n_int(target, 257)
 
                 if len(addrs) > 256:
-                    l.warning("Exit state has over 257 possible solutions. Likely unconstrained; skipping. %s", target)
+                    l.warning("Exit state has over 257 possible solutions. Likely unconstrained; skipping. %s",
+                              target.shallow_repr())
                     self.unconstrained_successors.append(state.copy())
                 else:
                     for a in addrs:
