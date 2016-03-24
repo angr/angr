@@ -26,7 +26,7 @@ i = 0
 while True:
     i += 1
     module = sys._getframe(i).f_globals.get('__name__')
-    if module == '__main__':
+    if module == '__main__' or module == '__console__':
         loggers = Loggers()
         break
     elif module is not None and module.startswith('nose.'):
