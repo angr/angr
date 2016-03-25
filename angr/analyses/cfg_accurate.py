@@ -2399,7 +2399,8 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
             # although the jumpkind is not Ijk_Call, it may still jump to a new function... let's see
             if self.project.is_hooked(exit_target): # TODO: Check whether it's a simprocedure
                 new_call_stack = entry_wrapper.call_stack_copy()
-                new_call_stack._stack[-1] = (addr, exit_target)
+                original_callsite_addr = new_call_stack._stack[-1][0]
+                new_call_stack._stack[-1] = (original_callsite_addr, exit_target)
 
             else:
                 # Normal control flow transition
