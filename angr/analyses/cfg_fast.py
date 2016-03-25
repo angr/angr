@@ -1116,6 +1116,13 @@ class CFGFast(Analysis, CFGBase):
                         self._remove_node(a)
 
     def _remove_node(self, node):
+        """
+        Remove a CFGNode from self.graph as well as from the function manager (if it is the beginning of a function)
+
+        :param CFGNode node: The CFGNode to remove from the graph.
+        :return: None
+        """
+
         self.graph.remove_node(node)
 
         # We wanna remove the function as well
