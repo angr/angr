@@ -74,7 +74,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if options.FRESHNESS_ANALYSIS in self.state.options and self.state.scratch.ignored_variables is not None:
             ignored_var_changed_bytes = set()
 
-            if self.id == 'reg':
+            if self.category == 'reg':
                 fresh_vars = self.state.scratch.ignored_variables.register_variables
 
                 for v in fresh_vars:
@@ -123,7 +123,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if options.FRESHNESS_ANALYSIS in self.state.options and self.state.scratch.ignored_variables is not None:
             ignored_var_changed_bytes = set()
 
-            if self.id == 'reg':
+            if self.category == 'reg':
                 fresh_vars = self.state.scratch.ignored_variables.register_variables
 
                 for v in fresh_vars:
@@ -485,9 +485,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if len(missing) > 0:
             name = "%s_%x" % (self.id, addr)
             all_missing = [ self.get_unconstrained_bytes(name, min(self.mem._page_size, num_bytes)*8, source=i) for i in range(addr, addr+num_bytes, self.mem._page_size) ]
-            if self.id == 'reg' and self.state.arch.register_endness == 'Iend_LE':
+            if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
                 all_missing = [ a.reversed for a in all_missing ]
-            if self.id == 'mem' and self.state.arch.memory_endness == 'Iend_LE':
+            elif self.category != 'reg' and self.state.arch.memory_endness == 'Iend_LE':
                 all_missing = [ a.reversed for a in all_missing ]
             b = self.state.se.Concat(*all_missing) if len(all_missing) > 1 else all_missing[0]
 
@@ -757,8 +757,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         # now simplify
         #
 
-        if (self.id == 'mem' and options.SIMPLIFY_MEMORY_WRITES in self.state.options) or \
-           (self.id == 'reg' and options.SIMPLIFY_REGISTER_WRITES in self.state.options):
+        if (self.category == 'mem' and options.SIMPLIFY_MEMORY_WRITES in self.state.options) or \
+           (self.category == 'reg' and options.SIMPLIFY_REGISTER_WRITES in self.state.options):
             req.simplified_values = [ self.state.se.simplify(cv) for cv in req.conditional_values ]
         else:
             req.simplified_values = list(req.conditional_values)
@@ -876,7 +876,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         :return: The generated variable
         """
 
-        if (self.id == 'mem' and
+        if (self.category == 'mem' and
                 options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY in self.state.options):
             # CGC binaries zero-fill the memory for any allocated region
             # Reference: (https://github.com/CyberGrandChallenge/libcgc/blob/master/allocate.md)
@@ -910,7 +910,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     def _merge_values(self, to_merge, merged_size, merge_flag, is_widening=False):
         if options.ABSTRACT_MEMORY in self.state.options:
-            if self.id == 'reg' and self.state.arch.register_endness == 'Iend_LE':
+            if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
                 should_reverse = True
             elif self.state.arch.memory_endness == 'Iend_LE':
                 should_reverse = True
