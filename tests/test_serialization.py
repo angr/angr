@@ -30,7 +30,7 @@ def internaltest_cfg(p):
     cfg2 = pickle.load(state)
     nose.tools.assert_equals(set(cfg.nodes()), set(cfg2.nodes()))
     nose.tools.assert_equals(cfg.unresolvables, cfg2.unresolvables)
-    nose.tools.assert_equals(cfg.deadends, cfg2.deadends)
+    nose.tools.assert_set_equal(set(cfg.deadends), set(cfg2.deadends))
 
     return cfg
 

@@ -812,6 +812,11 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
                 pending_exit_addr = self._simrun_key_addr(pending_exit_tuple)
                 # That block has been traced before. Let's forget about it
                 l.debug("Target 0x%08x has been traced before. " + "Trying the next one...", pending_exit_addr)
+
+                # However, we should still create the FakeRet edge
+                self._graph_add_edge(pending_entry_src_simrun_key, pending_exit_tuple, jumpkind="Ijk_FakeRet",
+                                     exit_stmt_idx=pending_entry_src_exit_stmt_idx)
+
                 return None
 
         pending_exit_state.scratch.jumpkind = 'Ijk_FakeRet'
@@ -932,10 +937,22 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
         # Get a SimRun out of current SimExit
         simrun, error_occurred, _ = self._get_simrun(addr, path, current_function_addr=func_addr)
         if simrun is None or should_skip:
-            # We cannot retrieve the SimRun...
-            # But we create the edge anyway. It will be an edge from the previous node to a PathTerminator
+            # We cannot retrieve the SimRun, or we should skip the analysis of this node
+
+            # But we create the edge anyway. If the simrun does not exist, it will be an edge from the previous node to
+            # a PathTerminator
             self._graph_add_edge(src_simrun_key, simrun_key, jumpkind=jumpkind, exit_stmt_idx=src_exit_stmt_idx)
             self._update_function_transition_graph(src_simrun_key, simrun_key, jumpkind=jumpkind)
+
+            # If this entry cancels another FakeRet entry, we should also create the FekeRet edge
+            if entry.cancelled_pending_entry is not None:
+                pending_entry = entry.cancelled_pending_entry
+                self._graph_add_edge(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet',
+                                     exit_stmt_idx=pending_entry.src_exit_stmt_idx
+                                     )
+                self._update_function_transition_graph(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet')
+
+            # We are good. Raise the exception and leave
             raise AngrForwardAnalysisSkipEntry()
 
         self._update_thumb_addrs(simrun, path.state)
@@ -1316,7 +1333,7 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
         # Remove pending targets - type 2
         tpl = self._generate_simrun_key(call_stack_suffix, target_addr, suc_jumpkind.startswith('Ijk_Sys'))
         cancelled_pending_entry = None
-        if tpl in self._pending_entries:
+        if suc_jumpkind == 'Ijk_Ret' and tpl in self._pending_entries:
 
             # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it in
             # the graph
@@ -1538,6 +1555,9 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
 
         else:
             src_node = self._graph_get_node(src_node_key, terminator_for_nonexistent_node=True)
+
+            if src_node.addr == 0x4007c9 and dst_node.addr == 0x4007d3:
+                import ipdb; ipdb.set_trace()
 
             self.graph.add_edge(src_node, dst_node, **kwargs)
 

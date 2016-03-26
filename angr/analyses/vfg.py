@@ -477,7 +477,7 @@ class VFG(Analysis):
                 # do_return) , we should make it return to its callsite.
                 # However, we don't want to use its state as it might be
                 # corrupted. Just create a link in the exit_targets map.
-                retn_target = entry_wrapper.call_stack.return_target
+                retn_target = entry_wrapper.call_stack.current_return_target
                 if retn_target is not None:
                     new_call_stack = entry_wrapper.call_stack_copy()
                     exit_target_tpl = new_call_stack.stack_suffix(self._context_sensitivity_level) + (retn_target,)
@@ -545,7 +545,7 @@ class VFG(Analysis):
         try:
             if is_return_jump:
                 # FIXME: This is a bad practice...
-                ret_target = entry_wrapper.call_stack.return_target
+                ret_target = entry_wrapper.call_stack.current_return_target
                 if ret_target is None:
                     # We have no where to go according to our call stack
                     # However, we still store the state as it is probably the last available state of the analysis
@@ -560,7 +560,7 @@ class VFG(Analysis):
                 if is_return_jump:
                     # It might be caused by state merging
                     # We may retrieve the correct ip from call stack
-                    suc_state.ip = entry_wrapper.call_stack.return_target
+                    suc_state.ip = entry_wrapper.call_stack.current_return_target
 
                 else:
                     # Currently we assume a legit jumping target cannot have more than 256 concrete values
@@ -1030,8 +1030,8 @@ class VFG(Analysis):
         # Build the tuples that we want to remove from the dict fake_func_retn_exits
         tpls_to_remove = [ ]
         call_stack_copy = entry_wrapper.call_stack_copy()
-        while call_stack_copy.return_target is not None:
-            ret_target = call_stack_copy.return_target
+        while call_stack_copy.current_return_target is not None:
+            ret_target = call_stack_copy.current_return_target
             # Remove the current call stack frame
             call_stack_copy.ret(ret_target)
             call_stack_suffix = call_stack_copy.stack_suffix(self._context_sensitivity_level)

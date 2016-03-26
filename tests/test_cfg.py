@@ -234,6 +234,51 @@ def test_thumb_mode():
         if f.startpoint is not None:
             check_addr(f.startpoint.addr)
 
+def test_fakeret_edges_0():
+
+    # Test the bug where a fakeret edge can be missing in certain cases
+    # Reported by Attila Axt (GitHub: @axt)
+    # Ref: https://github.com/angr/angr/issues/72
+
+    binary_path = os.path.join(test_location, "x86_64", "cfg_3")
+
+    p = angr.Project(binary_path)
+    cfg = p.analyses.CFGAccurate(context_sensitivity_level=3)
+
+    putchar = cfg.functions.function(name="putchar")
+
+    # Since context sensitivity is 3, there should be two different putchar nodes
+    putchar_cfgnodes = cfg.get_all_nodes(putchar.addr)
+    nose.tools.assert_equal(len(putchar_cfgnodes), 2)
+
+    # Each putchar node has a different predecessor as their PLT entry
+    plt_entry_0 = cfg.get_predecessors(putchar_cfgnodes[0])
+    nose.tools.assert_equal(len(plt_entry_0), 1)
+    plt_entry_0 = plt_entry_0[0]
+
+    plt_entry_1 = cfg.get_predecessors(putchar_cfgnodes[1])
+    nose.tools.assert_equal(len(plt_entry_1), 1)
+    plt_entry_1 = plt_entry_1[0]
+
+    nose.tools.assert_true(plt_entry_0 is not plt_entry_1)
+
+    # Each PLT entry should have a FakeRet edge
+    preds_0 = cfg.get_predecessors(plt_entry_0)
+    nose.tools.assert_equal(len(preds_0), 1)
+    preds_1 = cfg.get_predecessors(plt_entry_1)
+    nose.tools.assert_equal(len(preds_1), 1)
+
+    # Each predecessor must have a call edge and a FakeRet edge
+    edges_0 = cfg.get_successors_and_jumpkind(preds_0[0], excluding_fakeret=False)
+    nose.tools.assert_equal(len(edges_0), 2)
+    jumpkinds = set([ jumpkind for _, jumpkind in edges_0 ])
+    nose.tools.assert_set_equal(jumpkinds, { 'Ijk_Call', 'Ijk_FakeRet' })
+
+    edges_1 = cfg.get_successors_and_jumpkind(preds_1[0], excluding_fakeret=False)
+    nose.tools.assert_equal(len(edges_1), 2)
+    jumpkinds = set([ jumpkind for _, jumpkind in edges_1 ])
+    nose.tools.assert_set_equal(jumpkinds, { 'Ijk_Call', 'Ijk_FakeRet' })
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))

@@ -49,15 +49,25 @@ class CFGBase(object):
     def get_bbl_dict(self):
         return self._nodes
 
-    def get_predecessors(self, basic_block, excluding_fakeret=True):
+    def get_predecessors(self, cfgnode, excluding_fakeret=True):
+        """
+        Get predecessors of a node on the control flow graph.
+
+        :param CFGNode cfgnode: The node
+        :param bool excluding_fakeret: True if you want to exclude all predecessors that is connected to the node with
+                                       a fakeret edge.
+        :return: A list of predecessors
+        :rtype: list
+        """
+
         if not excluding_fakeret:
-            if basic_block in self._graph:
-                return self._graph.predecessors(basic_block)
+            if cfgnode in self._graph:
+                return self._graph.predecessors(cfgnode)
             else:
                 return []
         else:
             predecessors = []
-            for pred, _, data in self._graph.in_edges_iter([basic_block], data=True):
+            for pred, _, data in self._graph.in_edges_iter([cfgnode], data=True):
                 jumpkind = data['jumpkind']
                 if jumpkind != 'Ijk_FakeRet':
                     predecessors.append(pred)
@@ -83,6 +93,17 @@ class CFGBase(object):
             if not excluding_fakeret or data['jumpkind'] != 'Ijk_FakeRet':
                 successors.append((suc, data['jumpkind']))
         return successors
+
+    def get_all_predecessors(self, cfgnode):
+        """
+        Get all predecessors of a specific node on the control flow graph.
+
+        :param CFGNode cfgnode: The CFGNode object
+        :return: A list of predecessors in the CFG
+        :rtype: list
+        """
+
+        return networkx.dfs_predecessors(self._graph, cfgnode)
 
     def get_all_successors(self, basic_block):
         return networkx.dfs_successors(self._graph, basic_block)
