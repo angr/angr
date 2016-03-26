@@ -12,7 +12,7 @@ import subprocess
 from .tracerpov import TracerPoV
 from .tracer import TracerEnvironmentError, TracerInstallError
 
-l = logging.getLogger("tracer.Tracer")
+l = logging.getLogger("tracer.Runner")
 
 
 class Runner(object):
