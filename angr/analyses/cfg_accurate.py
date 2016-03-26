@@ -1555,10 +1555,6 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
 
         else:
             src_node = self._graph_get_node(src_node_key, terminator_for_nonexistent_node=True)
-
-            if src_node.addr == 0x4007c9 and dst_node.addr == 0x4007d3:
-                import ipdb; ipdb.set_trace()
-
             self.graph.add_edge(src_node, dst_node, **kwargs)
 
     def _update_function_transition_graph(self, src_node_key, dst_node_key, jumpkind='Ijk_Boring'):
