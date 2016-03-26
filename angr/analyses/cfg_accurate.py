@@ -1030,7 +1030,7 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
                 # do_return) , we should make it return to its call-site. However,
                 # we don't want to use its state anymore as it might be corrupted.
                 # Just create an edge in the graph.
-                retn_target = entry.call_stack.get_ret_target()
+                retn_target = entry.call_stack.current_return_target
                 if retn_target is not None:
                     new_call_stack = entry.call_stack_copy()
                     exit_target_tpl = self._generate_simrun_key(
@@ -1298,7 +1298,7 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
             # It cannot be concretized currently. Maybe we can handle it later, maybe it just cannot be concretized
             target_addr = None
             if suc_jumpkind == "Ijk_Ret":
-                target_addr = entry_wrapper.call_stack.get_ret_target()
+                target_addr = entry_wrapper.call_stack.current_return_target
                 if target_addr is not None:
                     new_state.ip = new_state.se.BVV(target_addr, new_state.arch.bits)
 
@@ -2397,9 +2397,19 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
 
         else:
             # although the jumpkind is not Ijk_Call, it may still jump to a new function... let's see
-            if self.project.is_hooked(exit_target): # TODO: Check whether it's a simprocedure
-                new_call_stack = entry_wrapper.call_stack_copy()
-                new_call_stack._stack[-1] = (addr, exit_target)
+            if self.project.is_hooked(exit_target):
+                hooker = self.project.hooked_by(exit_target)
+                if not hooker is simuvex.procedures.stubs.UserHook.UserHook:
+                    # if it's not a UserHook, it must be a function
+                    # Update the function address of the most recent call stack frame
+                    new_call_stack = entry_wrapper.call_stack_copy()
+                    new_call_stack.current_function_address = exit_target
+
+                else:
+                    # TODO: We need a way to mark if a user hook is a function or not
+                    # TODO: We can add a map in Project to store this information
+                    # For now we are just assuming they are not functions, which is mostly the case
+                    new_call_stack = entry_wrapper.call_stack
 
             else:
                 # Normal control flow transition
