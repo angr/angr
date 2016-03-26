@@ -45,5 +45,5 @@ def test_all():
     test_rol_i386()
 
 if __name__ == "__main__":
-    run_all()
+    test_all()
     
