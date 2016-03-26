@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger('angr.tests.test_callstack')
 
 def test_empty_stack():
-    cs = CallStack(None, None, None)
+    cs = CallStack(None)
 
     # Initial setting: just assume the control flow starts from 0x300000
     cs.call(None, 0x300000, None, 0xfffffff0)
