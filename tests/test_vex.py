@@ -56,6 +56,31 @@ def test_ccall():
     nose.tools.assert_true(s.se.is_true(sf == 0))
     nose.tools.assert_true(s.se.is_true(of == 0))
 
+    l.debug("Testing pc_actions_ROL")
+    l.debug("(8-bit) ROL 1 1...")
+    arg_l = s.se.BVV(1, 8)
+    arg_r = s.se.BVV(1, 8)
+    oldflags = s.se.BVV(0, 8) 
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROL(s, 8, arg_l, arg_r, oldflags, platform='AMD64')
+    nose.tools.assert_true(s.se.is_true(cf == 1))
+    nose.tools.assert_true(s.se.is_true(pf == 0))
+    nose.tools.assert_true(s.se.is_true(af == 0))
+    nose.tools.assert_true(s.se.is_true(zf == 0))
+    nose.tools.assert_true(s.se.is_true(sf == 0))
+    nose.tools.assert_true(s.se.is_true(of == 1))
+
+    l.debug("(32-bit) ROL (-1) (-2)...")
+    arg_l = s.se.BVV(-1, 32)
+    arg_r = s.se.BVV(-2, 32)
+    oldflags = s.se.BVV(0, 32)
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ROL(s, 32, arg_l, arg_r, oldflags, platform='AMD64')
+    nose.tools.assert_true(s.se.is_true(cf == 1))
+    nose.tools.assert_true(s.se.is_true(pf == 0))
+    nose.tools.assert_true(s.se.is_true(af == 0))
+    nose.tools.assert_true(s.se.is_true(zf == 0))
+    nose.tools.assert_true(s.se.is_true(sf == 0))
+    nose.tools.assert_true(s.se.is_true(of == 0))    
+
 def test_some_vector_ops():
     from simuvex.vex.irop import translate
 
