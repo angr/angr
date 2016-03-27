@@ -54,8 +54,7 @@ class memset(simuvex.SimProcedure):
         else:
             max_size = self.state.se.any_int(num)
             if max_size == 0:
-                self.ret(dst_addr)
-                return
+                return 0
 
             # Concatenating many bytes is slow, so some sort of optimization is required
             if char._model_concrete.value == 0:
