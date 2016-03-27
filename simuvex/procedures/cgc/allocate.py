@@ -32,5 +32,10 @@ class allocate(simuvex.SimProcedure):
         permissions = self.state.se.BVV(1 | 2, 3)
         permissions |= self.state.se.If(is_x != 0, claripy.BVV(4, 3), claripy.BVV(0, 3))
 
-        self.state.memory.map_region(self.state.cgc.allocation_base, aligned_length, permissions)
+        if (self.state.se.max_int(r) == 0):  # map only on success
+            self.state.memory.map_region(
+                    self.state.cgc.allocation_base,
+                    aligned_length,
+                    permissions
+                    )
         return r
