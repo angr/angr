@@ -89,16 +89,21 @@ class Project(object):
         """
 
         # Step 1: Load the binary
+        if load_options is None: load_options = {}
+
         if isinstance(thing, cle.Loader):
             self.loader = thing
             self.filename = self.loader._main_binary_path
+        elif hasattr(thing, 'read') and hasattr(thing, 'seek'):
+            l.info("Loading binary from stream")
+            self.filename = None
+            self.loader = cle.Loader(thing, **load_options)
         elif not isinstance(thing, (unicode, str)) or not os.path.exists(thing) or not os.path.isfile(thing):
             raise Exception("Not a valid binary file: %s" % repr(thing))
         else:
             # use angr's loader, provided by cle
             l.info("Loading binary %s", thing)
             self.filename = thing
-            if load_options is None: load_options = {}
             self.loader = cle.Loader(self.filename, **load_options)
 
         # Step 2: determine its CPU architecture, ideally falling back to CLE's guess
@@ -140,7 +145,8 @@ class Project(object):
         self.surveyors = Surveyors(self)
         self.kb = KnowledgeBase(self, self.loader.main_bin)
 
-        projects[self.filename] = self
+        if self.filename is not None:
+            projects[self.filename] = self
 
         # Step 5: determine the host OS and perform additional initialization
         # in the SimOS constructor
