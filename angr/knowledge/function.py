@@ -9,6 +9,7 @@ import claripy
 
 l = logging.getLogger(name="angr.knowledge.function")
 
+
 class Function(object):
     """
     A representation of a function and various information about it.
@@ -341,7 +342,7 @@ class Function(object):
 
     def _call_to(self, from_node, to_func, ret_node):
         """
-        Registers an edge between the caller basic block and callee function
+        Registers an edge between the caller basic block and callee function.
 
         :param from_addr:   The basic block that control flow leaves during the transition.
         :type  from_addr:   angr.knowledge.CodeNode

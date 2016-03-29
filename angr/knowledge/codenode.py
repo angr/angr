@@ -1,6 +1,7 @@
 import logging
 l = logging.getLogger("angr.knowledge.codenode")
 
+
 class CodeNode(object):
     def __init__(self, addr, size, graph=None):
         self.addr = addr
@@ -45,6 +46,7 @@ class CodeNode(object):
 
     is_hook = None
 
+
 class BlockNode(CodeNode):
     is_hook = False
     def __init__(self, addr, size, bytestr=None, **kwargs):
@@ -59,6 +61,7 @@ class BlockNode(CodeNode):
 
     def __setstate__(self, dat):
         self.__init__(*dat)
+
 
 class HookNode(CodeNode):
     is_hook = True
