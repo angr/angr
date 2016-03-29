@@ -10,14 +10,18 @@ l = logging.getLogger("simuvex.vex.irsb")
 
 import pyvex
 from ..s_run import SimRun
-#import vexecutor
+
 
 class IMark(object):
+    """
+    An IMark is an IR statement that indicates the address and length of the original instruction.
+    """
     def __init__(self, i):
         self.addr = i.addr
         self.len = i.len
 
 #pylint:disable=unidiomatic-typecheck
+
 
 class SimIRSB(SimRun):
     """
@@ -147,11 +151,10 @@ class SimIRSB(SimRun):
 
         for exit_state in all_successors:
             if o.CALLLESS in self.state.options and exit_state.scratch.jumpkind == "Ijk_Call":
-                exit_state.registers.store(exit_state.arch.ret_offset, exit_state.se.Unconstrained('fake_ret_value', exit_state.arch.bits))
-
+                exit_state.registers.store(exit_state.arch.ret_offset,
+                                           exit_state.se.Unconstrained('fake_ret_value', exit_state.arch.bits))
                 exit_state.scratch.target = exit_state.se.BVV(self.addr + self.irsb.size, exit_state.arch.bits)
                 exit_state.scratch.jumpkind = "Ijk_Ret"
-
                 exit_state.regs.ip = exit_state.scratch.target
 
             elif o.DO_RET_EMULATION in exit_state.options and exit_state.scratch.jumpkind == "Ijk_Call":
@@ -247,8 +250,10 @@ class SimIRSB(SimRun):
                 state.scratch.temps[n] = self.state.se.Unconstrained('t%d_%s' % (n, self.id), size_bits(t))
             l.debug("%s prepared %d symbolic temps.", len(state.scratch.temps), self)
 
-    # Returns a list of instructions that are part of this block.
     def imark_addrs(self):
+        """
+        Returns a list of instructions that are part of this block.
+        """
         return [ i.addr for i in self.irsb.statements if type(i) == pyvex.IRStmt.IMark ]
 
     def reanalyze(self, mode=None, new_state=None, irsb_id=None, whitelist=None):

@@ -6,6 +6,7 @@ import claripy
 import simuvex.s_options as o
 from claripy.ast.bv import BV
 
+
 class SimRun(object):
     def __init__(self, state, addr=None, inline=False, custom_name=None):
         # The address of this SimRun

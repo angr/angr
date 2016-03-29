@@ -427,13 +427,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         """
         Concretizes an address meant for writing.
 
-            :param addr: an expression for the address
-            :param strategy: the strategy to use for concretization
-            :param limit: how many concrete values to limit the concretization to
-            :param approx_limit: how many concrete values to limit the concretization to,
-                                 if an approximation backend can be used for this value.
+            :param addr:            An expression for the address.
+            :param strategy:        The strategy to use for concretization,
+            :param limit:           How many concrete values to limit the concretization to.
+            :param approx_limit:    How many concrete values to limit the concretization to, if an approximation backend
+                                    can be used for this value.
 
-            @returns a list of concrete addresses
+            :returns:               A list of concrete addresses.
         """
 
         if isinstance(addr, (int, long)):
@@ -995,10 +995,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     def changed_bytes(self, other):
         """
-        Gets the set of changed bytes between self and other.
+        Gets the set of changed bytes between self and `other`.
 
-        :param other: the other SimSymbolicMemory
-        @returns a set of differing bytes
+        :param other:   The other :class:`SimSymbolicMemory`.
+        :returns:       A set of differing bytes
         """
         return self.mem.changed_bytes(other.mem)
 
@@ -1006,9 +1006,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         """
         Replaces all instances of expression old with expression new.
 
-            :param old: a claripy expression. Must contain at least one named variable (to make
-                        to make it possible to use the name index for speedup)
-            :param new: the new variable to replace it with
+        :param old: A claripy expression. Must contain at least one named variable (to make
+                    to make it possible to use the name index for speedup)
+        :param new: The new variable to replace it with
         """
 
         return self.mem.replace_all(old, new)
@@ -1016,14 +1016,14 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def addrs_for_name(self, n):
         """
         Returns addresses that contain expressions that contain a variable
-        named n.
+        named `n`.
         """
         return self.mem.addrs_for_name(n)
 
     def addrs_for_hash(self, h):
         """
         Returns addresses that contain expressions that contain a variable
-        with the hash of h.
+        with the hash of `h`.
         """
         return self.mem.addrs_for_hash(h)
 
@@ -1032,9 +1032,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         Replaces the memory object 'old' with a new memory object containing
         'new_content'.
 
-            :param old: a SimMemoryObject (i.e., one from memory_objects_for_hash() or
-                        memory_objects_for_name())
-            :param new_content: the content (claripy expression) for the new memory object
+        :param old:         A SimMemoryObject (i.e., one from memory_objects_for_hash() or
+                            memory_objects_for_name())
+        :param new_content: the content (claripy expression) for the new memory object
         """
         return self.mem.replace_memory_object(old, new_content)
 
