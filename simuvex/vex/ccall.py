@@ -372,9 +372,15 @@ def pc_actions_SHR(state, nbits, remaining, shifted, cc_ndep, platform=None):
     of = (remaining[0] ^ shifted[0])[0]
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
-def pc_actions_ROL(*args, **kwargs):
-    l.error("Unsupported flag action ROL")
-    raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
+def pc_actions_ROL(state, nbits, res, _, cc_ndep, platform=None):
+    cf = res[0]
+    pf = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_P'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_P']]
+    af = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_A'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
+    zf = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_Z'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_Z']]
+    sf = (cc_ndep & data[platform]['CondBitMasks']['G_CC_MASK_S'])[data[platform]['CondBitOffsets']['G_CC_SHIFT_S']]
+    of = (state.se.LShR(res, nbits-1) ^ res)[0]
+    return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
+    
 def pc_actions_ROR(*args, **kwargs):
     l.error("Unsupported flag action ROR")
     raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
