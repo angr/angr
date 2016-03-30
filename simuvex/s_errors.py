@@ -110,6 +110,9 @@ class SimIRSBError(SimRunError):
 class SimProcedureError(SimRunError):
     pass
 
+class SimProcedureArgumentError(SimProcedureError):
+    pass
+
 class SimFastPathError(SimIRSBError):
     pass
 

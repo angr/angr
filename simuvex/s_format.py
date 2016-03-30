@@ -114,7 +114,10 @@ class FormatString(object):
                 pass
             else:
                 fmt_spec = component
-                dest = args(argpos)
+                try:
+                    dest = args(argpos)
+                except SimProcedureArgumentError:
+                    dest = None
                 if fmt_spec.spec_type == 's':
                     # set some limits for the find
                     max_str_len = self.parser.state.libc.max_str_len
@@ -422,3 +425,5 @@ class FormatParser(SimProcedure):
         l.debug("Fmt: %r", fmt_str)
 
         return fmt_str
+
+from s_errors import SimProcedureArgumentError

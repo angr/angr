@@ -118,12 +118,20 @@ class SimProcedure(SimRun):
     def set_args(self, args):
         self.cc.set_args(self.state, args)
 
-    # Returns a bitvector expression representing the nth argument of a function
-    def arg(self, index):
+    def arg(self, i):
+        """
+        Returns the ith argument. Raise a SimProcedureArgumentError if we don't have such an argument available.
+
+        :param int i: The index of the argument to get
+        :return: The argument
+        :rtype: object
+        """
         if self.arguments is not None:
-            r = self.arguments[index]
+            if i >= len(self.arguments):
+                raise SimProcedureArgumentError("Argument %d does not exist." % i)
+            r = self.arguments[i]
         else:
-            r = self.cc.arg(self.state, index)
+            r = self.cc.arg(self.state, i)
 
         l.debug("returning argument")
         return r
@@ -262,7 +270,7 @@ class SimProcedureContinuation(SimProcedure):
         return self
 
 from . import s_options as o
-from .s_errors import SimProcedureError
+from .s_errors import SimProcedureError, SimProcedureArgumentError
 from .vex.irsb import SimIRSB
 from .s_type import SimTypePointer
 from .s_action import SimActionExit
