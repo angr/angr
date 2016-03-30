@@ -367,9 +367,9 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         if key not in self._regions:
             self._regions[key] = MemoryRegion(
                 key,
+                self.state,
                 is_stack=is_stack,
                 related_function_addr=related_function_addr,
-                state=self.state,
                 endness=self.endness
             )
 
