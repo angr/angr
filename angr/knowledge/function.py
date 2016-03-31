@@ -206,7 +206,7 @@ class Function(object):
 
         # reanalyze function with a new initial state
         fresh_state = self._project.factory.blank_state(mode="fastpath")
-        fresh_state.regs.ip = self.startpoint.addr
+        fresh_state.regs.ip = self.addr
 
         graph_addrs = set(x.addr for x in self.graph.nodes())
 
