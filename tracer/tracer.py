@@ -674,8 +674,11 @@ class Tracer(object):
             entry_state.cgc.input_size = len(self.input)
 
         # map the CGC flag page
-        cgc_flag_data = claripy.BVS('cgc_flag_data', 0x1000 * 32)
+        cgc_flag_data = claripy.BVS('cgc-flag-data', 0x1000 * 32)
+
+        # PROT_READ region
         entry_state.memory.store(0x4347c000, cgc_flag_data)
+        entry_state.memory.map_region(0x4347c000, 0x1000, 1)
 
         pg = project.factory.path_group(
                 entry_state,
