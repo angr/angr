@@ -381,6 +381,31 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         self._repeat_min = r[0] + self._repeat_granularity
         return r
 
+    @staticmethod
+    def _validate_strategy(strategy, exact, approximate):
+        if exact is None and approximate is None:
+            return True
+
+        if exact is None and approximate is not None:
+            return False
+
+        if exact is not None and approximate is None:
+            return True
+
+        if exact == approximate:
+            return True
+
+        if 'max' in strategy:
+            return exact[0] <= approximate[0]
+        if 'min' in strategy:
+            return exact[0] >= approximate[0]
+        elif 'any' in strategy:
+            return exact[0] == approximate[0]
+        elif 'range' in strategy:
+            return approximate[0] <= exact[0] and exact[1] <= approximate[1]
+        else:
+            return set(exact).issubset(set(approximate))
+
     def _concretize_addr(self, v, strategy, limit, approx_limit, action):
         # if there's only one option, let's do it
         if not self.state.se.symbolic(v):
@@ -402,13 +427,21 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 limit = self.state._inspect_getattr('address_concretization_limit', limit)
                 approx_limit = self.state._inspect_getattr('address_concretization_approx_limit', approx_limit)
 
-                result = getattr(self, '_concretization_strategy_'+s)(v, limit, approx_limit)
-                if options.VALIDATE_APPROXIMATIONS in self.state.options and hasattr(self, '_concretization_strategy_'+s+'_approx'):
+                if options.VALIDATE_APPROXIMATIONS in self.state.options and '_approx' in s:
                     c = self.state.copy()
-                    approx_result = getattr(c.memory, '_concretization_strategy_'+s+'_approx')(v, limit, approx_limit)
-                    new_result = getattr(c.memory, '_concretization_strategy_'+s)(v, limit, approx_limit)
-                    if result != new_result or (approx_result is not None and result is not None and not set(result).issubset(set(approx_result))):
-                        raise Exception("WTF")
+                    es = s.replace('_approx', '')
+
+                    approx_result = getattr(c.memory, '_concretization_strategy_'+s)(v, limit, approx_limit)
+                    exact_result = getattr(c.memory, '_concretization_strategy_'+es)(v, limit, approx_limit)
+                    if not self._validate_strategy(s, exact_result, approx_result):
+                        raise AssertionError("validation failed")
+
+                result = getattr(self, '_concretization_strategy_'+s)(v, limit, approx_limit)
+                if options.VALIDATE_APPROXIMATIONS in self.state.options and '_approx' in s:
+                    c = self.state.copy()
+                    exact_result2 = getattr(c.memory, '_concretization_strategy_'+es)(v, limit, approx_limit)
+                    if exact_result != exact_result2:
+                        raise AssertionError("approximation caused a quantum effect")
 
                 self.state._inspect('address_concretization', BP_AFTER, address_concretization_result=result)
                 result = self.state._inspect_getattr('address_concretization_result', result)

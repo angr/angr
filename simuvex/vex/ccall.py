@@ -1376,6 +1376,17 @@ def arm64g_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
     l.error("Unrecognized condition %d in arm64g_calculate_condition", concrete_cond)
     raise SimCCallError("Unrecognized condition %d in arm64g_calculate_condition" % concrete_cond)
 
+#
+# Some helpers
+#
+
+def _get_flags(state):
+    if state.arch.name == 'X86':
+        return x86g_calculate_eflags_all(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
+    elif state.arch.name == 'AMD64':
+        return amd64g_calculate_rflags_all(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
+    else:
+        l.warning("No such thing as a flags register for arch %s", state.arch.name)
 
 from ..s_errors import SimError, SimCCallError
 from ..s_options import USE_SIMPLIFIED_CCALLS

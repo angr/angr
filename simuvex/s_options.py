@@ -117,6 +117,9 @@ TRACK_CONSTRAINT_ACTIONS = "TRACK_CONSTRAINT_ACTIONS"
 # track the history of actions through a path (multiple states). This action affects things on the angr level
 TRACK_ACTION_HISTORY = "TRACK_ACTION_HISTORY"
 
+# track memory mapping and permissions
+TRACK_MEMORY_MAPPING = "TRACK_MEMORY_MAPPING"
+
 # this is an internal option to automatically track dependencies in SimProcedures
 AUTO_REFS = "AUTO_REFS"
 
@@ -151,6 +154,9 @@ DOWNSIZE_Z3 = "DOWNSIZE_Z3"
 
 # Concretize certain registers if they're unique
 CONCRETIZE_UNIQUE_REGS = "CONCRETIZE_UNIQUE_REGS"
+
+# initialize all registers to 0 when creating the state
+INITIALIZE_ZERO_REGISTERS = "INITIALIZE_ZERO_REGISTERS"
 
 # Turn-on superfastpath mode
 SUPER_FASTPATH = "SUPER_FASTPATH"
@@ -204,7 +210,7 @@ refs = { TRACK_REGISTER_ACTIONS, TRACK_MEMORY_ACTIONS, TRACK_TMP_ACTIONS, TRACK_
 approximation = { APPROXIMATE_SATISFIABILITY, APPROXIMATE_MEMORY_SIZES, APPROXIMATE_MEMORY_INDICES }
 symbolic = { DO_CCALLS, SYMBOLIC, TRACK_CONSTRAINTS, LAZY_SOLVES, SYMBOLIC_INITIAL_VALUES }
 simplification = { SIMPLIFY_MEMORY_WRITES, SIMPLIFY_EXIT_STATE, SIMPLIFY_EXIT_GUARD, SIMPLIFY_REGISTER_WRITES }
-common_options_without_simplification = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES, OPTIMIZE_IR }
+common_options_without_simplification = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES, OPTIMIZE_IR, TRACK_MEMORY_MAPPING }
 common_options = common_options_without_simplification | simplification
 
 modes = { }

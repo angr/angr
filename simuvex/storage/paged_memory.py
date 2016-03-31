@@ -755,6 +755,8 @@ class SimPagedMemory(object):
         return self._get_page(page_num).permissions
 
     def map_region(self, addr, length, permissions):
+        if o.TRACK_MEMORY_MAPPING not in self.state.options:
+            return
 
         if self.state.se.symbolic(addr):
             raise ValueError("cannot map region with a symbolic address")
@@ -778,3 +780,5 @@ class SimPagedMemory(object):
 
         for page in xrange(pages):
             self._pages[base_page_num + page] = Page(self._page_size, permissions)
+
+from .. import s_options as o
