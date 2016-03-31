@@ -229,8 +229,6 @@ class Function(object):
             # get runtime values from logs of successors
             p = self._project.factory.path(state)
             p.step()
-            if p.addr == 0x40541C:
-                import ipdb; ipdb.set_trace()
             for succ in p.next_run.flat_successors + p.next_run.unsat_successors:
                 for a in succ.log.actions:
                     for ao in a.all_objects:
