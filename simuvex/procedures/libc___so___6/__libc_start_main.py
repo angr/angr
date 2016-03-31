@@ -23,7 +23,7 @@ class __libc_start_main(simuvex.SimProcedure):
         for pos, c in enumerate(self.state.libc.LOCALE_ARRAY):
             self.state.memory.store(table + pos, self.state.se.BVV(c, 8))
         self.state.memory.store(table_ptr,
-                                table + 128,
+                                table,
                                 size=self.state.arch.bits / 8,
                                 endness=self.state.arch.memory_endness
                                 )
