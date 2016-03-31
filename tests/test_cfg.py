@@ -279,6 +279,22 @@ def test_fakeret_edges_0():
     jumpkinds = set([ jumpkind for _, jumpkind in edges_1 ])
     nose.tools.assert_set_equal(jumpkinds, { 'Ijk_Call', 'Ijk_FakeRet' })
 
+
+def test_string_references():
+
+    # Test AttributeError on 'addr' which occurs when searching for string
+    # references
+
+    binary_path = os.path.join(test_location, "i386", "ctf_nuclear")
+    b = angr.Project(binary_path, load_options={'auto_load_libs': False})
+    cfg = b.analyses.CFG(keep_state=True)
+
+    string_references = []
+    for f in cfg.functions.values():
+        string_references.append(f.string_references())
+
+    # test passes if hasn't thrown an exception
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
