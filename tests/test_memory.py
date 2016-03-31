@@ -540,7 +540,20 @@ def test_concrete_memset():
     s = simuvex.SimState(arch='AMD64')
     _individual_test(s, BASE, VAL, SIZE)
 
+def test_false_condition():
+    s = simuvex.SimState(arch='AMD64')
+
+    asdf = s.se.BVV('asdf')
+    fdsa = s.se.BVV('fdsa')
+    s.memory.store(0x1000, asdf)
+    s.memory.store(0x1000, fdsa, condition=s.se.false)
+    s.memory.store(0, fdsa, condition=s.se.false)
+
+    assert s.memory.load(0x1000, 4) is asdf
+    assert 0 not in s.memory.mem._pages
+
 if __name__ == '__main__':
+    test_false_condition()
     test_symbolic_write()
     test_fullpage_write()
     test_memory()

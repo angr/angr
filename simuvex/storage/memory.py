@@ -396,6 +396,10 @@ class SimMemory(SimStatePlugin):
                 size_e = self.state._inspect_getattr('mem_write_length', size_e)
                 data_e = self.state._inspect_getattr('mem_write_expr', data_e)
 
+        # if the condition is false, bail
+        if condition_e is not None and self.state.se.is_false(condition_e):
+            return
+
         if (o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
                 isinstance(addr_e, claripy.ast.Base) and
                 addr_e.uninitialized
