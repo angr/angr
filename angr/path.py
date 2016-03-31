@@ -23,8 +23,12 @@ class CallFrame(object):
         stack pointer, and return address
         """
         if state is not None:
-            self.func_addr = state.se.any_int(state.ip)
-            self.stack_ptr = state.se.any_int(state.regs.sp)
+            try:
+                self.func_addr = state.se.any_int(state.ip)
+                self.stack_ptr = state.se.any_int(state.regs.sp)
+            except (simuvex.SimUnsatError, simuvex.SimSolverModeError):
+                self.func_addr = None
+                self.stack_ptr = None
 
             if state.arch.call_pushes_ret:
                 self.ret_addr = state.memory.load(state.regs.sp, state.arch.bits/8, endness=state.arch.memory_endness)
@@ -153,6 +157,10 @@ class PathHistory(object):
 
     def _record_run(self, run):
         self._runstr = str(run)
+
+    @property
+    def _actions(self):
+        return [ ev for ev in self._events if isinstance(ev, simuvex.SimAction) ]
 
     def copy(self):
         c = PathHistory(parent=self._parent)
@@ -303,9 +311,8 @@ class ActionIter(TreeIter):
     def __reversed__(self):
         for hist in self._iter_nodes():
             try:
-                for ev in iter(hist._events):
-                    if isinstance(ev, simuvex.SimAction):
-                        yield ev
+                for ev in iter(hist._actions):
+                    yield ev
             except ReferenceError:
                 hist._events = ()
 

@@ -80,6 +80,11 @@ class SimOS(object):
             kwargs['arch'] = self.proj.arch
 
         state = SimState(**kwargs)
+
+        if o.INITIALIZE_ZERO_REGISTERS in state.options:
+            for r in self.arch.registers:
+                setattr(state.regs, r, 0)
+
         state.regs.sp = self.arch.initial_sp
 
         if initial_prefix is not None:
