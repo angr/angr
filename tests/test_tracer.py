@@ -28,7 +28,10 @@ def test_cgc_0b32aa01_01_raw():
 
     # make sure angr modeled the correct output
     stdout_dump = result_state.posix.dumps(1)
-    nose.tools.assert_true(stdout_dump.startswith("\t\tYes, that's a palindrome!\n\n"))
+    nose.tools.assert_true(stdout_dump.startswith("\nWelcome to Palindrome Finder\n\n"
+                                                  "\tPlease enter a possible palindrome: "
+                                                  "\t\tYes, that's a palindrome!\n\n"
+                                                  "\tPlease enter a possible palindrome: "))
     # make sure there were no 'Nope's from non-palindromes
     nose.tools.assert_false("Nope" in stdout_dump)
 
@@ -48,7 +51,7 @@ def test_allocation_base_continuity():
 
     crash_path, crash_state = t.run()
 
-    nose.tools.assert_equal(crash_state.cgc.allocation_base, 0xb7fc0000)
+    nose.tools.assert_equal(crash_state.se.any_int(crash_state.cgc.allocation_base), 0xb7fc0000)
 
 def run_all():
     functions = globals()
