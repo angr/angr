@@ -1,16 +1,14 @@
-import cle
-import angr
-import simuvex
-from .tracerpov import TracerPoV
-from simuvex import s_options as so
-
 import os
 import time
+import angr
 import signal
 import socket
-import struct
+import claripy
+import simuvex
 import tempfile
 import subprocess
+from .tracerpov import TracerPoV
+from simuvex import s_options as so
 
 import logging
 
@@ -556,142 +554,6 @@ class Tracer(object):
 
         return addrs
 
-    def _load_backed(self):
-        '''
-        load an angr project with an initial state seeded by qemu
-        '''
-
-        # get the backing by calling out to qemu
-        backingfd, backingfile = tempfile.mkstemp(
-                prefix="tracer-backing-",
-                dir="/dev/shm")
-
-        os.close(backingfd)
-
-        args = [self.tracer_qemu_path, "-predump", backingfile, self.binary]
-
-        with open('/dev/null', 'wb') as devnull:
-            # should never block
-            # predump should exit at the first call which would block
-            p = subprocess.Popen(args, stdout=devnull)
-            p.wait()
-
-        # parse out the predump file
-        memory = {}
-        regs = {}
-        permissions = {}
-        with open(backingfile, "rb") as f:
-            while len(regs) == 0:
-                tag = f.read(4)
-                if tag == "REGS":
-                    # general purpose regs
-                    regs['eax'] = struct.unpack("<I", f.read(4))[0]
-                    regs['ebx'] = struct.unpack("<I", f.read(4))[0]
-                    regs['ecx'] = struct.unpack("<I", f.read(4))[0]
-                    regs['edx'] = struct.unpack("<I", f.read(4))[0]
-                    regs['esi'] = struct.unpack("<I", f.read(4))[0]
-                    regs['edi'] = struct.unpack("<I", f.read(4))[0]
-                    regs['ebp'] = struct.unpack("<I", f.read(4))[0]
-                    regs['esp'] = struct.unpack("<I", f.read(4))[0]
-
-                    # d flag
-                    regs['d'] = struct.unpack("<I", f.read(4))[0]
-
-                    # eip
-                    # adjust eip
-                    regs['eip'] = struct.unpack("<I", f.read(4))[0] - 2
-
-                    # fp regs
-                    regs['st0'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['st0'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['st1'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['st1'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['st2'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['st2'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['st3'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['st3'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['st4'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['st4'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['st5'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['st5'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['st6'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['st6'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['st7'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['st7'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    # fp tags
-                    regs['fpu_t0'] = struct.unpack("B", f.read(1))[0]
-                    regs['fpu_t1'] = struct.unpack("B", f.read(1))[0]
-                    regs['fpu_t2'] = struct.unpack("B", f.read(1))[0]
-                    regs['fpu_t3'] = struct.unpack("B", f.read(1))[0]
-                    regs['fpu_t4'] = struct.unpack("B", f.read(1))[0]
-                    regs['fpu_t5'] = struct.unpack("B", f.read(1))[0]
-                    regs['fpu_t6'] = struct.unpack("B", f.read(1))[0]
-                    regs['fpu_t7'] = struct.unpack("B", f.read(1))[0]
-
-                    # ftop
-                    regs['ftop'] = struct.unpack("<I", f.read(4))[0]
-
-                    # sseround
-                    regs['mxcsr'] = struct.unpack("<I", f.read(4))[0]
-
-                    regs['xmm0'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['xmm0'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['xmm1'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['xmm1'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['xmm2'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['xmm2'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['xmm3'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['xmm3'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['xmm4'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['xmm4'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['xmm5'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['xmm5'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['xmm6'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['xmm6'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                    regs['xmm7'] = struct.unpack("<Q", f.read(8))[0]
-                    regs['xmm7'] |= struct.unpack("<Q", f.read(8))[0] << 64
-
-                elif tag == "HEAP":
-                    current_allocation_base = struct.unpack("<I", f.read(4))[0]
-                else:
-                    start = struct.unpack("<I", tag)[0]
-                    end = struct.unpack("<I", f.read(4))[0]
-                    prot = struct.unpack("<I", f.read(4))[0]
-                    length = struct.unpack("<I", f.read(4))[0]
-                    content = f.read(length)
-                    # only care about PROT_EXEC|PROT_WRITE|PROT_READ
-                    permissions[(start, end)] = prot & 0x7
-                    memory[start] = content
-
-        os.remove(backingfile)
-
-        options = \
-            {'backend': cle.backends.BackedCGC,
-             'memory_backer': memory,
-             'register_backer': regs,
-             'writes_backer': [],
-             'permissions_map': permissions,
-             'current_allocation_base': current_allocation_base}
-
-        ld = cle.Loader(self.binary, main_opts=options)
-
-        return angr.Project(ld)
-
 # SYMBOLIC TRACING
 
     def _preconstrain_state(self, entry_state):
@@ -779,7 +641,7 @@ class Tracer(object):
         prepare the initial paths for CGC binaries
         '''
 
-        project = self._load_backed()
+        project = angr.Project(self.binary)
 
         # if we're in crash mode we want the authentic system calls
         if not self.crash_mode:
@@ -805,16 +667,15 @@ class Tracer(object):
                 add_options=self.add_options,
                 remove_options=self.remove_options)
 
-        # windup the basic block trace to the point where we'll begin symbolic
-        # trace
-        while self.trace[self.bb_cnt] != project.entry + 2:
-            self.bb_cnt += 1
-
         if self.preconstrain:
             self._preconstrain_state(entry_state)
 
         if not self.pov:
             entry_state.cgc.input_size = len(self.input)
+
+        # map the CGC flag page
+        cgc_flag_data = claripy.BVS('cgc_flag_data', 0x1000 * 32)
+        entry_state.memory.store(0x4347c000, cgc_flag_data)
 
         pg = project.factory.path_group(
                 entry_state,
@@ -823,7 +684,7 @@ class Tracer(object):
                 hierarchy=False,
                 save_unconstrained=self.crash_mode)
 
-        return pg.step()
+        return pg
 
     def _linux_prepare_paths(self):
         '''
