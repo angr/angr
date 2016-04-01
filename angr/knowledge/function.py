@@ -208,7 +208,7 @@ class Function(object):
         fresh_state = self._project.factory.blank_state(mode="fastpath")
         fresh_state.regs.ip = self.addr
 
-        graph_addrs = set(x.addr for x in self.graph.nodes())
+        graph_addrs = set(x.addr for x in self.graph.nodes() if isinstance(x, BlockNode))
 
         # process the nodes in a breadth-first order keeping track of which nodes have already been analyzed
         analyzed = set()
