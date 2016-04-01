@@ -309,6 +309,8 @@ class Function(object):
         return s
 
     def __repr__(self):
+        if self.is_syscall:
+            return '<Syscall function %s (%#x)>' % (self.name, self.addr)
         return '<Function %s (%#x)>' % (self.name, self.addr)
 
     @property
