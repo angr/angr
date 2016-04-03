@@ -1,6 +1,8 @@
 import simuvex
 from simuvex.s_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 
+from . import _IO_FILE
+
 ######################################
 # fgets
 ######################################
@@ -8,7 +10,7 @@ from simuvex.s_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 class fgets(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
-    def run(self, dst, size, fd):
+    def run(self, dst, size, file_ptr):
         self.argument_types = {2: SimTypeFd(),
                                0: self.ty_ptr(SimTypeArray(SimTypeChar(), size)),
                                1: SimTypeLength(self.state.arch)}
@@ -19,6 +21,8 @@ class fgets(simuvex.SimProcedure):
         max_str_len = self.state.libc.max_str_len
 
         # let's get the memory back for the file we're interested in and find the newline
+        fd_offset = _IO_FILE[self.state.arch.name]['fd']
+        fd = self.state.mem[file_ptr + fd_offset:].int.resolved
         fp = self.state.posix.get_file(fd)
         pos = fp.pos
         mem = fp.content
