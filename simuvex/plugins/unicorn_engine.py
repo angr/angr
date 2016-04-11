@@ -437,10 +437,7 @@ class Unicorn(SimStatePlugin):
 
     def _check_registers(self):
         ''' check if this state might be used in unicorn (has no concrete register)'''
-        try:
-            _, _, uc_regs, _ = Unicorn.load_arch(self.state.arch)
-        except Exception:
-            raise
+        _, _, uc_regs, _ = Unicorn.load_arch(self.state.arch)
 
         for r in uc_regs.iterkeys():
             v = getattr(self.state.regs, r)
