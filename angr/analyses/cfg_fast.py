@@ -622,9 +622,13 @@ class CFGFast(Analysis, CFGBase):
         :return: None
         """
 
-        # Let's try to create the pyvex IRSB directly, since it's much faster
+        # If we have traced it before, don't trace it anymore
+        if addr in traced_addresses:
+            return
 
         try:
+            # Let's try to create the pyvex IRSB directly, since it's much faster
+
             irsb = self.project.factory.block(addr).vex
 
             # Create a CFG node, and add it to the graph
@@ -635,15 +639,19 @@ class CFGFast(Analysis, CFGBase):
                 self.graph.add_edge(previous_src_node, cfg_node, jumpkind=previous_jumpkind,
                                     stmt_idx=previous_src_stmt_idx)
 
+            # Add this basic block into the function manager
+            if previous_src_node is None:
+                self.kb.functions._add_node(current_function_addr, addr)
+            else:
+                self.kb.functions._add_transition_to(current_function_addr, previous_src_node.addr, addr)
+
             # Occupy the block in segment list
             self._seg_list.occupy(addr, irsb.size)
 
         except (AngrTranslationError, AngrMemoryError):
             return
 
-        # If we have traced it before, don't trace it anymore
-        if addr in traced_addresses:
-            return
+        # Mark the address as traced
         traced_addresses.add(addr)
 
         # Get all possible successors

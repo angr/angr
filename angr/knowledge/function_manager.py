@@ -40,6 +40,11 @@ class FunctionManager(collections.Mapping):
             for src, dst in self.callgraph.edges():
                 f.write("%#x\tDirectEdge\t%#x\n" % (src, dst))
 
+    def _add_node(self, function_addr, node):
+        if type(node) in (int, long):
+            node = self._kb._project.factory.snippet(node)
+        self._function_map[function_addr]._register_nodes(node)
+
     def _add_call_to(self, function_addr, from_node, to_addr, retn_node, syscall=False):
         if type(from_node) in (int, long):
             from_node = self._kb._project.factory.snippet(from_node)
