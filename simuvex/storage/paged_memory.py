@@ -263,9 +263,9 @@ class SimPagedMemory(object):
                 start_backer = new_page_addr - addr
                 if isinstance(start_backer, BV):
                     continue
-                if start_backer < 0 and abs(start_backer) > self._page_size:
+                if start_backer < 0 and abs(start_backer) >= self._page_size:
                     continue
-                if start_backer > len(backer):
+                if start_backer >= len(backer):
                     continue
 
                 # find permission backer associated with the address, there should be a
