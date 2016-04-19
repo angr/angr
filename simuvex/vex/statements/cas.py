@@ -17,7 +17,7 @@ class SimIRStmt_CAS(SimIRStmt):
 
             # read the old values
             old_cnt = self.state.memory.load(addr.expr, len(expd_lo.expr)*2/8, endness=self.stmt.endness)
-            old_hi, old_lo = old_cnt.chop(bits=len(expd_lo))
+            old_hi, old_lo = old_cnt.chop(bits=len(expd_lo.expr))
             self._write_tmp(self.stmt.oldLo, old_lo, old_lo.size(), None, None)
             self._write_tmp(self.stmt.oldHi, old_hi, old_hi.size(), None, None)
 
