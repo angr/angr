@@ -259,24 +259,31 @@ class CFGFast(Analysis, CFGBase):
     and then re-recover the CFG.
     """
 
-    def __init__(self, binary=None, start=None, end=None, pickle_intermediate_results=False,
-                 symbols=True, function_prologues=True, resolve_indirect_jumps=True, force_segment=False,
-                 force_complete_scan=True, indirect_jump_target_limit=100000):
+    def __init__(self,
+                 binary=None,
+                 start=None,
+                 end=None,
+                 pickle_intermediate_results=False,
+                 symbols=True,
+                 function_prologues=True,
+                 resolve_indirect_jumps=True,
+                 force_segment=False,
+                 force_complete_scan=True,
+                 indirect_jump_target_limit=100000
+                 ):
         """
-        Constructor
-
-        :param binary:
-        :param start:
-        :param end:
-        :param pickle_intermediate_results:
-        :param symbols: Get function beginnings from symbols in the binary.
-        :param function_prologues: Scan the binary for function prologues, and use those positions as function
-                beginnings
-        :param resolve_indirect_jumps: Try to resolve indirect jumps. This is necessary to resolve jump targets from jump
-                tables, etc.
-        :param force_segment: Force CFGFast to rely on binary segments instead of sections.
-        :param bool force_complete_scan: Perform a complete scan on the binary and maximize the number of identified code
-                blocks.
+        :param binary:                  The binary to recover CFG on. By default the main binary is used.
+        :param int start:               The beginning address of CFG recovery.
+        :param int end:                 The end address of CFG recovery.
+        :param bool pickle_intermediate_results: If we want to store the intermediate results or not.
+        :param bool symbols:            Get function beginnings from symbols in the binary.
+        :param bool function_prologues: Scan the binary for function prologues, and use those positions as function
+                                        beginnings
+        :param bool resolve_indirect_jumps: Try to resolve indirect jumps. This is necessary to resolve jump targets
+                                            from jump tables, etc.
+        :param bool force_segment:      Force CFGFast to rely on binary segments instead of sections.
+        :param bool force_complete_scan:    Perform a complete scan on the binary and maximize the number of identified code
+                                            blocks.
         :return: None
         """
 
@@ -880,7 +887,6 @@ class CFGFast(Analysis, CFGBase):
                 for idx, a in enumerate(state.se.any_n_int(jump_addr, total_cases)):
                     if idx % 100 == 0:
                         l.debug("Resolved %d targets for the indirect jump at %#x", idx, addr)
-                        print("Resolved %d targets for the indirect jump at %#x" % (idx, addr))
                     jump_target = state.memory.load(a, state.arch.bits / 8, endness=state.arch.memory_endness)
                     target = state.se.any_int(jump_target)
                     all_targets.append(target)
@@ -997,7 +1003,7 @@ class CFGFast(Analysis, CFGBase):
         :return:
         """
 
-        # TODO: Fix this method later
+        # TODO: Fix and enable this method later
 
         function_starts = set()
 

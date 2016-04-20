@@ -11,16 +11,16 @@ class Blade(object):
     def __init__(self, graph, dst_run, dst_stmt_idx, direction='backward', project=None, cfg=None, ignore_sp=False,
                  ignore_bp=False, max_level=3):
         """
-        Constructor.
-
-        :param graph:
-        :param dst_run:
-        :param dst_stmt_idx:
-        :param direction:
-        :param project:
-        :param angr.analyses.CFGBase cfg: the CFG instance
-        :param ignore_sp:
-        :param ignore_bp:
+        :param networkx.DiGraph graph:  A graph representing the control flow graph. Note that it does not take
+                                        angr.analyses.CFGAccurate or angr.analyses.CFGFast.
+        :param int dst_run:             An address specifying the target SimRun.
+        :param int dst_stmt_idx:        The target statement index. -1 means executing until the last statement.
+        :param str direction:           'backward' or 'forward' slicing. Forward slicing is not yet supported.
+        :param angr.Project project:    The project instance.
+        :param angr.analyses.CFGBase cfg: the CFG instance. It will be made mandatory later.
+        :param bool ignore_sp:          Whether the stack pointer should be ignored in dependency tracking. Any
+                                        dependency from/to stack pointers will be ignored if this options is True.
+        :param ignore_bp:               Whether the base pointer should be ignored or not.
         :return: None
         """
 
@@ -53,7 +53,26 @@ class Blade(object):
         else:
             raise AngrBladeError("Unknown slicing direction %s", direction)
 
+    #
+    # Properties
+    #
+
+    @property
+    def slice(self):
+        return self._slice
+
+    #
+    # Private methods
+    #
+
     def _get_irsb(self, v):
+        """
+        Get the IRSB object from an address, a simuvex.SimProcedure, a simuvex.SimIRSB, or a CFGNode.
+        :param v: Can be one of the following: an address, a simuvex.SimProcedure, a simuvex.SimIRSB, or a CFGNode.
+        :return: The IRSB instance.
+        :rtype: pyvex.IRSB
+        """
+
         if isinstance(v, simuvex.SimProcedure):
             raise AngrBladeSimProcError()
 
@@ -88,9 +107,16 @@ class Blade(object):
         :rtype: CFGNode
         """
 
-        return self._cfg.get_any_node(self._normalize(thing))
+        return self._cfg.get_any_node(self._get_addr(thing))
 
-    def _normalize(self, v):
+    def _get_addr(self, v):
+        """
+        Get address of the basic block or CFG node specified by v.
+        :param v: Can be one of the following: a simuvex.SimIRSB, a simuvex.SimProcedure, a CFGNode, or an address.
+        :return: The address.
+        :rtype: int
+        """
+
         if isinstance(v, simuvex.SimIRSB) or isinstance(v, simuvex.SimProcedure):
             if type(self._graph.nodes()[0]) in (int, long):
                 return v.addr
@@ -105,11 +131,6 @@ class Blade(object):
 
     def _in_graph(self, v):
         return self._get_cfgnode(v) in self._graph
-
-
-    @property
-    def slice(self):
-        return self._slice
 
     def _inslice_callback(self, stmt_idx, stmt, infodict):
         tpl = (infodict['irsb_addr'], stmt_idx)
@@ -153,7 +174,7 @@ class Blade(object):
             else:
                 raise AngrBladeError('Incorrect type of the specified target statement. We only support Put and WrTmp.')
 
-            prev = (self._normalize(self._dst_run), self._dst_stmt_idx)
+            prev = (self._get_addr(self._dst_run), self._dst_stmt_idx)
         else:
 
             next_expr = self._get_irsb(self._dst_run).next
@@ -169,7 +190,7 @@ class Blade(object):
             # Then we gotta start from the very last statement!
             self._dst_stmt_idx = len(stmts) - 1
 
-            prev = (self._normalize(self._dst_run), 'default')
+            prev = (self._get_addr(self._dst_run), 'default')
 
         slicer = simuvex.SimSlicer(self.project.arch, stmts,
                                    target_tmps=temps,
@@ -222,7 +243,7 @@ class Blade(object):
                 temps.add(exit_stmt.guard.tmp)
 
             # Put it in our slice
-            irsb_addr = self._normalize(run)
+            irsb_addr = self._get_addr(run)
             self._inslice_callback(exit_stmt_idx, exit_stmt, {'irsb_addr': irsb_addr, 'prev': prev})
             prev = (irsb_addr, exit_stmt_idx)
 
@@ -232,7 +253,7 @@ class Blade(object):
                                    target_stack_offsets=stack_offsets,
                                    inslice_callback=self._inslice_callback,
                                    inslice_callback_infodict={
-                                       'irsb_addr' : self._normalize(run),
+                                       'irsb_addr' : self._get_addr(run),
                                        'prev' : prev
                                    })
         regs = slicer.final_regs

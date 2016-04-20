@@ -338,7 +338,7 @@ class Surveyor(object):
         self.active = new_active
         return self
 
-    def _step_path(self, p):
+    def _step_path(self, p):  #pylint:disable=no-self-use
         p.step()
 
     def _tick_path(self, p, successors=None):
