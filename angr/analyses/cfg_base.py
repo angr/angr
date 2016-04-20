@@ -1,5 +1,8 @@
 import networkx
 import logging
+
+from cle import ELF, PE
+
 from ..errors import AngrCFGError
 
 l = logging.getLogger(name="angr.cfg_base")
@@ -261,3 +264,53 @@ class CFGBase(object):
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
 
+    def _executable_memory_regions(self, binary=None, force_segment=False):
+        """
+        Get all executable memory regions from the binaries
+
+        :param binary: Binary object to collect regions from. If None, regions from all project binary objects are used.
+        :param bool force_segment: Rely on binary segments instead of sections.
+        :return: A sorted list of tuples (beginning_address, end_address)
+        """
+
+        if binary is None:
+            binaries = self._project.loader.all_objects
+        else:
+            binaries = [ binary ]
+
+        memory_regions = [ ]
+
+        for b in binaries:
+            rebase_addr = b.rebase_addr
+
+            if isinstance(b, ELF):
+                # If we have sections, we get result from sections
+                if not force_segment and b.sections:
+                    # Get all executable sections
+                    for section in b.sections:
+                        if section.is_executable:
+                            tpl = (rebase_addr + section.min_addr, rebase_addr + section.max_addr)
+                            memory_regions.append(tpl)
+
+                else:
+                    # Get all executable segments
+                    for segment in b.segments:
+                        if segment.is_executable:
+                            tpl = (rebase_addr + segment.min_addr, rebase_addr + segment.max_addr)
+                            memory_regions.append(tpl)
+
+            elif isinstance(b, PE):
+                for section in b.sections:
+                    if section.is_executable:
+                        tpl = (rebase_addr + section.min_addr, rebase_addr + section.max_addr)
+                        memory_regions.append(tpl)
+
+        if not memory_regions:
+            memory_regions = [
+                (b.rebase_addr + start, b.rebase_addr + start + len(cbacker))
+                for start, cbacker in self._project.loader.memory.cbackers
+                ]
+
+        memory_regions = sorted(memory_regions, key=lambda x: x[0])
+
+        return memory_regions
