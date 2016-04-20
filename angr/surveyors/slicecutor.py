@@ -184,6 +184,9 @@ class Slicecutor(Surveyor):
     def done(self):
         return (len(self.active) + len(self._merge_countdowns)) == 0
 
+    def _step_path(self, p):  #pylint:disable=no-self-use
+        p.step(stmt_whitelist=p.stmt_whitelist, last_stmt=p.last_stmt)
+
     def path_comparator(self, a, b):
         if a.weighted_length != b.weighted_length:
             return b.weighted_length - a.weighted_length

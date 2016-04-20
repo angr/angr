@@ -34,6 +34,9 @@ class PathUnreachableError(AngrError):
 class AngrBladeError(AngrError):
     pass
 
+class AngrBladeSimProcError(AngrBladeError):
+    pass
+
 class AngrAnnotatedCFGError(AngrError):
     pass
 

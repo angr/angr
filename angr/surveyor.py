@@ -276,7 +276,7 @@ class Surveyor(object):
         """
         Takes one step in the analysis. Typically, this moves all active paths forward.
 
-        :returnss: itself, for chaining
+        :return: itself, for chaining
         """
         new_active = []
 
@@ -295,7 +295,7 @@ class Surveyor(object):
                     self._hierarchy.unreachable(p)
                     self.errored.append(p)
                 continue
-            p.step()
+            self._step_path(p)
             if len(p.successors) == 0 and len(p.unconstrained_successor_states) == 0:
                 l.debug("Path %s has deadended.", p)
                 self.suspend_path(p)
@@ -337,6 +337,9 @@ class Surveyor(object):
 
         self.active = new_active
         return self
+
+    def _step_path(self, p):  #pylint:disable=no-self-use
+        p.step()
 
     def _tick_path(self, p, successors=None):
         if successors is None:
