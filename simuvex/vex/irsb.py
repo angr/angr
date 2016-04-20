@@ -41,7 +41,7 @@ class SimIRSB(SimRun):
             raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
         self.irsb = irsb
-        self.first_imark = IMark([i for i in self.irsb.statements if type(i)==pyvex.IRStmt.IMark][0])
+        self.first_imark = IMark(next(i for i in self.irsb.statements if type(i) is pyvex.IRStmt.IMark))
         self.last_imark = self.first_imark
         self.state.scratch.bbl_addr = self.addr
         self.state.sim_procedure = None
