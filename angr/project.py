@@ -268,11 +268,11 @@ class Project(object):
                             :class:`SimProcedure`'s run function.
         """
 
-        if self.is_hooked(addr):
-            l.warning("Address is already hooked [hook(%#x, %s, %s()]", addr, func, kwargs.get('funcname'))
-            return
-
         if kwargs is None: kwargs = {}
+
+        if self.is_hooked(addr):
+            l.warning("Address is already hooked [hook(%#x, %s, %s()]", addr, func, kwargs.get('funcname', func.__name__))
+            return
 
         if isinstance(func, type):
             proc = func
