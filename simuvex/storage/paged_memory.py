@@ -102,6 +102,7 @@ class SimPagedMemory(object):
     def __getstate__(self):
         return {
             '_memory_backer': self._memory_backer,
+            '_permissions_backer': self._permissions_backer,
             '_executable_pages': self._executable_pages,
             '_permission_map': self._permission_map,
             '_pages': self._pages,
