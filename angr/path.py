@@ -145,6 +145,15 @@ class PathHistory(object):
 
     __slots__ = ('_parent', 'addr', '_runstr', '_target', '_guard', '_jumpkind', '_events')
 
+    def __getstate__(self):
+        attributes = ('addr',)
+        state = {name: getattr(self,name) for name in attributes}
+        return state
+
+    def __setstate__(self):
+        for name, value in state.iteritems():
+            setattr(self,name,value)
+            
     def _record_state(self, state, events=None):
         self._events = events if events is not None else state.log.events
         self.addr = state.scratch.bbl_addr
