@@ -12,10 +12,11 @@ import mulpyplexer
 
 UNAVAILABLE_RET_ADDR = -1
 
+
 class CallFrame(object):
     """
     Stores the address of the function you're in and the value of SP
-    at the VERY BOTTOM of the stack, i.e. points to the return address
+    at the VERY BOTTOM of the stack, i.e. points to the return address.
     """
     def __init__(self, state=None, func_addr=None, stack_ptr=None, ret_addr=None, jumpkind=None):
         """
@@ -61,22 +62,34 @@ class CallFrame(object):
         c.block_counter = collections.Counter(self.block_counter)
         return c
 
+
 class CallStack(object):
+    """
+    Represents a call stack.
+    """
     def __init__(self):
         self._callstack = []
 
     def __iter__(self):
         """
         Iterate through the callstack, from top to bottom
-        (most recent first)
+        (most recent first).
         """
         for cf in reversed(self._callstack):
             yield cf
 
     def push(self, cf):
+        """
+        Push the :class:`CallFrame` `cf` on the callstack.
+        """
         self._callstack.append(cf)
 
     def pop(self):
+        """
+        Pops one :class:`CallFrame` from the callstack.
+
+        :return: A CallFrame.
+        """
         try:
             return self._callstack.pop(-1)
         except IndexError:
@@ -84,6 +97,11 @@ class CallStack(object):
 
     @property
     def top(self):
+        """
+        Returns the element at the top of the callstack without removing it.
+
+        :return: A CallFrame.
+        """
         try:
             return self._callstack[-1]
         except IndexError:
@@ -129,9 +147,11 @@ class CallStack(object):
         c._callstack = [cf.copy() for cf in self._callstack]
         return c
 
+
 class ReverseListProxy(list):
     def __iter__(self):
         return reversed(self)
+
 
 class PathHistory(object):
     def __init__(self, parent=None):
@@ -496,8 +516,8 @@ class Path(object):
         """
         This function clear the execution status.
 
-        After calling this if you call step() successors will be recomputed. If you changed something into path state
-        you probably want to call this method.
+        After calling this if you call :func:`step`, successors will be recomputed. If you changed something into path
+        state you probably want to call this method.
         """
         self._run = None
 
@@ -516,6 +536,7 @@ class Path(object):
 
     @property
     def next_run(self):
+        # TODO: this should be documented.
         if self._run_error:
             return None
         if not self._run:
@@ -885,7 +906,14 @@ class Path(object):
     def __repr__(self):
         return "<Path with %d runs (at 0x%x)>" % (self.length, self.addr)
 
+
 class ErroredPath(Path):
+    """
+    ErroredPath is used for paths that have encountered and error in their symbolic execution. This kind of path cannot
+    be stepped further.
+
+    :ivar error:    The error that was encountered.
+    """
     def __init__(self, error, *args, **kwargs):
         super(ErroredPath, self).__init__(*args, **kwargs)
         self.error = error
@@ -909,7 +937,7 @@ def make_path(project, runs):
     """
     A helper function to generate a correct angr.Path from a list of runs corresponding to a program path.
 
-    :param runs:    A list of simruns corresponding to a program path.
+    :param runs:    A list of SimRuns corresponding to a program path.
     """
 
     if len(runs) == 0:

@@ -4,7 +4,12 @@ import collections
 
 l = logging.getLogger(name="angr.knowledge.function_manager")
 
+
 class FunctionDict(dict):
+    """
+    FunctionDict is a dict where the keys are function starting addresses and
+    map to the associated :class:`Function`.
+    """
     def __init__(self, backref, *args, **kwargs):
         self._backref = backref
         super(FunctionDict, self).__init__(*args, **kwargs)
@@ -14,6 +19,7 @@ class FunctionDict(dict):
         self[key] = t
         return t
 
+
 class FunctionManager(collections.Mapping):
     """
     This is a function boundaries management tool. It takes in intermediate
@@ -21,8 +27,6 @@ class FunctionManager(collections.Mapping):
     """
     def __init__(self, kb):
         self._kb = kb
-        # A map that uses function starting address as the key, and maps
-        # to a function class
         self._function_map = FunctionDict(self)
         self.callgraph = networkx.DiGraph()
 
@@ -103,8 +107,9 @@ class FunctionManager(collections.Mapping):
 
     def function(self, addr=None, name=None, create=False):
         """
-        Get a function object from the function manager
-        Pass one of the kwargs addr or name, with the appropriate values.
+        Get a function object from the function manager.
+
+        Pass either `addr` or `name` with the appropriate values.
         """
         if addr is not None:
             if addr in self._function_map or create:

@@ -253,13 +253,13 @@ class Project(object):
         """
         Hook a section of code with a custom function.
 
-        If func is a function, it takes a `SimState` and the given kwargs. It can return None, in which case it
-        will generate a single exit to the instruction at addr+length, or it can return an array of successor states.
+        If `func` is a function, it takes a :class:`SimState` and the given `kwargs`. It can return None, in which case
+        it will generate a single exit to the instruction at ``addr+length``, or it can return an array of successor
+        states.
 
-        If func is a `SimProcedure`, it will be run instead of a `SimBlock` at that address.
+        If func is a :class:`SimProcedure`, it will be run instead of a :class:`SimBlock` at that address.
 
-        If length is zero, the block at the hooked address will be executed immediately after the hook function.
-
+        If `length` is zero the block at the hooked address will be executed immediately after the hook function.
 
         :param addr:        The address to hook.
         :param func:        The function that will perform an action when execution reaches the hooked address.
