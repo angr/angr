@@ -443,6 +443,10 @@ class Path(object):
     def addr(self):
         return self.state.se.any_int(self.state.regs.ip)
 
+    @addr.setter
+    def addr(self, val):
+        self.state.regs.ip = val
+
     def __len__(self):
         return self.length
 
