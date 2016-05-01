@@ -10,7 +10,6 @@ import progressbar
 
 import simuvex
 import pyvex
-import cle
 
 from ..analysis import Analysis, register_analysis
 from ..surveyors import Slicecutor
@@ -305,7 +304,7 @@ class CFGFast(Analysis, CFGBase):
         l.debug("Starts at %#x and ends at %#x.", self._start, self._end)
 
         # Get all valid memory regions
-        self._valid_memory_regions = self._executable_memory_regions()
+        self._valid_memory_regions = self._executable_memory_regions(self._binary, self._force_segment)
         self._valid_memory_region_size = sum([(end - start) for start, end in self._valid_memory_regions])
 
         self._next_addr = self._start - 1
@@ -372,48 +371,6 @@ class CFGFast(Analysis, CFGBase):
             "jump_tables": self._jump_tables,
         }
         return s
-
-    def _executable_memory_regions(self):
-        """
-        Get all executable memory regions from the binary
-
-        :return: A sorted list of tuples (beginning_address, end_address)
-        """
-
-        memory_regions = [ ]
-        rebase_addr = self._binary.rebase_addr
-
-        if isinstance(self._binary, cle.ELF):
-            # If we have sections, we get result from sections
-            if not self._force_segment and self._binary.sections:
-                # Get all executable sections
-                for section in self._binary.sections:
-                    if section.is_executable:
-                        tpl = (rebase_addr + section.vaddr, rebase_addr + section.vaddr + section.memsize)
-                        memory_regions.append(tpl)
-
-            else:
-                # Get all executable segments
-                for segment in self._binary.segments:
-                    if segment.is_executable:
-                        tpl = (rebase_addr + segment.vaddr, rebase_addr + segment.vaddr + segment.memsize)
-                        memory_regions.append(tpl)
-
-        elif isinstance(self._binary, cle.PE):
-            for section in self._binary.sections:
-                if section.is_executable:
-                    tpl = (rebase_addr + section.vaddr, rebase_addr + section.vaddr + section.memsize)
-                    memory_regions.append(tpl)
-
-        else:
-            memory_regions = [
-                (self._binary.rebase_addr + start, self._binary.rebase_addr + start + len(cbacker))
-                for start, cbacker in self.project.loader.memory.cbackers
-                ]
-
-        memory_regions = sorted(memory_regions, key=lambda x: x[0])
-
-        return memory_regions
 
     def _addr_in_memory_regions(self, addr):
         """

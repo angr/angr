@@ -129,7 +129,7 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
         self._sanitize_parameters()
 
         self._executable_address_ranges = []
-        self._initialize_executable_ranges()
+        self._executable_address_ranges = self._executable_memory_regions()
 
         if not no_construct:
             self._analyze()
@@ -616,18 +616,6 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
 
         if not self._starts:
             raise AngrCFGError("At least one start must be provided")
-
-    def _initialize_executable_ranges(self):
-        """
-        Collect all executable sections.
-        """
-
-        for b in self.project.loader.all_objects:
-            for seg in b.segments:
-                if seg.is_executable:
-                    min_addr = seg.min_addr + b.rebase_addr
-                    max_addr = seg.max_addr + b.rebase_addr
-                    self._executable_address_ranges.append((min_addr, max_addr))
 
     # CFG construction
     # The main loop and sub-methods
