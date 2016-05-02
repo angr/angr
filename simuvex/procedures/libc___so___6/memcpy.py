@@ -15,12 +15,11 @@ class memcpy(simuvex.SimProcedure):
         self.return_type = self.ty_ptr(SimTypeTop())
 
         if not self.state.se.symbolic(limit):
-            if BEST_EFFORT_MEMORY_STORING in self.state.options:
-                conditional_size = self.state.se.max_int(limit)
-            else:
-                conditional_size = self.state.se.any_int(limit)
+            # not symbolic so we just take the value
+            conditional_size = self.state.se.any_int(limit)
         else:
-            max_memcpy_size = self.state.libc.max_buffer_size
+            # constraints on the limit are added during the store
+            max_memcpy_size = self.state.libc.max_memcpy_size
             conditional_size = max(self.state.se.min_int(limit), min(self.state.se.max_int(limit), max_memcpy_size))
 
         l.debug("Memcpy running with conditional_size %d", conditional_size)
@@ -35,4 +34,4 @@ class memcpy(simuvex.SimProcedure):
 
         return dst_addr
 
-from simuvex.s_options import BEST_EFFORT_MEMORY_STORING, ABSTRACT_MEMORY
+from simuvex.s_options import ABSTRACT_MEMORY

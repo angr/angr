@@ -16,14 +16,8 @@ class strncpy(simuvex.SimProcedure):
         strlen = simuvex.SimProcedures['libc.so.6']['strlen']
         memcpy = simuvex.SimProcedures['libc.so.6']['memcpy']
 
-        src_len = src_len if src_len is not None else self.inline_call(strlen, src_addr)
-        cpy_size = self.state.se.If(self.state.se.ULE(limit, src_len.ret_expr + 1), limit, src_len.ret_expr + 1)
-
-        #print "==================="
-        #print sorted(self.state.expr_value(src_len.ret_expr).se.any_n(20))
-        #print self.state.expr_value(limit.expr).se.any_n(20)
-        #print sorted(self.state.expr_value(cpy_size).se.any_n(20))
-        #print "-------------------"
+        src_len = src_len if src_len is not None else self.inline_call(strlen, src_addr).ret_expr
+        cpy_size = self.state.se.If(self.state.se.ULE(limit, src_len + 1), limit, src_len + 1)
 
         self.inline_call(memcpy, dst_addr, src_addr, cpy_size)
         return dst_addr
