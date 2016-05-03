@@ -378,9 +378,6 @@ class SimCGC(SimOS):
         # Special stack base for CGC binaries to work with Shellphish CRS
         s.regs.sp = 0xbaff0000
 
-        # 'main' gets called with the magic page address as the first fast arg
-        s.regs.ecx = 0x4347c000
-
         s.register_plugin('posix', SimStateSystem(fs=fs))
 
         # Create the CGC plugin
@@ -434,7 +431,7 @@ class SimCGC(SimOS):
             # Set CGC-specific variables
             state.regs.eax = 0
             state.regs.ebx = 0
-            state.regs.ecx = 0x4347c000
+            state.regs.ecx = 0
             state.regs.edx = 0
             state.regs.edi = 0
             state.regs.esi = 0
@@ -466,14 +463,6 @@ class SimCGC(SimOS):
             state.regs.xmm5 = 0
             state.regs.xmm6 = 0
             state.regs.xmm7 = 0
-
-            # segmentation registers
-            state.regs.ds = 0
-            state.regs.es = 0
-            state.regs.fs = 0
-            state.regs.gs = 0
-            state.regs.ss = 0
-            state.regs.cs = 0
 
         return state
 
