@@ -234,6 +234,7 @@ class Tracer(object):
         # if we have to ditch the trace we use satisfiability
         # or if a split occurs in a library routine
         a_paths = self.path_group.active
+
         if self.no_follow or all(map(
                 lambda p: not self._address_in_binary(p.addr), a_paths
                 )):
@@ -243,6 +244,8 @@ class Tracer(object):
             self.path_group = self.path_group.stash_not_addr(
                                            self.trace[self.bb_cnt],
                                            to_stash='missed')
+        if len(self.path_group.active) > 1: # rarely we get two active paths
+            self.path_group = self.path_group.prune(to_stash='missed')
 
         # make sure we only have one or zero active paths at this point
         assert len(self.path_group.active) < 2
@@ -659,6 +662,8 @@ class Tracer(object):
         options.add(so.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
         options.add(so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
         options.add(so.REPLACEMENT_SOLVER)
+        options.add(so.UNICORN)
+        options.add(so.UNICORN_FAST)
 
         self.remove_options |= so.simplification | set(so.LAZY_SOLVES)
         self.add_options |= options
