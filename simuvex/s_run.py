@@ -5,6 +5,7 @@ l = logging.getLogger("simuvex.s_run")
 import claripy
 import simuvex.s_options as o
 from claripy.ast.bv import BV
+from simuvex.plugins.inspect import BP_BEFORE, BP_AFTER
 
 
 class SimRun(object):
@@ -63,6 +64,12 @@ class SimRun(object):
                               and None means it's not from a statement (for example, from a SimProcedure).
         :param source:        The source of the jump (i.e., the address of the basic block).
         """
+
+        state._inspect('exit', BP_BEFORE, exit_target=target, exit_guard=guard, exit_jumpkind=jumpkind)
+        target = state._inspect_getattr("exit_target", target)
+        guard = state._inspect_getattr("exit_guard", guard)
+        jumpkind = state._inspect_getattr("exit_jumpkind", jumpkind)
+
         state.scratch.target = _raw_ast(target)
         state.scratch.jumpkind = jumpkind
         state.scratch.guard = _raw_ast(guard)
@@ -76,7 +83,9 @@ class SimRun(object):
         state.options.discard(o.AST_DEPS)
         state.options.discard(o.AUTO_REFS)
 
-        return self._add_successor(state, target)
+        return_state = self._add_successor(state, target)
+        state._inspect('exit', BP_AFTER, exit_target=target, exit_guard=guard, exit_jumpkind=jumpkind)
+        return return_state
 
     def _add_successor(self, state, target):
         """
