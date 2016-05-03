@@ -49,7 +49,7 @@ def test_allocation_base_continuity():
 
     t = tracer.Tracer(os.path.join(bin_location, "tests/i386/vuln_vptr_smash"), "A" * 400)
 
-    crash_path, crash_state = t.run()
+    _, crash_state = t.run()
 
     nose.tools.assert_equal(crash_state.se.any_int(crash_state.cgc.allocation_base), 0xb7fc0000)
 
