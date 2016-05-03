@@ -65,7 +65,7 @@ class SimStateLibc(SimStatePlugin):
 
         # various thresholds
         self.heap_location = heap_location
-        self.buf_symbolic_bytes = 128
+        self.buf_symbolic_bytes = 60
         self.max_symbolic_strstr = 1
         self.max_symbolic_strchr = 16
         self.max_variable_size = 128

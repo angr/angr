@@ -48,7 +48,7 @@ def test_inline_strlen():
     u_addr = s.se.BVV(0x50, 64)
     u_len_sp = SimProcedures['libc.so.6']['strlen'](s, inline=True, arguments=[u_addr])
     u_len = u_len_sp.ret_expr
-    nose.tools.assert_equal(len(s.se.any_n_int(u_len, 200)), s.libc.buf_symbolic_bytes)
+    nose.tools.assert_equal(len(s.se.any_n_int(u_len, 100)), s.libc.buf_symbolic_bytes)
     nose.tools.assert_equal(s.se.max_int(u_len), s.libc.buf_symbolic_bytes-1)
     #print u_len_sp.se.maximum_null
 
@@ -64,7 +64,7 @@ def test_inline_strlen():
     c_addr = s.se.BVV(0x10, 64)
     s.memory.store(c_addr, str_c, endness='Iend_BE')
     c_len = SimProcedures['libc.so.6']['strlen'](s, inline=True, arguments=[c_addr]).ret_expr
-    nose.tools.assert_equal(len(s.se.any_n_int(c_len, 200)), s.libc.buf_symbolic_bytes)
+    nose.tools.assert_equal(len(s.se.any_n_int(c_len, 100)), s.libc.buf_symbolic_bytes)
     nose.tools.assert_equal(s.se.max_int(c_len), s.libc.buf_symbolic_bytes-1)
 
     one_s = s.copy()
