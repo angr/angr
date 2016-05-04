@@ -244,7 +244,12 @@ class Tracer(object):
                                            self.trace[self.bb_cnt],
                                            to_stash='missed')
         if len(self.path_group.active) > 1: # rarely we get two active paths
-                        self.path_group = self.path_group.prune(to_stash='missed')
+            self.path_group = self.path_group.prune(to_stash='missed')
+        if len(self.path_group.active) > 1: # might still be two active
+            self.path_group = self.path_group.stash(
+                    to_stash='missed',
+                    filter_func=lambda x: x.jumpkind == "Ijk_EmWarn"
+            )
 
         # make sure we only have one or zero active paths at this point
         assert len(self.path_group.active) < 2
