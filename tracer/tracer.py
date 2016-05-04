@@ -101,6 +101,11 @@ class Tracer(object):
         # if the input causes a crash, what address does it crash at?
         self.crash_addr = None
 
+        # content of the magic flag page as reported by QEMU
+        # we need this to keep symbolic traces following the same path
+        # as their dynamic counterpart
+        self._magic_content = None
+
         # will set crash_mode correctly
         self.trace = self.dynamic_trace()
 
@@ -234,6 +239,7 @@ class Tracer(object):
         # if we have to ditch the trace we use satisfiability
         # or if a split occurs in a library routine
         a_paths = self.path_group.active
+
         if self.no_follow or all(map(
                 lambda p: not self._address_in_binary(p.addr), a_paths
                 )):
@@ -245,6 +251,7 @@ class Tracer(object):
                                            to_stash='missed')
         if len(self.path_group.active) > 1: # rarely we get two active paths
             self.path_group = self.path_group.prune(to_stash='missed')
+
         if len(self.path_group.active) > 1: # might still be two active
             self.path_group = self.path_group.stash(
                     to_stash='missed',
@@ -505,7 +512,8 @@ class Tracer(object):
         '''
 
         lname = tempfile.mktemp(dir="/dev/shm/", prefix="tracer-log-")
-        args = [self.tracer_qemu_path, "-d", "exec", "-D", lname, self.binary]
+        mname = tempfile.mktemp(dir="/dev/shm/", prefix="tracer-magic-")
+        args = [self.tracer_qemu_path, "-magicdump", mname, "-d", "exec", "-D", lname, self.binary]
 
         with open('/dev/null', 'wb') as devnull:
             stdout_f = devnull
@@ -557,6 +565,12 @@ class Tracer(object):
                     trace.split('\n')[-2].split('[')[1].split(']')[0],
                     16)
 
+        self._magic_content = open(mname).read()
+
+        a_mesg = "magic content read from QEMU improper size, should be a page in length"
+        assert len(self._magic_content) == 0x1000, a_mesg
+
+        os.remove(mname)
         os.remove(lname)
 
         return addrs
@@ -606,6 +620,13 @@ class Tracer(object):
 
         if repair_entry_state_opts:
             entry_state.options |= {so.TRACK_ACTION_HISTORY}
+
+    def _preconstrain_flag_page(self, entry_state, flag_page_var):
+        '''
+        preconstrain the data in the flag page
+        '''
+        c = entry_state.se.BVV(self._magic_content) == flag_page_var
+        entry_state.add_constraints(c)
 
     def _set_cgc_simprocedures(self):
         for symbol in self.simprocedures:
@@ -667,6 +688,14 @@ class Tracer(object):
         options.add(so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
         options.add(so.REPLACEMENT_SOLVER)
 
+        # try to enable unicorn, continue if it doesn't exist
+        try:
+            options.add(so.UNICORN)
+            # options.add(so.UNICORN_FAST)
+            l.info("unicorn tracing enabled")
+        except AttributeError:
+            pass
+
         self.remove_options |= so.simplification | set(so.LAZY_SOLVES)
         self.add_options |= options
         entry_state = project.factory.entry_state(
@@ -681,7 +710,9 @@ class Tracer(object):
             entry_state.cgc.input_size = len(self.input)
 
         # map the CGC flag page
-        cgc_flag_data = claripy.BVS('cgc-flag-data', 0x1000 * 32)
+        cgc_flag_data = claripy.BVS('cgc-flag-data', 0x1000 * 8)
+        # preconstrain flag page
+        self._preconstrain_flag_page(entry_state, cgc_flag_data)
 
         # PROT_READ region
         entry_state.memory.store(0x4347c000, cgc_flag_data)
