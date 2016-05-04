@@ -243,6 +243,8 @@ class Tracer(object):
             self.path_group = self.path_group.stash_not_addr(
                                            self.trace[self.bb_cnt],
                                            to_stash='missed')
+        if len(self.path_group.active) > 1: # rarely we get two active paths
+                        self.path_group = self.path_group.prune(to_stash='missed')
 
         # make sure we only have one or zero active paths at this point
         assert len(self.path_group.active) < 2
