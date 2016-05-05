@@ -512,8 +512,14 @@ class Tracer(object):
         '''
 
         lname = tempfile.mktemp(dir="/dev/shm/", prefix="tracer-log-")
-        mname = tempfile.mktemp(dir="/dev/shm/", prefix="tracer-magic-")
-        args = [self.tracer_qemu_path, "-magicdump", mname, "-d", "exec", "-D", lname, self.binary]
+        args = [self.tracer_qemu_path]
+
+        # if the binary is CGC we'll also take this oppurtunity to read in the magic page
+        if self.os == 'cgc':
+            mname = tempfile.mktemp(dir="/dev/shm/", prefix="tracer-magic-")
+            args += ["-magicdump", mname]
+
+        args += ["-d", "exec", "-D", lname, self.binary]
 
         with open('/dev/null', 'wb') as devnull:
             stdout_f = devnull
@@ -565,12 +571,14 @@ class Tracer(object):
                     trace.split('\n')[-2].split('[')[1].split(']')[0],
                     16)
 
-        self._magic_content = open(mname).read()
+        if self.os == "cgc":
+            self._magic_content = open(mname).read()
 
-        a_mesg = "magic content read from QEMU improper size, should be a page in length"
-        assert len(self._magic_content) == 0x1000, a_mesg
+            a_mesg = "magic content read from QEMU improper size, should be a page in length"
+            assert len(self._magic_content) == 0x1000, a_mesg
 
-        os.remove(mname)
+            os.remove(mname)
+
         os.remove(lname)
 
         return addrs
