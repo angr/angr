@@ -390,12 +390,22 @@ def pc_actions_ROR(state, nbits, res, _, cc_ndep, platform=None):
     of = (res[nbits-1] ^ res[nbits-2])
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
-def pc_actions_UMUL(*args, **kwargs):
-    l.error("Unsupported flag action UMUL")
-    raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
+def pc_actions_UMUL(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
+    lo = (cc_dep1 * cc_dep2)[nbits - 1:0]
+    rr = lo
+    hi = (rr >> nbits)[nbits - 1:0]
+    cf = state.se.If(hi != 0, state.se.BVV(1, 1), state.se.BVV(0, 1))
+    zf = calc_zerobit(state, lo)
+    pf = calc_paritybit(state, lo)
+    af = state.se.BVV(0, 1)
+    sf = lo[nbits - 1]
+    of = cf
+    return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
+
 def pc_actions_UMULQ(*args, **kwargs):
     l.error("Unsupported flag action UMULQ")
     raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
+
 def pc_actions_SMUL(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
     lo = (cc_dep1 * cc_dep2)[nbits - 1:0]
     rr = lo
@@ -407,6 +417,7 @@ def pc_actions_SMUL(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
     sf = lo[nbits - 1]
     of = cf
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
+
 def pc_actions_SMULQ(*args, **kwargs):
     l.error("Unsupported flag action SMULQ")
     raise SimCCallError("Unsupported flag action. Please implement or bug Yan.")
