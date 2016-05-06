@@ -746,21 +746,26 @@ class SimPagedMemory(object):
         """
 
         if self.state.se.symbolic(addr):
-            raise ValueError("page permissions cannot currently be looked up for symbolic addresses")
+            raise SimMemoryError("page permissions cannot currently be looked up for symbolic addresses")
 
         if isinstance(addr, claripy.ast.bv.BV):
             addr = self.state.se.any_int(addr)
 
         page_num = addr / self._page_size
 
-        return self._get_page(page_num).permissions
+        try:
+            page = self._get_page(page_num)
+        except KeyError:
+            raise SimMemoryError("page does not exist at given address")
+
+        return page.permissions
 
     def map_region(self, addr, length, permissions):
         if o.TRACK_MEMORY_MAPPING not in self.state.options:
             return
 
         if self.state.se.symbolic(addr):
-            raise ValueError("cannot map region with a symbolic address")
+            raise SimMemoryError("cannot map region with a symbolic address")
 
         if isinstance(addr, claripy.ast.bv.BV):
             addr = self.state.se.max_int(addr)
@@ -772,9 +777,11 @@ class SimPagedMemory(object):
         if length % self._page_size > 0:
             pages += 1
 
-        for page in xrange(pages):
-            if base_page_num + page in self._pages:
-                raise ValueError("map_page received address and length combination which contained mapped page")
+        # this check should not be performed when constructing a CFG
+        if self.state.mode != 'fastpath':
+            for page in xrange(pages):
+                if base_page_num + page in self._pages:
+                    raise SimMemoryError("map_page received address and length combination which contained mapped page")
 
         if isinstance(permissions, (int, long)):
             permissions = claripy.BVV(permissions, 3)
