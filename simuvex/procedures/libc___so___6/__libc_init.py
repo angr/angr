@@ -21,7 +21,7 @@ class __libc_init(simuvex.SimProcedure):
         offset = self.state.arch.bits / 8
         readlen = self.state.arch.bits / 8
         endness = self.state.arch.memory_endness
-        self.main = slingshot;
+        self.main = slingshot
         self.argc = self.state.memory.load(raw_args + 0 * offset, readlen, endness=endness)
         argc_val = self.state.se.any_int(self.argc)
         self.argv = self.state.memory.load(raw_args + 1 * offset, readlen, endness=endness)
@@ -31,5 +31,3 @@ class __libc_init(simuvex.SimProcedure):
 
     def after_slingshot(self, raw_args, unused, slingshot, structors, exit_addr=0):
         self.inline_call(simuvex.SimProcedures['libc.so.6']['exit'], 0)
-
-from archinfo import ArchAMD64
