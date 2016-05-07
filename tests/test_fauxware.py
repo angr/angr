@@ -12,6 +12,7 @@ target_addrs = {
     'x86_64': [ 0x4006ed ],
     'ppc': [ 0x1000060C ],
     'armel': [ 0x85F0 ],
+    'android/arm': [ 0x4004cc ],
     'mips': [ 0x4009FC ]
 }
 
@@ -20,6 +21,7 @@ avoid_addrs = {
     'x86_64': [ 0x4006aa,0x4006fd ],
     'ppc': [ 0x10000644,0x1000059C ],
     'armel': [ 0x86F8,0x857C ],
+    'android/arm': [ 0x4004f0,0x400470 ],
     'mips': [ 0x400A10,0x400774 ]
 }
 
@@ -36,6 +38,7 @@ divergences = {
     'x86_64': 0x40068e,
     'i386': 0x8048559,
     'armel': 0x8568,
+    'android/arm': 0x40045c,
     'mips': 0x40075c,
 }
 
@@ -73,7 +76,7 @@ def test_fauxware():
         yield run_fauxware, arch
 
 def test_nodecode():
-    for arch in target_addrs:
+    for arch in corrupt_addrs:
         yield run_nodecode, arch
 
 if __name__ == "__main__":
