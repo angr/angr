@@ -37,6 +37,7 @@ typedef taint_t PageBitmap[PAGE_SIZE];
 typedef std::map<uint64_t, std::pair<char *, uint64_t>> PageCache;
 std::map<uint64_t, PageCache*> global_cache;
 
+typedef std::unordered_set<uint64_t> RegisterSet;
 
 typedef struct mem_access {
 	uint64_t address;
@@ -68,6 +69,8 @@ private:
 	std::vector<mem_access_t> mem_writes;
 	std::map<uint64_t, taint_t *> active_pages;
 	std::unordered_set<uint64_t> stop_points;
+
+	std::unordered_set(uint64_t> symbolic_registers; // tracking of symbolic registers
 
 public:
 	std::vector<uint64_t> bbl_addrs;
@@ -434,6 +437,195 @@ public:
 		return page_cache->find(address) != page_cache->end();
 	}
 
+	//
+	// Feasibility checks for unicorn
+	//
+
+	// check if we can safely handle this IRExpr
+	inline bool check_expr(IRExpr *e)
+	{
+		if (e == NULL) return true;
+		switch (e->tag)
+		{
+			case Iex_Binder:
+				break;
+			case Iex_VECRET:
+				break;
+			case Iex_BBPTR:
+				break;
+			case Iex_GetI:
+				// we can't handle this for the same reasons as PutI (see below)
+				return false;
+				break;
+			case Iex_RdTmp:
+				break;
+			case Iex_Get:
+				if (e->Iex.Get.ty == Ity_I1)
+				{
+					LOG_W("seeing a 1-bit get from a register");
+					return false;
+				}
+
+				int expr_size = sizeofIRType(e->Iex.Get.ty);
+				if (!this->check_register_read(e->Iex.Get.offset, expr_size)) return false;
+				break;
+			case Iex_Qop:
+				if (!this->check_expr(e->Iex.Qop.details.arg1)) return false;
+				if (!this->check_expr(e->Iex.Qop.details.arg2)) return false;
+				if (!this->check_expr(e->Iex.Qop.details.arg3)) return false;
+				if (!this->check_expr(e->Iex.Qop.details.arg4)) return false;
+				break;
+			case Iex_Triop:
+				if (!this->check_expr(e->Iex.Triop.details.arg1)) return false;
+				if (!this->check_expr(e->Iex.Triop.details.arg2)) return false;
+				if (!this->check_expr(e->Iex.Triop.details.arg3)) return false;
+				break;
+			case Iex_Binop:
+				if (!this->check_expr(e->Iex.Binop.arg1)) return false;
+				if (!this->check_expr(e->Iex.Binop.arg2)) return false;
+				break;
+			case Iex_Unop:
+				if (!this->check_expr(e->Iex.Unop.arg)) return false;
+				break;
+			case Iex_Load:
+				if (!this->check_expr(e->Iex.Load.addr)) return false;
+				break;
+			case Iex_Const:
+				break;
+			case Iex_ITE:
+				if (!this->check_expr(e->Iex.ITE.cond)) return false;
+				if (!this->check_expr(e->Iex.ITE.iffalse)) return false;
+				if (!this->check_expr(e->Iex.ITE.iftrue)) return false;
+				break;
+			case Iex_CCall:
+				for (int i = 0; i < 20; i++)
+				{
+					if (!this->check_expr(s->Iex.CCall.args[i])) return false;
+				}
+				break;
+		}
+
+		return true;
+	}
+
+	// mark the register as safe
+	inline void mark_register_safe(uint64_t offset, int size)
+	{
+		for (int i = 0; i < size; i++)
+			this->symbolic_registers->erase(offset+i);
+	}
+
+	// check register access
+	inline bool check_register_read(uint64_t offset, int size)
+	{
+		for (int i = 0; i < size; i++)
+		{
+			if (this->symbolic_registers->find(offset + i) != this->symbolic_registers->end())
+				return false;
+		}
+	}
+
+	// check if we can safely handle this IRStmt
+	inline void check_stmt(IRStmt *s)
+	{
+		switch (s->tag)
+		{
+			case Ist_Put:
+				if (!this->check_expr(s->Ist.Put.data)) return false;
+				IRType expr_type = typeOfIRTemp(s->Ist.Put.data);
+				if (expr_type == Ity_I1)
+				{
+					LOG_W("seeing a 1-bit write to a register");
+					return false;
+				}
+
+				int expr_size = sizeofIRType(expr_type);
+				this->mark_register_safe(s->Ist.Put.offset, expr_size);
+				break;
+			case Ist_PutI:
+				// we cannot handle the PutI because:
+				// 1. in the case of symbolic registers, we need to have a good
+				//    handle on what registers need to be synced back to angr.
+				// 2. this requires us to track all the writes
+				// 3. a PutI represents an indirect write into the registerfile,
+				//    and we can't figure out where it's writing to ahead of time
+				// 4. unicorn provides no way to hook register writes (and that'd
+				//    probably be prohibitively slow anyways)
+				// 5. so we're screwed
+				return false;
+				break;
+			case Ist_WrTmp:
+				if (!this->check_expr(s->Ist.WrTmp.data)) return false;
+				break;
+			case Ist_Store:
+				if (!this->check_expr(s->Ist.Store.addr)) return false;
+				if (!this->check_expr(s->Ist.Store.data)) return false;
+				break;
+			case Ist_CAS:
+				if (!this->check_expr(s->Ist.CAS.details.addr)) return false;
+				if (!this->check_expr(s->Ist.CAS.details.dataLo)) return false;
+				if (!this->check_expr(s->Ist.CAS.details.dataHi)) return false;
+				if (!this->check_expr(s->Ist.CAS.details.expdLo)) return false;
+				if (!this->check_expr(s->Ist.CAS.details.expdHi)) return false;
+				break;
+			case Ist_LLSC:
+				if (!this->check_expr(s->Ist.LLSC.addr)) return false;
+				if (!this->check_expr(s->Ist.LLSC.storedata)) return false;
+				break;
+			case Ist_Dirty:
+				if (!this->check_expr(s->Ist.Dirty.details.guard)) return false;
+				if (!this->check_expr(s->Ist.Dirty.details.mAddr)) return false;
+				for (int i = 0; i < 20; i++)
+				{
+					if (!this->check_expr(s->Ist.Dirty.details.args[i])) return false;
+				}
+				break;
+			case Ist_Exit:
+				if (!this->check_expr(s->Ist.Exit.guard)) return false;
+				if (!this->check_expr(s->Ist.Exit.dst)) return false;
+				break;
+			case Ist_LoadG:
+				if (!this->check_expr(s->Ist.LoadG.addr)) return false;
+				if (!this->check_expr(s->Ist.LoadG.alt)) return false;
+				if (!this->check_expr(s->Ist.LoadG.guard)) return false;
+				break;
+			case Ist_StoreG:
+				if (!this->check_expr(s->Ist.StoreG.addr)) return false;
+				if (!this->check_expr(s->Ist.StoreG.data)) return false;
+				if (!this->check_expr(s->Ist.StoreG.guard)) return false;
+				break;
+			case Ist_NoOp:
+			case Ist_IMark:
+			case Ist_AbiHint:
+			case Ist_MBE:
+				// no-ops for our purposes
+				break;
+			default:
+				LOG_W("Encountered unknown VEX statement -- can't determine safety.")
+				return false;
+		}
+
+		return true;
+	}
+
+	// check if the block is feasible
+	bool check_block(address, size)
+	{
+		// if there are no symbolic registers we're ok
+		if (state->symbolic_registers->size() == 0) return true;
+
+		void *instructions = malloc(size);
+		uc_mem_read(this->uc, address, instructions, size);
+		IRSB *the_block = vex_block_bytes(TODO, TODO, instructions, address, size, 0);
+
+		for (int i = 0; i < the_block->stmts_used; i++)
+		{
+			if (!this->check_stmt(the_block->stmts[i])) return false;
+		}
+		if (!this->check_expr(the_block->next)) return false;
+		return true;
+	}
+
 };
 
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
@@ -553,7 +745,10 @@ static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, in
 }
 
 static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user_data) {
-	State *state = (State *)user_data;
+	LOG_I("block [%#lx, %#lx]", address, address + size);
+
+	if (!state->check_block(the_block)) return false;
+
 	if (state->ignore_next_block) {
 		state->ignore_next_block = false;
 		state->ignore_next_selfmod = true;
@@ -664,6 +859,15 @@ void activate(State *state, uint64_t address, uint64_t length, uint8_t *taint) {
 	// LOG_D("activate [%#lx, %#lx]", address, address + length);
 	for (uint64_t offset = 0; offset < length; offset += 0x1000)
 		state->page_activate(address + offset, taint, offset);
+}
+
+extern "C"
+void symbolic_register_data(State *state, uint64_t count, uint64_t offsets*)
+{
+	for (int i = 0; i < count; i++)
+	{
+		state->symbolic_registers.insert(offsets[i]);
+	}
 }
 
 /*
