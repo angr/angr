@@ -33,6 +33,7 @@ class SimUnicorn(SimRun):
             self.state.unicorn.destroy()
 
         self.success = True
+        self.state.scratch.executed_block_count += self.state.unicorn.steps
 
         # FIXME what's this?
         guard = self.state.se.true
