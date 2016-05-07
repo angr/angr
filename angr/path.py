@@ -211,7 +211,10 @@ class Path(object):
         else:
             # this path's information
             self.length = path.length + 1
-            self.extra_length = path.extra_length
+            if simuvex.o.UNICORN not in path.state.options:
+                self.extra_length = path.extra_length
+            else:
+                self.extra_length = path.extra_length + self.state.scratch.executed_block_count - 1
 
             # the path history
             self.history = PathHistory(path.history)
