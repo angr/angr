@@ -19,6 +19,7 @@ event_types = {
     'exit',
     'symbolic_variable',
     'call',
+    'syscall'
 }
 
 inspect_attributes = {
@@ -68,6 +69,8 @@ inspect_attributes = {
     'address_concretization_expr',
     'address_concretization_result',
     'address_concretization_add_constraints',
+
+    'syscall_name'
     }
 
 BP_BEFORE = 'before'
