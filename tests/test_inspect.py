@@ -97,6 +97,7 @@ def test_inspect():
     s.memory.load(0, 10)
     nose.tools.assert_equals(counts.variables, 1)
 
+
 def test_inspect_exit():
     class counts: #pylint:disable=no-init
         exit_before = 0
@@ -129,6 +130,37 @@ def test_inspect_exit():
     nose.tools.assert_equal(counts.exit_before, 1)
     nose.tools.assert_equal(counts.exit_after, 1)
 
+
+def test_inspect_syscall():
+    class counts: #pylint:disable=no-init
+        exit_before = 0
+        exit_after = 0
+
+    def handle_syscall_before(state):
+        counts.exit_before += 1
+        syscall_name = state.inspect.syscall_name
+        nose.tools.assert_equal(syscall_name, "close")
+
+    def handle_syscall_after(state):
+        counts.exit_after += 1
+        syscall_name = state.inspect.syscall_name
+        nose.tools.assert_equal(syscall_name, "close")
+
+    s = simuvex.SimState(arch="AMD64", mode="symbolic")
+    # set up to call so syscall close
+    s.regs.rax = 3
+    s.regs.rdi = 2
+
+    # break on syscall
+    s.inspect.b('syscall', simuvex.BP_BEFORE, action=handle_syscall_before)
+    s.inspect.b('syscall', simuvex.BP_AFTER, action=handle_syscall_after)
+
+    # step it
+    simuvex.SimProcedures['syscalls']['handler'](s, addr=s.se.any_int(s.ip), ret_to=s.ip)
+
+    # check counts
+    nose.tools.assert_equal(counts.exit_before, 1)
+    nose.tools.assert_equal(counts.exit_after, 1)
 
 
 def test_inspect_concretization():
@@ -196,4 +228,5 @@ def test_inspect_concretization():
 if __name__ == '__main__':
     test_inspect_concretization()
     test_inspect_exit()
+    test_inspect_syscall()
     test_inspect()
