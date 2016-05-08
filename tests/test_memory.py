@@ -552,6 +552,13 @@ def test_false_condition():
     assert s.memory.load(0x1000, 4) is asdf
     assert 0 not in s.memory.mem._pages
 
+def test_paged_memory_membacker_equal_size():
+    membacker = {0: claripy.BVV(0, 8), 1: claripy.BVV(1, 8), 2: claripy.BVV(2, 8)}
+
+    simmem = simuvex.storage.SimPagedMemory(memory_backer=membacker, page_size=len(membacker))
+    simmem[0]
+
+
 if __name__ == '__main__':
     test_false_condition()
     test_symbolic_write()
@@ -563,3 +570,4 @@ if __name__ == '__main__':
     test_abstract_memory_find()
     test_registers()
     test_concrete_memset()
+    test_paged_memory_membacker_equal_size()

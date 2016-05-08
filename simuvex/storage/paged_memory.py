@@ -288,7 +288,7 @@ class SimPagedMemory(object):
                 new_page.permissions = claripy.BVV(flags, 3)
                 initialized = True
 
-        elif len(self._memory_backer) < self._page_size:
+        elif len(self._memory_backer) <= self._page_size:
             for i in self._memory_backer:
                 if new_page_addr <= i and i <= new_page_addr + self._page_size:
                     if isinstance(self._memory_backer[i], claripy.ast.Base):
