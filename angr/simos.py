@@ -11,6 +11,7 @@ from simuvex import s_options as o
 from simuvex.s_procedure import SimProcedure, SimProcedureContinuation
 from cle import MetaELF, BackedCGC
 import pyvex
+import claripy
 
 class SimOS(object):
     """
@@ -89,13 +90,13 @@ class SimOS(object):
 
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
-                state.registers.store(reg, state.se.Unconstrained(initial_prefix + "_" + reg,
-                                                            state.arch.bits,
-                                                            explicit_name=True))
+                state.registers.store(reg, claripy.BVS(initial_prefix + "_" + reg,
+                                                        state.arch.bits,
+                                                        explicit_name=True))
 
         for reg, val, is_addr, mem_region in state.arch.default_register_values:
             if o.ABSTRACT_MEMORY in state.options and is_addr:
-                address = state.se.ValueSet(region=mem_region, bits=state.arch.bits, val=val)
+                address = claripy.ValueSet(region=mem_region, bits=state.arch.bits, val=val)
                 state.registers.store(reg, address)
             else:
                 state.registers.store(reg, val)
@@ -265,9 +266,9 @@ class SimLinux(SimOS):
 
         # Prepare argc
         if argc is None:
-            argc = state.se.BVV(len(args), state.arch.bits)
+            argc = claripy.BVV(len(args), state.arch.bits)
         elif type(argc) in (int, long):
-            argc = state.se.BVV(argc, state.arch.bits)
+            argc = claripy.BVV(argc, state.arch.bits)
 
         # Make string table for args/env/auxv
         table = StringTableSpec()
@@ -279,7 +280,25 @@ class SimLinux(SimOS):
 
         # Add environment to string table
         for k, v in env.iteritems():
-            table.add_string(k + '=' + v)
+            if type(k) is str:
+                k = claripy.BVV(k)
+            elif type(k) is unicode:
+                k = claripy.BVV(k.encode('utf-8'))
+            elif isinstance(k, claripy.ast.Bits):
+                pass
+            else:
+                raise TypeError("Key in env must be either string or bitvector")
+
+            if type(v) is str:
+                v = claripy.BVV(v)
+            elif type(v) is unicode:
+                v = claripy.BVV(v.encode('utf-8'))
+            elif isinstance(v, claripy.ast.Bits):
+                pass
+            else:
+                raise TypeError("Value in env must be either string or bitvector")
+
+            table.add_string(k.concat(claripy.BVV('='), v))
         table.add_null()
 
         # Prepare the auxiliary vector and add it to the end of the string table
@@ -292,7 +311,7 @@ class SimLinux(SimOS):
         table.add_null()
 
         # Dump the table onto the stack, calculate pointers to args, env, and auxv
-        state.memory.store(state.regs.sp, state.se.BVV(0, 8*16), endness='Iend_BE')
+        state.memory.store(state.regs.sp, claripy.BVV(0, 8*16), endness='Iend_BE')
         argv = table.dump(state, state.regs.sp)
         envp = argv + ((len(args) + 1) * state.arch.bytes)
         auxv = argv + ((len(args) + len(env) + 2) * state.arch.bytes)
@@ -303,10 +322,10 @@ class SimLinux(SimOS):
         state.regs.sp = newsp
 
         if state.arch.name in ('PPC32',):
-            state.stack_push(state.se.BVV(0, 32))
-            state.stack_push(state.se.BVV(0, 32))
-            state.stack_push(state.se.BVV(0, 32))
-            state.stack_push(state.se.BVV(0, 32))
+            state.stack_push(claripy.BVV(0, 32))
+            state.stack_push(claripy.BVV(0, 32))
+            state.stack_push(claripy.BVV(0, 32))
+            state.stack_push(claripy.BVV(0, 32))
 
         # store argc argv envp auxv in the posix plugin
         state.posix.argv = argv
@@ -333,7 +352,7 @@ class SimLinux(SimOS):
                 elif val == 'ld_destructor':
                     # a pointer to the dynamic linker's destructor routine, to be called at exit
                     # or NULL. We like NULL. It makes things easier.
-                    state.registers.store(reg, state.se.BVV(0, state.arch.bits))
+                    state.registers.store(reg, claripy.BVV(0, state.arch.bits))
                 elif val == 'toc':
                     if self.proj.loader.main_bin.is_ppc64_abiv1:
                         state.registers.store(reg, self.proj.loader.main_bin.ppc64_initial_rtoc)
@@ -406,7 +425,7 @@ class SimCGC(SimOS):
                     state.regs.fc3210 = (val & 0x4700)
                 elif reg == 'ftag':
                     empty_bools = [((val >> (x*2)) & 3) == 3 for x in xrange(8)]
-                    tag_chars = [state.se.BVV(0 if x else 1, 8) for x in empty_bools]
+                    tag_chars = [claripy.BVV(0 if x else 1, 8) for x in empty_bools]
                     for i, tag in enumerate(tag_chars):
                         setattr(state.regs, 'fpu_t%d' % i, tag)
                 elif reg in ('fiseg', 'fioff', 'foseg', 'fooff', 'fop'):
@@ -426,7 +445,7 @@ class SimCGC(SimOS):
                 if size == 0:
                     continue
                 str_to_write = state.posix.files[1].content.load(state.posix.files[1].pos, size)
-                a = SimActionData(state, 'file_1_0', 'write', addr=state.se.BVV(state.posix.files[1].pos, state.arch.bits), data=str_to_write, size=size)
+                a = SimActionData(state, 'file_1_0', 'write', addr=claripy.BVV(state.posix.files[1].pos, state.arch.bits), data=str_to_write, size=size)
                 state.posix.write(stdout, str_to_write, size)
                 state.log.add_action(a)
 
@@ -494,7 +513,7 @@ class IFuncResolver(SimProcedure):
             #import IPython; IPython.embed()
             raise
         self.state.memory.store(gotaddr, value, endness=self.state.arch.memory_endness)
-        self.add_successor(self.state, value, self.state.se.true, 'Ijk_Boring')
+        self.add_successor(self.state, value, claripy.true, 'Ijk_Boring')
 
     def __repr__(self):
         return '<IFuncResolver %s>' % self.kwargs.get('funcname', None)
@@ -521,7 +540,7 @@ class _tls_get_addr(SimProcedure):
     def run(self, ptr, ld=None):
         module_id = self.state.se.any_int(self.state.memory.load(ptr, self.state.arch.bytes, endness=self.state.arch.memory_endness))
         offset = self.state.se.any_int(self.state.memory.load(ptr+self.state.arch.bytes, self.state.arch.bytes, endness=self.state.arch.memory_endness))
-        return self.state.se.BVV(ld.tls_object.get_addr(module_id, offset), self.state.arch.bits)
+        return claripy.BVV(ld.tls_object.get_addr(module_id, offset), self.state.arch.bits)
 
 class _tls_get_addr_tunder_x86(SimProcedure):
     # pylint: disable=arguments-differ
