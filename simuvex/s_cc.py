@@ -95,9 +95,9 @@ class SimStackArg(SimFunctionArgument):
 
 
 class ArgSession(object):
-    '''
+    """
     A class to keep track of the state accumulated in laying parameters out into memory
-    '''
+    """
     def __init__(self, cc):
         self.cc = cc
         self.real_args = None
