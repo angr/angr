@@ -7,7 +7,7 @@ l = logging.getLogger("angr.simos")
 
 from archinfo import ArchARM, ArchMIPS32, ArchX86, ArchAMD64
 from simuvex import SimState, SimIRSB, SimStateSystem, SimActionData
-from simuvex import s_options as o
+from simuvex import s_options as o, s_cc
 from simuvex.s_procedure import SimProcedure, SimProcedureContinuation
 from cle import MetaELF, BackedCGC
 import pyvex
@@ -22,6 +22,7 @@ class SimOS(object):
         self.arch = project.arch
         self.proj = project
         self.continue_addr = None
+        self.return_deadend = None
 
     def configure_project(self):
         """
@@ -29,6 +30,8 @@ class SimOS(object):
         """
         self.continue_addr = self.proj._extern_obj.get_pseudo_addr('angr##simproc_continue')
         self.proj.hook(self.continue_addr, SimProcedureContinuation)
+        self.return_deadend = self.proj._extern_obj.get_pseudo_addr('angr##return_deadend')
+        self.proj.hook(self.return_deadend, CallReturn)
 
         def irelative_resolver(resolver_addr):
             resolver = self.proj.factory.callable(resolver_addr, concrete_only=True)
@@ -117,6 +120,27 @@ class SimOS(object):
 
     def state_full_init(self, **kwargs):
         return self.state_entry(**kwargs)
+
+    def state_call(self, addr, *args, **kwargs):
+        cc = kwargs.pop('cc', s_cc.DefaultCC[self.arch.name](self.proj.arch))
+        state = kwargs.pop('base_state', None)
+        toc = kwargs.pop('toc', None)
+
+        ret_addr = kwargs.pop('ret_addr', self.return_deadend)
+        stack_base = kwargs.pop('stack_base', None)
+        alloc_base = kwargs.pop('alloc_base', None)
+        grow_like_stack = kwargs.pop('grow_like_stack', True)
+
+        if state is None:
+            state = self.state_blank(addr=addr, **kwargs)
+        else:
+            state = state.copy()
+        cc.setup_callsite(state, ret_addr, args, stack_base, alloc_base, grow_like_stack)
+
+        if state.arch.name == 'PPC64' and toc is not None:
+            state.regs.r2 = toc
+
+        return state
 
     def prepare_call_state(self, calling_state, initial_state=None,
                            preserve_registers=(), preserve_memory=()):
@@ -585,6 +609,13 @@ class _kernel_user_helper_get_tls(SimProcedure):
     # pylint: disable=arguments-differ
     def run(self, ld=None):
         self.state.regs.r0 = ld.tls_object.thread_pointer
+        return
+
+class CallReturn(SimProcedure):
+    NO_RET = True
+
+    def run(self):
+        l.info("A factory.call_state-created path returned!")
         return
 
 os_mapping = {
