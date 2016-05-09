@@ -115,8 +115,8 @@ class SimProcedure(SimRun):
         else:
             self.cc = convention
 
-    def set_args(self, args):
-        self.cc.set_args(self.state, args)
+    #def set_args(self, args):
+    #    self.cc.set_args(self.state, args)
 
     def arg(self, i):
         """
@@ -162,7 +162,7 @@ class SimProcedure(SimRun):
             self.ret_expr = expr
             return
         else:
-            self.cc.set_return_expr(self.state, expr)
+            self.cc.return_val.set_value(self.state, expr)
 
     # Adds an exit representing the function returning. Modifies the state.
     def ret(self, expr=None):
@@ -210,7 +210,7 @@ class SimProcedure(SimRun):
         else:
             ret_addr = self.state.se.BVV(self.state.procedure_data.hook_addr, self.state.arch.bits)
         saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
-        simcallstack_entry = (self.__class__, continue_at, cc.stack_space(self.state, args), saved_local_vars, self.kwargs)
+        simcallstack_entry = (self.__class__, continue_at, cc.stack_space(args), saved_local_vars, self.kwargs)
         cc.setup_callsite(call_state, ret_addr, args)
         call_state.procedure_data.callstack.append(simcallstack_entry)
 
