@@ -37,13 +37,14 @@ class Tracer(object):
     '''
 
     def __init__(self, binary, input=None, pov_file=None, simprocedures=None,
-                 preconstrain=True, resiliency=True, chroot=None,
+                 seed=None, preconstrain=True, resiliency=True, chroot=None,
                  add_options=None, remove_options=None):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
         :param povfile: CGC PoV describing the input to trace
         :param simprocedures: dictionary of replacement simprocedures
+        :param seed: optional seed used for randomness, will be passed to QEMU
         :param preconstrain: should the path be preconstrained to the provided
             input
         :param resiliency: should we continue to step forward even if qemu and
@@ -60,6 +61,7 @@ class Tracer(object):
         self.pov_file = pov_file
         self.preconstrain = preconstrain
         self.simprocedures = {} if simprocedures is None else simprocedures
+        self.seed = seed
         self.resiliency = resiliency
         self.chroot = chroot
         self.add_options = set() if add_options is None else add_options
@@ -75,6 +77,17 @@ class Tracer(object):
 
         if self.pov_file is not None and self.input is not None:
             raise ValueError("cannot specify both a pov_file and an input")
+
+        # validate seed
+        if self.seed is not None:
+            try:
+                iseed = int(self.seed)
+                if iseed > 4294967295 or iseed < 0:
+                    raise ValueError
+            except ValueError:
+                raise ValueError(
+                    "the passed seed is either not an integer or is not between 0 and UINT_MAX"
+                    )
 
         # a PoV was provided
         if self.pov_file is not None:
@@ -513,6 +526,9 @@ class Tracer(object):
 
         lname = tempfile.mktemp(dir="/dev/shm/", prefix="tracer-log-")
         args = [self.tracer_qemu_path]
+
+        if self.seed is not None:
+            args += ["-seed", self.seed]
 
         # if the binary is CGC we'll also take this oppurtunity to read in the magic page
         if self.os == 'cgc':
