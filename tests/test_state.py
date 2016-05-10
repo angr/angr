@@ -133,7 +133,7 @@ def test_state_merge_static():
 
 def test_state_pickle():
     old_dl = ana.dl
-    ana.set_dl(pickle_dir='/tmp/picklez')
+    ana.set_dl(ana.DirDataLayer('/tmp/picklez'))
     try:
         s = SimState()
         s.memory.store(100, s.se.BVV(0x4141414241414241424300, 88), endness='Iend_BE')
