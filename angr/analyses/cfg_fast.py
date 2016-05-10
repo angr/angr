@@ -268,7 +268,9 @@ class CFGFast(Analysis, CFGBase):
                  resolve_indirect_jumps=True,
                  force_segment=False,
                  force_complete_scan=True,
-                 indirect_jump_target_limit=100000
+                 indirect_jump_target_limit=100000,
+                 progress_callback=None,
+                 show_progressbar=False
                  ):
         """
         :param binary:                  The binary to recover CFG on. By default the main binary is used.
@@ -283,6 +285,8 @@ class CFGFast(Analysis, CFGBase):
         :param bool force_segment:      Force CFGFast to rely on binary segments instead of sections.
         :param bool force_complete_scan:    Perform a complete scan on the binary and maximize the number of identified code
                                             blocks.
+        :param progress_callback:       Specify a callback function to get the progress during CFG recovery.
+        :param bool show_progressbar:   Should CFGFast show a progressbar during CFG recovery or not.
         :return: None
         """
 
@@ -300,6 +304,11 @@ class CFGFast(Analysis, CFGBase):
         self._resolve_indirect_jumps = resolve_indirect_jumps
         self._force_segment = force_segment
         self._force_complete_scan = force_complete_scan
+
+        self._progress_callback = progress_callback
+        self._show_progressbar = show_progressbar
+
+        self._progressbar = None  # will be initialized later if self._show_progressbar == True
 
         l.debug("Starts at %#x and ends at %#x.", self._start, self._end)
 
@@ -388,6 +397,43 @@ class CFGFast(Analysis, CFGBase):
                 return True
 
         return False
+
+    def _initialize_progressbar(self):
+        """
+        Initialize the progressbar.
+        :return: None
+        """
+
+        widgets = [progressbar.Percentage(),
+                   ' ',
+                   progressbar.Bar(marker=progressbar.RotatingMarker()),
+                   ' ',
+                   progressbar.Timer(),
+                   ' ',
+                   progressbar.ETA()
+                   ]
+
+        self._progressbar = progressbar.ProgressBar(widgets=widgets, maxval=10000 * 100).start()
+
+    def _update_progressbar(self, percentage):
+        """
+        Update the progressbar with a percentage.
+
+        :param float percentage: Percentage of the progressbar. from 0.0 to 100.0.
+        :return: None
+        """
+
+        if self._progressbar is not None:
+            self._progressbar.update(percentage * 10000)
+
+    def _finish_progressbar(self):
+        """
+        Mark the progressbar as finished.
+        :return: None
+        """
+
+        if self._progressbar is not None:
+            self._progressbar.finish()
 
     # Methods for scanning the entire image
 
@@ -772,6 +818,7 @@ class CFGFast(Analysis, CFGBase):
         b.slice.remove_nodes_from(past_stmts)
 
         # Debugging output
+        """
         for addr, stmt_idx in sorted(list(b.slice.nodes())):
             irsb = self.project.factory.block(addr).vex
             stmts = irsb.statements
@@ -779,6 +826,7 @@ class CFGFast(Analysis, CFGBase):
             print "%s" % stmts[stmt_idx],
             print "%d" % b.slice.in_degree((addr, stmt_idx))
         print ""
+        """
 
         # Get all sources
         sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
@@ -1139,16 +1187,8 @@ class CFGFast(Analysis, CFGBase):
         # phase.
         function_exits = defaultdict(set)
 
-        widgets = [progressbar.Percentage(),
-                   ' ',
-                   progressbar.Bar(marker=progressbar.RotatingMarker()),
-                   ' ',
-                   progressbar.Timer(),
-                   ' ',
-                   progressbar.ETA()
-                   ]
-
-        pb = progressbar.ProgressBar(widgets=widgets, maxval=10000 * 100).start()
+        if self._show_progressbar:
+            self._initialize_progressbar()
 
         starting_points = set()
 
@@ -1185,18 +1225,25 @@ class CFGFast(Analysis, CFGBase):
             if not next_addr and self._force_complete_scan:
                 next_addr = self._next_code_addr(initial_state)
 
-            percentage = self._seg_list.occupied_size * 100.0 / self._valid_memory_region_size
-            if percentage > 100.0:
-                percentage = 100.0
-            pb.update(percentage * 10000)
+            if self._show_progressbar or self._progress_callback:
+                percentage = self._seg_list.occupied_size * 100.0 / self._valid_memory_region_size
+                if percentage > 100.0:
+                    percentage = 100.0
+
+                if self._show_progressbar:
+                    self._update_progressbar(percentage)
+
+                if self._progress_callback:
+                    self._progress_callback(percentage)
 
             if next_addr is None:
-                l.info('No more addr to analyze. Progress %0.04f%%', percentage)
+                l.info('No more addr to analyze.')
                 break
 
             self._scan_code(traced_address, function_exits, initial_state, next_addr, maybe_function)
 
-        pb.finish()
+        if self._show_progressbar:
+            self._finish_progressbar()
 
         self._remove_overlapping_blocks()
 
