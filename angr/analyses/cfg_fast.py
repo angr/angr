@@ -27,8 +27,8 @@ class Segment(object):
     def __init__(self, start, end, sort):
         """
         :param int start:   Start address.
-        :param end:         End address.
-        :param sort:        Type of the segment, can be code, data, etc.
+        :param int end:     End address.
+        :param str sort:    Type of the segment, can be code, data, etc.
         :return: None
         """
 
@@ -53,6 +53,13 @@ class SegmentList(object):
     def __init__(self):
         self._list = []
         self._bytes_occupied = 0
+
+    #
+    # Overridden methods
+    #
+
+    def __len__(self):
+        return len(self._list)
 
     #
     # Private methods
@@ -85,41 +92,146 @@ class SegmentList(object):
 
         return start
 
-    def _merge_check(self, address, size, idx):
+    def _insert_and_merge(self, address, size, sort, idx):
         """
-        Determines whether the block specified by (address, size) should be merged with the block in front of it.
+        Determines whether the block specified by (address, size) should be merged with adjacent blocks.
 
-        :param address: Starting address of the block to be merged
-        :param size: Size of the block to be merged
-        :param idx: ID of the address
+        :param int address: Starting address of the block to be merged.
+        :param int size: Size of the block to be merged.
+        :param str sort: Type of the block.
+        :param int idx: ID of the address.
         :return: None
         """
 
-        # Shall we merge it with the one in front?
-        merged = False
-        new_start = address
-        new_idx = idx
+        # sanity check
+        if idx > 0 and address + size <= self._list[idx - 1].start:
+            # There is a bug, since _list[idx] must be the closest one that is less than the current segment
+            l.warning("BUG FOUND: new segment should always be greater than _list[idx].")
+            # Anyways, let's fix it.
+            self._insert_and_merge(address, size, sort, idx - 1)
+            return
 
-        while new_idx > 0:
-            new_idx -= 1
-            segment = self._list[new_idx]
-            if new_start <= segment.end:
-                del self._list[new_idx]
-                new_start = min(segment.start, address)
-                new_end = max(segment.end, address + size)
-                self._list.insert(new_idx,
-                                  Segment(new_start, new_end, "code"))
-                self._bytes_occupied += (new_end - new_start) - segment.size
-                merged = True
-            else:
+        # Insert the block first
+        # The new block might be overlapping with other blocks. _insert_and_merge_core will fix the overlapping.
+        if idx == len(self._list):
+            self._list.append(Segment(address, address + size, sort))
+        else:
+            self._list.insert(idx, Segment(address, address + size, sort))
+        # Apparently _bytes_occupied will be wrong if the new block overlaps with any existing block. We will fix it
+        # later
+        self._bytes_occupied += size
+
+        # Search forward to merge blocks if necessary
+        pos = idx
+        while pos < len(self._list):
+            merged, pos, bytes_change = self._insert_and_merge_core(pos, "forward")
+
+            if not merged:
                 break
 
-        if not merged:
-            if idx == len(self._list):
-                self._list.append(Segment(address, address + size, "code"))
+            self._bytes_occupied += bytes_change
+
+        # Search backward to merge blocks if necessary
+        if pos >= len(self._list):
+            pos = len(self._list) - 1
+
+        while pos > 0:
+            merged, pos, bytes_change = self._insert_and_merge_core(pos, "backward")
+
+            if not merged:
+                break
+
+            self._bytes_occupied += bytes_change
+
+    def _insert_and_merge_core(self, pos, direction):
+        """
+        The core part of method _insert_and_merge.
+
+        :param int pos:         The starting position.
+        :param str direction:   If we are traversing forwards or backwards in the list. It determines where the "sort"
+                                of the overlapping memory block comes from. If everything works as expected, "sort" of
+                                the overlapping block is always equal to the segment occupied most recently.
+        :return: A tuple of (merged (bool), new position to begin searching (int), change in total bytes (int)
+        :rtype: tuple
+        """
+
+        bytes_changed = 0
+
+        if direction == "forward":
+            if pos == len(self._list) - 1:
+                return False, pos, 0
+            previous_segment = self._list[pos]
+            previous_segment_pos = pos
+            segment = self._list[pos + 1]
+            segment_pos = pos + 1
+        else:  # if direction == "backward":
+            if pos == 0:
+                return False, pos, 0
+            segment = self._list[pos]
+            segment_pos = pos
+            previous_segment = self._list[pos - 1]
+            previous_segment_pos = pos - 1
+
+        merged = False
+        new_pos = pos
+
+        if segment.start <= previous_segment.end:
+            # we should always have new_start+new_size >= segment.start
+
+            if segment.sort == previous_segment.sort:
+                # They are of the same sort - we should merge them!
+                new_end = max(previous_segment.end, segment.start + segment.size)
+                new_start = min(previous_segment.start, segment.start)
+                new_size = new_end - new_start
+                self._list = self._list[ : previous_segment_pos] + \
+                             [ Segment(new_start, new_end, segment.sort) ] + \
+                            self._list[ segment_pos + 1 : ]
+                bytes_changed = -(segment.size + previous_segment.size - new_size)
+
+                merged = True
+                new_pos = previous_segment_pos
+
             else:
-                self._list.insert(idx, Segment(address, address + size, "code"))
-            self._bytes_occupied += size
+                # Different sorts. It's a bit trickier.
+                if segment.start == previous_segment.end:
+                    # They are adjacent. Just don't merge.
+                    pass
+                else:
+                    # They are overlapping. We will create one, two, or three different blocks based on how they are
+                    # overlapping
+                    new_segments = [ ]
+                    if segment.start < previous_segment.start:
+                        new_segments.append(Segment(segment.start, previous_segment.start, segment.sort))
+
+                        sort = previous_segment.sort if direction == "forward" else segment.sort
+                        new_segments.append(Segment(previous_segment.start, previous_segment.end, sort))
+
+                        if segment.end < previous_segment.end:
+                            new_segments.append(Segment(segment.end, previous_segment.end, previous_segment.sort))
+                        elif segment.end > previous_segment.end:
+                            new_segments.append(Segment(previous_segment.end, segment.end, segment.sort))
+                    else:  # segment.start >= previous_segment.start
+                        if segment.start > previous_segment.start:
+                            new_segments.append(Segment(previous_segment.start, segment.start, previous_segment.sort))
+                        sort = previous_segment.sort if direction == "forward" else segment.sort
+                        new_segments.append(Segment(segment.start, segment.end, sort))
+                        if segment.start + segment.size < previous_segment.end:
+                            new_segments.append(Segment(segment.end, previous_segment.end, previous_segment.sort))
+                    # Put new segments into self._list
+                    old_size = sum([ seg.size for seg in self._list[previous_segment_pos : segment_pos + 1] ])
+                    new_size = sum([ seg.size for seg in new_segments ])
+                    bytes_changed = new_size - old_size
+
+                    self._list = self._list[ : previous_segment_pos] + new_segments + self._list[ segment_pos + 1 : ]
+
+                    merged = True
+
+                    if direction == "forward":
+                        new_pos = previous_segment_pos + len(new_segments)
+                    else:
+                        new_pos = previous_segment_pos
+
+        return merged, new_pos, bytes_changed
 
     def _dbg_output(self):
         s = "["
@@ -133,11 +245,13 @@ class SegmentList(object):
     def _debug_check(self):
         # old_start = 0
         old_end = 0
+        old_sort = ""
         for segment in self._list:
-            if segment.start <= old_end:
+            if segment.start <= old_end and segment.sort == old_sort:
                 raise Exception("Error in SegmentList: blocks are not merged")
             # old_start = start
             old_end = segment.end
+            old_sort = segment.sort
 
     #
     # Public methods
@@ -190,53 +304,54 @@ class SegmentList(object):
             return True
         return False
 
-    def occupy(self, address, size):
+    def occupy(self, address, size, sort):
         """
         Include a block, specified by (address, size), in this segment list.
 
-        :param address: The starting address of the block
-        :param size: Size of the block
+        :param int address:     The starting address of the block.
+        :param int size:        Size of the block.
+        :param str sort:        Type of the block.
         :return: None
         """
 
+        if size <= 0:
+            # Cannot occupy a non-existent block
+            return
+
         # l.debug("Occpuying 0x%08x-0x%08x", address, address + size)
         if len(self._list) == 0:
-            self._list.append(Segment(address, address + size, "code"))
+            self._list.append(Segment(address, address + size, sort))
             self._bytes_occupied += size
             return
         # Find adjacent element in our list
         idx = self._search(address)
         # print idx
+
+        self._insert_and_merge(address, size, sort, idx)
+
+        self._debug_check()
+
+        """
         if idx == len(self._list):
             # We should append at the end
-            self._merge_check(address, size, idx)
+            self._insert_and_merge(address, size, sort, idx)
         else:
             segment = self._list[idx]
             # Overlap check
-            if address <= segment.start and address + size >= segment.start or \
-                    address <= segment.end and address + size >= segment.end or \
-                    address >= segment.start and address + size <= segment.end:
-                new_start = min(address, segment.start)
-                new_end = max(address + size, segment.end)
-                self._list[idx] = Segment(new_start, new_end, "code")
-                # Shall we merge it with the previous one?
-                # Remember to remove this one if we shall merge it with the one
-                # in front!
-                while idx > 0:
-                    idx -= 1
-                    if new_start <= self._list[idx].end:
-                        new_start = min(self._list[idx].start, new_start)
-                        new_end = max(self._list[idx].end, new_end)
-                        self._list[idx] = Segment(new_start, new_end, "code")
-                        del self._list[idx + 1]
-                    else:
-                        break
+            if address <= segment.start and address + size > segment.start or \
+                    address < segment.end and address + size >= segment.end or \
+                    address >= segment.start and address + size < segment.end:
+
+                # Overlapping. Insert it after the position idx, and perform a merge if needed
+                self._insert_and_merge(address, size, sort, idx + 1)
+
             else:
-                # It's not overlapped with this one
+                # It's not overlapping with this one
                 # Shall we merge it with the previous one?
-                self._merge_check(address, size, idx)
+                self._insert_and_merge(address, size, sort, idx)
                 # l.debug(self._dbg_output())
-                # self._debug_check()
+                self._debug_check()
+        """
 
     #
     # Properties
@@ -541,7 +656,7 @@ class CFGFast(Analysis, CFGBase):
             if len(sz) > 0 and is_sz:
                 l.debug("Got a string of %d chars: [%s]", len(sz), sz)
                 # l.debug("Occpuy %x - %x", start_addr, start_addr + len(sz) + 1)
-                self._seg_list.occupy(start_addr, len(sz) + 1)
+                self._seg_list.occupy(start_addr, len(sz) + 1, "string")
                 sz = ""
                 next_addr = self._next_unscanned_addr()
                 if next_addr is None:
@@ -681,7 +796,8 @@ class CFGFast(Analysis, CFGBase):
                 self.kb.functions._add_transition_to(current_function_addr, previous_src_node.addr, addr)
 
             # Occupy the block in segment list
-            self._seg_list.occupy(addr, irsb.size)
+            if irsb.size > 0:
+                self._seg_list.occupy(addr, irsb.size, "code")
 
         except (AngrTranslationError, AngrMemoryError):
             return
