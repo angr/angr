@@ -45,7 +45,7 @@ def internaltest_project(p):
     nose.tools.assert_equals(p.entry, loaded_p.entry)
 
 def test_serialization():
-    ana.set_dl(pickle_dir='/tmp/ana')
+    ana.set_dl(ana.DirDataLayer('/tmp/ana'))
 
     for d in internaltest_arch:
         for f in internaltest_files:

@@ -54,19 +54,19 @@ def make_pickles():
 
 def test_pickling():
     # set up ANA and make the pickles
-    ana.set_dl(pickle_dir='/tmp/pickletest')
+    ana.set_dl(ana.DirDataLayer('/tmp/pickletest'))
     make_pickles()
 
     # make sure the pickles work in the same "session"
     load_pickles()
 
     # reset ANA, and load the pickles
-    ana.set_dl(pickle_dir='/tmp/pickletest')
+    ana.set_dl(ana.DirDataLayer('/tmp/pickletest'))
     gc.collect()
     load_pickles()
 
     # purposefully set the wrong directory to make sure this excepts out
-    ana.set_dl(pickle_dir='/tmp/pickletest2')
+    ana.set_dl(ana.DirDataLayer('/tmp/pickletest2'))
     gc.collect()
     #load_pickles()
     nose.tools.assert_raises(Exception, load_pickles)
