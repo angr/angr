@@ -18,3 +18,7 @@ driller:
 rex:
     script: "angr-test rex"
     tags: [angr]
+
+patcherex:
+    script: "angr-test patcherex"
+    tags: [angr]
