@@ -19,6 +19,31 @@ from .cfg_base import CFGBase
 l = logging.getLogger("angr.analyses.cfg_fast")
 
 
+class Segment(object):
+    """
+    Representing a memory block. This is not the "Segment" in ELF memory model
+    """
+
+    def __init__(self, start, end, sort):
+        """
+        :param int start:   Start address.
+        :param end:         End address.
+        :param sort:        Type of the segment, can be code, data, etc.
+        :return: None
+        """
+
+        self.start = start
+        self.end = end
+        self.sort = sort
+
+    def __repr__(self):
+        s = "[%#x-%#x, %s]" % (self.start, self.end, self.sort)
+        return s
+
+    @property
+    def size(self):
+        return self.end - self.start
+
 class SegmentList(object):
     """
     SegmentList describes a series of segmented memory blocks. You may query whether an address belongs to any of the
@@ -48,10 +73,10 @@ class SegmentList(object):
         while start != end:
             mid = (start + end) / 2
 
-            tpl = self._list[mid]
-            if addr < tpl[0]:
+            segment = self._list[mid]
+            if addr < segment.start:
                 end = mid
-            elif addr >= tpl[1]:
+            elif addr >= segment.end:
                 start = mid + 1
             else:
                 # Overlapped :(
@@ -77,30 +102,30 @@ class SegmentList(object):
 
         while new_idx > 0:
             new_idx -= 1
-            tpl = self._list[new_idx]
-            if new_start <= tpl[1]:
+            segment = self._list[new_idx]
+            if new_start <= segment.end:
                 del self._list[new_idx]
-                new_start = min(tpl[0], address)
-                new_end = max(tpl[1], address + size)
+                new_start = min(segment.start, address)
+                new_end = max(segment.end, address + size)
                 self._list.insert(new_idx,
-                                  (new_start, new_end))
-                self._bytes_occupied += (new_end - new_start) - (tpl[1] - tpl[0])
+                                  Segment(new_start, new_end, "code"))
+                self._bytes_occupied += (new_end - new_start) - segment.size
                 merged = True
             else:
                 break
 
         if not merged:
             if idx == len(self._list):
-                self._list.append((address, address + size))
+                self._list.append(Segment(address, address + size, "code"))
             else:
-                self._list.insert(idx, (address, address + size))
+                self._list.insert(idx, Segment(address, address + size, "code"))
             self._bytes_occupied += size
 
     def _dbg_output(self):
         s = "["
         lst = []
-        for start, end in self._list:
-            lst.append("(0x%08x, 0x%08x)" % (start, end))
+        for segment in self._list:
+            lst.append(repr(segment))
         s += ", ".join(lst)
         s += "]"
         return s
@@ -108,11 +133,11 @@ class SegmentList(object):
     def _debug_check(self):
         # old_start = 0
         old_end = 0
-        for start, end in self._list:
-            if start <= old_end:
+        for segment in self._list:
+            if segment.start <= old_end:
                 raise Exception("Error in SegmentList: blocks are not merged")
             # old_start = start
-            old_end = end
+            old_end = segment.end
 
     #
     # Public methods
@@ -136,15 +161,15 @@ class SegmentList(object):
         """
 
         idx = self._search(address + 1)
-        if idx < len(self._list) and self._list[idx][0] <= address < self._list[idx][1]:
+        if idx < len(self._list) and self._list[idx].start <= address < self._list[idx].end:
             # Occupied
             i = idx
-            while i + 1 < len(self._list) and self._list[i][1] == self._list[i + 1][0]:
+            while i + 1 < len(self._list) and self._list[i].end == self._list[i + 1].start:
                 i += 1
             if i == len(self._list):
-                return self._list[-1][1]
+                return self._list[-1].end
             else:
-                return self._list[i][1]
+                return self._list[i].end
         else:
             return address + 1
 
@@ -159,9 +184,9 @@ class SegmentList(object):
         idx = self._search(address)
         if len(self._list) <= idx:
             return False
-        if address >= self._list[idx][0] and address <= self._list[idx][1]:
+        if address >= self._list[idx].start and address < self._list[idx].end:
             return True
-        if idx > 0 and address < self._list[idx - 1][1]:
+        if idx > 0 and address < self._list[idx - 1].end:
             return True
         return False
 
@@ -176,7 +201,7 @@ class SegmentList(object):
 
         # l.debug("Occpuying 0x%08x-0x%08x", address, address + size)
         if len(self._list) == 0:
-            self._list.append((address, address + size))
+            self._list.append(Segment(address, address + size, "code"))
             self._bytes_occupied += size
             return
         # Find adjacent element in our list
@@ -186,23 +211,23 @@ class SegmentList(object):
             # We should append at the end
             self._merge_check(address, size, idx)
         else:
-            tpl = self._list[idx]
+            segment = self._list[idx]
             # Overlap check
-            if address <= tpl[0] and address + size >= tpl[0] or \
-                    address <= tpl[1] and address + size >= tpl[1] or \
-                    address >= tpl[0] and address + size <= tpl[1]:
-                new_start = min(address, tpl[0])
-                new_end = max(address + size, tpl[1])
-                self._list[idx] = (new_start, new_end)
+            if address <= segment.start and address + size >= segment.start or \
+                    address <= segment.end and address + size >= segment.end or \
+                    address >= segment.start and address + size <= segment.end:
+                new_start = min(address, segment.start)
+                new_end = max(address + size, segment.end)
+                self._list[idx] = Segment(new_start, new_end, "code")
                 # Shall we merge it with the previous one?
                 # Remember to remove this one if we shall merge it with the one
                 # in front!
                 while idx > 0:
                     idx -= 1
-                    if new_start <= self._list[idx][1]:
-                        new_start = min(self._list[idx][0], new_start)
-                        new_end = max(self._list[idx][1], new_end)
-                        self._list[idx] = (new_start, new_end)
+                    if new_start <= self._list[idx].end:
+                        new_start = min(self._list[idx].start, new_start)
+                        new_end = max(self._list[idx].end, new_end)
+                        self._list[idx] = Segment(new_start, new_end, "code")
                         del self._list[idx + 1]
                     else:
                         break
