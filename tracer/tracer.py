@@ -715,7 +715,7 @@ class Tracer(object):
         # try to enable unicorn, continue if it doesn't exist
         try:
             options.add(so.UNICORN)
-            # options.add(so.UNICORN_FAST)
+            options.add(so.UNICORN_FAST)
             l.info("unicorn tracing enabled")
         except AttributeError:
             pass
