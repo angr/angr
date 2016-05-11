@@ -358,7 +358,8 @@ class Unicorn(SimStatePlugin):
 
         self.sync()
 
-        l.debug('finished emulation after %d steps', self.steps)
+        addr = self.state.se.any_int(self.state.ip)
+        l.debug('finished emulation at %#x after %d steps', addr, self.steps)
 
         self.stop_reason = _UC_NATIVE.stop_reason(self._uc_state)
         # STOP.STOP_SYSCALL/STOP_EXECNONE/STOP_ZEROPAGE is already handled

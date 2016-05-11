@@ -39,7 +39,7 @@ class SimUnicorn(SimRun):
         guard = self.state.se.true
 
         if self.state.unicorn.stop_reason == STOP.STOP_SYMBOLIC:
-            self.success = False
+            self.success = self.state.unicorn.steps > 0
 
         if self.state.unicorn.error is not None:
             # error from hook
