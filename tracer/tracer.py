@@ -736,7 +736,9 @@ class Tracer(object):
         # map the CGC flag page
         cgc_flag_data = claripy.BVS('cgc-flag-data', 0x1000 * 8)
         # preconstrain flag page
-        self._preconstrain_flag_page(entry_state, cgc_flag_data)
+
+        if self.preconstrain:
+            self._preconstrain_flag_page(entry_state, cgc_flag_data)
 
         # PROT_READ region
         entry_state.memory.map_region(0x4347c000, 0x1000, 1)
