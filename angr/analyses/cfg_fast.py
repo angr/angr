@@ -329,29 +329,7 @@ class SegmentList(object):
 
         self._insert_and_merge(address, size, sort, idx)
 
-        self._debug_check()
-
-        """
-        if idx == len(self._list):
-            # We should append at the end
-            self._insert_and_merge(address, size, sort, idx)
-        else:
-            segment = self._list[idx]
-            # Overlap check
-            if address <= segment.start and address + size > segment.start or \
-                    address < segment.end and address + size >= segment.end or \
-                    address >= segment.start and address + size < segment.end:
-
-                # Overlapping. Insert it after the position idx, and perform a merge if needed
-                self._insert_and_merge(address, size, sort, idx + 1)
-
-            else:
-                # It's not overlapping with this one
-                # Shall we merge it with the previous one?
-                self._insert_and_merge(address, size, sort, idx)
-                # l.debug(self._dbg_output())
-                self._debug_check()
-        """
+        # self._debug_check()
 
     #
     # Properties
