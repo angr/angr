@@ -18,3 +18,7 @@ driller:
 rex:
     script: "angr-test rex"
     tags: [angr]
+
+colorguard:
+    script: "angr-test colorguard"
+    tags: [angr]
