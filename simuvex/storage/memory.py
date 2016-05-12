@@ -681,6 +681,10 @@ class SimMemory(SimStatePlugin):
         what = _raw_ast(what)
         default = _raw_ast(default)
 
+        if isinstance(what, str):
+            # Convert it to a BVV
+            what = claripy.BVV(what, len(what) * 8)
+
         r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
         if o.AST_DEPS in self.state.options and self.category == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))
