@@ -56,6 +56,7 @@ def test_memory():
     # Store a 4-byte variable to memory directly...
     s.memory.store(100, s.se.BVV(0x1337, 32))
     # ... then load it
+    print 'loading'
     expr = s.memory.load(100, 4)
     nose.tools.assert_is(expr, s.se.BVV(0x1337, 32))
     expr = s.memory.load(100, 2)
@@ -556,10 +557,24 @@ def test_paged_memory_membacker_equal_size():
     membacker = {0: claripy.BVV(0, 8), 1: claripy.BVV(1, 8), 2: claripy.BVV(2, 8)}
 
     simmem = simuvex.storage.SimPagedMemory(memory_backer=membacker, page_size=len(membacker))
-    simmem[0]
+    simmem[0] #pylint:disable=pointless-statement
 
+def test_load_bytes():
+    s = simuvex.SimState(arch='AMD64')
+    asdf = s.se.BVS('asdf', 0x1000*8)
+    s.memory.store(0x4000, asdf)
+    the_bytes, missing = s.memory.mem.load_bytes(0x4000, 0x1000)
+    assert len(missing) == 0
+    assert len(the_bytes) == 1
+
+    fdsa = s.se.BVV('fdsa')
+    s.memory.store(0x4004, fdsa)
+    the_bytes, missing = s.memory.mem.load_bytes(0x4000, 0x1000)
+    assert len(missing) == 0
+    assert len(the_bytes) == 3
 
 if __name__ == '__main__':
+    test_load_bytes()
     test_false_condition()
     test_symbolic_write()
     test_fullpage_write()
