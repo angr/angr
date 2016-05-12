@@ -1,5 +1,5 @@
 before_script:
-    - angr-test sync hard
+    - which angr-test && angr-test sync hard
 
 ### local
 angr:
@@ -46,3 +46,15 @@ patcherex:
 docs:
     script: "angr-test docs"
     tags: [angr]
+
+### Deploy stage
+
+build_images:
+    only: ["master"]
+    stage: deploy
+    script:
+    - angr-build angr
+    - angr-build angr-ci
+    - angr-build worker
+    tags: ["docker-builder"]
+
