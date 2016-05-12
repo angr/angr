@@ -346,6 +346,22 @@ class SegmentList(object):
         return self._bytes_occupied
 
 
+class MemoryData(object):
+    def __init__(self, address, size, sort):
+        self.address = address
+        self.size = size
+        self.sort = sort
+
+        self.refs = [ ]
+
+    def __repr__(self):
+        return "\\%#x, %d bytes, %s/" % (self.address, self.size, self.sort)
+
+class MemoryDataReference(object):
+    def __init__(self, ref_ins_addr):
+        self.ref_ins_addr = ref_ins_addr
+
+
 class CFGEntry(object):
     """
     Defines an entry to resume the CFG recovery
@@ -430,10 +446,14 @@ class CFGFast(Analysis, CFGBase):
 
         l.debug("Starts at %#x and ends at %#x.", self._start, self._end)
 
-        # Get all valid memory regions
-        self._valid_memory_regions = self._executable_memory_regions(self._binary, self._force_segment)
-        self._valid_memory_region_size = sum([(end - start) for start, end in self._valid_memory_regions])
+        # Get all executable memory regions
+        self._exec_mem_regions = self._executable_memory_regions(self._binary, self._force_segment)
+        self._exec_mem_region_size = sum([(end - start) for start, end in self._exec_mem_regions])
 
+        # A mapping between (address, size) and the actual data in memory
+        self._memory_data = { }
+
+        self._initial_state = None
         self._next_addr = self._start - 1
 
         # Create the segment list
@@ -506,7 +526,7 @@ class CFGFast(Analysis, CFGBase):
         :return: True/False
         """
 
-        for start, end in self._valid_memory_regions:
+        for start, end in self._exec_mem_regions:
             if addr < start:
                 # The list is ordered!
                 break
@@ -574,7 +594,7 @@ class CFGFast(Analysis, CFGBase):
 
         # Make sure curr_addr exists in binary
         accepted = False
-        for start, end in self._valid_memory_regions:
+        for start, end in self._exec_mem_regions:
             if curr_addr >= start and curr_addr < end:
                 # accept
                 accepted = True
@@ -596,7 +616,7 @@ class CFGFast(Analysis, CFGBase):
             l.debug("0x%08x is beyond the ending point.", curr_addr)
             return None
 
-    def _next_code_addr(self, initial_state):
+    def _next_code_addr(self):
         """
         Call _next_unscanned_addr() first to get the next address that is not scanned. Then check if data locates at
         that address seems to be code or not. If not, we'll continue to for the next un-scanned address.
@@ -611,10 +631,10 @@ class CFGFast(Analysis, CFGBase):
         is_sz = True
         while is_sz:
             # Get data until we meet a 0
-            while next_addr in initial_state.memory:
+            while next_addr in self._initial_state.memory:
                 try:
                     l.debug("Searching address %x", next_addr)
-                    val = initial_state.mem_concrete(next_addr, 1)
+                    val = self._initial_state.mem_concrete(next_addr, 1)
                     if val == 0:
                         if len(sz) < 4:
                             is_sz = False
@@ -645,7 +665,7 @@ class CFGFast(Analysis, CFGBase):
             if is_sz:
                 next_addr += 1
 
-        instr_alignment = initial_state.arch.instruction_alignment
+        instr_alignment = self._initial_state.arch.instruction_alignment
         if start_addr % instr_alignment > 0:
             start_addr = start_addr - start_addr % instr_alignment + \
                          instr_alignment
@@ -707,7 +727,7 @@ class CFGFast(Analysis, CFGBase):
 
     # Basic block scanning
 
-    def _scan_code(self, traced_addresses, function_exits, initial_state, starting_address, maybe_function): #pylint:disable=unused-argument
+    def _scan_code(self, traced_addresses, function_exits, starting_address, maybe_function): #pylint:disable=unused-argument
         # Saving tuples like (current_function_addr, next_exit_addr)
         # Current_function_addr == -1 for exits not inside any function
         remaining_entries = set()
@@ -783,6 +803,9 @@ class CFGFast(Analysis, CFGBase):
         # Mark the address as traced
         traced_addresses.add(addr)
 
+        # Scan the basic block to collect data references
+        self._collect_data_references(irsb)
+
         # Get all possible successors
         irsb_next, jumpkind = irsb.next, irsb.jumpkind
         successors = [(i, stmt.dst, stmt.jumpkind) for i, stmt in enumerate(irsb.statements) if type(stmt) is pyvex.IRStmt.Exit]
@@ -846,6 +869,93 @@ class CFGFast(Analysis, CFGBase):
             else:
                 # TODO: Support more jumpkinds
                 l.debug("Unsupported jumpkind %s", jumpkind)
+
+    def _collect_data_references(self, irsb):
+        """
+
+        :return:
+        """
+
+        # helper methods
+
+        def _process(irsb_, stmt_, data_):
+            if type(data_) is pyvex.expr.Const:
+                val = data_.con.value
+                self._add_data_reference(irsb_, stmt_, val)
+
+        for stmt in irsb.statements:
+            if type(stmt) is pyvex.IRStmt.WrTmp:
+                if type(stmt.data) is pyvex.IRExpr.Load:
+                    # load
+                    # e.g. t7 = LDle:I64(0x0000000000600ff8)
+                    _process(irsb, stmt, stmt.data.addr)
+
+            elif type(stmt) is pyvex.IRStmt.Put:
+                # put
+                # e.g. PUT(rdi) = 0x0000000000400714
+                if stmt.offset not in (self._initial_state.arch.ip_offset, ):
+                    _process(irsb, stmt, stmt.data)
+
+    def _add_data_reference(self, irsb, stmt, data_addr):
+        """
+
+        :param irsb:
+        :param stmt:
+        :param data_addr:
+        :return:
+        """
+
+        # Make sure data_addr is within a valid memory range
+        if data_addr not in self._initial_state.memory:
+            return
+
+        # First, let's see what sort of data it is
+        data_type, data_size = self._guess_data_type(data_addr)
+
+        data = MemoryData(data_addr, data_size, data_type)
+
+        self._memory_data[(data_addr, data_size)] = data
+
+    def _guess_data_type(self, data_addr):
+        """
+
+        :param data_addr:
+        :return:
+        """
+
+        # some helper methods
+        def _c(o):
+            return o._model_concrete
+
+        def _cv(o):
+            return o._model_concrete.value
+
+        block = self._initial_state.memory.load(data_addr, 8)
+
+        # Is it an unicode string?
+        if _cv(block[1]) == 0 and _cv(block[3]) == 0:
+            if chr(_cv(block[0])) in string.printable and chr(_cv(block[2])) in string.printable + "\x00":
+                r, c, m = self._initial_state.memory.find(data_addr, "\x00\x00", max_search=4096)
+
+                if c and _c(c[0]) is True and _cv(r) - data_addr > 0:
+                    length = _cv(r) - data_addr
+                    block_ = self._initial_state.memory.load(data_addr, length)
+
+                    if all([ chr(_cv(block[i*8+7:i*8])) in string.printable for i in xrange(len(block_) / 8, 2) ]) and \
+                        all([ _cv(block[i*8+7:i*8]) == 0 for i in xrange(1, len(block_) / 8, 2) ]):
+                        return "unicode", length + 2
+
+        # Is it a null-terminated printable string?
+        r, c, m = self._initial_state.memory.find(data_addr, "\x00", max_search=4096)
+
+        if c and _c(c[0]) is True and _cv(r) - data_addr > 0:
+            # TODO: Add a cap for the length
+            length = _cv(r) - data_addr
+            block_ = self._initial_state.memory.load(data_addr, length)
+            if all([ chr(_cv(block_[i*8+7:i*8])) in string.printable for i in xrange(len(block_) / 8) ]):
+                return "string", length + 1
+
+        return "unknown", 0
 
     def _process_indirect_jumps(self):
         """
@@ -1294,11 +1404,12 @@ class CFGFast(Analysis, CFGBase):
 
         self._graph = networkx.DiGraph()
 
-        initial_state = self.project.factory.blank_state(mode="fastpath")
-        initial_options = initial_state.options - {simuvex.o.TRACK_CONSTRAINTS} - simuvex.o.refs
+        # Create an initial state. Store it to self so we can use it globally.
+        self._initial_state = self.project.factory.blank_state(mode="fastpath")
+        initial_options = self._initial_state.options - {simuvex.o.TRACK_CONSTRAINTS} - simuvex.o.refs
         initial_options |= {simuvex.o.SUPER_FASTPATH}
         # initial_options.remove(simuvex.o.COW_STATES)
-        initial_state.options = initial_options
+        self._initial_state.options = initial_options
         # Sadly, not all calls to functions are explicitly made by call
         # instruction - they could be a jmp or b, or something else. So we
         # should record all exits from a single function, and then add
@@ -1342,10 +1453,10 @@ class CFGFast(Analysis, CFGBase):
                     continue
 
             if not next_addr and self._force_complete_scan:
-                next_addr = self._next_code_addr(initial_state)
+                next_addr = self._next_code_addr()
 
             if self._show_progressbar or self._progress_callback:
-                percentage = self._seg_list.occupied_size * 100.0 / self._valid_memory_region_size
+                percentage = self._seg_list.occupied_size * 100.0 / self._exec_mem_region_size
                 if percentage > 100.0:
                     percentage = 100.0
 
@@ -1359,7 +1470,7 @@ class CFGFast(Analysis, CFGBase):
                 l.info('No more addr to analyze.')
                 break
 
-            self._scan_code(traced_address, function_exits, initial_state, next_addr, maybe_function)
+            self._scan_code(traced_address, function_exits, next_addr, maybe_function)
 
         if self._show_progressbar:
             self._finish_progressbar()
