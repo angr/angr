@@ -43,6 +43,10 @@ pwnrex:
     script: "angr-test pwnrex"
     tags: [angr]
 
+patcherex:
+    script: "angr-test patcherex"
+    tags: [angr]
+
 docs:
     script: "angr-test docs"
     tags: [angr]
