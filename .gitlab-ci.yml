@@ -22,3 +22,7 @@ rex:
 colorguard:
     script: "angr-test colorguard"
     tags: [angr]
+
+patcherex:
+    script: "angr-test patcherex"
+    tags: [angr]
