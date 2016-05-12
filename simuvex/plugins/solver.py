@@ -117,7 +117,7 @@ class SimSolver(SimStatePlugin):
         if o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.LightFrontend(claripy.backends.vsa, cache=False)
         elif o.REPLACEMENT_SOLVER in self.state.options:
-            self._stored_solver = claripy.ReplacementFrontend(claripy.FullFrontend(claripy.backends.z3), unsafe_replacement=True)
+            self._stored_solver = claripy.ReplacementFrontend(claripy.FullFrontend(claripy.backends.z3))
         elif o.COMPOSITE_SOLVER in self.state.options:
             self._stored_solver = claripy.CompositeFrontend(claripy.hybrid_vsa_z3())
         elif o.SYMBOLIC in self.state.options:
