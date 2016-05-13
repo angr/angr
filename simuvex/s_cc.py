@@ -31,7 +31,7 @@ class AllocHelper(object):
 
 
 class SimFunctionArgument(object):
-    def __init__(self, size=None):
+    def __init__(self, size):
         self.size = size
 
     def __ne__(self, other):
@@ -51,33 +51,33 @@ class SimFunctionArgument(object):
 
 
 class SimRegArg(SimFunctionArgument):
-    def __init__(self, reg_offset, size=None):
+    def __init__(self, reg_name, size):
         SimFunctionArgument.__init__(self, size)
-        self.reg_offset = reg_offset
+        self.reg_name = reg_name
 
     def __repr__(self):
-        return "<%s>" % self.reg_offset
+        return "<%s>" % self.reg_name
 
     def __eq__(self, other):
-        return type(other) is SimRegArg and self.reg_offset == other.reg_offset
+        return type(other) is SimRegArg and self.reg_name == other.reg_name
 
     def set_value(self, state, value, endness=None, **kwargs):   # pylint: disable=unused-argument
         self.check_value(value)
         if endness is None: endness = state.arch.register_endness
-        state.registers.store(self.reg_offset, value, endness=endness, size=self.size)
+        state.registers.store(self.reg_name, value, endness=endness, size=self.size)
 
     def get_value(self, state, endness=None, **kwargs):          # pylint: disable=unused-argument
         if endness is None: endness = state.arch.register_endness
-        return state.registers.load(self.reg_offset, endness=endness, size=self.size)
+        return state.registers.load(self.reg_name, endness=endness, size=self.size)
 
 
 class SimStackArg(SimFunctionArgument):
-    def __init__(self, stack_offset, size=None):
+    def __init__(self, stack_offset, size):
         SimFunctionArgument.__init__(self, size)
         self.stack_offset = stack_offset
 
     def __repr__(self):
-        return "[%xh]" % self.stack_offset
+        return "[%#x]" % self.stack_offset
 
     def __eq__(self, other):
         return type(other) is SimStackArg and self.stack_offset == other.stack_offset
@@ -92,6 +92,39 @@ class SimStackArg(SimFunctionArgument):
         if endness is None: endness = state.arch.memory_endness
         if stack_base is None: stack_base = state.regs.sp
         return state.memory.load(stack_base + self.stack_offset, endness=endness, size=self.size)
+
+
+class SimComboArg(SimFunctionArgument):
+    def __init__(self, locations):
+        super(SimComboArg, self).__init__(sum(x.size for x in locations))
+        self.locations = locations
+
+    def __repr__(self):
+        return 'SimComboArg(%s)' % repr(self.locations)
+
+    def __eq__(self, other):
+        return type(other) is SimComboArg and all(a == b for a, b in zip(self.locations, other.locations))
+
+    def set_value(self, state, value, endness=None, **kwargs):
+        self.check_value(value)
+        if endness is None: endness = state.arch.memory_endness
+        if isinstance(value, (int, long)):
+            value = claripy.BVV(value, self.size*8)
+        elif isinstance(value, float):
+            if self.size not in (4, 8):
+                raise ValueError("What do I do with a float %d bytes long" % self.size)
+            value = claripy.FPV(value, claripy.FSORT_FLOAT if self.size == 4 else claripy.FSORT_DOUBLE)
+        cur = 0
+        for loc in reversed(self.locations):
+            loc.set_value(state, value[cur*8 + loc.size*8 - 1:cur*8], endness, **kwargs)
+            cur += loc.size
+
+    def get_value(self, state, endness=None, **kwargs):
+        if endness is None: endness = state.arch.memory_endness
+        vals = []
+        for loc in self.locations:
+            vals.append(loc.get_value(state, endness, **kwargs))
+        return claripy.Concat(*vals)
 
 
 class ArgSession(object):
@@ -112,7 +145,7 @@ class ArgSession(object):
         else:
             self.real_args = iter(cc.args)
 
-    def next_arg(self, is_fp):
+    def next_arg(self, is_fp, size=None):
         if self.real_args is not None:
             try:
                 arg = next(self.real_args)
@@ -125,14 +158,33 @@ class ArgSession(object):
         else:
             try:
                 if is_fp:
-                    return next(self.fp_iter)
+                    arg = next(self.fp_iter)
                 else:
-                    return next(self.int_iter)
+                    arg = next(self.int_iter)
             except StopIteration:
                 try:
-                    return next(self.both_iter)
+                    arg = next(self.both_iter)
                 except StopIteration:
                     raise TypeError("Accessed too many arguments - exhausted all positions?")
+
+        if size is not None and size > arg.size:
+            arg = self.upsize_arg(arg, is_fp, size)
+        return arg
+
+    def upsize_arg(self, arg, is_fp, size):
+        if not is_fp:
+            raise ValueError("You can't fit a integral value of size %d into an argument!")
+        if not isinstance(arg, SimStackArg):
+            raise ValueError("I don't know how to handle this? please report to @rhelmot")
+
+        arg_size = arg.size
+        locations = [arg]
+        while arg_size < size:
+            next_arg = self.next_arg(is_fp, None)
+            arg_size += next_arg.size
+            locations.append(arg)
+
+        return SimComboArg(locations)
 
 
 class SimCC(object):
@@ -170,7 +222,7 @@ class SimCC(object):
                                     # (if applicable) and the arguments. Probably zero.
     STACKARG_SP_DIFF = 0            # The amount of stack space reserved for the return address
     return_addr = None              # The location where the return address is stored, as a SimFunctionArgument
-    return_val = None               # The location where the return value is stored, as a SimFunctionArgument
+    RETURN_VALS = None              # The locations where the return values are stored, as a list of SimFunctionArgument
     ARCH = None                     # The archinfo.Arch class that this CC must be used for, if relevant
 
     #
@@ -214,7 +266,7 @@ class SimCC(object):
         if self.FP_ARG_REGS is None:
             raise NotImplementedError()
         for reg in self.FP_ARG_REGS:        # pylint: disable=not-an-iterable
-            yield SimRegArg(reg, self.arch.bytes)
+            yield SimRegArg(reg, self.arch.registers[reg][1])
 
     def is_fp_arg(self, arg):
         """
@@ -262,6 +314,10 @@ class SimCC(object):
     #
     # Useful functions!
     #
+
+    @property
+    def return_val(self):
+        return self.RETURN_VALS[0] if self.ret_vals is None else self.ret_vals[0]
 
     @staticmethod
     def is_fp_value(val):
@@ -520,16 +576,16 @@ class SimCC(object):
 
 class SimCCCdecl(SimCC):
     ARG_REGS = [] # All arguments are passed in stack
-    FP_ARG_REGS = ['st0', 'st1', 'st2', 'st3', 'st4', 'st5', 'st6', 'st7']
+    FP_ARG_REGS = []
     STACKARG_SP_DIFF = 4 # Return address is pushed on to stack by call
-    return_val = SimRegArg('eax', 4)
+    RETURN_VALS = [SimRegArg('eax', 4)]
     return_addr = SimStackArg(0, 4)
     ARCH = ArchX86
 
 class SimCCX86LinuxSyscall(SimCC):
     ARG_REGS = ['ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp']
     FP_ARG_REGS = []
-    return_val = SimRegArg('eax', 4)
+    RETURN_VALS = [SimRegArg('eax', 4)]
     ARCH = ArchX86
 
     @classmethod
@@ -538,11 +594,11 @@ class SimCCX86LinuxSyscall(SimCC):
         return False
 
 class SimCCSystemVAMD64(SimCC):
-    ARG_REGS = [ 'rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9' ]
-    FP_ARG_REGS = []    # TODO: xmm regs for fp passing
+    ARG_REGS = ['rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9']
+    FP_ARG_REGS = ['xmm0', 'xmm1', 'xmm2', 'xmm3', 'xmm4', 'xmm5', 'xmm6', 'xmm7']
     STACKARG_SP_DIFF = 8 # Return address is pushed on to stack by call
     return_addr = SimStackArg(0, 8)
-    return_val = SimRegArg('rax', 8)
+    RETURN_VALS = [SimRegArg('rax', 8)]
     ARCH = ArchAMD64
 
     def __init__(self, arch, args=None, ret_vals=None, sp_delta=None, func_ty=None):
@@ -575,7 +631,7 @@ class SimCCSystemVAMD64(SimCC):
 
 class SimCCAMD64LinuxSyscall(SimCC):
     ARG_REGS = ['rdi', 'rsi', 'rdx', 'r10', 'r8', 'r9']
-    return_val = SimRegArg('rax', 8)
+    RETURN_VALS = [SimRegArg('rax', 8)]
     ARCH = ArchAMD64
 
     @staticmethod
@@ -587,14 +643,14 @@ class SimCCARM(SimCC):
     ARG_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
     FP_ARG_REGS = []    # TODO: ???
     return_addr = SimRegArg('lr', 4)
-    return_val = SimRegArg('r0', 4)
+    RETURN_VALS = [SimRegArg('r0', 4)]
     ARCH = ArchARM
 
 class SimCCAArch64(SimCC):
     ARG_REGS = [ 'x0', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7' ]
     FP_ARG_REGS = []    # TODO: ???
     return_addr = SimRegArg('lr', 8)
-    return_val = SimRegArg('x0', 8)
+    RETURN_VALS = [SimRegArg('x0', 8)]
     ARCH = ArchAArch64
 
 class SimCCO32(SimCC):
@@ -602,7 +658,7 @@ class SimCCO32(SimCC):
     FP_ARG_REGS = []    # TODO: ???
     STACKARG_SP_BUFF = 16
     return_addr = SimRegArg('lr', 4)
-    return_val = SimRegArg('v0', 4)
+    RETURN_VALS = [SimRegArg('v0', 4), SimRegArg('v1', 4)]
     ARCH = ArchMIPS32
 
 class SimCCO64(SimCC):      # TODO: this calling convention doesn't actually exist???? there's o32, n32, and n64
@@ -610,7 +666,7 @@ class SimCCO64(SimCC):      # TODO: this calling convention doesn't actually exi
     FP_ARG_REGS = []    # TODO: ???
     STACKARG_SP_BUFF = 32
     return_addr = SimRegArg('lr', 8)
-    return_val = SimRegArg('v0', 8)
+    RETURN_VALS = [SimRegArg('v0', 8), SimRegArg('v1', 8)]
     ARCH = ArchMIPS64
 
 class SimCCPowerPC(SimCC):
@@ -618,7 +674,7 @@ class SimCCPowerPC(SimCC):
     FP_ARG_REGS = []    # TODO: ???
     STACKARG_SP_BUFF = 8
     return_addr = SimRegArg('lr', 4)
-    return_val = SimRegArg('r3', 4)
+    RETURN_VALS = [SimRegArg('r3', 4)]
     ARCH = ArchPPC32
 
 class SimCCPowerPC64(SimCC):
@@ -626,7 +682,7 @@ class SimCCPowerPC64(SimCC):
     FP_ARG_REGS = []    # TODO: ???
     STACKARG_SP_BUFF = 0x70
     return_addr = SimRegArg('lr', 8)
-    return_val = SimRegArg('r3', 8)
+    RETURN_VALS = [SimRegArg('r3', 8)]
     ARCH = ArchPPC64
 
 class SimCCUnknown(SimCC):

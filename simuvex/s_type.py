@@ -127,7 +127,7 @@ class SimTypeReg(SimType):
     def store(self, state, addr, value):
         store_endness = state.arch.memory_endness
 
-        if isinstance(value, claripy.ast.BV):
+        if isinstance(value, claripy.ast.Bits):
             if value.size() != self.size:
                 raise ValueError("size of expression is wrong size for type")
         elif isinstance(value, (int, long)):
@@ -169,7 +169,7 @@ class SimTypeNum(SimType):
     def store(self, state, addr, value):
         store_endness = state.arch.memory_endness
 
-        if isinstance(value, claripy.ast.BV):
+        if isinstance(value, claripy.ast.Bits):
             if value.size() != self.size:
                 raise ValueError("size of expression is wrong size for type")
         elif isinstance(value, (int, long)):
@@ -414,12 +414,12 @@ class SimTypeString(SimTypeArray):
 
     def extract(self, state, addr, concrete=False):
         if self.length is None:
-            out = state.memory.load(addr, 1)
-            last_byte = out
+            out = None
+            last_byte = state.memory.load(addr, 1)
             addr += 1
             while not claripy.is_true(last_byte == 0):
+                out = last_byte if out is None else out.concat(last_byte)
                 last_byte = state.memory.load(addr, 1)
-                out = out.concat(last_byte)
                 addr += 1
         else:
             out = state.memory.load(addr, self.length)
@@ -508,6 +508,37 @@ class SimTypeLength(SimTypeNum):
         return self._arch.bits
 
 
+class SimTypeFloat(SimTypeReg):
+    """
+    An IEEE754 single-precision floating point number
+    """
+    def __init__(self):
+        super(SimTypeFloat, self).__init__(32)
+
+    sort = claripy.FSORT_FLOAT
+
+    def extract(self, state, addr, concrete=False):
+        itype = claripy.fpToFP(super(SimTypeFloat, self).extract(state, addr, False), self.sort)
+        if concrete:
+            return state.se.any_int(itype)
+        return itype
+
+    def store(self, state, addr, value):
+        if type(value) in (int, float, long):
+            value = claripy.FPV(float(value), self.sort)
+        return super(SimTypeFloat, self).store(state, addr, value)
+
+
+class SimTypeDouble(SimTypeReg):
+    """
+    An IEEE754 double-precision floating point number
+    """
+    def __init__(self):
+        super(SimTypeDouble, self).__init__(64)
+
+    sort = claripy.FSORT_DOUBLE
+
+
 class SimStructValue(object):
     def __init__(self, struct, values=None):
         self._struct = struct
@@ -535,6 +566,8 @@ _C_TYPE_TO_SIMTYPE = {
     ('size_t',): SimTypeLength(False),
     ('ssize_t',): SimTypeLength(True),
     ('uintptr_t',) : SimTypeLong(False),
+    ('float',): SimTypeFloat(),
+    ('double',): SimTypeDouble()
 }
 
 def _decl_to_type(decl):
@@ -568,8 +601,12 @@ class SimStruct(SimType):
         if not pack:
             raise ValueError("you think I've implemented padding, how cute")
 
-        self.name = name
+        self._name = name
         self.fields = fields
+
+    @property
+    def name(self): # required bc it's a property in the original
+        return self._name
 
     @property
     def offsets(self):
@@ -670,7 +707,8 @@ ALL_TYPES = {
     'string': SimTypeString(),
     'example': _example_struct,
 
-
+    'float': SimTypeFloat(),
+    'double': SimTypeDouble()
 }
 
 def define_struct(defn):
