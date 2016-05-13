@@ -79,6 +79,8 @@ class SimMemView(SimStatePlugin):
                 raise ValueError("Slices with stop index are not supported")
             else:
                 addr = k.start
+        elif self._type is not None and self._type._can_refine_int:
+            return self._type._refine(self, k)
         else:
             addr = k
         return self._deeper(addr=addr)
@@ -92,7 +94,7 @@ class SimMemView(SimStatePlugin):
     def __repr__(self):
         value = '<unresolvable>' if not self.resolvable else self.resolved
         addr = self._addr.__repr__(inner=True)
-        type_name = self._type.name if self._type is not None else '<untyped>'
+        type_name = repr(self._type) if self._type is not None else '<untyped>'
         return '<{} {} at {}>'.format(type_name,
                                       value,
                                       addr)
@@ -106,7 +108,7 @@ class SimMemView(SimStatePlugin):
         if self._type:
             return self._type._refine(self, k)
         if k in SimMemView.types:
-            return self._deeper(ty=SimMemView.types[k](self.state.arch))
+            return self._deeper(ty=SimMemView.types[k].with_arch(self.state.arch))
         raise AttributeError(k)
 
     def __setattr__(self, k, v):
@@ -135,6 +137,12 @@ class SimMemView(SimStatePlugin):
         if not self.resolvable:
             raise ValueError("Trying to resolve value without type and addr defined")
         return self._type.extract(self.state, self._addr)
+
+    @property
+    def concrete(self):
+        if not self.resolvable:
+            raise ValueError("Trying to resolve value without type and addr defined")
+        return self._type.extract(self.state, self._addr, True)
 
     def store(self, value):
         if self._addr is None:

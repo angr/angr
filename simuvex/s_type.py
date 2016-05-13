@@ -1,6 +1,6 @@
 from collections import OrderedDict, defaultdict
+import copy
 
-from z3 import eq
 import claripy
 
 try:
@@ -14,6 +14,9 @@ class SimType(object):
     """
 
     _fields = ()
+    _arch = None
+    _size = None
+    _can_refine_int = False
     base = True
 
     def __init__(self, label=None):
@@ -50,13 +53,28 @@ class SimType(object):
     def name(self):
         return repr(self)
 
-    def _refine_dir(self):
+    def _refine_dir(self): # pylint: disable=no-self-use
         return []
 
     def _refine(self, view, k):
         if k == 'array':
-            return lambda length: view._deeper(ty=SimTypeFixedSizeArray(self, length))
+            return lambda length: view._deeper(ty=SimTypeFixedSizeArray(self, length).with_arch(self._arch))
         raise KeyError("{} is not a valid refinement".format(k))
+
+    @property
+    def size(self):
+        if self._size is not None:
+            return self._size
+        return NotImplemented
+
+    def with_arch(self, arch):
+        if self._arch == arch:
+            return self
+        else:
+            cp = copy.copy(self)
+            cp._arch = arch
+            return cp
+
 
 class SimTypeBottom(SimType):
     """
@@ -65,6 +83,7 @@ class SimTypeBottom(SimType):
 
     def __repr__(self):
         return 'BOT'
+
 
 class SimTypeTop(SimType):
     """
@@ -80,6 +99,7 @@ class SimTypeTop(SimType):
     def __repr__(self):
         return 'TOP'
 
+
 class SimTypeReg(SimType):
     """
     SimTypeReg is the base type for all types that are register-sized.
@@ -93,13 +113,58 @@ class SimTypeReg(SimType):
         :param size: the size of the type (e.g. 32bit, 8bit, etc.).
         """
         SimType.__init__(self, label=label)
-        self.size = size
+        self._size = size
 
     def __repr__(self):
         return "reg{}_t".format(self.size)
 
-    def extract(self, state, addr):
-        return state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
+    def extract(self, state, addr, concrete=False):
+        out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
+        if not concrete:
+            return out
+        return state.se.any_int(out)
+
+    def store(self, state, addr, value):
+        store_endness = state.arch.memory_endness
+
+        if isinstance(value, claripy.ast.BV):
+            if value.size() != self.size:
+                raise ValueError("size of expression is wrong size for type")
+        elif isinstance(value, (int, long)):
+            value = state.se.BVV(value, self.size)
+        elif isinstance(value, str):
+            store_endness = 'Iend_BE'
+        else:
+            raise TypeError("unrecognized expression type for SimType {}".format(type(self).__name__))
+
+        state.memory.store(addr, value, endness=store_endness)
+
+
+class SimTypeNum(SimType):
+    """
+    SimTypeNum is a numeric type of arbitrary length
+    """
+
+    _fields = SimType._fields + ('signed', 'size')
+
+    def __init__(self, size, signed=True, label=None):
+        """
+        :param size:        The size of the integer, in bytes
+        :param signed:      Whether the integer is signed or not
+        :param label:       A label for the type
+        """
+        super(SimTypeNum, self).__init__(label)
+        self._size = size
+        self.signed = signed
+
+    def extract(self, state, addr, concrete=False):
+        out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
+        if not concrete:
+            return out
+        n = state.se.any_int(out)
+        if n < 0 and not self.signed:
+            n += 1 << (self.size)
+        return n
 
     def store(self, state, addr, value):
         store_endness = state.arch.memory_endness
@@ -118,30 +183,60 @@ class SimTypeReg(SimType):
 
 class SimTypeInt(SimTypeReg):
     """
-    SimTypeInt is a type that specifies a signed or unsigned integer of some size.
+    SimTypeInt is a type that specifies a signed or unsigned C integer.
     """
 
     _fields = SimTypeReg._fields + ('signed',)
 
-    def __init__(self, size, signed, label=None):
+    def __init__(self, signed=True, label=None):
         """
-        :param label:   The type label
-        :param size:    The size of the integer (e.g. 32bit, 8bit, etc.)
         :param signed:  True if signed, False if unsigned
+        :param label:   The type label
         """
-        SimTypeReg.__init__(self, size, label=label)
+        super(SimTypeInt, self).__init__(None, label=label)
         self.signed = signed
 
     def __repr__(self):
-        return ('' if self.signed else 'u') + 'int{}_t'.format(self.size)
+        try:
+            return ('' if self.signed else 'u') + 'int{}_t'.format(self.size)
+        except ValueError:
+            return ('' if self.signed else 'u') + 'int??_t'
+
+    @property
+    def size(self):
+        if self._arch is None:
+            raise ValueError("Can't tell my size without an arch!")
+        try:
+            return self._arch.sizeof['int']
+        except KeyError:
+            raise ValueError("Arch %s doesn't have its int type defined!" % self._arch.name)
+
+    def extract(self, state, addr, concrete=False):
+        out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
+        if not concrete:
+            return out
+        n = state.se.any_int(out)
+        if n < 0 and not self.signed:
+            n += 1 << (self.size)
+        return n
+
+
+class SimTypeLong(SimTypeInt):
+    @property
+    def size(self):
+        if self._arch is None:
+            raise ValueError("Can't tell my size without an arch!")
+        try:
+            return self._arch.sizeof['long']
+        except KeyError:
+            raise ValueError("Arch %s doesn't have its int type defined!" % self._arch.name)
+
 
 class SimTypeChar(SimTypeReg):
     """
     SimTypeChar is a type that specifies a character;
     this could be represented by an 8-bit int, but this is meant to be interpreted as a character.
     """
-
-    _fields = SimTypeReg._fields
 
     def __init__(self, label=None):
         """
@@ -163,6 +258,13 @@ class SimTypeChar(SimTypeReg):
             else:
                 raise
 
+    def extract(self, state, addr, concrete=False):
+        out = super(SimTypeChar, self).extract(state, addr, concrete)
+        if concrete:
+            return chr(out)
+        return out
+
+
 class SimTypeFd(SimTypeReg):
     """
     SimTypeFd is a type that specifies a file descriptor.
@@ -175,7 +277,7 @@ class SimTypeFd(SimTypeReg):
         :param label: the type label
         """
         # file descriptors are always 32 bits, right?
-        SimTypeReg.__init__(self, 32, label=label)
+        super(SimTypeFd, self).__init__(32, label=label)
 
     def __repr__(self):
         return 'fd_t'
@@ -187,13 +289,12 @@ class SimTypePointer(SimTypeReg):
 
     _fields = SimTypeReg._fields + ('pts_to',)
 
-    def __init__(self, arch, pts_to, label=None):
+    def __init__(self, pts_to, label=None):
         """
         :param label:   The type label.
         :param pts_to:  The type to which this pointer points to.
         """
-        SimTypeReg.__init__(self, arch.bits, label=label)
-        self._arch = arch
+        super(SimTypePointer, self).__init__(None, label=label)
         self.pts_to = pts_to
         self.signed = False
 
@@ -201,8 +302,24 @@ class SimTypePointer(SimTypeReg):
         return '{}*'.format(self.pts_to)
 
     def make(self, pts_to):
-        new = type(self)(self._arch, pts_to)
+        new = type(self)(pts_to)
+        new._arch = self._arch
         return new
+
+    @property
+    def size(self):
+        if self._arch is None:
+            raise ValueError("Can't tell my size without an arch!")
+        return self._arch.bits
+
+    def with_arch(self, arch):
+        if self._arch == arch:
+            return self
+        else:
+            out = SimTypePointer(self.pts_to.with_arch(arch), self.label)
+            out._arch = arch
+            return out
+
 
 class SimTypeFixedSizeArray(SimType):
     """
@@ -210,20 +327,37 @@ class SimTypeFixedSizeArray(SimType):
     """
 
     def __init__(self, elem_type, length):
-        SimType.__init__(self)
+        super(SimTypeFixedSizeArray, self).__init__()
         self.elem_type = elem_type
         self.length = length
-        self.size = elem_type.size * length
 
     def __repr__(self):
         return '{}[{}]'.format(self.elem_type, self.length)
 
-    def extract(self, state, addr):
-        return [self.elem_type.extract(state, addr + i*self.elem_type.size) for i in xrange(self.length)]
+    _can_refine_int = True
+
+    def _refine(self, view, k):
+        return view._deeper(addr=view._addr + k * self.elem_type.size, ty=self.elem_type)
+
+    def extract(self, state, addr, concrete=False):
+        return [self.elem_type.extract(state, addr + i*self.elem_type.size, concrete) for i in xrange(self.length)]
 
     def store(self, state, addr, values):
         for i, val in enumerate(values):
             self.elem_type.store(state, addr + i*self.elem_type.size, val)
+
+    @property
+    def size(self):
+        return self.elem_type.size * self.length
+
+    def with_arch(self, arch):
+        if self._arch == arch:
+            return self
+        else:
+            out = SimTypeFixedSizeArray(self.elem_type.with_arch(arch), self.length)
+            out._arch = arch
+            return out
+
 
 class SimTypeArray(SimType):
     """
@@ -238,12 +372,27 @@ class SimTypeArray(SimType):
         :param elem_type:   The type of each element in the array.
         :param length:      An expression of the length of the array, if known.
         """
-        SimType.__init__(self, label=label)
+        super(SimTypeArray, self).__init__(label=label)
         self.elem_type = elem_type
         self.length = length
 
     def __repr__(self):
         return '{}[{}]'.format(self.elem_type, '' if self.length is None else self.length)
+
+    @property
+    def size(self):
+        if self._arch is None:
+            raise ValueError("I can't tell my size without an arch!")
+        return self._arch.bits
+
+    def with_arch(self, arch):
+        if self._arch == arch:
+            return self
+        else:
+            out = SimTypeArray(self.elem_type.with_arch(arch), self.length, self.label)
+            out._arch = arch
+            return out
+
 
 class SimTypeString(SimTypeArray):
     """
@@ -258,18 +407,41 @@ class SimTypeString(SimTypeArray):
         :param label:   The type label.
         :param length:  An expression of the length of the string, if known.
         """
-        SimTypeArray.__init__(self, SimTypeChar(), label=label)
-        self.length = length
+        super(SimTypeString, self).__init__(SimTypeChar(), label=label, length=length)
 
     def __repr__(self):
         return 'string_t'
 
-    def extract(self, state, addr):
-        mem = state.memory.load(addr, self.length)
-        if state.se.symbolic(mem):
-            return mem
+    def extract(self, state, addr, concrete=False):
+        if self.length is None:
+            out = state.memory.load(addr, 1)
+            last_byte = out
+            addr += 1
+            while not claripy.is_true(last_byte == 0):
+                last_byte = state.memory.load(addr, 1)
+                out = out.concat(last_byte)
+                addr += 1
         else:
-            return repr(state.se.any_str(mem))
+            out = state.memory.load(addr, self.length)
+        if not concrete:
+            return out
+        else:
+            return state.se.any_str(out)
+
+    _can_refine_int = True
+
+    def _refine(self, view, k):
+        return view._deeper(addr=view._addr + k, ty=SimTypeChar())
+
+    @property
+    def size(self):
+        if self.length is None:
+            return 4096         # :/
+        return self.length + 1
+
+    def with_arch(self, arch):
+        return self
+
 
 class SimTypeFunction(SimType):
     """
@@ -286,33 +458,55 @@ class SimTypeFunction(SimType):
         :param args:    A tuple of types representing the arguments to the function
         :param returns: The return type of the function
         """
-        SimType.__init__(self, label=label)
+        super(SimTypeFunction, self).__init__(label=label)
         self.args = args
         self.returnty = returnty
 
     def __repr__(self):
         return '({}) -> {}'.format(', '.join(str(a) for a in self.args), self.returnty)
 
-class SimTypeLength(SimTypeInt):
+    @property
+    def size(self):
+        return 4096     # ???????????
+
+    def with_arch(self, arch):
+        if self._arch == arch:
+            return self
+        else:
+            out = SimTypeFunction([a.with_arch(arch) for a in self.args], self.returnty.with_arch(arch), self.label)
+            out._arch = arch
+            return out
+
+
+class SimTypeLength(SimTypeNum):
     """
     SimTypeLength is a type that specifies the length of some buffer in memory.
+
+    ...I'm not really sure what the original design of this class was going for
     """
 
-    _fields = SimTypeInt._fields + ('addr', 'length') # ?
+    _fields = SimTypeNum._fields + ('addr', 'length') # ?
 
-    def __init__(self, arch, addr=None, length=None, label=None):
+    def __init__(self, signed=False, addr=None, length=None, label=None):
         """
+        :param signed:  Whether the value is signed or not
         :param label:   The type label.
         :param addr:    The memory address (expression).
         :param length:  The length (expression).
         """
-        SimTypeInt.__init__(self, arch.bits, False, label=label)
+        super(SimTypeLength, self).__init__(None, signed=signed, label=label)
         self.addr = addr
         self.length = length
-        self.signed = False
 
     def __repr__(self):
         return 'size_t'
+
+    @property
+    def size(self):
+        if self._arch is None:
+            raise ValueError("I can't tell my size without an arch!")
+        return self._arch.bits
+
 
 class SimStructValue(object):
     def __init__(self, struct, values=None):
@@ -324,23 +518,23 @@ class SimStructValue(object):
         return '{{\n  {}\n}}'.format(',\n  '.join(fields))
 
 _C_TYPE_TO_SIMTYPE = {
-    ('int',): lambda _: SimTypeInt(32, True),
-    ('unsigned', 'int'): lambda _: SimTypeInt(32, False),
-    ('long',): lambda arch: SimTypeInt(arch.bits, True),
-    ('unsigned', 'long'): lambda arch: SimTypeInt(arch.bits, False),
-    ('char',): lambda _: SimTypeChar(),
-    ('int8_t',): lambda _: SimTypeInt(8, True),
-    ('uint8_t',): lambda _: SimTypeInt(8, False),
-    ('int16_t',): lambda _: SimTypeInt(16, True),
-    ('uint16_t',): lambda _: SimTypeInt(16, False),
-    ('int32_t',): lambda _: SimTypeInt(32, True),
-    ('uint32_t',): lambda _: SimTypeInt(32, False),
-    ('int64_t',): lambda _: SimTypeInt(64, True),
-    ('uint64_t',): lambda _: SimTypeInt(64, False),
-    ('ptrdiff_t',): lambda arch: SimTypeInt(arch.bits, False),
-    ('size_t',): lambda arch: SimTypeInt(arch.bits, False),
-    ('ssize_t',): lambda arch: SimTypeInt(arch.bits, True),
-    ('uintptr_t',) : lambda arch: SimTypeInt(arch.bits, False),
+    ('int',): SimTypeInt(True),
+    ('unsigned', 'int'): SimTypeInt(False),
+    ('long',): SimTypeLong(True),
+    ('unsigned', 'long'): SimTypeLong(False),
+    ('char',): SimTypeChar(),
+    ('int8_t',): SimTypeNum(8, True),
+    ('uint8_t',): SimTypeNum(8, False),
+    ('int16_t',): SimTypeNum(16, True),
+    ('uint16_t',): SimTypeNum(16, False),
+    ('int32_t',): SimTypeNum(32, True),
+    ('uint32_t',): SimTypeNum(32, False),
+    ('int64_t',): SimTypeNum(64, True),
+    ('uint64_t',): SimTypeNum(64, False),
+    ('ptrdiff_t',): SimTypeLong(False),
+    ('size_t',): SimTypeLength(False),
+    ('ssize_t',): SimTypeLength(True),
+    ('uintptr_t',) : SimTypeLong(False),
 }
 
 def _decl_to_type(decl):
@@ -348,11 +542,11 @@ def _decl_to_type(decl):
         return _C_TYPE_TO_SIMTYPE[tuple(decl.type.names)]
     elif isinstance(decl, pycparser.c_ast.PtrDecl):
         pts_to = _decl_to_type(decl.type)
-        return lambda arch: SimTypePointer(arch, pts_to(arch))
+        return SimTypePointer(pts_to)
     elif isinstance(decl, pycparser.c_ast.ArrayDecl):
         elem_type = _decl_to_type(decl.type)
         size = int(decl.dim.value)
-        return lambda arch: SimTypeFixedSizeArray(elem_type(arch), size)
+        return SimTypeFixedSizeArray(elem_type, size)
 
 # these are all bogus, on purpose
 _C_STRUCT_PREAMBLE = """
@@ -369,37 +563,44 @@ typedef int uint64_t;
 class SimStruct(SimType):
     _fields = ('name', 'fields')
 
-    def __init__(self, name, fields, pack=True):
+    def __init__(self, fields, name=None, pack=True):
+        super(SimStruct, self).__init__(None)
         if not pack:
             raise ValueError("you think I've implemented padding, how cute")
 
-        self._name = name
+        self.name = name
         self.fields = fields
-        self._arch_offsets_cache = {}
 
-    def _arch_offsets(self, arch):
-        if arch in self._arch_offsets_cache:
-            return self._arch_offsets_cache[arch]
-
+    @property
+    def offsets(self):
         offsets = {}
         offset_so_far = 0
-        for name, almost_ty in self.fields.iteritems():
-            ty = almost_ty(arch)
-            offsets[name] = (ty, offset_so_far)
+        for name, ty in self.fields.iteritems():
+            offsets[name] = offset_so_far
             offset_so_far += ty.size / 8
 
-        self._arch_offsets_cache[arch] = offsets
         return offsets
 
     def extract(self, state, addr):
         values = {name: ty.view(state, addr + offset)
                   for (name, (ty, offset))
-                  in self._arch_offsets(state.arch).iteritems()}
+                  in self.offsets.iteritems()}
         return SimStructValue(self, values=values)
 
+    def with_arch(self, arch):
+        if self._arch == arch:
+            return self
+        else:
+            out = SimStruct(OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.iteritems()), self.name, True)
+            out._arch = arch
+            return out
+
+    def __repr__(self):
+        return 'struct %s' % self.name
+
     @property
-    def name(self):
-        return self._name
+    def size(self):
+        return sum(val.size for val in self.fields.itervalues())
 
     @classmethod
     def from_c(cls, defn):
@@ -425,8 +626,10 @@ class SimStruct(SimType):
         return self.fields.keys()
 
     def _refine(self, view, k):
-        ty, offset = self._arch_offsets(view.state.arch)[k]
+        offset = self.offsets[k]
+        ty = self.fields[k]
         return view._deeper(ty=ty, addr=view._addr + offset)
+
 
 try:
     _example_struct = SimStruct.from_c("""
@@ -440,39 +643,39 @@ except ImportError:
     _example_struct = None
 
 ALL_TYPES = {
-    'char': lambda _: SimTypeInt(8, True),
-    'int8_t': lambda _: SimTypeInt(8, True),
-    'uchar': lambda _: SimTypeInt(8, False),
-    'uint8_t': lambda _: SimTypeInt(8, False),
-    'byte': lambda _: SimTypeInt(8, False),
+    'char': SimTypeChar(),
+    'int8_t': SimTypeNum(8, True),
+    'uchar': SimTypeNum(8, False),
+    'uint8_t': SimTypeNum(8, False),
+    'byte': SimTypeNum(8, False),
 
-    'short': lambda _: SimTypeInt(16, True),
-    'int16_t': lambda _: SimTypeInt(16, True),
-    'ushort': lambda _: SimTypeInt(16, False),
-    'uint16_t': lambda _: SimTypeInt(16, False),
-    'word': lambda _: SimTypeInt(16, False),
+    'short': SimTypeNum(16, True),
+    'int16_t': SimTypeNum(16, True),
+    'ushort': SimTypeNum(16, False),
+    'uint16_t': SimTypeNum(16, False),
+    'word': SimTypeNum(16, False),
 
-    'int': lambda _: SimTypeInt(32, True),
-    'int32_t': lambda _: SimTypeInt(32, True),
-    'uint': lambda _: SimTypeInt(32, False),
-    'uint32_t': lambda _: SimTypeInt(32, False),
-    'dword': lambda _: SimTypeInt(32, False),
+    'int': SimTypeInt(True),
+    'int32_t': SimTypeNum(32, True),
+    'uint': SimTypeInt(False),
+    'uint32_t': SimTypeNum(32, False),
+    'dword': SimTypeNum(32, False),
 
-    'long': lambda _: SimTypeInt(64, True),
-    'int64_t': lambda _: SimTypeInt(64, True),
-    'ulong': lambda _: SimTypeInt(64, False),
-    'uint64_t': lambda _: SimTypeInt(64, False),
-    'qword': lambda _: SimTypeInt(64, False),
+    'long': SimTypeLong(True),
+    'int64_t': SimTypeNum(64, True),
+    'ulong': SimTypeLong(False),
+    'uint64_t': SimTypeNum(64, False),
+    'qword': SimTypeNum(64, False),
 
-    'string': lambda arch: SimTypePointer(arch, SimTypeChar()),
-    'example': lambda _: _example_struct,
+    'string': SimTypeString(),
+    'example': _example_struct,
 
 
 }
 
 def define_struct(defn):
     struct = SimStruct.from_c(defn)
-    ALL_TYPES[struct.name] = lambda _: struct
+    ALL_TYPES[struct.name] = struct
     return struct
 
 from .plugins.view import SimMemView
