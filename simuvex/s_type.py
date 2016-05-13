@@ -94,7 +94,7 @@ class SimTypeTop(SimType):
 
     def __init__(self, size=None):
         SimType.__init__(self)
-        self.size = size
+        self._size = size
 
     def __repr__(self):
         return 'TOP'
