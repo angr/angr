@@ -316,12 +316,12 @@ class AngrObjectFactory(object):
                         cc=cc)
 
 
-    def cc(self, args=None, ret_vals=None, sp_delta=None, func_ty=None):
+    def cc(self, args=None, ret_val=None, sp_delta=None, func_ty=None):
         """
         Return a SimCC (calling convention) parametrized for this project and, optionally, a given function.
 
         :param args:        A list of argument storage locations, as SimFunctionArguments.
-        :param ret_vals:    A list of return value storage locations, as SimFunctionArguments.
+        :param ret_val:     The return value storage location, as a SimFunctionArgument.
         :param sp_delta:    Does this even matter??
         :param func_ty:     The protoype for the given function, as a SimType.
 
@@ -332,7 +332,7 @@ class AngrObjectFactory(object):
         """
         return self._default_cc(arch=self._project.arch,
                                   args=args,
-                                  ret_vals=ret_vals,
+                                  ret_val=ret_val,
                                   sp_delta=sp_delta,
                                   func_ty=func_ty)
 
