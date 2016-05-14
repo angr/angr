@@ -1,5 +1,7 @@
 from collections import OrderedDict, defaultdict
+import subprocess
 import copy
+import re
 
 import claripy
 
@@ -197,10 +199,14 @@ class SimTypeInt(SimTypeReg):
         self.signed = signed
 
     def __repr__(self):
+        if self.signed:
+            name = 'int'
+        else:
+            name = 'unsigned int'
         try:
-            return ('' if self.signed else 'u') + 'int{}_t'.format(self.size)
+            return name + ' (%d bits)' % self.size
         except ValueError:
-            return ('' if self.signed else 'u') + 'int??_t'
+            return name
 
     @property
     def size(self):
@@ -230,6 +236,16 @@ class SimTypeLong(SimTypeInt):
             return self._arch.sizeof['long']
         except KeyError:
             raise ValueError("Arch %s doesn't have its int type defined!" % self._arch.name)
+
+    def __repr__(self):
+        if self.signed:
+            name = 'long'
+        else:
+            name = 'unsigned long'
+        try:
+            return name + ' (%d bits)' % self.size
+        except ValueError:
+            return name
 
 
 class SimTypeChar(SimTypeReg):
@@ -512,8 +528,8 @@ class SimTypeFloat(SimTypeReg):
     """
     An IEEE754 single-precision floating point number
     """
-    def __init__(self):
-        super(SimTypeFloat, self).__init__(32)
+    def __init__(self, size=32):
+        super(SimTypeFloat, self).__init__(size)
 
     sort = claripy.FSORT_FLOAT
 
@@ -528,8 +544,11 @@ class SimTypeFloat(SimTypeReg):
             value = claripy.FPV(float(value), self.sort)
         return super(SimTypeFloat, self).store(state, addr, value)
 
+    def __repr__(self):
+        return 'float'
 
-class SimTypeDouble(SimTypeReg):
+
+class SimTypeDouble(SimTypeFloat):
     """
     An IEEE754 double-precision floating point number
     """
@@ -538,60 +557,9 @@ class SimTypeDouble(SimTypeReg):
 
     sort = claripy.FSORT_DOUBLE
 
-
-class SimStructValue(object):
-    def __init__(self, struct, values=None):
-        self._struct = struct
-        self._values = defaultdict(lambda: None, values or ())
-
     def __repr__(self):
-        fields = ('.{} = {}'.format(name, self._values[name]) for name in self._struct.fields)
-        return '{{\n  {}\n}}'.format(',\n  '.join(fields))
+        return 'double'
 
-_C_TYPE_TO_SIMTYPE = {
-    ('int',): SimTypeInt(True),
-    ('unsigned', 'int'): SimTypeInt(False),
-    ('long',): SimTypeLong(True),
-    ('unsigned', 'long'): SimTypeLong(False),
-    ('char',): SimTypeChar(),
-    ('int8_t',): SimTypeNum(8, True),
-    ('uint8_t',): SimTypeNum(8, False),
-    ('int16_t',): SimTypeNum(16, True),
-    ('uint16_t',): SimTypeNum(16, False),
-    ('int32_t',): SimTypeNum(32, True),
-    ('uint32_t',): SimTypeNum(32, False),
-    ('int64_t',): SimTypeNum(64, True),
-    ('uint64_t',): SimTypeNum(64, False),
-    ('ptrdiff_t',): SimTypeLong(False),
-    ('size_t',): SimTypeLength(False),
-    ('ssize_t',): SimTypeLength(True),
-    ('uintptr_t',) : SimTypeLong(False),
-    ('float',): SimTypeFloat(),
-    ('double',): SimTypeDouble()
-}
-
-def _decl_to_type(decl):
-    if isinstance(decl, pycparser.c_ast.TypeDecl):
-        return _C_TYPE_TO_SIMTYPE[tuple(decl.type.names)]
-    elif isinstance(decl, pycparser.c_ast.PtrDecl):
-        pts_to = _decl_to_type(decl.type)
-        return SimTypePointer(pts_to)
-    elif isinstance(decl, pycparser.c_ast.ArrayDecl):
-        elem_type = _decl_to_type(decl.type)
-        size = int(decl.dim.value)
-        return SimTypeFixedSizeArray(elem_type, size)
-
-# these are all bogus, on purpose
-_C_STRUCT_PREAMBLE = """
-typedef int int8_t;
-typedef int uint8_t;
-typedef int int16_t;
-typedef int uint16_t;
-typedef int int32_t;
-typedef int uint32_t;
-typedef int int64_t;
-typedef int uint64_t;
-"""
 
 class SimStruct(SimType):
     _fields = ('name', 'fields')
@@ -639,26 +607,6 @@ class SimStruct(SimType):
     def size(self):
         return sum(val.size for val in self.fields.itervalues())
 
-    @classmethod
-    def from_c(cls, defn):
-        if pycparser is None:
-            raise ImportError("pycparser is needed to use SimStruct.from_c!")
-
-        # if preprocess:
-        #     defn = subprocess.Popen(['cpp'], stdin=subprocess.PIPE, stdout=subprocess.PIPE).communicate(input=defn)[0]
-
-        node = pycparser.c_parser.CParser().parse(_C_STRUCT_PREAMBLE + defn)
-
-        if not isinstance(node, pycparser.c_ast.FileAST) or \
-           not isinstance(node.ext[-1], pycparser.c_ast.Decl) or \
-           not isinstance(node.ext[-1].type, pycparser.c_ast.Struct):
-            raise ValueError("invalid struct definition")
-
-        struct = node.ext[-1].type
-        fields = OrderedDict((decl.name, _decl_to_type(decl.type)) for decl in struct.decls)
-
-        return cls(struct.name, fields)
-
     def _refine_dir(self):
         return self.fields.keys()
 
@@ -668,16 +616,22 @@ class SimStruct(SimType):
         return view._deeper(ty=ty, addr=view._addr + offset)
 
 
-try:
-    _example_struct = SimStruct.from_c("""
-struct example {
-  int foo;
-  int bar;
-  char *hello;
-};
-""")
-except ImportError:
-    _example_struct = None
+class SimStructValue(object):
+    """
+    A SimStruct type paired with some real values
+    """
+    def __init__(self, struct, values=None):
+        """
+        :param struct:      A SimStruct instance describing the type of this struct
+        :param values:      A mapping from struct fields to values
+        """
+        self._struct = struct
+        self._values = defaultdict(lambda: None, values or ())
+
+    def __repr__(self):
+        fields = ('.{} = {}'.format(name, self._values[name]) for name in self._struct.fields)
+        return '{{\n  {}\n}}'.format(',\n  '.join(fields))
+
 
 ALL_TYPES = {
     'char': SimTypeChar(),
@@ -705,15 +659,124 @@ ALL_TYPES = {
     'qword': SimTypeNum(64, False),
 
     'string': SimTypeString(),
-    'example': _example_struct,
 
     'float': SimTypeFloat(),
     'double': SimTypeDouble()
 }
 
+_C_TYPE_TO_SIMTYPE = {
+    ('int',): SimTypeInt(True),
+    ('unsigned', 'int'): SimTypeInt(False),
+    ('long',): SimTypeLong(True),
+    ('unsigned', 'long'): SimTypeLong(False),
+    ('char',): SimTypeChar(),
+    ('unsigned', 'char',): SimTypeChar(),
+    ('int8_t',): SimTypeNum(8, True),
+    ('uint8_t',): SimTypeNum(8, False),
+    ('int16_t',): SimTypeNum(16, True),
+    ('uint16_t',): SimTypeNum(16, False),
+    ('int32_t',): SimTypeNum(32, True),
+    ('uint32_t',): SimTypeNum(32, False),
+    ('int64_t',): SimTypeNum(64, True),
+    ('uint64_t',): SimTypeNum(64, False),
+    ('ptrdiff_t',): SimTypeLong(False),
+    ('size_t',): SimTypeLength(False),
+    ('ssize_t',): SimTypeLength(True),
+    ('uintptr_t',) : SimTypeLong(False),
+    ('float',): SimTypeFloat(),
+    ('double',): SimTypeDouble()
+}
+
 def define_struct(defn):
-    struct = SimStruct.from_c(defn)
+    struct = parse_type(defn)
     ALL_TYPES[struct.name] = struct
     return struct
+
+_include_re = re.compile('^\s*#include')
+def parse_defns(defn, preprocess=True):
+    if pycparser is None:
+        raise ImportError("Please install pycparser in order to parse C definitions")
+
+    defn = '\n'.join(x for x in defn.split('\n') if _include_re.match(x) is None)
+
+    if preprocess:
+        defn = subprocess.Popen(['cpp'], stdin=subprocess.PIPE, stdout=subprocess.PIPE).communicate(input=defn)[0]
+
+    node = pycparser.c_parser.CParser().parse(defn)
+    if not isinstance(node, pycparser.c_ast.FileAST):
+        raise ValueError("Something went horribly wrong using pycparser")
+    out = {}
+    extra_types = {}
+    for piece in node.ext:
+        if isinstance(piece, pycparser.c_ast.FuncDef):
+            out[piece.decl.name] = _decl_to_type(piece.decl.type, extra_types)
+        elif isinstance(piece, pycparser.c_ast.Decl):
+            ty = _decl_to_type(piece.type, extra_types)
+            if piece.name is not None:
+                out[piece.name] = ty
+        elif isinstance(piece, pycparser.c_ast.Typedef):
+            out[piece.name] = _decl_to_type(piece.type, extra_types)
+            extra_types[(piece.name,)] = out[piece.name]
+
+    return out
+
+
+def parse_type(defn, preprocess=True):
+    if pycparser is None:
+        raise ImportError("Please install pycparser in order to parse C definitions")
+
+    if preprocess:
+        defn = subprocess.Popen(['cpp'], stdin=subprocess.PIPE, stdout=subprocess.PIPE).communicate(input=defn)[0]
+
+    node = pycparser.c_parser.CParser().parse('typedef ' + defn.strip('; \n\t\r') + ' QQQQ;')
+    if not isinstance(node, pycparser.c_ast.FileAST) or \
+            not isinstance(node.ext[-1], pycparser.c_ast.Typedef):
+        raise ValueError("Something went horribly wrong using pycparser")
+
+    decl = node.ext[-1].type
+    return _decl_to_type(decl)
+
+def _decl_to_type(decl, extra_types=None):
+    if extra_types is None: extra_types = {}
+    if isinstance(decl, pycparser.c_ast.FuncDecl):
+        argtyps = () if decl.args is None else [_decl_to_type(x.type) for x in decl.args.params]
+        return SimTypeFunction(argtyps, _decl_to_type(decl.type))
+    if isinstance(decl, pycparser.c_ast.TypeDecl):
+        if isinstance(decl.type, pycparser.c_ast.Struct):
+            fields = OrderedDict((field.name, _decl_to_type(field.type)) for field in decl.type.decls)
+            struct = SimStruct(fields, decl.type.name)
+            if decl.type.name is not None:
+                extra_types[('struct', decl.type.name)] = struct
+            return struct
+        elif isinstance(decl.type, pycparser.c_ast.IdentifierType):
+            key = tuple(decl.type.names)
+            if key in extra_types:
+                return extra_types[key]
+            elif key in _C_TYPE_TO_SIMTYPE:
+                return _C_TYPE_TO_SIMTYPE[key]
+            else:
+                raise TypeError("Unknown type '%s'" % ' '.join(key))
+        else:
+            raise ValueError("Unknown type! (typedecl)")
+    elif isinstance(decl, pycparser.c_ast.PtrDecl):
+        pts_to = _decl_to_type(decl.type)
+        return SimTypePointer(pts_to)
+    elif isinstance(decl, pycparser.c_ast.ArrayDecl):
+        elem_type = _decl_to_type(decl.type)
+        size = int(decl.dim.value)
+        return SimTypeFixedSizeArray(elem_type, size)
+    raise ValueError("Unknown type!")
+
+try:
+    define_struct("""
+struct example {
+  int foo;
+  int bar;
+  char *hello;
+};
+""")
+except ImportError:
+    pass
+
 
 from .plugins.view import SimMemView
