@@ -115,8 +115,13 @@ class SimProcedure(SimRun):
         else:
             self.cc = convention
 
-    #def set_args(self, args):
-    #    self.cc.set_args(self.state, args)
+    def set_args(self, args):
+        arg_session = self.cc.arg_session
+        for arg in args:
+            if self.cc.is_fp_value(args):
+                arg_session.next_arg(True).set_value(self.state, arg)
+            else:
+                arg_session.next_arg(False).set_value(self.state, arg)
 
     def arg(self, i):
         """
