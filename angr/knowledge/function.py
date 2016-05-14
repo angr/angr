@@ -603,11 +603,12 @@ class Function(object):
         #
 
         for arg in self._argument_registers:
-            a = simuvex.s_cc.SimRegArg(arch.register_names[arg])
+            name = arch.register_names[arg]
+            a = simuvex.s_cc.SimRegArg(name, arch.registers[name][1])
             args.append(a)
 
         for arg in self._argument_stack_variables:
-            a = simuvex.s_cc.SimStackArg(arg)
+            a = simuvex.s_cc.SimStackArg(arg, arch.bytes)
             args.append(a)
 
         sp_delta = self.sp_delta
