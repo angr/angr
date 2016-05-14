@@ -690,4 +690,3 @@ class PathGroup(ana.Storable):
 from .path_hierarchy import PathHierarchy
 from .errors import PathUnreachableError, AngrError, AngrPathGroupError
 from .path import Path
-from .tablespecs import StringSpec
