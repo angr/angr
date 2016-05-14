@@ -532,6 +532,7 @@ class SimTypeFloat(SimTypeReg):
         super(SimTypeFloat, self).__init__(size)
 
     sort = claripy.FSORT_FLOAT
+    signed = True
 
     def extract(self, state, addr, concrete=False):
         itype = claripy.fpToFP(super(SimTypeFloat, self).extract(state, addr, False), self.sort)

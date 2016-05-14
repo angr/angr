@@ -232,7 +232,7 @@ class FormatParser(SimProcedure):
         'a': 'double',
         'A': 'double',
         'c': 'char',
-        's': 'string',
+        's': 'char*',
         'p': 'uintptr_t',
         'n': 'uintptr_t', # pointer to num bytes written so far
         'm': None, # Those don't expect any argument
