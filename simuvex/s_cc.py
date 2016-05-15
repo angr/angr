@@ -456,7 +456,7 @@ class SimCC(object):
                     (self.func_ty is not None and isinstance(self.func_ty.args[i], s_type.SimTypeFloat)):
                 arg_locs[i] = arg_session.next_arg(is_fp=True, size=val.length/8)
                 continue
-            if val.length > state.arch.bits:
+            if val.length > state.arch.bits or not isinstance(arg, (int, long)):
                 vals[i] = allocator.dump(val, state)
             elif val.length < state.arch.bits:
                 if self.arch.memory_endness == 'Iend_LE':
