@@ -147,7 +147,7 @@ class Runner(object):
 
         # some hacks to guarantee the coredump file has a unique filename
         return_dir = os.getcwd()
-        os.chdir('/tmp')
+        os.chdir('/dev/shm')
 
         binary_name = os.path.basename(self.binary)
         binary_replacement = tempfile.mktemp(prefix=binary_name)
