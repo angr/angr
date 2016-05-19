@@ -229,7 +229,7 @@ class Tracer(object):
             self.path_group = self.path_group.drop(stash='unsat')
 
             # check to see if we reached a deadend
-            if self.bb_cnt >= len(self.trace):
+            if max(self.bb_cnt, self.path_group.active[0].weighted_length) >= len(self.trace):
                 tpg = self.path_group.step()
                 # if we're in crash mode let's populate the crashed stash
                 if self.crash_mode:
