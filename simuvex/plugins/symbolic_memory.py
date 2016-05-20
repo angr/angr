@@ -307,13 +307,19 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             pass
 
     def _concretization_strategy_symbolic(self, v, limit, approx_limit): #pylint:disable=unused-argument
-        # if the address concretizes to less than the threshold of values, try to keep it symbolic
+        # if the address concretizes to less than a *range* of threshold of values, try to keep it symbolic
         mx = self.state.se.max_int(v)
         mn = self.state.se.min_int(v)
 
         l.debug("... range is (%#x, %#x)", mn, mx)
         if mx - mn <= limit:
             return self.state.se.any_n_int(v, limit)
+
+    def _concretization_strategy_symbolic_unoptimized(self, v, limit, approx_limit): #pylint:disable=unused-argument
+        # if the address concretizes to less than the threshold of values, try to keep it symbolic
+        addrs = self.state.se.any_n_int(v, limit+1)
+        if len(addrs) <= limit:
+            return addrs
 
     def _concretization_strategy_symbolic_approx(self, v, limit, approx_limit): #pylint:disable=unused-argument
         # if the address concretizes to less than the threshold of values, try to keep it symbolic
