@@ -143,6 +143,9 @@ class Tracer(object):
         # useful for handling PLT stubs
         self._resolved = set()
 
+        # this will be set by _prepare_paths
+        self.unicorn_enabled = False
+
         self.path_group = self._prepare_paths()
 
 # EXPOSED
@@ -229,7 +232,8 @@ class Tracer(object):
             self.path_group = self.path_group.drop(stash='unsat')
 
             # check to see if we reached a deadend
-            if max(self.bb_cnt, self.path_group.active[0].weighted_length) >= len(self.trace):
+            current_path = self.path_group.active[0]
+            if self.bb_cnt >= len(self.trace) or (self.unicorn_enabled and current_path.weighted_length >= len(self.trace)):
                 tpg = self.path_group.step()
                 # if we're in crash mode let's populate the crashed stash
                 if self.crash_mode:
@@ -716,6 +720,7 @@ class Tracer(object):
         try:
             options.add(so.UNICORN)
             options.add(so.UNICORN_FAST)
+            self.unicorn_enabled = True
             l.info("unicorn tracing enabled")
         except AttributeError:
             pass
