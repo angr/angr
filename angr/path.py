@@ -170,7 +170,7 @@ class PathHistory(object):
         state = {name: getattr(self,name) for name in attributes}
         return state
 
-    def __setstate__(self):
+    def __setstate__(self, state):
         for name, value in state.iteritems():
             setattr(self,name,value)
             
