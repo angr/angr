@@ -8,6 +8,7 @@ import simuvex
 import tempfile
 import subprocess
 from .tracerpov import TracerPoV
+from .simprocedures import FixedOutTransmit, FixedInReceive
 from simuvex import s_options as so
 
 import logging
@@ -232,8 +233,8 @@ class Tracer(object):
             self.path_group = self.path_group.drop(stash='unsat')
 
             # check to see if we reached a deadend
-            current_path = self.path_group.active[0]
-            if self.bb_cnt >= len(self.trace) or (self.unicorn_enabled and current_path.weighted_length >= len(self.trace)):
+            if self.bb_cnt >= len(self.trace) or \
+                    (self.unicorn_enabled and self.path_group.active[0].weighted_length >= len(self.trace)):
                 tpg = self.path_group.step()
                 # if we're in crash mode let's populate the crashed stash
                 if self.crash_mode:
@@ -702,6 +703,10 @@ class Tracer(object):
         # if we're in crash mode we want the authentic system calls
         if not self.crash_mode:
             self._set_cgc_simprocedures()
+
+        # FixedInReceive and FixedOutReceive always are applied
+        simuvex.SimProcedures['cgc']['transmit'] = FixedOutTransmit
+        simuvex.SimProcedures['cgc']['receive'] = FixedInReceive
 
         if not self.pov:
             fs = {'/dev/stdin': simuvex.storage.file.SimFile(
