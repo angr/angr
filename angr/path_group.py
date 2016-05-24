@@ -32,6 +32,9 @@ class PathGroup(ana.Storable):
 
     Note that you shouldn't usually be constructing path groups directly - there are convenient shortcuts for
     creating path groups in `Project.factory`: see :class:`angr.factory.AngrObjectFactory`.
+
+    Multithreading your search can be useful in z3-intensive paths. Indeed, Python cannot multithread due to its GIL,
+    but z3, written in C, can.
     """
 
     ALL = '_ALL'
@@ -51,7 +54,7 @@ class PathGroup(ana.Storable):
         :param hierarchy:       A PathHierarchy object to use to track path reachability.
         :param immutable:       If True, all operations will return a new PathGroup. Otherwise (default), all operations
                                 will modify the PathGroup (and return it, for consistency and chaining).
-        :param threads:         the number of worker threads to concurrently analyze states.
+        :param threads:         the number of worker threads to concurrently analyze states (useful in z3-intensive paths).
         """
         self._project = project
         self._hierarchy = PathHierarchy(strong_path_mapping=strong_path_mapping) if hierarchy is None else hierarchy
