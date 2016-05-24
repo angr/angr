@@ -6,7 +6,7 @@ l = logging.getLogger("tracer.simprocedures.FixedInReceive")
 class FixedInReceive(receive):
     # pylint:disable=arguments-differ
     """
-    Transmit which fixes the output file descriptor to 1.
+    Receive which fixes the input to file descriptor to 0.
     """
 
     def run(self, fd, buf, count, rx_bytes):
