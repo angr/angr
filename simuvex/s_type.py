@@ -159,13 +159,16 @@ class SimTypeNum(SimType):
         self._size = size
         self.signed = signed
 
+    def __repr__(self):
+        return "int{}_t".format(self.size)
+
     def extract(self, state, addr, concrete=False):
         out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
         if not concrete:
             return out
         n = state.se.any_int(out)
-        if n < 0 and not self.signed:
-            n += 1 << (self.size)
+        if self.signed and n >= 1 << (self.size-1):
+            n -= 1 << (self.size)
         return n
 
     def store(self, state, addr, value):
@@ -222,8 +225,8 @@ class SimTypeInt(SimTypeReg):
         if not concrete:
             return out
         n = state.se.any_int(out)
-        if n < 0 and not self.signed:
-            n += 1 << (self.size)
+        if self.signed and n >= 1 << (self.size-1):
+            n -= 1 << (self.size)
         return n
 
 
@@ -587,10 +590,16 @@ class SimStruct(SimType):
 
         return offsets
 
-    def extract(self, state, addr):
-        values = {name: ty.view(state, addr + offset)
-                  for (name, (ty, offset))
-                  in self.offsets.iteritems()}
+    def extract(self, state, addr, concrete=False):
+        values = {}
+        for name, offset in self.offsets.iteritems():
+            ty = self.fields[name]
+            v = ty.view(state, addr + offset)
+            if concrete:
+                values[name] = v.concrete
+            else:
+                values[name] = v
+
         return SimStructValue(self, values=values)
 
     def with_arch(self, arch):
@@ -739,33 +748,46 @@ def parse_type(defn, preprocess=True):
 
 def _decl_to_type(decl, extra_types=None):
     if extra_types is None: extra_types = {}
+
     if isinstance(decl, pycparser.c_ast.FuncDecl):
-        argtyps = () if decl.args is None else [_decl_to_type(x.type) for x in decl.args.params]
-        return SimTypeFunction(argtyps, _decl_to_type(decl.type))
-    if isinstance(decl, pycparser.c_ast.TypeDecl):
-        if isinstance(decl.type, pycparser.c_ast.Struct):
-            fields = OrderedDict((field.name, _decl_to_type(field.type)) for field in decl.type.decls)
-            struct = SimStruct(fields, decl.type.name)
-            if decl.type.name is not None:
-                extra_types[('struct', decl.type.name)] = struct
-            return struct
-        elif isinstance(decl.type, pycparser.c_ast.IdentifierType):
-            key = tuple(decl.type.names)
-            if key in extra_types:
-                return extra_types[key]
-            elif key in _C_TYPE_TO_SIMTYPE:
-                return _C_TYPE_TO_SIMTYPE[key]
-            else:
-                raise TypeError("Unknown type '%s'" % ' '.join(key))
-        else:
-            raise ValueError("Unknown type! (typedecl)")
+        argtyps = () if decl.args is None else [_decl_to_type(x.type, extra_types) for x in decl.args.params]
+        return SimTypeFunction(argtyps, _decl_to_type(decl.type, extra_types))
+
+    elif isinstance(decl, pycparser.c_ast.TypeDecl):
+        return _decl_to_type(decl.type, extra_types)
+
     elif isinstance(decl, pycparser.c_ast.PtrDecl):
-        pts_to = _decl_to_type(decl.type)
+        pts_to = _decl_to_type(decl.type, extra_types)
         return SimTypePointer(pts_to)
+
     elif isinstance(decl, pycparser.c_ast.ArrayDecl):
-        elem_type = _decl_to_type(decl.type)
+        elem_type = _decl_to_type(decl.type, extra_types)
         size = int(decl.dim.value)
         return SimTypeFixedSizeArray(elem_type, size)
+
+    elif isinstance(decl, pycparser.c_ast.Struct):
+        struct = SimStruct(OrderedDict(), decl.name)
+        if decl.name is not None:
+            key = ('struct', decl.name)
+            if key in extra_types:
+                struct = extra_types[key]
+            else:
+                extra_types[key] = struct
+
+        if decl.decls is not None:
+            for field in decl.decls:
+                struct.fields[field.name] = _decl_to_type(field.type, extra_types)
+        return struct
+
+    elif isinstance(decl, pycparser.c_ast.IdentifierType):
+        key = tuple(decl.names)
+        if key in extra_types:
+            return extra_types[key]
+        elif key in _C_TYPE_TO_SIMTYPE:
+            return _C_TYPE_TO_SIMTYPE[key]
+        else:
+            raise TypeError("Unknown type '%s'" % ' '.join(key))
+
     raise ValueError("Unknown type!")
 
 try:
