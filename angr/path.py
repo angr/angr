@@ -146,11 +146,11 @@ class PathHistory(object):
     __slots__ = ('_parent', 'addr', '_runstr', '_target', '_guard', '_jumpkind', '_events')
 
     def __getstate__(self):
-        attributes = ('addr',)
+        attributes = ('addr', '_runstr', '_target', '_guard', '_jumpkind', '_events')
         state = {name: getattr(self,name) for name in attributes}
         return state
 
-    def __setstate__(self):
+    def __setstate__(self, state):
         for name, value in state.iteritems():
             setattr(self,name,value)
             
