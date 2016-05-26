@@ -145,7 +145,7 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
         :return: A copy of the CFG instance.
         :rtype: angr.analyses.CFG
         """
-        new_cfg = CFG.__new__(CFG)
+        new_cfg = CFGAccurate.__new__(CFGAccurate)
         new_cfg.named_errors = dict(self.named_errors)
         new_cfg.errors = list(self.errors)
         new_cfg._fail_fast = self._fail_fast
