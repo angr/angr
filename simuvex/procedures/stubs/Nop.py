@@ -7,4 +7,4 @@ import simuvex
 
 class Nop(simuvex.SimProcedure):
     def run(self):
-        self.ret()
+        pass

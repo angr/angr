@@ -13,6 +13,3 @@ class perror(simuvex.SimProcedure):
 
         length = self.inline_call(strlen, string).ret_expr
         self.inline_call(write, 2, string, length)
-
-        # TODO: return values
-        self.ret()
