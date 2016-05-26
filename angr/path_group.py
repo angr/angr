@@ -136,7 +136,7 @@ class PathGroup(ana.Storable):
 
         if isinstance(condition, (tuple, set, list)):
             addrs = set(condition)
-            condition = lambda p: len(addrs.intersection(set(self._project.factory.block(p.addr).instruction_addrs)))
+            condition = lambda p: addrs.intersection(set(self._project.factory.block(p.addr).instruction_addrs))
         return condition
 
 
@@ -156,7 +156,27 @@ class PathGroup(ana.Storable):
         nomatch = [ ]
 
         for p in paths:
-            if filter_func is None or filter_func(p):
+
+            if filter_func is not None:
+                res = filter_func(p)
+
+                # If result is a one-address-list, we are going to step until
+                # the path address is equal to this address (in case the one
+                # given to 'find' was not at the beginning of a basic block)
+                if isinstance(res, (list, set)):
+                    if len(res):
+                        elem = res.pop()
+                        while p.addr != elem:
+                            paths_stepped = p.step(num_inst=1)
+
+                            # We shouldn't go out of the basic block, so there
+                            # should only be one path
+                            p = paths_stepped[0]
+                        res = True
+                    else:
+                        res = False
+
+            if filter_func is None or res:
                 l.debug("... path %s matched!", p)
                 match.append(p)
             else:
