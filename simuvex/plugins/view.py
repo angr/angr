@@ -1,6 +1,9 @@
 import claripy
 from .plugin import SimStatePlugin
 
+import logging
+l = logging.getLogger('simuvex.plugins.view')
+
 class SimRegNameView(SimStatePlugin):
     def __init__(self):
         super(SimRegNameView, self).__init__()
@@ -79,6 +82,8 @@ class SimMemView(SimStatePlugin):
                 raise ValueError("Slices with stop index are not supported")
             else:
                 addr = k.start
+        elif self._type is not None and self._type._can_refine_int:
+            return self._type._refine(self, k)
         else:
             addr = k
         return self._deeper(addr=addr)
@@ -90,9 +95,11 @@ class SimMemView(SimStatePlugin):
     state = None
 
     def __repr__(self):
+        if self._addr is None:
+            return '<SimMemView>'
         value = '<unresolvable>' if not self.resolvable else self.resolved
         addr = self._addr.__repr__(inner=True)
-        type_name = self._type.name if self._type is not None else '<untyped>'
+        type_name = repr(self._type) if self._type is not None else '<untyped>'
         return '<{} {} at {}>'.format(type_name,
                                       value,
                                       addr)
@@ -101,12 +108,12 @@ class SimMemView(SimStatePlugin):
         return self._type._refine_dir() if self._type else SimMemView.types.keys()
 
     def __getattr__(self, k):
-        if k in ('resolvable', 'resolved', 'state', '_addr', '_type') or k in dir(SimStatePlugin):
+        if k in ('deref', 'resolvable', 'resolved', 'state', '_addr', '_type') or k in dir(SimStatePlugin):
             return object.__getattribute__(self, k)
         if self._type:
             return self._type._refine(self, k)
         if k in SimMemView.types:
-            return self._deeper(ty=SimMemView.types[k](self.state.arch))
+            return self._deeper(ty=SimMemView.types[k].with_arch(self.state.arch))
         raise AttributeError(k)
 
     def __setattr__(self, k, v):
@@ -135,6 +142,24 @@ class SimMemView(SimStatePlugin):
         if not self.resolvable:
             raise ValueError("Trying to resolve value without type and addr defined")
         return self._type.extract(self.state, self._addr)
+
+    @property
+    def concrete(self):
+        if not self.resolvable:
+            raise ValueError("Trying to resolve value without type and addr defined")
+        return self._type.extract(self.state, self._addr, True)
+
+    @property
+    def deref(self):
+        if self._addr is None:
+            raise ValueError("Trying to dereference pointer without addr defined")
+        ptr = self.state.memory.load(self._addr, self.state.arch.bytes, endness=self.state.arch.memory_endness)
+        if ptr.symbolic:
+            l.warn("Dereferencing symbolic pointer %s at %#x", repr(ptr), self.state.se.any_int(self._addr))
+            print self._addr
+        ptr = self.state.se.any_int(ptr)
+
+        return self._deeper(ty=None, addr=ptr)
 
     def store(self, value):
         if self._addr is None:

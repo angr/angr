@@ -219,20 +219,20 @@ class FormatParser(SimProcedure):
     basic_spec = {
         'd': 'int',
         'i': 'int',
-        'o': 'uint',
-        'u': 'uint',
-        'x': 'uint',
-        'X': 'uint',
-        'e': 'dword',
-        'E': 'dword',
-        'f': 'dword',
-        'F': 'dword',
-        'g': 'dword',
-        'G': 'dword',
-        'a': 'dword',
-        'A': 'dword',
+        'o': 'unsigned int',
+        'u': 'unsigned int',
+        'x': 'unsigned int',
+        'X': 'unsigned int',
+        'e': 'double',
+        'E': 'double',
+        'f': 'double',
+        'F': 'double',
+        'g': 'double',
+        'G': 'double',
+        'a': 'double',
+        'A': 'double',
         'c': 'char',
-        's': 'string',
+        's': 'char*',
         'p': 'uintptr_t',
         'n': 'uintptr_t', # pointer to num bytes written so far
         'm': None, # Those don't expect any argument
@@ -334,16 +334,9 @@ class FormatParser(SimProcedure):
                 nugget = nugget[:len(spec)]
                 original_nugget = original_nugget[:(length_spec_str_len + len(spec))]
                 nugtype = all_spec[nugget]
-                typeobj = None
-                if nugtype in simuvex.s_type.ALL_TYPES:
-                    typeobj = simuvex.s_type.ALL_TYPES[nugtype](self.state.arch)
-                else:
-                    # we have to loop through these since the keys are tuples
-                    for k, v in simuvex.s_type._C_TYPE_TO_SIMTYPE.items():
-                        if nugtype in k:
-                            typeobj = v(self.state.arch)
-                            break
-                if typeobj is None:
+                try:
+                    typeobj = simuvex.s_type.parse_type(nugtype).with_arch(self.state.arch)
+                except:
                     raise SimProcedureError("format specifier uses unknown type '%s'" % repr(nugtype))
                 return FormatSpecifier(original_nugget, length_spec, typeobj.size / 8, typeobj.signed)
 

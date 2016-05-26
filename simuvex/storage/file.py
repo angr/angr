@@ -85,9 +85,9 @@ class SimFile(SimStatePlugin):
         self.content.set_state(st)
 
     def variables(self):
-        '''
+        """
         :return: the symbolic variable names associated with the file.
-        '''
+        """
         return self.content.mem._name_mapping.keys()
 
     def close(self):
