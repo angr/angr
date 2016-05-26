@@ -12,6 +12,8 @@ class Explorer(Surveyor):
     """
     Explorer implements a symbolic exploration engine!
 
+    WARNING: Explorers are not really maintained - Use path_group instead when possible
+
     found - paths where the target addresses have been found.
     avoided - paths where the to-avoid addresses have been found.
     deviating - paths that deviate from the restricted-to addresses.
