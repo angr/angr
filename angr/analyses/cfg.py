@@ -46,18 +46,18 @@ class CFG(CFGFast):
                  force_complete_scan=True,
                  indirect_jump_target_limit=100000,
                  # parameters that only CFGAccurate takes
-                 context_sensitivity_level=None,
-                 avoid_runs=None,
-                 enable_function_hints=None,
-                 call_depth=None,
-                 call_tracing_filter=None,
-                 initial_state=None,
-                 starts=None,
-                 keep_state=None,
-                 enable_advanced_backward_slicing=None,
-                 enable_symbolic_back_traversal=None,
-                 additional_edges=None,
-                 no_construct=None
+                 context_sensitivity_level=None,  # pylint: disable=unused-argument
+                 avoid_runs=None,  # pylint: disable=unused-argument
+                 enable_function_hints=None,  # pylint: disable=unused-argument
+                 call_depth=None,  # pylint: disable=unused-argument
+                 call_tracing_filter=None,  # pylint: disable=unused-argument
+                 initial_state=None,  # pylint: disable=unused-argument
+                 starts=None,  # pylint: disable=unused-argument
+                 keep_state=None,  # pylint: disable=unused-argument
+                 enable_advanced_backward_slicing=None,  # pylint: disable=unused-argument
+                 enable_symbolic_back_traversal=None,  # pylint: disable=unused-argument
+                 additional_edges=None,  # pylint: disable=unused-argument
+                 no_construct=None  # pylint: disable=unused-argument
                  ):
 
 
