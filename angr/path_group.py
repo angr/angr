@@ -118,10 +118,10 @@ class PathGroup(ana.Storable):
         else:
             return self.copy(stashes=new_stashes)
 
-    @staticmethod
-    def _condition_to_lambda(condition, default=False):
+    def _condition_to_lambda(self, condition, default=False):
         """
-        Translates an integer, set or list into a lambda that checks a path address against the given addresses.
+        Translates an integer, set or list into a lambda that checks a path address against the given addresses, and the
+        other ones from the same basic block
 
         :param condition:   An integer, set, or list to convert to a lambda.
         :param default:     The default return value of the lambda (in case condition is None). Default: false.
@@ -132,13 +132,13 @@ class PathGroup(ana.Storable):
             condition = lambda p: default
 
         if isinstance(condition, (int, long)):
-            condition = { condition }
+            condition = [ condition ]
 
         if isinstance(condition, (tuple, set, list)):
             addrs = set(condition)
-            condition = lambda p: p.addr in addrs
-
+            condition = lambda p: len(addrs.intersection(set(self._project.factory.block(p.addr).instruction_addrs)))
         return condition
+
 
     @staticmethod
     def _filter_paths(filter_func, paths):
