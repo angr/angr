@@ -2,6 +2,7 @@
 from .s_procedure import SimProcedure, SimProcedureError
 import string
 import simuvex
+import claripy
 import logging
 
 l = logging.getLogger("simuvex.parseformat")
@@ -53,6 +54,8 @@ class FormatString(object):
             # if this is just concrete data
             if isinstance(component, str):
                 string = self._add_to_string(string, self.parser.state.se.BVV(component))
+            elif isinstance(component, claripy.ast.BV):
+                string = self._add_to_string(string, component)
             else:
                 # okay now for the interesting stuff
                 # what type of format specifier is it?
@@ -350,6 +353,7 @@ class FormatParser(SimProcedure):
         """
         Extract the actual formats from the format string `fmt`.
 
+        :param list fmt: A list of format chars.
         :returns: a FormatString object
         """
 
@@ -357,11 +361,16 @@ class FormatParser(SimProcedure):
         components = [ ]
         i = 0
         while i < len(fmt):
-            if fmt[i] == "%":
+            if type(fmt[i]) is str and fmt[i] == "%":
+                # Note that we only support concrete format specifiers
                 # grab the specifier
                 # go to the space
-                specifier = fmt[i+1:]
-
+                specifier = ""
+                for c in fmt[i+1:]:
+                    if type(c) is str:
+                        specifier += c
+                    else:
+                        break
 
                 specifier = self._match_spec(specifier)
                 if specifier is not None:
@@ -373,6 +382,8 @@ class FormatParser(SimProcedure):
                     i += 1
                     components.append('%')
             else:
+                # claripy ASTs, which are usually symbolic variables
+                # They will be kept as they are - even if those chars can be evaluated to "%"
                 components.append(fmt[i])
             i += 1
 
@@ -414,10 +425,26 @@ class FormatParser(SimProcedure):
 
         length = self._sim_strlen(fmtstr_ptr)
         if self.state.se.symbolic(length):
-            raise SimProcedureError("Symbolic (format) string, game over :(")
+            all_lengths = self.state.se.any_n_int(length, 2)
+            if len(all_lengths) != 1:
+                raise SimProcedureError("Symbolic (format) string, game over :(")
+            length = all_lengths[0]
+
+        if self.state.se.is_true(length == 0):
+            return FormatString(self, [""])
 
         fmt_xpr = self.state.memory.load(fmtstr_ptr, length)
-        fmt = self.state.se.any_str(fmt_xpr)
+
+        fmt = [ ]
+        for i in xrange(fmt_xpr.size(), 0, -8):
+            char = fmt_xpr[i - 1 : i - 8]
+            concrete_chars = self.state.se.any_n_int(char, 2)
+            if len(concrete_chars) == 1:
+                # Concrete chars are directly appended to the list
+                fmt.append(chr(concrete_chars[0]))
+            else:
+                # For symbolic chars, just keep them symbolic
+                fmt.append(char)
 
         # make a FormatString object
         fmt_str = self._get_fmt(fmt)
