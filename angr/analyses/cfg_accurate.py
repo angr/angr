@@ -3016,7 +3016,4 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
                     self._quasi_topological_order[n] = ctr
                     ctr -= 1
 
-CFG = CFGAccurate
-
-register_analysis(CFGAccurate, 'CFG')
 register_analysis(CFGAccurate, 'CFGAccurate')

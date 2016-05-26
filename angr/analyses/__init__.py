@@ -1,5 +1,5 @@
 from .cfg_fast import CFGFast
-from .cfg_accurate import CFGAccurate, CFG
+from .cfg_accurate import CFGAccurate
 from .cdg import CDG
 from .ddg import DDG
 from .vfg import VFG
@@ -11,3 +11,4 @@ from .vsa_ddg import VSA_DDG
 from .bindiff import BinDiff
 from .dfg import DFG
 from .loopfinder import LoopFinder
+from .cfg import CFG

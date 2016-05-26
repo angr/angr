@@ -19,7 +19,7 @@ def perform_one(binary_path):
                         use_sim_procedures=True,
                         default_analysis_mode='symbolic')
     start = time.time()
-    cfg = proj.analyses.CFG(context_sensitivity_level=2, keep_state=True)
+    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=2, keep_state=True)
     end = time.time()
     duration = end - start
     l.info("CFG generated in %f seconds.", duration)

@@ -216,7 +216,7 @@ class VFG(Analysis):
         if not self._cfg:
             # Generate a CFG if no CFG is provided
             l.debug("Generating a CFG starting at 0x%x", start)
-            self._cfg = self.project.analyses.CFG(context_sensitivity_level=self._context_sensitivity_level,
+            self._cfg = self.project.analyses.CFGAccurate(context_sensitivity_level=self._context_sensitivity_level,
                 starts=(start, )
             )
 

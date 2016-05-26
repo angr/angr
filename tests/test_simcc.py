@@ -12,7 +12,7 @@ def test_simcc_x86_64():
     binary_path = test_location + "/x86_64/simcc"
 
     p = angr.Project(binary_path)
-    p.analyses.CFG()
+    p.analyses.CFGAccurate()
 
     f_arg1 = p.kb.functions['arg1']
     nose.tools.assert_not_equal(f_arg1, None)

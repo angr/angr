@@ -17,7 +17,7 @@ def test_find_exits():
                                 default_analysis_mode='symbolic')
 
     l.info("Unit test for BackwardSlice._find_exits()")
-    cfg = slicing_test.analyses.CFG(context_sensitivity_level=2, keep_state=True)
+    cfg = slicing_test.analyses.CFGAccurate(context_sensitivity_level=2, keep_state=True)
     cdg = slicing_test.analyses.CDG(cfg)
     ddg = slicing_test.analyses.DDG(cfg)
 
@@ -49,7 +49,7 @@ def test_control_flow_slicing():
                                 default_analysis_mode='symbolic')
     l.info("Control Flow Slicing")
     start = time.time()
-    cfg = slicing_test.analyses.CFG(context_sensitivity_level=2)
+    cfg = slicing_test.analyses.CFGAccurate(context_sensitivity_level=2)
     end = time.time()
     duration = end - start
     l.info("CFG generation is done in %f seconds.", duration)
@@ -70,7 +70,7 @@ def broken_backward_slice():
 
     l.info("Control Flow Slicing")
 
-    cfg = slicing_test.analyses.CFG(context_sensitivity_level=2, keep_state=True)
+    cfg = slicing_test.analyses.CFGAccurate(context_sensitivity_level=2, keep_state=True)
     cdg = slicing_test.analyses.CDG(cfg=cfg)
     ddg = slicing_test.analyses.DDG(cfg=cfg)
 
