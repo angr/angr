@@ -240,7 +240,7 @@ class PathGroup(ana.Storable):
             if filter_func is not None:
                 res = filter_func(p)
 
-                # If result is a one-address-list, we are going to step until
+                # If result is a one-address-set, we are going to step until
                 # the path address is equal to this address (in case the one
                 # given to 'find' was not at the beginning of a basic block)
                 if isinstance(res, (list, set)):
