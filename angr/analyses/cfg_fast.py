@@ -19,6 +19,31 @@ from .cfg_base import CFGBase
 l = logging.getLogger("angr.analyses.cfg_fast")
 
 
+class Segment(object):
+    """
+    Representing a memory block. This is not the "Segment" in ELF memory model
+    """
+
+    def __init__(self, start, end, sort):
+        """
+        :param int start:   Start address.
+        :param int end:     End address.
+        :param str sort:    Type of the segment, can be code, data, etc.
+        :return: None
+        """
+
+        self.start = start
+        self.end = end
+        self.sort = sort
+
+    def __repr__(self):
+        s = "[%#x-%#x, %s]" % (self.start, self.end, self.sort)
+        return s
+
+    @property
+    def size(self):
+        return self.end - self.start
+
 class SegmentList(object):
     """
     SegmentList describes a series of segmented memory blocks. You may query whether an address belongs to any of the
@@ -28,6 +53,13 @@ class SegmentList(object):
     def __init__(self):
         self._list = []
         self._bytes_occupied = 0
+
+    #
+    # Overridden methods
+    #
+
+    def __len__(self):
+        return len(self._list)
 
     #
     # Private methods
@@ -48,10 +80,10 @@ class SegmentList(object):
         while start != end:
             mid = (start + end) / 2
 
-            tpl = self._list[mid]
-            if addr < tpl[0]:
+            segment = self._list[mid]
+            if addr < segment.start:
                 end = mid
-            elif addr >= tpl[1]:
+            elif addr >= segment.end:
                 start = mid + 1
             else:
                 # Overlapped :(
@@ -60,47 +92,152 @@ class SegmentList(object):
 
         return start
 
-    def _merge_check(self, address, size, idx):
+    def _insert_and_merge(self, address, size, sort, idx):
         """
-        Determines whether the block specified by (address, size) should be merged with the block in front of it.
+        Determines whether the block specified by (address, size) should be merged with adjacent blocks.
 
-        :param address: Starting address of the block to be merged
-        :param size: Size of the block to be merged
-        :param idx: ID of the address
+        :param int address: Starting address of the block to be merged.
+        :param int size: Size of the block to be merged.
+        :param str sort: Type of the block.
+        :param int idx: ID of the address.
         :return: None
         """
 
-        # Shall we merge it with the one in front?
-        merged = False
-        new_start = address
-        new_idx = idx
+        # sanity check
+        if idx > 0 and address + size <= self._list[idx - 1].start:
+            # There is a bug, since _list[idx] must be the closest one that is less than the current segment
+            l.warning("BUG FOUND: new segment should always be greater than _list[idx].")
+            # Anyways, let's fix it.
+            self._insert_and_merge(address, size, sort, idx - 1)
+            return
 
-        while new_idx > 0:
-            new_idx -= 1
-            tpl = self._list[new_idx]
-            if new_start <= tpl[1]:
-                del self._list[new_idx]
-                new_start = min(tpl[0], address)
-                new_end = max(tpl[1], address + size)
-                self._list.insert(new_idx,
-                                  (new_start, new_end))
-                self._bytes_occupied += (new_end - new_start) - (tpl[1] - tpl[0])
-                merged = True
-            else:
+        # Insert the block first
+        # The new block might be overlapping with other blocks. _insert_and_merge_core will fix the overlapping.
+        if idx == len(self._list):
+            self._list.append(Segment(address, address + size, sort))
+        else:
+            self._list.insert(idx, Segment(address, address + size, sort))
+        # Apparently _bytes_occupied will be wrong if the new block overlaps with any existing block. We will fix it
+        # later
+        self._bytes_occupied += size
+
+        # Search forward to merge blocks if necessary
+        pos = idx
+        while pos < len(self._list):
+            merged, pos, bytes_change = self._insert_and_merge_core(pos, "forward")
+
+            if not merged:
                 break
 
-        if not merged:
-            if idx == len(self._list):
-                self._list.append((address, address + size))
+            self._bytes_occupied += bytes_change
+
+        # Search backward to merge blocks if necessary
+        if pos >= len(self._list):
+            pos = len(self._list) - 1
+
+        while pos > 0:
+            merged, pos, bytes_change = self._insert_and_merge_core(pos, "backward")
+
+            if not merged:
+                break
+
+            self._bytes_occupied += bytes_change
+
+    def _insert_and_merge_core(self, pos, direction):
+        """
+        The core part of method _insert_and_merge.
+
+        :param int pos:         The starting position.
+        :param str direction:   If we are traversing forwards or backwards in the list. It determines where the "sort"
+                                of the overlapping memory block comes from. If everything works as expected, "sort" of
+                                the overlapping block is always equal to the segment occupied most recently.
+        :return: A tuple of (merged (bool), new position to begin searching (int), change in total bytes (int)
+        :rtype: tuple
+        """
+
+        bytes_changed = 0
+
+        if direction == "forward":
+            if pos == len(self._list) - 1:
+                return False, pos, 0
+            previous_segment = self._list[pos]
+            previous_segment_pos = pos
+            segment = self._list[pos + 1]
+            segment_pos = pos + 1
+        else:  # if direction == "backward":
+            if pos == 0:
+                return False, pos, 0
+            segment = self._list[pos]
+            segment_pos = pos
+            previous_segment = self._list[pos - 1]
+            previous_segment_pos = pos - 1
+
+        merged = False
+        new_pos = pos
+
+        if segment.start <= previous_segment.end:
+            # we should always have new_start+new_size >= segment.start
+
+            if segment.sort == previous_segment.sort:
+                # They are of the same sort - we should merge them!
+                new_end = max(previous_segment.end, segment.start + segment.size)
+                new_start = min(previous_segment.start, segment.start)
+                new_size = new_end - new_start
+                self._list = self._list[ : previous_segment_pos] + \
+                             [ Segment(new_start, new_end, segment.sort) ] + \
+                            self._list[ segment_pos + 1 : ]
+                bytes_changed = -(segment.size + previous_segment.size - new_size)
+
+                merged = True
+                new_pos = previous_segment_pos
+
             else:
-                self._list.insert(idx, (address, address + size))
-            self._bytes_occupied += size
+                # Different sorts. It's a bit trickier.
+                if segment.start == previous_segment.end:
+                    # They are adjacent. Just don't merge.
+                    pass
+                else:
+                    # They are overlapping. We will create one, two, or three different blocks based on how they are
+                    # overlapping
+                    new_segments = [ ]
+                    if segment.start < previous_segment.start:
+                        new_segments.append(Segment(segment.start, previous_segment.start, segment.sort))
+
+                        sort = previous_segment.sort if direction == "forward" else segment.sort
+                        new_segments.append(Segment(previous_segment.start, previous_segment.end, sort))
+
+                        if segment.end < previous_segment.end:
+                            new_segments.append(Segment(segment.end, previous_segment.end, previous_segment.sort))
+                        elif segment.end > previous_segment.end:
+                            new_segments.append(Segment(previous_segment.end, segment.end, segment.sort))
+                    else:  # segment.start >= previous_segment.start
+                        if segment.start > previous_segment.start:
+                            new_segments.append(Segment(previous_segment.start, segment.start, previous_segment.sort))
+                        sort = previous_segment.sort if direction == "forward" else segment.sort
+                        new_segments.append(Segment(segment.start, segment.end, sort))
+                        if segment.start + segment.size < previous_segment.end:
+                            new_segments.append(Segment(segment.end, previous_segment.end, previous_segment.sort))
+                    # Put new segments into self._list
+                    old_size = sum([ seg.size for seg in self._list[previous_segment_pos : segment_pos + 1] ])
+                    new_size = sum([ seg.size for seg in new_segments ])
+                    bytes_changed = new_size - old_size
+
+                    self._list = self._list[ : previous_segment_pos] + new_segments + self._list[ segment_pos + 1 : ]
+
+                    merged = True
+
+                    if direction == "forward":
+                        new_pos = previous_segment_pos + len(new_segments)
+                    else:
+                        new_pos = previous_segment_pos
+
+        return merged, new_pos, bytes_changed
 
     def _dbg_output(self):
         s = "["
         lst = []
-        for start, end in self._list:
-            lst.append("(0x%08x, 0x%08x)" % (start, end))
+        for segment in self._list:
+            lst.append(repr(segment))
         s += ", ".join(lst)
         s += "]"
         return s
@@ -108,11 +245,13 @@ class SegmentList(object):
     def _debug_check(self):
         # old_start = 0
         old_end = 0
-        for start, end in self._list:
-            if start <= old_end:
+        old_sort = ""
+        for segment in self._list:
+            if segment.start <= old_end and segment.sort == old_sort:
                 raise Exception("Error in SegmentList: blocks are not merged")
             # old_start = start
-            old_end = end
+            old_end = segment.end
+            old_sort = segment.sort
 
     #
     # Public methods
@@ -136,15 +275,15 @@ class SegmentList(object):
         """
 
         idx = self._search(address + 1)
-        if idx < len(self._list) and self._list[idx][0] <= address < self._list[idx][1]:
+        if idx < len(self._list) and self._list[idx].start <= address < self._list[idx].end:
             # Occupied
             i = idx
-            while i + 1 < len(self._list) and self._list[i][1] == self._list[i + 1][0]:
+            while i + 1 < len(self._list) and self._list[i].end == self._list[i + 1].start:
                 i += 1
             if i == len(self._list):
-                return self._list[-1][1]
+                return self._list[-1].end
             else:
-                return self._list[i][1]
+                return self._list[i].end
         else:
             return address + 1
 
@@ -159,59 +298,38 @@ class SegmentList(object):
         idx = self._search(address)
         if len(self._list) <= idx:
             return False
-        if address >= self._list[idx][0] and address <= self._list[idx][1]:
+        if address >= self._list[idx].start and address < self._list[idx].end:
             return True
-        if idx > 0 and address < self._list[idx - 1][1]:
+        if idx > 0 and address < self._list[idx - 1].end:
             return True
         return False
 
-    def occupy(self, address, size):
+    def occupy(self, address, size, sort):
         """
         Include a block, specified by (address, size), in this segment list.
 
-        :param address: The starting address of the block
-        :param size: Size of the block
+        :param int address:     The starting address of the block.
+        :param int size:        Size of the block.
+        :param str sort:        Type of the block.
         :return: None
         """
 
+        if size <= 0:
+            # Cannot occupy a non-existent block
+            return
+
         # l.debug("Occpuying 0x%08x-0x%08x", address, address + size)
         if len(self._list) == 0:
-            self._list.append((address, address + size))
+            self._list.append(Segment(address, address + size, sort))
             self._bytes_occupied += size
             return
         # Find adjacent element in our list
         idx = self._search(address)
         # print idx
-        if idx == len(self._list):
-            # We should append at the end
-            self._merge_check(address, size, idx)
-        else:
-            tpl = self._list[idx]
-            # Overlap check
-            if address <= tpl[0] and address + size >= tpl[0] or \
-                    address <= tpl[1] and address + size >= tpl[1] or \
-                    address >= tpl[0] and address + size <= tpl[1]:
-                new_start = min(address, tpl[0])
-                new_end = max(address + size, tpl[1])
-                self._list[idx] = (new_start, new_end)
-                # Shall we merge it with the previous one?
-                # Remember to remove this one if we shall merge it with the one
-                # in front!
-                while idx > 0:
-                    idx -= 1
-                    if new_start <= self._list[idx][1]:
-                        new_start = min(self._list[idx][0], new_start)
-                        new_end = max(self._list[idx][1], new_end)
-                        self._list[idx] = (new_start, new_end)
-                        del self._list[idx + 1]
-                    else:
-                        break
-            else:
-                # It's not overlapped with this one
-                # Shall we merge it with the previous one?
-                self._merge_check(address, size, idx)
-                # l.debug(self._dbg_output())
-                # self._debug_check()
+
+        self._insert_and_merge(address, size, sort, idx)
+
+        # self._debug_check()
 
     #
     # Properties
@@ -226,6 +344,22 @@ class SegmentList(object):
         """
 
         return self._bytes_occupied
+
+
+class MemoryData(object):
+    def __init__(self, address, size, sort):
+        self.address = address
+        self.size = size
+        self.sort = sort
+
+        self.refs = [ ]
+
+    def __repr__(self):
+        return "\\%#x, %d bytes, %s/" % (self.address, self.size, self.sort)
+
+class MemoryDataReference(object):
+    def __init__(self, ref_ins_addr):
+        self.ref_ins_addr = ref_ins_addr
 
 
 class CFGEntry(object):
@@ -268,7 +402,9 @@ class CFGFast(Analysis, CFGBase):
                  resolve_indirect_jumps=True,
                  force_segment=False,
                  force_complete_scan=True,
-                 indirect_jump_target_limit=100000
+                 indirect_jump_target_limit=100000,
+                 progress_callback=None,
+                 show_progressbar=False
                  ):
         """
         :param binary:                  The binary to recover CFG on. By default the main binary is used.
@@ -283,6 +419,8 @@ class CFGFast(Analysis, CFGBase):
         :param bool force_segment:      Force CFGFast to rely on binary segments instead of sections.
         :param bool force_complete_scan:    Perform a complete scan on the binary and maximize the number of identified code
                                             blocks.
+        :param progress_callback:       Specify a callback function to get the progress during CFG recovery.
+        :param bool show_progressbar:   Should CFGFast show a progressbar during CFG recovery or not.
         :return: None
         """
 
@@ -301,12 +439,21 @@ class CFGFast(Analysis, CFGBase):
         self._force_segment = force_segment
         self._force_complete_scan = force_complete_scan
 
+        self._progress_callback = progress_callback
+        self._show_progressbar = show_progressbar
+
+        self._progressbar = None  # will be initialized later if self._show_progressbar == True
+
         l.debug("Starts at %#x and ends at %#x.", self._start, self._end)
 
-        # Get all valid memory regions
-        self._valid_memory_regions = self._executable_memory_regions(self._binary, self._force_segment)
-        self._valid_memory_region_size = sum([(end - start) for start, end in self._valid_memory_regions])
+        # Get all executable memory regions
+        self._exec_mem_regions = self._executable_memory_regions(self._binary, self._force_segment)
+        self._exec_mem_region_size = sum([(end - start) for start, end in self._exec_mem_regions])
 
+        # A mapping between (address, size) and the actual data in memory
+        self._memory_data = { }
+
+        self._initial_state = None
         self._next_addr = self._start - 1
 
         # Create the segment list
@@ -379,7 +526,7 @@ class CFGFast(Analysis, CFGBase):
         :return: True/False
         """
 
-        for start, end in self._valid_memory_regions:
+        for start, end in self._exec_mem_regions:
             if addr < start:
                 # The list is ordered!
                 break
@@ -388,6 +535,43 @@ class CFGFast(Analysis, CFGBase):
                 return True
 
         return False
+
+    def _initialize_progressbar(self):
+        """
+        Initialize the progressbar.
+        :return: None
+        """
+
+        widgets = [progressbar.Percentage(),
+                   ' ',
+                   progressbar.Bar(marker=progressbar.RotatingMarker()),
+                   ' ',
+                   progressbar.Timer(),
+                   ' ',
+                   progressbar.ETA()
+                   ]
+
+        self._progressbar = progressbar.ProgressBar(widgets=widgets, maxval=10000 * 100).start()
+
+    def _update_progressbar(self, percentage):
+        """
+        Update the progressbar with a percentage.
+
+        :param float percentage: Percentage of the progressbar. from 0.0 to 100.0.
+        :return: None
+        """
+
+        if self._progressbar is not None:
+            self._progressbar.update(percentage * 10000)
+
+    def _finish_progressbar(self):
+        """
+        Mark the progressbar as finished.
+        :return: None
+        """
+
+        if self._progressbar is not None:
+            self._progressbar.finish()
 
     # Methods for scanning the entire image
 
@@ -410,7 +594,7 @@ class CFGFast(Analysis, CFGBase):
 
         # Make sure curr_addr exists in binary
         accepted = False
-        for start, end in self._valid_memory_regions:
+        for start, end in self._exec_mem_regions:
             if curr_addr >= start and curr_addr < end:
                 # accept
                 accepted = True
@@ -432,7 +616,7 @@ class CFGFast(Analysis, CFGBase):
             l.debug("0x%08x is beyond the ending point.", curr_addr)
             return None
 
-    def _next_code_addr(self, initial_state):
+    def _next_code_addr(self):
         """
         Call _next_unscanned_addr() first to get the next address that is not scanned. Then check if data locates at
         that address seems to be code or not. If not, we'll continue to for the next un-scanned address.
@@ -447,10 +631,10 @@ class CFGFast(Analysis, CFGBase):
         is_sz = True
         while is_sz:
             # Get data until we meet a 0
-            while next_addr in initial_state.memory:
+            while next_addr in self._initial_state.memory:
                 try:
                     l.debug("Searching address %x", next_addr)
-                    val = initial_state.mem_concrete(next_addr, 1)
+                    val = self._initial_state.mem_concrete(next_addr, 1)
                     if val == 0:
                         if len(sz) < 4:
                             is_sz = False
@@ -470,7 +654,7 @@ class CFGFast(Analysis, CFGBase):
             if len(sz) > 0 and is_sz:
                 l.debug("Got a string of %d chars: [%s]", len(sz), sz)
                 # l.debug("Occpuy %x - %x", start_addr, start_addr + len(sz) + 1)
-                self._seg_list.occupy(start_addr, len(sz) + 1)
+                self._seg_list.occupy(start_addr, len(sz) + 1, "string")
                 sz = ""
                 next_addr = self._next_unscanned_addr()
                 if next_addr is None:
@@ -481,7 +665,7 @@ class CFGFast(Analysis, CFGBase):
             if is_sz:
                 next_addr += 1
 
-        instr_alignment = initial_state.arch.instruction_alignment
+        instr_alignment = self._initial_state.arch.instruction_alignment
         if start_addr % instr_alignment > 0:
             start_addr = start_addr - start_addr % instr_alignment + \
                          instr_alignment
@@ -543,7 +727,7 @@ class CFGFast(Analysis, CFGBase):
 
     # Basic block scanning
 
-    def _scan_code(self, traced_addresses, function_exits, initial_state, starting_address, maybe_function): #pylint:disable=unused-argument
+    def _scan_code(self, traced_addresses, function_exits, starting_address, maybe_function): #pylint:disable=unused-argument
         # Saving tuples like (current_function_addr, next_exit_addr)
         # Current_function_addr == -1 for exits not inside any function
         remaining_entries = set()
@@ -610,13 +794,17 @@ class CFGFast(Analysis, CFGBase):
                 self.kb.functions._add_transition_to(current_function_addr, previous_src_node.addr, addr)
 
             # Occupy the block in segment list
-            self._seg_list.occupy(addr, irsb.size)
+            if irsb.size > 0:
+                self._seg_list.occupy(addr, irsb.size, "code")
 
         except (AngrTranslationError, AngrMemoryError):
             return
 
         # Mark the address as traced
         traced_addresses.add(addr)
+
+        # Scan the basic block to collect data references
+        self._collect_data_references(irsb)
 
         # Get all possible successors
         irsb_next, jumpkind = irsb.next, irsb.jumpkind
@@ -681,6 +869,93 @@ class CFGFast(Analysis, CFGBase):
             else:
                 # TODO: Support more jumpkinds
                 l.debug("Unsupported jumpkind %s", jumpkind)
+
+    def _collect_data_references(self, irsb):
+        """
+
+        :return:
+        """
+
+        # helper methods
+
+        def _process(irsb_, stmt_, data_):
+            if type(data_) is pyvex.expr.Const:
+                val = data_.con.value
+                self._add_data_reference(irsb_, stmt_, val)
+
+        for stmt in irsb.statements:
+            if type(stmt) is pyvex.IRStmt.WrTmp:
+                if type(stmt.data) is pyvex.IRExpr.Load:
+                    # load
+                    # e.g. t7 = LDle:I64(0x0000000000600ff8)
+                    _process(irsb, stmt, stmt.data.addr)
+
+            elif type(stmt) is pyvex.IRStmt.Put:
+                # put
+                # e.g. PUT(rdi) = 0x0000000000400714
+                if stmt.offset not in (self._initial_state.arch.ip_offset, ):
+                    _process(irsb, stmt, stmt.data)
+
+    def _add_data_reference(self, irsb, stmt, data_addr):
+        """
+
+        :param irsb:
+        :param stmt:
+        :param data_addr:
+        :return:
+        """
+
+        # Make sure data_addr is within a valid memory range
+        if data_addr not in self._initial_state.memory:
+            return
+
+        # First, let's see what sort of data it is
+        data_type, data_size = self._guess_data_type(data_addr)
+
+        data = MemoryData(data_addr, data_size, data_type)
+
+        self._memory_data[(data_addr, data_size)] = data
+
+    def _guess_data_type(self, data_addr):
+        """
+
+        :param data_addr:
+        :return:
+        """
+
+        # some helper methods
+        def _c(o):
+            return o._model_concrete
+
+        def _cv(o):
+            return o._model_concrete.value
+
+        block = self._initial_state.memory.load(data_addr, 8)
+
+        # Is it an unicode string?
+        if _cv(block[1]) == 0 and _cv(block[3]) == 0:
+            if chr(_cv(block[0])) in string.printable and chr(_cv(block[2])) in string.printable + "\x00":
+                r, c, m = self._initial_state.memory.find(data_addr, "\x00\x00", max_search=4096)
+
+                if c and _c(c[0]) is True and _cv(r) - data_addr > 0:
+                    length = _cv(r) - data_addr
+                    block_ = self._initial_state.memory.load(data_addr, length)
+
+                    if all([ chr(_cv(block[i*8+7:i*8])) in string.printable for i in xrange(len(block_) / 8, 2) ]) and \
+                        all([ _cv(block[i*8+7:i*8]) == 0 for i in xrange(1, len(block_) / 8, 2) ]):
+                        return "unicode", length + 2
+
+        # Is it a null-terminated printable string?
+        r, c, m = self._initial_state.memory.find(data_addr, "\x00", max_search=4096)
+
+        if c and _c(c[0]) is True and _cv(r) - data_addr > 0:
+            # TODO: Add a cap for the length
+            length = _cv(r) - data_addr
+            block_ = self._initial_state.memory.load(data_addr, length)
+            if all([ chr(_cv(block_[i*8+7:i*8])) in string.printable for i in xrange(len(block_) / 8) ]):
+                return "string", length + 1
+
+        return "unknown", 0
 
     def _process_indirect_jumps(self):
         """
@@ -772,6 +1047,7 @@ class CFGFast(Analysis, CFGBase):
         b.slice.remove_nodes_from(past_stmts)
 
         # Debugging output
+        """
         for addr, stmt_idx in sorted(list(b.slice.nodes())):
             irsb = self.project.factory.block(addr).vex
             stmts = irsb.statements
@@ -779,6 +1055,7 @@ class CFGFast(Analysis, CFGBase):
             print "%s" % stmts[stmt_idx],
             print "%d" % b.slice.in_degree((addr, stmt_idx))
         print ""
+        """
 
         # Get all sources
         sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
@@ -1127,11 +1404,12 @@ class CFGFast(Analysis, CFGBase):
 
         self._graph = networkx.DiGraph()
 
-        initial_state = self.project.factory.blank_state(mode="fastpath")
-        initial_options = initial_state.options - {simuvex.o.TRACK_CONSTRAINTS} - simuvex.o.refs
+        # Create an initial state. Store it to self so we can use it globally.
+        self._initial_state = self.project.factory.blank_state(mode="fastpath")
+        initial_options = self._initial_state.options - {simuvex.o.TRACK_CONSTRAINTS} - simuvex.o.refs
         initial_options |= {simuvex.o.SUPER_FASTPATH}
         # initial_options.remove(simuvex.o.COW_STATES)
-        initial_state.options = initial_options
+        self._initial_state.options = initial_options
         # Sadly, not all calls to functions are explicitly made by call
         # instruction - they could be a jmp or b, or something else. So we
         # should record all exits from a single function, and then add
@@ -1139,16 +1417,8 @@ class CFGFast(Analysis, CFGBase):
         # phase.
         function_exits = defaultdict(set)
 
-        widgets = [progressbar.Percentage(),
-                   ' ',
-                   progressbar.Bar(marker=progressbar.RotatingMarker()),
-                   ' ',
-                   progressbar.Timer(),
-                   ' ',
-                   progressbar.ETA()
-                   ]
-
-        pb = progressbar.ProgressBar(widgets=widgets, maxval=10000 * 100).start()
+        if self._show_progressbar:
+            self._initialize_progressbar()
 
         starting_points = set()
 
@@ -1183,20 +1453,27 @@ class CFGFast(Analysis, CFGBase):
                     continue
 
             if not next_addr and self._force_complete_scan:
-                next_addr = self._next_code_addr(initial_state)
+                next_addr = self._next_code_addr()
 
-            percentage = self._seg_list.occupied_size * 100.0 / self._valid_memory_region_size
-            if percentage > 100.0:
-                percentage = 100.0
-            pb.update(percentage * 10000)
+            if self._show_progressbar or self._progress_callback:
+                percentage = self._seg_list.occupied_size * 100.0 / self._exec_mem_region_size
+                if percentage > 100.0:
+                    percentage = 100.0
+
+                if self._show_progressbar:
+                    self._update_progressbar(percentage)
+
+                if self._progress_callback:
+                    self._progress_callback(percentage)
 
             if next_addr is None:
-                l.info('No more addr to analyze. Progress %0.04f%%', percentage)
+                l.info('No more addr to analyze.')
                 break
 
-            self._scan_code(traced_address, function_exits, initial_state, next_addr, maybe_function)
+            self._scan_code(traced_address, function_exits, next_addr, maybe_function)
 
-        pb.finish()
+        if self._show_progressbar:
+            self._finish_progressbar()
 
         self._remove_overlapping_blocks()
 
