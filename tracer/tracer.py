@@ -8,6 +8,7 @@ import simuvex
 import tempfile
 import subprocess
 from .tracerpov import TracerPoV
+from .simprocedures import FixedOutTransmit, FixedInReceive
 from simuvex import s_options as so
 
 import logging
@@ -143,6 +144,9 @@ class Tracer(object):
         # useful for handling PLT stubs
         self._resolved = set()
 
+        # this will be set by _prepare_paths
+        self.unicorn_enabled = False
+
         self.path_group = self._prepare_paths()
 
 # EXPOSED
@@ -229,7 +233,8 @@ class Tracer(object):
             self.path_group = self.path_group.drop(stash='unsat')
 
             # check to see if we reached a deadend
-            if self.bb_cnt >= len(self.trace):
+            if self.bb_cnt >= len(self.trace) or \
+                    (self.unicorn_enabled and self.path_group.active[0].weighted_length >= len(self.trace)):
                 tpg = self.path_group.step()
                 # if we're in crash mode let's populate the crashed stash
                 if self.crash_mode:
@@ -699,6 +704,10 @@ class Tracer(object):
         if not self.crash_mode:
             self._set_cgc_simprocedures()
 
+        # FixedInReceive and FixedOutReceive always are applied
+        simuvex.SimProcedures['cgc']['transmit'] = FixedOutTransmit
+        simuvex.SimProcedures['cgc']['receive'] = FixedInReceive
+
         if not self.pov:
             fs = {'/dev/stdin': simuvex.storage.file.SimFile(
                 "/dev/stdin", "r",
@@ -716,6 +725,7 @@ class Tracer(object):
         try:
             options.add(so.UNICORN)
             options.add(so.UNICORN_FAST)
+            self.unicorn_enabled = True
             l.info("unicorn tracing enabled")
         except AttributeError:
             pass
