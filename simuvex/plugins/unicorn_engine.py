@@ -257,7 +257,7 @@ class Unicorn(SimStatePlugin):
 
         if start == 0:
             # sometimes it happens because of %fs is not correctly set
-            self.error = 'accessing zero page [%#x, %#x] (%#x)' % (address, address + size, access)
+            self.error = 'accessing zero page [%#x, %#x] (%#x)' % (address, address + size - 1, access)
             l.warning(self.error)
 
             # tell uc_state to rollback
@@ -268,7 +268,7 @@ class Unicorn(SimStatePlugin):
 
         if access == unicorn.UC_MEM_FETCH_UNMAPPED and len(the_bytes) == 0:
             # we can not initalize an empty page then execute on it
-            self.error = 'fetching empty page [%#x, %#x]' % (address, address + size)
+            self.error = 'fetching empty page [%#x, %#x]' % (address, address + size - 1)
             l.warning(self.error)
             _UC_NATIVE.stop(self._uc_state, STOP.STOP_EXECNONE)
             return False
@@ -287,7 +287,7 @@ class Unicorn(SimStatePlugin):
             d = chunk.bytes_at(start + pos, size)
             # if not self.state.se.unique(d):
             if d.symbolic:
-                l.debug('loading symbolic memory [%#x, %#x]', start + pos, start + pos + size)
+                l.debug('loading symbolic memory [%#x, %#x]', start + pos, start + pos + size - 1)
 
                 if not partial_symbolic:
                     taint = ctypes.create_string_buffer(length)
@@ -304,11 +304,11 @@ class Unicorn(SimStatePlugin):
             return _UC_NATIVE.cache_page(self._uc_state, start, length, str(data))
 
         if access == unicorn.UC_MEM_WRITE_UNMAPPED:
-            l.info('mmap [%#x, %#x] rwx', start, start + length)
+            l.info('mmap [%#x, %#x] rwx', start, start + length - 1)
             self.uc.mem_map(start, length, unicorn.UC_PROT_ALL)
         else:
             # map all pages read-only
-            l.info('mmap [%#x, %#x] r-x', start, start + length)
+            l.info('mmap [%#x, %#x] r-x', start, start + length - 1)
             self.uc.mem_map(start, length,
                             unicorn.UC_PROT_EXEC | unicorn.UC_PROT_READ)
 
@@ -316,7 +316,7 @@ class Unicorn(SimStatePlugin):
 
         self.uc.mem_write(start, str(data))
 
-        l.info('mmap: activate new page [%#x, %#x]', start, start + length)
+        l.info('mmap: activate new page [%#x, %#x]', start, start + length - 1)
         if partial_symbolic:
             # we have initalized tainted bits for this case
             _UC_NATIVE.activate(self._uc_state, start, length, taint)
@@ -333,7 +333,6 @@ class Unicorn(SimStatePlugin):
         self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key)
 
     def start(self, step=1):
-
         self.set_regs()
         addr = self.state.se.any_int(self.state.ip)
 
@@ -349,7 +348,7 @@ class Unicorn(SimStatePlugin):
         p_update = head
         while bool(p_update):
             update = p_update.contents
-            l.debug('Got dirty [%#x, %#x]', update.address, update.length)
+            l.debug('Got dirty [%#x, %#x]', update.address, update.length - 1)
             self._dirty[update.address] = update.length
             p_update = update.next
 
@@ -373,6 +372,8 @@ class Unicorn(SimStatePlugin):
     def set_regs(self):
         ''' setting unicorn registers '''
         for r, c in self._uc_regs.iteritems():
+            if r in ('cs', 'ds', 'es', 'fs', 'gs', 'ss'):
+                continue        # :/
             v = getattr(self.state.regs, r)
             if not v.symbolic:
                 # l.debug('setting $%s = %#x', r, self.state.se.any_int(v))
@@ -382,8 +383,6 @@ class Unicorn(SimStatePlugin):
 
         if self.state.arch.qemu_name == 'x86_64':
             # segment registers like %fs, %gs might be tricky in unicorn
-            # self.uc.reg_write(self._uc_const.UC_X86_REG_FS, 0x3010000)
-            # self.uc.reg_write(self._uc_const.UC_X86_REG_GS, 0x3010000)
             flags = ccall._get_flags(self.state)[0]
             if flags.symbolic:
                 raise SimValueError('symbolic eflags')
@@ -393,10 +392,92 @@ class Unicorn(SimStatePlugin):
             if flags.symbolic:
                 raise SimValueError('symbolic eflags')
             self.uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.any_int(flags))
+            fs = self.state.se.any_int(self.state.regs.fs) << 16
+            gs = self.state.se.any_int(self.state.regs.gs) << 16
+            self.setup_gdt(fs, gs)
+
+    # this stuff is 100% copied from the unicorn regression tests
+    def setup_gdt(self, fs, gs, fs_size=0xFFFFFFFF, gs_size=0xFFFFFFFF):
+        GDT_ADDR = 0x1000
+        GDT_LIMIT = 0x1000
+        A_PRESENT = 0x80
+        A_DATA = 0x10
+        A_DATA_WRITABLE = 0x2
+        A_PRIV_0 = 0x0
+        A_DIR_CON_BIT = 0x4
+        F_PROT_32 = 0x4
+        S_GDT = 0x0
+        S_PRIV_0 = 0x0
+
+        self.uc.mem_map(GDT_ADDR, GDT_LIMIT)
+        normal_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
+        stack_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0, F_PROT_32)
+        fs_entry = self.create_gdt_entry(fs, fs_size, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
+        gs_entry = self.create_gdt_entry(gs, gs_size, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
+        self.uc.mem_write(GDT_ADDR + 8, normal_entry + stack_entry + fs_entry + gs_entry)
+
+        self.uc.reg_write(self._uc_const.UC_X86_REG_GDTR, (0, GDT_ADDR, GDT_LIMIT, 0x0))
+
+        selector = self.create_selector(1, S_GDT | S_PRIV_0)
+        self.uc.reg_write(self._uc_const.UC_X86_REG_CS, selector)
+        self.uc.reg_write(self._uc_const.UC_X86_REG_DS, selector)
+        self.uc.reg_write(self._uc_const.UC_X86_REG_ES, selector)
+        selector = self.create_selector(2, S_GDT | S_PRIV_0)
+        self.uc.reg_write(self._uc_const.UC_X86_REG_SS, selector)
+        selector = self.create_selector(3, S_GDT | S_PRIV_0)
+        self.uc.reg_write(self._uc_const.UC_X86_REG_FS, selector)
+        selector = self.create_selector(4, S_GDT | S_PRIV_0)
+        self.uc.reg_write(self._uc_const.UC_X86_REG_GS, selector)
+        self.uc.mem_unmap(GDT_ADDR, GDT_LIMIT)
+
+    @staticmethod
+    def create_selector(idx, flags):
+        to_ret = flags
+        to_ret |= idx << 3
+        return to_ret
+
+    @staticmethod
+    def create_gdt_entry(base, limit, access, flags):
+        to_ret = limit & 0xffff
+        to_ret |= (base & 0xffffff) << 16
+        to_ret |= (access & 0xff) << 40
+        to_ret |= ((limit >> 16) & 0xf) << 48
+        to_ret |= (flags & 0xff) << 52
+        to_ret |= ((base >> 24) & 0xff) << 56
+        import struct
+        return struct.pack('<Q', to_ret)
+
+
+    # do NOT call either of these functions in a callback, lmao
+    def read_msr(self, msr=0xC0000100):
+        setup_code = '\x0f\x32'
+        BASE = 0x100B000000
+        self.uc.mem_map(BASE, 0x1000)
+        self.uc.mem_write(BASE, setup_code)
+        self.uc.reg_write(self._uc_const.UC_X86_REG_RCX, msr)
+        self.uc.emu_start(BASE, BASE + len(setup_code))
+        self.uc.mem_unmap(BASE, 0x1000)
+
+        a = self.uc.reg_read(self._uc_const.UC_X86_REG_RAX)
+        d = self.uc.reg_read(self._uc_const.UC_X86_REG_RDX)
+        return (d << 32) + a
+
+    def write_msr(self, val, msr=0xC0000100):
+        setup_code = '\x0f\x30'
+        BASE = 0x100B000000
+        self.uc.mem_map(BASE, 0x1000)
+        self.uc.mem_write(BASE, setup_code)
+        self.uc.reg_write(self._uc_const.UC_X86_REG_RCX, msr)
+        self.uc.reg_write(self._uc_const.UC_X86_REG_RAX, val & 0xFFFFFFFF)
+        self.uc.reg_write(self._uc_const.UC_X86_REG_RDX, val >> 32)
+        self.uc.emu_start(BASE, BASE + len(setup_code))
+        self.uc.mem_unmap(BASE, 0x1000)
 
     def get_regs(self):
         ''' loading registers from unicorn '''
         for r, c in self._uc_regs.iteritems():
+            if r in ('cs', 'ds', 'es', 'fs', 'gs', 'ss'):
+                continue        # :/
             v = self.uc.reg_read(c)
             # l.debug('getting $%s = %#x', r, v)
             setattr(self.state.regs, r, v)
