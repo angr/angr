@@ -19,7 +19,7 @@ addresses_fauxware = {
 }
 
 def run_fauxware(arch, threads):
-    p = angr.Project(location + '/' + arch + '/fauxware', load_options={'auto_load_libs': False})
+    p = angr.Project(os.path.join(location, arch, 'fauxware'), load_options={'auto_load_libs': False})
 
     pg = p.factory.path_group(threads=threads)
     nose.tools.assert_equal(len(pg.active), 1)
