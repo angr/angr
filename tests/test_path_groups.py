@@ -108,6 +108,9 @@ def test_find_to_middle():
     nose.tools.assert_true(pg.found[0].addr == 0x4006ee)
 
 if __name__ == "__main__":
+
+    test_find_to_middle()
+
     for func, march, threads in test_fauxware():
         print 'testing ' + march
         func(march, threads)
