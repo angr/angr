@@ -166,20 +166,25 @@ class PathHistory(object):
     __slots__ = ('_parent', 'addr', '_runstr', '_target', '_guard', '_jumpkind', '_events')
 
     def __getstate__(self):
-        attributes = ('addr',)
+        attributes = ('addr', '_runstr', '_target', '_guard', '_jumpkind', '_events')
         state = {name: getattr(self,name) for name in attributes}
         return state
 
-    def __setstate__(self):
+    def __setstate__(self, state):
         for name, value in state.iteritems():
             setattr(self,name,value)
             
     def _record_state(self, state, events=None):
         self._events = events if events is not None else state.log.events
-        self.addr = state.scratch.bbl_addr
         self._jumpkind = state.scratch.jumpkind
         self._target = state.scratch.target
         self._guard = state.scratch.guard
+
+        self.addr = state.scratch.bbl_addr
+        # state.scratch.bbl_addr may not be initialized as final states from the "flat_successors" list. We need to get
+        # the value from _target in that case.
+        if self.addr is None and self._target._model_concrete is not self._target:
+            self.addr = self._target._model_concrete.value
 
         if simuvex.o.TRACK_ACTION_HISTORY not in state.options:
             self._events = weakref.proxy(self._events)

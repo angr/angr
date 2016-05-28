@@ -8,13 +8,6 @@ import logging
 l = logging.getLogger('angr.path_group')
 
 
-class CallReturn(simuvex.SimProcedure):
-    NO_RET = True
-
-    def run(self):
-        l.info("A PathGroup.call-created path returned!")
-        return
-
 
 class PathGroup(ana.Storable):
     """
@@ -32,6 +25,9 @@ class PathGroup(ana.Storable):
 
     Note that you shouldn't usually be constructing path groups directly - there are convenient shortcuts for
     creating path groups in `Project.factory`: see :class:`angr.factory.AngrObjectFactory`.
+
+    Multithreading your search can be useful in z3-intensive paths. Indeed, Python cannot multithread due to its GIL,
+    but z3, written in C, can.
     """
 
     ALL = '_ALL'
@@ -51,7 +47,7 @@ class PathGroup(ana.Storable):
         :param hierarchy:       A PathHierarchy object to use to track path reachability.
         :param immutable:       If True, all operations will return a new PathGroup. Otherwise (default), all operations
                                 will modify the PathGroup (and return it, for consistency and chaining).
-        :param threads:         the number of worker threads to concurrently analyze states.
+        :param threads:         the number of worker threads to concurrently analyze states (useful in z3-intensive paths).
         """
         self._project = project
         self._hierarchy = PathHierarchy(strong_path_mapping=strong_path_mapping) if hierarchy is None else hierarchy
@@ -77,79 +73,6 @@ class PathGroup(ana.Storable):
             'deadended': [ ],
             'unconstrained': [ ]
         } if stashes is None else stashes
-
-    @classmethod
-    def call(cls, project, target, args=(), start=None, prototype=None, **kwargs): #pylint:disable=unused-argument
-        """
-        Calls a function in the binary, returning a PathGroup with the call set up.
-
-        :param project:     A Project instance.
-        :type  project:     angr.project.Project
-        :param target:      Address of function to call.
-        :param args:        Arguments to call the function with.
-        :param start:       Optional, path (or paths) to start the call with.
-        :param prototype:   Optional, A SimTypeFunction to typecheck arguments against.
-        :param kwargs:      Any other keyword args will be passed to the PathGroup constructor.
-        :returns:           A PathGroup calling the function.
-        :rtype:             PathGroup
-        """
-
-        fake_return_addr = project._extern_obj.get_pseudo_addr('FAKE_RETURN_ADDR')
-        if not project.is_hooked(fake_return_addr):
-            project.hook(fake_return_addr, CallReturn)
-        cc = simuvex.DefaultCC[project.arch.name](project.arch)
-
-        active_paths = []
-        if start is None:
-            active_paths.append(project.factory.path(addr=target))
-        elif hasattr(start, '__iter__'):
-            active_paths.extend(start)
-        else:
-            active_paths.append(start)
-
-        ret_addr = claripy.BVV(fake_return_addr, project.arch.bits)
-
-        def fix_arg(st, arg):
-            if isinstance(arg, str):
-                # store the string, nul-terminated, at the current heap location
-                # then return a pointer to that location
-                ptr = st.libc.heap_location
-                st.memory.store(ptr, st.se.BVV(arg, st.arch.bits))
-                st.memory.store(ptr + len(arg), st.se.BVV(0, 8))
-                st.libc.heap_location += len(arg) + 1
-                return ptr
-            elif isinstance(arg, (tuple, list)):
-                # fix the entries of the list, then store them in a
-                # NULL-terminated array at the current heap location and return
-                # a pointer to there
-                # N.B.: uses host endianness to store entries!!! mostly useful for string arrays
-                fixed_entries = [fix_arg(st, entry) for entry in arg]
-                cur_ptr = start_ptr = st.libc.heap_location
-                for entry in fixed_entries:
-                    st.memory.store(cur_ptr, entry, endness=st.arch.memory_endness)
-                    cur_ptr += entry.length
-
-                entry_length = fixed_entries[0].length if len(fixed_entries) > 0 else st.arch.bits
-                st.memory.store(cur_ptr, st.se.BVV(0, entry_length))
-
-                st.libc.heap_location = cur_ptr + entry_length
-                return start_ptr
-            elif isinstance(arg, (int, long)):
-                return st.se.BVV(arg, st.arch.bits)
-            elif isinstance(arg, StringSpec):
-                ptr = st.libc.heap_location
-                arg.dump(st, ptr)
-                st.libc.heap_location += len(arg)
-                return ptr
-            else:
-                return arg
-
-        for p in active_paths:
-            p.state.ip = target
-            fixed_args = [fix_arg(p.state, arg) for arg in args]
-            cc.setup_callsite(p.state, ret_addr, fixed_args)
-
-        return cls(project, active_paths=active_paths, **kwargs)
 
     #
     # Util functions
@@ -195,10 +118,10 @@ class PathGroup(ana.Storable):
         else:
             return self.copy(stashes=new_stashes)
 
-    @staticmethod
-    def _condition_to_lambda(condition, default=False):
+    def _condition_to_lambda(self, condition, default=False):
         """
-        Translates an integer, set or list into a lambda that checks a path address against the given addresses.
+        Translates an integer, set or list into a lambda that checks a path address against the given addresses, and the
+        other ones from the same basic block
 
         :param condition:   An integer, set, or list to convert to a lambda.
         :param default:     The default return value of the lambda (in case condition is None). Default: false.
@@ -209,13 +132,13 @@ class PathGroup(ana.Storable):
             condition = lambda p: default
 
         if isinstance(condition, (int, long)):
-            condition = { condition }
+            condition = [ condition ]
 
         if isinstance(condition, (tuple, set, list)):
             addrs = set(condition)
-            condition = lambda p: p.addr in addrs
-
+            condition = lambda p: addrs.intersection(set(self._project.factory.block(p.addr).instruction_addrs))
         return condition
+
 
     @staticmethod
     def _filter_paths(filter_func, paths):
@@ -233,7 +156,27 @@ class PathGroup(ana.Storable):
         nomatch = [ ]
 
         for p in paths:
-            if filter_func is None or filter_func(p):
+
+            if filter_func is not None:
+                res = filter_func(p)
+
+                # If result is a one-address-set, we are going to step until
+                # the path address is equal to this address (in case the one
+                # given to 'find' was not at the beginning of a basic block)
+                if isinstance(res, (list, set)):
+                    if len(res):
+                        elem = res.pop()
+                        while p.addr != elem:
+                            paths_stepped = p.step(num_inst=1)
+
+                            # We shouldn't go out of the basic block, so there
+                            # should only be one path
+                            p = paths_stepped[0]
+                        res = True
+                    else:
+                        res = False
+
+            if filter_func is None or res:
                 l.debug("... path %s matched!", p)
                 match.append(p)
             else:
@@ -767,4 +710,3 @@ class PathGroup(ana.Storable):
 from .path_hierarchy import PathHierarchy
 from .errors import PathUnreachableError, AngrError, AngrPathGroupError
 from .path import Path
-from .tablespecs import StringSpec

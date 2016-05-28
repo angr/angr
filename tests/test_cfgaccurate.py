@@ -84,7 +84,7 @@ def perform_single(binary_path, cfg_path=None):
                         default_analysis_mode='symbolic',
                         load_options={'auto_load_libs': False})
     start = time.time()
-    cfg = proj.analyses.CFG(context_sensitivity_level=1)
+    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=1)
     end = time.time()
     duration = end - start
     bbl_dict = cfg.get_bbl_dict()
@@ -139,7 +139,7 @@ def test_additional_edges():
     additional_edges = {
         0x400573 : [ 0x400580, 0x40058f, 0x40059e ]
     }
-    cfg = proj.analyses.CFG(context_sensitivity_level=0, additional_edges=additional_edges)
+    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=0, additional_edges=additional_edges)
 
     nose.tools.assert_not_equal(cfg.get_any_node(0x400580), None)
     nose.tools.assert_not_equal(cfg.get_any_node(0x40058f), None)
@@ -154,7 +154,7 @@ def test_not_returning():
                         use_sim_procedures=True,
                         load_options={'auto_load_libs': False}
                         )
-    proj.analyses.CFG(context_sensitivity_level=0)
+    proj.analyses.CFGAccurate(context_sensitivity_level=0)
 
     # function_a returns
     nose.tools.assert_not_equal(proj.kb.functions.function(name='function_a'), None)
@@ -188,7 +188,7 @@ def test_cfg_6():
     proj = angr.Project(binary_path,
                         use_sim_procedures=True,
                         load_options={'auto_load_libs': False})
-    proj.analyses.CFG(context_sensitivity_level=1)
+    proj.analyses.CFGAccurate(context_sensitivity_level=1)
     nose.tools.assert_greater_equal(len(proj.kb.functions), 58)
     simuvex.o.modes['fastpath'] ^= {simuvex.s_options.DO_CCALLS}
 
@@ -202,7 +202,7 @@ def disabled_loop_unrolling():
     binary_path = test_location + "/x86_64/cfg_loop_unrolling"
 
     p = angr.Project(binary_path)
-    cfg = p.analyses.CFG()
+    cfg = p.analyses.CFGAccurate()
 
     cfg.normalize()
     cfg.unroll_loops(5)
@@ -215,7 +215,7 @@ def test_thumb_mode():
 
     binary_path = test_location + "/armhf/test_arrays"
     p = angr.Project(binary_path)
-    cfg = p.analyses.CFG()
+    cfg = p.analyses.CFGAccurate()
 
     def check_addr(a):
         if a % 2 == 1:
@@ -287,7 +287,7 @@ def test_string_references():
 
     binary_path = os.path.join(test_location, "i386", "ctf_nuclear")
     b = angr.Project(binary_path, load_options={'auto_load_libs': False})
-    cfg = b.analyses.CFG(keep_state=True)
+    cfg = b.analyses.CFGAccurate(keep_state=True)
 
     string_references = []
     for f in cfg.functions.values():

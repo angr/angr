@@ -18,7 +18,7 @@ class DFG(Analysis):
         :param annocfg: An AnnotatedCFG built from a backward slice used to only build the DFG on the whitelisted statements
         """
         if cfg is None:
-            self._cfg = self.project.analyses.CFG()
+            self._cfg = self.project.analyses.CFGAccurate()
         else:
             self._cfg = cfg
         self._annocfg = annocfg

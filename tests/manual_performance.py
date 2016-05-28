@@ -61,7 +61,7 @@ def run_cfg_analysis(path):
                      load_options=load_options,
                      translation_cache=True
                      )
-    p.analyses.CFG()
+    p.analyses.CFGAccurate()
 
 
 def time_one(args, test, queue):
