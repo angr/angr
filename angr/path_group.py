@@ -136,7 +136,8 @@ class PathGroup(ana.Storable):
 
         if isinstance(condition, (tuple, set, list)):
             addrs = set(condition)
-            condition = lambda p: addrs.intersection(set(self._project.factory.block(p.addr).instruction_addrs))
+            condition = lambda p: p.addr in addrs or \
+                                  addrs.intersection(set(self._project.factory.block(p.addr).instruction_addrs))
         return condition
 
 
