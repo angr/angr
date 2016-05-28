@@ -751,7 +751,7 @@ class Path(object):
         Returns a merger of this path with `*others`.
         """
         all_paths = list(others) + [ self ]
-        if len(set([ o.addr for o in all_paths])) != 1:
+        if len(set(( o.addr for o in all_paths))) != 1:
             raise AngrPathError("Unable to merge paths.")
 
         # merge the state
@@ -761,7 +761,14 @@ class Path(object):
         addr_lists = [x.addr_trace.hardcopy for x in all_paths]
 
         # fix the traces
-        divergence_index = [ len(set(addrs)) == 1 for addrs in zip(*addr_lists) ].index(False)
+        for i, addrs in enumerate(zip(*addr_lists)):
+            if len(frozenset(addrs)) != 1:
+                divergence_index = i
+                break
+        else:
+            # divergence either happens at the end of the shortest history or doesn't at all
+            divergence_index = i + 1
+
         rewind_count = len(addr_lists[0]) - divergence_index
         common_ancestor = all_paths[0].history
         for _ in xrange(rewind_count):
