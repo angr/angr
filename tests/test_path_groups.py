@@ -96,6 +96,17 @@ def test_fauxware():
         yield run_fauxware, arch, None
         yield run_fauxware, arch, 2
 
+def test_find_to_middle():
+
+    # Test the ability of PathGroup to execute until an instruction in the middle of a basic block
+    p = angr.Project(os.path.join(location, 'x86_64', 'fauxware'), load_options={'auto_load_libs': False})
+
+    pg = p.factory.path_group(immutable=False)
+    pg.explore(find=(0x4006ee,))
+
+    nose.tools.assert_equal(len(pg.found), 1)
+    nose.tools.assert_true(pg.found[0].addr == 0x4006ee)
+
 if __name__ == "__main__":
     for func, march, threads in test_fauxware():
         print 'testing ' + march
