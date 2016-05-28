@@ -255,7 +255,7 @@ class Unicorn(SimStatePlugin):
         start = address & (0xffffffffffffff000)
         length = ((address + size + 0xfff) & (0xffffffffffffff000)) - start
 
-        if start == 0:
+        if start == 0 or ((start + length) & ((1 << self.state.arch.bits) - 1)) == 0:
             # sometimes it happens because of %fs is not correctly set
             self.error = 'accessing zero page [%#x, %#x] (%#x)' % (address, address + size - 1, access)
             l.warning(self.error)
@@ -329,11 +329,11 @@ class Unicorn(SimStatePlugin):
 
     def setup(self):
         self._setup_unicorn(self.state.arch)
+        self.set_regs()
         # tricky: using unicorn handle form unicorn.Uc object
         self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key)
 
     def start(self, step=1):
-        self.set_regs()
         addr = self.state.se.any_int(self.state.ip)
 
         self.jumpkind = 'Ijk_Boring'
@@ -371,18 +371,12 @@ class Unicorn(SimStatePlugin):
 
     def set_regs(self):
         ''' setting unicorn registers '''
-        for r, c in self._uc_regs.iteritems():
-            if r in ('cs', 'ds', 'es', 'fs', 'gs', 'ss'):
-                continue        # :/
-            v = getattr(self.state.regs, r)
-            if not v.symbolic:
-                # l.debug('setting $%s = %#x', r, self.state.se.any_int(v))
-                self.uc.reg_write(c, self.state.se.any_int(v))
-            else:
-                raise SimValueError('setting a symbolic register')
 
         if self.state.arch.qemu_name == 'x86_64':
-            # segment registers like %fs, %gs might be tricky in unicorn
+            fs = self.state.se.any_int(self.state.regs.fs)
+            gs = self.state.se.any_int(self.state.regs.gs)
+            self.write_msr(fs, 0xC0000100)
+            self.write_msr(gs, 0xC0000101)
             flags = ccall._get_flags(self.state)[0]
             if flags.symbolic:
                 raise SimValueError('symbolic eflags')
@@ -395,6 +389,17 @@ class Unicorn(SimStatePlugin):
             fs = self.state.se.any_int(self.state.regs.fs) << 16
             gs = self.state.se.any_int(self.state.regs.gs) << 16
             self.setup_gdt(fs, gs)
+
+        for r, c in self._uc_regs.iteritems():
+            if r in ('cs', 'ds', 'es', 'fs', 'gs', 'ss'):
+                continue        # :/
+            v = getattr(self.state.regs, r)
+            if not v.symbolic:
+                # l.debug('setting $%s = %#x', r, self.state.se.any_int(v))
+                self.uc.reg_write(c, self.state.se.any_int(v))
+            else:
+                raise SimValueError('setting a symbolic register')
+
 
     # this stuff is 100% copied from the unicorn regression tests
     def setup_gdt(self, fs, gs, fs_size=0xFFFFFFFF, gs_size=0xFFFFFFFF):

@@ -3,3 +3,8 @@
 *.egg-info
 .*.swp
 *.so
+*.o
+build
+master.zip
+unicorn-master
+unicorn.diff
