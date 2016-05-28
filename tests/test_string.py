@@ -50,13 +50,11 @@ def test_inline_strlen():
     u_len = u_len_sp.ret_expr
     nose.tools.assert_equal(len(s.se.any_n_int(u_len, 100)), s.libc.buf_symbolic_bytes)
     nose.tools.assert_equal(s.se.max_int(u_len), s.libc.buf_symbolic_bytes-1)
-
     #print u_len_sp.se.maximum_null
 
     #s.add_constraints(u_len < 16)
 
     nose.tools.assert_equal(s.se.any_n_int(s.memory.load(0x50 + u_len, 1), 300), [0])
-
     #
     # This tests if a strlen can influence a symbolic str.
     #
