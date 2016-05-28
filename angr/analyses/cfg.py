@@ -33,34 +33,7 @@ class CFG(CFGFast):
     context-sensitivity, and state keeping) only exist in CFGAccurate, which is when you want to use CFGAccurate
     instead.
     """
-    def __init__(self,
-                 # parameters that CFGFast takes
-                 binary=None,
-                 start=None,
-                 end=None,
-                 pickle_intermediate_results=False,
-                 symbols=True,
-                 function_prologues=True,
-                 resolve_indirect_jumps=True,
-                 force_segment=False,
-                 force_complete_scan=True,
-                 indirect_jump_target_limit=100000,
-                 # parameters that only CFGAccurate takes
-                 context_sensitivity_level=None,  # pylint: disable=unused-argument
-                 avoid_runs=None,  # pylint: disable=unused-argument
-                 enable_function_hints=None,  # pylint: disable=unused-argument
-                 call_depth=None,  # pylint: disable=unused-argument
-                 call_tracing_filter=None,  # pylint: disable=unused-argument
-                 initial_state=None,  # pylint: disable=unused-argument
-                 starts=None,  # pylint: disable=unused-argument
-                 keep_state=None,  # pylint: disable=unused-argument
-                 enable_advanced_backward_slicing=None,  # pylint: disable=unused-argument
-                 enable_symbolic_back_traversal=None,  # pylint: disable=unused-argument
-                 additional_edges=None,  # pylint: disable=unused-argument
-                 no_construct=None  # pylint: disable=unused-argument
-                 ):
-
-
+    def __init__(self, **kwargs):
         outdated_exception = "CFG is now an alias to CFGFast."
         outdated_message = "CFG is now an alias to CFGFast. Please switch to CFGAccurate if you need functionalities " \
                            "that only exist there. For most cases, your code should be fine by changing \"CFG(...)\" " \
@@ -75,22 +48,11 @@ class CFG(CFGFast):
         # Sanity check to make sure the user only wants to use CFGFast
 
         for p in cfgaccurate_params:
-            if locals().get(p, None) is not None:
+            if kwargs.get(p, None) is not None:
                 sys.stderr.write(outdated_message + "\n")
                 raise OutdatedError(outdated_exception)
 
         # Now initializes CFGFast :-)
-        CFGFast.__init__(self,
-                         binary=binary,
-                         start=start,
-                         end=end,
-                         pickle_intermediate_results=pickle_intermediate_results,
-                         symbols=symbols,
-                         function_prologues=function_prologues,
-                         resolve_indirect_jumps=resolve_indirect_jumps,
-                         force_segment=force_segment,
-                         force_complete_scan=True,
-                         indirect_jump_target_limit=indirect_jump_target_limit
-                         )
+        CFGFast.__init__(self, **kwargs)
 
 register_analysis(CFG, 'CFG')
