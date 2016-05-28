@@ -678,7 +678,7 @@ class PathGroup(ana.Storable):
     # High-level functionality
     #
 
-    def explore(self, stash=None, n=None, find=None, avoid=None, num_find=None, found_stash=None, avoid_stash=None):
+    def explore(self, stash=None, n=None, find=None, avoid=None, num_find=None, found_stash=None, avoid_stash=None, step_func=None):
         """
         A replacement for the Explorer surveyor. Tick stash "stash" forward (up to n times or until num_find paths are
         found), looking for condition "find", avoiding condition "avoid". Stashes found paths into "found_stash' and
@@ -691,6 +691,9 @@ class PathGroup(ana.Storable):
         :param num_find:    Stop when this many paths have been found.
         :param found_stash:
         :param avoid_stash:
+        :param step_func    If provided, should be a lambda that takes a PathGroup and returns a PathGroup. Will be
+                            called with the PathGroup at every step. TODO: This doesn't work with Veritesting because
+                            Veritesting calls step() and we don't pass this function to Veritesting yet.
         :return:            The resulting PathGroup.
         :rtype:             PathGroup
         """
@@ -700,10 +703,14 @@ class PathGroup(ana.Storable):
         avoid_stash = 'avoid' if avoid_stash is None else avoid_stash
         num_find = 1 if num_find is None else num_find
         cur_found = len(self.stashes[found_stash]) if found_stash in self.stashes else 0
+        def explore_step_func(pg):
+            pg = pg.stash(find, from_stash=stash, to_stash=found_stash) \
+              .stash(avoid, from_stash=stash, to_stash=avoid_stash) \
+              .prune(from_stash=found_stash)
+            if step_func is not None:
+                pg = step_func(pg)
+            return pg
 
-        explore_step_func = lambda pg: pg.stash(find, from_stash=stash, to_stash=found_stash) \
-                                         .stash(avoid, from_stash=stash, to_stash=avoid_stash) \
-                                         .prune(from_stash=found_stash)
         until_func = lambda pg: len(pg.stashes[found_stash]) >= cur_found + num_find
         return self.step(n=n, step_func=explore_step_func, until=until_func, stash=stash)
 
