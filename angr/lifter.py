@@ -328,8 +328,8 @@ class Block(object):
             if stmt.tag != 'Ist_IMark':
                 continue
             if self.addr is None:
-                self.addr = stmt.addr
-            self.instruction_addrs.append(stmt.addr)
+                self.addr = stmt.addr + stmt.delta
+            self.instruction_addrs.append(stmt.addr + stmt.delta)
 
         if self.addr is None:
             l.warning('Lifted basic block with no IMarks!')
