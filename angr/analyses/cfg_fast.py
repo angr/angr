@@ -399,10 +399,11 @@ class CFGFast(Analysis, CFGBase):
                  pickle_intermediate_results=False,
                  symbols=True,
                  function_prologues=True,
-                 resolve_indirect_jumps=True,
+                 resolve_indirect_jumps=False,
                  force_segment=False,
                  force_complete_scan=True,
                  indirect_jump_target_limit=100000,
+                 collect_data_references=False,
                  progress_callback=None,
                  show_progressbar=False
                  ):
@@ -417,8 +418,10 @@ class CFGFast(Analysis, CFGBase):
         :param bool resolve_indirect_jumps: Try to resolve indirect jumps. This is necessary to resolve jump targets
                                             from jump tables, etc.
         :param bool force_segment:      Force CFGFast to rely on binary segments instead of sections.
-        :param bool force_complete_scan:    Perform a complete scan on the binary and maximize the number of identified code
-                                            blocks.
+        :param bool force_complete_scan:    Perform a complete scan on the binary and maximize the number of identified
+                                            code blocks.
+        :param bool collect_data_references: If CFGFast should collect data references from individual basic blocks or
+                                             not.
         :param progress_callback:       Specify a callback function to get the progress during CFG recovery.
         :param bool show_progressbar:   Should CFGFast show a progressbar during CFG recovery or not.
         :return: None
@@ -432,6 +435,7 @@ class CFGFast(Analysis, CFGBase):
 
         self._pickle_intermediate_results = pickle_intermediate_results
         self._indirect_jump_target_limit = indirect_jump_target_limit
+        self._collect_data_ref = collect_data_references
 
         self._use_symbols = symbols
         self._use_function_prologues = function_prologues
@@ -804,7 +808,8 @@ class CFGFast(Analysis, CFGBase):
         traced_addresses.add(addr)
 
         # Scan the basic block to collect data references
-        self._collect_data_references(irsb)
+        if self._collect_data_ref:
+            self._collect_data_references(irsb)
 
         # Get all possible successors
         irsb_next, jumpkind = irsb.next, irsb.jumpkind
@@ -928,7 +933,9 @@ class CFGFast(Analysis, CFGBase):
             return o._model_concrete
 
         def _cv(o):
-            return o._model_concrete.value
+            if o._model_concrete is not o:
+                return o._model_concrete.value
+            return None
 
         block = self._initial_state.memory.load(data_addr, 8)
 
@@ -952,7 +959,8 @@ class CFGFast(Analysis, CFGBase):
             # TODO: Add a cap for the length
             length = _cv(r) - data_addr
             block_ = self._initial_state.memory.load(data_addr, length)
-            if all([ chr(_cv(block_[i*8+7:i*8])) in string.printable for i in xrange(len(block_) / 8) ]):
+            if all([ (_cv(block_[i*8+7:i*8]) is not None and chr(_cv(block_[i*8+7:i*8])) in string.printable)
+                     for i in xrange(len(block_) / 8) ]):
                 return "string", length + 1
 
         return "unknown", 0
