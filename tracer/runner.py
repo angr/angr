@@ -34,6 +34,8 @@ class Runner(object):
         self._record_trace = record_trace
         self.trace = None
         self.reg_vals = None
+        self._state = None
+        self.memory = None
 
         if self.pov_file is None and self.input is None:
             raise ValueError("must specify input or pov_file")
@@ -240,3 +242,5 @@ class Runner(object):
     def _load_core_values(self, core_file):
         p = angr.Project(core_file)
         self.reg_vals = {reg:val for (reg, val) in p.loader.main_bin.initial_register_values()}
+        self._state = p.factory.entry_state()
+        self.memory = self._state.memory
