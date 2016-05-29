@@ -63,6 +63,38 @@ def test_cfg_0_pe():
     for arch in arches:
         yield cfg_fast, arch, filename, functions[arch]
 
+def test_fauxware():
+    filename = "fauxware"
+    functions = {
+        'x86_64': {
+            0x4004e0,
+            0x400510,
+            0x400520,
+            0x400530,
+            0x400540,
+            0x400550,
+            0x400560,
+            0x400570,  # .plt._exit
+            0x400580,  # _start
+            0x4005ac,
+            0x4005d0,
+            0x400640,
+            0x400664,
+            0x4006ed,
+            0x4006fd,
+            0x40071d,  # main
+            0x4007e0,
+            0x400870,
+            0x400880,
+            0x4008b8,
+        }
+    }
+
+    arches = functions.keys()
+
+    for arch in arches:
+        yield cfg_fast, arch, filename, functions[arch]
+
 def test_segment_list_0():
     seg_list = SegmentList()
     seg_list.occupy(0, 1, "code")
@@ -160,6 +192,9 @@ def main():
         func(arch, filename, functions)
 
     for func, arch, filename, functions in test_cfg_0_pe():
+        func(arch, filename, functions)
+
+    for func, arch, filename, functions in test_fauxware():
         func(arch, filename, functions)
 
 if __name__ == "__main__":
