@@ -18,7 +18,6 @@ from .cfg_base import CFGBase
 
 l = logging.getLogger("angr.analyses.cfg_fast")
 
-
 class Segment(object):
     """
     Representing a memory block. This is not the "Segment" in ELF memory model
@@ -471,6 +470,8 @@ class CFGFast(Analysis, CFGBase):
 
         self._jump_tables = { }
 
+        self._function_addresses_from_symbols = self._func_addrs_from_symbols()
+
         # Start working!
         self._analyze()
 
@@ -682,16 +683,16 @@ class CFGFast(Analysis, CFGBase):
         """
         Get all possible function addresses that are specified by the symbols in the binary
 
-        :return: A list of addresses that are probably functions
+        :return: A set of addresses that are probably functions
         """
 
         symbols_by_addr = self._binary.symbols_by_addr
 
-        func_addrs = []
+        func_addrs = set()
 
         for addr, sym in symbols_by_addr.iteritems():
             if sym.is_function:
-                func_addrs.append(addr)
+                func_addrs.add(addr)
 
         return func_addrs
 
@@ -778,28 +779,54 @@ class CFGFast(Analysis, CFGBase):
         if addr in traced_addresses:
             return
 
+        # Fix the function address
+        # This is for rare cases where we cannot successfully determine the end boundary of a previous function, and
+        # as a consequence, our analysis mistakenly thinks the previous function goes all the way across the boundary,
+        # resulting the missing of the second function in function manager.
+        if addr in self._function_addresses_from_symbols:
+            current_function_addr = addr
+
+        if self.project.is_hooked(addr):
+            self._scan_procedure(addr, current_function_addr, function_exits, remaining_entries, traced_addresses,
+                                 previous_jumpkind, previous_src_node, previous_src_stmt_idx)
+
+        else:
+            self._scan_irsb(addr, current_function_addr, function_exits, remaining_entries, traced_addresses,
+                             previous_jumpkind, previous_src_node, previous_src_stmt_idx)
+
+    def _scan_procedure(self, addr, current_function_addr, function_exits, remaining_entries, traced_addresses,
+                        previous_jumpkind, previous_src_node, previous_src_stmt_idx):  # pylint:disable=unused-argument
+        try:
+            hooker = self.project.hooked_by(addr)
+            cfg_node = CFGNode(addr, 0, self, function_address=current_function_addr,
+                               simprocedure_name=hooker.__name__)
+
+            self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
+
+            self._function_add_edge(addr, previous_src_node, current_function_addr)
+
+        except (AngrTranslationError, AngrMemoryError):
+            return
+
+        # TODO: Get exits from a SimProcedure
+
+    def _scan_irsb(self, addr, current_function_addr, function_exits, remaining_entries, traced_addresses,
+                   previous_jumpkind, previous_src_node, previous_src_stmt_idx):  # pylint:disable=unused-argument
         try:
             # Let's try to create the pyvex IRSB directly, since it's much faster
 
             irsb = self.project.factory.block(addr).vex
 
-            # Create a CFG node, and add it to the graph
-            cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr)
-            if previous_src_node is None:
-                self.graph.add_node(cfg_node)
-            else:
-                self.graph.add_edge(previous_src_node, cfg_node, jumpkind=previous_jumpkind,
-                                    stmt_idx=previous_src_stmt_idx)
-
-            # Add this basic block into the function manager
-            if previous_src_node is None:
-                self.kb.functions._add_node(current_function_addr, addr)
-            else:
-                self.kb.functions._add_transition_to(current_function_addr, previous_src_node.addr, addr)
-
             # Occupy the block in segment list
             if irsb.size > 0:
                 self._seg_list.occupy(addr, irsb.size, "code")
+
+            # Create a CFG node, and add it to the graph
+            cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr)
+
+            self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
+
+            self._function_add_edge(addr, previous_src_node, current_function_addr)
 
         except (AngrTranslationError, AngrMemoryError):
             return
@@ -837,6 +864,20 @@ class CFGFast(Analysis, CFGBase):
                     l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
                     # Add it to our set. Will process it later if user allows.
                     self._indirect_jumps.add((addr, jumpkind))
+
+                    # Test it on the initial state. Does it jump to a valid location?
+                    # It will be resolved in case this is a .plt entry
+                    tmp_simirsb = simuvex.SimIRSB(self._initial_state, irsb, addr=addr)
+                    if len(tmp_simirsb.successors) == 1:
+                        tmp_ip = tmp_simirsb.successors[0].ip
+                        if tmp_ip._model_concrete is not tmp_ip:
+                            tmp_addr = tmp_ip._model_concrete.value
+                            tmp_function_addr = tmp_addr # TODO: FIX THIS
+                            if (self._addr_in_memory_regions(tmp_addr) or self.project.is_hooked(tmp_addr)) \
+                                    and tmp_addr not in traced_addresses:
+                                ce = CFGEntry(tmp_addr, tmp_function_addr, jumpkind, last_addr=tmp_addr, src_node=cfg_node,
+                                              src_stmt_idx=stmt_idx)
+                                remaining_entries.add(ce)
 
             elif jumpkind == 'Ijk_Call':
                 if next_addr is not None:
@@ -1433,7 +1474,7 @@ class CFGFast(Analysis, CFGBase):
         rebase_addr = self._binary.rebase_addr
 
         if self._use_symbols:
-            starting_points |= set([ addr + rebase_addr for addr in self._func_addrs_from_symbols() ])
+            starting_points |= set([ addr + rebase_addr for addr in self._function_addresses_from_symbols ])
 
         if self._use_function_prologues:
             starting_points |= set([ addr + rebase_addr for addr in self._func_addrs_from_prologues() ])
@@ -1487,6 +1528,28 @@ class CFGFast(Analysis, CFGBase):
 
         end_time = datetime.now()
         l.info("Generating CFGFast takes %d seconds.", (end_time - start_time).seconds)
+
+    #
+    # Graph utils
+    #
+
+    def _graph_add_edge(self, cfg_node, src_node, src_jumpkind, src_stmt_idx):
+        if src_node is None:
+            self.graph.add_node(cfg_node)
+        else:
+            self.graph.add_edge(src_node, cfg_node, jumpkind=src_jumpkind,
+                                stmt_idx=src_stmt_idx)
+
+    #
+    # Function utils
+    #
+
+    def _function_add_edge(self, addr, src_node, function_addr):
+        # Add this basic block into the function manager
+        if src_node is None:
+            self.kb.functions._add_node(function_addr, addr)
+        else:
+            self.kb.functions._add_transition_to(function_addr, src_node.addr, addr)
 
     #
     # Public methods
