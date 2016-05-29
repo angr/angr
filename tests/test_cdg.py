@@ -21,7 +21,7 @@ def test_graph_0():
                      use_sim_procedures=True)
 
     # Create the CDG analysis
-    cfg = p.analyses.CFG(no_construct=True)
+    cfg = p.analyses.CFGAccurate(no_construct=True)
 
     # Create our mock control flow graph
     g = networkx.DiGraph()

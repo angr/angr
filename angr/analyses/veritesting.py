@@ -107,7 +107,7 @@ class CallTracingFilter(object):
             new_blacklist = self.blacklist[ :: ]
             new_blacklist.append(addr)
             tracing_filter = CallTracingFilter(self.project, depth=self.depth + 1, blacklist=new_blacklist)
-            cfg = self.project.analyses.CFG(starts=((addr, jumpkind),),
+            cfg = self.project.analyses.CFGAccurate(starts=((addr, jumpkind),),
                                                initial_state=call_target_state,
                                                context_sensitivity_level=0,
                                                call_depth=0,
@@ -358,7 +358,7 @@ class Veritesting(Analysis):
                 if not state.se.symbolic(state.regs.rax):
                     cfg_initial_state.regs.rax = state.regs.rax
 
-            cfg = self.project.analyses.CFG(starts=((ip_int, path.jumpkind),),
+            cfg = self.project.analyses.CFGAccurate(starts=((ip_int, path.jumpkind),),
                                                context_sensitivity_level=0,
                                                call_depth=0,
                                                call_tracing_filter=filter,

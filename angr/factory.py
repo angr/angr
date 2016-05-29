@@ -1,5 +1,5 @@
 from simuvex import SimIRSB, SimProcedures, SimState, BP_BEFORE, BP_AFTER
-from simuvex import s_options as o
+from simuvex import s_options as o, s_cc
 from .surveyors.caller import Callable
 
 import logging
@@ -13,12 +13,13 @@ class AngrObjectFactory(object):
         self._project = project
         self._lifter = Lifter(project, cache=translation_cache)
         self.block = self._lifter.lift
+        self._default_cc = s_cc.DefaultCC[project.arch.name]
 
     def snippet(self, addr, jumpkind=None, **block_opts):
         if self._project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
             _, kwargs = self._project._sim_procedures[addr]
             size = kwargs.get('length', 0)
-            return HookNode(addr, size, self._project._sim_procedures[addr])
+            return HookNode(addr, size, self._project.hooked_by(addr))
         else:
             return self.block(addr, **block_opts).codenode # pylint: disable=no-member
 
@@ -195,6 +196,50 @@ class AngrObjectFactory(object):
         """
         return self._project._simos.state_full_init(**kwargs)
 
+    def call_state(self, addr, *args, **kwargs):
+        """
+        Returns a state object initialized to the start of a given function, as if it were called with given parameters.
+
+        :param addr:            The address the state should start at instead of the entry point.
+        :param args:            Any additional positional arguments will be used as arguments to the function call.
+
+        The following parametrs are optional.
+
+        :param base_state:      Use this SimState as the base for the new state instead of a blank state.
+        :param cc:              Optionally provide a SimCC object to use a specific calling convention.
+        :param ret_addr:        Use this address as the function's return target.
+        :param stack_base:      An optional pointer to use as the top of the stack, circa the function entry point
+        :param alloc_base:      An optional pointer to use as the place to put excess argument data
+        :param grow_like_stack: When allocating data at alloc_base, whether to allocate at decreasing addresses
+        :param toc:             The address of the table of contents for ppc64
+        :param initial_prefix:  If this is provided, all symbolic registers will hold symbolic values with names
+                                prefixed by this string.
+        :param fs:              A dictionary of file names with associated preset SimFile objects.
+        :param concrete_fs:     bool describing whether the host filesystem should be consulted when opening files.
+        :param chroot:          A path to use as a fake root directory, Behaves similarly to a real chroot. Used only
+                                when concrete_fs is set to True.
+        :param kwargs:          Any additional keyword args will be passed to the SimState constructor.
+        :return:                The state at the beginning of the function.
+        :rtype:                 simuvex.s_state.SimState
+
+        The idea here is that you can provide almost any kind of python type in `args` and it'll be translated to a
+        binary format to be placed into simulated memory. Lists (representing arrays) must be entirely elements of the
+        same type and size, while tuples (representing structs) can be elements of any type and size.
+        If you'd like there to be a pointer to a given value, wrap the value in a `SimCC.PointerWrapper`. Any value
+        that can't fit in a register will be automatically put in a
+        PointerWrapper.
+
+        If stack_base is not provided, the current stack pointer will be used, and it will be updated.
+        If alloc_base is not provided, the current stack pointer will be used, and it will be updated.
+        You might not like the results if you provide stack_base but not alloc_base.
+
+        grow_like_stack controls the behavior of allocating data at alloc_base. When data from args needs to be wrapped
+        in a pointer, the pointer needs to point somewhere, so that data is dumped into memory at alloc_base. If you
+        set alloc_base to point to somewhere other than the stack, set grow_like_stack to False so that sequencial
+        allocations happen at increasing addresses.
+        """
+        return self._project._simos.state_call(addr, *args, **kwargs)
+
     def path(self, state=None, **options):
         """
         Constructs a new path.
@@ -247,24 +292,55 @@ class AngrObjectFactory(object):
 
         return PathGroup(self._project, active_paths=thing, **kwargs)
 
-    def callable(self, addr, concrete_only=False, prototype=None, base_state=None, toc=None):
+    def callable(self, addr, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
         """
         A Callable is a representation of a function in the binary that can be interacted with like a native python
         function.
 
-        :param addr:            The address of the function to use.
-        :param concrete_only:   Optional: Throw an exception if the execution splits into multiple paths.
-        :param prototype:       Optional: A SimTypeFunction instance describing the functions args and return type.
-        :param base_state:      Optional: The state from which to do these runs.
-        :param toc:             Optional: The address of the table of contents for ppc64.
+        :param addr:            The address of the function to use
+        :param concrete_only:   Throw an exception if the execution splits into multiple paths
+        :param perform_merge:   Merge all result states into one at the end (only relevant if concrete_only=False)
+        :param base_state:      The state from which to do these runs
+        :param toc:             The address of the table of contents for ppc64
+        :param cc:              The SimCC to use for a calling convention
         :returns:               A Callable object that can be used as a interface for executing guest code like a
                                 python function.
         :rtype:                 angr.surveyors.caller.Callable
         """
-        return Callable(self._project, addr, concrete_only, prototype, base_state, toc)
+        return Callable(self._project,
+                        addr=addr,
+                        concrete_only=concrete_only,
+                        perform_merge=perform_merge,
+                        base_state=base_state,
+                        toc=toc,
+                        cc=cc)
 
-    callable.PointerWrapper = Callable.PointerWrapper
 
+    def cc(self, args=None, ret_val=None, sp_delta=None, func_ty=None):
+        """
+        Return a SimCC (calling convention) parametrized for this project and, optionally, a given function.
+
+        :param args:        A list of argument storage locations, as SimFunctionArguments.
+        :param ret_val:     The return value storage location, as a SimFunctionArgument.
+        :param sp_delta:    Does this even matter??
+        :param func_ty:     The protoype for the given function, as a SimType.
+
+        Relevant subclasses of SimFunctionArgument are SimRegArg and SimStackArg, and shortcuts to them can be found on
+        this `cc` object.
+
+        For stack arguments, offsets are relative to the stack pointer on function entry.
+        """
+        return self._default_cc(arch=self._project.arch,
+                                  args=args,
+                                  ret_val=ret_val,
+                                  sp_delta=sp_delta,
+                                  func_ty=func_ty)
+
+    cc.SimRegArg = s_cc.SimRegArg
+    cc.SimStackArg = s_cc.SimStackArg
+    _default_cc = None
+    callable.PointerWrapper = s_cc.PointerWrapper
+    call_state.PointerWrapper = s_cc.PointerWrapper
 
 
 from .lifter import Lifter

@@ -1,13 +1,18 @@
 from .explorer import Explorer
-import simuvex, claripy
+import simuvex
 
 class Callable(object):
     """
     Callable is a representation of a function in the binary that can be
     interacted with like a native python function.
+
+    If you set perform_merge=True (the default), the result will be returned to you, and
+    you can get the result state with callable.result_state.
+
+    Otherwise, you can get the resulting path group (immutable) at callable.result_path_group.
     """
 
-    def __init__(self, project, addr, concrete_only=False, prototype=None, base_state=None, toc=None):
+    def __init__(self, project, addr, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
         """
         :param project:         The project to operate on
         :param addr:            The address of the function to use
@@ -15,23 +20,24 @@ class Callable(object):
         The following parameters are optional:
 
         :param concrete_only:   Throw an exception if the execution splits into multiple paths
-        :param prototype:       A SimTypeFunction instance describing the functions args and return type
+        :param perform_merge:   Merge all result states into one at the end (only relevant if concrete_only=False)
         :param base_state:      The state from which to do these runs
         :param toc:             The address of the table of contents for ppc64
+        :param cc:              The SimCC to use for a calling convention
         """
 
-        if prototype is not None and not isinstance(prototype, simuvex.s_type.SimTypeFunction):
-            raise ValueError("Prototype must be a function!")
-
         self._project = project
-        self._ty = prototype
         self._addr = addr
         self._concrete_only = concrete_only
+        self._perform_merge = perform_merge
         self._base_state = base_state
         self._toc = toc
         self._caller = None
+        self._cc = cc if cc is not None else simuvex.DefaultCC[project.arch.name](project.arch)
+        self._deadend_addr = project._simos.return_deadend
 
-        self._deadend_addr = project._extern_obj.get_pseudo_addr('FAKE_RETURN_ADDR')
+        self.result_path_group = None
+        self.result_state = None
 
     def set_base_state(self, state):
         """
@@ -40,32 +46,19 @@ class Callable(object):
         """
         self._base_state = state
 
-    def call_get_return_val(self, *args):
-        return self.get_call_results(*args)[0]
-    __call__ = call_get_return_val
-
-    def call_get_res_state(self, *args):
-        return self.get_call_results(*args)[1]
-
-    def get_call_results(self, *args):
-        cc = simuvex.DefaultCC[self._project.arch.name](self._project.arch)
-        if self._ty is not None:
-            wantlen = len(self._ty.args)
-            if len(args) != wantlen:
-                raise TypeError("The function at {:#x} takes exactly {} argument{} ({} given)"\
-                        .format(self._addr, wantlen, '' if wantlen == 1 else 's', len(args)))
-
-        state = self._base_state.copy() \
-                    if self._base_state is not None \
-                    else self._project.factory.blank_state()
-
-        if state.arch.name == 'PPC64' and self._toc is not None:
-            state.regs.r2 = self._toc
-
-        if self._ty is not None:
-            pointed_args = [self._standardize_value(arg, ty, state) for arg, ty in zip(args, self._ty.args)]
+    def __call__(self, *args):
+        self.perform_call(*args)
+        if self.result_state is not None:
+            return self.result_state.se.simplify(self._cc.get_return_val(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF))
         else:
-            pointed_args = [self._standardize_value(arg, None, state) for arg in args]
+            return None
+
+    def perform_call(self, *args):
+        state = self._project.factory.call_state(self._addr, *args,
+                    cc=self._cc,
+                    base_state=self._base_state,
+                    ret_addr=self._deadend_addr,
+                    toc=self._toc)
 
         def step_func(pg):
             pg2 = pg.prune()
@@ -73,55 +66,18 @@ class Callable(object):
                 raise AngrCallableMultistateError("Execution split on symbolic condition!")
             return pg2
 
-        caller = PathGroup.call(self._project, self._addr, pointed_args, start=self._project.factory.path(state))
+        caller = self._project.factory.path_group(state, immutable=True)
         caller_end_unpruned = caller.step(until=lambda pg: len(pg.active) == 0, step_func=step_func if self._concrete_only else None).unstash(from_stash='deadended')
         caller_end_unmerged = caller_end_unpruned.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
 
         if len(caller_end_unmerged.active) == 0:
             raise AngrCallableError("No paths returned from function")
 
-        caller_end = caller_end_unmerged.merge()
-        out_state = caller_end.active[0].state
-        out_val = out_state.se.simplify(cc.get_return_expr(out_state))
-        return out_val, out_state
+        self.result_path_group = caller_end_unmerged
 
-    def _standardize_value(self, arg, ty, state):
-        check = ty is not None
-        if isinstance(arg, Callable.PointerWrapper):
-            if check and not isinstance(ty, simuvex.s_type.SimTypePointer):
-                raise TypeError("Type mismatch: expected {}, got pointer-wrapper".format(ty))
-            real_value = self._standardize_value(arg.value, ty.pts_to if check else None, state)
-            return self._push_value(real_value, state)
-        elif isinstance(arg, str):
-            if check and (not isinstance(ty, simuvex.s_type.SimTypePointer) or \
-               not isinstance(ty.pts_to, simuvex.s_type.SimTypeChar)):
-                raise TypeError("Type mismatch: Expected {}, got char*".format(ty))
-            return self._standardize_value(map(ord, arg+'\0'), simuvex.s_type.SimTypePointer(state.arch, simuvex.s_type.SimTypeChar()), state)
-        elif isinstance(arg, list):
-            if check and not isinstance(ty, simuvex.s_type.SimTypePointer):
-                raise TypeError("Type mismatch: expected {}, got list".format(ty))
-            types = map(type, arg)
-            if types[1:] != types[:-1]:
-                raise TypeError("All elements of list must be of same type")
-            pointed_args = [self._standardize_value(sarg, ty.pts_to if check else None, state) for sarg in arg]
-            for sarg in reversed(pointed_args):
-                out = self._push_value(sarg, state)
-            return out
-        elif isinstance(arg, (int, long)):
-            return state.se.BVV(arg, ty.size if check else state.arch.bits)
-        elif isinstance(arg, claripy.ast.Base):
-            return arg
-
-    @staticmethod
-    def _push_value(val, state):
-        sp = state.regs.sp - val.size() / 8
-        state.regs.sp = sp
-        state.memory.store(sp, val, endness=state.arch.memory_endness)
-        return sp
-
-    class PointerWrapper(object):
-        def __init__(self, value):
-            self.value = value
+        if self._perform_merge:
+            caller_end = caller_end_unmerged.merge()
+            self.result_state = caller_end.active[0].state
 
 class Caller(Explorer):
     """
@@ -216,13 +172,12 @@ class Caller(Explorer):
         :param solutions: check only returns with this value as a possible solution
         """
         for p in self.iter_found(runs=runs):
-            r = p.state.se.simplify(self._cc.get_return_expr(p.state))
+            r = p.state.se.simplify(self._cc.return_val.get_value(p.state))
             if solution is not None and not p.state.se.solution(r, solution):
                 continue
             yield (r, p)
     __iter__ = iter_returns
 
-from ..path_group import PathGroup
 from ..errors import AngrCallableError, AngrCallableMultistateError
 from . import all_surveyors
 all_surveyors['Caller'] = Caller

@@ -77,7 +77,7 @@ class CDG(Analysis):
 
         if not no_construct:
             if self._cfg is None:
-                self._cfg = self.project.analyses.CFG()
+                self._cfg = self.project.analyses.CFGAccurate()
 
             # FIXME: We should not use get_any_irsb in such a real setting...
             self._entry = self._cfg.get_any_node(self._start)

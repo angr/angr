@@ -1,6 +1,6 @@
 import nose
 import angr
-from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeChar, SimTypeInt
+from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeChar, SimTypeInt, parse_defns
 from angr.surveyors.caller import Callable
 from angr.errors import AngrCallableMultistateError
 
@@ -35,21 +35,43 @@ addresses_manysum = {
 def run_fauxware(arch):
     addr = addresses_fauxware[arch]
     p = angr.Project(location + '/' + arch + '/fauxware')
-    charstar = SimTypePointer(p.arch, SimTypeChar())
-    prototype = SimTypeFunction((charstar, charstar), SimTypeInt(p.arch.bits, False))
-    authenticate = p.factory.callable(addr, prototype=prototype, toc=0x10018E80 if arch == 'ppc64' else None, concrete_only=True)
+    charstar = SimTypePointer(SimTypeChar())
+    prototype = SimTypeFunction((charstar, charstar), SimTypeInt(False))
+    cc = p.factory.cc(func_ty=prototype)
+    authenticate = p.factory.callable(addr, toc=0x10018E80 if arch == 'ppc64' else None, concrete_only=True, cc=cc)
     nose.tools.assert_equal(authenticate("asdf", "SOSNEAKY")._model_concrete.value, 1)
     nose.tools.assert_raises(AngrCallableMultistateError, authenticate, "asdf", "NOSNEAKY")
 
 def run_manysum(arch):
     addr = addresses_manysum[arch]
     p = angr.Project(location + '/' + arch + '/manysum')
-    inttype = SimTypeInt(p.arch.bits, False)
+    inttype = SimTypeInt()
     prototype = SimTypeFunction([inttype]*11, inttype)
-    sumlots = Callable(p, addr, prototype=prototype)
+    cc = p.factory.cc(func_ty=prototype)
+    sumlots = Callable(p, addr, cc=cc)
     result = sumlots(1,2,3,4,5,6,7,8,9,10,11)
     nose.tools.assert_false(result.symbolic)
     nose.tools.assert_equal(result._model_concrete.value, sum(xrange(12)))
+
+type_cache = None
+
+def run_manyfloatsum(arch):
+    global type_cache
+    if type_cache is None:
+        type_cache = parse_defns(open('/home/angr/angr/binaries/tests_src/manyfloatsum.c').read())
+
+    p = angr.Project(location + '/' + arch + '/manyfloatsum')
+    for function in ('sum_floats', 'sum_combo', 'sum_segregated', 'sum_doubles', 'sum_combo_doubles', 'sum_segregated_doubles'):
+        cc = p.factory.cc(func_ty=type_cache[function])
+        args = list(range(len(cc.func_ty.args)))
+        answer = float(sum(args))
+        addr = p.loader.main_bin.get_symbol(function).rebased_addr
+        my_callable = p.factory.callable(addr, cc=cc)
+        result = my_callable(*args)
+        nose.tools.assert_false(result.symbolic)
+        result_concrete = result.args[0]
+        nose.tools.assert_equal(answer, result_concrete)
+
 
 def test_fauxware():
     for arch in addresses_fauxware:
@@ -59,10 +81,20 @@ def test_manysum():
     for arch in addresses_manysum:
         yield run_manysum, arch
 
+def test_manyfloatsum():
+    for arch in ('i386', 'x86_64'):
+        yield run_manyfloatsum, arch
+
 if __name__ == "__main__":
-    for func, march in test_fauxware():
-        print 'testing ' + march
+    print 'testing manyfloatsum'
+    for func, march in test_manyfloatsum():
+        print '* testing ' + march
         func(march)
+    print 'testing fauxware'
+    for func, march in test_fauxware():
+        print '* testing ' + march
+        func(march)
+    print 'testing manysum'
     for func, march in test_manysum():
-        print 'testing ' + march
+        print '* testing ' + march
         func(march)

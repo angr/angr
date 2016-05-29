@@ -8,13 +8,6 @@ import logging
 l = logging.getLogger('angr.path_group')
 
 
-class CallReturn(simuvex.SimProcedure):
-    NO_RET = True
-
-    def run(self):
-        l.info("A PathGroup.call-created path returned!")
-        return
-
 
 class PathGroup(ana.Storable):
     """
@@ -81,79 +74,6 @@ class PathGroup(ana.Storable):
             'unconstrained': [ ]
         } if stashes is None else stashes
 
-    @classmethod
-    def call(cls, project, target, args=(), start=None, prototype=None, **kwargs): #pylint:disable=unused-argument
-        """
-        Calls a function in the binary, returning a PathGroup with the call set up.
-
-        :param project:     A Project instance.
-        :type  project:     angr.project.Project
-        :param target:      Address of function to call.
-        :param args:        Arguments to call the function with.
-        :param start:       Optional, path (or paths) to start the call with.
-        :param prototype:   Optional, A SimTypeFunction to typecheck arguments against.
-        :param kwargs:      Any other keyword args will be passed to the PathGroup constructor.
-        :returns:           A PathGroup calling the function.
-        :rtype:             PathGroup
-        """
-
-        fake_return_addr = project._extern_obj.get_pseudo_addr('FAKE_RETURN_ADDR')
-        if not project.is_hooked(fake_return_addr):
-            project.hook(fake_return_addr, CallReturn)
-        cc = simuvex.DefaultCC[project.arch.name](project.arch)
-
-        active_paths = []
-        if start is None:
-            active_paths.append(project.factory.path(addr=target))
-        elif hasattr(start, '__iter__'):
-            active_paths.extend(start)
-        else:
-            active_paths.append(start)
-
-        ret_addr = claripy.BVV(fake_return_addr, project.arch.bits)
-
-        def fix_arg(st, arg):
-            if isinstance(arg, str):
-                # store the string, nul-terminated, at the current heap location
-                # then return a pointer to that location
-                ptr = st.libc.heap_location
-                st.memory.store(ptr, st.se.BVV(arg, st.arch.bits))
-                st.memory.store(ptr + len(arg), st.se.BVV(0, 8))
-                st.libc.heap_location += len(arg) + 1
-                return ptr
-            elif isinstance(arg, (tuple, list)):
-                # fix the entries of the list, then store them in a
-                # NULL-terminated array at the current heap location and return
-                # a pointer to there
-                # N.B.: uses host endianness to store entries!!! mostly useful for string arrays
-                fixed_entries = [fix_arg(st, entry) for entry in arg]
-                cur_ptr = start_ptr = st.libc.heap_location
-                for entry in fixed_entries:
-                    st.memory.store(cur_ptr, entry, endness=st.arch.memory_endness)
-                    cur_ptr += entry.length
-
-                entry_length = fixed_entries[0].length if len(fixed_entries) > 0 else st.arch.bits
-                st.memory.store(cur_ptr, st.se.BVV(0, entry_length))
-
-                st.libc.heap_location = cur_ptr + entry_length
-                return start_ptr
-            elif isinstance(arg, (int, long)):
-                return st.se.BVV(arg, st.arch.bits)
-            elif isinstance(arg, StringSpec):
-                ptr = st.libc.heap_location
-                arg.dump(st, ptr)
-                st.libc.heap_location += len(arg)
-                return ptr
-            else:
-                return arg
-
-        for p in active_paths:
-            p.state.ip = target
-            fixed_args = [fix_arg(p.state, arg) for arg in args]
-            cc.setup_callsite(p.state, ret_addr, fixed_args)
-
-        return cls(project, active_paths=active_paths, **kwargs)
-
     #
     # Util functions
     #
@@ -216,7 +136,8 @@ class PathGroup(ana.Storable):
 
         if isinstance(condition, (tuple, set, list)):
             addrs = set(condition)
-            condition = lambda p: addrs.intersection(set(self._project.factory.block(p.addr).instruction_addrs))
+            condition = lambda p: p.addr in addrs or \
+                                  addrs.intersection(set(self._project.factory.block(p.addr).instruction_addrs))
         return condition
 
 
@@ -758,7 +679,7 @@ class PathGroup(ana.Storable):
     # High-level functionality
     #
 
-    def explore(self, stash=None, n=None, find=None, avoid=None, num_find=None, found_stash=None, avoid_stash=None):
+    def explore(self, stash=None, n=None, find=None, avoid=None, num_find=None, found_stash=None, avoid_stash=None, step_func=None):
         """
         A replacement for the Explorer surveyor. Tick stash "stash" forward (up to n times or until num_find paths are
         found), looking for condition "find", avoiding condition "avoid". Stashes found paths into "found_stash' and
@@ -771,6 +692,9 @@ class PathGroup(ana.Storable):
         :param num_find:    Stop when this many paths have been found.
         :param found_stash:
         :param avoid_stash:
+        :param step_func    If provided, should be a lambda that takes a PathGroup and returns a PathGroup. Will be
+                            called with the PathGroup at every step. TODO: This doesn't work with Veritesting because
+                            Veritesting calls step() and we don't pass this function to Veritesting yet.
         :return:            The resulting PathGroup.
         :rtype:             PathGroup
         """
@@ -780,14 +704,17 @@ class PathGroup(ana.Storable):
         avoid_stash = 'avoid' if avoid_stash is None else avoid_stash
         num_find = 1 if num_find is None else num_find
         cur_found = len(self.stashes[found_stash]) if found_stash in self.stashes else 0
+        def explore_step_func(pg):
+            pg = pg.stash(find, from_stash=stash, to_stash=found_stash) \
+              .stash(avoid, from_stash=stash, to_stash=avoid_stash) \
+              .prune(from_stash=found_stash)
+            if step_func is not None:
+                pg = step_func(pg)
+            return pg
 
-        explore_step_func = lambda pg: pg.stash(find, from_stash=stash, to_stash=found_stash) \
-                                         .stash(avoid, from_stash=stash, to_stash=avoid_stash) \
-                                         .prune(from_stash=found_stash)
         until_func = lambda pg: len(pg.stashes[found_stash]) >= cur_found + num_find
         return self.step(n=n, step_func=explore_step_func, until=until_func, stash=stash)
 
 from .path_hierarchy import PathHierarchy
 from .errors import PathUnreachableError, AngrError, AngrPathGroupError
 from .path import Path
-from .tablespecs import StringSpec

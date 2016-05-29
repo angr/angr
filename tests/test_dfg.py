@@ -20,7 +20,7 @@ def perform_one(binary_path):
                         load_options={'auto_load_libs': False},
                         )
     start = time.time()
-    cfg = proj.analyses.CFG(context_sensitivity_level=2)
+    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=2)
     end = time.time()
     duration = end - start
     l.info("CFG generated in %f seconds.", duration)

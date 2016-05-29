@@ -55,6 +55,5 @@ build_images:
     script:
     - angr-build angr
     - angr-build angr-ci
-    - angr-build worker
+    - cgc-build worker
     tags: ["docker-builder"]
-
