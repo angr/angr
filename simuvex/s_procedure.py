@@ -249,6 +249,25 @@ class SimProcedure(SimRun):
     def ty_ptr(self, ty):
         return SimTypePointer(self.state.arch, ty)
 
+    @classmethod
+    def static_exits(cls, arch, blocks):
+        """
+        Get new exits by performing static analysis and heuristics. This is a fast and best-effort approach to get new
+        exits for scenarios where states are not available (e.g. when building a fast CFG).
+
+        :param arch: Architecture of the current project.
+        :param list blocks: Blocks that are executed before reaching this SimProcedure.
+        :return: A list of tuples. Each tuple is (address, jumpkind).
+        :rtype: list
+        """
+
+        if cls.ADDS_EXITS:
+            raise SimProcedureError("static_exits() is not implemented for SimProcedure %s" % cls.__name__)
+
+        else:
+            # This SimProcedure does not add any new exit
+            return [ ]
+
     def __repr__(self):
         if self._custom_name is not None:
             return "<SimProcedure %s>" % self._custom_name
