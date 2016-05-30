@@ -279,7 +279,6 @@ def test_fakeret_edges_0():
     jumpkinds = set([ jumpkind for _, jumpkind in edges_1 ])
     nose.tools.assert_set_equal(jumpkinds, { 'Ijk_Call', 'Ijk_FakeRet' })
 
-
 def test_string_references():
 
     # Test AttributeError on 'addr' which occurs when searching for string
@@ -294,6 +293,18 @@ def test_string_references():
         string_references.append(f.string_references())
 
     # test passes if hasn't thrown an exception
+
+def test_arrays():
+
+    binary_path = os.path.join(test_location, "armhf", "test_arrays")
+    b = angr.Project(binary_path, load_options={'auto_load_libs': False})
+    cfg = b.analyses.CFGAccurate()
+
+    node = cfg.get_any_node(0x10415)
+    nose.tools.assert_is_not_none(node)
+
+    successors = cfg.get_successors(node)
+    nose.tools.assert_equal(len(successors), 2)
 
 def run_all():
     functions = globals()
