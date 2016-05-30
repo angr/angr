@@ -99,8 +99,10 @@ class SimStateLibc(SimStatePlugin):
         c.max_symbolic_strstr = self.max_symbolic_strstr
         c.max_symbolic_strchr = self.max_symbolic_strchr
         c.max_variable_size = self.max_variable_size
-        c.max_buffer_size = self.max_buffer_size
         c.max_str_len = self.max_str_len
+        c.max_buffer_size = self.max_buffer_size
+        c.max_strtol_len = self.max_strtol_len
+        c.max_memcpy_size = self.max_memcpy_size
         c.strtok_heap = self.strtok_heap[:]
         c.simple_strtok = self.simple_strtok
         c.strtok_token_size = self.strtok_token_size
