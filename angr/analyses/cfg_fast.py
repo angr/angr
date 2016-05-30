@@ -808,7 +808,21 @@ class CFGFast(Analysis, CFGBase):
         except (AngrTranslationError, AngrMemoryError):
             return
 
-        # TODO: Get exits from a SimProcedure
+        if hooker.ADDS_EXITS:
+            # Get two blocks ahead
+            grandparent_nodes = self.graph.predecessors(previous_src_node)
+            if not grandparent_nodes:
+                l.warning("%s is supposed to yield new exits, but it fails to do so.", hooker.__name__)
+                return
+            blocks_ahead = [
+                self.project.factory.block(grandparent_nodes[0].addr).vex,
+                self.project.factory.block(previous_src_node.addr).vex,
+            ]
+            new_exits = hooker.static_exits(self.project.arch, blocks_ahead)
+
+            for addr, jumpkind in new_exits:
+                self._add_exit(addr, jumpkind, current_function_addr, None, addr, cfg_node, None, remaining_entries,
+                           traced_addresses, function_exits)
 
     def _scan_irsb(self, addr, current_function_addr, function_exits, remaining_entries, traced_addresses,
                    previous_jumpkind, previous_src_node, previous_src_stmt_idx):  # pylint:disable=unused-argument
@@ -847,24 +861,33 @@ class CFGFast(Analysis, CFGBase):
         for suc in successors:
             stmt_idx, target, jumpkind = suc
 
-            if type(target) is pyvex.IRExpr.Const:
-                next_addr = target.con.value
-            elif type(target) in (pyvex.IRConst.U32, pyvex.IRConst.U64):
-                next_addr = target.value
+            self._add_exit(target, jumpkind, current_function_addr, irsb, addr, cfg_node, stmt_idx, remaining_entries,
+                           traced_addresses, function_exits)
+
+    def _add_exit(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, stmt_idx, remaining_entries,
+                  traced_addresses, function_exits):
+
+        if type(target) is pyvex.IRExpr.Const:
+            target_addr = target.con.value
+        elif type(target) in (pyvex.IRConst.U32, pyvex.IRConst.U64):
+            target_addr = target.value
+        elif type(target) in (int, long):
+            target_addr = target
+        else:
+            target_addr = None
+
+        if jumpkind == 'Ijk_Boring':
+            if target_addr is not None:
+                ce = CFGEntry(target_addr, current_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
+                              src_stmt_idx = stmt_idx)
+                remaining_entries.add(ce)
+
             else:
-                next_addr = None
+                l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
+                # Add it to our set. Will process it later if user allows.
+                self._indirect_jumps.add((addr, jumpkind))
 
-            if jumpkind == 'Ijk_Boring':
-                if next_addr is not None:
-                    ce = CFGEntry(next_addr, current_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
-                                  src_stmt_idx = stmt_idx)
-                    remaining_entries.add(ce)
-
-                else:
-                    l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
-                    # Add it to our set. Will process it later if user allows.
-                    self._indirect_jumps.add((addr, jumpkind))
-
+                if irsb:
                     # Test it on the initial state. Does it jump to a valid location?
                     # It will be resolved in case this is a .plt entry
                     tmp_simirsb = simuvex.SimIRSB(self._initial_state, irsb, addr=addr)
@@ -879,42 +902,42 @@ class CFGFast(Analysis, CFGBase):
                                               src_stmt_idx=stmt_idx)
                                 remaining_entries.add(ce)
 
-            elif jumpkind == 'Ijk_Call':
-                if next_addr is not None:
+        elif jumpkind == 'Ijk_Call':
+            if target_addr is not None:
 
-                    new_function_addr = next_addr
-                    return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
+                new_function_addr = target_addr
+                return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
 
-                    if current_function_addr != -1:
-                        self.kb.functions._add_call_to(
-                            current_function_addr,
-                            addr,
-                            next_addr,
-                            return_site
-                        )
-
-                    # Keep tracing from the call
-                    ce = CFGEntry(next_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
-                                  src_stmt_idx=stmt_idx)
-                    remaining_entries.add(ce)
-                    # Also, keep tracing from the return site
-                    ce = CFGEntry(return_site, current_function_addr, 'Ijk_Ret', last_addr=addr, src_node=cfg_node,
-                                  src_stmt_idx=stmt_idx)
-                    remaining_entries.add(ce)
-
-                else:
-                    l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
-
-                    # Add it to our set. Will process it later if user allows.
-                    self._indirect_jumps.add((addr, jumpkind))
-
-            elif jumpkind == "Ijk_Ret":
                 if current_function_addr != -1:
-                    function_exits[current_function_addr].add(next_addr)
+                    self.kb.functions._add_call_to(
+                        current_function_addr,
+                        addr,
+                        target_addr,
+                        return_site
+                    )
+
+                # Keep tracing from the call
+                ce = CFGEntry(target_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
+                              src_stmt_idx=stmt_idx)
+                remaining_entries.add(ce)
+                # Also, keep tracing from the return site
+                ce = CFGEntry(return_site, current_function_addr, 'Ijk_Ret', last_addr=addr, src_node=cfg_node,
+                              src_stmt_idx=stmt_idx)
+                remaining_entries.add(ce)
 
             else:
-                # TODO: Support more jumpkinds
-                l.debug("Unsupported jumpkind %s", jumpkind)
+                l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
+
+                # Add it to our set. Will process it later if user allows.
+                self._indirect_jumps.add((addr, jumpkind))
+
+        elif jumpkind == "Ijk_Ret":
+            if current_function_addr != -1:
+                function_exits[current_function_addr].add(target_addr)
+
+        else:
+            # TODO: Support more jumpkinds
+            l.debug("Unsupported jumpkind %s", jumpkind)
 
     def _collect_data_references(self, irsb):
         """
