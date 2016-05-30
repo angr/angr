@@ -93,7 +93,7 @@ def run_scanf(threads):
     # check that all of the outputs were seen
     nose.tools.assert_equal(total_outputs, len(expected_outputs))
 
-def test_sscanf():
+def test_scanf():
     yield run_scanf, None
     yield run_scanf, 8
 
