@@ -168,6 +168,9 @@ class Tracer(object):
 
                 # expected behavor, the dynamic trace and symbolic trace hit
                 # the same basic block
+                if self.bb_cnt >= len(self.trace):
+                    return self.path_group
+
                 if current.addr == self.trace[self.bb_cnt]:
                     self.bb_cnt += 1
 
@@ -341,7 +344,7 @@ class Tracer(object):
 
         # keep calling next_branch until it quits
         branches = None
-        while branches is None or len(branches.active):
+        while (branches is None or len(branches.active)) and self.bb_cnt < len(self.trace):
             branches = self.next_branch()
 
             # if we spot a crashed path in crash mode return the goods
@@ -395,12 +398,13 @@ class Tracer(object):
                 return (self.previous, state)
 
         # this is a concrete trace, there should only be ONE path
-        if len(branches.deadended) != 1:
+        all_paths = branches.active + branches.deadended
+        if len(all_paths) != 1:
             raise TracerMisfollowError("program did not behave correctly, \
-                    expected only one path to deadend")
+                    expected only one path")
 
         # the caller is responsible for removing preconstraints
-        return (branches.deadended[0], None)
+        return all_paths[0], None
 
     def remove_preconstraints(self, path):
 
