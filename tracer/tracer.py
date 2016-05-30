@@ -372,6 +372,8 @@ class Tracer(object):
                 insts = 0 if inst_cnt == 0 else inst_cnt - 1
                 succs = self.previous.step(num_inst=insts)
                 if len(succs) > 0:
+                    if len(succs) > 1:
+                        succs = [s for s in succs if s.state.se.satisfiable()]
                     self.previous = succs[0]
 
                 # remove the preconstraints
