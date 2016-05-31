@@ -75,7 +75,7 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
         """
         All parameters are optional.
 
-        :param context_sensitivity_level:           The level of context-sensitivity of this CFG.
+        :param context_sensitivity_level:           The level of context-sensitivity of this CFG (see documentation for further details)
                                                     It ranges from 0 to infinity. Default 1.
         :param avoid_runs:                          A list of runs to avoid.
         :param enable_function_hints:               Whether to use function hints (constants that might be used as exit targets) or not.
