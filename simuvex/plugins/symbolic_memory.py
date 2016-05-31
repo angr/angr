@@ -271,7 +271,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     # Address concretization
     #
 
-    def _symbolic_size_range(self, size):
+    def _resolve_size_range(self, size):
+        if not self.state.se.symbolic(size):
+            i = self.state.se.any_int(size)
+            return i, i
+
         if options.APPROXIMATE_MEMORY_SIZES in self.state.options:
             max_size_approx = self.state.se.max_int(size, exact=True)
             min_size_approx = self.state.se.min_int(size, exact=True)
@@ -572,7 +576,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             l.warning("Concretizing symbolic length. Much sad; think about implementing.")
 
         # for now, we always load the maximum size
-        _,max_size = self._symbolic_size_range(size)
+        _,max_size = self._resolve_size_range(size)
         if options.ABSTRACT_MEMORY not in self.state.options and self.state.se.symbolic(size):
             self.state.add_constraints(size == max_size, action=True)
 
@@ -1020,7 +1024,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         src_memory = self if src_memory is None else src_memory
         dst_memory = self if dst_memory is None else dst_memory
 
-        _,max_size = self._symbolic_size_range(size)
+        _,max_size = self._resolve_size_range(size)
         if max_size == 0:
             return None, [ ]
 
