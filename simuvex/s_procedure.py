@@ -250,7 +250,7 @@ class SimProcedure(SimRun):
         return SimTypePointer(self.state.arch, ty)
 
     @classmethod
-    def static_exits(cls, arch, blocks):
+    def static_exits(cls, arch, blocks):  # pylint: disable=unused-argument
         """
         Get new exits by performing static analysis and heuristics. This is a fast and best-effort approach to get new
         exits for scenarios where states are not available (e.g. when building a fast CFG).
