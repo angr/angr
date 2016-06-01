@@ -33,12 +33,13 @@ class SimUnicorn(SimRun):
             self.state.unicorn.destroy()
 
         self.success = True
-        self.state.scratch.executed_block_count += self.state.unicorn.steps
 
         # FIXME what's this?
         guard = self.state.se.true
 
         if self.state.unicorn.stop_reason == STOP.STOP_SYMBOLIC:
+            # subtract one step because it counted the block it couldn't execute
+            self.state.unicorn.steps -= 1
             self.success = self.state.unicorn.steps > 0
 
         if self.state.unicorn.error is not None:
@@ -50,6 +51,8 @@ class SimUnicorn(SimRun):
             # error from unicorn
             self.success = False
             raise unicorn.UcError(self.state.unicorn.errno)
+
+        self.state.scratch.executed_block_count += self.state.unicorn.steps
 
         if self.state.unicorn.jumpkind.startswith('Ijk_Sys'):
             self.state.ip = self.state.unicorn._syscall_pc
