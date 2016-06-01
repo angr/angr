@@ -15,7 +15,14 @@ class FunctionDict(dict):
         super(FunctionDict, self).__init__(*args, **kwargs)
 
     def __missing__(self, key):
-        addr, is_syscall = key
+        if isinstance(key, tuple) and len(key) == 2:
+            addr, is_syscall = key
+        elif isinstance(key, int):
+            addr = key
+            is_syscall = False
+        else:
+            raise ValueError("FunctionDict.__missing__ does not support key of type %s" % type(key))
+
         t = Function(self._backref, addr, syscall=is_syscall)
         self[key] = t
         return t
@@ -104,22 +111,41 @@ class FunctionManager(collections.Mapping):
     #
 
     def __getitem__(self, k):
-        f = self.function(name=k) if isinstance(k, str) else self.function(addr=k[0], syscall=k[1])
+        if isinstance(k, int):
+            f = self.function(addr=k)
+        elif isinstance(k, str):
+            f = self.function(name=k)
+        elif isinstance(k, tuple) and len(k) == 2:
+            f = self.function(addr=k[0], syscall=k[1])
+        else:
+            raise ValueError("FunctionManager.__getitem__ deos not support keys of type %s" % type(k))
+
         if f is None:
             raise KeyError(k)
+
         return f
 
     def __setitem__(self, k, v):
-        if not isinstance(k, tuple):
-            raise ValueError("FunctionManager.__setitem__ keys should be a tuple")
-        if not isinstance(k[0], int):
-            raise ValueError("The first element of a FunctionManager.__setitem__ key must be an int")
-        if not isinstance(k[1], bool):
-            raise ValueError("The second element of a FunctionManager.__setitem__ key must be a bool")
-        self._function_map[k] = v
+        if isinstance(k, int):
+            # By default a non-syscall function is created
+            key = (k, False)
+            self._function_map[key] = v
+        elif isinstance(k, tuple) and len(k) == 2:
+            if not isinstance(k[0], int):
+                raise ValueError("The first element of a FunctionManager.__setitem__ key must be an int")
+            if not isinstance(k[1], bool):
+                raise ValueError("The second element of a FunctionManager.__setitem__ key must be a bool")
+            self._function_map[k] = v
+        else:
+            raise ValueError("FunctionManager.__setitem__ keys should be either an int or a 2-tuple")
 
     def __delitem__(self, k):
-        del self._function_map[k]
+        if isinstance(k, tuple) and len(k) == 2:
+            del self._function_map[k]
+        elif isinstance(k, int):
+            del self._function_map[(k, False)]
+        else:
+            raise ValueError("FunctionManager.__delitem__ does not support keys of type %s" % type(k))
 
     def __len__(self):
         return len(self._function_map)
