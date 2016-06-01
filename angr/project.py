@@ -358,6 +358,7 @@ class Project(object):
 
         self.loader.provide_symbol(self._extern_obj, symbol_name, pseudo_vaddr)
 
+        return pseudo_vaddr
     #
     # Pickling
     #

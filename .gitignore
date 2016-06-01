@@ -17,3 +17,5 @@ angr/tests/screenlog.0
 angr/screenlog.0
 .idea
 *.egg-info
+/build
+/tags

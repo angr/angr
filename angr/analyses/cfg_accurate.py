@@ -74,13 +74,13 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
                  ):
         """
         All parameters are optional.
-        
-        :param context_sensitivity_level:           The level of context-sensitivity of this CFG.
+
+        :param context_sensitivity_level:           The level of context-sensitivity of this CFG (see documentation for further details)
                                                     It ranges from 0 to infinity. Default 1.
         :param avoid_runs:                          A list of runs to avoid.
-        :param enable_function_hints:               Whether to use function hints or now.
+        :param enable_function_hints:               Whether to use function hints (constants that might be used as exit targets) or not.
         :param call_depth:                          How deep in the call stack to trace.
-        :param call_tracing_filter:                 ??? what the hell is this.
+        :param call_tracing_filter:                 Filter to apply on a given path and jumpkind to determine if it should be skipped when call_depth is reached
         :param initial_state:                       An initial state to use to begin analysis.
         :param starts:                              A list of addresses at which to begin analysis
         :param keep_state:                          Whether to keep the SimStates for each CFGNode.
