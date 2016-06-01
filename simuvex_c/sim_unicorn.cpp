@@ -144,7 +144,8 @@ public:
 		for (auto it = active_pages.begin(); it != active_pages.end(); it++) {
 			// only poor guys consider about memory leak :(
 			LOG_D("delete active page %#lx", it->first);
-			delete it->second;
+			// delete should use the bracket operator since PageBitmap is an array typedef
+			delete[] it->second;
 		}
 		active_pages.clear();
 	}
