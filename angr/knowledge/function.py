@@ -364,9 +364,17 @@ class Function(object):
 
         self._local_transition_graph = None
 
-    def _fakeret_to(self, from_node, to_node):
+    def _fakeret_to(self, from_node, to_node, confirmed=None):
         self._register_nodes(from_node, to_node)
-        self.transition_graph.add_edge(from_node, to_node, type='fake_return')
+        if confirmed is None:
+            self.transition_graph.add_edge(from_node, to_node, type='fake_return')
+        else:
+            self.transition_graph.add_edge(from_node, to_node, type='fake_return', confirmed=confirmed)
+
+        self._local_transition_graph = None
+
+    def _remove_fakeret(self, from_node, to_node):
+        self.transition_graph.remove_edge(from_node, to_node)
 
         self._local_transition_graph = None
 

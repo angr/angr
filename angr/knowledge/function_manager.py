@@ -60,8 +60,19 @@ class FunctionManager(collections.Mapping):
         self._function_map[function_addr]._add_call_site(from_node.addr, to_addr, retn_node.addr if retn_node else None)
         self.callgraph.add_edge(function_addr, to_addr)
 
-    def _add_fakeret_to(self, function_addr, from_node, to_node):
-        self._function_map[function_addr]._fakeret_to(from_node, to_node)
+    def _add_fakeret_to(self, function_addr, from_node, to_node, confirmed=None):
+        if type(from_node) in (int, long):
+            from_node = self._kb._project.factory.snippet(from_node)
+        if type(to_node) in (int, long):
+            to_node = self._kb._project.factory.snippet(to_node)
+        self._function_map[function_addr]._fakeret_to(from_node, to_node, confirmed=confirmed)
+
+    def _remove_fakeret(self, function_addr, from_node, to_node):
+        if type(from_node) in (int, long):
+            from_node = self._kb._project.factory.snippet(from_node)
+        if type(to_node) in (int, long):
+            to_node = self._kb._project.factory.snippet(to_node)
+        self._function_map[function_addr]._remove_fakeret(from_node, to_node)
 
     def _add_return_from(self, function_addr, from_node, to_node=None): #pylint:disable=unused-argument
         if type(from_node) in (int, long):

@@ -3,7 +3,7 @@ import logging
 
 from cle import ELF, PE
 
-from ..knowledge import Function
+from ..knowledge import Function, HookNode
 from ..analysis import Analysis
 from ..errors import AngrCFGError
 
@@ -351,9 +351,13 @@ class CFGBase(Analysis):
             # Let's first see if it's a known SimProcedure that does not return
             if self.project.is_hooked(func.addr):
                 hooker = self.project.hooked_by(func.addr)
-                if hasattr(hooker, 'NO_RET') and hooker.NO_RET:
-                    func.returning = False
-                    changes['functions_do_not_return'].append(func)
+                if hasattr(hooker, 'NO_RET'):
+                    if hooker.NO_RET:
+                        func.returning = False
+                        changes['functions_do_not_return'].append(func)
+                    else:
+                        func.returning = True
+                        changes['functions_return'].append(func)
                     continue
 
             tmp_graph = networkx.DiGraph(func.graph)
@@ -394,24 +398,32 @@ class CFGBase(Analysis):
             for local_endpoint in temporary_local_endpoints:
 
                 if local_endpoint in func.transition_graph.nodes():
+
+                    in_edges = func.transition_graph.in_edges([local_endpoint], data=True)
+                    transition_type = None if not in_edges else in_edges[0][2]['type']
+
                     out_edges = func.transition_graph.out_edges([local_endpoint], data=True)
 
                     if not out_edges:
-                        temporary_endpoints.append(local_endpoint)
+                        temporary_endpoints.append((transition_type, local_endpoint))
 
                     else:
                         for src, dst, data in out_edges:
                             t = data['type']
 
                             if t != 'fake_return':
-                                temporary_endpoints.append(dst)
+                                temporary_endpoints.append((transition_type, dst))
 
-            for endpoint in temporary_endpoints:
+            for transition_type, endpoint in temporary_endpoints:
                 if endpoint in func.nodes:
                     # Somehow analysis terminated here (e.g. an unsupported instruction, or it doesn't generate an exit)
 
                     if isinstance(endpoint, Function):
-                        all_endpoints_returning.append(endpoint.returning)
+                        all_endpoints_returning.append((transition_type, endpoint.returning))
+
+                    elif isinstance(endpoint, HookNode):
+                        hooker = self.project.hooked_by(endpoint.addr)
+                        all_endpoints_returning.append((transition_type, not hooker.NO_RET))
 
                     else:
                         successors = [ dst for _, dst in func.transition_graph.out_edges(endpoint) ]
@@ -428,9 +440,9 @@ class CFGBase(Analysis):
                                         all_noret = False
 
                         if all_noret:
-                            all_endpoints_returning.append(True)
+                            all_endpoints_returning.append((transition_type, True))
                         else:
-                            all_endpoints_returning.append(None)
+                            all_endpoints_returning.append((transition_type, None))
 
                 else:
                     # This block is not a member of the current function
@@ -443,9 +455,13 @@ class CFGBase(Analysis):
 
                     all_endpoints_returning.append(call_target_func.returning)
 
-            if all([i is False for i in all_endpoints_returning]):
+            if all([i is False for _, i in all_endpoints_returning]):
                 # All target functions that this function calls is not returning
                 func.returning = False
                 changes['functions_do_not_return'].append(func)
+
+            if all_endpoints_returning and all([ tpl == ("transition", True) for tpl in all_endpoints_returning ]):
+                func.returning = True
+                changes['functions_return'].append(func)
 
         return changes

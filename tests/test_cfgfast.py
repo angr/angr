@@ -11,13 +11,14 @@ l = logging.getLogger("angr.tests.test_cfgfast")
 
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
-def cfg_fast(arch, binary_path, func_addrs):
+def cfg_fast(arch, binary_path, func_addrs, func_features):
     """
     Generate a CFGFast analysis result on the given binary, and test if all specified functions are found
 
     :param arch: the architecture, will be prepended to `binary_path`
     :param binary_path: path to the binary under the architecture directory
     :param func_addrs: A collection of function addresses that should be recovered
+    :param func_features: A collection of features for some of the functions
     :return: None
     """
 
@@ -27,9 +28,19 @@ def cfg_fast(arch, binary_path, func_addrs):
     cfg = proj.analyses.CFGFast()
     nose.tools.assert_true(set(cfg.kb.functions.keys()).issuperset(func_addrs))
 
+    for func_addr, feature_dict in func_features.iteritems():
+        returning = feature_dict.get("returning", "undefined")
+        if returning is not "undefined":
+            nose.tools.assert_is(cfg.kb.functions.function(addr=func_addr).returning, returning)
+
     # Segment only
     cfg = proj.analyses.CFGFast(force_segment=True)
     nose.tools.assert_true(set(cfg.kb.functions.keys()).issuperset(func_addrs))
+
+    for func_addr, feature_dict in func_features.iteritems():
+        returning = feature_dict.get("returning", "undefined")
+        if returning is not "undefined":
+            nose.tools.assert_is(cfg.kb.functions.function(addr=func_addr).returning, returning)
 
 def test_cfg_0():
     filename = 'cfg_0'
@@ -46,8 +57,12 @@ def test_cfg_0():
     }
     arches = functions.keys()
 
+    function_features = {
+        'x86_64': {}
+    }
+
     for arch in arches:
-        yield cfg_fast, arch, filename, functions[arch]
+        yield cfg_fast, arch, filename, functions[arch], function_features[arch]
 
 def test_cfg_0_pe():
     filename = 'cfg_0_pe'
@@ -60,8 +75,12 @@ def test_cfg_0_pe():
     }
     arches = functions.keys()
 
+    function_features = {
+        'x86_64': {}
+    }
+
     for arch in arches:
-        yield cfg_fast, arch, filename, functions[arch]
+        yield cfg_fast, arch, filename, functions[arch], function_features[arch]
 
 def test_fauxware():
     filename = "fauxware"
@@ -90,10 +109,24 @@ def test_fauxware():
         }
     }
 
+    function_features = {
+        'x86_64':
+            {
+                0x400570: # plt.exit
+                    {
+                        "returning": False
+                    },
+                0x4006fd: # rejected
+                    {
+                        "returning": False
+                    }
+            }
+    }
+
     arches = functions.keys()
 
     for arch in arches:
-        yield cfg_fast, arch, filename, functions[arch]
+        yield cfg_fast, arch, filename, functions[arch], function_features[arch]
 
 def test_segment_list_0():
     seg_list = SegmentList()
@@ -188,14 +221,14 @@ def main():
     for func in segmentlist_tests:
         func()
 
-    for func, arch, filename, functions in test_cfg_0():
-        func(arch, filename, functions)
+    for func, arch, filename, functions, features in test_cfg_0():
+        func(arch, filename, functions, features)
 
-    for func, arch, filename, functions in test_cfg_0_pe():
-        func(arch, filename, functions)
+    for func, arch, filename, functions, features in test_cfg_0_pe():
+        func(arch, filename, functions, features)
 
-    for func, arch, filename, functions in test_fauxware():
-        func(arch, filename, functions)
+    for func, arch, filename, functions, features in test_fauxware():
+        func(arch, filename, functions, features)
 
 if __name__ == "__main__":
     main()
