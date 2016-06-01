@@ -11,14 +11,14 @@ l = logging.getLogger("angr.tests.test_cfgfast")
 
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
-def cfg_fast(arch, binary_path, func_addrs, func_features):
+def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
     """
-    Generate a CFGFast analysis result on the given binary, and test if all specified functions are found
+    Generate a fast CFG on the given binary, and test if all specified functions are found
 
-    :param arch: the architecture, will be prepended to `binary_path`
-    :param binary_path: path to the binary under the architecture directory
-    :param func_addrs: A collection of function addresses that should be recovered
-    :param func_features: A collection of features for some of the functions
+    :param str arch: the architecture, will be prepended to `binary_path`
+    :param str binary_path: path to the binary under the architecture directory
+    :param dict func_addrs: A collection of function addresses that should be recovered
+    :param dict func_features: A collection of features for some of the functions
     :return: None
     """
 
@@ -42,6 +42,26 @@ def cfg_fast(arch, binary_path, func_addrs, func_features):
         if returning is not "undefined":
             nose.tools.assert_is(cfg.kb.functions.function(addr=func_addr).returning, returning)
 
+def cfg_fast_edges_check(arch, binary_path, edges):
+    """
+    Generate a fast CFG on the given binary, and test if all edges are found.
+
+    :param str arch: the architecture, will be prepended to `binary_path`
+    :param str binary_path: path to the binary under the architecture directory
+    :param list edges: a list of edges
+    :return: None
+    """
+
+    path = os.path.join(test_location, arch, binary_path)
+    proj = angr.Project(path, load_options={'auto_load_libs': False})
+
+    cfg = proj.analyses.CFGFast()
+
+    for src, dst in edges:
+        src_node = cfg.get_any_node(src)
+        dst_node = cfg.get_any_node(dst)
+        nose.tools.assert_in(dst_node, src_node.successors)
+
 def test_cfg_0():
     filename = 'cfg_0'
     functions = {
@@ -62,7 +82,7 @@ def test_cfg_0():
     }
 
     for arch in arches:
-        yield cfg_fast, arch, filename, functions[arch], function_features[arch]
+        yield cfg_fast_functions_check, arch, filename, functions[arch], function_features[arch]
 
 def test_cfg_0_pe():
     filename = 'cfg_0_pe'
@@ -80,7 +100,7 @@ def test_cfg_0_pe():
     }
 
     for arch in arches:
-        yield cfg_fast, arch, filename, functions[arch], function_features[arch]
+        yield cfg_fast_functions_check, arch, filename, functions[arch], function_features[arch]
 
 def test_fauxware():
     filename = "fauxware"
@@ -126,7 +146,23 @@ def test_fauxware():
     arches = functions.keys()
 
     for arch in arches:
-        yield cfg_fast, arch, filename, functions[arch], function_features[arch]
+        yield cfg_fast_functions_check, arch, filename, functions[arch], function_features[arch]
+
+def test_cfg_loop_unrolling():
+    filename = "cfg_loop_unrolling"
+    edges = {
+        'x86_64': {
+            (0x400658, 0x400636),
+            (0x400658, 0x400661),
+            (0x400651, 0x400636),
+            (0x400651, 0x400661),
+        }
+    }
+
+    arches = edges.keys()
+
+    for arch in arches:
+        yield cfg_fast_edges_check, arch, filename, edges[arch]
 
 def test_segment_list_0():
     seg_list = SegmentList()
@@ -221,14 +257,17 @@ def main():
     for func in segmentlist_tests:
         func()
 
-    for func, arch, filename, functions, features in test_cfg_0():
-        func(arch, filename, functions, features)
+    for args in test_cfg_0():
+        args[0](*args[1:])
 
-    for func, arch, filename, functions, features in test_cfg_0_pe():
-        func(arch, filename, functions, features)
+    for args in test_cfg_0_pe():
+        args[0](*args[1:])
 
-    for func, arch, filename, functions, features in test_fauxware():
-        func(arch, filename, functions, features)
+    for args in test_fauxware():
+        args[0](*args[1:])
+
+    for args in test_cfg_loop_unrolling():
+        args[0](*args[1:])
 
 if __name__ == "__main__":
     main()
