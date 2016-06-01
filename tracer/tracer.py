@@ -164,6 +164,10 @@ class Tracer(object):
         while len(self.path_group.active) == 1:
             current = self.path_group.active[0]
 
+            if current.state.scratch.executed_block_count > 1:
+                # executed unicorn fix bb_cnt
+                self.bb_cnt += current.state.scratch.executed_block_count - 1
+
             if not self.no_follow:
 
                 # expected behavor, the dynamic trace and symbolic trace hit
