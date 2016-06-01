@@ -2,21 +2,21 @@ import logging
 import string
 import math
 import re
-from datetime import datetime
 from collections import defaultdict
 
-import networkx
 import progressbar
 
 import simuvex
 import pyvex
 
+from .cfg_node import CFGNode
+from .cfg_base import CFGBase
+from .forward_analysis import ForwardAnalysis
+from ..blade import Blade
 from ..analysis import register_analysis
 from ..surveyors import Slicecutor
 from ..annocfg import AnnotatedCFG
-from ..errors import AngrForwardAnalysisSkipEntry
-from .cfg_base import CFGBase
-from .forward_analysis import ForwardAnalysis
+from ..errors import AngrForwardAnalysisSkipEntry, AngrTranslationError, AngrMemoryError
 
 l = logging.getLogger("angr.analyses.cfg_fast")
 
@@ -44,6 +44,9 @@ class Segment(object):
     @property
     def size(self):
         return self.end - self.start
+
+    def copy(self):
+        return Segment(self.start, self.end, self.sort)
 
 class SegmentList(object):
     """
@@ -185,8 +188,8 @@ class SegmentList(object):
                 new_start = min(previous_segment.start, segment.start)
                 new_size = new_end - new_start
                 self._list = self._list[ : previous_segment_pos] + \
-                             [ Segment(new_start, new_end, segment.sort) ] + \
-                            self._list[ segment_pos + 1 : ]
+                            [ Segment(new_start, new_end, segment.sort) ] + \
+                            self._list[ segment_pos + 1: ]
                 bytes_changed = -(segment.size + previous_segment.size - new_size)
 
                 merged = True
@@ -299,7 +302,7 @@ class SegmentList(object):
         idx = self._search(address)
         if len(self._list) <= idx:
             return False
-        if address >= self._list[idx].start and address < self._list[idx].end:
+        if self._list[idx].start <= address < self._list[idx].end:
             return True
         if idx > 0 and address < self._list[idx - 1].end:
             return True
@@ -331,6 +334,12 @@ class SegmentList(object):
         self._insert_and_merge(address, size, sort, idx)
 
         # self._debug_check()
+
+    def copy(self):
+        n = SegmentList()
+
+        n._list = [ a.copy() for a in self._list ]
+        n._bytes_occupied = self._bytes_occupied
 
     #
     # Properties
@@ -365,6 +374,7 @@ class MemoryData(object):
 
     def __repr__(self):
         return "\\%#x, %d bytes, %s/" % (self.address, self.size, self.sort)
+
 
 class MemoryDataReference(object):
     def __init__(self, ref_ins_addr):
@@ -502,6 +512,9 @@ class CFGFast(ForwardAnalysis, CFGBase):
         self._pending_entries = None
         self._traced_addresses = None
         self._function_returns = None
+        self._function_exits = None
+
+        self._graph = None
 
         # Start working!
         self._analyze()
@@ -567,7 +580,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 # The list is ordered!
                 break
 
-            if addr >= start and addr < end:
+            if start <= addr < end:
                 return True
 
         return False
@@ -631,7 +644,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         # Make sure curr_addr exists in binary
         accepted = False
         for start, end in self._exec_mem_regions:
-            if curr_addr >= start and curr_addr < end:
+            if start <= curr_addr < end:
                 # accept
                 accepted = True
                 break
@@ -724,7 +737,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         # should record all exits from a single function, and then add
         # necessary calling edges in our call map during the post-processing
         # phase.
-        self.function_exits = defaultdict(set)
+        self._function_exits = defaultdict(set)
 
         self._initialize_cfg()
 
@@ -761,14 +774,10 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
     def _pre_entry_handling(self, entry, _locals):
 
-        maybe_function = False
         addr = entry.addr
 
         if self._seg_list.is_occupied(addr):
             raise AngrForwardAnalysisSkipEntry()
-
-        if addr in self._function_addresses_from_symbols:
-            maybe_function = True
 
         if self._show_progressbar or self._progress_callback:
             percentage = self._seg_list.occupied_size * 100.0 / self._exec_mem_region_size
@@ -804,6 +813,12 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         if successor.addr not in self._traced_addresses:
             self._entries.append(successor)
+
+    def _merge_entries(self, entries):
+        pass
+
+    def _widen_entries(self, entries):
+        pass
 
     def _post_entry_handling(self, entry, successors, _locals):
         pass
@@ -960,7 +975,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
             return self._scan_irsb(addr, current_function_addr, previous_jumpkind, previous_src_node,
                                    previous_src_stmt_idx)
 
-    def _scan_procedure(self, addr, current_function_addr, previous_jumpkind, previous_src_node, previous_src_stmt_idx):  # pylint:disable=unused-argument
+    def _scan_procedure(self, addr, current_function_addr, previous_jumpkind,  # pylint:disable=unused-argument
+                        previous_src_node, previous_src_stmt_idx):
         try:
             hooker = self.project.hooked_by(addr)
 
@@ -1028,7 +1044,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         # Get all possible successors
         irsb_next, jumpkind = irsb.next, irsb.jumpkind
         successors = [(i, stmt.dst, stmt.jumpkind) for i, stmt in enumerate(irsb.statements)
-                      if type(stmt) is pyvex.IRStmt.Exit]
+                      if isinstance(stmt, pyvex.IRStmt.Exit)]
         successors.append(('default', irsb_next, jumpkind))
 
         entries = [ ]
@@ -1042,13 +1058,14 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         return entries
 
-    def _create_entries(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, stmt_idx, previous_src_node):
+    def _create_entries(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, stmt_idx,
+                        previous_src_node):
 
-        if type(target) is pyvex.IRExpr.Const:
+        if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
             target_addr = target.con.value
-        elif type(target) in (pyvex.IRConst.U32, pyvex.IRConst.U64):
+        elif type(target) in (pyvex.IRConst.U32, pyvex.IRConst.U64):  # pylint: disable=unidiomatic-typecheck
             target_addr = target.value
-        elif type(target) in (int, long):
+        elif type(target) in (int, long):  # pylint: disable=unidiomatic-typecheck
             target_addr = target
         else:
             target_addr = None
@@ -1149,7 +1166,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         elif jumpkind == "Ijk_Ret":
             if current_function_addr != -1:
-                self.function_exits[current_function_addr].add(target_addr)
+                self._function_exits[current_function_addr].add(target_addr)
 
         else:
             # TODO: Support more jumpkinds
@@ -1168,24 +1185,24 @@ class CFGFast(ForwardAnalysis, CFGBase):
         # helper methods
 
         def _process(irsb_, stmt_, data_):
-            if type(data_) is pyvex.expr.Const:
+            if type(data_) is pyvex.expr.Const:  # pylint: disable=unidiomatic-typecheck
                 val = data_.con.value
                 self._add_data_reference(irsb_, stmt_, val)
 
         for stmt in irsb.statements:
-            if type(stmt) is pyvex.IRStmt.WrTmp:
-                if type(stmt.data) is pyvex.IRExpr.Load:
+            if type(stmt) is pyvex.IRStmt.WrTmp:  # pylint: disable=unidiomatic-typecheck
+                if type(stmt.data) is pyvex.IRExpr.Load:  # pylint: disable=unidiomatic-typecheck
                     # load
                     # e.g. t7 = LDle:I64(0x0000000000600ff8)
                     _process(irsb, stmt, stmt.data.addr)
 
-            elif type(stmt) is pyvex.IRStmt.Put:
+            elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck
                 # put
                 # e.g. PUT(rdi) = 0x0000000000400714
                 if stmt.offset not in (self._initial_state.arch.ip_offset, ):
                     _process(irsb, stmt, stmt.data)
 
-    def _add_data_reference(self, irsb, stmt, data_addr):
+    def _add_data_reference(self, irsb, stmt, data_addr):  # pylint: disable=unused-argument
         """
 
         :param irsb:
@@ -1226,18 +1243,18 @@ class CFGFast(ForwardAnalysis, CFGBase):
         # Is it an unicode string?
         if _cv(block[1]) == 0 and _cv(block[3]) == 0:
             if chr(_cv(block[0])) in string.printable and chr(_cv(block[2])) in string.printable + "\x00":
-                r, c, m = self._initial_state.memory.find(data_addr, "\x00\x00", max_search=4096)
+                r, c, _ = self._initial_state.memory.find(data_addr, "\x00\x00", max_search=4096)
 
                 if c and _c(c[0]) is True and _cv(r) - data_addr > 0:
                     length = _cv(r) - data_addr
                     block_ = self._initial_state.memory.load(data_addr, length)
 
                     if all([ chr(_cv(block[i*8+7:i*8])) in string.printable for i in xrange(len(block_) / 8, 2) ]) and \
-                        all([ _cv(block[i*8+7:i*8]) == 0 for i in xrange(1, len(block_) / 8, 2) ]):
+                            all([ _cv(block[i*8+7:i*8]) == 0 for i in xrange(1, len(block_) / 8, 2) ]):
                         return "unicode", length + 2
 
         # Is it a null-terminated printable string?
-        r, c, m = self._initial_state.memory.find(data_addr, "\x00", max_search=4096)
+        r, c, _ = self._initial_state.memory.find(data_addr, "\x00", max_search=4096)
 
         if c and _c(c[0]) is True and _cv(r) - data_addr > 0:
             # TODO: Add a cap for the length
@@ -1341,15 +1358,13 @@ class CFGFast(ForwardAnalysis, CFGBase):
         b.slice.remove_nodes_from(past_stmts)
 
         # Debugging output
-        """
-        for addr, stmt_idx in sorted(list(b.slice.nodes())):
-            irsb = self.project.factory.block(addr).vex
-            stmts = irsb.statements
-            print "%x: %d | " % (addr, stmt_idx),
-            print "%s" % stmts[stmt_idx],
-            print "%d" % b.slice.in_degree((addr, stmt_idx))
-        print ""
-        """
+        # for addr, stmt_idx in sorted(list(b.slice.nodes())):
+        #    irsb = self.project.factory.block(addr).vex
+        #    stmts = irsb.statements
+        #    print "%x: %d | " % (addr, stmt_idx),
+        #    print "%s" % stmts[stmt_idx],
+        #    print "%d" % b.slice.in_degree((addr, stmt_idx))
+        # print ""
 
         # Get all sources
         sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
@@ -1400,15 +1415,16 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
                 if total_cases > self._indirect_jump_target_limit:
                     # We resolved too many targets for this indirect jump. Something might have gone wrong.
-                    l.warning("%d targets are resolved for the indirect jump at %#x. It may not be a jump table"
-                              , total_cases, addr)
+                    l.warning("%d targets are resolved for the indirect jump at %#x. It may not be a jump table",
+                              total_cases, addr)
                     return False, None
 
                     # Or alternatively, we can ask user, which is meh...
                     #
                     # jump_base_addr = int(raw_input("please give me the jump base addr: "), 16)
                     # total_cases = int(raw_input("please give me the total cases: "))
-                    # jump_target = state.se.SI(bits=64, lower_bound=jump_base_addr, upper_bound=jump_base_addr + (total_cases - 1) * 8, stride=8)
+                    # jump_target = state.se.SI(bits=64, lower_bound=jump_base_addr, upper_bound=jump_base_addr +
+                    # (total_cases - 1) * 8, stride=8)
 
                 jump_table = [ ]
 
@@ -1503,15 +1519,16 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
                 if total_cases > self._indirect_jump_target_limit:
                     # We resolved too many targets for this indirect jump. Something might have gone wrong.
-                    l.warning("%d targets are resolved for the indirect jump at %#x. It may not be a jump table"
-                              , addr)
+                    l.warning("%d targets are resolved for the indirect jump at %#x. It may not be a jump table",
+                              total_cases, addr)
                     return False, None
 
                     # Or alternatively, we can ask user, which is meh...
                     #
                     # jump_base_addr = int(raw_input("please give me the jump base addr: "), 16)
                     # total_cases = int(raw_input("please give me the total cases: "))
-                    # jump_target = state.se.SI(bits=64, lower_bound=jump_base_addr, upper_bound=jump_base_addr + (total_cases - 1) * 8, stride=8)
+                    # jump_target = state.se.SI(bits=64, lower_bound=jump_base_addr, upper_bound=jump_base_addr +
+                    # (total_cases - 1) * 8, stride=8)
 
                 jump_table = [ ]
 
@@ -1652,7 +1669,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
                 else:
                     try:
-                        block = self.project.factory.block(a.addr, max_size=b.addr-a.addr)
+                        block = self.project.factory.block(a.addr, max_size=b.addr - a.addr)
                     except AngrTranslationError:
                         continue
                     if len(block.capstone.insns) == 1 and block.capstone.insns[0].insn_name() == "nop":
@@ -1754,25 +1771,53 @@ class CFGFast(ForwardAnalysis, CFGBase):
     # Public methods
     #
 
+    def copy(self):
+        n = CFGFast.__new__(CFGFast)
+
+        n._binary = self._binary
+        n._start = self._start
+        n._end = self._end
+        n._pickle_intermediate_results = self._pickle_intermediate_results
+        n._indirect_jump_target_limit = self._indirect_jump_target_limit
+        n._collect_data_ref = self._collect_data_ref
+        n._use_symbols = self._use_symbols
+        n._use_function_prologues = self._use_function_prologues
+        n._resolve_indirect_jumps = self._resolve_indirect_jumps
+        n._force_segment = self._force_segment
+        n._force_complete_scan = self._force_complete_scan
+
+        n._progress_callback = self._progress_callback
+        n._show_progressbar = self._show_progressbar
+
+        n._exec_mem_regions = self._exec_mem_regions[::]
+        n._exec_mem_region_size = self._exec_mem_region_size[::]
+
+        n._memory_data = self._memory_data.copy()
+
+        n._seg_list = self._seg_list.copy()
+
+        n._function_addresses_from_symbols = self._function_addresses_from_symbols
+
+        n._graph = self._graph
+
+        return n
+
+    def output(self):
+        s = "%s" % self._graph.edges(data=True)
+
+        return s
+
     def generate_code_cover(self):
         """
         Generate a list of all recovered basic blocks.
         """
 
-        # TODO: Reimplement this method
-
         lst = []
-        for irsb_addr in self.graph.nodes():
-            if irsb_addr not in self._block_size:
-                continue
-            irsb_size = self._block_size[irsb_addr]
-            lst.append((irsb_addr, irsb_size))
+        for cfg_node in self.graph.nodes():
+            size = cfg_node.size
+            lst.append((cfg_node.addr, size))
 
         lst = sorted(lst, key=lambda x: x[0])
         return lst
 
 register_analysis(CFGFast, 'CFGFast')
-
-from .cfg_node import CFGNode
-from ..blade import Blade
-from ..errors import AngrTranslationError, AngrMemoryError
