@@ -363,6 +363,20 @@ class FunctionReturn(object):
         self.call_site_addr = call_site_addr
         self.return_to = return_to
 
+    def __eq__(self, o):
+        """
+        Comparison
+
+        :param FunctionReturn o: The other object
+        :return: True if equal, False otherwise
+        """
+        return self.callee_func_addr == o.callee_func_addr and \
+                self.caller_func_addr == o.caller_func_addr and \
+                self.call_site_addr == o.call_site_addr and \
+                self.return_to == o.return_to
+
+    def __hash__(self):
+        return hash((self.callee_func_addr, self.caller_func_addr, self.call_site_addr, self.return_to))
 
 class MemoryData(object):
     def __init__(self, address, size, sort):
@@ -776,9 +790,6 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         addr = entry.addr
 
-        if self._seg_list.is_occupied(addr):
-            raise AngrForwardAnalysisSkipEntry()
-
         if self._show_progressbar or self._progress_callback:
             percentage = self._seg_list.occupied_size * 100.0 / self._exec_mem_region_size
             if percentage > 100.0:
@@ -810,9 +821,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         return self._scan_block(addr, current_function_addr, jumpkind, src_node, src_stmt_idx)
 
     def _handle_successor(self, entry, successor, successors, _locals):
-
-        if successor.addr not in self._traced_addresses:
-            self._entries.append(successor)
+        self._entries.append(successor)
 
     def _merge_entries(self, entries):
         pass
@@ -956,10 +965,6 @@ class CFGFast(ForwardAnalysis, CFGBase):
         :rtype: list
         """
 
-        # If we have traced it before, don't trace it anymore
-        if addr in self._traced_addresses:
-            return [ ]
-
         # Fix the function address
         # This is for rare cases where we cannot successfully determine the end boundary of a previous function, and
         # as a consequence, our analysis mistakenly thinks the previous function goes all the way across the boundary,
@@ -968,12 +973,21 @@ class CFGFast(ForwardAnalysis, CFGBase):
             current_function_addr = addr
 
         if self.project.is_hooked(addr):
-            return self._scan_procedure(addr, current_function_addr, previous_jumpkind, previous_src_node,
+            entries = self._scan_procedure(addr, current_function_addr, previous_jumpkind, previous_src_node,
                                  previous_src_stmt_idx)
 
         else:
-            return self._scan_irsb(addr, current_function_addr, previous_jumpkind, previous_src_node,
+            entries = self._scan_irsb(addr, current_function_addr, previous_jumpkind, previous_src_node,
                                    previous_src_stmt_idx)
+
+        # If we have traced it before, don't trace it anymore
+        if addr in self._traced_addresses:
+            return [ ]
+        else:
+            # Mark the address as traced
+            self._traced_addresses.add(addr)
+
+            return entries
 
     def _scan_procedure(self, addr, current_function_addr, previous_jumpkind,  # pylint:disable=unused-argument
                         previous_src_node, previous_src_stmt_idx):
@@ -991,8 +1005,6 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         except (AngrTranslationError, AngrMemoryError):
             return [ ]
-
-        self._traced_addresses.add(addr)
 
         entries = [ ]
 
@@ -1033,9 +1045,6 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         except (AngrTranslationError, AngrMemoryError):
             return [ ]
-
-        # Mark the address as traced
-        self._traced_addresses.add(addr)
 
         # Scan the basic block to collect data references
         if self._collect_data_ref:
@@ -1107,8 +1116,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
                         if tmp_ip._model_concrete is not tmp_ip:
                             tmp_addr = tmp_ip._model_concrete.value
                             tmp_function_addr = tmp_addr # TODO: FIX THIS
-                            if (self._addr_in_memory_regions(tmp_addr) or self.project.is_hooked(tmp_addr)) \
-                                    and tmp_addr not in self._traced_addresses:
+                            if self._addr_in_memory_regions(tmp_addr) or self.project.is_hooked(tmp_addr):
                                 ce = CFGEntry(tmp_addr, tmp_function_addr, jumpkind, last_addr=tmp_addr, src_node=cfg_node,
                                               src_stmt_idx=stmt_idx)
                                 entries.append(ce)
@@ -1146,7 +1154,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 callee_function = self.kb.functions.function(addr=target_addr)
 
                 if callee_function.returning is True:
-                    self._function_add_fakeret_edge(return_site, previous_src_node, current_function_addr,
+                    self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
                                                     confirmed=True)
                     self._function_add_return_edge(target_addr, return_site, current_function_addr)
                 elif callee_function.returning is False:
@@ -1155,8 +1163,9 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 else:
                     self._function_add_fakeret_edge(return_site, previous_src_node, current_function_addr,
                                                     confirmed=None)
-                    self._function_returns[target_addr].append(FunctionReturn(target_addr, current_function_addr, addr,
-                                                                              return_site))
+                    fr = FunctionReturn(target_addr, current_function_addr, addr, return_site)
+                    if fr not in self._function_returns[target_addr]:
+                        self._function_returns[target_addr].append(fr)
 
             else:
                 l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
