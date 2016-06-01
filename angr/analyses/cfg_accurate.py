@@ -84,8 +84,8 @@ class CFGAccurate(Analysis, ForwardAnalysis, CFGBase):
         :param initial_state:                       An initial state to use to begin analysis.
         :param starts:                              A list of addresses at which to begin analysis
         :param keep_state:                          Whether to keep the SimStates for each CFGNode.
-        :param enable_advanced_backward_slicing:
-        :param enable_symbolic_back_traversal:
+        :param enable_advanced_backward_slicing:    Whether to enable an intensive technique for resolving direct jumps
+        :param enable_symbolic_back_traversal:      Whether to enable an intensive technique for resolving indirect jumps
         :param additional_edges:                    A dict mapping addresses of basic blocks to addresses of
                                                     successors to manually include and analyze forward from.
         :param no_construct:                        Skip the construction procedure. Only used in unit-testing.

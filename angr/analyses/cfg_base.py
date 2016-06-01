@@ -186,10 +186,11 @@ class CFGBase(object):
 
     def get_all_nodes(self, addr, is_syscall=None):
         """
-        Get all CFGNodes whose address is the specified one,
-        :param addr: Address of the node
+        Get all CFGNodes whose address is the specified one.
+
+        :param addr:       Address of the node
         :param is_syscall: True returns the syscall node, False returns the normal CFGNode, None returns both
-        :return: all CFGNodes
+        :return:           all CFGNodes
         """
         results = [ ]
 
