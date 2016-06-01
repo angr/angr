@@ -1768,7 +1768,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         if src_node is None:
             self.kb.functions._add_node(function_addr, addr, syscall=syscall)
         else:
-            self.kb.functions._add_call_to(function_addr, src_node.addr, addr, ret_addr, to_func_syscall=syscall)
+            self.kb.functions._add_call_to(function_addr, src_node.addr, addr, ret_addr, syscall=syscall)
 
     def _function_add_fakeret_edge(self, addr, src_node, function_addr, confirmed=None):
         if src_node is None:

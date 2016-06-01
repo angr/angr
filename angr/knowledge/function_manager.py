@@ -57,7 +57,7 @@ class FunctionManager(collections.Mapping):
             node = self._kb._project.factory.snippet(node)
         self._function_map[(function_addr, syscall)]._register_nodes(node)
 
-    def _add_call_to(self, function_addr, from_node, to_addr, retn_node, to_func_syscall=False):
+    def _add_call_to(self, function_addr, from_node, to_addr, retn_node, syscall=False):
 
         # Note that a syscall will never make a call to anything else
 
@@ -65,10 +65,10 @@ class FunctionManager(collections.Mapping):
             from_node = self._kb._project.factory.snippet(from_node)
         if type(retn_node) in (int, long):
             retn_node = self._kb._project.factory.snippet(retn_node)
-        dest_func = self._function_map[(to_addr, to_func_syscall)]
+        dest_func = self._function_map[(to_addr, syscall)]
         self._function_map[(function_addr, False)]._call_to(from_node, dest_func, retn_node)
         self._function_map[(function_addr, False)]._add_call_site(from_node.addr, to_addr, retn_node.addr if retn_node else None)
-        self.callgraph.add_edge((function_addr, False), (to_addr, to_func_syscall))
+        self.callgraph.add_edge((function_addr, False), (to_addr, syscall))
 
     def _add_fakeret_to(self, function_addr, from_node, to_node, confirmed=None, syscall=False):
         if type(from_node) in (int, long):
@@ -97,14 +97,14 @@ class FunctionManager(collections.Mapping):
             to_node = self._kb._project.factory.snippet(to_node)
         self._function_map[(function_addr, syscall)]._transit_to(from_node, to_node)
 
-    def _add_return_from_call(self, function_addr, src_func_addr, to_node, src_func_syscall=False):
+    def _add_return_from_call(self, function_addr, src_function_addr, to_node, src_func_syscall=False):
 
         # Note that you will never return to a syscall
 
         if type(to_node) in (int, long):
             to_node = self._kb._project.factory.snippet(to_node)
         self._function_map[(function_addr, False)]._return_from_call(
-            self._function_map[(src_func_addr, src_func_syscall)], to_node)
+            self._function_map[(src_function_addr, src_func_syscall)], to_node)
 
     #
     # Dict methods
