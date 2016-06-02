@@ -2285,7 +2285,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
             else:
                 # Got a SimSolverModeError in symbolic mode. We are screwed.
                 # Skip this IRSB
-                l.debug("Caught a SimIRSBError. Don't panic, this is usually expected.", ex)
+                l.debug("Caught a SimIRSBError %s. Don't panic, this is usually expected.", ex)
                 error_occurred = True
                 sim_run = \
                     simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
@@ -2433,13 +2433,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
         """
 
         # Determine whether this is a syscall
-        if isinstance(simrun, simuvex.procedures.syscalls.handler.handler):
+        if isinstance(simrun, simuvex.SimProcedure) and simrun.IS_SYSCALL is True:
             is_syscall = True
-            if simrun.syscall is not None:
-                syscall = simrun.syscall.__class__.__name__
-            else:
-                # Unsupported syscalls
-                syscall = None
+            syscall = simrun.__class__.__name__
         else:
             is_syscall = False
             syscall = None
@@ -2450,7 +2446,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
                 simproc_name = simrun.resolves
 
             no_ret = False
-            if (syscall is None and simrun.NO_RET) or (syscall is not None and simrun.syscall.NO_RET):
+            if syscall is not None and simrun.NO_RET:
                 no_ret = True
 
             cfg_node = CFGNode(simrun.addr,

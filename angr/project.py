@@ -134,6 +134,8 @@ class Project(object):
         self._ignore_functions = ignore_functions
         self._extern_obj = AngrExternObject(self.arch)
         self.loader.add_object(self._extern_obj)
+        self._syscall_obj = AngrExternObject(self.arch)
+        self.loader.add_object(self._syscall_obj)
 
         self._cfg = None
         self._vfg = None
@@ -220,9 +222,9 @@ class Project(object):
                 elif not func.resolved and func.name in obj.jmprel:
                     unresolved.append(func)
 
-        # Step 3: Stub out unresolved symbols
-        # This is in the form of a simprocedure that either doesn't return
-        # or returns an unconstrained value
+            # Step 3: Stub out unresolved symbols
+            # This is in the form of a SimProcedure that either doesn't return
+            # or returns an unconstrained value
             for func in unresolved:
                 # Don't touch weakly bound symbols, they are allowed to go unresolved
                 if func.is_weak:

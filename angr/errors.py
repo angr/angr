@@ -52,6 +52,9 @@ class AngrCallableError(AngrSurveyorError):
 class AngrCallableMultistateError(AngrCallableError):
     pass
 
+class AngrUnsupportedSyscallError(AngrError):
+    pass
+
 #
 # ForwardAnalysis errors
 #

@@ -1674,7 +1674,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
             if a.addr <= b.addr and \
                     (a.addr + a.size > b.addr):
                 # They are overlapping
-                if (b.addr, False) in self.kb.functions and (b.addr - a.addr < 0x10) and b.addr % 0x10 == 0:
+                if b.addr in self.kb.functions and (b.addr - a.addr < 0x10) and b.addr % 0x10 == 0:
                     # b is the beginning of a function
                     # a should be removed
                     self._remove_node(a)
@@ -1699,11 +1699,11 @@ class CFGFast(ForwardAnalysis, CFGBase):
         self.graph.remove_node(node)
 
         # We wanna remove the function as well
-        if (node.addr, node.is_syscall) in self.kb.functions:
-            del self.kb.functions[(node.addr, node.is_syscall)]
+        if node.addr in self.kb.functions:
+            del self.kb.functions[node.addr]
 
-        if (node.addr, node.is_syscall) in self.kb.functions.callgraph:
-            self.kb.functions.callgraph.remove_node((node.addr, node.is_syscall))
+        if node.addr in self.kb.functions.callgraph:
+            self.kb.functions.callgraph.remove_node(node.addr)
 
     def _clean_pending_exits(self, pending_exits):
         """
@@ -1755,7 +1755,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
     #
 
     def _function_add_node(self, addr, function_addr, syscall=False):
-        self.kb.functions._add_node(function_addr, addr, syscall=syscall)
+        self.kb.functions._add_node(function_addr, addr)
 
     def _function_add_transition_edge(self, addr, src_node, function_addr):
         # Add this basic block into the function manager
@@ -1777,8 +1777,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
             self.kb.functions._add_fakeret_to(function_addr, src_node.addr, addr, confirmed=confirmed)
 
     def _function_add_return_edge(self, return_from_addr, return_to_addr, function_addr, syscall=False):
-        self.kb.functions._add_return_from_call(function_addr, return_from_addr, return_to_addr,
-                                                src_func_syscall=syscall)
+        self.kb.functions._add_return_from_call(function_addr, return_from_addr, return_to_addr)
 
     #
     # Public methods
