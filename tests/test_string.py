@@ -19,6 +19,7 @@ memcmp = SimProcedures['libc.so.6']['memcmp']
 getc = SimProcedures['libc.so.6']['_IO_getc']
 fgetc = SimProcedures['libc.so.6']['fgetc']
 getchar = SimProcedures['libc.so.6']['getchar']
+scanf = SimProcedures['libc.so.6']['scanf']
 
 
 import logging
@@ -886,9 +887,16 @@ def test_getchar():
     nose.tools.assert_items_equal(s.se.any_n_int(c, 300), [0x34])
     nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [4])
 
+def test_scanf():
+    s = SimState()
+    s.posix.files[0].content.store(0, "Hello\0")
+    s.memory.store(0x2000, "%1s\0")
+    scanf(s, inline=True, arguments=[0x2000, 0x1000])
+    assert s.se.any_n_str(s.memory.load(0x1000, 2), 2) == [ "H\x00" ]
 
 
 if __name__ == '__main__':
+    test_scanf()
     test_getc()
     test_fgetc()
     test_getchar()
