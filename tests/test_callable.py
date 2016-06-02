@@ -58,7 +58,7 @@ type_cache = None
 def run_manyfloatsum(arch):
     global type_cache
     if type_cache is None:
-        type_cache = parse_defns(open('/home/angr/angr/binaries/tests_src/manyfloatsum.c').read())
+        type_cache = parse_defns(open(os.path.join(location, '..', 'tests_src', 'manyfloatsum.c')).read())
 
     p = angr.Project(location + '/' + arch + '/manyfloatsum')
     for function in ('sum_floats', 'sum_combo', 'sum_segregated', 'sum_doubles', 'sum_combo_doubles', 'sum_segregated_doubles'):
