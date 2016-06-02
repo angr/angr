@@ -13,7 +13,7 @@ def _build_unicorn():
 
 def _build_sim_unicorn():
     env = os.environ.copy()
-    env['UNICORN_PATH'] = '../unicorn-master'
+    env['UNICORN_PATH'] = '../unicorn'
     if subprocess.call(['make'], cwd='simuvex_c', env=env) != 0:
         raise LibError('Unable to build sim_unicorn')
 

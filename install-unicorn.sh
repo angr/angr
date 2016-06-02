@@ -1,12 +1,16 @@
 #!/bin/bash -e
 
-[ -e master.zip ] || wget https://github.com/unicorn-engine/unicorn/archive/master.zip
-
-if [ ! -e unicorn-master ]
+if [ ! -e unicorn ]
 then
-	unzip master.zip
+	git clone --depth=1 https://github.com/unicorn-engine/unicorn
+else
+	cd unicorn
+	git pull || echo "WARNING: unable to pull unicorn"
+	cd ..
+fi
 
-	cat <<END > unicorn.diff
+
+cat <<END > unicorn.diff
 diff --git a/qemu/target-i386/cpu.h b/qemu/target-i386/cpu.h
 index 4628a8d..8cc951f 100644
 --- a/qemu/target-i386/cpu.h
@@ -22,13 +26,13 @@ index 4628a8d..8cc951f 100644
  /* NOTE: the translator must set DisasContext.cc_op to CC_OP_EFLAGS
 END
 
-	cd unicorn-master
-	patch -p1 < ../unicorn.diff
-	make -j install PREFIX=$VIRTUAL_ENV
-	cd bindings/python
-	make -j install PREFIX=$VIRTUAL_ENV
-	cd ../../..
-fi
+cd unicorn
+git stash
+git apply ../unicorn.diff
+make -j install PREFIX=$VIRTUAL_ENV
+cd bindings/python
+make -j install PREFIX=$VIRTUAL_ENV
+cd ../../..
 
 if [ -e $VIRTUAL_ENV/lib/python2.7/site-packages/unicorn ]
 then
