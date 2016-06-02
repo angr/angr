@@ -70,12 +70,15 @@ class SimType(object):
         return NotImplemented
 
     def with_arch(self, arch):
-        if self._arch == arch:
+        if self._arch is not None and self._arch == arch:
             return self
         else:
-            cp = copy.copy(self)
-            cp._arch = arch
-            return cp
+            return self._with_arch(arch)
+
+    def _with_arch(self, arch):
+        cp = copy.copy(self)
+        cp._arch = arch
+        return cp
 
 
 class SimTypeBottom(SimType):
@@ -331,13 +334,10 @@ class SimTypePointer(SimTypeReg):
             raise ValueError("Can't tell my size without an arch!")
         return self._arch.bits
 
-    def with_arch(self, arch):
-        if self._arch == arch:
-            return self
-        else:
-            out = SimTypePointer(self.pts_to.with_arch(arch), self.label)
-            out._arch = arch
-            return out
+    def _with_arch(self, arch):
+        out = SimTypePointer(self.pts_to.with_arch(arch), self.label)
+        out._arch = arch
+        return out
 
 
 class SimTypeFixedSizeArray(SimType):
@@ -369,13 +369,10 @@ class SimTypeFixedSizeArray(SimType):
     def size(self):
         return self.elem_type.size * self.length
 
-    def with_arch(self, arch):
-        if self._arch == arch:
-            return self
-        else:
-            out = SimTypeFixedSizeArray(self.elem_type.with_arch(arch), self.length)
-            out._arch = arch
-            return out
+    def _with_arch(self, arch):
+        out = SimTypeFixedSizeArray(self.elem_type.with_arch(arch), self.length)
+        out._arch = arch
+        return out
 
 
 class SimTypeArray(SimType):
@@ -404,13 +401,10 @@ class SimTypeArray(SimType):
             raise ValueError("I can't tell my size without an arch!")
         return self._arch.bits
 
-    def with_arch(self, arch):
-        if self._arch == arch:
-            return self
-        else:
-            out = SimTypeArray(self.elem_type.with_arch(arch), self.length, self.label)
-            out._arch = arch
-            return out
+    def _with_arch(self, arch):
+        out = SimTypeArray(self.elem_type.with_arch(arch), self.length, self.label)
+        out._arch = arch
+        return out
 
 
 class SimTypeString(SimTypeArray):
@@ -458,7 +452,7 @@ class SimTypeString(SimTypeArray):
             return 4096         # :/
         return self.length + 1
 
-    def with_arch(self, arch):
+    def _with_arch(self, arch):
         return self
 
 
@@ -488,13 +482,10 @@ class SimTypeFunction(SimType):
     def size(self):
         return 4096     # ???????????
 
-    def with_arch(self, arch):
-        if self._arch == arch:
-            return self
-        else:
-            out = SimTypeFunction([a.with_arch(arch) for a in self.args], self.returnty.with_arch(arch), self.label)
-            out._arch = arch
-            return out
+    def _with_arch(self, arch):
+        out = SimTypeFunction([a.with_arch(arch) for a in self.args], self.returnty.with_arch(arch), self.label)
+        out._arch = arch
+        return out
 
 
 class SimTypeLength(SimTypeNum):
@@ -602,13 +593,10 @@ class SimStruct(SimType):
 
         return SimStructValue(self, values=values)
 
-    def with_arch(self, arch):
-        if self._arch == arch:
-            return self
-        else:
-            out = SimStruct(OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.iteritems()), self.name, True)
-            out._arch = arch
-            return out
+    def _with_arch(self, arch):
+        out = SimStruct(OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.iteritems()), self.name, True)
+        out._arch = arch
+        return out
 
     def __repr__(self):
         return 'struct %s' % self.name
@@ -702,7 +690,7 @@ def define_struct(defn):
     ALL_TYPES[struct.name] = struct
     return struct
 
-_include_re = re.compile('^\s*#include')
+_include_re = re.compile(r'^\s*#include')
 def parse_defns(defn, preprocess=True):
     if pycparser is None:
         raise ImportError("Please install pycparser in order to parse C definitions")
@@ -793,9 +781,9 @@ def _decl_to_type(decl, extra_types=None):
 try:
     define_struct("""
 struct example {
-  int foo;
-  int bar;
-  char *hello;
+    int foo;
+    int bar;
+    char *hello;
 };
 """)
 except ImportError:
