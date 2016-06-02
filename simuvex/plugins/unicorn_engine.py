@@ -107,9 +107,9 @@ class Unicorn(SimStatePlugin):
         self.errno = 0
 
         self.last_miss = 0 if uc is None else uc.last_miss
-        self._runs_since_unicorn = runs_since_unicorn
-        self._register_check_count = register_check_count
-        self._runs_since_symbolic_data = runs_since_symbolic_data
+        self._cooldown_nonunicorn_blocks = runs_since_unicorn
+        self._cooldown_symbolic_registers = register_check_count
+        self._cooldown_symbolic_memory = runs_since_symbolic_data
         self.cache_key = hash(self) if cache_key is None else cache_key
 
         self._dirty = {}
@@ -314,7 +314,7 @@ class Unicorn(SimStatePlugin):
         self.jumpkind = 'Ijk_Boring'
 
         l.debug('emu_start at %#x (%d steps)', addr, step)
-        self._runs_since_unicorn = 0
+        self._cooldown_nonunicorn_blocks = 0
         self.errno = _UC_NATIVE.start(self._uc_state, addr, step)
 
     def finish(self):
@@ -491,9 +491,9 @@ class Unicorn(SimStatePlugin):
         u = Unicorn(
             syscall_hooks=dict(self.syscall_hooks),
             cache_key=self.cache_key,
-            register_check_count=self._register_check_count + 1,
-            runs_since_unicorn=self._runs_since_unicorn + 1,
-            runs_since_symbolic_data=self._runs_since_symbolic_data + 1
+            register_check_count=self._cooldown_symbolic_registers + 1,
+            runs_since_unicorn=self._cooldown_nonunicorn_blocks + 1,
+            runs_since_symbolic_data=self._cooldown_symbolic_memory + 1
         )
         return u
 
@@ -514,21 +514,21 @@ class Unicorn(SimStatePlugin):
         return True
 
     def check(self):
-        if self._register_check_count < 40:
+        if self._cooldown_symbolic_registers < 40:
             #l.debug("not enough passed register checks")
             return False
 
-        if self._runs_since_symbolic_data < 40:
+        if self._cooldown_symbolic_memory < 40:
             #l.debug("not enough runs since symbolic data")
             return False
 
-        if self._runs_since_unicorn < 20:
+        if self._cooldown_nonunicorn_blocks < 20:
             #l.debug("not enough runs since last unicorn")
             return False
 
         if not self._check_registers():
             l.debug("failed register check")
-            #self._register_check_count = 0
+            #self._cooldown_symbolic_registers = 0
             return False
 
         return True
