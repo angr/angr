@@ -891,9 +891,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
         func_addr = _locals['func_addr'] = entry.current_function_address
         _locals['current_stack_pointer'] = entry.current_stack_pointer
         _locals['accessed_registers_in_function'] = entry.current_function_accessed_registers
-        _locals['current_function'] = self.kb.functions.function(_locals['func_addr'], create=True)
         jumpkind = _locals['jumpkind'] = 'Ijk_Boring' if entry.path.state.scratch.jumpkind is None else \
             entry.path.state.scratch.jumpkind
+        _locals['current_function'] = self.kb.functions.function(_locals['func_addr'], create=True,
+                                                                 syscall=jumpkind.startswith("Ijk_Sys"))
         src_simrun_key = entry.src_simrun_key
         src_exit_stmt_idx = entry.src_exit_stmt_idx
 

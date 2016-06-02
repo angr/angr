@@ -154,8 +154,13 @@ class FunctionManager(collections.Mapping):
         Pass either `addr` or `name` with the appropriate values.
         """
         if addr is not None:
-            if addr in self._function_map or create:
+            if addr in self._function_map:
                 return self._function_map[addr]
+            elif create:
+                f = self._function_map[addr]
+                if syscall:
+                    f.is_syscall=True
+                return f
         elif name is not None:
             for func in self._function_map.itervalues():
                 if func.name == name:

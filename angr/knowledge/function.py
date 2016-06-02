@@ -20,7 +20,7 @@ class Function(object):
 
         :param addr:            The address of the function.
         :param name:            (Optional) The name of the function.
-        :param syscall:         (Optional) Whether this function is a sycall or not.
+        :param syscall:         (Optional) Whether this function is a syscall or not.
         """
         self.transition_graph = networkx.DiGraph()
         self._local_transition_graph = None
@@ -74,6 +74,7 @@ class Function(object):
         self.prepared_stack_variables = set()
         self.registers_read_afterwards = set()
 
+        # startpoint can always be None if this CFGNode is a syscall node
         self.startpoint = None
 
         self._addr_to_block_node = {}  # map addresses to nodes
