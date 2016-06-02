@@ -136,9 +136,10 @@ public:
 		err = uc_hook_del(uc, h_write);
 		err = uc_hook_del(uc, h_block);
 		err = uc_hook_del(uc, h_prot);
+		err = uc_hook_del(uc, h_unmap);
 
 		hooked = false;
-		h_read = h_write = h_block = h_prot = 0;
+		h_read = h_write = h_block = h_prot = h_unmap = 0;
 	}
 
 	~State() {

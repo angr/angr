@@ -2,6 +2,8 @@ import os
 import sys
 import ctypes
 import logging
+import threading
+import itertools
 l = logging.getLogger('simuvex.plugins.unicorn')
 
 try:
@@ -30,8 +32,65 @@ class STOP(object): # stop_t
     STOP_ZEROPAGE   = 5
     STOP_NOSTART    = 5
 
+#
+# Because Unicorn leaks like crazy, we use one Uc object per thread...
+#
 
+_unicounter = itertools.count()
 
+class Uniwrapper(unicorn.Uc):
+    def __init__(self, arch):
+        self.arch = arch
+        self.wrapped_mapped = set()
+        self.wrapped_hooks = set()
+        self.id = None
+        unicorn.Uc.__init__(self, arch.uc_arch, arch.uc_mode)
+
+    def hook_add(self, htype, callback, user_data=None, begin=1, end=0, arg1=0):
+        h = unicorn.Uc.hook_add(self, htype, callback, user_data=user_data, begin=begin, end=end, arg1=arg1)
+        l.debug("Hook: %s,%s -> %s", htype, callback.__name__, h)
+        self.wrapped_hooks.add(h)
+        return h
+
+    def hook_del(self, h):
+        l.debug("Clearing hook %s", h)
+        h = unicorn.Uc.hook_del(self, h)
+        self.wrapped_hooks.discard(h)
+        return h
+
+    def mem_map(self, addr, size, perms=7):
+        l.debug("Mapping %d bytes at %#x", size, addr)
+        m = unicorn.Uc.mem_map(self, addr, size, perms=perms)
+        self.wrapped_mapped.add((addr, size))
+        return m
+
+    def mem_unmap(self, addr, size):
+        l.debug("Unmapping %d bytes at %#x", size, addr)
+        m = unicorn.Uc.mem_unmap(self, addr, size)
+        self.wrapped_mapped.discard((addr, size))
+        return m
+
+    def mem_reset(self):
+        l.debug("Resetting memory.")
+        for addr,size in self.wrapped_mapped:
+            l.debug("Unmapping %d bytes at %#x", size, addr)
+            unicorn.Uc.mem_unmap(self, addr, size)
+        self.wrapped_mapped.clear()
+
+    def hook_reset(self):
+        l.debug("Resetting hooks.")
+        for h in self.wrapped_hooks:
+            l.debug("Clearing hook %s", h)
+            unicorn.Uc.hook_del(self, h)
+        self.wrapped_hooks.clear()
+
+    def reset(self):
+        self.mem_reset()
+        #self.hook_reset()
+        l.debug("Reset complete.")
+
+_unicorn_tls = threading.local()
+_unicorn_tls.uc = None
 
 def _load_native():
     if sys.platform == 'darwin':
@@ -98,10 +157,9 @@ class Unicorn(SimStatePlugin):
 
     UC_CONFIG = {} # config cache for each arch
 
-    def __init__(self, uc=None, syscall_hooks=None, cache_key=None, runs_since_unicorn=0, runs_since_symbolic_data=0, register_check_count=0):
+    def __init__(self, uc=None, syscall_hooks=None, cache_key=None, runs_since_unicorn=0, runs_since_symbolic_data=0, register_check_count=0, unicount=None):
         SimStatePlugin.__init__(self)
 
-        self.uc = None
         self._syscall_pc = None
         self.jumpkind = 'Ijk_Boring'
         self.error = None
@@ -119,8 +177,6 @@ class Unicorn(SimStatePlugin):
 
         # following variables are used in python level hook
         # we cannot see native hooks from python
-        self._syscall_hook = None
-        self._mem_unmapped_hook = None
         self.syscall_hooks = { } if syscall_hooks is None else syscall_hooks
 
         # native state in libsimunicorn
@@ -130,6 +186,27 @@ class Unicorn(SimStatePlugin):
         self._uc_regs = None
         self.stop_reason = None
 
+        # this is the counter for the unicorn count
+        self._unicount = next(_unicounter) if unicount is None else unicount
+
+    @property
+    def uc(self):
+        new_id = next(_unicounter)
+
+        if _unicorn_tls.uc is None:
+            l.debug("Creating unicorn state!")
+            _unicorn_tls.uc = Uniwrapper(self.state.arch)
+        elif _unicorn_tls.uc.id != self._unicount:
+            l.debug("Resetting unicorn state!")
+            _unicorn_tls.uc.reset()
+        else:
+            #l.debug("Reusing unicorn state!")
+            pass
+
+        _unicorn_tls.uc.id = new_id
+        self._unicount = new_id
+        return _unicorn_tls.uc
+
     def _setup_unicorn(self):
         if self.state.arch.uc_mode is None:
             raise SimUnicornUnsupport("unsupported architecture %r" % self.state.arch)
@@ -137,7 +214,6 @@ class Unicorn(SimStatePlugin):
         self._uc_regs = self.state.arch.uc_regs
         self._uc_prefix = self.state.arch.uc_prefix
         self._uc_const = self.state.arch.uc_const
-        self.uc = self.state.arch.unicorn
 
     def set_stops(self, stop_points):
         _UC_NATIVE.set_stops(self._uc_state,
@@ -149,36 +225,23 @@ class Unicorn(SimStatePlugin):
         l.debug('adding native hooks')
         _UC_NATIVE.hook(self._uc_state) # prefer to use native hooks
 
-        # some hooks are generic hooks, only hook them once
-        if self._mem_unmapped_hook is None:
-            self._mem_unmapped_hook = self.uc.hook_add(unicorn.UC_HOOK_MEM_UNMAPPED, self._hook_mem_unmapped, None, 1, 0)
+        self.uc.hook_add(unicorn.UC_HOOK_MEM_UNMAPPED, self._hook_mem_unmapped, None, 1, 0)
 
-        if self._syscall_hook is None:
-            arch = self.state.arch.qemu_name
-            if arch == 'x86_64':
-                self._syscall_hook = self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
-                self.uc.hook_add(unicorn.UC_HOOK_INSN, self._hook_syscall_x86_64, None,
-                        self._uc_const.UC_X86_INS_SYSCALL)
-            elif arch == 'i386':
-                self._syscall_hook = self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
-            elif arch == 'mips':
-                self._syscall_hook = self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_mips, None, 1, 0)
-            else:
-                raise SimUnicornUnsupport
-
-    def _unhook(self, hook_name):
-        h = getattr(self, hook_name)
-        if h is not None:
-            self.uc.hook_del(h)
-            setattr(self, hook_name, None)
-
-    def unhook(self):
-        _UC_NATIVE.unhook(self._uc_state)
+        arch = self.state.arch.qemu_name
+        if arch == 'x86_64':
+            self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
+            self.uc.hook_add(unicorn.UC_HOOK_INSN, self._hook_syscall_x86_64, None, self._uc_const.UC_X86_INS_SYSCALL)
+        elif arch == 'i386':
+            self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
+        elif arch == 'mips':
+            self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_mips, None, 1, 0)
+        else:
+            raise SimUnicornUnsupport
 
     def _hook_intr_mips(self, uc, intno, user_data):
         if intno == 17: # EXCP_SYSCALL
-            sysno = self.uc.reg_read(self._uc_regs['v0'])
-            pc = self.uc.reg_read(self._uc_regs['pc'])
+            sysno = uc.reg_read(self._uc_regs['v0'])
+            pc = uc.reg_read(self._uc_regs['pc'])
             l.debug('hit sys_%d at %#x', sysno, pc)
             self._syscall_pc = pc + 4
             self._handle_syscall(uc, user_data)
@@ -195,15 +258,15 @@ class Unicorn(SimStatePlugin):
             l.warning('unhandled interrupt %d', intno)
 
     def _hook_syscall_x86_64(self, uc, user_data):
-        sysno = self.uc.reg_read(self._uc_regs['rax'])
-        pc = self.uc.reg_read(self._uc_regs['rip'])
+        sysno = uc.reg_read(self._uc_regs['rax'])
+        pc = uc.reg_read(self._uc_regs['rip'])
         l.debug('hit sys_%d at %#x', sysno, pc)
         self._syscall_pc = pc + 2 # skip syscall instruction
         self._handle_syscall(uc, user_data)
 
     def _hook_syscall_i386(self, uc, user_data):
-        sysno = self.uc.reg_read(self._uc_regs['eax'])
-        pc = self.uc.reg_read(self._uc_regs['eip'])
+        sysno = uc.reg_read(self._uc_regs['eax'])
+        pc = uc.reg_read(self._uc_regs['eip'])
         l.debug('hit sys_%d at %#x', sysno, pc)
         self._syscall_pc = pc + 2
         if not self._quick_syscall(sysno):
@@ -281,16 +344,16 @@ class Unicorn(SimStatePlugin):
 
         if access == unicorn.UC_MEM_WRITE_UNMAPPED:
             l.info('mmap [%#x, %#x] rwx', start, start + length - 1)
-            self.uc.mem_map(start, length, unicorn.UC_PROT_ALL)
+            uc.mem_map(start, length, unicorn.UC_PROT_ALL)
         else:
             # map all pages read-only
             l.info('mmap [%#x, %#x] r-x', start, start + length - 1)
-            self.uc.mem_map(start, length,
+            uc.mem_map(start, length,
                             unicorn.UC_PROT_EXEC | unicorn.UC_PROT_READ)
 
         self._mapped += 1
 
-        self.uc.mem_write(start, str(data))
+        uc.mem_write(start, str(data))
 
         l.info('mmap: activate new page [%#x, %#x]', start, start + length - 1)
         if partial_symbolic:
@@ -340,10 +403,21 @@ class Unicorn(SimStatePlugin):
         # STOP.STOP_SYSCALL/STOP_EXECNONE/STOP_ZEROPAGE is already handled
 
     def destroy(self):
-        l.debug('deallocting native state %r', self._uc_state)
+        l.debug("Unhooking.")
+        _UC_NATIVE.unhook(self._uc_state)
+        self.uc.hook_reset()
+
+        l.debug('deallocting native state %#x', self._uc_state)
         _UC_NATIVE.dealloc(self._uc_state)
-        self.uc = None
         self._uc_state = None
+
+        # there's something we're not properly resetting for syscalls, so
+        # we'll clear the state when they happen
+        if self.stop_reason == STOP.STOP_SYSCALL:
+            _unicorn_tls.uc = None
+
+        l.debug("Resetting the unicorn state.")
+        self.uc.reset()
 
     def set_regs(self):
         ''' setting unicorn registers '''
@@ -494,7 +568,8 @@ class Unicorn(SimStatePlugin):
             cache_key=self.cache_key,
             register_check_count=self._cooldown_symbolic_registers + 1,
             runs_since_unicorn=self._cooldown_nonunicorn_blocks + 1,
-            runs_since_symbolic_data=self._cooldown_symbolic_memory + 1
+            runs_since_symbolic_data=self._cooldown_symbolic_memory + 1,
+            unicount=self._unicount
         )
         return u
 
