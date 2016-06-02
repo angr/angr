@@ -6,6 +6,8 @@ l = logging.getLogger("simuvex.procedures.cgc.deallocate")
 class deallocate(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
+    IS_SYSCALL = True
+
     def run(self, addr, length): #pylint:disable=unused-argument
         # return code (see deallocate() docs)
         r = self.state.se.ite_cases((

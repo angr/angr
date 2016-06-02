@@ -713,6 +713,26 @@ class SimCCX86LinuxSyscall(SimCC):
         # never appears anywhere except syscalls
         return False
 
+    @staticmethod
+    def syscall_num(state):
+        return state.regs.eax
+
+class SimCCX86WindowsSyscall(SimCC):
+    # TODO: Make sure the information is correct
+    ARG_REGS = [ ]
+    FP_ARG_REGS = [ ]
+    RETURN_VAL = SimRegArg('eax', 4)
+    ARCH = ArchX86
+
+    @classmethod
+    def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
+        # never appears anywhere except syscalls
+        return False
+
+    @staticmethod
+    def syscall_num(state):
+        return state.regs.eax
+
 class SimCCSystemVAMD64(SimCC):
     ARG_REGS = ['rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9']
     FP_ARG_REGS = ['xmm0', 'xmm1', 'xmm2', 'xmm3', 'xmm4', 'xmm5', 'xmm6', 'xmm7']
@@ -760,6 +780,26 @@ class SimCCAMD64LinuxSyscall(SimCC):
         # doesn't appear anywhere but syscalls
         return False
 
+    @staticmethod
+    def syscall_num(state):
+        return state.regs.rax
+
+class SimCCAMD64WindowsSyscall(SimCC):
+    # TODO: Make sure the information is correct
+    ARG_REGS = [ ]
+    FP_ARG_REGS = [ ]
+    RETURN_VAL = SimRegArg('rax', 8)
+    ARCH = ArchAMD64
+
+    @classmethod
+    def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
+        # never appears anywhere except syscalls
+        return False
+
+    @staticmethod
+    def syscall_num(state):
+        return state.regs.rax
+
 class SimCCARM(SimCC):
     ARG_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
     FP_ARG_REGS = []    # TODO: ???
@@ -767,12 +807,45 @@ class SimCCARM(SimCC):
     RETURN_VAL = SimRegArg('r0', 4)
     ARCH = ArchARM
 
+class SimCCARMLinuxSyscall(SimCC):
+    # TODO: Make sure all the information is correct
+    ARG_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
+    FP_ARG_REGS = []    # TODO: ???
+    return_addr = SimRegArg('lr', 4)
+    RETURN_VAL = SimRegArg('r0', 4)
+    ARCH = ArchARM
+
+    @classmethod
+    def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
+        # never appears anywhere except syscalls
+        return False
+
+    @staticmethod
+    def syscall_num(state):
+        return state.regs.r7
+
 class SimCCAArch64(SimCC):
     ARG_REGS = [ 'x0', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7' ]
     FP_ARG_REGS = []    # TODO: ???
     return_addr = SimRegArg('lr', 8)
     RETURN_VAL = SimRegArg('x0', 8)
     ARCH = ArchAArch64
+
+class SimCCAArch64LinuxSyscall(SimCC):
+    # TODO: Make sure all the information is correct
+    ARG_REGS = [ 'x0', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7' ]
+    FP_ARG_REGS = []    # TODO: ???
+    RETURN_VAL = SimRegArg('x0', 8)
+    ARCH = ArchAArch64
+
+    @classmethod
+    def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
+        # never appears anywhere except syscalls
+        return False
+
+    @staticmethod
+    def syscall_num(state):
+        return state.regs.x8
 
 class SimCCO32(SimCC):
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
@@ -782,6 +855,22 @@ class SimCCO32(SimCC):
     RETURN_VAL = SimRegArg('v0', 4)
     ARCH = ArchMIPS32
 
+class SimCCO32LinuxSyscall(SimCC):
+    # TODO: Make sure all the information is correct
+    ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
+    FP_ARG_REGS = []    # TODO: ???
+    RETURN_VAL = SimRegArg('v0', 4)
+    ARCH = ArchMIPS32
+
+    @classmethod
+    def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
+        # never appears anywhere except syscalls
+        return False
+
+    @staticmethod
+    def syscall_num(state):
+        return state.regs.v0
+
 class SimCCO64(SimCC):      # TODO: add n32 and n64
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
     FP_ARG_REGS = []    # TODO: ???
@@ -789,6 +878,21 @@ class SimCCO64(SimCC):      # TODO: add n32 and n64
     return_addr = SimRegArg('lr', 8)
     RETURN_VAL = SimRegArg('v0', 8)
     ARCH = ArchMIPS64
+
+class SimCCO64LinuxSyscall(SimCC):
+    # TODO: Make sure all the information is correct
+    ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
+    FP_ARG_REGS = []    # TODO: ???
+    ARCH = ArchMIPS64
+
+    @classmethod
+    def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
+        # never appears anywhere except syscalls
+        return False
+
+    @staticmethod
+    def syscall_num(state):
+        return state.regs.v0
 
 class SimCCPowerPC(SimCC):
     ARG_REGS = [ 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10' ]
@@ -798,6 +902,22 @@ class SimCCPowerPC(SimCC):
     RETURN_VAL = SimRegArg('r3', 4)
     ARCH = ArchPPC32
 
+class SimCCPowerPCLinuxSyscall(SimCC):
+    # TODO: Make sure all the information is correct
+    ARG_REGS = [ ]
+    FP_ARG_REGS = [ ]
+    RETURN_VAL = SimRegArg('r3', 4)
+    ARCH = ArchPPC32
+
+    @classmethod
+    def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
+        # never appears anywhere except syscalls
+        return False
+
+    @staticmethod
+    def syscall_num(state):
+        return state.regs.r0
+
 class SimCCPowerPC64(SimCC):
     ARG_REGS = [ 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10' ]
     FP_ARG_REGS = []    # TODO: ???
@@ -805,6 +925,22 @@ class SimCCPowerPC64(SimCC):
     return_addr = SimRegArg('lr', 8)
     RETURN_VAL = SimRegArg('r3', 8)
     ARCH = ArchPPC64
+
+class SimCCPowerPC64LinuxSyscall(SimCC):
+    # TODO: Make sure all the information is correct
+    ARG_REGS = [ ]
+    FP_ARG_REGS = [ ]
+    RETURN_VAL = SimRegArg('r3', 8)
+    ARCH = ArchPPC64
+
+    @classmethod
+    def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
+        # never appears anywhere except syscalls
+        return False
+
+    @staticmethod
+    def syscall_num(state):
+        return state.regs.r0
 
 class SimCCUnknown(SimCC):
     """
@@ -831,8 +967,44 @@ DefaultCC = {
     'AARCH64': SimCCAArch64
 }
 
-# TODO: make OS-agnostic
 SyscallCC = {
-    'X86': SimCCX86LinuxSyscall,
-    'AMD64': SimCCAMD64LinuxSyscall,
+    'X86': {
+        'default': SimCCX86LinuxSyscall,
+        'Linux': SimCCX86LinuxSyscall,
+        'Windows': SimCCX86WindowsSyscall,
+        'CGC': SimCCX86LinuxSyscall,
+    },
+    'AMD64': {
+        'default': SimCCAMD64LinuxSyscall,
+        'Linux': SimCCAMD64LinuxSyscall,
+        'Windows': SimCCAMD64WindowsSyscall,
+    },
+    'ARMEL': {
+        'default': SimCCARMLinuxSyscall,
+        'Linux': SimCCARMLinuxSyscall,
+    },
+    'ARMHF': {
+        'default': SimCCARMLinuxSyscall,
+        'Linux': SimCCARMLinuxSyscall,
+    },
+    'AARCH64': {
+        'default': SimCCAArch64LinuxSyscall,
+        'Linux': SimCCAArch64LinuxSyscall,
+    },
+    'MIPS32': {
+        'default': SimCCO32LinuxSyscall,
+        'Linux': SimCCO32LinuxSyscall,
+    },
+    'MIPS64': {
+        'default': SimCCO64LinuxSyscall,
+        'Linux': SimCCO64LinuxSyscall,
+    },
+    'PPC32': {
+        'default': SimCCPowerPCLinuxSyscall,
+        'Linux': SimCCPowerPCLinuxSyscall,
+    },
+    'PPC64': {
+        'default': SimCCPowerPC64LinuxSyscall,
+        'Linux': SimCCPowerPC64LinuxSyscall,
+    },
 }

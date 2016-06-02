@@ -2,11 +2,14 @@
 
 import logging
 l = logging.getLogger("simuvex.s_run")
-import claripy
-import simuvex.s_options as o
-from claripy.ast.bv import BV
-from simuvex.plugins.inspect import BP_BEFORE, BP_AFTER
 
+import claripy
+from claripy.ast.bv import BV
+
+from . import s_options as o
+from .plugins.inspect import BP_BEFORE, BP_AFTER
+from .s_cc import SyscallCC
+from .s_errors import UnsupportedSyscallError
 
 class SimRun(object):
     def __init__(self, state, addr=None, inline=False, custom_name=None):
@@ -115,10 +118,28 @@ class SimRun(object):
             self.unsat_successors.append(state)
         elif o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options and state.se.symbolic(target):
             self.unconstrained_successors.append(state.copy())
-        elif not state.se.symbolic(target):
+        elif not state.se.symbolic(target) and not state.scratch.jumpkind.startswith("Ijk_Sys"):
+            # a successor with a concrete IP, and it's not a syscall
             self.successors.append(state)
             self.flat_successors.append(state.copy())
+        elif state.scratch.jumpkind.startswith("Ijk_Sys"):
+            # syscall
+            self.successors.append(state)
+
+            symbolic_syscall_num, concrete_syscall_nums = self._concrete_syscall_numbers(state)
+
+            if concrete_syscall_nums is not None:
+                for n in concrete_syscall_nums:
+                    split_state = state.copy()
+                    split_state.add_constraints(symbolic_syscall_num == n)
+
+                    self.flat_successors.append(split_state)
+
+            else:
+                self.unsat_successors.append(state)
+
         else:
+            # a successor with a symbolic IP
             try:
                 if o.KEEP_IP_SYMBOLIC in state.options:
                     s = claripy.Solver()
@@ -151,6 +172,34 @@ class SimRun(object):
                 self.unsat_successors.append(state)
 
         return state
+
+    @staticmethod
+    def _concrete_syscall_numbers(state):
+
+        if state.os_name in SyscallCC[state.arch.name]:
+            cc = SyscallCC[state.arch.name][state.os_name](state.arch)
+        else:
+            # Use the default syscall calling convention - it may bring problems
+            cc = SyscallCC[state.arch.name]['default'](state.arch)
+
+        syscall_num = cc.syscall_num(state)
+
+        if syscall_num.symbolic and o.NO_SYMBOLIC_SYSCALL_RESOLUTION in state.options:
+            l.debug("Not resolving symbolic syscall number")
+            return syscall_num, None
+        maximum = state.posix.maximum_symbolic_syscalls
+        possible = state.se.any_n_int(syscall_num, maximum + 1)
+
+        if len(possible) == 0:
+            raise UnsupportedSyscallError("Unsatisfiable state attempting to do a syscall")
+
+        if len(possible) > maximum:
+            l.warning("Too many possible syscalls. Concretizing to 1.")
+            possible = possible[:1]
+
+        l.debug("Possible syscall values: %s", possible)
+
+        return syscall_num, possible
 
     @property
     def id_str(self):

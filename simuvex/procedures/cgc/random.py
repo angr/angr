@@ -6,6 +6,8 @@ rand_count = itertools.count()
 class random(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
+    IS_SYSCALL = True
+
     def run(self, buf, count, rnd_bytes):
         if self.state.mode == 'fastpath':
             # Special case for CFG

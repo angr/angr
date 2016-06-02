@@ -1,6 +1,9 @@
 import simuvex
 
 class mmap(simuvex.SimProcedure):
+
+    IS_SYSCALL = True
+
     def run(self, addr, length, prot, flags, fd, offset): #pylint:disable=arguments-differ,unused-argument
         #if self.state.se.symbolic(flags) or self.state.se.any_int(flags) != 0x22:
         #   raise Exception("mmap with other than MAP_PRIVATE|MAP_ANONYMOUS unsupported")

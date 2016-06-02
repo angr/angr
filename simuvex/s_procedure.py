@@ -2,23 +2,28 @@
 
 import inspect
 import itertools
-import pyvex
-import claripy
+import types
 import logging
 l = logging.getLogger(name = "simuvex.s_procedure")
 
 symbolic_count = itertools.count()
 
+import pyvex
+import claripy
+
 from .s_run import SimRun
 from .s_cc import DefaultCC
+from .plugins.inspect import BP_BEFORE, BP_AFTER
 
 class SimProcedure(SimRun):
     ADDS_EXITS = False
     NO_RET = False
+    IS_SYSCALL = False
 
     local_vars = ()
 
-    def __init__(self, state, ret_to=None, stmt_from=None, convention=None, arguments=None, sim_kwargs=None, run_func_name='run', **kwargs):
+    def __init__(self, state, ret_to=None, stmt_from=None, convention=None, arguments=None, sim_kwargs=None,
+                 run_func_name='run', syscall_name=None, **kwargs):
         self.kwargs = { } if sim_kwargs is None else sim_kwargs
         SimRun.__init__(self, state, **kwargs)
 
@@ -48,7 +53,7 @@ class SimProcedure(SimRun):
         # NO_RET flag, for overriding the default NO_RET flag set by the SimProcedure itself
         # None - no overriding, respect the default flag
         # True - the same as NO_RET == True
-        # Fasle - the same as NO_RET == False
+        # False - the same as NO_RET == False
         self.overriding_no_ret = None
 
         # prepare and run!
@@ -64,7 +69,7 @@ class SimProcedure(SimRun):
         args = [ self.arg(_) for _ in xrange(num_args) ]
 
         run_func = getattr(self, run_func_name)
-        r = run_func(*args, **self.kwargs)
+        r = self._run(run_func, *args, syscall_name=syscall_name, **self.kwargs)
 
         if (self.overriding_no_ret is False) or \
                 (self.overriding_no_ret is None and not self.NO_RET):
@@ -81,6 +86,36 @@ class SimProcedure(SimRun):
             # If this is an inlined call, restore old scratch members
             self.state.scratch.bbl_addr = old_bbl_addr
             self.state.scratch.sim_procedure = old_sim_procedure
+
+    def _run(self, run_func, *args, **kwargs):
+
+        if self.IS_SYSCALL:
+            if len(self.state.posix.queued_syscall_returns):
+                override = self.state.posix.queued_syscall_returns.pop(0)
+                if override is None:
+                    pass
+                elif isinstance(override, types.FunctionType):
+                    try:
+                        override(self.state, run=self)
+                    except TypeError:
+                        override(self.state)
+                    self.overriding_no_ret = False
+                    return
+                else:
+                    self.overriding_no_ret = False
+                    return override
+
+        syscall_name = kwargs.pop("syscall_name", None)
+
+        if self.IS_SYSCALL:
+            self.state._inspect('syscall', BP_BEFORE, syscall_name=syscall_name)
+
+        r = run_func(*args, **kwargs)
+
+        if self.IS_SYSCALL:
+            self.state._inspect('syscall', BP_AFTER, syscall_name=syscall_name)
+
+        return r
 
     def run(self, *args, **kwargs): #pylint:disable=unused-argument
         raise SimProcedureError("%s does not implement a run() method" % self.__class__.__name__)
@@ -269,10 +304,15 @@ class SimProcedure(SimRun):
             return [ ]
 
     def __repr__(self):
-        if self._custom_name is not None:
-            return "<SimProcedure %s>" % self._custom_name
+        if self.IS_SYSCALL:
+            class_name = "syscall"
         else:
-            return "<SimProcedure %s>" % self.__class__.__name__
+            class_name = "SimProcedure"
+
+        if self._custom_name is not None:
+            return "<%s %s>" % (class_name, self._custom_name)
+        else:
+            return "<%s %s>" % (class_name, self.__class__.__name__)
 
 class SimProcedureContinuation(SimProcedure):
     def __new__(cls, state, *args, **kwargs):

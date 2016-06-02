@@ -7,6 +7,8 @@ import simuvex
 class close(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
+    IS_SYSCALL = True
+
     def run(self, fd):
         if type(fd) == simuvex.s_action_object.SimActionObject:
             fd = self.state.se.any_int(fd)
