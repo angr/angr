@@ -514,11 +514,6 @@ class Unicorn(SimStatePlugin):
         return True
 
     def check(self):
-        if not self._check_registers():
-            l.debug("failed register check")
-            #self._register_check_count = 0
-            return False
-
         if self._register_check_count < 40:
             #l.debug("not enough passed register checks")
             return False
@@ -529,6 +524,11 @@ class Unicorn(SimStatePlugin):
 
         if self._runs_since_unicorn < 20:
             #l.debug("not enough runs since last unicorn")
+            return False
+
+        if not self._check_registers():
+            l.debug("failed register check")
+            #self._register_check_count = 0
             return False
 
         return True
