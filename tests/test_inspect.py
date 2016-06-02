@@ -156,7 +156,7 @@ def test_inspect_syscall():
     s.inspect.b('syscall', simuvex.BP_AFTER, action=handle_syscall_after)
 
     # step it
-    simuvex.SimProcedures['syscalls']['handler'](s, addr=s.se.any_int(s.ip), ret_to=s.ip)
+    simuvex.SimProcedures['syscalls']['close'](s, addr=s.se.any_int(s.ip), ret_to=s.ip, syscall_name='close')
 
     # check counts
     nose.tools.assert_equal(counts.exit_before, 1)
