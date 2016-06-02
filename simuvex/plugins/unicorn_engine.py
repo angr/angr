@@ -129,39 +129,14 @@ class Unicorn(SimStatePlugin):
         self._uc_regs = None
         self.stop_reason = None
 
-    @staticmethod
-    def load_arch(arch):
-        if str(arch) not in Unicorn.UC_CONFIG:
-            if arch.qemu_name == 'x86_64':
-                uc_args = (unicorn.UC_ARCH_X86, unicorn.UC_MODE_64)
-                uc_const = unicorn.x86_const
-                uc_prefix = 'UC_X86_'
-            elif arch.qemu_name == 'i386':
-                uc_args = (unicorn.UC_ARCH_X86, unicorn.UC_MODE_32)
-                uc_const = unicorn.x86_const
-                uc_prefix = 'UC_X86_'
-            elif arch.qemu_name == 'mips':
-                uc_args = (unicorn.UC_ARCH_MIPS, unicorn.UC_MODE_MIPS32 | unicorn.UC_MODE_BIG_ENDIAN)
-                uc_const = unicorn.mips_const
-                uc_prefix = 'UC_MIPS_'
-            else:
-                # TODO add more arch
-                raise NotImplementedError('unsupported arch %r', arch)
+    def _setup_unicorn(self):
+        if self.state.arch.uc_mode is None:
+            raise SimUnicornUnsupport("unsupported architecture %r" % self.state.arch)
 
-            uc_regs = {}
-            # map register names to unicorn const
-            for r in arch.register_names.itervalues():
-                reg_name = uc_prefix + 'REG_' + r.upper()
-                if hasattr(uc_const, reg_name):
-                    uc_regs[r] = getattr(uc_const, reg_name)
-
-            Unicorn.UC_CONFIG[str(arch)] = (uc_const, uc_prefix, uc_regs, uc_args)
-
-        return Unicorn.UC_CONFIG[str(arch)]
-
-    def _setup_unicorn(self, arch):
-        self._uc_const, self._uc_prefix, self._uc_regs, uc_args = self.load_arch(arch)
-        self.uc = unicorn.Uc(*uc_args)
+        self._uc_regs = self.state.arch.uc_regs
+        self._uc_prefix = self.state.arch.uc_prefix
+        self._uc_const = self.state.arch.uc_const
+        self.uc = self.state.arch.unicorn
 
     def set_stops(self, stop_points):
         _UC_NATIVE.set_stops(self._uc_state,
@@ -328,7 +303,7 @@ class Unicorn(SimStatePlugin):
         return True
 
     def setup(self):
-        self._setup_unicorn(self.state.arch)
+        self._setup_unicorn()
         self.set_regs()
         # tricky: using unicorn handle form unicorn.Uc object
         self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key)
@@ -524,9 +499,7 @@ class Unicorn(SimStatePlugin):
 
     def _check_registers(self):
         ''' check if this state might be used in unicorn (has no concrete register)'''
-        _, _, uc_regs, _ = Unicorn.load_arch(self.state.arch)
-
-        for r in uc_regs.iterkeys():
+        for r in self.state.arch.uc_regs.iterkeys():
             v = getattr(self.state.regs, r)
             if v.symbolic:
                 #l.info('detected symbolic register %s', r)
