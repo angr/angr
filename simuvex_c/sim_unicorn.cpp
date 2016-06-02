@@ -28,6 +28,7 @@ typedef enum stop {
 	STOP_SYSCALL,
 	STOP_EXECNONE,
 	STOP_ZEROPAGE,
+	STOP_NOSTART,
 } stop_t;
 
 typedef taint_t PageBitmap[PAGE_SIZE];
@@ -76,7 +77,7 @@ public:
 		hooked = false;
 		h_read = h_write = h_block = h_prot = 0;
 		max_steps = cur_steps = 0;
-		stop_reason = STOP_NORMAL;
+		stop_reason = STOP_NOSTART;
 
 		auto it = global_cache.find(cache_key);
 		if (it == global_cache.end()) {
@@ -151,7 +152,7 @@ public:
 	}
 
 	uc_err start(uint64_t pc, uint64_t step = 1) {
-		stop_reason = STOP_NORMAL;
+		stop_reason = STOP_NOSTART;
 		max_steps = step;
 		cur_steps = 0;
 		return uc_emu_start(uc, pc, 0, 0, 0);
@@ -179,6 +180,9 @@ public:
 				break;
 			case STOP_EXECNONE:
 				msg = "fetching empty page";
+				break;
+			case STOP_NOSTART:
+				msg = "failed to start";
 				break;
 			default:
 				msg = "unknown error";
@@ -368,6 +372,7 @@ public:
 
 	void set_stops(uint64_t count, uint64_t *stops)
 	{
+		stop_points.clear();
 		for (int i = 0; i < count; i++)
 			stop_points.insert(stops[i]);
 	}

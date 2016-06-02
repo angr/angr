@@ -22,6 +22,9 @@ class SimUnicorn(SimRun):
         self.addr = state.se.any_int(state.ip)
         self.state.scratch.bbl_addr = self.addr
 
+        if stop_points is not None and self.addr in stop_points:
+            raise SimUnicornError("trying to start unicorn execution on a stop point")
+
         # initialize unicorn plugin
         self.state.unicorn.setup()
         try:
