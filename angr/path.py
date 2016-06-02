@@ -173,7 +173,7 @@ class PathHistory(object):
     def __setstate__(self, state):
         for name, value in state.iteritems():
             setattr(self,name,value)
-            
+
     def _record_state(self, state, events=None):
         self._events = events if events is not None else state.log.events
         self._jumpkind = state.scratch.jumpkind
@@ -530,7 +530,7 @@ class Path(object):
             return [ ErroredPath(self._run_error, self._project, self.state.copy(), path=self) ]
 
         out = [ Path(self._project, s, path=self) for s in self._run.flat_successors ]
-        if 'insn_bytes' in run_args and not 'addr' in run_args and len(out) == 1 \
+        if 'insn_bytes' in run_args and 'addr' not in run_args and len(out) == 1 \
                 and isinstance(self._run, simuvex.SimIRSB) \
                 and self.addr + self._run.irsb.size == out[0].state.se.any_int(out[0].state.regs.ip):
             out[0].state.regs.ip = self.addr
