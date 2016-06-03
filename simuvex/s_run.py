@@ -126,16 +126,20 @@ class SimRun(object):
             # syscall
             self.successors.append(state)
 
-            symbolic_syscall_num, concrete_syscall_nums = self._concrete_syscall_numbers(state)
+            try:
+                symbolic_syscall_num, concrete_syscall_nums = self._concrete_syscall_numbers(state)
+                if concrete_syscall_nums is not None:
+                    for n in concrete_syscall_nums:
+                        split_state = state.copy()
+                        split_state.add_constraints(symbolic_syscall_num == n)
 
-            if concrete_syscall_nums is not None:
-                for n in concrete_syscall_nums:
-                    split_state = state.copy()
-                    split_state.add_constraints(symbolic_syscall_num == n)
-
-                    self.flat_successors.append(split_state)
-
-            else:
+                        self.flat_successors.append(split_state)
+                else:
+                    # We cannot resolve the syscall number
+                    # However, we still put it to the flat_successors list, and angr.SimOS.handle_syscall will pick it
+                    # up, and create a "unknown syscall" stub for it.
+                    self.flat_successors.append(state)
+            except UnsupportedSyscallError:
                 self.unsat_successors.append(state)
 
         else:
