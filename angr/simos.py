@@ -13,7 +13,8 @@ from cle import MetaELF, BackedCGC
 import pyvex
 import claripy
 
-from .errors import AngrUnsupportedSyscallError
+from .errors import AngrUnsupportedSyscallError, AngrCallableError
+from .tablespecs import StringTableSpec
 
 l = logging.getLogger("angr.simos")
 
@@ -98,7 +99,6 @@ class SimOS(object):
         n = possible[0]
 
         if n not in self.syscall_table:
-            self.overriding_no_ret = False
             l.error("no syscall %d for arch %s", n, state.arch.name)
             if o.BYPASS_UNSUPPORTED_SYSCALL in state.options:
                 state.log.add_event('resilience', resilience_type='syscall', syscall=n, message='unsupported syscall')
@@ -445,7 +445,7 @@ class SimLinux(SimOS):
         # Prepare argc
         if argc is None:
             argc = claripy.BVV(len(args), state.arch.bits)
-        elif type(argc) in (int, long):
+        elif type(argc) in (int, long):  # pylint: disable=unidiomatic-typecheck
             argc = claripy.BVV(argc, state.arch.bits)
 
         # Make string table for args/env/auxv
@@ -458,18 +458,18 @@ class SimLinux(SimOS):
 
         # Add environment to string table
         for k, v in env.iteritems():
-            if type(k) is str:
+            if type(k) is str:  # pylint: disable=unidiomatic-typecheck
                 k = claripy.BVV(k)
-            elif type(k) is unicode:
+            elif type(k) is unicode:  # pylint: disable=unidiomatic-typecheck
                 k = claripy.BVV(k.encode('utf-8'))
             elif isinstance(k, claripy.ast.Bits):
                 pass
             else:
                 raise TypeError("Key in env must be either string or bitvector")
 
-            if type(v) is str:
+            if type(v) is str:  # pylint: disable=unidiomatic-typecheck
                 v = claripy.BVV(v)
-            elif type(v) is unicode:
+            elif type(v) is unicode:  # pylint: disable=unidiomatic-typecheck
                 v = claripy.BVV(v.encode('utf-8'))
             elif isinstance(v, claripy.ast.Bits):
                 pass
@@ -802,6 +802,3 @@ os_mapping = {
     'windows': SimOS,
     'cgc': SimCGC,
 }
-
-from .errors import AngrCallableError
-from .tablespecs import StringTableSpec

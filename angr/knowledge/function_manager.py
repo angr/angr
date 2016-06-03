@@ -1,6 +1,9 @@
 import logging
-import networkx
 import collections
+
+import networkx
+
+from .function import Function
 
 l = logging.getLogger(name="angr.knowledge.function_manager")
 
@@ -50,7 +53,7 @@ class FunctionManager(collections.Mapping):
                 f.write("%#x\tDirectEdge\t%#x\n" % (src, dst))
 
     def _add_node(self, function_addr, node, syscall=None):
-        if type(node) in (int, long):
+        if type(node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             node = self._kb._project.factory.snippet(node)
         dst_func = self._function_map[function_addr]
         if syscall in (True, False):
@@ -59,9 +62,9 @@ class FunctionManager(collections.Mapping):
 
     def _add_call_to(self, function_addr, from_node, to_addr, retn_node, syscall=None):
 
-        if type(from_node) in (int, long):
+        if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        if type(retn_node) in (int, long):
+        if type(retn_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             retn_node = self._kb._project.factory.snippet(retn_node)
         dest_func = self._function_map[to_addr]
         if syscall in (True, False):
@@ -72,9 +75,9 @@ class FunctionManager(collections.Mapping):
         self.callgraph.add_edge(function_addr, to_addr)
 
     def _add_fakeret_to(self, function_addr, from_node, to_node, confirmed=None, syscall=None):
-        if type(from_node) in (int, long):
+        if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        if type(to_node) in (int, long):
+        if type(to_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
         src_func = self._function_map[function_addr]
 
@@ -83,22 +86,22 @@ class FunctionManager(collections.Mapping):
 
         src_func._fakeret_to(from_node, to_node, confirmed=confirmed)
 
-    def _remove_fakeret(self, function_addr, from_node, to_node, syscall=False):
-        if type(from_node) in (int, long):
+    def _remove_fakeret(self, function_addr, from_node, to_node):
+        if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        if type(to_node) in (int, long):
+        if type(to_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
         self._function_map[function_addr]._remove_fakeret(from_node, to_node)
 
     def _add_return_from(self, function_addr, from_node, to_node=None): #pylint:disable=unused-argument
-        if type(from_node) in (int, long):
+        if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
         self._function_map[function_addr]._add_return_site(from_node)
 
     def _add_transition_to(self, function_addr, from_node, to_node):
-        if type(from_node) in (int, long):
+        if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        if type(to_node) in (int, long):
+        if type(to_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
         self._function_map[function_addr]._transit_to(from_node, to_node)
 
@@ -106,7 +109,7 @@ class FunctionManager(collections.Mapping):
 
         # Note that you will never return to a syscall
 
-        if type(to_node) in (int, long):
+        if type(to_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
         self._function_map[function_addr]._return_from_call(
             self._function_map[src_function_addr], to_node)
@@ -172,5 +175,3 @@ class FunctionManager(collections.Mapping):
         for func_addr, func in self._function_map.iteritems():
             filename = "%s%#08x.png" % (prefix, func_addr)
             func.dbg_draw(filename)
-
-from .function import Function
