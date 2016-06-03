@@ -30,7 +30,7 @@ class STOP(object): # stop_t
     STOP_SYSCALL    = 3
     STOP_EXECNONE   = 4
     STOP_ZEROPAGE   = 5
-    STOP_NOSTART    = 5
+    STOP_NOSTART    = 6
 
 #
 # Because Unicorn leaks like crazy, we use one Uc object per thread...
