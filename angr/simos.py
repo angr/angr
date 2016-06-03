@@ -61,16 +61,16 @@ class SimOS(object):
             else:
                 # There is no SimProcedure implemented for this syscall
                 self.syscall_table[syscall_number] = (base_addr + syscall_number * 8,
-                                                      "_unknown",
+                                                      "_unsupported",
                                                       SimProcedures["syscalls"]["stub"]
                                                       )
         # Now here is the fallback syscall stub
         self.syscall_table[syscall_entry_count + 1] = (base_addr + (syscall_entry_count + 1) * 8,
-                                                       "_fallback",
+                                                       "_unknown",
                                                        SimProcedures["syscalls"]["stub"]
                                                        )
 
-    def handle_syscall(self, state):
+    def handle_syscalls(self, state):
         """
         Handle a state whose immediate preceding jumpkind is syscall by creating a new SimRun. Note that symbolic
         syscalls are not supported - the syscall number *must* have only one solution.
@@ -91,12 +91,13 @@ class SimOS(object):
         possible = state.se.any_n_int(syscall_num, 2)
 
         if len(possible) > 1:
-            raise AngrUnsupportedSyscallError("Symbolic syscalls are not supported")
+            # Symbolic syscalls are not supported - we will create a 'unknown syscall" stub for it
+            n = max(self.syscall_table.keys())
         elif not possible:
             # The state is not satisfiable
             raise AngrUnsupportedSyscallError("The program state is not satisfiable")
-
-        n = possible[0]
+        else:
+            n = possible[0]
 
         if n not in self.syscall_table:
             l.error("no syscall %d for arch %s", n, state.arch.name)
