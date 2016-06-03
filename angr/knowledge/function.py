@@ -526,10 +526,11 @@ class Function(object):
         end_addresses = defaultdict(list)
 
         for block in self.nodes:
-            end_addr = block.addr + block.size
-            end_addresses[end_addr].append(block)
+            if isinstance(block, BlockNode):
+                end_addr = block.addr + block.size
+                end_addresses[end_addr].append(block)
 
-        while any([len(x) > 1 for x in end_addresses.itervalues()]):
+        while any(len(x) > 1 for x in end_addresses.itervalues()):
             end_addr, all_nodes = \
                 next((end_addr, x) for (end_addr, x) in end_addresses.iteritems() if len(x) > 1)
 
