@@ -1,6 +1,4 @@
 import angr
-import simuvex
-import claripy
 
 import logging
 l = logging.getLogger("angr.tests.unicorn")
@@ -92,127 +90,16 @@ def broken_palindrome():
     angr.path_group.l.setLevel("DEBUG")
     pg.step(300)
 
-def _compare_paths(pu, pn):
-    l.debug("Comparing...")
-    assert pu.addr == pn.addr
-    sn = pn.state
-    su = pu.state
-    joint_solver = claripy.FullFrontend(claripy.backends.z3)
-
-    # make sure the canonicalized constraints are the same
-    n_map, n_counter, n_canon_constraint = claripy.And(*sn.se.constraints).canonicalize()
-    u_map, u_counter, u_canon_constraint = claripy.And(*su.se.constraints).canonicalize()
-    joint_solver.add((n_canon_constraint, u_canon_constraint))
-    assert n_canon_constraint is u_canon_constraint
-
-    # get the differences in registers and memory
-    mem_diff = sn.memory.changed_bytes(su.memory)
-    reg_diff = sn.registers.changed_bytes(su.registers) - set(range(40, 52)) #ignore cc psuedoregisters
-
-    # make sure the differences in registers and memory are actually just renamed
-    # versions of the same ASTs
-    for diffs,(um,nm) in (
-        (mem_diff, (su.memory, sn.memory)),
-        (reg_diff, (su.registers, sn.registers))
-    ):
-        for i in diffs:
-            bn = nm.load(i, 1)
-            bu = um.load(i, 1)
-
-            bnc = bn.canonicalize(var_map=n_map, counter=n_counter)[-1]
-            buc = bu.canonicalize(var_map=u_map, counter=u_counter)[-1]
-
-            assert bnc is buc
-
-    # make sure the flags are the same
-    #print "Native flags:", simuvex.vex.ccall._get_flags(sn)
-    #print "Unicorn flags:", simuvex.vex.ccall._get_flags(su)
-    n_flags = simuvex.vex.ccall._get_flags(sn)[0].canonicalize(var_map=n_map, counter=n_counter)[-1]
-    u_flags = simuvex.vex.ccall._get_flags(su)[0].canonicalize(var_map=u_map, counter=u_counter)[-1]
-    assert n_flags is u_flags
-    l.debug("Done comparing!")
-
-def run_similarity(binpath, depth, b=None, state=None):
-    if b is None:
-        b = angr.Project(os.path.join(test_location, binpath))
-
-    if state is None:
-        s_unicorn = b.factory.entry_state(add_options=so.unicorn, remove_options={so.LAZY_SOLVES, so.TRACK_MEMORY_MAPPING}) # unicorn
-        s_normal = b.factory.entry_state(add_options={so.INITIALIZE_ZERO_REGISTERS}, remove_options={so.LAZY_SOLVES, so.TRACK_MEMORY_MAPPING}) # normal
-    else:
-        assert so.INITIALIZE_ZERO_REGISTERS in state.options
-
-        s_normal = state.copy()
-        s_normal.options.discard(so.LAZY_SOLVES)
-        s_normal.options.discard(so.TRACK_MEMORY_MAPPING)
-
-        s_unicorn = state.copy()
-        s_unicorn.options.update(so.unicorn)
-        s_unicorn.options.discard(so.LAZY_SOLVES)
-        s_unicorn.options.discard(so.TRACK_MEMORY_MAPPING)
-
-    p_unicorn = b.factory.path(s_unicorn)
-    p_normal = b.factory.path(s_normal)
-    pg = b.factory.path_group(p_unicorn)
-    pg.stash(to_stash='unicorn')
-    pg.active.append(p_normal)
-    pg.stash(to_stash='normal')
-    pg.stash(to_stash='stashed_normal')
-    pg.stash(to_stash='stashed_unicorn')
-
-    #pg_history = [ ]
-
-    while pg.normal[0].length < depth:
-        assert len(pg.unicorn) == 1
-        assert len(pg.normal) == 1
-        assert pg.unicorn[0].weighted_length == pg.normal[0].weighted_length
-        assert len(pg.deadended) == 0
-        assert len(pg.errored) == 0
-        #_compare_paths(pg.unicorn[0], pg.normal[0])
-
-        #pg_history.append(pg.copy())
-        pg_prev = pg.copy() #pylint:disable=unused-variable
-        pg.step(stash='unicorn')
-        assert len(pg.errored) == 0
-
-        if len(pg.unicorn) == 0:
-            assert len(pg.deadended) == 1
-            assert not isinstance(pg.deadended[0]._run, simuvex.SimUnicorn)
-            pg.step(stash='normal')
-            assert len(pg.normal) == 0
-            assert len(pg.deadended) == 2
-            pg.drop(stash='deadended')
-            assert len(pg.deadended) == 0
-        else:
-            if isinstance(pg.unicorn[0].previous_run, simuvex.SimUnicorn):
-                n = pg.unicorn[0].previous_run.state.unicorn.steps
-                pg.step(stash='normal', n=n)
-            else:
-                pg.step(stash='normal')
-
-            assert len(pg.errored) == 0
-            pg.unicorn.sort(key=lambda p: p.addr)
-            pg.normal.sort(key=lambda p: p.addr)
-
-            #print "PG:", pg
-            #print "PG paths:", pg.unicorn, pg.normal
-
-            # make sure the path groups are in the same place
-            assert len(pg.normal) == len(pg.unicorn)
-            assert pg.mp_unicorn.addr.mp_items == pg.mp_normal.addr.mp_items
-
-        # make sure the paths are the same
-        pg.stashed_unicorn[:] = pg.stashed_unicorn[::-1]
-        pg.stashed_normal[:] = pg.stashed_normal[::-1]
-        pg.move('stashed_unicorn', 'unicorn')
-        pg.move('stashed_normal', 'normal')
-
-        for pu,pn in zip(pg.unicorn, pg.normal):
-            _compare_paths(pu, pn)
-
-        if len(pg.normal) > 1:
-            pg.split(from_stash='normal', limit=1, to_stash='stashed_normal')
-            pg.split(from_stash='unicorn', limit=1, to_stash='stashed_unicorn')
+def run_similarity(binpath, depth):
+    b = angr.Project(os.path.join(test_location, binpath))
+    cc = b.analyses.CongruencyCheck()
+    assert cc.check_state_options(
+        left_add_options=so.unicorn,
+        left_remove_options={so.LAZY_SOLVES, so.TRACK_MEMORY_MAPPING},
+        right_add_options={so.INITIALIZE_ZERO_REGISTERS},
+        right_remove_options={so.LAZY_SOLVES, so.TRACK_MEMORY_MAPPING},
+        depth=depth
+    )
 
 def test_similarity_01cf6c01(): run_similarity("cgc_qualifier_event/cgc/01cf6c01_01", 5170)
 def timesout_similarity_38256a01(): run_similarity("cgc_qualifier_event/cgc/38256a01_01", 125)
