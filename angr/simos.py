@@ -45,6 +45,9 @@ class SimOS(object):
         base_addr = self.proj._syscall_obj.rebase_addr
         syscall_entry_count = 0 if not syscall_table else max(syscall_table.keys()) + 1
         for syscall_number in xrange(syscall_entry_count):
+
+            syscall_addr = base_addr + syscall_number * 8
+
             if syscall_number in syscall_table:
                 name, simproc_name  = syscall_table[syscall_number]
 
@@ -53,31 +56,41 @@ class SimOS(object):
                 else:
                     simproc = SimProcedures["syscalls"]["stub"]
 
-                self.syscall_table[syscall_number] = (base_addr + syscall_number * 8,
+                self.syscall_table[syscall_number] = (syscall_addr,
                                                       name,
                                                       simproc
                                                       )
 
+                # Write it to the SimProcedure dict
+                self.proj._sim_procedures[syscall_addr] = (simproc, { })
+
             else:
                 # There is no SimProcedure implemented for this syscall
-                self.syscall_table[syscall_number] = (base_addr + syscall_number * 8,
+                self.syscall_table[syscall_number] = (syscall_addr,
                                                       "_unsupported",
                                                       SimProcedures["syscalls"]["stub"]
                                                       )
+
+                # Write it to the SimProcedure dict
+                self.proj._sim_procedures[syscall_addr] = (SimProcedures["syscalls"]["stub"], { })
+
         # Now here is the fallback syscall stub
-        self.syscall_table[syscall_entry_count + 1] = (base_addr + (syscall_entry_count + 1) * 8,
+        unknown_syscall_addr = base_addr + (syscall_entry_count + 1) * 8
+        self.syscall_table[syscall_entry_count + 1] = (unknown_syscall_addr,
                                                        "_unknown",
                                                        SimProcedures["syscalls"]["stub"]
                                                        )
 
-    def handle_syscalls(self, state):
+        self.proj._sim_procedures[unknown_syscall_addr] = (SimProcedures["syscalls"]["stub"], { })
+
+    def syscall_info(self, state):
         """
-        Handle a state whose immediate preceding jumpkind is syscall by creating a new SimRun. Note that symbolic
-        syscalls are not supported - the syscall number *must* have only one solution.
+        Get information about the syscall that is about to be called. Note that symbolic syscalls are not supported -
+        the syscall number *must* have only one solution.
 
         :param simuvex.s_state.SimState state: the program state.
-        :return: a new SimRun instance.
-        :rtype: simuvex.s_procedure.SimProcedure
+        :return: A tuple of (cc, syscall_addr, syscall_name, syscall_class)
+        :rtype: tuple
         """
 
         if state.os_name in s_cc.SyscallCC[state.arch.name]:
@@ -100,22 +113,35 @@ class SimOS(object):
             n = possible[0]
 
         if n not in self.syscall_table:
-            l.error("no syscall %d for arch %s", n, state.arch.name)
             if o.BYPASS_UNSUPPORTED_SYSCALL in state.options:
                 state.log.add_event('resilience', resilience_type='syscall', syscall=n, message='unsupported syscall')
 
-                fallback_addr, fallback_name, fallback_cls = self.syscall_table[max(self.syscall_table.keys())]
+                addr, syscall_name, cls = self.syscall_table[max(self.syscall_table.keys())]
 
-                return fallback_cls(state, addr=fallback_addr, ret_to=state.regs.ip, convention=cc,
-                                    syscall_name=fallback_name)
             else:
+                l.error("Syscall %d is not found for arch %s", n, state.arch.name)
                 raise AngrUnsupportedSyscallError("Syscall %d is not found for arch %s" % (n, state.arch.name))
         else:
             addr, syscall_name, cls = self.syscall_table[n]
-            ret_to = state.ip
-            state.ip = addr
 
-        syscall = cls(state, addr=addr, ret_to=ret_to, convention=cc, syscall_name=syscall_name)
+        return cc, addr, syscall_name, cls
+
+    def handle_syscall(self, state):
+        """
+        Handle a state whose immediate preceding jumpkind is syscall by creating a new SimRun. Note that symbolic
+        syscalls are not supported - the syscall number *must* have only one solution.
+
+        :param simuvex.s_state.SimState state: the program state.
+        :return: a new SimRun instance.
+        :rtype: simuvex.s_procedure.SimProcedure
+        """
+
+        cc, syscall_addr, syscall_name, syscall_class = self.syscall_info(state)
+
+        ret_to = state.ip
+        state.ip = syscall_addr
+
+        syscall = syscall_class(state, addr=syscall_addr, ret_to=ret_to, convention=cc, syscall_name=syscall_name)
 
         return syscall
 

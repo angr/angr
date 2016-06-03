@@ -1319,6 +1319,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
 
         self._pre_handle_successor_state(extra_info, suc_jumpkind, target_addr)
 
+        # Fix target_addr for syscalls
+        if suc_jumpkind.startswith("Ijk_Sys"):
+            _, target_addr, _, _ = self.project._simos.syscall_info(new_state)
+
         # Remove pending targets - type 2
         tpl = self._generate_simrun_key(call_stack_suffix, target_addr, suc_jumpkind.startswith('Ijk_Sys'))
         cancelled_pending_entry = None
