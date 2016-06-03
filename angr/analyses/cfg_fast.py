@@ -16,7 +16,7 @@ from ..blade import Blade
 from ..analysis import register_analysis
 from ..surveyors import Slicecutor
 from ..annocfg import AnnotatedCFG
-from ..errors import AngrForwardAnalysisSkipEntry, AngrTranslationError, AngrMemoryError
+from ..errors import AngrTranslationError, AngrMemoryError
 
 l = logging.getLogger("angr.analyses.cfg_fast")
 
@@ -792,8 +792,6 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
     def _pre_entry_handling(self, entry, _locals):
 
-        addr = entry.addr
-
         if self._show_progressbar or self._progress_callback:
             percentage = self._seg_list.occupied_size * 100.0 / self._exec_mem_region_size
             if percentage > 100.0:
@@ -1138,6 +1136,15 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
                 is_syscall = jumpkind.startswith("Ijk_Sys")
 
+                if is_syscall:
+                    # Fix the target_addr for syscalls
+                    tmp_path = self.project.factory.path(self.project.factory.blank_state(mode="fastpath",
+                                                                                          addr=cfg_node.addr))
+                    tmp_path.step()
+                    succ = tmp_path.successors[0]
+                    _, syscall_addr, _, _ = self.project._simos.syscall_info(succ.state)
+                    target_addr = syscall_addr
+
                 new_function_addr = target_addr
                 return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
 
@@ -1159,7 +1166,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 if callee_function.returning is True:
                     self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
                                                     confirmed=True)
-                    self._function_add_return_edge(target_addr, return_site, current_function_addr, syscall=is_syscall)
+                    self._function_add_return_edge(target_addr, return_site, current_function_addr)
                 elif callee_function.returning is False:
                     # The function does not return - there is no fake ret edge
                     pass
@@ -1754,7 +1761,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
     # Function utils
     #
 
-    def _function_add_node(self, addr, function_addr, syscall=False):
+    def _function_add_node(self, addr, function_addr):
         self.kb.functions._add_node(function_addr, addr)
 
     def _function_add_transition_edge(self, addr, src_node, function_addr):
@@ -1776,7 +1783,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         else:
             self.kb.functions._add_fakeret_to(function_addr, src_node.addr, addr, confirmed=confirmed)
 
-    def _function_add_return_edge(self, return_from_addr, return_to_addr, function_addr, syscall=False):
+    def _function_add_return_edge(self, return_from_addr, return_to_addr, function_addr):
         self.kb.functions._add_return_from_call(function_addr, return_from_addr, return_to_addr)
 
     #
