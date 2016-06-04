@@ -33,7 +33,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
     """
 
     def __init__(self, arch="AMD64", plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
-                 add_options=None, remove_options=None, special_memory_filler=None):
+                 add_options=None, remove_options=None, special_memory_filler=None, os_name=None):
         # the architecture is used for function simulations (autorets) and the bitness
         if isinstance(arch, str):
             self.arch = arch_from_id(arch)
@@ -77,6 +77,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 self.register_plugin('memory', SimSymbolicMemory(memory_backer, permissions_backer, memory_id="mem"))
         if not self.has_plugin('registers'):
             self.register_plugin('registers', SimSymbolicMemory(memory_id="reg", endness=self.arch.register_endness))
+
+        # OS name
+        self.os_name = os_name
 
         # This is used in static mode as we don't have any constraints there
         self._satisfiable = True
@@ -331,7 +334,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         c_arch = self.arch.copy()
         c_plugins = self._copy_plugins()
-        state = SimState(arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode)
+        state = SimState(arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode, os_name=self.os_name)
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
         state._special_memory_filler = self._special_memory_filler

@@ -3,6 +3,8 @@ import simuvex
 class transmit(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
+    IS_SYSCALL = True
+
     def run(self, fd, buf, count, tx_bytes):
 
         if self.state.mode == 'fastpath':

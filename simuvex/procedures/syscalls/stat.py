@@ -1,6 +1,9 @@
 import simuvex
 
 class stat(simuvex.SimProcedure):
+
+    IS_SYSCALL = True
+
     def run(self, file_path, stat_buf):
         # this is a dummy for now
         stat = self.state.posix.fstat(0)

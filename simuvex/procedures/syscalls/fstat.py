@@ -1,6 +1,9 @@
 import simuvex
 
 class fstat(simuvex.SimProcedure):
+
+    IS_SYSCALL = True
+
     def run(self, fd, stat_buf):
         stat = self.state.posix.fstat(fd)
         # TODO: make arch-neutral

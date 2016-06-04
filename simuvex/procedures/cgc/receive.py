@@ -6,6 +6,8 @@ fastpath_data_counter = count()
 class receive(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
+    IS_SYSCALL = True
+
     def run(self, fd, buf, count, rx_bytes):
 
         if self.state.mode == 'fastpath':
