@@ -996,7 +996,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
             self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
 
-            self._function_add_node(current_function_addr, addr)
+            self._function_add_node(addr, current_function_addr)
 
         except (AngrTranslationError, AngrMemoryError):
             return [ ]
@@ -1042,7 +1042,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
             self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
 
-            self._function_add_node(current_function_addr, addr)
+            self._function_add_node(addr, current_function_addr)
 
         except (AngrTranslationError, AngrMemoryError):
             return [ ]
