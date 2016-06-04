@@ -327,10 +327,15 @@ class SimLinux(SimOS):
 
         # Prepare the auxiliary vector and add it to the end of the string table
         # TODO: Actually construct a real auxiliary vector
-        aux = []
+        # current vector is an AT_RANDOM entry where the "random" value is 0xaec0aec0aec0...
+        aux = [(25, ("AEC0"*8).decode('hex'))]
         for a, b in aux:
             table.add_pointer(a)
-            table.add_pointer(b)
+            if isinstance(b, str):
+                table.add_string(b)
+            else:
+                table.add_pointer(b)
+
         table.add_null()
         table.add_null()
 
