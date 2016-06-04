@@ -20,7 +20,7 @@ class Function(object):
 
         :param addr:            The address of the function.
         :param name:            (Optional) The name of the function.
-        :param syscall:         (Optional) Whether this function is a sycall or not.
+        :param syscall:         (Optional) Whether this function is a syscall or not.
         """
         self.transition_graph = networkx.DiGraph()
         self._local_transition_graph = None
@@ -74,6 +74,7 @@ class Function(object):
         self.prepared_stack_variables = set()
         self.registers_read_afterwards = set()
 
+        # startpoint can always be None if this CFGNode is a syscall node
         self.startpoint = None
 
         self._addr_to_block_node = {}  # map addresses to nodes
@@ -364,9 +365,17 @@ class Function(object):
 
         self._local_transition_graph = None
 
-    def _fakeret_to(self, from_node, to_node):
+    def _fakeret_to(self, from_node, to_node, confirmed=None):
         self._register_nodes(from_node, to_node)
-        self.transition_graph.add_edge(from_node, to_node, type='fake_return')
+        if confirmed is None:
+            self.transition_graph.add_edge(from_node, to_node, type='fake_return')
+        else:
+            self.transition_graph.add_edge(from_node, to_node, type='fake_return', confirmed=confirmed)
+
+        self._local_transition_graph = None
+
+    def _remove_fakeret(self, from_node, to_node):
+        self.transition_graph.remove_edge(from_node, to_node)
 
         self._local_transition_graph = None
 

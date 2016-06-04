@@ -5,7 +5,6 @@ from collections import defaultdict
 import networkx
 
 from simuvex import SimProcedures, o
-from simuvex.procedures.syscalls import handler
 
 from ..errors import AngrError, AngrCFGError
 from ..analysis import Analysis, register_analysis
@@ -86,20 +85,13 @@ class CallTracingFilter(object):
             tmp_path = self.project.factory.path(call_target_state)
             tmp_path.step()
             next_run = tmp_path.next_run
-            if isinstance(next_run, handler.handler):
-                syscall = next_run.syscall
-                if type(syscall) in CallTracingFilter.whitelist:
-                    # accept!
-                    l.debug('Accepting target 0x%x, jumpkind %s', addr, jumpkind)
-                    return ACCEPT
-                else:
-                    # reject
-                    l.debug('Rejecting target 0x%x - syscall %s not in whitelist', addr, syscall)
-                    return REJECT
+            if type(next_run) in CallTracingFilter.whitelist:
+                # accept!
+                l.debug('Accepting target 0x%x, jumpkind %s', addr, jumpkind)
+                return ACCEPT
             else:
-                # The syscall is not handled?
                 # reject
-                l.debug('Rejecting target 0x%x - Unsupported syscall handler %s', addr, next_run)
+                l.debug('Rejecting target 0x%x - syscall %s not in whitelist', addr, syscall)
                 return REJECT
 
         cfg_key = (addr, jumpkind)

@@ -109,8 +109,8 @@ class AngrObjectFactory(object):
             return SimProcedures['stubs']['PathTerminator'](state, addr=addr)
 
         if jumpkind.startswith("Ijk_Sys"):
-            l.debug("Invoking system call handler (originally at %#x)", addr)
-            return SimProcedures['syscalls']['handler'](state, addr=addr, ret_to=state.ip)
+            l.debug("Invoking system call handler")
+            return self._project._simos.handle_syscall(state)
 
         if jumpkind in ("Ijk_EmFail", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
             raise AngrExitError("Cannot create run following jumpkind %s" % jumpkind)
