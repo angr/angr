@@ -711,8 +711,6 @@ class Tracer(object):
         prepare the initial paths for CGC binaries
         '''
 
-        project = angr.Project(self.binary)
-
         # if we're in crash mode we want the authentic system calls
         if not self.crash_mode:
             self._set_cgc_simprocedures()
@@ -720,6 +718,8 @@ class Tracer(object):
         # FixedInReceive and FixedOutReceive always are applied
         simuvex.SimProcedures['cgc']['transmit'] = FixedOutTransmit
         simuvex.SimProcedures['cgc']['receive'] = FixedInReceive
+
+        project = angr.Project(self.binary)
 
         if not self.pov:
             fs = {'/dev/stdin': simuvex.storage.file.SimFile(
