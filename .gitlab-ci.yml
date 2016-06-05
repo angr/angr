@@ -39,6 +39,10 @@ rex:
     script: "angr-test rex"
     tags: [angr]
 
+colorguard:
+    script: "angr-test colorguard"
+    tags: [angr]
+
 pwnrex:
     script: "angr-test pwnrex"
     tags: [angr]
