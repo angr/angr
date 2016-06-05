@@ -157,7 +157,12 @@ class Unicorn(SimStatePlugin):
 
     UC_CONFIG = {} # config cache for each arch
 
-    def __init__(self, uc=None, syscall_hooks=None, cache_key=None, runs_since_unicorn=0, runs_since_symbolic_data=0, register_check_count=0, unicount=None, cooldown_symbolic_registers=40, cooldown_symbolic_memory=40, cooldown_nonunicorn_blocks=20):
+    def __init__(self, syscall_hooks=None, cache_key=None, runs_since_unicorn=0, runs_since_symbolic_data=0, register_check_count=0, unicount=None, cooldown_symbolic_registers=40, cooldown_symbolic_memory=40, cooldown_nonunicorn_blocks=20):
+        """
+        Initializes the Unicorn plugin for SimuVEX. This plugin handles communication with
+        UnicornEngine.
+        """
+
         SimStatePlugin.__init__(self)
 
         self._syscall_pc = None
@@ -165,7 +170,7 @@ class Unicorn(SimStatePlugin):
         self.error = None
         self.errno = 0
 
-        self.last_miss = 0 if uc is None else uc.last_miss
+        self.last_miss = 0
         self.cache_key = hash(self) if cache_key is None else cache_key
 
         # cooldowns to avoid thrashing in and out of unicorn
