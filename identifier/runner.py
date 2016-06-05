@@ -70,10 +70,15 @@ class Runner(object):
             r = getattr(entry_state.regs, k)
             if r.symbolic:
                 setattr(entry_state.regs, k, 0)
-        # FIXME make the cooldowns configurable so we can set them to 0 here
+
         entry_state.unicorn._register_check_count = 100
         entry_state.unicorn._runs_since_symbolic_data = 100
         entry_state.unicorn._runs_since_unicorn = 100
+
+        # cooldowns
+        entry_state.unicorn.cooldown_symbolic_registers = 0
+        entry_state.unicorn.cooldown_symbolic_memory = 0
+        entry_state.unicorn.cooldown_nonunicorn_blocks = 1
 
         # syscall hook
         entry_state.inspect.b(
