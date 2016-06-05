@@ -157,7 +157,7 @@ class Unicorn(SimStatePlugin):
 
     UC_CONFIG = {} # config cache for each arch
 
-    def __init__(self, uc=None, syscall_hooks=None, cache_key=None, runs_since_unicorn=0, runs_since_symbolic_data=0, register_check_count=0, unicount=None):
+    def __init__(self, uc=None, syscall_hooks=None, cache_key=None, runs_since_unicorn=0, runs_since_symbolic_data=0, register_check_count=0, unicount=None, cooldown_symbolic_registers=40, cooldown_symbolic_memory=40, cooldown_nonunicorn_blocks=20):
         SimStatePlugin.__init__(self)
 
         self._syscall_pc = None
@@ -166,10 +166,15 @@ class Unicorn(SimStatePlugin):
         self.errno = 0
 
         self.last_miss = 0 if uc is None else uc.last_miss
-        self._cooldown_nonunicorn_blocks = runs_since_unicorn
-        self._cooldown_symbolic_registers = register_check_count
-        self._cooldown_symbolic_memory = runs_since_symbolic_data
         self.cache_key = hash(self) if cache_key is None else cache_key
+
+        # cooldowns to avoid thrashing in and out of unicorn
+        self._current_nonunicorn_blocks = runs_since_unicorn
+        self._current_symbolic_registers = register_check_count
+        self._current_symbolic_memory = runs_since_symbolic_data
+        self.cooldown_symbolic_registers = cooldown_symbolic_registers
+        self.cooldown_symbolic_memory = cooldown_symbolic_memory
+        self.cooldown_nonunicorn_blocks = cooldown_nonunicorn_blocks
 
         self._dirty = {}
         self.steps = 0
@@ -378,7 +383,7 @@ class Unicorn(SimStatePlugin):
         self.jumpkind = 'Ijk_Boring'
 
         l.debug('emu_start at %#x (%d steps)', addr, step)
-        self._cooldown_nonunicorn_blocks = 0
+        self._current_nonunicorn_blocks = 0
         self.errno = _UC_NATIVE.start(self._uc_state, addr, step)
 
     def finish(self):
@@ -566,10 +571,13 @@ class Unicorn(SimStatePlugin):
         u = Unicorn(
             syscall_hooks=dict(self.syscall_hooks),
             cache_key=self.cache_key,
-            register_check_count=self._cooldown_symbolic_registers + 1,
-            runs_since_unicorn=self._cooldown_nonunicorn_blocks + 1,
-            runs_since_symbolic_data=self._cooldown_symbolic_memory + 1,
-            unicount=self._unicount
+            register_check_count=self._current_symbolic_registers + 1,
+            runs_since_unicorn=self._current_nonunicorn_blocks + 1,
+            runs_since_symbolic_data=self._current_symbolic_memory + 1,
+            unicount=self._unicount,
+            cooldown_symbolic_registers=self.cooldown_symbolic_registers,
+            cooldown_symbolic_memory=self.cooldown_symbolic_memory,
+            cooldown_nonunicorn_blocks=self.cooldown_nonunicorn_blocks,
         )
         return u
 
@@ -590,21 +598,21 @@ class Unicorn(SimStatePlugin):
         return True
 
     def check(self):
-        if self._cooldown_symbolic_registers < 40:
+        if self._current_symbolic_registers < self.cooldown_symbolic_registers:
             #l.debug("not enough passed register checks")
             return False
 
-        if self._cooldown_symbolic_memory < 40:
+        if self._current_symbolic_memory < self.cooldown_symbolic_memory:
             #l.debug("not enough runs since symbolic data")
             return False
 
-        if self._cooldown_nonunicorn_blocks < 20:
+        if self._current_nonunicorn_blocks < self.cooldown_nonunicorn_blocks:
             #l.debug("not enough runs since last unicorn")
             return False
 
         if not self._check_registers():
             l.debug("failed register check")
-            #self._cooldown_symbolic_registers = 0
+            #self._current_symbolic_registers = 0
             return False
 
         return True
