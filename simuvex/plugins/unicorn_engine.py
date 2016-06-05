@@ -203,7 +203,7 @@ class Unicorn(SimStatePlugin):
     def uc(self):
         new_id = next(_unicounter)
 
-        if _unicorn_tls.uc is None:
+        if _unicorn_tls.uc is None or _unicorn_tls.uc.arch != self.state.arch:
             l.debug("Creating unicorn state!")
             _unicorn_tls.uc = Uniwrapper(self.state.arch)
         elif _unicorn_tls.uc.id != self._unicount:
