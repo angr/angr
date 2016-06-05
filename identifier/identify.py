@@ -34,7 +34,7 @@ class Identifier(object):
         self.project = project
         # FIXME use CFGFast when it works
         self._cfg = project.analyses.CFGAccurate()
-        self._runner = Runner(project)
+        self._runner = Runner(project, self._cfg)
 
         # reg list
         a = self.project.arch

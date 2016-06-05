@@ -83,7 +83,7 @@ class receive_n2(Func):
         super(receive_n2, self).__init__()
 
     def get_name(self):
-        return "receive_n3"
+        return "receive_n2"
 
     def num_args(self):
         return 2

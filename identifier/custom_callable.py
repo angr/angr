@@ -56,6 +56,15 @@ class Callable(object):
         else:
             return None
 
+    def get_base_state(self, *args):
+        self._base_state.ip = self._addr
+        state = self._project.factory.call_state(self._addr, *args,
+                    cc=self._cc,
+                    base_state=self._base_state,
+                    ret_addr=self._deadend_addr,
+                    toc=self._toc)
+        return state
+
     def perform_call(self, *args):
         self._base_state.ip = self._addr
         state = self._project.factory.call_state(self._addr, *args,

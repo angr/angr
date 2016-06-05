@@ -12,8 +12,9 @@ l.setLevel("DEBUG")
 
 
 class Runner(object):
-    def __init__(self, project):
+    def __init__(self, project, cfg):
         self.project = project
+        self.cfg = cfg
 
     def setup_state(self, function, test_data, initial_state=None):
         # FIXME fdwait should do something concrete...
@@ -74,7 +75,57 @@ class Runner(object):
         entry_state.unicorn._runs_since_symbolic_data = 100
         entry_state.unicorn._runs_since_unicorn = 100
 
+        # syscall hook
+        entry_state.inspect.b(
+            'syscall',
+            simuvex.BP_BEFORE,
+            action=self.syscall_hook
+        )
+
         return entry_state
+
+    @staticmethod
+    def syscall_hook(state):
+        # FIXME maybe we need to fix transmit/receive to handle huge vals properly
+        # kill path that try to read/write large amounts
+        syscall_name = state.inspect.syscall_name
+        if syscall_name == "transmit":
+            count = state.se.any_int(state.regs.edx)
+            if count > 0x10000:
+                state.regs.edx = 0
+                state.add_constraints(False)
+        if syscall_name == "receive":
+            count = state.se.any_int(state.regs.edx)
+            if count > 0x10000:
+                state.regs.edx = 0
+                state.add_constraints(False)
+        if syscall_name == "random":
+            count = state.se.any_int(state.regs.ecx)
+            if count > 0x10000:
+                state.regs.ecx = 0
+                state.add_constraints(False)
+
+    def get_base_call_state(self, function, test_data, initial_state=None):
+        curr_buf_loc = 0x1000
+        mapped_input = []
+        s = self.setup_state(function, test_data, initial_state)
+
+        for i in test_data.input_args:
+            if isinstance(i, str) or isinstance(i, claripy.ast.BV):
+                s.memory.store(curr_buf_loc, i)
+                mapped_input.append(curr_buf_loc)
+                curr_buf_loc += max(len(i), 0x1000)
+            else:
+                if not isinstance(i, (int, long)):
+                    raise Exception("Expected int/long got %s", type(i))
+                mapped_input.append(i)
+
+        inttype = SimTypeInt(self.project.arch.bits, False)
+        func_ty = SimTypeFunction([inttype] * len(mapped_input), inttype)
+        cc = self.project.factory.cc(func_ty=func_ty)
+        call = Callable(self.project, function.startpoint.addr, concrete_only=True,
+                        cc=cc, base_state=s, max_steps=test_data.max_steps)
+        return call.get_base_state(*mapped_input)
 
     def test(self, function, test_data):
         curr_buf_loc = 0x1000
