@@ -794,7 +794,12 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 cv = self.state.se.If(self.state.se.And(req.addr == a, req.condition), sv, fv)
 
             req.conditional_values.append(cv)
-            req.constraints.append(self.state.se.Or(*[ req.addr == a for a in req.actual_addresses ]))
+
+        if type(req.addr) not in (int, long) and req.addr.symbolic:
+            conditional_constraint = self.state.se.Or(*[ req.addr == a for a in req.actual_addresses ])
+            if (conditional_constraint.symbolic or  # if the constraint is symbolic
+                    conditional_constraint.is_false()):  # if it makes the state go unsat
+                req.constraints.append(conditional_constraint)
 
         #
         # now simplify

@@ -602,7 +602,7 @@ class SimMemory(SimStatePlugin):
 
         a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
         add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
-        if add_constraints:
+        if add_constraints and c:
             self.state.add_constraints(*c)
 
         if (self.category == 'mem' and o.SIMPLIFY_MEMORY_READS in self.state.options) or \
