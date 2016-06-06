@@ -101,19 +101,19 @@ def run_similarity(binpath, depth):
         depth=depth
     )
 
-def test_similarity_01cf6c01(): run_similarity("cgc_qualifier_event/cgc/01cf6c01_01", 5170)
+def timesout_similarity_01cf6c01(): run_similarity("cgc_qualifier_event/cgc/01cf6c01_01", 5170)
 def timesout_similarity_38256a01(): run_similarity("cgc_qualifier_event/cgc/38256a01_01", 125)
 def timesout_similarity_5821ad01(): run_similarity("cgc_qualifier_event/cgc/5821ad01_01", 125)
-def test_similarity_5c921501(): run_similarity("cgc_qualifier_event/cgc/5c921501_01", 250)
-def test_similarity_63cf1501(): run_similarity("cgc_qualifier_event/cgc/63cf1501_01", 125)
+def timesout_similarity_5c921501(): run_similarity("cgc_qualifier_event/cgc/5c921501_01", 250)
+def timesout_similarity_63cf1501(): run_similarity("cgc_qualifier_event/cgc/63cf1501_01", 125)
 def timesout_similarity_6787bf01(): run_similarity("cgc_qualifier_event/cgc/6787bf01_01", 125)
-def test_similarity_7185fe01(): run_similarity("cgc_qualifier_event/cgc/7185fe01_01", 500)
+def timesout_similarity_7185fe01(): run_similarity("cgc_qualifier_event/cgc/7185fe01_01", 500)
 def timesout_similarity_ab957801(): run_similarity("cgc_qualifier_event/cgc/ab957801_01", 125)
-def test_similarity_acedf301(): run_similarity("cgc_qualifier_event/cgc/acedf301_01", 600)
-def test_similarity_d009e601(): run_similarity("cgc_qualifier_event/cgc/d009e601_01", 600)
-def test_similarity_d4411101(): run_similarity("cgc_qualifier_event/cgc/d4411101_01", 500)
-def test_similarity_eae6fa01(): run_similarity("cgc_qualifier_event/cgc/eae6fa01_01", 250)
-def test_similarity_ee545a01(): run_similarity("cgc_qualifier_event/cgc/ee545a01_01", 1000)
+def timesout_similarity_acedf301(): run_similarity("cgc_qualifier_event/cgc/acedf301_01", 600)
+def timesout_similarity_d009e601(): run_similarity("cgc_qualifier_event/cgc/d009e601_01", 600)
+def timesout_similarity_d4411101(): run_similarity("cgc_qualifier_event/cgc/d4411101_01", 500)
+def timesout_similarity_eae6fa01(): run_similarity("cgc_qualifier_event/cgc/eae6fa01_01", 250)
+def timesout_similarity_ee545a01(): run_similarity("cgc_qualifier_event/cgc/ee545a01_01", 1000)
 def timesout_similarity_f5adc401(): run_similarity("cgc_qualifier_event/cgc/f5adc401_01", 250)
 
 if __name__ == '__main__':
