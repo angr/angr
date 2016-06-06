@@ -11,7 +11,7 @@ class stub(simuvex.SimProcedure):
 
     def run(self, resolves=None):
 
-        self.resolves = resolves
+        self.resolves = resolves  # pylint:disable=attribute-defined-outside-init
 
         return self.state.se.Unconstrained("syscall_stub", self.state.arch.bits)
 
