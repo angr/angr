@@ -156,17 +156,17 @@ class ReverseListProxy(list):
 class PathHistory(object):
     def __init__(self, parent=None):
         self._parent = parent
-        self.addr = None
         self._runstr = None
         self._target = None
         self._guard = None
         self._jumpkind = None
         self._events = ()
+        self._addrs = ()
 
-    __slots__ = ('_parent', 'addr', '_runstr', '_target', '_guard', '_jumpkind', '_events')
+    __slots__ = ('_parent', '_addrs', '_runstr', '_target', '_guard', '_jumpkind', '_events')
 
     def __getstate__(self):
-        attributes = ('addr', '_runstr', '_target', '_guard', '_jumpkind', '_events')
+        attributes = ('_addrs', '_runstr', '_target', '_guard', '_jumpkind', '_events')
         state = {name: getattr(self,name) for name in attributes}
         return state
 
@@ -180,11 +180,18 @@ class PathHistory(object):
         self._target = state.scratch.target
         self._guard = state.scratch.guard
 
-        self.addr = state.scratch.bbl_addr
-        # state.scratch.bbl_addr may not be initialized (when SimProcedures are executed, for example). We need to get
-        # the value from _target in that case.
-        if self.addr is None and not self._target.symbolic:
-            self.addr = self._target._model_concrete.value
+        if state.scratch.bbl_addr_list is not None:
+            self._addrs = state.scratch.bbl_addr_list
+        elif state.scratch.bbl_addr is not None:
+            self._addrs = [ state.scratch.bbl_addr ]
+        else:
+            # state.scratch.bbl_addr may not be initialized as final states from the "flat_successors" list. We need to get
+            # the value from _target in that case.
+            if self.addr is None and not self._target.symbolic:
+                self._addrs = [ self._target._model_concrete.value ]
+            else:
+                # FIXME: redesign so this does not happen
+                l.warning("Encountered a path to a SimProcedure with a symbolic target address.")
 
         if simuvex.o.TRACK_ACTION_HISTORY not in state.options:
             self._events = weakref.proxy(self._events)
@@ -196,9 +203,17 @@ class PathHistory(object):
     def _actions(self):
         return [ ev for ev in self._events if isinstance(ev, simuvex.SimAction) ]
 
+    @property
+    def addr(self):
+        return self._addrs[0]
+
+    @addr.setter
+    def addr(self, v):
+        self._addrs = [ v ]
+
     def copy(self):
         c = PathHistory(parent=self._parent)
-        c.addr = self.addr
+        c._addrs = self._addrs
         c._runstr = self._runstr
         c._target = self._target
         c._guard = self._guard
@@ -305,8 +320,8 @@ class HistoryIter(TreeIter):
 class AddrIter(TreeIter):
     def __reversed__(self):
         for hist in self._iter_nodes():
-            if hist.addr is not None:
-                yield hist.addr
+            for a in iter(hist._addrs):
+                yield a
 
 class RunstrIter(TreeIter):
     def __reversed__(self):
