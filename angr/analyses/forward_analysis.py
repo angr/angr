@@ -114,6 +114,9 @@ class ForwardAnalysis(object):
 
         self._pre_analysis()
 
+        if not self._entries:
+            self._entry_list_empty()
+
         while not self.should_abort and self._entries:
 
             entry = self._entries.pop()
