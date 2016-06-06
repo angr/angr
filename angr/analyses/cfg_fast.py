@@ -415,6 +415,21 @@ class CFGEntry(object):
     def __repr__(self):
         return "<CFGEntry%s %#08x @ func %#08x>" % (" syscall" if self.syscall else "", self.addr, self.func_addr)
 
+    def __eq__(self, other):
+        return self.addr == other.addr and \
+                self.func_addr == other.func_addr and \
+                self.jumpkind == other.jumpkind and \
+                self.ret_target == other.ret_target and \
+                self.last_addr == other.last_addr and \
+                self.src_node == other.src_node and \
+                self.src_stmt_idx == other.src_stmt_idx and \
+                self.returning_source == other.returning_source and \
+                self.syscall == other.syscall
+
+    def __hash__(self):
+        return hash((self.addr, self.func_addr, self.jumpkind, self.ret_target, self.last_addr, self.src_node,
+                     self.src_stmt_idx, self.returning_source, self.syscall)
+                    )
 
 class CFGFast(ForwardAnalysis, CFGBase):
     """
@@ -877,9 +892,11 @@ class CFGFast(ForwardAnalysis, CFGBase):
         if self._resolve_indirect_jumps and self._indirect_jumps:
             jump_targets = list(set(self._process_indirect_jumps()))
 
-            for _ in jump_targets:
+            for addr, func_addr in jump_targets:
                 # TODO: get a better estimate of the function address
-                self._entries.append(CFGEntry(_, _, "Ijk_Boring", last_addr=None))
+                self._entries.append(CFGEntry(addr, func_addr, "Ijk_Boring", last_addr=None))
+
+            if self._entries:
                 return
 
         if self._force_complete_scan:
@@ -1111,7 +1128,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
             else:
                 l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
                 # Add it to our set. Will process it later if user allows.
-                self._indirect_jumps.add((addr, jumpkind))
+                self._indirect_jumps.add(CFGEntry(addr, current_function_addr, jumpkind))
 
                 if irsb:
                     # Test it on the initial state. Does it jump to a valid location?
@@ -1181,7 +1198,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
 
                 # Add it to our set. Will process it later if user allows.
-                self._indirect_jumps.add((addr, jumpkind))
+                self._indirect_jumps.add(CFGEntry(addr, current_function_addr, jumpkind))
 
         elif jumpkind == "Ijk_Ret":
             if current_function_addr != -1:
@@ -1295,7 +1312,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         - Ijk_Call (disabled now): indirect calls where the function address is passed in from a proceeding basic block
         - Ijk_Boring: jump tables
 
-        :return: a set of newly resolved indirect jumps
+        :return: a set of 2-tuples: (resolved indirect jump target, function address)
         :rtype: set
         """
 
@@ -1303,14 +1320,14 @@ class CFGFast(ForwardAnalysis, CFGBase):
         resolved = set()
         # print "We have %d indirect jumps" % len(self._indirect_jumps)
 
-        for addr, jumpkind in self._indirect_jumps:
+        for entry in self._indirect_jumps:
 
-            resolved.add((addr, jumpkind))
+            resolved.add(entry)
 
             # is it a jump table? try with the fast approach
-            resolvable, targets = self._resolve_jump_table_fast(addr, jumpkind)
+            resolvable, targets = self._resolve_jump_table_fast(entry.addr, entry.jumpkind)
             if resolvable:
-                all_targets |= set(targets)
+                all_targets |= set([ (t, entry.func_addr) for t in targets ])
                 continue
 
             # is it a slightly more complex jump table? try the slow approach
@@ -1402,6 +1419,9 @@ class CFGFast(ForwardAnalysis, CFGBase):
                     add_options={
                         simuvex.o.DO_RET_EMULATION,
                         simuvex.o.TRUE_RET_EMULATION_GUARD,
+                    },
+                    remove_options={
+                        simuvex.o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY
                     }
             )
             start_state.regs.bp = start_state.arch.initial_sp + 0x2000
