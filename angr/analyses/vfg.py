@@ -286,7 +286,8 @@ class VFG(Analysis):
         entry_state = loaded_state.copy()
         entry_state.options.add(simuvex.o.FRESHNESS_ANALYSIS)
         entry_path = self.project.factory.path(entry_state)
-        entry_wrapper = EntryWrapper(entry_path, self._context_sensitivity_level, jumpkind='Ijk_Boring')
+        entry_wrapper = EntryWrapper(entry_path.addr, entry_path, self._context_sensitivity_level,
+                                     jumpkind='Ijk_Boring')
 
         # Initialize a worklist
         self._worklist = [ ]
@@ -336,7 +337,8 @@ class VFG(Analysis):
                 # remove fake returns even if they have been traced - otherwise we cannot come to a fixpoint.
 
                 new_path = self.project.factory.path(fake_exit_state)
-                new_path_wrapper = EntryWrapper(new_path,
+                new_path_wrapper = EntryWrapper(new_path.addr,
+                                                new_path,
                                                 self._context_sensitivity_level,
                                                 jumpkind=new_path.state.scratch.jumpkind,
                                                 call_stack=fake_exit_call_stack,
@@ -688,7 +690,8 @@ class VFG(Analysis):
                         reg_sp_val = reg_sp_si.min
                     # TODO: Finish it!
 
-            new_exit_wrapper = EntryWrapper(successor_path,
+            new_exit_wrapper = EntryWrapper(successor_path.addr,
+                                            successor_path,
                                             self._context_sensitivity_level,
                                             jumpkind=successor_path.state.scratch.jumpkind,
                                             call_stack=new_call_stack,

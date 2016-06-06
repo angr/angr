@@ -18,7 +18,7 @@ from .cfg_node import CFGNode
 from .cfg_base import CFGBase
 from .forward_analysis import ForwardAnalysis
 
-l = logging.getLogger(name="angr.analyses.cfg")
+l = logging.getLogger(name="angr.analyses.cfg_accurate")
 
 
 class PendingExit(object):
@@ -680,7 +680,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
             self._symbolic_function_initial_state[ip] = state
 
             entry_path = self.project.factory.path(state)
-            path_wrapper = EntryWrapper(entry_path, self._context_sensitivity_level, None, None)
+            path_wrapper = EntryWrapper(ip, entry_path, self._context_sensitivity_level, None, None)
 
             self._entries.append(path_wrapper)
 
@@ -810,13 +810,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
         pending_exit_state.scratch.jumpkind = 'Ijk_FakeRet'
 
         path = self.project.factory.path(pending_exit_state)
-        entry = EntryWrapper(path,
-                                    self._context_sensitivity_level,
-                                    pending_entry_src_simrun_key,
-                                    pending_entry_src_exit_stmt_idx,
-                                    call_stack=pending_exit_call_stack,
-                                    bbl_stack=pending_exit_bbl_stack
-                                    )
+        entry = EntryWrapper(path.addr,
+                             path,
+                             self._context_sensitivity_level,
+                             pending_entry_src_simrun_key,
+                             pending_entry_src_exit_stmt_idx,
+                             call_stack=pending_exit_call_stack,
+                             bbl_stack=pending_exit_bbl_stack
+                             )
         l.debug("Tracing a missing return exit %s", self._simrun_key_repr(pending_exit_tuple))
 
         return entry
@@ -842,7 +843,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
                     new_state.registers.store('t9', f)
 
                 new_path = self.project.factory.path(new_state)
-                new_path_wrapper = EntryWrapper(new_path,
+                new_path_wrapper = EntryWrapper(f,
+                                                new_path,
                                                 self._context_sensitivity_level
                                                 )
                 remaining_entries.append(new_path_wrapper)
@@ -887,7 +889,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
         # Extract initial info from entry_wrapper
         path = _locals['path'] = entry.path
         call_stack_suffix = _locals['call_stack_suffix'] = entry.call_stack_suffix()
-        addr = _locals['addr'] = entry.path.addr
+        addr = _locals['addr'] = entry.addr
         func_addr = _locals['func_addr'] = entry.current_function_address
         _locals['current_stack_pointer'] = entry.current_stack_pointer
         _locals['accessed_registers_in_function'] = entry.current_function_accessed_registers
@@ -1317,11 +1319,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
             # time being.
             target_addr |= 1
 
-        self._pre_handle_successor_state(extra_info, suc_jumpkind, target_addr)
-
         # Fix target_addr for syscalls
         if suc_jumpkind.startswith("Ijk_Sys"):
             _, target_addr, _, _ = self.project._simos.syscall_info(new_state)
+
+        self._pre_handle_successor_state(extra_info, suc_jumpkind, target_addr)
 
         # Remove pending targets - type 2
         tpl = self._generate_simrun_key(call_stack_suffix, target_addr, suc_jumpkind.startswith('Ijk_Sys'))
@@ -1392,7 +1394,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
         # before. Make sure it is still running in 'fastpath' mode
         # new_exit.state = self.project.simos.prepare_call_state(new_exit.state, initial_state=saved_state)
         new_path.state.set_mode('fastpath')
-        pw = EntryWrapper(new_path,
+        pw = EntryWrapper(target_addr,
+                          new_path,
                           self._context_sensitivity_level,
                           simrun_key,
                           suc_exit_stmt_idx,
@@ -2218,6 +2221,16 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
     # Private methods - creation of stuff (SimRun, CFGNode, call-stack, etc.)
 
     def _get_simrun(self, addr, current_entry, current_function_addr=None):
+        """
+        Create the correct SimRun instance.
+
+        :param int addr: Address of the SimRun
+        :param angr.Path current_entry: The Path object, with a state inside
+        :param int current_function_addr: Address of the current function
+        :return: A SimRun instance
+        :rtype: simuvex.SimRun
+        """
+
         error_occurred = False
         state = current_entry.state
         saved_state = current_entry.state  # We don't have to make a copy here
@@ -2242,7 +2255,15 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
 
                 old_proc = self.project._sim_procedures[addr][0]
                 old_name = None
-                if old_proc == simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"]:
+
+                if old_proc.IS_SYSCALL:
+                    new_stub = simuvex.procedures.SimProcedures["syscalls"]["stub"]
+                    ret_to = current_entry.addr
+                else:
+                    new_stub = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"]
+                    ret_to = None
+
+                if old_proc is new_stub:
                     proc_kwargs = self.project._sim_procedures[addr][1]
                     if 'resolves' in proc_kwargs:
                         old_name = proc_kwargs['resolves']
@@ -2250,9 +2271,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
                 if old_name is None:
                     old_name = old_proc.__name__.split('.')[-1]
 
-                sim_run = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"](
+                sim_run = new_stub(
                     state,
                     addr=addr,
+                    ret_to=ret_to,
                     sim_kwargs={'resolves': "%s" % old_name}
                 )
             else:

@@ -404,8 +404,9 @@ class EntryWrapper(object):
     """
     Describes an entry in CFG or VFG. Only used internally by the analysis.
     """
-    def __init__(self, path, context_sensitivity_level, src_simrun_key=None, src_exit_stmt_idx=None, jumpkind=None,
-                 call_stack=None, bbl_stack=None, is_narrowing=False, skip=False, cancelled_pending_entry=None):
+    def __init__(self, addr, path, context_sensitivity_level, src_simrun_key=None, src_exit_stmt_idx=None,
+                 jumpkind=None, call_stack=None, bbl_stack=None, is_narrowing=False, skip=False, cancelled_pending_entry=None):
+        self.addr = addr # Note that addr may not always be equal to self.path.addr (for syscalls, for example)
         self._path = path
         self.jumpkind = jumpkind
         self.src_simrun_key = src_simrun_key
