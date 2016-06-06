@@ -181,9 +181,9 @@ class PathHistory(object):
         self._guard = state.scratch.guard
 
         self.addr = state.scratch.bbl_addr
-        # state.scratch.bbl_addr may not be initialized as final states from the "flat_successors" list. We need to get
+        # state.scratch.bbl_addr may not be initialized (when SimProcedures are executed, for example). We need to get
         # the value from _target in that case.
-        if self.addr is None and self._target._model_concrete is not self._target:
+        if self.addr is None and not self._target.symbolic:
             self.addr = self._target._model_concrete.value
 
         if simuvex.o.TRACK_ACTION_HISTORY not in state.options:
