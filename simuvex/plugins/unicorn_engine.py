@@ -127,6 +127,8 @@ def _load_native():
         _setup_prototype(h, 'start', uc_err, state_t, ctypes.c_uint64, ctypes.c_uint64)
         _setup_prototype(h, 'stop', None, state_t, stop_t)
         _setup_prototype(h, 'sync', ctypes.POINTER(MEM_PATCH), state_t)
+        _setup_prototype(h, 'bbl_addrs', ctypes.POINTER(ctypes.c_uint64), state_t)
+        _setup_prototype(h, 'bbl_addr_count', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'destroy', None, ctypes.POINTER(MEM_PATCH))
         _setup_prototype(h, 'step', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'stop_reason', stop_t, state_t)
@@ -405,6 +407,11 @@ class Unicorn(SimStatePlugin):
         self.steps = _UC_NATIVE.step(self._uc_state)
 
         self.sync()
+
+        # get the addresses out of the state
+        num_bbl_addrs = _UC_NATIVE.bbl_addr_count(self._uc_state)
+        bbl_addrs = _UC_NATIVE.bbl_addrs(self._uc_state)
+        self.state.scratch.bbl_addr_list = bbl_addrs[:num_bbl_addrs]
 
         addr = self.state.se.any_int(self.state.ip)
         l.debug('finished emulation at %#x after %d steps', addr, self.steps)

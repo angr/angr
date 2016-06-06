@@ -68,6 +68,7 @@ private:
 	std::unordered_set<uint64_t> stop_points;
 
 public:
+	std::vector<uint64_t> bbl_addrs;
 	uint64_t cur_steps, max_steps;
 	uc_hook h_read, h_write, h_block, h_prot, h_unmap;
 	stop_t stop_reason;
@@ -197,6 +198,7 @@ public:
 	void step(uint64_t current_address) {
 		// save current registers
 		uc_reg_update(uc, tmp_reg, 1);
+		bbl_addrs.push_back(current_address);
 
 		if (cur_steps >= max_steps)
 			stop(STOP_NORMAL);
@@ -288,6 +290,7 @@ public:
 		mem_writes.clear();
 
 		uc_reg_update(uc, tmp_reg, 0);
+		bbl_addrs.pop_back();
 	}
 
 	/*
@@ -586,6 +589,16 @@ State *alloc(uc_engine *uc, uint64_t cache_key) {
 extern "C"
 void dealloc(State *state) {
 	delete state;
+}
+
+extern "C"
+uint64_t *bbl_addrs(State *state) {
+	return &(state->bbl_addrs[0]);
+}
+
+extern "C"
+uint64_t bbl_addr_count(State *state) {
+	return state->bbl_addrs.size();
 }
 
 extern "C"
