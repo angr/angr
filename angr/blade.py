@@ -62,6 +62,32 @@ class Blade(object):
         return self._slice
 
     #
+    # Public methods
+    #
+
+    def dbg_repr(self):
+        s = ""
+
+        block_addrs = list(set([ a for a, _ in self.slice.nodes_iter() ]))
+
+        for block_addr in block_addrs:
+            block_str = "IRSB %08x\n" % block_addr
+
+            block = self.project.factory.block(block_addr).vex
+
+            included_stmts = set([ stmt for _, stmt in self.slice.nodes_iter() if _ == block_addr ])
+
+            for i, stmt in enumerate(block.statements):
+                block_str += "%02s: %s\n" % ("+" if i in included_stmts else "-",
+                                   str(stmt)
+                                   )
+
+            s += block_str
+            s += "\n"
+
+        return s
+
+    #
     # Private methods
     #
 
