@@ -173,7 +173,6 @@ class Unicorn(SimStatePlugin):
         self.error = None
         self.errno = 0
 
-        self.last_miss = 0
         self.cache_key = hash(self) if cache_key is None else cache_key
 
         # cooldowns to avoid thrashing in and out of unicorn
