@@ -39,8 +39,9 @@ class STOP(object): # stop_t
 _unicounter = itertools.count()
 
 class Uniwrapper(unicorn.Uc):
-    def __init__(self, arch):
+    def __init__(self, arch, cache_key):
         self.arch = arch
+        self.cache_key = cache_key
         self.wrapped_mapped = set()
         self.wrapped_hooks = set()
         self.id = None
@@ -208,9 +209,9 @@ class Unicorn(SimStatePlugin):
     def uc(self):
         new_id = next(_unicounter)
 
-        if _unicorn_tls.uc is None or _unicorn_tls.uc.arch != self.state.arch:
+        if _unicorn_tls.uc is None or _unicorn_tls.uc.arch != self.state.arch or _unicorn_tls.uc.cache_key != self.cache_key:
             l.debug("Creating unicorn state!")
-            _unicorn_tls.uc = Uniwrapper(self.state.arch)
+            _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key)
         elif _unicorn_tls.uc.id != self._unicount:
             l.debug("Resetting unicorn state!")
             _unicorn_tls.uc.reset()
