@@ -53,7 +53,8 @@ class SimUnicorn(SimRun):
         if self.state.unicorn.errno:
             # error from unicorn
             self.success = False
-            raise unicorn.UcError(self.state.unicorn.errno)
+            err = str(unicorn.UcError(self.state.unicorn.errno))
+            raise SimUnicornError(err)
 
         self.state.scratch.executed_block_count += self.state.unicorn.steps
 

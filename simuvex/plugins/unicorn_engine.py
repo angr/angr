@@ -204,6 +204,15 @@ class Unicorn(SimStatePlugin):
         # this is the counter for the unicorn count
         self._unicount = next(_unicounter) if unicount is None else unicount
 
+    def set_state(self, state):
+        SimStatePlugin.set_state(self, state)
+        if state.arch.name == "MIPS32":
+            self._unicount = next(_unicounter)
+
+    @property
+    def _reuse_unicorn(self):
+        return self.state.arch.name != "MIPS32"
+
     @property
     def uc(self):
         new_id = next(_unicounter)
@@ -212,8 +221,11 @@ class Unicorn(SimStatePlugin):
             l.debug("Creating unicorn state!")
             _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key)
         elif _unicorn_tls.uc.id != self._unicount:
-            l.debug("Resetting unicorn state!")
-            _unicorn_tls.uc.reset()
+            if not self._reuse_unicorn:
+                _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key)
+            else:
+                l.debug("Reusing unicorn state!")
+                _unicorn_tls.uc.reset()
         else:
             #l.debug("Reusing unicorn state!")
             pass
@@ -249,6 +261,8 @@ class Unicorn(SimStatePlugin):
         elif arch == 'i386':
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
         elif arch == 'mips':
+            self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_mips, None, 1, 0)
+        elif arch == 'mipsel':
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_mips, None, 1, 0)
         else:
             raise SimUnicornUnsupport
@@ -605,10 +619,11 @@ class Unicorn(SimStatePlugin):
                 #l.info('detected symbolic register %s', r)
                 return False
 
-        flags = ccall._get_flags(self.state)[0]
-        if flags is not None and flags.symbolic:
-            #l.info("detected symbolic rflags/eflags")
-            return False
+        if self.state.arch.vex_conditional_helpers:
+            flags = ccall._get_flags(self.state)[0]
+            if flags is not None and flags.symbolic:
+                #l.info("detected symbolic rflags/eflags")
+                return False
 
         #l.debug('passed quick check')
         return True
