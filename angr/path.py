@@ -527,7 +527,7 @@ class Path(object):
             self._make_sim_run()
 
         if self._run_error:
-            return [ ErroredPath(self._run_error, self._project, self.state.copy(), path=self) ]
+            return [ self.copy(error=self._run_error) ]
 
         out = [ Path(self._project, s, path=self) for s in self._run.flat_successors ]
         if 'insn_bytes' in run_args and 'addr' not in run_args and len(out) == 1 \
@@ -809,8 +809,11 @@ class Path(object):
 
         return new_path
 
-    def copy(self):
-        p = Path(self._project, self.state.copy())
+    def copy(self, error=None):
+        if error is None:
+            p = Path(self._project, self.state.copy())
+        else:
+            p = ErroredPath(error, self._project, self.state.copy())
 
         p.history = self.history.copy()
         p._eref = self._eref
