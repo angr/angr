@@ -181,7 +181,6 @@ UNDER_CONSTRAINED_SYMEXEC = "UNDER_CONSTRAINED_SYMEXEC"
 
 # enable unicorn engine
 UNICORN = "UNICORN"
-UNICORN_FAST = "UNICORN_FAST"
 UNICORN_ZEROPAGE_GUARD = "UNICORN_ZEROPAGE_GUARD"
 
 # Resilience options
@@ -240,7 +239,7 @@ symbolic = { DO_CCALLS, SYMBOLIC, TRACK_CONSTRAINTS, LAZY_SOLVES, SYMBOLIC_INITI
 simplification = { SIMPLIFY_MEMORY_WRITES, SIMPLIFY_REGISTER_WRITES }
 common_options_without_simplification = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES, OPTIMIZE_IR, TRACK_MEMORY_MAPPING }
 common_options = common_options_without_simplification | simplification
-unicorn = { UNICORN, UNICORN_FAST, INITIALIZE_ZERO_REGISTERS }
+unicorn = { UNICORN, INITIALIZE_ZERO_REGISTERS }
 
 modes = { }
 modes['symbolic'] = common_options | symbolic | refs #| approximation | { VALIDATE_APPROXIMATIONS }

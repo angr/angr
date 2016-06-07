@@ -159,7 +159,7 @@ class Unicorn(SimStatePlugin):
 
     UC_CONFIG = {} # config cache for each arch
 
-    def __init__(self, syscall_hooks=None, cache_key=None, runs_since_unicorn=0, runs_since_symbolic_data=0, register_check_count=0, unicount=None, cooldown_symbolic_registers=40, cooldown_symbolic_memory=40, cooldown_nonunicorn_blocks=20):
+    def __init__(self, syscall_hooks=None, cache_key=None, runs_since_unicorn=0, runs_since_symbolic_data=0, register_check_count=0, unicount=None, cooldown_symbolic_registers=40, cooldown_symbolic_memory=40, cooldown_nonunicorn_blocks=20, max_steps=1000000):
         """
         Initializes the Unicorn plugin for SimuVEX. This plugin handles communication with
         UnicornEngine.
@@ -182,6 +182,9 @@ class Unicorn(SimStatePlugin):
         self.cooldown_symbolic_registers = cooldown_symbolic_registers
         self.cooldown_symbolic_memory = cooldown_symbolic_memory
         self.cooldown_nonunicorn_blocks = cooldown_nonunicorn_blocks
+
+        # the default step limit
+        self.max_steps = max_steps
 
         self._dirty = {}
         self.steps = 0
@@ -384,14 +387,14 @@ class Unicorn(SimStatePlugin):
         # tricky: using unicorn handle form unicorn.Uc object
         self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key)
 
-    def start(self, step=1):
+    def start(self, step=None):
         addr = self.state.se.any_int(self.state.ip)
 
         self.jumpkind = 'Ijk_Boring'
 
-        l.debug('emu_start at %#x (%d steps)', addr, step)
+        l.debug('emu_start at %#x (%d steps)', addr, self.max_steps if step is None else step)
         self._current_nonunicorn_blocks = 0
-        self.errno = _UC_NATIVE.start(self._uc_state, addr, step)
+        self.errno = _UC_NATIVE.start(self._uc_state, addr, self.max_steps if step is None else step)
 
     def finish(self):
         self.get_regs()
@@ -590,6 +593,7 @@ class Unicorn(SimStatePlugin):
             cooldown_symbolic_registers=self.cooldown_symbolic_registers,
             cooldown_symbolic_memory=self.cooldown_symbolic_memory,
             cooldown_nonunicorn_blocks=self.cooldown_nonunicorn_blocks,
+            max_steps=self.max_steps,
         )
         return u
 

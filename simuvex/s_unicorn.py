@@ -11,7 +11,7 @@ from .s_run import SimRun
 class SimUnicorn(SimRun):
     ''' concrete exection in unicorn engine '''
 
-    def __init__(self, state, step=1, stop_points=None, **kwargs):
+    def __init__(self, state, step=None, stop_points=None, **kwargs):
         '''
         :param state: current state
         :param step: how many basic blocks we want to execute. now we only
