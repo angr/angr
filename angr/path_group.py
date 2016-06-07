@@ -1,9 +1,11 @@
+import logging
+import itertools
+
 import ana
 import simuvex
 import claripy
 import mulpyplexer
 
-import logging
 l = logging.getLogger('angr.path_group')
 
 
