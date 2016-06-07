@@ -44,6 +44,7 @@ class SimIRSB(SimRun):
         self.first_imark = IMark(next(i for i in self.irsb.statements if type(i) is pyvex.IRStmt.IMark))
         self.last_imark = self.first_imark
         self.state.scratch.bbl_addr = self.addr
+        self.state.scratch.executed_block_count = 1
         self.state.sim_procedure = None
         self.id = "%x" % self.first_imark.addr if irsb_id is None else irsb_id
         self.whitelist = whitelist

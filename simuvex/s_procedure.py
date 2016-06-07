@@ -34,6 +34,7 @@ class SimProcedure(SimRun):
         # Update state.scratch
         self.state.scratch.bbl_addr = self.addr
         self.state.scratch.sim_procedure = self.__class__.__name__
+        self.state.scratch.executed_block_count = 1
 
         self.stmt_from = -1 if stmt_from is None else stmt_from
         self.arguments = arguments
