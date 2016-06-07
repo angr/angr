@@ -328,18 +328,37 @@ class PathGroup(ana.Storable):
         s += ">"
         return s
 
+    def mulpyplex(self, *stashes):
+        """
+        Mulpyplex across several stashes.
+
+        :param stashes: the stashes to mulpyplex
+        :return: a mulpyplexed list of paths from the stashes in question, in the specified order
+        """
+
+        return mulpyplexer.MP(list(itertools.chain.from_iterable(self.stashes[s] for s in stashes)))
+
     def __getattr__(self, k):
-        if k.startswith('mp_'):
+        if k == PathGroup.ALL:
+            return [ p for p in itertools.chain.from_iterable(s for s in self.stashes.values()) ]
+        elif k == 'mp_' + PathGroup.ALL:
+            return mulpyplexer.MP([ p for p in itertools.chain.from_iterable(s for s in self.stashes.values()) ])
+        elif k.startswith('mp_'):
             return mulpyplexer.MP(self.stashes[k[3:]])
+        elif k.startswith('one_'):
+            return self.stashes[k[4:]][0]
         else:
             return self.stashes[k]
 
     def __dir__(self):
-        return sorted(set(self.__dict__.keys() +
-                          dir(super(PathGroup, self)) +
-                          dir(type(self)) +
-                          self.stashes.keys() +
-                          ['mp_'+k for k in self.stashes.keys()]))
+        return sorted(set(
+            self.__dict__.keys() +
+            dir(super(PathGroup, self)) +
+            dir(type(self)) +
+            self.stashes.keys() +
+            ['mp_'+k for k in self.stashes.keys()] +
+            ['any_'+k for k in self.stashes.keys()]
+        ))
 
     #
     # Interface
