@@ -1327,7 +1327,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         return False, [ ]
 
-    def _resolve_indirect_jump_timelessly_mips32(self, addr, block, func_addr):
+    def _resolve_indirect_jump_timelessly_mips32(self, addr, block, func_addr):  # pylint: disable=unused-argument
 
         b = Blade(self._graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True,
                   ignored_regs=('gp',))
@@ -1356,10 +1356,12 @@ class CFGFast(ForwardAnalysis, CFGBase):
         for i, stmt in enumerate(self.project.factory.block(source_addr).vex.statements):
             if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == gp_offset and \
                     isinstance(stmt.data, pyvex.IRExpr.RdTmp):
-                tmp_offset = stmt.data.tmp
+                tmp_offset = stmt.data.tmp  # pylint:disable=cell-var-from-loop
                 # we must make sure value of that temporary variable equals to the correct gp value
                 state.inspect.make_breakpoint('tmp_write', when=simuvex.BP_BEFORE,
-                                              condition=lambda s: s.inspect.tmp_write_num == tmp_offset,
+                                              condition=lambda s: s.scratch.bbl_addr == addr and
+                                                                  s.scratch.stmt_idx == i and  # pylint:disable=cell-var-from-loop
+                                                                  s.inspect.tmp_write_num == tmp_offset,  # pylint:disable=cell-var-from-loop
                                               action=overwrite_tmp_value)
 
         path = self.project.factory.path(state)
@@ -1880,7 +1882,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
     # Other methods
     #
 
-    def _process_block_arch_specific(self, addr, irsb, func_addr):
+    def _process_block_arch_specific(self, addr, irsb, func_addr):  # pylint: disable=unused-argument
         if self.project.arch.name == "MIPS32":
             if addr == func_addr:
                 # Prudently search for $gp values
