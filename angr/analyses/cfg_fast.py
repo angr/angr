@@ -1329,22 +1329,39 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
     def _resolve_indirect_jump_timelessly_mips32(self, addr, block, func_addr):
 
-        b = Blade(self._graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True)
+        b = Blade(self._graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True,
+                  ignored_regs=('gp',))
 
         sources = [ n for n in b.slice.nodes() if b.slice.in_degree(n) == 0 ]
         if not sources:
             return False, [ ]
 
         source = sources[0]
+        source_addr = source[0]
         annotated_cfg = AnnotatedCFG(self.project, None, detect_loops=False)
         annotated_cfg.from_digraph(b.slice)
 
-        state = self.project.factory.blank_state(addr=source[0], mode="fastpath")
+        state = self.project.factory.blank_state(addr=source_addr, mode="fastpath")
         func = self.kb.functions.function(addr=func_addr)
         if 'gp' not in func.info:
             return False, [ ]
 
+        gp_offset = self.project.arch.registers['gp'][0]
         state.regs.gp = func.info['gp']
+
+        def overwrite_tmp_value(state):
+            state.inspect.tmp_write_expr = state.se.BVV(func.info['gp'], state.arch.bits)
+
+        # Special handling for cases where `gp` is stored on the stack
+        for i, stmt in enumerate(self.project.factory.block(source_addr).vex.statements):
+            if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == gp_offset and \
+                    isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+                tmp_offset = stmt.data.tmp
+                # we must make sure value of that temporary variable equals to the correct gp value
+                state.inspect.make_breakpoint('tmp_write', when=simuvex.BP_BEFORE,
+                                              condition=lambda s: s.inspect.tmp_write_num == tmp_offset,
+                                              action=overwrite_tmp_value)
+
         path = self.project.factory.path(state)
         slicecutor = Slicecutor(self.project, annotated_cfg=annotated_cfg, start=path)
 

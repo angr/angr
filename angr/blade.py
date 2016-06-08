@@ -9,7 +9,7 @@ class Blade(object):
     It is meant to be used in angr for small or on-the-fly analyses.
     """
     def __init__(self, graph, dst_run, dst_stmt_idx, direction='backward', project=None, cfg=None, ignore_sp=False,
-                 ignore_bp=False, max_level=3):
+                 ignore_bp=False, ignored_regs=None, max_level=3):
         """
         :param networkx.DiGraph graph:  A graph representing the control flow graph. Note that it does not take
                                         angr.analyses.CFGAccurate or angr.analyses.CFGFast.
@@ -41,6 +41,14 @@ class Blade(object):
 
         if not self._in_graph(self._dst_run):
             raise AngrBladeError("The specified SimRun %s doesn't exist in graph.")
+
+        self._ignored_regs = set()
+        if ignored_regs:
+            for r in ignored_regs:
+                if isinstance(r, (int, long)):
+                    self._ignored_regs.add(r)
+                else:
+                    self._ignored_regs.add(self.project.arch.registers[r][0])
 
         self._run_cache = { }
 
@@ -232,6 +240,9 @@ class Blade(object):
             regs.remove(self.project.arch.sp_offset)
         if self._ignore_bp and self.project.arch.bp_offset in regs:
             regs.remove(self.project.arch.bp_offset)
+        for offset in self._ignored_regs:
+            if offset in regs:
+                regs.remove(offset)
 
         stack_offsets = slicer.final_stack_offsets
 
