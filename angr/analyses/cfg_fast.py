@@ -1040,6 +1040,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
             new_exits = hooker.static_exits(self.project.arch, blocks_ahead)
 
             for addr, jumpkind in new_exits:
+                if not isinstance(addr, (int, long)):
+                    continue
                 entries += self._create_entries(addr, jumpkind, current_function_addr, None, addr, cfg_node, None)
 
         return entries
@@ -1063,6 +1065,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         except (AngrTranslationError, AngrMemoryError):
             return [ ]
+
+        self._process_block_arch_specific(addr, irsb, current_function_addr)
 
         # If we have traced it before, don't trace it anymore
         if addr in self._traced_addresses:
@@ -1195,10 +1199,26 @@ class CFGFast(ForwardAnalysis, CFGBase):
                         self._function_returns[target_addr].append(fr)
 
             else:
-                l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
+                resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, current_function_addr)
+                if resolved:
+                    for t in resolved_targets:
+                        new_func_addr = t
 
-                # Add it to our set. Will process it later if user allows.
-                self._indirect_jumps.add(CFGEntry(addr, current_function_addr, jumpkind))
+                        # Call
+                        ce = CFGEntry(t, new_func_addr, 'Ijk_Call', last_addr=addr, src_node=cfg_node,
+                                      src_stmt_idx=stmt_idx)
+                        entries.append(ce)
+
+                    return_site = addr + irsb.size
+                    # FakeRet
+                    ce = CFGEntry(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
+                                  src_stmt_idx=stmt_idx, returning_source=resolved_targets[0])
+                    self._pending_entries.append(ce)
+
+                else:
+                    l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
+                    # Add it to our set. Will process it later if user allows.
+                    self._indirect_jumps.add(CFGEntry(addr, current_function_addr, jumpkind))
 
         elif jumpkind == "Ijk_Ret":
             if current_function_addr != -1:
@@ -1303,6 +1323,44 @@ class CFGFast(ForwardAnalysis, CFGBase):
         return "unknown", 0
 
     # Indirect jumps processing
+
+    def _resolve_indirect_jump_timelessly(self, addr, block, func_addr):
+
+        if self.project.arch.name == "MIPS32":
+            # Prudently search for indirect jump target
+            return self._resolve_indirect_jump_timelessly_mips32(addr, block, func_addr)
+
+        return False, [ ]
+
+    def _resolve_indirect_jump_timelessly_mips32(self, addr, block, func_addr):
+
+        b = Blade(self._graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True)
+
+        sources = [ n for n in b.slice.nodes() if b.slice.in_degree(n) == 0 ]
+        if not sources:
+            return False, [ ]
+
+        source = sources[0]
+        annotated_cfg = AnnotatedCFG(self.project, None, detect_loops=False)
+        annotated_cfg.from_digraph(b.slice)
+
+        state = self.project.factory.blank_state(addr=source[0], mode="fastpath")
+        func = self.kb.functions.function(addr=func_addr)
+        if 'gp' not in func.info:
+            return False, [ ]
+
+        state.regs.gp = func.info['gp']
+        path = self.project.factory.path(state)
+        slicecutor = Slicecutor(self.project, annotated_cfg=annotated_cfg, start=path)
+
+        slicecutor.run()
+
+        if slicecutor.cut:
+            suc = slicecutor.cut[0].successors[0].addr
+
+            return True, [ suc ]
+
+        return False, [ ]
 
     def _process_indirect_jumps(self):
         """
@@ -1805,6 +1863,27 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
     def _function_add_return_edge(self, return_from_addr, return_to_addr, function_addr):
         self.kb.functions._add_return_from_call(function_addr, return_from_addr, return_to_addr)
+
+    #
+    # Other methods
+    #
+
+    def _process_block_arch_specific(self, addr, irsb, func_addr):
+        if self.project.arch.name == "MIPS32":
+            if addr == func_addr:
+                # Prudently search for $gp values
+                state = self.project.factory.blank_state(addr=addr, mode="fastpath")
+                state.regs.t9 = func_addr
+                state.regs.gp = 0xffffffff
+                p = self.project.factory.path(state)
+                p.step(num_inst=3)
+
+                if not p.successors:
+                    return
+
+                state = p.successors[0].state
+                if not state.regs.gp.symbolic and state.se.is_false(state.regs.gp == 0xffffffff):
+                    self.kb.functions.function(func_addr).info['gp'] = state.regs.gp._model_concrete.value
 
     #
     # Public methods

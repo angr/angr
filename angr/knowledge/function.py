@@ -81,6 +81,8 @@ class Function(object):
         self._block_sizes = {}  # map addresses to block sizes
         self._block_cache = {}  # a cache of real, hard data Block objects
 
+        self.info = { }  # storing special information, like $gp values for MIPS32
+
     @property
     def blocks(self):
         for blockaddr in self.block_addrs:
