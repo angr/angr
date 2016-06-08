@@ -29,6 +29,10 @@ class CFGBase(Analysis):
         self._overlapped_loop_headers = None
         self._thumb_addrs = set()
 
+        # Store all the functions analyzed before the set is cleared
+        # Used for performance optimization
+        self._changed_functions = None
+
     def __contains__(self, cfg_node):
         return cfg_node in self._graph
 
@@ -334,7 +338,25 @@ class CFGBase(Analysis):
             'functions_do_not_return': []
         }
 
-        for func in self.kb.functions.values():
+        if self._changed_functions is not None:
+            all_functions = self._changed_functions
+            caller_functions = set()
+
+            for func_addr in self._changed_functions:
+                if func_addr not in self.kb.functions.callgraph:
+                    continue
+                callers = self.kb.functions.callgraph.predecessors(func_addr)
+                for f in callers:
+                    caller_functions.add(f)
+
+            all_functions |= caller_functions
+
+            all_functions = [ self.kb.functions.function(addr=f) for f in all_functions ]
+
+        else:
+            all_functions = self.kb.functions.values()
+
+        for func in all_functions:
             if func.returning is not None:
                 # It has been determined before. Skip it
                 continue

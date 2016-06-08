@@ -682,9 +682,10 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 accepted = True
                 break
             if curr_addr < start:
-                # accept, but we are skipsping the gap
+                # accept, but we are skipping the gap
                 accepted = True
                 curr_addr = start
+                break
 
         if not accepted:
             # No memory available!
@@ -805,6 +806,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
         for sp in starting_points:
             self._entries.append(CFGEntry(sp, sp, 'Ijk_Boring'))
 
+        self._changed_functions = set()
+
     def _pre_entry_handling(self, entry, _locals):
 
         if self._show_progressbar or self._progress_callback:
@@ -817,6 +820,10 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
             if self._progress_callback:
                 self._progress_callback(percentage)
+
+        current_function_addr = entry.func_addr
+
+        self._changed_functions.add(current_function_addr)
 
     def _intra_analysis(self):
         pass
@@ -882,6 +889,9 @@ class CFGFast(ForwardAnalysis, CFGBase):
                     del self._function_returns[not_returning_function.addr]
 
             self._clean_pending_exits(self._pending_entries)
+
+        # Clear _changed_functions set
+        self._changed_functions = set()
 
         if self._pending_entries:
             self._entries.append(self._pending_entries[0])
@@ -1040,6 +1050,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
             new_exits = hooker.static_exits(self.project.arch, blocks_ahead)
 
             for addr, jumpkind in new_exits:
+                if not isinstance(addr, (int, long)):
+                    continue
                 entries += self._create_entries(addr, jumpkind, current_function_addr, None, addr, cfg_node, None)
 
         return entries
@@ -1063,6 +1075,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         except (AngrTranslationError, AngrMemoryError):
             return [ ]
+
+        self._process_block_arch_specific(addr, irsb, current_function_addr)
 
         # If we have traced it before, don't trace it anymore
         if addr in self._traced_addresses:
@@ -1149,56 +1163,23 @@ class CFGFast(ForwardAnalysis, CFGBase):
                                 self._function_add_call_edge(tmp_addr, None, None, tmp_function_addr)
 
         elif jumpkind == 'Ijk_Call' or jumpkind.startswith("Ijk_Sys"):
+            is_syscall = jumpkind.startswith("Ijk_Sys")
+
             if target_addr is not None:
-
-                is_syscall = jumpkind.startswith("Ijk_Sys")
-
-                if is_syscall:
-                    # Fix the target_addr for syscalls
-                    tmp_path = self.project.factory.path(self.project.factory.blank_state(mode="fastpath",
-                                                                                          addr=cfg_node.addr))
-                    tmp_path.step()
-                    succ = tmp_path.successors[0]
-                    _, syscall_addr, _, _ = self.project._simos.syscall_info(succ.state)
-                    target_addr = syscall_addr
-
-                new_function_addr = target_addr
-                return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
-
-                # Keep tracing from the call
-                ce = CFGEntry(target_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
-                              src_stmt_idx=stmt_idx, syscall=True)
-                entries.append(ce)
-
-                self._function_add_call_edge(target_addr, cfg_node, return_site, current_function_addr,
-                                             syscall=is_syscall)
-
-                # Also, keep tracing from the return site
-                ce = CFGEntry(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
-                              src_stmt_idx=stmt_idx, returning_source=new_function_addr, syscall=True)
-                self._pending_entries.append(ce)
-
-                callee_function = self.kb.functions.function(addr=target_addr, syscall=is_syscall)
-
-                if callee_function.returning is True:
-                    self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
-                                                    confirmed=True)
-                    self._function_add_return_edge(target_addr, return_site, current_function_addr)
-                elif callee_function.returning is False:
-                    # The function does not return - there is no fake ret edge
-                    pass
-                else:
-                    self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
-                                                    confirmed=None)
-                    fr = FunctionReturn(target_addr, current_function_addr, addr, return_site)
-                    if fr not in self._function_returns[target_addr]:
-                        self._function_returns[target_addr].append(fr)
+                self._create_entry_call(entries, addr, irsb, cfg_node, stmt_idx, current_function_addr, target_addr,
+                                        jumpkind, is_syscall=is_syscall)
 
             else:
-                l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
+                resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, current_function_addr)
+                if resolved:
+                    for t in resolved_targets:
+                        self._create_entry_call(entries, addr, irsb, cfg_node, stmt_idx, current_function_addr,
+                                                t, jumpkind, is_syscall=is_syscall)
 
-                # Add it to our set. Will process it later if user allows.
-                self._indirect_jumps.add(CFGEntry(addr, current_function_addr, jumpkind))
+                else:
+                    l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
+                    # Add it to our set. Will process it later if user allows.
+                    self._indirect_jumps.add(CFGEntry(addr, current_function_addr, jumpkind))
 
         elif jumpkind == "Ijk_Ret":
             if current_function_addr != -1:
@@ -1209,6 +1190,50 @@ class CFGFast(ForwardAnalysis, CFGBase):
             l.debug("Unsupported jumpkind %s", jumpkind)
 
         return entries
+
+    def _create_entry_call(self, entries, addr, irsb, cfg_node, stmt_idx, current_function_addr, target_addr, jumpkind,
+                           is_syscall=False):
+
+        if is_syscall:
+            # Fix the target_addr for syscalls
+            tmp_path = self.project.factory.path(self.project.factory.blank_state(mode="fastpath",
+                                                                                  addr=cfg_node.addr))
+            tmp_path.step()
+            succ = tmp_path.successors[0]
+            _, syscall_addr, _, _ = self.project._simos.syscall_info(succ.state)
+            target_addr = syscall_addr
+
+        new_function_addr = target_addr
+        return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
+
+        # Keep tracing from the call
+        ce = CFGEntry(target_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
+                      src_stmt_idx=stmt_idx, syscall=True)
+        entries.append(ce)
+
+        self._function_add_call_edge(target_addr, cfg_node, return_site, current_function_addr,
+                                     syscall=is_syscall)
+
+        # Also, keep tracing from the return site
+        ce = CFGEntry(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
+                      src_stmt_idx=stmt_idx, returning_source=new_function_addr, syscall=True)
+        self._pending_entries.append(ce)
+
+        callee_function = self.kb.functions.function(addr=target_addr, syscall=is_syscall)
+
+        if callee_function.returning is True:
+            self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
+                                            confirmed=True)
+            self._function_add_return_edge(target_addr, return_site, current_function_addr)
+        elif callee_function.returning is False:
+            # The function does not return - there is no fake ret edge
+            pass
+        else:
+            self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
+                                            confirmed=None)
+            fr = FunctionReturn(target_addr, current_function_addr, addr, return_site)
+            if fr not in self._function_returns[target_addr]:
+                self._function_returns[target_addr].append(fr)
 
     # Data reference processing
 
@@ -1303,6 +1328,63 @@ class CFGFast(ForwardAnalysis, CFGBase):
         return "unknown", 0
 
     # Indirect jumps processing
+
+    def _resolve_indirect_jump_timelessly(self, addr, block, func_addr):
+
+        if self.project.arch.name == "MIPS32":
+            # Prudently search for indirect jump target
+            return self._resolve_indirect_jump_timelessly_mips32(addr, block, func_addr)
+
+        return False, [ ]
+
+    def _resolve_indirect_jump_timelessly_mips32(self, addr, block, func_addr):  # pylint: disable=unused-argument
+
+        b = Blade(self._graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True,
+                  ignored_regs=('gp',))
+
+        sources = [ n for n in b.slice.nodes() if b.slice.in_degree(n) == 0 ]
+        if not sources:
+            return False, [ ]
+
+        source = sources[0]
+        source_addr = source[0]
+        annotated_cfg = AnnotatedCFG(self.project, None, detect_loops=False)
+        annotated_cfg.from_digraph(b.slice)
+
+        state = self.project.factory.blank_state(addr=source_addr, mode="fastpath")
+        func = self.kb.functions.function(addr=func_addr)
+        if 'gp' not in func.info:
+            return False, [ ]
+
+        gp_offset = self.project.arch.registers['gp'][0]
+        state.regs.gp = func.info['gp']
+
+        def overwrite_tmp_value(state):
+            state.inspect.tmp_write_expr = state.se.BVV(func.info['gp'], state.arch.bits)
+
+        # Special handling for cases where `gp` is stored on the stack
+        for i, stmt in enumerate(self.project.factory.block(source_addr).vex.statements):
+            if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == gp_offset and \
+                    isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+                tmp_offset = stmt.data.tmp  # pylint:disable=cell-var-from-loop
+                # we must make sure value of that temporary variable equals to the correct gp value
+                state.inspect.make_breakpoint('tmp_write', when=simuvex.BP_BEFORE,
+                                              condition=lambda s: s.scratch.bbl_addr == addr and
+                                                                  s.scratch.stmt_idx == i and  # pylint:disable=cell-var-from-loop
+                                                                  s.inspect.tmp_write_num == tmp_offset,  # pylint:disable=cell-var-from-loop
+                                              action=overwrite_tmp_value)
+
+        path = self.project.factory.path(state)
+        slicecutor = Slicecutor(self.project, annotated_cfg=annotated_cfg, start=path)
+
+        slicecutor.run()
+
+        if slicecutor.cut:
+            suc = slicecutor.cut[0].successors[0].addr
+
+            return True, [ suc ]
+
+        return False, [ ]
 
     def _process_indirect_jumps(self):
         """
@@ -1805,6 +1887,27 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
     def _function_add_return_edge(self, return_from_addr, return_to_addr, function_addr):
         self.kb.functions._add_return_from_call(function_addr, return_from_addr, return_to_addr)
+
+    #
+    # Other methods
+    #
+
+    def _process_block_arch_specific(self, addr, irsb, func_addr):  # pylint: disable=unused-argument
+        if self.project.arch.name == "MIPS32":
+            if addr == func_addr:
+                # Prudently search for $gp values
+                state = self.project.factory.blank_state(addr=addr, mode="fastpath")
+                state.regs.t9 = func_addr
+                state.regs.gp = 0xffffffff
+                p = self.project.factory.path(state)
+                p.step(num_inst=3)
+
+                if not p.successors:
+                    return
+
+                state = p.successors[0].state
+                if not state.regs.gp.symbolic and state.se.is_false(state.regs.gp == 0xffffffff):
+                    self.kb.functions.function(func_addr).info['gp'] = state.regs.gp._model_concrete.value
 
     #
     # Public methods

@@ -115,7 +115,7 @@ if __name__ == "__main__":
     # logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
     # logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
     # logging.getLogger("angr.analyses.cfg").setLevel(logging.DEBUG)
-    # logging.getLogger("angr.analyses.vfg").setLevel(logging.DEBUG)
+    logging.getLogger("angr.analyses.vfg").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend
     # logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
     # logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
