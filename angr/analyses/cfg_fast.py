@@ -522,7 +522,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         :return: None
         """
 
-        ForwardAnalysis.__init__(self)
+        ForwardAnalysis.__init__(self, allow_merging=False)
         CFGBase.__init__(self, 0, normalize=normalize)
 
         self._binary = binary if binary is not None else self.project.loader.main_bin
@@ -790,6 +790,9 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
     # Overriden methods from ForwardAnalysis
 
+    def _entry_key(self, entry):
+        return entry.addr
+
     def _init_analysis(self):
 
         #
@@ -838,7 +841,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         # Create entries for all starting points
         for sp in starting_points:
-            self._entries.append(CFGEntry(sp, sp, 'Ijk_Boring'))
+            self._insert_entry(CFGEntry(sp, sp, 'Ijk_Boring'))
 
         self._changed_functions = set()
 
@@ -885,12 +888,12 @@ class CFGFast(ForwardAnalysis, CFGBase):
         return self._scan_block(addr, current_function_addr, jumpkind, src_node, src_stmt_idx)
 
     def _handle_successor(self, entry, successor, successors, _locals):
-        self._entries.append(successor)
+        return [ successor ]
 
-    def _merge_entries(self, entries):
+    def _merge_entries(self, *entries):
         pass
 
-    def _widen_entries(self, entries):
+    def _widen_entries(self, *entries):
         pass
 
     def _post_entry_handling(self, entry, successors, _locals):
@@ -934,7 +937,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         self._changed_functions = set()
 
         if self._pending_entries:
-            self._entries.append(self._pending_entries[0])
+            self._insert_entry(self._pending_entries[0])
             del self._pending_entries[0]
             return
 
@@ -955,7 +958,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 r = self._function_add_transition_edge(addr, self._nodes[source_addr], func_addr)
                 if r:
                     # TODO: get a better estimate of the function address
-                    self._entries.append(CFGEntry(addr, func_addr, "Ijk_Boring", last_addr=source_addr,
+                    self._insert_entry(CFGEntry(addr, func_addr, "Ijk_Boring", last_addr=source_addr,
                                                   src_node=self._nodes[source_addr],
                                                   src_stmt_idx=None,
                                                   )
@@ -968,7 +971,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
             addr = self._next_code_addr()
 
             if addr is not None:
-                self._entries.append(CFGEntry(addr, addr, "Ijk_Boring", last_addr=None))
+                self._insert_entry(CFGEntry(addr, addr, "Ijk_Boring", last_addr=None))
 
     def _post_analysis(self):
 

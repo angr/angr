@@ -6,6 +6,45 @@ import simuvex
 
 l = logging.getLogger(name="angr.entry_wrapper")
 
+
+class SimRunKey(object):
+    def __init__(self, addr, callsite_tuples, jump_type):
+        self.addr = addr
+        self.callsite_tuples = callsite_tuples
+        self.jump_type = jump_type
+
+        self._hash = None
+
+    def callsite_repr(self):
+        s = [ ]
+        for i in xrange(0, len(self.callsite_tuples), 2):
+            s.append("%#08x@%#08x" % (self.callsite_tuples[i], self.callsite_tuples[i + 1]))
+        return " -> ".join(s)
+
+    def __repr__(self):
+        return "<SRKey %#08x (%s) %% %s>" % (self.addr, self.callsite_repr(), self.jump_type)
+
+    def __hash__(self):
+        if self._hash is None:
+            self._hash = hash(self.callsite_tuples + (self.addr, self.jump_type, ))
+        return self._hash
+
+    def __eq__(self, other):
+        return isinstance(other, SimRunKey) and \
+               self.addr == other.addr and self.callsite_tuples == other.callsite_tuples and \
+               self.jump_type == other.jump_type
+
+    @staticmethod
+    def new(addr, callstack_suffix, jumpkind):
+        if jumpkind.startswith('Ijk_Sys') or jumpkind == 'syscall':
+            jump_type = 'syscall'
+        elif jumpkind in ('Ijk_Exit', 'exit'):
+            jump_type = 'exit'
+        else:
+            jump_type = "normal"
+        return SimRunKey(addr, callstack_suffix, jump_type)
+
+
 class CallStackFrame(object):
     """
     CallStackFrame represents a stack frame in the call stack.
@@ -404,10 +443,12 @@ class EntryWrapper(object):
     """
     Describes an entry in CFG or VFG. Only used internally by the analysis.
     """
-    def __init__(self, addr, path, context_sensitivity_level, src_simrun_key=None, src_exit_stmt_idx=None,
-                 jumpkind=None, call_stack=None, bbl_stack=None, is_narrowing=False, skip=False, cancelled_pending_entry=None):
+    def __init__(self, addr, path, context_sensitivity_level, simrun_key=None, src_simrun_key=None,
+                 src_exit_stmt_idx=None, jumpkind=None, call_stack=None, bbl_stack=None, is_narrowing=False,
+                 skip=False, cancelled_pending_entry=None):
         self.addr = addr # Note that addr may not always be equal to self.path.addr (for syscalls, for example)
         self._path = path
+        self.simrun_key = simrun_key
         self.jumpkind = jumpkind
         self.src_simrun_key = src_simrun_key
         self.src_exit_stmt_idx = src_exit_stmt_idx
@@ -481,3 +522,6 @@ class EntryWrapper(object):
     @property
     def current_function_accessed_registers(self):
         return self._call_stack.current_function_accessed_registers
+
+    def __repr__(self):
+        return "<Entry %#08x %% %s>" % (self.addr, self.jumpkind)

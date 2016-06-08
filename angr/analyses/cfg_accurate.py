@@ -9,8 +9,8 @@ import simuvex
 import claripy
 from archinfo import ArchARM
 
-from ..entry_wrapper import EntryWrapper
-from ..analysis import Analysis, register_analysis
+from ..entry_wrapper import SimRunKey, EntryWrapper
+from ..analysis import register_analysis
 from ..errors import AngrCFGError, AngrError, AngrForwardAnalysisSkipEntry
 from ..knowledge import FunctionManager
 from ..path import make_path
@@ -538,6 +538,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
     # CFG construction
     # The main loop and sub-methods
 
+    def _entry_key(self, entry):
+        return entry.addr
+
     def _init_analysis(self):
         """
         Initialization work.
@@ -597,7 +600,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
             entry_path = self.project.factory.path(state)
             path_wrapper = EntryWrapper(ip, entry_path, self._context_sensitivity_level, None, None)
 
-            self._entries.append(path_wrapper)
+            self._insert_entry(path_wrapper)
 
     def _pre_analysis(self):
         """
@@ -651,7 +654,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
             if pending_entry is None:
                 continue
 
-            self._entries.append(pending_entry)
+            self._insert_entry(pending_entry)
             break
 
     def _create_initial_state(self, ip, jumpkind):
@@ -728,8 +731,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
         entry = EntryWrapper(path.addr,
                              path,
                              self._context_sensitivity_level,
-                             pending_entry_src_simrun_key,
-                             pending_entry_src_exit_stmt_idx,
+                             src_simrun_key=pending_entry_src_simrun_key,
+                             src_exit_stmt_idx=pending_entry_src_exit_stmt_idx,
                              call_stack=pending_exit_call_stack,
                              bbl_stack=pending_exit_bbl_stack
                              )
@@ -1207,14 +1210,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
                             'Ijk_SigTRAP', 'Ijk_SigSEGV', 'Ijk_ClientReq'}:
             # Ignore SimExits that are of these jumpkinds
             successor_status[state] = "Skipped"
-            return
+            return [ ]
 
         if suc_jumpkind == "Ijk_FakeRet" and extra_info['call_target'] is not None:
             # if the call points to a SimProcedure that doesn't return, we don't follow the fakeret anymore
             if self.project.is_hooked(extra_info['call_target']):
                 sim_proc = self.project._sim_procedures[extra_info['call_target']][0]
                 if sim_proc.NO_RET:
-                    return
+                    return [ ]
 
         # Get target address
         try:
@@ -1229,7 +1232,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
 
         if target_addr is None:
             # Unlucky...
-            return
+            return [ ]
 
         if state.thumb:
             # Make sure addresses are always odd. It is important to encode this information in the address for the
@@ -1257,12 +1260,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
             if target_addr == extra_info['last_call_exit_target']:
                 l.debug("... skipping a fake return exit that has the same target with its call exit.")
                 successor_status[state] = "Skipped"
-                return
+                return [ ]
 
             if extra_info['skip_fakeret']:
                 l.debug('... skipping a fake return exit since the function it\'s calling doesn\'t return')
                 successor_status[state] = "Skipped - non-returning function 0x%x" % extra_info['call_target']
-                return
+                return [ ]
 
         # TODO: Make it optional
         if (suc_jumpkind == 'Ijk_Ret' and
@@ -1272,7 +1275,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
             # We cannot continue anymore since this is the end of the function where we started tracing
             l.debug('... reaching the end of the starting function, skip.')
             successor_status[state] = "Skipped - reaching the end of the starting function"
-            return
+            return [ ]
 
         # Create the new call stack of target block
         new_call_stack = self._create_new_call_stack(addr, all_successor_states, entry_wrapper, target_addr,
@@ -1314,8 +1317,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
         pw = EntryWrapper(target_addr,
                           new_path,
                           self._context_sensitivity_level,
-                          simrun_key,
-                          suc_exit_stmt_idx,
+                          src_simrun_key=simrun_key,
+                          src_exit_stmt_idx=suc_exit_stmt_idx,
                           call_stack=new_call_stack,
                           bbl_stack=new_bbl_stack,
                           cancelled_pending_entry=cancelled_pending_entry
@@ -1371,7 +1374,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
             extra_info['skip_fakeret'] = True
 
         if pw:
-            self._entries.append(pw)
+            return [ pw ]
+        else:
+            return [ ]
 
     # SimAction handling
 
@@ -2699,31 +2704,21 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
     @staticmethod
     def _generate_simrun_key(call_stack_suffix, simrun_addr, is_syscall):
         if not is_syscall:
-            return call_stack_suffix + (simrun_addr, 'normal')
+            return SimRunKey.new(simrun_addr, call_stack_suffix, 'normal')
         else:
-            return call_stack_suffix + (simrun_addr, 'syscall')
+            return SimRunKey.new(simrun_addr, call_stack_suffix, 'syscall')
 
     @staticmethod
     def _simrun_key_repr(simrun_key):
-        runtype = simrun_key[-1]
-        addr = simrun_key[-2]
-
-        callstack = []
-        for i in xrange(0, len(simrun_key) - 2, 2):
-            from_ = 'None' if simrun_key[i] is None else hex(simrun_key[i])
-            to_ = 'None' if simrun_key[i + 1] is None else hex(simrun_key[i + 1])
-            callstack.append("%s -> %s" % (from_, to_))
-
-        s = "(%s), %s [%s]" % (", ".join(callstack), hex(addr), runtype)
-        return s
+        return repr(simrun_key)
 
     @staticmethod
     def _simrun_key_callstack_key(simrun_key):
-        return simrun_key[: -2]
+        return simrun_key.callsite_tuples
 
     @staticmethod
     def _simrun_key_addr(simrun_key):
-        return simrun_key[-2]
+        return simrun_key.addr
 
     @staticmethod
     def _simrun_key_current_func_addr(simrun_key):
@@ -2733,8 +2728,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
         :param simrun_key: SimRun key
         :return: The function address if there is one, or None if it's not possible to get
         """
-        if len(simrun_key) > 2:
-            return simrun_key[-3]
+        if simrun_key.callsite_tuples:
+            return simrun_key.callsite_tuples[-1]
         else:
             return None
 
