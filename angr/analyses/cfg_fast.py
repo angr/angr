@@ -682,9 +682,10 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 accepted = True
                 break
             if curr_addr < start:
-                # accept, but we are skipsping the gap
+                # accept, but we are skipping the gap
                 accepted = True
                 curr_addr = start
+                break
 
         if not accepted:
             # No memory available!
