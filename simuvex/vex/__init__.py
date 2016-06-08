@@ -2,8 +2,8 @@ from claripy.fp import FSORT_FLOAT, FSORT_DOUBLE
 
 def size_bits(t):
     """Returns size, in BITS, of a type."""
-    for s in 256, 128, 64, 32, 16, 8, 1:
-        if str(s) in t:
+    for n, s in (('256', 256), ('128', 128), ('64', 64), ('32', 32), ('16', 16), ('8', 8), ('1', 1)):
+        if n in t:
             return s
     raise SimExpressionError("Unable to determine length of %s." % t)
 
