@@ -1153,67 +1153,18 @@ class CFGFast(ForwardAnalysis, CFGBase):
                                 self._function_add_call_edge(tmp_addr, None, None, tmp_function_addr)
 
         elif jumpkind == 'Ijk_Call' or jumpkind.startswith("Ijk_Sys"):
+            is_syscall = jumpkind.startswith("Ijk_Sys")
+
             if target_addr is not None:
-
-                is_syscall = jumpkind.startswith("Ijk_Sys")
-
-                if is_syscall:
-                    # Fix the target_addr for syscalls
-                    tmp_path = self.project.factory.path(self.project.factory.blank_state(mode="fastpath",
-                                                                                          addr=cfg_node.addr))
-                    tmp_path.step()
-                    succ = tmp_path.successors[0]
-                    _, syscall_addr, _, _ = self.project._simos.syscall_info(succ.state)
-                    target_addr = syscall_addr
-
-                new_function_addr = target_addr
-                return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
-
-                # Keep tracing from the call
-                ce = CFGEntry(target_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
-                              src_stmt_idx=stmt_idx, syscall=True)
-                entries.append(ce)
-
-                self._function_add_call_edge(target_addr, cfg_node, return_site, current_function_addr,
-                                             syscall=is_syscall)
-
-                # Also, keep tracing from the return site
-                ce = CFGEntry(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
-                              src_stmt_idx=stmt_idx, returning_source=new_function_addr, syscall=True)
-                self._pending_entries.append(ce)
-
-                callee_function = self.kb.functions.function(addr=target_addr, syscall=is_syscall)
-
-                if callee_function.returning is True:
-                    self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
-                                                    confirmed=True)
-                    self._function_add_return_edge(target_addr, return_site, current_function_addr)
-                elif callee_function.returning is False:
-                    # The function does not return - there is no fake ret edge
-                    pass
-                else:
-                    self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
-                                                    confirmed=None)
-                    fr = FunctionReturn(target_addr, current_function_addr, addr, return_site)
-                    if fr not in self._function_returns[target_addr]:
-                        self._function_returns[target_addr].append(fr)
+                self._create_entry_call(entries, addr, irsb, cfg_node, stmt_idx, current_function_addr, target_addr,
+                                        jumpkind, is_syscall=is_syscall)
 
             else:
                 resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, current_function_addr)
                 if resolved:
                     for t in resolved_targets:
-                        new_func_addr = t
-
-                        # Call
-                        ce = CFGEntry(t, new_func_addr, 'Ijk_Call', last_addr=addr, src_node=cfg_node,
-                                      src_stmt_idx=stmt_idx)
-                        entries.append(ce)
-
-                    return_site = addr + irsb.size
-                    # FakeRet
-                    ce = CFGEntry(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
-                                  src_stmt_idx=stmt_idx, returning_source=resolved_targets[0])
-                    self._pending_entries.append(ce)
+                        self._create_entry_call(entries, addr, irsb, cfg_node, stmt_idx, current_function_addr,
+                                                t, jumpkind, is_syscall=is_syscall)
 
                 else:
                     l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
@@ -1229,6 +1180,50 @@ class CFGFast(ForwardAnalysis, CFGBase):
             l.debug("Unsupported jumpkind %s", jumpkind)
 
         return entries
+
+    def _create_entry_call(self, entries, addr, irsb, cfg_node, stmt_idx, current_function_addr, target_addr, jumpkind,
+                           is_syscall=False):
+
+        if is_syscall:
+            # Fix the target_addr for syscalls
+            tmp_path = self.project.factory.path(self.project.factory.blank_state(mode="fastpath",
+                                                                                  addr=cfg_node.addr))
+            tmp_path.step()
+            succ = tmp_path.successors[0]
+            _, syscall_addr, _, _ = self.project._simos.syscall_info(succ.state)
+            target_addr = syscall_addr
+
+        new_function_addr = target_addr
+        return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
+
+        # Keep tracing from the call
+        ce = CFGEntry(target_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
+                      src_stmt_idx=stmt_idx, syscall=True)
+        entries.append(ce)
+
+        self._function_add_call_edge(target_addr, cfg_node, return_site, current_function_addr,
+                                     syscall=is_syscall)
+
+        # Also, keep tracing from the return site
+        ce = CFGEntry(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
+                      src_stmt_idx=stmt_idx, returning_source=new_function_addr, syscall=True)
+        self._pending_entries.append(ce)
+
+        callee_function = self.kb.functions.function(addr=target_addr, syscall=is_syscall)
+
+        if callee_function.returning is True:
+            self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
+                                            confirmed=True)
+            self._function_add_return_edge(target_addr, return_site, current_function_addr)
+        elif callee_function.returning is False:
+            # The function does not return - there is no fake ret edge
+            pass
+        else:
+            self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
+                                            confirmed=None)
+            fr = FunctionReturn(target_addr, current_function_addr, addr, return_site)
+            if fr not in self._function_returns[target_addr]:
+                self._function_returns[target_addr].append(fr)
 
     # Data reference processing
 
