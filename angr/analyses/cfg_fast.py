@@ -806,6 +806,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
         for sp in starting_points:
             self._entries.append(CFGEntry(sp, sp, 'Ijk_Boring'))
 
+        self._changed_functions = set()
+
     def _pre_entry_handling(self, entry, _locals):
 
         if self._show_progressbar or self._progress_callback:
@@ -818,6 +820,10 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
             if self._progress_callback:
                 self._progress_callback(percentage)
+
+        current_function_addr = entry.func_addr
+
+        self._changed_functions.add(current_function_addr)
 
     def _intra_analysis(self):
         pass
@@ -883,6 +889,9 @@ class CFGFast(ForwardAnalysis, CFGBase):
                     del self._function_returns[not_returning_function.addr]
 
             self._clean_pending_exits(self._pending_entries)
+
+        # Clear _changed_functions set
+        self._changed_functions = set()
 
         if self._pending_entries:
             self._entries.append(self._pending_entries[0])
