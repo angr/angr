@@ -75,3 +75,4 @@ from .explorer import Explorer
 from .threading import Threading
 from .dfs import DFS
 from .looplimiter import LoopLimiter
+from .veritesting import Veritesting

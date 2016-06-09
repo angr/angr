@@ -2,7 +2,7 @@ from . import Strategy
 
 class Veritesting(Strategy):
     def __init__(self, **options):
-        super(Veritesting, self).__init__(self)
+        super(Veritesting, self).__init__()
         self.options = options
 
     def step_path(self, path):
