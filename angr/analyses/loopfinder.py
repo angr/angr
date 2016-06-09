@@ -35,11 +35,14 @@ class LoopFinder(Analysis):
 
         found_any = False
         self.loops = []
+        self.loops_hierarchy = {}
         for function in functions:
             found_any = True
             with self._resilience():
                 function.normalize()
-                self.loops += self._parse_loops_from_graph(function.graph)
+                tops, alls = self._parse_loops_from_graph(function.graph)
+                self.loops += alls
+                self.loops_hierarchy[function.addr] = tops
 
         if not found_any:
             l.error("No knowledge of functions is present. Did you forget to construct a CFG?")
@@ -84,28 +87,56 @@ class LoopFinder(Analysis):
                 acyclic_subg.remove_edge(*continue_edge)
                 continue_edges.append(continue_edge)
 
-        subloops = self._parse_loops_from_graph(acyclic_subg)
-        for subloop in subloops:
+        removed_exits = {}
+        removed_entries = {}
+        tops, alls = self._parse_loops_from_graph(acyclic_subg)
+        for subloop in tops:
             if subloop.entry in loop_body_nodes:
                 # break existing entry edges, exit edges
                 # re-link in loop object
+                # the exception logic is to handle when you have two loops adjacent to each other
+                # you gotta link the two loops together and remove the dangling edge
                 for entry_edge in subloop.entry_edges:
-                    subg.remove_edge(*entry_edge)
-                    subg.add_edge(entry_edge[0], subloop)
+                    try:
+                        subg.remove_edge(*entry_edge)
+                    except networkx.NetworkXError:
+                        if entry_edge in removed_entries:
+                            subg.add_edge(removed_entries[entry_edge], subloop)
+                            try:
+                                subg.remove_edge(removed_entries[entry_edge], entry_edge[1])
+                            except networkx.NetworkXError:
+                                pass
+                        else:
+                            raise
+                    else:
+                        subg.add_edge(entry_edge[0], subloop)
+                        removed_entries[entry_edge] = subloop
                 for exit_edge in subloop.break_edges:
-                    subg.remove_edge(*exit_edge)
-                    subg.add_edge(subloop, exit_edge[1])
+                    try:
+                        subg.remove_edge(*exit_edge)
+                    except networkx.NetworkXError:
+                        if exit_edge in removed_entries:
+                            subg.add_edge(subloop, removed_entries[exit_edge])
+                            try:
+                                subg.remove_edge(exit_edge[0], removed_entries[exit_edge])
+                            except networkx.NetworkXError:
+                                pass
+                        else:
+                            raise
+                    else:
+                        subg.add_edge(subloop, exit_edge[1])
+                        removed_exits[exit_edge] = subloop
                 subg = filter(lambda g: entry_node in g.nodes(),
                         networkx.weakly_connected_component_subgraphs(subg))[0]
 
-        subloops.append(Loop(entry_node,
-                             entry_edges,
-                             break_edges,
-                             continue_edges,
-                             loop_body_nodes,
-                             subg,
-                             subloops[:]))
-        return subloops
+        me = Loop(entry_node,
+             entry_edges,
+             break_edges,
+             continue_edges,
+             loop_body_nodes,
+             subg,
+             tops[:])
+        return me, [me] + alls
 
     def _parse_loops_from_graph(self, graph):
         """
@@ -115,12 +146,15 @@ class LoopFinder(Analysis):
 
         :return:        A list of all the Loop instances that were found in the graph.
         """
-        out = []
+        outtop = []
+        outall = []
         for subg in networkx.strongly_connected_component_subgraphs(graph):
             if len(subg.nodes()) == 1:
                 if len(subg.successors(subg.nodes()[0])) == 0:
                     continue
-            out += self._parse_loop_graph(subg, graph)
-        return out
+            thisloop, allloops = self._parse_loop_graph(subg, graph)
+            outall += allloops
+            outtop.append(thisloop)
+        return outtop, outall
 
 register_analysis(LoopFinder, 'LoopFinder')
