@@ -403,17 +403,12 @@ class SimMemory(SimStatePlugin):
         if condition_e is not None and self.state.se.is_false(condition_e):
             return
 
-        if (o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
-                isinstance(addr_e, claripy.ast.Base) and
-                addr_e.uninitialized
-            ):
-            # It's uninitialized. Did we initialize it to some other value before? Or, is it unbounded?
-            if not self.state.uc_manager.is_bounded(addr_e) or self.state.se.max_int(addr_e) - self.state.se.min_int(
-                    addr_e) >= self._read_address_range:
-                # in under-constrained symbolic execution, we'll assign a new memory region for this address
-                mem_region = self.state.uc_manager.assign(addr_e)
-                self.state.add_constraints(addr_e == mem_region)
-                l.debug('Under-constrained symbolic execution: assigned a new memory region @ %s to %s', mem_region, addr_e)
+        if (
+            o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
+            isinstance(addr_e, claripy.ast.Base) and
+            addr_e.uninitialized
+        ):
+            self._constrain_underconstrained_index(addr_e)
 
         request = MemoryStoreRequest(addr_e, data=data_e, size=size_e, condition=condition_e, endness=endness)
         self._store(request)
@@ -592,16 +587,12 @@ class SimMemory(SimStatePlugin):
                 addr_e = self.state._inspect_getattr("mem_read_address", addr_e)
                 size_e = self.state._inspect_getattr("mem_read_length", size_e)
 
-        if (o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
-                isinstance(addr_e, claripy.ast.Base) and
-                addr_e.uninitialized
-                ):
-            # It's uninitialized. Did we initialize it to some other value before? Or, is it unbounded?
-            if not self.state.uc_manager.is_bounded(addr_e) or self.state.se.max_int(addr_e) - self.state.se.min_int(addr_e) >= self._read_address_range:
-                # in under-constrained symbolic execution, we'll assign a new memory region for this address
-                mem_region = self.state.uc_manager.assign(addr_e)
-                self.state.add_constraints(addr_e == mem_region)
-                l.debug('Under-constrained symbolic execution: assigned a new memory region @ %s to %s', mem_region, addr_e)
+        if (
+            o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and
+            isinstance(addr_e, claripy.ast.Base) and
+            addr_e.uninitialized
+        ):
+            self._constrain_underconstrained_index(addr_e)
 
         a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
         add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
@@ -656,6 +647,16 @@ class SimMemory(SimStatePlugin):
             action.added_constraints = action._make_object(self.state.se.And(*c) if len(c) > 0 else self.state.se.true)
 
         return r
+
+    def _constrain_underconstrained_index(self, addr_e):
+        if not self.state.uc_manager.is_bounded(addr_e) or self.state.se.max_int(addr_e) - self.state.se.min_int( addr_e) >= self._read_address_range:
+            # in under-constrained symbolic execution, we'll assign a new memory region for this address
+            mem_region = self.state.uc_manager.assign(addr_e)
+
+            # ... but only if it's not already been constrained to something!
+            if self.state.se.solution(addr_e, mem_region):
+                self.state.add_constraints(addr_e == mem_region)
+            l.debug('Under-constrained symbolic execution: assigned a new memory region @ %s to %s', mem_region, addr_e)
 
     def normalize_address(self, addr, is_write=False): #pylint:disable=no-self-use,unused-argument
         """
