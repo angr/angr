@@ -357,7 +357,7 @@ class PathGroup(ana.Storable):
             dir(type(self)) +
             self.stashes.keys() +
             ['mp_'+k for k in self.stashes.keys()] +
-            ['any_'+k for k in self.stashes.keys()]
+            ['one_'+k for k in self.stashes.keys()]
         ))
 
     #
