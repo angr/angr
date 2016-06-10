@@ -158,12 +158,14 @@ class PathHistory(object):
         self._parent = parent
         self._runstr = None
         self._target = None
+        self._jump_source = None
+        self._jump_avoidable = None
         self._guard = None
         self._jumpkind = None
         self._events = ()
         self._addrs = ()
 
-    __slots__ = ('_parent', '_addrs', '_runstr', '_target', '_guard', '_jumpkind', '_events')
+    __slots__ = ('_parent', '_addrs', '_runstr', '_target', '_guard', '_jumpkind', '_events', '_jump_source', '_jump_avoidable')
 
     def __getstate__(self):
         attributes = ('_addrs', '_runstr', '_target', '_guard', '_jumpkind', '_events')
@@ -177,6 +179,8 @@ class PathHistory(object):
     def _record_state(self, state, events=None):
         self._events = events if events is not None else state.log.events
         self._jumpkind = state.scratch.jumpkind
+        self._jump_source = state.scratch.source
+        self._jump_avoidable = state.scratch.avoidable
         self._target = state.scratch.target
         self._guard = state.scratch.guard
 
@@ -215,6 +219,7 @@ class PathHistory(object):
         c = PathHistory(parent=self._parent)
         c._addrs = self._addrs
         c._runstr = self._runstr
+        c._jump_source = self._jump_source
         c._target = self._target
         c._guard = self._guard
         c._jumpkind = self._jumpkind
@@ -459,6 +464,12 @@ class Path(object):
         self._run_error = None
         self._reachable = None
 
+    def branch_causes(self):
+        return [
+            (h.addr, h._jump_source, tuple(h._guard.variables)) for h in self.history_iterator
+            if h._jump_avoidable
+        ]
+
     @property
     def addr(self):
         return self.state.se.any_int(self.state.regs.ip)
@@ -470,6 +481,9 @@ class Path(object):
     def __len__(self):
         return self.length
 
+    @property
+    def history_iterator(self):
+        return HistoryIter(self.history)
     @property
     def addr_trace(self):
         return AddrIter(self.history)
