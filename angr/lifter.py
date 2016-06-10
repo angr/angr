@@ -392,7 +392,7 @@ class CopyClass(object):
             if attr.startswith('_'):
                 continue
             val = getattr(obj, attr)
-            if type(val) in (int, long, list, tuple, str, dict, float):  # pylint: disable=unidiomatic-typecheck
+            if type(val) in (int, long, list, tuple, str, dict, float, bool):  # pylint: disable=unidiomatic-typecheck
                 setattr(self, attr, val)
             else:
                 setattr(self, attr, CopyClass(val))
