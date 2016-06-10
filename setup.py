@@ -70,10 +70,10 @@ def _build_qemus():
     if subprocess.call(['./tracer-config'], cwd=QEMU_REPO_PATH_LINUX) != 0:
         raise LibError("Unable to configure tracer-qemu-linux")
 
-    if subprocess.call(['make', '-j'], cwd=QEMU_REPO_PATH_CGC) != 0:
+    if subprocess.call(['make', '-j4'], cwd=QEMU_REPO_PATH_CGC) != 0:
         raise LibError("Unable to build tracer-qemu-cgc")
 
-    if subprocess.call(['make', '-j'], cwd=QEMU_REPO_PATH_LINUX) != 0:
+    if subprocess.call(['make', '-j4'], cwd=QEMU_REPO_PATH_LINUX) != 0:
         raise LibError("Unable to build tracer-qemu-linux")
 
     shutil.copyfile(os.path.join(QEMU_REPO_PATH_CGC, "i386-linux-user", "qemu-i386"), QEMU_PATH_CGC)
