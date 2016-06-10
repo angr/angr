@@ -71,8 +71,15 @@ class ExplorationTechnique(object):
 
         if isinstance(condition, (tuple, set, list)):
             addrs = set(condition)
-            condition = lambda p: {p.addr} if p.addr in addrs else \
-                                  addrs.intersection(set(self.project.factory.block(p.addr).instruction_addrs))
+            def condition(p):
+                if p.addr in addrs:
+                    return True
+
+                try:
+                    return addrs.intersection(set(self._project.factory.block(p.addr).instruction_addrs))
+                except AngrError:
+                    return False
+
         return condition
 
 #registered_actions = {}
