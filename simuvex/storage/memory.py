@@ -295,6 +295,9 @@ class SimMemory(SimStatePlugin):
         self._maximum_symbolic_size = 8 * 1024
         self._maximum_symbolic_size_approx = 4*1024
 
+        # Same, but for concrete writes
+        self._maximum_concrete_size = 0x1000000
+
     @property
     def category(self):
         """
