@@ -1,6 +1,13 @@
 from . import Strategy
 
 class LoopLimiter(Strategy):
+    """
+    Limit the number of loops a path may go through.
+    Paths that exceed the loop limit are moved to a discard stash.
+
+    Note that this uses the default detect_loops method from Path, which approximates loop
+    counts by counting the number of times each basic block is executed in a given stack frame.
+    """
     def __init__(self, count=5, discard_stash='spinning'):
         super(LoopLimiter, self).__init__()
         self.count = count

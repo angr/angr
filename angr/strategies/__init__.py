@@ -20,7 +20,8 @@ class Strategy(object):
         """
         Perform the process of stepping a path forward.
 
-        :returns:       None or a tuple of lists: successors, unconstrained, unsat, pruned, errored
+        If the stepping fails, return None to fall back to a default stepping procedure.
+        Otherwise, return a tuple of lists: successors, unconstrained, unsat, pruned, errored
         """
         return None
 
@@ -28,7 +29,7 @@ class Strategy(object):
         """
         Step this stash of this path group forward.
 
-        :returns:       The stepped path group
+        Return the stepped path group.
         """
         return pg.step(stash=stash, **kwargs)
 
@@ -36,9 +37,18 @@ class Strategy(object):
         """
         Perform filtering on a path.
 
-        :returns:       None if the path should not be filtered, or the name of a stash to which to move this path
+        If the path should not be filtered, return None.
+        If the path should be filtered, return the name of the stash to move the path to.
+        If you want to modify the path before filtering it, return a tuple of the stash to move the path to and the
+        modified path.
         """
         return None
+
+    def complete(self, pg):
+        """
+        Return whether or not this path group has reached a "completed" state, i.e. ``pathgroup.run()`` should halt.
+        """
+        return False
 
     def _condition_to_lambda(self, condition, default=False):
         """

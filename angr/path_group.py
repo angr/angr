@@ -2,7 +2,6 @@ import ana
 import simuvex
 import claripy
 import mulpyplexer
-import concurrent.futures
 
 import logging
 l = logging.getLogger('angr.path_group')
@@ -16,17 +15,16 @@ class PathGroup(ana.Storable):
     step forward, filter, merge, and move around as you wish. This allows you to, for example, step two different
     stashes of paths at different rates, then merge them together.
 
-    Note that path groups are immutable by default (all operations will return new PathGroup objects). See the immutable
-    argument to __init__.
-
     Stashes can be accessed as attributes (i.e. pg.active). A mulpyplexed stash can be retrieved by prepending the name
     with `mp_` (e.g., `pg.mp_active`).
 
-    Note that you shouldn't usually be constructing path groups directly - there are convenient shortcuts for
-    creating path groups in `Project.factory`: see :class:`angr.factory.AngrObjectFactory`.
+    Note that you shouldn't usually be constructing path groups directly - there is a convenient shortcuts for
+    creating path groups in ``Project.factory``: see :class:`angr.factory.AngrObjectFactory`.
 
-    Multithreading your search can be useful in z3-intensive paths. Indeed, Python cannot multithread due to its GIL,
-    but z3, written in C, can.
+    Multithreading your search can be useful in constraint-solving-intensive paths. Indeed, Python cannot multithread
+    due to its GIL, but z3, written in C, can.
+
+    The most important methods you should look at are ``step``, ``explore``, and ``use_strategy``.
     """
 
     ALL = '_ALL'
@@ -61,6 +59,7 @@ class PathGroup(ana.Storable):
         self._hooks_step = []
         self._hooks_step_path = []
         self._hooks_filter = []
+        self._hooks_complete = []
 
         if threads is not None:
             self.use_strategy(strategies.Threading(threads))
@@ -87,6 +86,7 @@ class PathGroup(ana.Storable):
         out._hooks_step = list(self._hooks_step)
         out._hooks_step_path = list(self._hooks_step_path)
         out._hooks_filter = list(self._hooks_filter)
+        out._hooks_complete = list(self._hooks_complete)
         return out
 
     def _copy_stashes(self, immutable=None):
@@ -116,8 +116,8 @@ class PathGroup(ana.Storable):
 
         :returns:   A PathGroup.
         """
-        if '_DROP' in new_stashes:
-            del new_stashes['_DROP']
+        if self.DROP in new_stashes:
+            del new_stashes[self.DROP]
 
         if not self._immutable:
             self.stashes = new_stashes
@@ -253,9 +253,18 @@ class PathGroup(ana.Storable):
         :rtype:                 PathGroup
         """
         if len(self._hooks_step) != 0:
+            # hooking step is a bit of an ordeal, how are you supposed to compose stepping operations?
+            # the answer is that you nest them - any stepping hook must eventually call step itself,
+            # at which point it calls the next hook, and so on, until we fall through to the
+            # basic stepping operation.
             hook = self._hooks_step.pop()
-            out = hook(self, stash, selector_func=selector_func, successor_func=successor_func, check_func=check_func, **kwargs)
+            pg = self.copy() if self._immutable else self
+            pg._immutable = False       # this is a performance consideration
+            out = hook(pg, stash, selector_func=selector_func, successor_func=successor_func, check_func=check_func, **kwargs)
+            out._immutable = self._immutable
             self._hooks_step.append(hook)
+            if out is not self:
+                out._hooks_step.append(hook)
             return out
 
         new_stashes = self._copy_stashes()
@@ -419,34 +428,38 @@ class PathGroup(ana.Storable):
     def step(self, n=None, selector_func=None, step_func=None, stash=None,
              successor_func=None, until=None, check_func=None, **kwargs):
         """
-        Step a stash of paths forward.
+        Step a stash of paths forward, i.e. run :meth:`angr.path.Path.step` on each of the individual paths in a stash
+        and categorize the successors appropriately.
 
-        :param n:               The number of times to step (default: 1 if "until" is not provided)
-        :param selector_func:   If provided, should be a lambda that takes a Path and returns a boolean. If True, the
-                                path will be stepped. Otherwise, it will be kept as-is.
-        :param step_func:       If provided, should be a lambda that takes a PathGroup and returns a PathGroup. Will be
-                                called with the PathGroup at every step.
+        The parameters to this function allow you to control everything about the stepping and categorization process.
+
         :param stash:           The name of the stash to step (default: 'active')
-        :param successor_func:  If provided, this function will be called with a path to get its successors. Otherwise,
-                                path.successors will be used.
-        :param until:           If provided, should be a lambda that takes a PathGroup and returns True or False.
+        :param n:               The number of times to step (default: 1 if "until" is not provided)
+        :param selector_func:   If provided, should be a function that takes a Path and returns a boolean. If True, the
+                                path will be stepped. Otherwise, it will be kept as-is.
+        :param step_func:       If provided, should be a function that takes a PathGroup and returns a PathGroup. Will
+                                be called with the PathGroup at every step. Note that this function should not actually
+                                perform any stepping - it is meant to be a maintnence function called after each step.
+        :param successor_func:  If provided, should be a function that takes a path and return its successors.
+                                Otherwise, Path.successors will be used.
+        :param until:           If provided, should be a function that takes a PathGroup and returns True or False.
                                 Stepping will terminate when it is True.
         :param check_func:      If provided, this function will be called to decide whether the current path is errored
-                                or not. Path.errored will not be called anymore.
+                                or not. Otherwise, Path.errored will be used.
 
         Additionally, you can pass in any of the following keyword args for project.factory.sim_run:
 
-        :keyword jumpkind:        The jumpkind of the previous exit
-        :keyword addr:            An address to execute at instead of the state's ip.
-        :keyword stmt_whitelist:  A list of stmt indexes to which to confine execution.
-        :keyword last_stmt:       A statement index at which to stop execution.
-        :keyword thumb:           Whether the block should be lifted in ARM's THUMB mode.
-        :keyword backup_state:    A state to read bytes from instead of using project memory.
-        :keyword opt_level:       The VEX optimization level to use.
-        :keyword insn_bytes:      A string of bytes to use for the block instead of the project.
-        :keyword max_size:        The maximum size of the block, in bytes.
-        :keyword num_inst:        The maximum number of instructions.
-        :keyword traceflags:      traceflags to be passed to VEX. Default: 0
+        :param jumpkind:        The jumpkind of the previous exit
+        :param addr:            An address to execute at instead of the state's ip.
+        :param stmt_whitelist:  A list of stmt indexes to which to confine execution.
+        :param last_stmt:       A statement index at which to stop execution.
+        :param thumb:           Whether the block should be lifted in ARM's THUMB mode.
+        :param backup_state:    A state to read bytes from instead of using project memory.
+        :param opt_level:       The VEX optimization level to use.
+        :param insn_bytes:      A string of bytes to use for the block instead of the project.
+        :param max_size:        The maximum size of the block, in bytes.
+        :param num_inst:        The maximum number of instructions.
+        :param traceflags:      traceflags to be passed to VEX. Default: 0
 
         :returns:               The resulting PathGroup.
         :rtype:                 PathGroup
@@ -475,6 +488,7 @@ class PathGroup(ana.Storable):
     def prune(self, filter_func=None, from_stash=None, to_stash=None):
         """
         Prune unsatisfiable paths from a stash.
+        This function will move all unsatisfiable or errored paths in the given stash into a different stash.
 
         :param filter_func: Only prune paths that match this filter.
         :param from_stash:  Prune paths from this stash. (default: 'active')
@@ -602,6 +616,7 @@ class PathGroup(ana.Storable):
     def use_strategy(self, strat):
         """
         Use a search strategy with this path group.
+        Strategies can be found in :mod:`angr.strategies`.
 
         :param strat:       A Strategy object that contains code to modify this path group's behavior
         """
@@ -609,13 +624,13 @@ class PathGroup(ana.Storable):
         strat.project = self._project
         self.remove_strategy(strat)
         strat.setup(self)
-        for hook in ['step_path', 'step', 'filter']:
+        for hook in ['step_path', 'step', 'filter', 'complete']:
             hookfunc = getattr(strat, hook)
             if hookfunc.im_func is not getattr(strategies.Strategy, hook).im_func:
                 getattr(self, '_hooks_' + hook).append(hookfunc)
 
     def remove_strategy(self, strat):
-        for hook in ['step_path', 'step', 'filter']:
+        for hook in ['step_path', 'step', 'filter', 'complete']:
             try:
                 getattr(self, '_hooks_' + hook).remove(getattr(strat, hook))
             except ValueError:
@@ -689,39 +704,53 @@ class PathGroup(ana.Storable):
     # High-level functionality
     #
 
-    def explore(self, stash=None, find=None, avoid=None, find_stash='found', avoid_stash='avoid', cfg=None, pruned_stash=None, num_find=1, step_func=None):
+    def explore(self, stash=None, n=None, find=None, avoid=None, find_stash='found', avoid_stash='avoid', cfg=None, num_find=1, step_func=None):
         """
-        Simple compatibility wrapper for the explorer strategy
-        """
-        self.use_strategy(strategies.Explorer(find=find,
-                                              avoid=avoid,
-                                              find_stash=find_stash,
-                                              avoid_stash=avoid_stash,
-                                              cfg=cfg,
-                                              pruned_stash=pruned_stash))
-        return self.run(stash=stash,
-                        num_find=num_find,
-                        found_stash=find_stash,
-                        step_func=step_func)
+        Tick stash "stash" forward (up to "n" times or until "num_find" paths are found), looking for condition "find",
+        avoiding condition "avoid". Stashes found paths into "found_stash' and avoided paths into "avoid_stash".
 
-    def run(self, stash=None, n=None, num_find=1, found_stash='found', step_func=None):
-        """
-        Run until the current strategy has found at least ``num_find`` paths.
+        The "find" and "avoid" parameters may be any of:
 
-        :param stash:
-        :param n:
-        :param num_find:    Stop when this many paths have been found.
-        :param found_stash:
-        :param step_func    If provided, should be a lambda that takes a PathGroup and returns a PathGroup. Will be
-                            called with the PathGroup at every step. TODO: This doesn't work with Veritesting because
-                            Veritesting calls step() and we don't pass this function to Veritesting yet.
+        - An address to find
+        - A set or list of addresses to find
+        - A function that takes a path and returns whether or not it matches.
+
+        If an angr CFG is passed in as the "cfg" parameter and "find" is either a number or a list or a set, then
+        any paths which cannot possibly reach a success state without going through a failure state will be
+        preemptively avoided.
+        """
+        num_find += len(self.stashes[find_stash]) if find_stash in self.stashes else 0
+        strat = strategies.Explorer(find=find,
+                                    avoid=avoid,
+                                    find_stash=find_stash,
+                                    avoid_stash=avoid_stash,
+                                    cfg=cfg,
+                                    num_find=num_find)
+        self.use_strategy(strat)
+        out = self.run(stash=stash,
+                       step_func=step_func,
+                       n=n)
+        out.remove_strategy(strat)
+        self.remove_strategy(strat)
+        return out
+
+    def run(self, stash=None, n=None, step_func=None):
+        """
+        Run until the path group has reached a completed state, according to the current strategy.
+
+        TODO: step_func doesn't work with veritesting, since veritesting replaces the default step logic.
+
+        :param stash:       Operate on this stash
+        :param n:           Step at most this many times
+        :param step_func    If provided, should be a function that takes a PathGroup and returns a new PathGroup. Will
+                            be called with the current PathGroup at every step.
         :return:            The resulting PathGroup.
         :rtype:             PathGroup
         """
-        if found_stash not in self.stashes: self.stashes[found_stash] = []
-        cur_found = len(self.stashes[found_stash]) if found_stash in self.stashes else 0
+        if len(self._hooks_complete) == 0 and n is None:
+            l.warn("No completion state defined for path group; stepping until all paths deadend")
 
-        until_func = lambda pg: len(pg.stashes[found_stash]) >= cur_found + num_find
+        until_func = lambda pg: any(h(pg) for h in self._hooks_complete)
         return self.step(n=n, step_func=step_func, until=until_func, stash=stash)
 
 from .path_hierarchy import PathHierarchy

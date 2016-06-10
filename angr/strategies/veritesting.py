@@ -1,6 +1,12 @@
 from . import Strategy
 
 class Veritesting(Strategy):
+    """
+    Enable veritesting. This technique, described in a paper[1] from CMU, attempts to address the problem of state
+    explosions in loops by performing smart merging.
+
+    [1] https://users.ece.cmu.edu/~aavgerin/papers/veritesting-icse-2014.pdf
+    """
     def __init__(self, **options):
         super(Veritesting, self).__init__()
         self.options = options

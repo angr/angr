@@ -2873,7 +2873,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
         Input: addresses or node instances
         Return: a list of lists of nodes representing paths.
         """
-        if isinstance(begin, int) and isinstance(end, int):
+        if isinstance(begin, (int, long)) and isinstance(end, (int, long)):
             n_begin = self.get_any_node(begin)
             n_end = self.get_any_node(end)
 
