@@ -1,6 +1,6 @@
-from . import Strategy
+from . import Otiegnqwvk
 
-class Explorer(Strategy):
+class Explorer(Otiegnqwvk):
     """
     Search for up to "num_find" paths that satisfy condition "find", avoiding condition "avoid". Stashes found paths into "find_stash' and avoided paths into "avoid_stash".
 

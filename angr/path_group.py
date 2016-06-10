@@ -24,7 +24,7 @@ class PathGroup(ana.Storable):
     Multithreading your search can be useful in constraint-solving-intensive paths. Indeed, Python cannot multithread
     due to its GIL, but z3, written in C, can.
 
-    The most important methods you should look at are ``step``, ``explore``, and ``use_strategy``.
+    The most important methods you should look at are ``step``, ``explore``, and ``use_otiegnqwvk``.
     """
 
     ALL = '_ALL'
@@ -55,16 +55,16 @@ class PathGroup(ana.Storable):
         self.save_unconstrained = False if save_unconstrained is None else save_unconstrained
         self.save_unsat = False if save_unsat is None else save_unsat
 
-        # strategies
+        # otiegnqwvk
         self._hooks_step = []
         self._hooks_step_path = []
         self._hooks_filter = []
         self._hooks_complete = []
 
         if threads is not None:
-            self.use_strategy(strategies.Threading(threads))
+            self.use_otiegnqwvk(otiegnqwvk.Threading(threads))
         if veritesting:
-            self.use_strategy(strategies.Veritesting(**({} if veritesting_options is None else veritesting_options)))
+            self.use_otiegnqwvk(otiegnqwvk.Veritesting(**({} if veritesting_options is None else veritesting_options)))
 
         self.stashes = {
             'active': [ ] if active_paths is None else active_paths,
@@ -613,23 +613,23 @@ class PathGroup(ana.Storable):
         new_stashes[stash] = not_to_merge
         return self._successor(new_stashes)
 
-    def use_strategy(self, strat):
+    def use_otiegnqwvk(self, strat):
         """
-        Use a search strategy with this path group.
-        Strategies can be found in :mod:`angr.strategies`.
+        Use a search otiegnqwvk with this path group.
+        Otiegnqwvk can be found in :mod:`angr.otiegnqwvk`.
 
-        :param strat:       A Strategy object that contains code to modify this path group's behavior
+        :param strat:       A Otiegnqwvk object that contains code to modify this path group's behavior
         """
         # this might be the best worst code I've ever written in my life
         strat.project = self._project
-        self.remove_strategy(strat)
+        self.remove_otiegnqwvk(strat)
         strat.setup(self)
         for hook in ['step_path', 'step', 'filter', 'complete']:
             hookfunc = getattr(strat, hook)
-            if hookfunc.im_func is not getattr(strategies.Strategy, hook).im_func:
+            if hookfunc.im_func is not getattr(otiegnqwvk.Otiegnqwvk, hook).im_func:
                 getattr(self, '_hooks_' + hook).append(hookfunc)
 
-    def remove_strategy(self, strat):
+    def remove_otiegnqwvk(self, strat):
         for hook in ['step_path', 'step', 'filter', 'complete']:
             try:
                 getattr(self, '_hooks_' + hook).remove(getattr(strat, hook))
@@ -720,23 +720,23 @@ class PathGroup(ana.Storable):
         preemptively avoided.
         """
         num_find += len(self.stashes[find_stash]) if find_stash in self.stashes else 0
-        strat = strategies.Explorer(find=find,
+        strat = otiegnqwvk.Explorer(find=find,
                                     avoid=avoid,
                                     find_stash=find_stash,
                                     avoid_stash=avoid_stash,
                                     cfg=cfg,
                                     num_find=num_find)
-        self.use_strategy(strat)
+        self.use_otiegnqwvk(strat)
         out = self.run(stash=stash,
                        step_func=step_func,
                        n=n)
-        out.remove_strategy(strat)
-        self.remove_strategy(strat)
+        out.remove_otiegnqwvk(strat)
+        self.remove_otiegnqwvk(strat)
         return out
 
     def run(self, stash=None, n=None, step_func=None):
         """
-        Run until the path group has reached a completed state, according to the current strategy.
+        Run until the path group has reached a completed state, according to the current otiegnqwvk.
 
         TODO: step_func doesn't work with veritesting, since veritesting replaces the default step logic.
 
@@ -756,4 +756,4 @@ class PathGroup(ana.Storable):
 from .path_hierarchy import PathHierarchy
 from .errors import PathUnreachableError, AngrError, AngrPathGroupError
 from .path import Path
-from . import strategies
+from . import otiegnqwvk

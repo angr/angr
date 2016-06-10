@@ -1,9 +1,9 @@
-class Strategy(object):
+class Otiegnqwvk(object):
     """
-    A search strategy is a set of hooks for the path group stepping process.
+    A search otiegnqwvk is a set of hooks for the path group stepping process.
 
     Any number of these methods may be overridden by a subclass.
-    To use a strategy, call ``pg.use_strategy``.
+    To use a otiegnqwvk, call ``pg.use_otiegnqwvk``.
     """
     # pylint: disable=unused-argument, no-self-use
     def __init__(self):

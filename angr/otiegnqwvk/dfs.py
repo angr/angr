@@ -1,6 +1,6 @@
-from . import Strategy
+from . import Otiegnqwvk
 
-class DFS(Strategy):
+class DFS(Otiegnqwvk):
     """
     Depth-first search.
 
