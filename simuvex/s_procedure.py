@@ -88,6 +88,8 @@ class SimProcedure(SimRun):
             self.state.scratch.bbl_addr = old_bbl_addr
             self.state.scratch.sim_procedure = old_sim_procedure
 
+        self.cleanup()
+
     def _run(self, run_func, *args, **kwargs):
 
         if self.IS_SYSCALL:

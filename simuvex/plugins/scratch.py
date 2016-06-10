@@ -24,6 +24,7 @@ class SimStateScratch(SimStatePlugin):
         self.source = None
         self.exit_stmt_idx = None
         self.executed_block_count = 0 # the number of blocks that was executed here
+        self.avoidable = True
 
         # information on VEX temps of this IRSB
         self.temps = { }
