@@ -72,11 +72,16 @@ class SimState(ana.Storable): # pylint: disable=R0904
                     memory_backer = {'global': memory_backer}
 
                 # TODO: support permissions backer in SimAbstractMemory
-                self.register_plugin('memory', SimAbstractMemory(memory_backer, memory_id="mem"))
+                self.register_plugin('memory', SimAbstractMemory(memory_backer=memory_backer, memory_id="mem"))
+            elif o.FAST_MEMORY in self.options:
+                self.register_plugin('memory', SimFastMemory(memory_backer=memory_backer, memory_id="mem"))
             else:
-                self.register_plugin('memory', SimSymbolicMemory(memory_backer, permissions_backer, memory_id="mem"))
+                self.register_plugin('memory', SimSymbolicMemory(memory_backer=memory_backer, permissions_backer=permissions_backer, memory_id="mem"))
         if not self.has_plugin('registers'):
-            self.register_plugin('registers', SimSymbolicMemory(memory_id="reg", endness=self.arch.register_endness))
+            if o.FAST_REGISTERS in self.options:
+                self.register_plugin('registers', SimFastMemory(memory_id="reg", endness=self.arch.register_endness))
+            else:
+                self.register_plugin('registers', SimSymbolicMemory(memory_id="reg", endness=self.arch.register_endness))
 
         # OS name
         self.os_name = os_name
@@ -628,6 +633,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             return conditions.__class__((self._adjust_condition(self.se.And(*conditions)),))
 
 from .plugins.symbolic_memory import SimSymbolicMemory
+from .plugins.fast_memory import SimFastMemory
 from .plugins.abstract_memory import SimAbstractMemory
 from .s_errors import SimMergeError, SimValueError, SimStateError
 from .plugins.inspect import BP_AFTER, BP_BEFORE

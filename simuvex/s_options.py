@@ -161,6 +161,12 @@ INITIALIZE_ZERO_REGISTERS = "INITIALIZE_ZERO_REGISTERS"
 # Turn-on superfastpath mode
 SUPER_FASTPATH = "SUPER_FASTPATH"
 
+# use FastMemory for memory
+FAST_MEMORY = "FAST_MEMORY"
+
+# use FastMemory for registers
+FAST_REGISTERS = "FAST_REGISTERS"
+
 # Under-constrained symbolic execution
 UNDER_CONSTRAINED_SYMEXEC = "UNDER_CONSTRAINED_SYMEXEC"
 

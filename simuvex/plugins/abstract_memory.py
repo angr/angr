@@ -186,7 +186,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
       calling unset_stack_address_mapping().
       Currently this is only used for stack!
     """
-    def __init__(self, backer=None, memory_id="mem", endness=None):
+    def __init__(self, memory_backer=None, memory_id="mem", endness=None):
         SimMemory.__init__(self, endness=endness)
 
         self._regions = {}
@@ -197,8 +197,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         self._memory_id = memory_id
         self.id = self._memory_id
 
-        if backer is not None:
-            for region, backer_dict in backer.items():
+        if memory_backer is not None:
+            for region, backer_dict in memory_backer.items():
                 self._regions[region] = MemoryRegion(region, self.state,
                                                init_memory=True,
                                                backer_dict=backer_dict,
