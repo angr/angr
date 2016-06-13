@@ -922,6 +922,39 @@ class CFGFast(ForwardAnalysis, CFGBase):
             if not new_changes['functions_do_not_return']:
                 break
 
+        # Scan all functions, and make sure all fake ret edges are either confirmed or removed
+        for f in self.functions.values():
+            all_edges = f.transition_graph.edges(data=True)
+
+            callsites_to_functions = defaultdict(list) # callsites to functions mapping
+
+            for src, dst, data in all_edges:
+                if 'type' in data:
+                    if data['type'] == 'call':
+                        callsites_to_functions[src.addr].append(dst.addr)
+
+            edges_to_remove = [ ]
+            for src, dst, data in all_edges:
+                if 'type' in data:
+                    if data['type'] == 'fake_return' and 'confirmed' not in data:
+
+                        # Get all possible functions being called here
+                        target_funcs = [ self.functions.function(addr=func_addr)
+                                         for func_addr in callsites_to_functions[src.addr]
+                                         ]
+                        if target_funcs and all([ t is not None and t.returning is False for t in target_funcs ]):
+                            # Remove this edge
+                            edges_to_remove.append((src, dst))
+                        else:
+                            # Mark this edge as confirmed
+                            f.transition_graph[src][dst]['confirmed'] = True
+
+            for edge in edges_to_remove:
+                f.transition_graph.remove_edge(*edge)
+
+            # Clear the cache
+            f._local_transition_graph = None
+
         if self._show_progressbar:
             self._finish_progressbar()
 
