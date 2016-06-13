@@ -47,7 +47,12 @@ class Identifier(object):
 
         self.matches = dict()
 
-        self._func_info = dict()
+        self.callsites = None
+        self.inv_callsites = None
+        self.func_info = dict()
+        self.block_to_func = dict()
+
+        self.map_callsites()
 
         for f in self._cfg.functions.values():
             if f.is_syscall:
@@ -73,9 +78,9 @@ class Identifier(object):
             for f in self._cfg.functions.values():
                 if f in self.matches:
                     continue
-                if f not in self._func_info:
+                if f not in self.func_info:
                     continue
-                if len(self._func_info[f].stack_args) != func.num_args():
+                if len(self.func_info[f].stack_args) != func.num_args():
                     continue
 
                 if func.try_match(f, self, self._runner):
@@ -92,7 +97,7 @@ class Identifier(object):
             return None
         try:
             func_info = self.find_stack_vars_x86(function)
-            self._func_info[function] = func_info
+            self.func_info[function] = func_info
 
         except IdentifierException as e:
             l.warning("Identifier Exception: %s", e.message)
@@ -120,6 +125,98 @@ class Identifier(object):
                 print "failed test 2"
                 return False
         return True
+
+    def map_callsites(self):
+        callsites = dict()
+        for f in self._cfg.functions.values():
+            for callsite in f.get_call_sites():
+                if f.get_call_target(callsite) is None:
+                    print "...."
+                    import ipdb; ipdb.set_trace()
+                callsites[callsite] = f.get_call_target(callsite)
+        self.callsites = callsites
+
+        # create inverse callsite map
+        self.inv_callsites = defaultdict(set)
+        for c, f in self.callsites.iteritems():
+            self.inv_callsites[f].add(c)
+
+        # create map of blocks to the function they reside in
+        self.block_to_func = dict()
+        for f in self._cfg.functions.values():
+            for b in f.graph.nodes():
+                self.block_to_func[b.addr] = f
+
+    def do_trace(self, addr_trace):
+        # get to the callsite
+        s = rop_utils.make_symbolic_state(self.project, self._reg_list)
+        func_info = self.func_info[self.block_to_func[addr_trace[0]]]
+        for i in range(func_info.frame_size/self.project.arch.bytes+5):
+            s.stack_push(s.se.BVS("var_" + hex(i), self.project.arch.bits))
+        s.regs.ip = addr_trace[0]
+        addr_trace = addr_trace[1:]
+        p = self.project.factory.path(s)
+        while len(addr_trace) > 0:
+            p.step()
+            stepped = False
+            for ss in p.successors:
+                if ss.addr == addr_trace[0]:
+                    p = ss
+                    stepped = True
+            if not stepped:
+                if len(p.unconstrained_successors) > 0:
+                    # we know this is a jump
+                    p = p.unconstrained_successors[0]
+                    p.state.regs.ip = addr_trace[0]
+                    stepped = True
+            if not stepped:
+                raise IdentifierException("could not get call args")
+            addr_trace = addr_trace[1:]
+
+        # step one last time to the call
+        p.step()
+        if len(p.successors) == 0:
+            IdentifierException("Didn't succeed call")
+        return p.successors[0]
+
+    def get_call_args(self, func, callsite):
+        if isinstance(func, (int, long)):
+            func = self._cfg.functions[func]
+        func_info = self.func_info[func]
+        if len(func_info.stack_args) == 0:
+            return []
+
+        # we need to step back as far as possible
+        calling_func = self.block_to_func[callsite]
+        start = calling_func.get_node(callsite)
+        addr_trace = []
+        while len(calling_func.transition_graph.predecessors(start)) == 1:
+            # stop at a call, could continue farther if no stack addr passed etc
+            prev_block = calling_func.transition_graph.predecessors(start)[0]
+            if self.project.factory.block(prev_block.addr).vex.jumpkind == "Ijk_Call":
+                break
+            addr_trace = [start.addr] + addr_trace
+            start = prev_block
+
+        addr_trace = [start.addr] + addr_trace
+        succ = None
+        while len(addr_trace):
+            try:
+                succ = self.do_trace(addr_trace)
+                break
+            except IdentifierException:
+                addr_trace = addr_trace[1:]
+        if len(addr_trace) == 0:
+            return None
+
+        succ_state = succ.state
+        arch_bytes = self.project.arch.bytes
+        args = []
+        for arg in func_info.stack_args:
+            arg_addr = succ_state.regs.sp + arch_bytes * (arg + 1)
+            args.append(succ_state.memory.load(arg_addr, arch_bytes, endness=self.project.arch.memory_endness))
+        return args
+
 
     @staticmethod
     def get_reg_name(arch, reg_offset):
