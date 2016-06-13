@@ -41,7 +41,7 @@ class malloc(Func):
             return False
         returned_locs.append(state.se.any_int(state.regs.eax))
 
-        for i in range(10):
+        for i in range(6):
             state = runner.get_out_state(func, test, initial_state=state)
             if state is None:
                 return False

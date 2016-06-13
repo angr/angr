@@ -28,14 +28,14 @@ class receive_n4(Func):
         return ["fd", "buf", "len", "rxbytes"]
 
     def gen_input_output_pair(self):
-        max_len = random.randint(1, 20)
+        max_len = random.randint(1, 10)
         buf = rand_str(max_len+5)
         result_buf = "ZZZZ"
         test_input = [0, buf, max_len, result_buf]
         stdin = rand_str(max_len+5)
         outbuf = stdin[:max_len]
         test_output = [None, outbuf, None, struct.pack("<I", max_len)]
-        max_steps = max_len*8 + 20
+        max_steps = max_len*4 + 10
         return_val = None
         test = TestData(test_input, test_output, return_val, max_steps, stdin)
         return test
@@ -61,13 +61,13 @@ class receive_n3(Func):
         return ["fd", "buf", "len"]
 
     def gen_input_output_pair(self):
-        max_len = random.randint(1, 20)
+        max_len = random.randint(1, 10)
         buf = rand_str(max_len+5)
         test_input = [0, buf, max_len]
         stdin = rand_str(max_len+5)
         outbuf = stdin[:max_len]
         test_output = [None, outbuf, None]
-        max_steps = max_len * 8 + 20
+        max_steps = max_len * 4 + 10
         return_val = None
         test = TestData(test_input, test_output, return_val, max_steps, stdin)
         return test
@@ -92,13 +92,13 @@ class receive_n2(Func):
         return ["buf", "len"]
 
     def gen_input_output_pair(self):
-        max_len = random.randint(1, 20)
+        max_len = random.randint(1, 10)
         buf = rand_str(max_len+5)
         test_input = [buf, max_len]
         stdin = rand_str(max_len+5)
         outbuf = stdin[:max_len]
         test_output = [outbuf, None]
-        max_steps = max_len * 8 + 20
+        max_steps = max_len * 4 + 10
         return_val = None
         test = TestData(test_input, test_output, return_val, max_steps, stdin)
         return test

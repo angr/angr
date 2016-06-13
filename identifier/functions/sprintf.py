@@ -53,7 +53,7 @@ class sprintf(Func):
         test = TestData(test_input, test_output, None, max_steps)
         s = runner.get_base_call_state(func, test)
         pg = runner.project.factory.path_group(s)
-        pg.step(20)
+        pg.step(18)
         interesting_chars = set()
         for p in pg.active:
             for g in p.guards:
@@ -67,7 +67,7 @@ class sprintf(Func):
         possible_format_specifiers = [c for c in interesting_chars if c not in alphanum]
         possible_formats = [c for c in interesting_chars if c in alphanum]
 
-        if len(possible_format_specifiers) * len(possible_formats) > 0x30:
+        if len(possible_format_specifiers) > 10:
             # too many to test :(
             return False
 
@@ -86,6 +86,25 @@ class sprintf(Func):
                     self.format_spec_char = char
                     self.string_spec_char = cc
                     break
+
+        # brute force...
+        if self.format_spec_char is None:
+            second_str = "findme"
+            for char in possible_format_specifiers:
+                if self.format_spec_char is not None:
+                    break
+                for cc in string.ascii_lowercase:
+                    if cc in possible_formats:
+                        continue
+                    test_str = char + cc + "\n\x00"
+                    test_input = [outbuf, test_str, second_str]
+                    test_output = [second_str + "\n" + "\x00", test_str, second_str]
+                    max_steps = 20
+                    test = TestData(test_input, test_output, None, max_steps)
+                    if runner.test(func, test):
+                        self.format_spec_char = char
+                        self.string_spec_char = cc
+                        break
 
         if self.format_spec_char is None:
             return False

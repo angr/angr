@@ -22,10 +22,6 @@ class realloc(Func):
         return None
 
     def pre_test(self, func, runner):
-        # realloc should not be identified here
-        return False
-
-    def try_match(self, func, identifier, runner):
         # we should not get a nonzero output from the function with a value this large
         num = 0xffff0000
         test_input = [0, num]

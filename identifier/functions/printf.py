@@ -31,16 +31,7 @@ class printf(Func):
 
     def gen_input_output_pair(self):
         # I'm kinda already assuming it's printf if it passed pretests...
-        # make sure it prints alphanumeric stuff
-        length = 10
-        test_str = self.rand_str(length, string.ascii_letters + string.digits)
-        test_input = [test_str]
-        test_output = [test_str]
-        max_steps = len(test_str) * 3 + 20
-        stdout = test_str
-        test = TestData(test_input, test_output, None, max_steps, expected_stdout=stdout)
-
-        return test
+        return None
 
     def pre_test(self, func, runner):
         # make sure it prints alphanumeric stuff
@@ -60,7 +51,7 @@ class printf(Func):
         test = TestData(test_input, test_output, None, max_steps)
         s = runner.get_base_call_state(func, test)
         pg = runner.project.factory.path_group(s)
-        pg.step(20)
+        pg.step(18)
         interesting_chars = set()
         for p in pg.active:
             for g in p.guards:
@@ -74,7 +65,7 @@ class printf(Func):
         possible_format_specifiers = [c for c in interesting_chars if c not in alphanum]
         possible_formats = [c for c in interesting_chars if c in alphanum]
 
-        if len(possible_format_specifiers) * len(possible_formats) > 0x30:
+        if len(possible_format_specifiers) > 10:
             # too many to test :(
             return False
 
@@ -88,26 +79,35 @@ class printf(Func):
                 test_input = [test_str, second_str]
                 test_output = [test_str, second_str]
                 stdout = second_str + "\n"
-                max_steps = 20
+                max_steps = 10
                 test = TestData(test_input, test_output, None, max_steps, expected_stdout=stdout)
                 if runner.test(func, test):
                     self.format_spec_char = char
                     self.string_spec_char = cc
                     break
 
+        # brute force...
         if self.format_spec_char is None:
-            return False
+            second_str = "findme"
+            for char in possible_format_specifiers:
+                if self.format_spec_char is not None:
+                    break
+                for cc in string.ascii_lowercase:
+                    if cc in possible_formats:
+                        continue
+                    test_str = char + cc + "\n\x00"
+                    test_input = [test_str, second_str]
+                    test_output = [test_str, second_str]
+                    stdout = second_str + "\n"
+                    max_steps = 10
+                    test = TestData(test_input, test_output, None, max_steps, expected_stdout=stdout)
+                    if runner.test(func, test):
+                        self.format_spec_char = char
+                        self.string_spec_char = cc
+                        break
 
-        # check if %n is allowed
-        first_arg = "A"*22 + self.format_spec_char + "n"
-        second_arg = 0x41414140
-        test_input = [first_arg, second_arg]
-        test_output = [first_arg, None]
-        stdout = "A"*22
-        max_steps = len(test_str) * 3 + 20
-        test = TestData(test_input, test_output, None, max_steps, expected_stdout=stdout)
-        state = runner.get_out_state(func, test)
-        if state is not None and state.se.any_int(state.mem[second_arg:].dword.resolved) == 22:
-            self.allows_n = True
+        if self.format_spec_char is None:
+            print "format spec is none :("
+            return False
 
         return True

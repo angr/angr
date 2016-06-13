@@ -10,7 +10,7 @@ import logging
 l = logging.getLogger("identifier.identify")
 l.setLevel("DEBUG")
 
-NUM_TESTS = 10
+NUM_TESTS = 5
 
 # FIXME CFGFAST??
 
@@ -28,12 +28,12 @@ class FuncInfo(object):
 
 class Identifier(object):
 
-    _special_case_funcs = ["free", "realloc"]
+    _special_case_funcs = ["free"]
 
     def __init__(self, project):
         self.project = project
         # FIXME use CFGFast when it works
-        self._cfg = project.analyses.CFGAccurate()
+        self._cfg = project.analyses.CFG()
         self._runner = Runner(project, self._cfg)
 
         # reg list
