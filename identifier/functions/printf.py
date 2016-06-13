@@ -62,7 +62,7 @@ class printf(Func):
 
         interesting_chars = set(chr(a) for a in interesting_chars if 0 < a < 0x80)
         alphanum = set(string.ascii_letters + string.digits)
-        possible_format_specifiers = [c for c in interesting_chars if c not in alphanum]
+        possible_format_specifiers = [c for c in interesting_chars if c not in alphanum and c in string.printable and c not in string.whitespace]
         possible_formats = [c for c in interesting_chars if c in alphanum]
 
         if len(possible_format_specifiers) > 10:
@@ -79,7 +79,7 @@ class printf(Func):
                 test_input = [test_str, second_str]
                 test_output = [test_str, second_str]
                 stdout = second_str + "\n"
-                max_steps = 10
+                max_steps = 20
                 test = TestData(test_input, test_output, None, max_steps, expected_stdout=stdout)
                 if runner.test(func, test):
                     self.format_spec_char = char
