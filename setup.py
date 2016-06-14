@@ -101,6 +101,10 @@ def _build_qemus():
     os.chmod(QEMU_PATH_LINUX_ARM, 0755)
     os.chmod(QEMU_PATH_LINUX_AARCH64, 0755)
 
+    # remove the source directory after building
+    shutil.rmtree(QEMU_REPO_PATH_LINUX)
+    shutil.rmtree(QEMU_REPO_PATH_CGC)
+
 class build(_build):
     def run(self):
             self.execute(_build_qemus, (), msg="Building Tracer QEMU")
