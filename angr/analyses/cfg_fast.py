@@ -540,6 +540,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         self._function_addresses_from_symbols = self._func_addrs_from_symbols()
 
+        self._function_prologue_addrs = None
+
         #
         # Variables used during analysis
         #
@@ -794,9 +796,6 @@ class CFGFast(ForwardAnalysis, CFGBase):
         if self._use_symbols:
             starting_points |= set([ addr + rebase_addr for addr in self._function_addresses_from_symbols ])
 
-        if self._use_function_prologues:
-            starting_points |= set([ addr + rebase_addr for addr in self._func_addrs_from_prologues() ])
-
         # Sort it
         starting_points = sorted(list(starting_points), reverse=True)
 
@@ -812,6 +811,9 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         self._nodes = {}
         self._nodes_by_addr = defaultdict(list)
+
+        if self._use_function_prologues:
+            self._function_prologue_addrs = set([addr + rebase_addr for addr in self._func_addrs_from_prologues()])
 
     def _pre_entry_handling(self, entry, _locals):
 
@@ -902,6 +904,15 @@ class CFGFast(ForwardAnalysis, CFGBase):
             self._entries.append(self._pending_entries[0])
             del self._pending_entries[0]
             return
+
+        if self._use_function_prologues and self._function_prologue_addrs:
+            while self._function_prologue_addrs:
+                prolog_addr = self._function_prologue_addrs.pop()
+                if self._seg_list.is_occupied(prolog_addr):
+                    continue
+
+                self._entries.append(CFGEntry(prolog_addr, prolog_addr, 'Ijk_Boring'))
+                return
 
         # Try to see if there is any indirect jump left to be resolved
         if self._resolve_indirect_jumps and self._indirect_jumps:
