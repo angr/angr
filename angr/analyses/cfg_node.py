@@ -20,7 +20,8 @@ class CFGNode(object):
                  simrun=None,
                  function_address=None,
                  final_states=None,
-                 simrun_key=None):
+                 simrun_key=None,
+                 irsb=None):
         """
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -53,11 +54,14 @@ class CFGNode(object):
         self.return_target = None
 
         self.instruction_addrs = [ ]
-        if not self.is_simprocedure and simrun is not None:
-            # This is a SimIRSB
-            # Grab all instruction addresses out!
-            irsb = simrun.irsb
-            self.instruction_addrs = [ s.addr for s in irsb.statements if type(s) is pyvex.IRStmt.IMark ]  # pylint:disable=unidiomatic-typecheck
+        if not self.is_simprocedure:
+            # Try to grab all instruction addresses out!
+            if simrun is not None:
+                # This is a SimIRSB
+                irsb = simrun.irsb
+
+            if irsb is not None:
+                self.instruction_addrs = [ s.addr for s in irsb.statements if type(s) is pyvex.IRStmt.IMark ]  # pylint:disable=unidiomatic-typecheck
 
         self.final_states = [ ] if final_states is None else final_states
 

@@ -1070,7 +1070,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
             cfg_node = CFGNode(addr, 0, self, function_address=current_function_addr,
                                simprocedure_name=hooker.__name__,
                                no_ret=hooker.NO_RET,
-                               simrun_key=addr
+                               simrun_key=addr,
                                )
 
             self._nodes[addr] = cfg_node
@@ -1122,7 +1122,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 self._seg_list.occupy(addr, irsb.size, "code")
 
             # Create a CFG node, and add it to the graph
-            cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, simrun_key=addr)
+            cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, simrun_key=addr,
+                               irsb=irsb)
 
             self._nodes[addr] = cfg_node
             self._nodes_by_addr[addr].append(cfg_node)
