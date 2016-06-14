@@ -470,7 +470,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
                  indirect_jump_target_limit=100000,
                  collect_data_references=False,
                  progress_callback=None,
-                 show_progressbar=False
+                 show_progressbar=False,
+                 normalize=False
                  ):
         """
         :param binary:                  The binary to recover CFG on. By default the main binary is used.
@@ -493,7 +494,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         """
 
         ForwardAnalysis.__init__(self)
-        CFGBase.__init__(self, 0)
+        CFGBase.__init__(self, 0, normalize=normalize)
 
         self._binary = binary if binary is not None else self.project.loader.main_bin
         self._start = start if start is not None else (self._binary.rebase_addr + self._binary.get_min_addr())
@@ -796,17 +797,21 @@ class CFGFast(ForwardAnalysis, CFGBase):
         if self._use_function_prologues:
             starting_points |= set([ addr + rebase_addr for addr in self._func_addrs_from_prologues() ])
 
-        if not self._force_complete_scan:
-            starting_points.add(self._start)
-
         # Sort it
         starting_points = sorted(list(starting_points), reverse=True)
+
+        if self.project.entry is not None and self._start <= self.project.entry < self._end:
+            # make sure self.project.entry is the first entry
+            starting_points += [ self.project.entry ]
 
         # Create entries for all starting points
         for sp in starting_points:
             self._entries.append(CFGEntry(sp, sp, 'Ijk_Boring'))
 
         self._changed_functions = set()
+
+        self._nodes = {}
+        self._nodes_by_addr = defaultdict(list)
 
     def _pre_entry_handling(self, entry, _locals):
 
@@ -958,7 +963,9 @@ class CFGFast(ForwardAnalysis, CFGBase):
         if self._show_progressbar:
             self._finish_progressbar()
 
-        self._remove_overlapping_blocks()
+        self._remove_redudant_overlapping_blocks()
+
+        CFGBase._post_analysis(self)
 
     # Methods to get start points for scanning
 
@@ -1051,8 +1058,12 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
             cfg_node = CFGNode(addr, 0, self, function_address=current_function_addr,
                                simprocedure_name=hooker.__name__,
-                               no_ret=hooker.NO_RET
+                               no_ret=hooker.NO_RET,
+                               simrun_key=addr
                                )
+
+            self._nodes[addr] = cfg_node
+            self._nodes_by_addr[addr].append(cfg_node)
 
             self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
 
@@ -1100,7 +1111,10 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 self._seg_list.occupy(addr, irsb.size, "code")
 
             # Create a CFG node, and add it to the graph
-            cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr)
+            cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, simrun_key=addr)
+
+            self._nodes[addr] = cfg_node
+            self._nodes_by_addr[addr].append(cfg_node)
 
             self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
 
@@ -1793,7 +1807,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
     # Removers
 
-    def _remove_overlapping_blocks(self):
+    def _remove_redudant_overlapping_blocks(self):
         """
         On X86 and AMD64 there are sometimes garbage bytes (usually nops) between functions in order to properly
         align the succeeding function. CFGFast does a linear sweeping which might create duplicated blocks for

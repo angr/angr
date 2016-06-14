@@ -19,7 +19,8 @@ class CFGNode(object):
                  syscall=None,
                  simrun=None,
                  function_address=None,
-                 final_states=None):
+                 final_states=None,
+                 simrun_key=None):
         """
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -37,6 +38,8 @@ class CFGNode(object):
         self.syscall = syscall
         self._cfg = cfg
         self.function_address = function_address
+        self.simrun_key = simrun_key
+
         self.name = simprocedure_name or cfg.project.loader.find_symbol_name(addr)
         if function_address and self.name is None:
             self.name = cfg.project.loader.find_symbol_name(function_address)
