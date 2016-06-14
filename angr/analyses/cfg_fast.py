@@ -1257,6 +1257,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         elif jumpkind == "Ijk_Ret":
             if current_function_addr != -1:
                 self._function_exits[current_function_addr].add(target_addr)
+                self._function_add_return_site(addr, current_function_addr)
 
         else:
             # TODO: Support more jumpkinds
@@ -1966,6 +1967,9 @@ class CFGFast(ForwardAnalysis, CFGBase):
             self.kb.functions._add_node(function_addr, addr)
         else:
             self.kb.functions._add_fakeret_to(function_addr, src_node.addr, addr, confirmed=confirmed)
+
+    def _function_add_return_site(self, addr, function_addr):
+        self.kb.functions._add_return_from(function_addr, addr)
 
     def _function_add_return_edge(self, return_from_addr, return_to_addr, function_addr):
         self.kb.functions._add_return_from_call(function_addr, return_from_addr, return_to_addr)
