@@ -5,6 +5,7 @@ from collections import defaultdict
 from functions import Functions
 from errors import IdentifierException
 from runner import Runner
+import simuvex
 
 import logging
 l = logging.getLogger("identifier.identify")
@@ -24,6 +25,8 @@ class FuncInfo(object):
         self.stack_arg_accesses = None
         self.buffers = None
         self.var_args = None
+        self.bp_based = None
+        self.bp_sp_diff = None
 
 
 class Identifier(object):
@@ -147,12 +150,20 @@ class Identifier(object):
             for b in f.graph.nodes():
                 self.block_to_func[b.addr] = f
 
-    def do_trace(self, addr_trace):
+    def do_trace(self, addr_trace, reverse_accesses, func_info):
         # get to the callsite
         s = rop_utils.make_symbolic_state(self.project, self._reg_list)
+        s.options.discard(simuvex.o.AVOID_MULTIVALUED_WRITES)
+        s.options.discard(simuvex.o.AVOID_MULTIVALUED_READS)
+        s.options.add(simuvex.o.UNDER_CONSTRAINED_SYMEXEC)
+        s.options.discard(simuvex.o.LAZY_SOLVES)
+
         func_info = self.func_info[self.block_to_func[addr_trace[0]]]
         for i in range(func_info.frame_size/self.project.arch.bytes+5):
             s.stack_push(s.se.BVS("var_" + hex(i), self.project.arch.bits))
+
+        if func_info.bp_based:
+            s.regs.bp = s.regs.sp + func_info.bp_sp_diff
         s.regs.ip = addr_trace[0]
         addr_trace = addr_trace[1:]
         p = self.project.factory.path(s)
@@ -160,13 +171,21 @@ class Identifier(object):
             p.step()
             stepped = False
             for ss in p.successors:
+                # todo could write symbolic data to pointers passed to functions
+                if ss.jumpkind == "Ijk_Call":
+                    ss.state.regs.eax = ss.state.se.BVS("unconstrained_ret_%#x" % ss.addr, ss.state.arch.bits)
+                    ss.state.regs.ip = ss.state.stack_pop()
+                    ss.state.scratch.jumpkind = "Ijk_Ret"
                 if ss.addr == addr_trace[0]:
                     p = ss
                     stepped = True
             if not stepped:
                 if len(p.unconstrained_successors) > 0:
-                    # we know this is a jump
                     p = p.unconstrained_successors[0]
+                    if p.jumpkind == "Ijk_Call":
+                        p.state.regs.eax = p.state.se.BVS("unconstrained_ret_%#x" % p.addr, p.state.arch.bits)
+                        p.state.regs.ip = p.state.stack_pop()
+                        p.state.scratch.jumpkind = "Ijk_Ret"
                     p.state.regs.ip = addr_trace[0]
                     stepped = True
             if not stepped:
@@ -186,15 +205,21 @@ class Identifier(object):
         if len(func_info.stack_args) == 0:
             return []
 
-        # we need to step back as far as possible
+        # get the accesses of calling func
         calling_func = self.block_to_func[callsite]
+        reverse_accesses = dict()
+        calling_func_info = self.func_info[calling_func]
+        stack_var_accesses = calling_func_info.stack_var_accesses
+        for stack_var, v in stack_var_accesses.items():
+            for addr, type in v:
+                reverse_accesses[addr] = (stack_var, type)
+
+        # we need to step back as far as possible
         start = calling_func.get_node(callsite)
         addr_trace = []
         while len(calling_func.transition_graph.predecessors(start)) == 1:
             # stop at a call, could continue farther if no stack addr passed etc
             prev_block = calling_func.transition_graph.predecessors(start)[0]
-            if self.project.factory.block(prev_block.addr).vex.jumpkind == "Ijk_Call":
-                break
             addr_trace = [start.addr] + addr_trace
             start = prev_block
 
@@ -202,7 +227,7 @@ class Identifier(object):
         succ = None
         while len(addr_trace):
             try:
-                succ = self.do_trace(addr_trace)
+                succ = self.do_trace(addr_trace, reverse_accesses, calling_func_info)
                 break
             except IdentifierException:
                 addr_trace = addr_trace[1:]
@@ -213,10 +238,26 @@ class Identifier(object):
         arch_bytes = self.project.arch.bytes
         args = []
         for arg in func_info.stack_args:
-            arg_addr = succ_state.regs.sp + arch_bytes * (arg + 1)
+            arg_addr = succ_state.regs.sp + arg + arch_bytes
             args.append(succ_state.memory.load(arg_addr, arch_bytes, endness=self.project.arch.memory_endness))
-        return args
 
+        args_as_stack_vars = []
+        for a in args:
+            if not a.symbolic:
+                sp_off = succ_state.se.any_int(a-succ_state.regs.sp-arch_bytes)
+                if calling_func_info.bp_based:
+                    bp_off = sp_off - calling_func_info.bp_sp_diff
+                else:
+                    bp_off = sp_off - (calling_func_info.frame_size + self.project.arch.bytes) + self.project.arch.bytes
+
+                if abs(bp_off) < 0x1000:
+                    args_as_stack_vars.append(bp_off)
+                else:
+                    args_as_stack_vars.append(None)
+            else:
+                args_as_stack_vars.append(None)
+
+        return args, args_as_stack_vars
 
     @staticmethod
     def get_reg_name(arch, reg_offset):
@@ -396,11 +437,11 @@ class Identifier(object):
         for addr, ast, action in possible_stack_vars:
             if "sym_sp" in ast.variables:
                 # constrain all to be zero so we detect the base address of buffers
-                self.constrain_all_zero(test_p.state, succ.state, self._reg_list)
                 if succ.state.se.symbolic(succ.state.se.simplify(ast - sp)):
                     is_buffer = True
                 else:
                     is_buffer = False
+                self.constrain_all_zero(test_p.state, succ.state, self._reg_list)
                 sp_off = succ.state.se.any_int(ast - sp)
                 if sp_off > 2 ** (self.project.arch.bits - 1):
                     sp_off = 2 ** self.project.arch.bits - sp_off
@@ -416,11 +457,11 @@ class Identifier(object):
                 if is_buffer:
                     buffers.add(bp_off)
             else:
-                self.constrain_all_zero(test_p.state, succ.state, self._reg_list)
                 if succ.state.se.symbolic(succ.state.se.simplify(ast - bp)):
                     is_buffer = True
                 else:
                     is_buffer = False
+                self.constrain_all_zero(test_p.state, succ.state, self._reg_list)
                 bp_off = succ.state.se.any_int(ast - bp)
                 if bp_off > 2 ** (self.project.arch.bits - 1):
                     bp_off = -(2 ** self.project.arch.bits - bp_off)
@@ -456,5 +497,8 @@ class Identifier(object):
         func_info.stack_arg_accesses = stack_arg_accesses
         func_info.buffers = buffers
         func_info.var_args = var_args
+        func_info.bp_based = bp_based
+        if func_info.bp_based:
+            func_info.bp_sp_diff = bp_sp_diff
 
         return func_info
