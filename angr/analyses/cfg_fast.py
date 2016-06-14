@@ -907,9 +907,15 @@ class CFGFast(ForwardAnalysis, CFGBase):
         if self._resolve_indirect_jumps and self._indirect_jumps:
             jump_targets = list(set(self._process_indirect_jumps()))
 
-            for addr, func_addr in jump_targets:
+            for addr, func_addr, source_addr in jump_targets:
                 # TODO: get a better estimate of the function address
-                self._entries.append(CFGEntry(addr, func_addr, "Ijk_Boring", last_addr=None))
+                self._entries.append(CFGEntry(addr, func_addr, "Ijk_Boring", last_addr=source_addr,
+                                              src_node=self._nodes[source_addr],
+                                              src_stmt_idx=None,
+                                              )
+                                     )
+
+                self._function_add_transition_edge(addr, self._nodes[source_addr], func_addr)
 
             if self._entries:
                 return
@@ -1456,7 +1462,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
             # is it a jump table? try with the fast approach
             resolvable, targets = self._resolve_jump_table_fast(entry.addr, entry.jumpkind)
             if resolvable:
-                all_targets |= set([ (t, entry.func_addr) for t in targets ])
+                all_targets |= set([ (t, entry.func_addr, entry.addr) for t in targets ])
                 continue
 
             # is it a slightly more complex jump table? try the slow approach
