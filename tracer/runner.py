@@ -147,15 +147,15 @@ class Runner(object):
         resource.setrlimit(resource.RLIMIT_CORE,
                            (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
 
-        # some hacks to guarantee the coredump file has a unique filename
-        return_dir = os.getcwd()
-        os.chdir('/dev/shm')
-
         binary_name = os.path.basename(self.binary)
         binary_replacement = tempfile.mktemp(prefix=binary_name)
         shutil.copy(self.binary, binary_replacement)
         binary_back = self.binary
         self.binary = binary_replacement
+
+        # some hacks to guarantee the coredump file has a unique filename
+        return_dir = os.getcwd()
+        os.chdir('/dev/shm')
 
         # get the dynamic trace
         self._run_trace(stdout_file=stdout_file)
