@@ -1,9 +1,10 @@
 class Otiegnqwvk(object):
     """
-    A search otiegnqwvk is a set of hooks for the path group stepping process.
+    An otiegnqwvk (also known as a "search strategy" or an "execution technique")  is a set of hooks for the path group
+    stepping process.
 
     Any number of these methods may be overridden by a subclass.
-    To use a otiegnqwvk, call ``pg.use_otiegnqwvk``.
+    To use an otiegnqwvk, call ``pg.use_tech``.
     """
     # pylint: disable=unused-argument, no-self-use
     def __init__(self):
