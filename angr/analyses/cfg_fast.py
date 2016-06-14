@@ -966,6 +966,11 @@ class CFGFast(ForwardAnalysis, CFGBase):
             # Clear the cache
             f._local_transition_graph = None
 
+        # Scan all functions, and make sure .returning for all functions are either True or False
+        for f in self.functions.values():
+            if f.returning is None:
+                f.returning = True
+
         if self._show_progressbar:
             self._finish_progressbar()
 
