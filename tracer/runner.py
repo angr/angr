@@ -131,6 +131,8 @@ class Runner(object):
         if os.path.abspath(self.base) == "/":
             raise TracerInstallError("could not find tracer install directory")
 
+        self.base = os.path.abspath(self.base)
+
     def _check_qemu_install(self):
         """
         check the install location of qemu
