@@ -9,6 +9,8 @@ bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..
 pov_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "povs"))
 test_data_location = str(os.path.dirname(os.path.realpath(__file__)))
 
+logging.getLogger("tracer").setLevel("DEBUG")
+
 def test_cgc_0b32aa01_01_raw():
     '''
     Test CGC Scored Event 1's palindrome challenge with raw input
@@ -52,6 +54,18 @@ def test_allocation_base_continuity():
     _, crash_state = t.run()
 
     nose.tools.assert_equal(crash_state.se.any_int(crash_state.cgc.allocation_base), 0xb7fc0000)
+
+def test_crash_detection():
+    '''
+    Test tracer's ability to detect where (at what address) an input truly caused a crash.
+    Caused a bug in unicorn.
+    '''
+
+    t = tracer.Tracer(os.path.join(bin_location, "tests/i386/call_symbolic"), "A" * 700)
+
+    _, crash_state = t.run()
+
+    nose.tools.assert_true(crash_state.se.symbolic(crash_state.regs.ip))
 
 def run_all():
     functions = globals()
