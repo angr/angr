@@ -1524,7 +1524,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
             return False, None
 
         # Perform a backward slicing from the jump target
-        b = Blade(self.graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True)
+        b = Blade(self.graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True, max_level=2)
 
         stmt_loc = (addr, 'default')
 
