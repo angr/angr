@@ -499,7 +499,7 @@ class CFGBase(Analysis):
 
                     all_endpoints_returning.append(call_target_func.returning)
 
-            if all([i is False for _, i in all_endpoints_returning]):
+            if all_endpoints_returning and all([i is False for _, i in all_endpoints_returning]):
                 # All target functions that this function calls is not returning
                 func.returning = False
                 changes['functions_do_not_return'].append(func)
