@@ -62,6 +62,8 @@ class Tracer(object):
         self.pov_file = pov_file
         self.preconstrain = preconstrain
         self.simprocedures = {} if simprocedures is None else simprocedures
+        if isinstance(seed, (int, long)):
+            seed = str(seed)
         self.seed = seed
         self.resiliency = resiliency
         self.chroot = chroot
@@ -745,9 +747,15 @@ class Tracer(object):
         self.remove_options |= so.simplification | set(so.LAZY_SOLVES)
         self.add_options |= options
         entry_state = project.factory.entry_state(
-                fs=fs,
-                add_options=self.add_options,
-                remove_options=self.remove_options)
+            fs=fs,
+            add_options=self.add_options,
+            remove_options=self.remove_options)
+
+        # set unicorn cooldowns
+        if self.unicorn_enabled:
+            entry_state.unicorn.cooldown_symbolic_registers = 4
+            entry_state.unicorn.cooldown_symbolic_memory = 4
+            entry_state.unicorn.cooldown_nonunicorn_blocks = 4
 
         if self.preconstrain:
             self._preconstrain_state(entry_state)
@@ -767,11 +775,11 @@ class Tracer(object):
         entry_state.memory.store(0x4347c000, cgc_flag_data)
 
         pg = project.factory.path_group(
-                entry_state,
-                immutable=True,
-                save_unsat=True,
-                hierarchy=False,
-                save_unconstrained=self.crash_mode)
+            entry_state,
+            immutable=True,
+            save_unsat=True,
+            hierarchy=False,
+            save_unconstrained=self.crash_mode)
 
         return pg
 
