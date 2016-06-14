@@ -6,6 +6,7 @@ from collections import defaultdict
 
 import progressbar
 
+import claripy
 import simuvex
 import pyvex
 
@@ -1116,6 +1117,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
             new_exits = hooker.static_exits(self.project.arch, blocks_ahead)
 
             for addr, jumpkind in new_exits:
+                if isinstance(addr, claripy.ast.BV) and not addr.symbolic:
+                    addr = addr._model_concrete.value
                 if not isinstance(addr, (int, long)):
                     continue
                 entries += self._create_entries(addr, jumpkind, current_function_addr, None, addr, cfg_node, None)
@@ -1274,7 +1277,10 @@ class CFGFast(ForwardAnalysis, CFGBase):
             target_addr = syscall_addr
 
         new_function_addr = target_addr
-        return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
+        if irsb is None:
+            return_site = None
+        else:
+            return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
 
         # Keep tracing from the call
         ce = CFGEntry(target_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
@@ -1284,26 +1290,29 @@ class CFGFast(ForwardAnalysis, CFGBase):
         self._function_add_call_edge(target_addr, cfg_node, return_site, current_function_addr,
                                      syscall=is_syscall)
 
-        # Also, keep tracing from the return site
-        ce = CFGEntry(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
-                      src_stmt_idx=stmt_idx, returning_source=new_function_addr, syscall=True)
-        self._pending_entries.append(ce)
+        if return_site is not None:
+            # Also, keep tracing from the return site
+            ce = CFGEntry(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
+                          src_stmt_idx=stmt_idx, returning_source=new_function_addr, syscall=is_syscall)
+            self._pending_entries.append(ce)
 
         callee_function = self.kb.functions.function(addr=target_addr, syscall=is_syscall)
 
         if callee_function.returning is True:
-            self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
-                                            confirmed=True)
-            self._function_add_return_edge(target_addr, return_site, current_function_addr)
+            if return_site is not None:
+                self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
+                                                confirmed=True)
+                self._function_add_return_edge(target_addr, return_site, current_function_addr)
         elif callee_function.returning is False:
             # The function does not return - there is no fake ret edge
             pass
         else:
-            self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
-                                            confirmed=None)
-            fr = FunctionReturn(target_addr, current_function_addr, addr, return_site)
-            if fr not in self._function_returns[target_addr]:
-                self._function_returns[target_addr].append(fr)
+            if return_site is not None:
+                self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
+                                                confirmed=None)
+                fr = FunctionReturn(target_addr, current_function_addr, addr, return_site)
+                if fr not in self._function_returns[target_addr]:
+                    self._function_returns[target_addr].append(fr)
 
     # Data reference processing
 
