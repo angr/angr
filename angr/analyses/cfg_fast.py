@@ -1284,7 +1284,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         # Keep tracing from the call
         ce = CFGEntry(target_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
-                      src_stmt_idx=stmt_idx, syscall=True)
+                      src_stmt_idx=stmt_idx, syscall=is_syscall)
         entries.append(ce)
 
         self._function_add_call_edge(target_addr, cfg_node, return_site, current_function_addr,
