@@ -1468,6 +1468,9 @@ class CFGFast(ForwardAnalysis, CFGBase):
             # is it a jump table? try with the fast approach
             resolvable, targets = self._resolve_jump_table_fast(entry.addr, entry.jumpkind)
             if resolvable:
+                # Remove all targets that don't make sense
+                targets = [ t for t in targets if any(iter((a <= t < b) for a, b in self._exec_mem_regions)) ]
+
                 all_targets |= set([ (t, entry.func_addr, entry.addr) for t in targets ])
                 continue
 
