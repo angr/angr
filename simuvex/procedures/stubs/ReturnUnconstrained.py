@@ -9,7 +9,7 @@ class ReturnUnconstrained(simuvex.SimProcedure):
         #pylint:disable=attribute-defined-outside-init
         self.resolves = resolves
 
-        o = self.state.se.Unconstrained("unconstrained_ret", self.state.arch.bits)
+        o = self.state.se.Unconstrained("unconstrained_ret_%s" % self.resolves, self.state.arch.bits)
         #if 'unconstrained_ret_9_64' in o.variables:
         #   __import__('ipdb').set_trace()
         return o

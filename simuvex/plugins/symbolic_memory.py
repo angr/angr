@@ -239,9 +239,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 if options.APPROXIMATE_MEMORY_INDICES in self.state.options:
                     self._default_write_strategy.insert(0, 'symbolic_nonzero_approx')
 
-    def _ana_getstate(self):
-        return self.__dict__.copy()
-
     #
     # Symbolicizing!
     #
@@ -274,6 +271,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def _resolve_size_range(self, size):
         if not self.state.se.symbolic(size):
             i = self.state.se.any_int(size)
+            if i > self._maximum_concrete_size:
+                raise SimMemoryLimitError("Concrete size %d outside of allowable limits" % i)
             return i, i
 
         if options.APPROXIMATE_MEMORY_SIZES in self.state.options:

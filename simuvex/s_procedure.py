@@ -34,6 +34,7 @@ class SimProcedure(SimRun):
         # Update state.scratch
         self.state.scratch.bbl_addr = self.addr
         self.state.scratch.sim_procedure = self.__class__.__name__
+        self.state.scratch.executed_block_count = 1
 
         self.stmt_from = -1 if stmt_from is None else stmt_from
         self.arguments = arguments
@@ -86,6 +87,8 @@ class SimProcedure(SimRun):
             # If this is an inlined call, restore old scratch members
             self.state.scratch.bbl_addr = old_bbl_addr
             self.state.scratch.sim_procedure = old_sim_procedure
+
+        self.cleanup()
 
     def _run(self, run_func, *args, **kwargs):
 

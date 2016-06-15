@@ -1,11 +1,8 @@
-import ana
-import weakref
-
 default_plugins = { }
 
 # This is a base class for SimState plugins. A SimState plugin will be copied along with the state when the state is branched. They
 # are intended to be used for things such as tracking open files, tracking heap details, and providing storage and persistence for SimProcedures.
-class SimStatePlugin(ana.Storable):
+class SimStatePlugin(object):
     #__slots__ = [ 'state' ]
 
     def __init__(self):
@@ -14,6 +11,11 @@ class SimStatePlugin(ana.Storable):
     # Sets a new state (for example, if the state has been branched)
     def set_state(self, state):
         self.state = state
+
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        d['state'] = None
+        return d
 
     # Should return a copy of the state plugin.
     def copy(self):
@@ -33,7 +35,7 @@ class SimStatePlugin(ana.Storable):
         """
         raise Exception("merge() not implement for %s", self.__class__.__name__)
 
-    def widen(self, others, merge_flag, flag_values):
+    def widen(self, others, merge_flag, flag_values): #pylint:disable=unused-argument
         """
         The widening operation for plugins.
         """

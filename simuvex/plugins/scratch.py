@@ -15,6 +15,7 @@ class SimStateScratch(SimStatePlugin):
         self.stmt_idx = None
         self.ins_addr = None
         self.sim_procedure = None
+        self.bbl_addr_list = None
 
         # information on exits *from* this state
         self.jumpkind = None
@@ -22,6 +23,8 @@ class SimStateScratch(SimStatePlugin):
         self.target = None
         self.source = None
         self.exit_stmt_idx = None
+        self.executed_block_count = 0 # the number of blocks that was executed here
+        self.avoidable = True
 
         # information on VEX temps of this IRSB
         self.temps = { }
@@ -38,6 +41,7 @@ class SimStateScratch(SimStatePlugin):
             self.target = scratch.target
             self.source = scratch.source
             self.exit_stmt_idx = scratch.exit_stmt_idx
+            self.executed_block_count = scratch.executed_block_count
 
             if scratch.input_variables is not None:
                 self.input_variables |= scratch.input_variables
@@ -49,6 +53,7 @@ class SimStateScratch(SimStatePlugin):
             self.stmt_idx = scratch.stmt_idx
             self.ins_addr = scratch.ins_addr
             self.sim_procedure = scratch.sim_procedure
+            self.bbl_addr_list = scratch.bbl_addr_list
 
     def tmp_expr(self, tmp):
         """

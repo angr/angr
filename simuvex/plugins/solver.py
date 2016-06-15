@@ -100,15 +100,6 @@ class SimSolver(SimStatePlugin):
         SimStatePlugin.__init__(self)
         self._stored_solver = solver
 
-    def _ana_getstate(self):
-        return self._stored_solver, self.state
-
-    def _ana_setstate(self, s):
-        self._stored_solver, self.state = s
-
-    def set_state(self, state):
-        SimStatePlugin.set_state(self, state)
-
     @property
     def _solver(self):
         if self._stored_solver is not None:

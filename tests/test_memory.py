@@ -515,7 +515,7 @@ def test_concrete_memset():
     def _individual_test(state, base, val, size):
         # time it
         start = time.time()
-        memset = simuvex.SimProcedures['libc.so.6']['memset'](state, arguments=[base, state.se.BVV(val, 8), size])
+        memset = simuvex.SimProcedures['libc.so.6']['memset'](state, inline=True, arguments=[base, state.se.BVV(val, 8), size])
         elapsed = time.time() - start
 
         # should be done within 1 second

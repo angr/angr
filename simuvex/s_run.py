@@ -49,9 +49,14 @@ class SimRun(object):
             for s in self.successors:
                 s.downsize()
 
-        # now delete the final state; it should be exported in exits
-        if hasattr(self, 'state'):
+        # now delete the final state if the run was not inlined
+        if not self._inline and hasattr(self, 'state'):
             delattr(self, 'state')
+
+        if len(self.flat_successors) == 1 and len(self.unconstrained_successors) == 0:
+            # the exit is unavoidable
+            self.flat_successors[0].scratch.avoidable = False
+
 
     def add_successor(self, state, target, guard, jumpkind, exit_stmt_idx=None, source=None):
         """
