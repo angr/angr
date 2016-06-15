@@ -1,6 +1,6 @@
-from . import Otiegnqwvk
+from . import ExplorationTechnique
 
-class DFS(Otiegnqwvk):
+class DFS(ExplorationTechnique):
     """
     Depth-first search.
 

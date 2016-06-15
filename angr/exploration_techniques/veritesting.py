@@ -1,6 +1,6 @@
-from . import Otiegnqwvk
+from . import ExplorationTechnique
 
-class Veritesting(Otiegnqwvk):
+class Veritesting(ExplorationTechnique):
     """
     Enable veritesting. This technique, described in a paper[1] from CMU, attempts to address the problem of state
     explosions in loops by performing smart merging.

@@ -1,10 +1,12 @@
-class Otiegnqwvk(object):
+class ExplorationTechnique(object):
     """
-    An otiegnqwvk (also known as a "search strategy" or an "execution technique")  is a set of hooks for the path group
-    stepping process.
+    An otiegnqwvk is a set of hooks for path groups that assists
+    in the implementation of new techniques in symbolic exploration.
+
+    TODO: choose actual name for the functionality (techniques? something?)
 
     Any number of these methods may be overridden by a subclass.
-    To use an otiegnqwvk, call ``pg.use_tech``.
+    To use an exploration technique, call ``pg.use_technique``.
     """
     # pylint: disable=unused-argument, no-self-use
     def __init__(self):
