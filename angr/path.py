@@ -464,12 +464,6 @@ class Path(object):
         self._run_error = None
         self._reachable = None
 
-    def branch_causes(self):
-        return [
-            (h.addr, h._jump_source, tuple(h._guard.variables)) for h in self.history_iterator
-            if h._jump_avoidable
-        ]
-
     @property
     def addr(self):
         return self.state.se.any_int(self.state.regs.ip)
@@ -632,6 +626,17 @@ class Path(object):
     #
     # Utility functions
     #
+
+    def branch_causes(self):
+        """
+        Returns the variables that have caused this path to branch.
+
+        :return: A list of tuples of (basic block address, jmp instruction address, set(variables))
+        """
+        return [
+            (h.addr, h._jump_source, tuple(h._guard.variables)) for h in self.history_iterator
+            if h._jump_avoidable
+        ]
 
     def divergence_addr(self, other):
         """
