@@ -167,7 +167,10 @@ class PathHistory(object):
 
     def __getstate__(self):
         attributes = ('_parent', 'addr', '_runstr', '_target', '_guard', '_jumpkind', '_events')
-        state = {name: getattr(self,name) for name in attributes}
+        state = {}
+        for name in attributes:
+            state[name] = getattr(self, name)
+
         return state
 
     def __setstate__(self, state):
