@@ -64,23 +64,27 @@ class ExplorationTechnique(object):
         :returns:           A lambda that takes a path and returns the set of addresses that it matched from the condition
         """
         if condition is None:
-            condition = lambda p: default
+            condition_function = lambda p: default
 
-        if isinstance(condition, (int, long)):
-            condition = (condition,)
+        elif isinstance(condition, (int, long)):
+            return self._condition_to_lambda((condition,))
 
-        if isinstance(condition, (tuple, set, list)):
+        elif isinstance(condition, (tuple, set, list)):
             addrs = set(condition)
-            def condition(p):
+            def condition_function(p):
                 if p.addr in addrs:
                     return True
 
                 try:
-                    return addrs.intersection(set(self._project.factory.block(p.addr).instruction_addrs))
+                    return addrs.intersection(set(self.project.factory.block(p.addr).instruction_addrs))
                 except AngrError:
                     return False
+        elif hasattr(condition, '__call__'):
+            condition_function = condition
+        else:
+            raise AngrExplorationTechniqueError("ExplorationTechnique is unable to convert given type (%s) to a callable condition function." % condition.__class__)
 
-        return condition
+        return condition_function
 
 #registered_actions = {}
 #registered_surveyors = {}
@@ -96,3 +100,4 @@ from .threading import Threading
 from .dfs import DFS
 from .looplimiter import LoopLimiter
 from .veritesting import Veritesting
+from ..errors import AngrError, AngrExplorationTechniqueError
