@@ -1,10 +1,12 @@
+import gc
+import os
 import nose
+import pickle
+import logging
+
 import angr
 
-import logging
 l = logging.getLogger("angr.tests")
-
-import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 target_addrs = {
@@ -54,6 +56,19 @@ def run_fauxware(arch):
     #p.factory.block(divergent_point.addr).pp()
     assert divergent_point.addr == divergences[arch]
 
+def run_pickling(arch):
+    p = angr.Project(os.path.join(test_location, arch, "fauxware"))
+    pg = p.factory.path_group().step(n=10)
+    pickled = pickle.dumps(pg, pickle.HIGHEST_PROTOCOL)
+    del p
+    del pg
+    gc.collect()
+    pg = pickle.loads(pickled)
+
+    pg.explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
+    stdin = pg.found[0].state.posix.dumps(0)
+    nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
+
 def run_nodecode(arch):
     p = angr.Project(os.path.join(test_location, arch, "fauxware"))
 
@@ -75,6 +90,10 @@ def test_fauxware():
     for arch in target_addrs:
         yield run_fauxware, arch
 
+def test_pickling():
+    for arch in corrupt_addrs:
+        yield run_pickling, arch
+
 def test_nodecode():
     for arch in corrupt_addrs:
         yield run_nodecode, arch
@@ -82,5 +101,5 @@ def test_nodecode():
 if __name__ == "__main__":
     #for r,a in test_fauxware():
     #   r(a)
-    for r,a in test_nodecode():
+    for r,a in test_pickling():
         r(a)

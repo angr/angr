@@ -55,6 +55,10 @@ class AngrCallableMultistateError(AngrCallableError):
 class AngrUnsupportedSyscallError(AngrError):
     pass
 
+# Congruency check failure
+class AngrIncongruencyError(AngrAnalysisError):
+    pass
+
 #
 # ForwardAnalysis errors
 #
@@ -92,3 +96,15 @@ class AngrDataGraphError(AngrAnalysisError):
 
 class AngrDDGError(AngrAnalysisError):
     pass
+
+#
+# Exploration techniques
+#
+
+class AngrExplorationTechniqueError(AngrError):
+    def __str__(self):
+        return "<OtiegnqwvkError %s>" % self.message
+
+class AngrExplorerError(AngrExplorationTechniqueError):
+    def __str(self):
+        return "<OtiegnqwvkExplorerError %s>" % self.message

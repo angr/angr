@@ -1,9 +1,11 @@
+import logging
+import itertools
+
 import ana
 import simuvex
 import claripy
 import mulpyplexer
 
-import logging
 l = logging.getLogger('angr.path_group')
 
 
@@ -32,7 +34,7 @@ class PathGroup(ana.Storable):
 
     def __init__(self, project, active_paths=None, stashes=None, hierarchy=None, veritesting=None,
                  veritesting_options=None, immutable=None, resilience=None, save_unconstrained=None,
-                 save_unsat=None, strong_path_mapping=None, threads=None):
+                 save_unsat=None, threads=None):
         """
         :param project:         A Project instance.
         :type  project:         angr.project.Project
@@ -47,7 +49,7 @@ class PathGroup(ana.Storable):
         :param threads:         the number of worker threads to concurrently analyze states (useful in z3-intensive paths).
         """
         self._project = project
-        self._hierarchy = PathHierarchy(strong_path_mapping=strong_path_mapping) if hierarchy is None else hierarchy
+        self._hierarchy = PathHierarchy() if hierarchy is None else hierarchy
         self._immutable = False if immutable is None else immutable
         self._resilience = False if resilience is None else resilience
 
@@ -77,6 +79,22 @@ class PathGroup(ana.Storable):
             'deadended': [ ],
             'unconstrained': [ ]
         } if stashes is None else stashes
+
+    #
+    # Pickling
+    #
+
+    def _ana_getstate(self):
+        self.prune()
+        s = dict(self.__dict__)
+        if self._hierarchy is not False:
+            s['_hierarchy'] = None
+        return s
+
+    def _ana_setstate(self, s):
+        self.__dict__.update(s)
+        if self._hierarchy is None:
+            self._hierarchy = PathHierarchy()
 
     #
     # Util functions
@@ -326,18 +344,39 @@ class PathGroup(ana.Storable):
         s += ">"
         return s
 
+    def mulpyplex(self, *stashes):
+        """
+        Mulpyplex across several stashes.
+
+        :param stashes: the stashes to mulpyplex
+        :return: a mulpyplexed list of paths from the stashes in question, in the specified order
+        """
+
+        return mulpyplexer.MP(list(itertools.chain.from_iterable(self.stashes[s] for s in stashes)))
+
     def __getattr__(self, k):
-        if k.startswith('mp_'):
+        if k == PathGroup.ALL:
+            return [ p for p in itertools.chain.from_iterable(s for s in self.stashes.values()) ]
+        elif k == 'mp_' + PathGroup.ALL:
+            return mulpyplexer.MP([ p for p in itertools.chain.from_iterable(s for s in self.stashes.values()) ])
+        elif k.startswith('mp_'):
             return mulpyplexer.MP(self.stashes[k[3:]])
-        else:
+        elif k.startswith('one_') and k in self.stashes:
+            return self.stashes[k[4:]][0]
+        elif k in self.stashes:
             return self.stashes[k]
+        else:
+            raise AttributeError(k)
 
     def __dir__(self):
-        return sorted(set(self.__dict__.keys() +
-                          dir(super(PathGroup, self)) +
-                          dir(type(self)) +
-                          self.stashes.keys() +
-                          ['mp_'+k for k in self.stashes.keys()]))
+        return sorted(set(
+            self.__dict__.keys() +
+            dir(super(PathGroup, self)) +
+            dir(type(self)) +
+            self.stashes.keys() +
+            ['mp_'+k for k in self.stashes.keys()] +
+            ['one_'+k for k in self.stashes.keys()]
+        ))
 
     #
     # Interface
