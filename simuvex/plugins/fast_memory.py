@@ -151,24 +151,33 @@ class SimFastMemory(SimMemory):
         addr = self._translate_addr(req.addr)
         size = self._translate_addr(req.size) if req.size is not None else data.length/8
 
+        #
+        # simplify
+        #
+
+        if (self.category == 'mem' and options.SIMPLIFY_MEMORY_WRITES in self.state.options) or \
+           (self.category == 'reg' and options.SIMPLIFY_REGISTER_WRITES in self.state.options):
+            req.simplified_values = [ self.state.se.simplify(data) ]
+        else:
+            req.simplified_values = [ data ]
+        data = req.simplified_values[0]
+
         accesses = self._resolve_access(addr, size)
-        req.stored_values = [ ]
         if len(accesses) == 1:
             # simple case
             a,o,s = accesses[0]
             self._single_store(a, o, s, data)
-            req.stored_values.append(data)
         else:
             cur_offset = 0
             for a,o,s in accesses:
                 portion = data.get_bytes(cur_offset, s)
                 cur_offset += s
                 self._single_store(a, o, s, portion)
-                req.stored_values.append(portion)
 
         # fill out the request
         req.completed = True
         req.actual_addresses = [ req.addr ]
+        req.stored_values = [ data ]
         return req
 
     def _load(self, addr, size, condition=None, fallback=None):
@@ -216,3 +225,5 @@ class SimFastMemory(SimMemory):
                     changes.add(addr+i)
 
         return changes
+
+from .. import s_options as options
