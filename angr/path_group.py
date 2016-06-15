@@ -656,8 +656,8 @@ class PathGroup(ana.Storable):
 
     def use_technique(self, tech):
         """
-        Use an execution technique with this path group.
-        Techniques can be found in :mod:`angr.exploitation_techniques`.
+        Use an exploration technique with this path group.
+        Techniques can be found in :mod:`angr.exploration_techniques`.
 
         :param tech:       An ExplorationTechnique object that contains code to modify this path group's behavior
         """
