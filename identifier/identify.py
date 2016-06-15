@@ -33,10 +33,13 @@ class Identifier(object):
 
     _special_case_funcs = ["free"]
 
-    def __init__(self, project):
+    def __init__(self, project, cfg=None):
         self.project = project
         # FIXME use CFGFast when it works
-        self._cfg = project.analyses.CFG()
+        if cfg is not None:
+            self._cfg = cfg
+        else:
+            self._cfg = project.analyses.CFG(resolve_indirect_jumps=True)
         self._runner = Runner(project, self._cfg)
 
         # reg list
@@ -57,6 +60,17 @@ class Identifier(object):
 
         self.map_callsites()
 
+        for f in self._cfg.functions.values():
+            if f.is_syscall:
+                continue
+            try:
+                func_info = self.find_stack_vars_x86(f)
+            except IdentifierException as e:
+                l.warning("Identifier Exception: %s", e.message)
+                func_info = None
+            self.func_info[f] = func_info
+
+    def run(self):
         for f in self._cfg.functions.values():
             if f.is_syscall:
                 continue
@@ -89,6 +103,12 @@ class Identifier(object):
                 if func.try_match(f, self, self._runner):
                     self.matches[f] = func.get_name(), func
 
+    def get_func_info(self, func):
+        if isinstance(func, (int, long)):
+            func = self._cfg.functions[func]
+        if func not in self.func_info:
+            return None
+        return self.func_info[func]
 
     @staticmethod
     def constrain_all_zero(before_state, state, regs):
@@ -350,7 +370,7 @@ class Identifier(object):
         initial_sp = initial_state.se.any_int(initial_state.regs.sp)
         frame_size = initial_sp - min_sp - self.project.arch.bytes
         if num_preamble_inst is None or succ is None:
-            raise IdentifierException("preamble checks failed")
+            raise IdentifierException("preamble checks failed for %#x" % func.startpoint.addr)
 
         if succ.state.se.any_n_int((initial_path.state.regs.sp - succ.state.regs.bp), 2) == \
                 [self.project.arch.bytes]:
@@ -486,6 +506,10 @@ class Identifier(object):
             stack_args = stack_args[:-1]
         else:
             var_args = False
+
+        for v in stack_vars:
+            if any(a[1] == "load" for a in stack_var_accesses[v]):
+                buffers.add(v)
 
         # return it all in a function info object
         func_info = FuncInfo()
