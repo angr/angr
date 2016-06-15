@@ -50,12 +50,6 @@ class SimMemView(SimStatePlugin):
         if state is not None:
             self.set_state(state)
 
-    def __getstate__(self):
-        return {'type': self._type, 'addr': self._addr, 'state': self.state}
-
-    def __setstate__(self, data):
-        self.__init__(data['type'], data['addr'], data['state'])
-
     def set_state(self, state):
         super(SimMemView, self).set_state(state)
 

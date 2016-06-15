@@ -239,9 +239,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 if options.APPROXIMATE_MEMORY_INDICES in self.state.options:
                     self._default_write_strategy.insert(0, 'symbolic_nonzero_approx')
 
-    def _ana_getstate(self):
-        return self.__dict__.copy()
-
     #
     # Symbolicizing!
     #

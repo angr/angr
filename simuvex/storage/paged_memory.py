@@ -152,7 +152,7 @@ class SimPagedMemory(object):
             '_pages': self._pages,
             '_initialized': self._initialized,
             '_page_size': self._page_size,
-            'state': self.state,
+            'state': None,
             '_name_mapping': self._name_mapping,
             '_hash_mapping': self._hash_mapping,
         }

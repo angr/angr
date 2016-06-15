@@ -108,6 +108,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def _get_weakref(self):
         return weakref.proxy(self)
 
+    def _get_strongref(self):
+        return self
+
     #
     # Some temporary backwards compatibility
     #
