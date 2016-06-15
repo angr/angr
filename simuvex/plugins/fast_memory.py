@@ -42,7 +42,8 @@ class SimFastMemory(SimMemory):
         The default uninitialized read handler. Returns symbolic bytes.
         """
         if self._uninitialized_read_handler is None:
-            return self.state.se.BVS("%s_%s" % (self.id, addr), self.width*8)
+            v = self.state.se.BVS("%s_%s" % (self.id, addr), self.width*8)
+            return v.reversed if self.endness == "Iend_LE" else v
         else:
             return self._uninitialized_read_handler(self, addr)
 
@@ -79,7 +80,7 @@ class SimFastMemory(SimMemory):
         if c is None:
             return True
         else:
-            return self.state.se.eval(c)[0]
+            return self.state.se.eval(c, 1)[0]
 
     def _resolve_access(self, addr, size):
         """
@@ -123,6 +124,7 @@ class SimFastMemory(SimMemory):
         """
         Performs a single store.
         """
+
         if offset == 0 and size == self.width:
             self._contents[addr] = data
         elif offset == 0:
@@ -192,8 +194,25 @@ class SimFastMemory(SimMemory):
     def copy(self):
         return SimFastMemory(
             endness=self.endness,
-            contents=self._contents,
+            contents=dict(self._contents),
             width=self._width,
             uninitialized_read_handler=self._uninitialized_read_handler,
             memory_id=self.id
         )
+
+    def changed_bytes(self, other):
+        """
+        Gets the set of changed bytes between self and other.
+        """
+
+        changes = set()
+
+        l.warning("This implementation is very slow and only for debug purposes.")
+        for addr,v in self._contents.iteritems():
+            for i in range(self.width):
+                other_byte = other.load(addr+i, 1)
+                our_byte = v.get_byte(i)
+                if other_byte is our_byte:
+                    changes.add(addr+i)
+
+        return changes

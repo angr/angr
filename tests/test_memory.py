@@ -80,6 +80,16 @@ def _concrete_memory_tests(s):
     expr = s.memory.load(0x104, 13)
     assert expr is s.se.BVV("GGGGFFFFEEEED")
 
+    # branching
+    s2 = s.copy()
+    s2a = s2.copy()
+    s2b = s2.copy()
+
+    s2a.memory.store(0x100, s.se.BVV("A"))
+    s2b.memory.store(0x100, s.se.BVV("B"))
+    assert s2b.memory.load(0x100, 1) is s.se.BVV("B")
+    assert s2a.memory.load(0x100, 1) is s.se.BVV("A")
+
 
 ## pylint: disable=R0904
 #@nose.tools.timed(10)
