@@ -91,11 +91,11 @@ class SimRun(object):
         state.options.discard(o.AST_DEPS)
         state.options.discard(o.AUTO_REFS)
 
-        return_state = self._add_successor(state, target)
+        return_state = self._add_successor_state(state, target)
         state._inspect('exit', BP_AFTER, exit_target=target, exit_guard=guard, exit_jumpkind=jumpkind)
         return return_state
 
-    def _add_successor(self, state, target):
+    def _add_successor_state(self, state, target):
         """
         Append state into successor lists.
 
