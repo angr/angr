@@ -285,9 +285,14 @@ class CongruencyCheck(Analysis):
 		# get the differences in registers and memory
 		mem_diff = sr.memory.changed_bytes(sl.memory)
 		reg_diff = sr.registers.changed_bytes(sl.registers)
-		if sl.arch.name in ("X86", "AMD64"):
-			reg_diff -= set(range(40, 52)) #ignore cc psuedoregisters
-			reg_diff -= set(range(320, 324)) #some other VEX weirdness
+
+		# this is only for unicorn
+		if "UNICORN" in sl.options | sr.options:
+			if sl.arch.name == "X86":
+				reg_diff -= set(range(40, 52)) #ignore cc psuedoregisters
+				reg_diff -= set(range(320, 324)) #some other VEX weirdness
+			elif sl.arch.name == "AMD64":
+				reg_diff -= set(range(144, 168)) #ignore cc psuedoregisters
 
 		# make sure the differences in registers and memory are actually just renamed
 		# versions of the same ASTs
