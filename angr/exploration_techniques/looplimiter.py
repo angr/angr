@@ -1,6 +1,6 @@
-from . import Otiegnqwvk
+from . import ExplorationTechnique
 
-class LoopLimiter(Otiegnqwvk):
+class LoopLimiter(ExplorationTechnique):
     """
     Limit the number of loops a path may go through.
     Paths that exceed the loop limit are moved to a discard stash.

@@ -20,8 +20,7 @@ from .path_group import PathGroup
 from .surveyors.caller import Callable
 from .log import Loggers
 from . import knowledge
-from . import otiegnqwvk
-exec_techs = otiegnqwvk
+from . import exploration_techniques
 
 import sys
 i = 0

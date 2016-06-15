@@ -1,9 +1,9 @@
 # pylint: disable=cell-var-from-loop
 import concurrent.futures
 
-from . import Otiegnqwvk
+from . import ExplorationTechnique
 
-class Threading(Otiegnqwvk):
+class Threading(ExplorationTechnique):
     """
     Enable multithreading.
 

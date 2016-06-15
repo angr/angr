@@ -62,9 +62,11 @@ class PathGroup(ana.Storable):
         self._hooks_complete = []
 
         if threads is not None:
-            self.use_tech(otiegnqwvk.Threading(threads))
+            self.use_technique(exploration_techniques.Threading(threads))
         if veritesting:
-            self.use_tech(otiegnqwvk.Veritesting(**({} if veritesting_options is None else veritesting_options)))
+            self.use_technique(exploration_techniques.Veritesting(
+                **({} if veritesting_options is None else veritesting_options)
+            ))
 
         self.stashes = {
             'active': [ ] if active_paths is None else active_paths,
@@ -613,12 +615,12 @@ class PathGroup(ana.Storable):
         new_stashes[stash] = not_to_merge
         return self._successor(new_stashes)
 
-    def use_tech(self, tech):
+    def use_technique(self, tech):
         """
-        Use an execution technique (otiegnqwvk) with this path group.
-        Techniques can be found in :mod:`angr.otiegnqwvk`.
+        Use an execution technique with this path group.
+        Techniques can be found in :mod:`angr.exploitation_techniques`.
 
-        :param tech:       An Otiegnqwvk object that contains code to modify this path group's behavior
+        :param tech:       An ExplorationTechnique object that contains code to modify this path group's behavior
         """
         # this might be the best worst code I've ever written in my life
         tech.project = self._project
@@ -626,7 +628,7 @@ class PathGroup(ana.Storable):
         tech.setup(self)
         for hook in ['step_path', 'step', 'filter', 'complete']:
             hookfunc = getattr(tech, hook)
-            if hookfunc.im_func is not getattr(otiegnqwvk.Otiegnqwvk, hook).im_func:
+            if hookfunc.im_func is not getattr(exploration_techniques.ExplorationTechnique, hook).im_func:
                 getattr(self, '_hooks_' + hook).append(hookfunc)
 
     def remove_tech(self, tech):
@@ -720,13 +722,13 @@ class PathGroup(ana.Storable):
         preemptively avoided.
         """
         num_find += len(self.stashes[find_stash]) if find_stash in self.stashes else 0
-        tech = otiegnqwvk.Explorer(find=find,
+        tech = exploration_techniques.Explorer(find=find,
                                    avoid=avoid,
                                    find_stash=find_stash,
                                    avoid_stash=avoid_stash,
                                    cfg=cfg,
                                    num_find=num_find)
-        self.use_tech(tech)
+        self.use_technique(tech)
         out = self.run(stash=stash,
                        step_func=step_func,
                        n=n)
@@ -736,9 +738,11 @@ class PathGroup(ana.Storable):
 
     def run(self, stash=None, n=None, step_func=None):
         """
-        Run until the path group has reached a completed state, according to the current techniques (otiegnqwvk).
+        Run until the path group has reached a completed state, according to
+        the current exploration techniques.
 
-        TODO: step_func doesn't work with veritesting, since veritesting replaces the default step logic.
+        TODO: step_func doesn't work with veritesting, since veritesting replaces
+        the default step logic.
 
         :param stash:       Operate on this stash
         :param n:           Step at most this many times
@@ -756,4 +760,4 @@ class PathGroup(ana.Storable):
 from .path_hierarchy import PathHierarchy
 from .errors import PathUnreachableError, AngrError, AngrPathGroupError
 from .path import Path
-from . import otiegnqwvk
+from . import exploration_techniques
