@@ -69,6 +69,10 @@ def run_pickling(arch):
     stdin = pg.found[0].state.posix.dumps(0)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
+def run_fastmem(arch):
+    p = angr.Project(os.path.join(test_location, arch, "fauxware"))
+    p.analyses.CongruencyCheck(throw=True).set_state_options(right_add_options={"FAST_REGISTERS"}).run()
+
 def run_nodecode(arch):
     p = angr.Project(os.path.join(test_location, arch, "fauxware"))
 
@@ -93,6 +97,15 @@ def test_fauxware():
 def test_pickling():
     for arch in corrupt_addrs:
         yield run_pickling, arch
+
+def test_fastmem():
+    #for arch in target_addrs:
+    #   yield run_fastmem, arch
+    # TODO: add support for comparing flags of other architectures
+    yield run_fastmem, "i386"
+    yield run_fastmem, "x86_64"
+    yield run_fastmem, "ppc"
+    yield run_fastmem, "mips"
 
 def test_nodecode():
     for arch in corrupt_addrs:
