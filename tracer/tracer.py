@@ -234,6 +234,7 @@ class Tracer(object):
             if not self.crash_mode:
                 current.trim_history()
 
+            l.debug("bb_cnt: %d", self.bb_cnt)
             self.path_group = self.path_group.step(max_size=bbl_max_bytes)
 
             # if our input was preconstrained we have to keep on the lookout
@@ -738,7 +739,6 @@ class Tracer(object):
         # try to enable unicorn, continue if it doesn't exist
         try:
             options.add(so.UNICORN)
-            options.add(so.UNICORN_FAST)
             self.unicorn_enabled = True
             l.info("unicorn tracing enabled")
         except AttributeError:
@@ -753,9 +753,10 @@ class Tracer(object):
 
         # set unicorn cooldowns
         if self.unicorn_enabled:
-            entry_state.unicorn.cooldown_symbolic_registers = 4
-            entry_state.unicorn.cooldown_symbolic_memory = 4
-            entry_state.unicorn.cooldown_nonunicorn_blocks = 4
+            pass
+            #entry_state.unicorn.cooldown_symbolic_registers = 4
+            #entry_state.unicorn.cooldown_symbolic_memory = 4
+            #entry_state.unicorn.cooldown_nonunicorn_blocks = 4
 
         if self.preconstrain:
             self._preconstrain_state(entry_state)
