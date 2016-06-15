@@ -6,6 +6,7 @@ from collections import defaultdict
 
 import progressbar
 
+import claripy
 import simuvex
 import pyvex
 
@@ -470,7 +471,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
                  indirect_jump_target_limit=100000,
                  collect_data_references=False,
                  progress_callback=None,
-                 show_progressbar=False
+                 show_progressbar=False,
+                 normalize=False
                  ):
         """
         :param binary:                  The binary to recover CFG on. By default the main binary is used.
@@ -493,7 +495,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         """
 
         ForwardAnalysis.__init__(self)
-        CFGBase.__init__(self, 0)
+        CFGBase.__init__(self, 0, normalize=normalize)
 
         self._binary = binary if binary is not None else self.project.loader.main_bin
         self._start = start if start is not None else (self._binary.rebase_addr + self._binary.get_min_addr())
@@ -538,6 +540,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
         self._jump_tables = { }
 
         self._function_addresses_from_symbols = self._func_addrs_from_symbols()
+
+        self._function_prologue_addrs = None
 
         #
         # Variables used during analysis
@@ -793,20 +797,24 @@ class CFGFast(ForwardAnalysis, CFGBase):
         if self._use_symbols:
             starting_points |= set([ addr + rebase_addr for addr in self._function_addresses_from_symbols ])
 
-        if self._use_function_prologues:
-            starting_points |= set([ addr + rebase_addr for addr in self._func_addrs_from_prologues() ])
-
-        if not self._force_complete_scan:
-            starting_points.add(self._start)
-
         # Sort it
         starting_points = sorted(list(starting_points), reverse=True)
+
+        if self.project.entry is not None and self._start <= self.project.entry < self._end:
+            # make sure self.project.entry is the first entry
+            starting_points += [ self.project.entry ]
 
         # Create entries for all starting points
         for sp in starting_points:
             self._entries.append(CFGEntry(sp, sp, 'Ijk_Boring'))
 
         self._changed_functions = set()
+
+        self._nodes = {}
+        self._nodes_by_addr = defaultdict(list)
+
+        if self._use_function_prologues:
+            self._function_prologue_addrs = set([addr + rebase_addr for addr in self._func_addrs_from_prologues()])
 
     def _pre_entry_handling(self, entry, _locals):
 
@@ -898,13 +906,28 @@ class CFGFast(ForwardAnalysis, CFGBase):
             del self._pending_entries[0]
             return
 
+        if self._use_function_prologues and self._function_prologue_addrs:
+            while self._function_prologue_addrs:
+                prolog_addr = self._function_prologue_addrs.pop()
+                if self._seg_list.is_occupied(prolog_addr):
+                    continue
+
+                self._entries.append(CFGEntry(prolog_addr, prolog_addr, 'Ijk_Boring'))
+                return
+
         # Try to see if there is any indirect jump left to be resolved
         if self._resolve_indirect_jumps and self._indirect_jumps:
             jump_targets = list(set(self._process_indirect_jumps()))
 
-            for addr, func_addr in jump_targets:
-                # TODO: get a better estimate of the function address
-                self._entries.append(CFGEntry(addr, func_addr, "Ijk_Boring", last_addr=None))
+            for addr, func_addr, source_addr in jump_targets:
+                r = self._function_add_transition_edge(addr, self._nodes[source_addr], func_addr)
+                if r:
+                    # TODO: get a better estimate of the function address
+                    self._entries.append(CFGEntry(addr, func_addr, "Ijk_Boring", last_addr=source_addr,
+                                                  src_node=self._nodes[source_addr],
+                                                  src_stmt_idx=None,
+                                                  )
+                                         )
 
             if self._entries:
                 return
@@ -955,10 +978,17 @@ class CFGFast(ForwardAnalysis, CFGBase):
             # Clear the cache
             f._local_transition_graph = None
 
+        # Scan all functions, and make sure .returning for all functions are either True or False
+        for f in self.functions.values():
+            if f.returning is None:
+                f.returning = True
+
         if self._show_progressbar:
             self._finish_progressbar()
 
-        self._remove_overlapping_blocks()
+        self._remove_redudant_overlapping_blocks()
+
+        CFGBase._post_analysis(self)
 
     # Methods to get start points for scanning
 
@@ -1051,8 +1081,12 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
             cfg_node = CFGNode(addr, 0, self, function_address=current_function_addr,
                                simprocedure_name=hooker.__name__,
-                               no_ret=hooker.NO_RET
+                               no_ret=hooker.NO_RET,
+                               simrun_key=addr,
                                )
+
+            self._nodes[addr] = cfg_node
+            self._nodes_by_addr[addr].append(cfg_node)
 
             self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
 
@@ -1083,6 +1117,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
             new_exits = hooker.static_exits(self.project.arch, blocks_ahead)
 
             for addr, jumpkind in new_exits:
+                if isinstance(addr, claripy.ast.BV) and not addr.symbolic:
+                    addr = addr._model_concrete.value
                 if not isinstance(addr, (int, long)):
                     continue
                 entries += self._create_entries(addr, jumpkind, current_function_addr, None, addr, cfg_node, None)
@@ -1100,7 +1136,11 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 self._seg_list.occupy(addr, irsb.size, "code")
 
             # Create a CFG node, and add it to the graph
-            cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr)
+            cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, simrun_key=addr,
+                               irsb=irsb)
+
+            self._nodes[addr] = cfg_node
+            self._nodes_by_addr[addr].append(cfg_node)
 
             self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
 
@@ -1154,18 +1194,20 @@ class CFGFast(ForwardAnalysis, CFGBase):
         if jumpkind == 'Ijk_Boring':
             if target_addr is not None:
 
-                try:
-                    self._function_add_transition_edge(target_addr, cfg_node, current_function_addr)
-                except AngrTranslationError:
+                r = self._function_add_transition_edge(target_addr, cfg_node, current_function_addr)
+
+                if not r:
                     if cfg_node is not None:
-                        l.warning("AngrTranslationError occurred when adding a transition from %#x to %#x. "
+                        l.warning("An angr exception occurred when adding a transition from %#x to %#x. "
                                   "Ignore this successor.",
                                   cfg_node.addr,
-                                  target_addr)
+                                  target_addr
+                                  )
                     else:
                         l.warning("AngrTranslationError occurred when creating a new entry to %#x. "
                                   "Ignore this successor.",
-                                  target_addr)
+                                  target_addr
+                                  )
                     return []
 
                 ce = CFGEntry(target_addr, current_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
@@ -1187,27 +1229,28 @@ class CFGFast(ForwardAnalysis, CFGBase):
                             tmp_addr = tmp_ip._model_concrete.value
                             tmp_function_addr = tmp_addr # TODO: FIX THIS
                             if self._addr_in_memory_regions(tmp_addr) or self.project.is_hooked(tmp_addr):
-                                ce = CFGEntry(tmp_addr, tmp_function_addr, jumpkind, last_addr=tmp_addr, src_node=cfg_node,
-                                              src_stmt_idx=stmt_idx)
-                                entries.append(ce)
 
-                                self._function_add_transition_edge(tmp_addr, cfg_node, current_function_addr)
+                                r = self._function_add_transition_edge(tmp_addr, cfg_node, current_function_addr)
+                                if r:
+                                    ce = CFGEntry(tmp_addr, tmp_function_addr, jumpkind, last_addr=tmp_addr,
+                                                  src_node=cfg_node, src_stmt_idx=stmt_idx)
+                                    entries.append(ce)
 
-                                self._function_add_call_edge(tmp_addr, None, None, tmp_function_addr)
+                                    self._function_add_call_edge(tmp_addr, None, None, tmp_function_addr)
 
         elif jumpkind == 'Ijk_Call' or jumpkind.startswith("Ijk_Sys"):
             is_syscall = jumpkind.startswith("Ijk_Sys")
 
             if target_addr is not None:
-                self._create_entry_call(entries, addr, irsb, cfg_node, stmt_idx, current_function_addr, target_addr,
-                                        jumpkind, is_syscall=is_syscall)
+                entries += self._create_entry_call(addr, irsb, cfg_node, stmt_idx, current_function_addr, target_addr,
+                                                   jumpkind, is_syscall=is_syscall)
 
             else:
                 resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, current_function_addr)
                 if resolved:
                     for t in resolved_targets:
-                        self._create_entry_call(entries, addr, irsb, cfg_node, stmt_idx, current_function_addr,
-                                                t, jumpkind, is_syscall=is_syscall)
+                        entries += self._create_entry_call(addr, irsb, cfg_node, stmt_idx, current_function_addr,
+                                                           t, jumpkind, is_syscall=is_syscall)
 
                 else:
                     l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
@@ -1217,6 +1260,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         elif jumpkind == "Ijk_Ret":
             if current_function_addr != -1:
                 self._function_exits[current_function_addr].add(target_addr)
+                self._function_add_return_site(addr, current_function_addr)
 
         else:
             # TODO: Support more jumpkinds
@@ -1224,8 +1268,10 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         return entries
 
-    def _create_entry_call(self, entries, addr, irsb, cfg_node, stmt_idx, current_function_addr, target_addr, jumpkind,
+    def _create_entry_call(self, addr, irsb, cfg_node, stmt_idx, current_function_addr, target_addr, jumpkind,
                            is_syscall=False):
+
+        entries = [ ]
 
         if is_syscall:
             # Fix the target_addr for syscalls
@@ -1237,36 +1283,47 @@ class CFGFast(ForwardAnalysis, CFGBase):
             target_addr = syscall_addr
 
         new_function_addr = target_addr
-        return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
+        if irsb is None:
+            return_site = None
+        else:
+            return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
+
+        r = self._function_add_call_edge(target_addr, cfg_node, return_site, current_function_addr,
+                                         syscall=is_syscall)
+
+        if not r:
+            return [ ]
 
         # Keep tracing from the call
         ce = CFGEntry(target_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
-                      src_stmt_idx=stmt_idx, syscall=True)
+                      src_stmt_idx=stmt_idx, syscall=is_syscall)
         entries.append(ce)
 
-        self._function_add_call_edge(target_addr, cfg_node, return_site, current_function_addr,
-                                     syscall=is_syscall)
-
-        # Also, keep tracing from the return site
-        ce = CFGEntry(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
-                      src_stmt_idx=stmt_idx, returning_source=new_function_addr, syscall=True)
-        self._pending_entries.append(ce)
+        if return_site is not None:
+            # Also, keep tracing from the return site
+            ce = CFGEntry(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
+                          src_stmt_idx=stmt_idx, returning_source=new_function_addr, syscall=is_syscall)
+            self._pending_entries.append(ce)
 
         callee_function = self.kb.functions.function(addr=target_addr, syscall=is_syscall)
 
         if callee_function.returning is True:
-            self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
-                                            confirmed=True)
-            self._function_add_return_edge(target_addr, return_site, current_function_addr)
+            if return_site is not None:
+                self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
+                                                confirmed=True)
+                self._function_add_return_edge(target_addr, return_site, current_function_addr)
         elif callee_function.returning is False:
             # The function does not return - there is no fake ret edge
             pass
         else:
-            self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
-                                            confirmed=None)
-            fr = FunctionReturn(target_addr, current_function_addr, addr, return_site)
-            if fr not in self._function_returns[target_addr]:
-                self._function_returns[target_addr].append(fr)
+            if return_site is not None:
+                self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
+                                                confirmed=None)
+                fr = FunctionReturn(target_addr, current_function_addr, addr, return_site)
+                if fr not in self._function_returns[target_addr]:
+                    self._function_returns[target_addr].append(fr)
+
+        return entries
 
     # Data reference processing
 
@@ -1442,7 +1499,10 @@ class CFGFast(ForwardAnalysis, CFGBase):
             # is it a jump table? try with the fast approach
             resolvable, targets = self._resolve_jump_table_fast(entry.addr, entry.jumpkind)
             if resolvable:
-                all_targets |= set([ (t, entry.func_addr) for t in targets ])
+                # Remove all targets that don't make sense
+                targets = [ t for t in targets if any(iter((a <= t < b) for a, b in self._exec_mem_regions)) ]
+
+                all_targets |= set([ (t, entry.func_addr, entry.addr) for t in targets ])
                 continue
 
             # is it a slightly more complex jump table? try the slow approach
@@ -1475,7 +1535,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
             return False, None
 
         # Perform a backward slicing from the jump target
-        b = Blade(self.graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True)
+        b = Blade(self.graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True, max_level=2)
 
         stmt_loc = (addr, 'default')
 
@@ -1793,7 +1853,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
     # Removers
 
-    def _remove_overlapping_blocks(self):
+    def _remove_redudant_overlapping_blocks(self):
         """
         On X86 and AMD64 there are sometimes garbage bytes (usually nops) between functions in order to properly
         align the succeeding function. CFGFast does a linear sweeping which might create duplicated blocks for
@@ -1900,23 +1960,56 @@ class CFGFast(ForwardAnalysis, CFGBase):
         self.kb.functions._add_node(function_addr, addr)
 
     def _function_add_transition_edge(self, addr, src_node, function_addr):
-        # Add this basic block into the function manager
-        if src_node is None:
-            self.kb.functions._add_node(function_addr, addr)
-        else:
-            self.kb.functions._add_transition_to(function_addr, src_node.addr, addr)
+        """
+        Add a transition edge to the function transiton map.
+
+        :param int addr: Address that the control flow transits to.
+        :param CFGNode src_node: The source node that the control flow transits from.
+        :param int function_addr: Function address.
+        :return: True if the edge is correctly added. False if any exception occurred (for example, the target address
+                 does not exist)
+        :rtype: bool
+        """
+
+        try:
+            # Add this basic block into the function manager
+            if src_node is None:
+                self.kb.functions._add_node(function_addr, addr)
+            else:
+                self.kb.functions._add_transition_to(function_addr, src_node.addr, addr)
+            return True
+        except (AngrMemoryError, AngrTranslationError):
+            return False
 
     def _function_add_call_edge(self, addr, src_node, ret_addr, function_addr, syscall=False):
-        if src_node is None:
-            self.kb.functions._add_node(function_addr, addr, syscall=syscall)
-        else:
-            self.kb.functions._add_call_to(function_addr, src_node.addr, addr, ret_addr, syscall=syscall)
+        """
+        Add a call edge to the function transition map.
+
+        :param int addr: Address that is being called (callee).
+        :param CFGNode src_node: The source CFG node (caller).
+        :param int ret_addr: Address that returns to (in case the function returns).
+        :param int function_addr: Function address..
+        :param bool syscall: If this is a call to a syscall or not.
+        :return: True if the edge is added. False if any exception occurred.
+        :rtype: bool
+        """
+        try:
+            if src_node is None:
+                self.kb.functions._add_node(function_addr, addr, syscall=syscall)
+            else:
+                self.kb.functions._add_call_to(function_addr, src_node.addr, addr, ret_addr, syscall=syscall)
+            return True
+        except (AngrMemoryError, AngrTranslationError):
+            return False
 
     def _function_add_fakeret_edge(self, addr, src_node, function_addr, confirmed=None):
         if src_node is None:
             self.kb.functions._add_node(function_addr, addr)
         else:
             self.kb.functions._add_fakeret_to(function_addr, src_node.addr, addr, confirmed=confirmed)
+
+    def _function_add_return_site(self, addr, function_addr):
+        self.kb.functions._add_return_from(function_addr, addr)
 
     def _function_add_return_edge(self, return_from_addr, return_to_addr, function_addr):
         self.kb.functions._add_return_from_call(function_addr, return_from_addr, return_to_addr)

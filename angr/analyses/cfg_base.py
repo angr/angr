@@ -1,5 +1,8 @@
-import networkx
+
 import logging
+from collections import defaultdict
+
+import networkx
 
 from cle import ELF, PE
 
@@ -7,13 +10,15 @@ from ..knowledge import Function, HookNode
 from ..analysis import Analysis
 from ..errors import AngrCFGError
 
+from .cfg_node import CFGNode
+
 l = logging.getLogger(name="angr.cfg_base")
 
 class CFGBase(Analysis):
     """
     The base class for control flow graphs.
     """
-    def __init__(self, context_sensitivity_level):
+    def __init__(self, context_sensitivity_level, normalize=False):
 
         self._context_sensitivity_level=context_sensitivity_level
 
@@ -29,9 +34,17 @@ class CFGBase(Analysis):
         self._overlapped_loop_headers = None
         self._thumb_addrs = set()
 
+        # Traverse all the IRSBs, and put the corresponding CFGNode objects to a dict
+        # CFGNodes dict indexed by SimRun key
+        self._nodes = None
+        # CFGNodes dict indexed by addresses of each SimRun
+        self._nodes_by_addr = None
+
         # Store all the functions analyzed before the set is cleared
         # Used for performance optimization
         self._changed_functions = None
+
+        self._normalize = normalize
 
     def __contains__(self, cfg_node):
         return cfg_node in self._graph
@@ -45,6 +58,15 @@ class CFGBase(Analysis):
         Re-create the DiGraph
         """
         self._graph = networkx.DiGraph()
+
+    def _post_analysis(self):
+
+        if self._normalize:
+            self.normalize()
+
+            # Call normalize() on each function
+            for f in self.kb.functions.values():
+                f.normalize()
 
     # pylint: disable=no-self-use
     def copy(self):
@@ -477,7 +499,7 @@ class CFGBase(Analysis):
 
                     all_endpoints_returning.append(call_target_func.returning)
 
-            if all([i is False for _, i in all_endpoints_returning]):
+            if all_endpoints_returning and all([i is False for _, i in all_endpoints_returning]):
                 # All target functions that this function calls is not returning
                 func.returning = False
                 changes['functions_do_not_return'].append(func)
@@ -487,3 +509,93 @@ class CFGBase(Analysis):
                 changes['functions_return'].append(func)
 
         return changes
+
+    def normalize(self):
+        """
+        Normalize the CFG, making sure that there are no overlapping basic blocks.
+
+        Note that this method will not alter transition graphs of each function in self.kb.functions. You may call
+        normalize() on each Function object to normalize their transition graphs.
+
+        :return: None
+        """
+
+        graph = self.graph
+
+        end_addresses = defaultdict(list)
+
+        for n in graph.nodes():
+            if n.is_simprocedure:
+                continue
+            end_addr = n.addr + n.size
+            end_addresses[(end_addr, n.callstack_key)].append(n)
+
+        while any([len(x) > 1 for x in end_addresses.itervalues()]):
+            tpl_to_find = (None, None)
+            for tpl, x in end_addresses.iteritems():
+                if len(x) > 1:
+                    tpl_to_find = tpl
+                    break
+
+            end_addr, callstack_key = tpl_to_find
+            all_nodes = end_addresses[tpl_to_find]
+
+            all_nodes = sorted(all_nodes, key=lambda node: node.size)
+            smallest_node = all_nodes[0]
+            other_nodes = all_nodes[1:]
+
+            # Break other nodes
+            for n in other_nodes:
+                new_size = smallest_node.addr - n.addr
+                if new_size == 0:
+                    # This node has the same size as the smallest one. Don't touch it.
+                    continue
+
+                new_end_addr = n.addr + new_size
+
+                # Does it already exist?
+                new_node = None
+                tpl = (new_end_addr, n.callstack_key)
+                if tpl in end_addresses:
+                    nodes = [i for i in end_addresses[tpl] if i.addr == n.addr]
+                    if len(nodes) > 0:
+                        new_node = nodes[0]
+
+                if new_node is None:
+                    # Create a new one
+                    new_node = CFGNode(n.addr, new_size, self, callstack_key=callstack_key,
+                                       function_address=n.function_address, simrun_key=n.simrun_key
+                                       )
+
+                    # Copy instruction addresses
+                    new_node.instruction_addrs = [ins_addr for ins_addr in n.instruction_addrs
+                                                  if ins_addr < n.addr + new_size]
+                    # Put the new node into end_addresses list
+                    end_addresses[tpl].append(new_node)
+
+                # Modify the CFG
+                original_predecessors = list(graph.in_edges_iter([n], data=True))
+                for p, _, _ in original_predecessors:
+                    graph.remove_edge(p, n)
+                graph.remove_node(n)
+
+                # Update nodes dict
+                self._nodes[n.simrun_key] = new_node
+                if n in self._nodes_by_addr[n.addr]:
+                    self._nodes_by_addr[n.addr].remove(n)
+                    self._nodes_by_addr[n.addr].append(new_node)
+
+                for p, _, data in original_predecessors:
+                    graph.add_edge(p, new_node, data)
+
+                # We should find the correct successor
+                new_successors = [i for i in all_nodes
+                                  if i.addr == smallest_node.addr]
+                if new_successors:
+                    new_successor = new_successors[0]
+                    graph.add_edge(new_node, new_successor, jumpkind='Ijk_Boring')
+                else:
+                    # We gotta create a new one
+                    l.error('normalize(): Please report it to Fish.')
+
+            end_addresses[tpl_to_find] = [smallest_node]

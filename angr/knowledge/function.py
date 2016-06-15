@@ -470,7 +470,7 @@ class Function(object):
             g.add_node(self.startpoint)
         for src, dst, data in self.transition_graph.edges_iter(data=True):
             if 'type' in data:
-                if data['type'] in ('transition', 'syscall'):
+                if data['type'] in ('transition',):
                     g.add_edge(src, dst, attr_dict=data)
                 elif data['type'] == 'fake_return' and 'confirmed' in data:
                     g.add_edge(src, dst, attr_dict=data)
@@ -533,6 +533,15 @@ class Function(object):
         return self._project.factory.callable(self.addr)
 
     def normalize(self):
+        """
+        Make sure all basic blocks in the transition graph of this function do not overlap. You will end up with a CFG
+        that IDA Pro generates.
+
+        This method does not touch the CFG result. You may call CFG{Accurate, Fast}.normalize() for that matter.
+
+        :return: None
+        """
+
         graph = self.transition_graph
         end_addresses = defaultdict(list)
 
@@ -587,13 +596,14 @@ class Function(object):
                                   if i.addr == smallest_node.addr]
                 if new_successors:
                     new_successor = new_successors[0]
-                    graph.add_edge(new_node, new_successor, jumpkind='Ijk_Boring')
+                    graph.add_edge(new_node, new_successor, type="transition")
                 else:
                     # We gotta create a new one
                     l.error('normalize(): Please report it to Fish/maybe john.')
 
             end_addresses[end_addr] = [smallest_node]
 
+        # Clear the cache
         self._local_transition_graph = None
 
     def _match_cc(self):

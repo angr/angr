@@ -42,6 +42,15 @@ def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
         if returning is not "undefined":
             nose.tools.assert_is(cfg.kb.functions.function(addr=func_addr).returning, returning)
 
+    # with normalization enabled
+    cfg = proj.analyses.CFGFast(force_segment=True, normalize=True)
+    nose.tools.assert_true(set([k for k in cfg.kb.functions.keys()]).issuperset(func_addrs))
+
+    for func_addr, feature_dict in func_features.iteritems():
+        returning = feature_dict.get("returning", "undefined")
+        if returning is not "undefined":
+            nose.tools.assert_is(cfg.kb.functions.function(addr=func_addr).returning, returning)
+
 def cfg_fast_edges_check(arch, binary_path, edges):
     """
     Generate a fast CFG on the given binary, and test if all edges are found.
