@@ -102,10 +102,10 @@ def test_fastmem():
     #for arch in target_addrs:
     #   yield run_fastmem, arch
     # TODO: add support for comparing flags of other architectures
-    yield run_fastmem, "i386"
+    #yield run_fastmem, "i386"
     yield run_fastmem, "x86_64"
-    yield run_fastmem, "ppc"
-    yield run_fastmem, "mips"
+    #yield run_fastmem, "ppc"
+    #yield run_fastmem, "mips"
 
 def test_nodecode():
     for arch in corrupt_addrs:
