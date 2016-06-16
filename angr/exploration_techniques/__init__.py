@@ -76,6 +76,8 @@ class ExplorationTechnique(object):
                     return True
 
                 try:
+                    # If the address is not in the set (which could mean it is
+                    # not at the top of a block), check directly in the blocks
                     return addrs.intersection(set(self.project.factory.block(p.addr).instruction_addrs))
                 except AngrError:
                     return False
