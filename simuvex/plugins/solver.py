@@ -231,11 +231,31 @@ class SimSolver(SimStatePlugin):
     @auto_actions
     @error_converter
     def eval_to_ast(self, e, n, extra_constraints=(), exact=None):
+        """
+        Evaluate an expression, using the solver if necessary. Returns AST objects.
+
+        :param e: the expression
+        :param n: the number of desired solutions
+        :param extra_constraints: extra constraints to apply to the solver
+        :param exact: if False, returns approximate solutions
+        :return: a tuple of the solutions, in the form of claripy AST nodes
+        :rtype: tuple
+        """
         return self._solver.eval_to_ast(e, n, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @auto_actions
     @error_converter
     def eval(self, e, n, extra_constraints=(), exact=None):
+        """
+        Evaluate an expression, using the solver if necessary. Returns primitives.
+
+        :param e: the expression
+        :param n: the number of desired solutions
+        :param extra_constraints: extra constraints to apply to the solver
+        :param exact: if False, returns approximate solutions
+        :return: a tuple of the solutions, in the form of Python primitives
+        :rtype: tuple
+        """
 
         # shortcuts for speed improvement
         if not (exact is True and n > 1):
