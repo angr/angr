@@ -12,7 +12,7 @@ class SimFastMemory(SimMemory):
     def __init__(self, memory_backer=None, memory_id=None, endness=None, contents=None, width=None, uninitialized_read_handler=None):
         SimMemory.__init__(self, endness=endness)
         self._contents = { } if contents is None else contents
-        self._width = width
+        self.width = width
         self._uninitialized_read_handler = uninitialized_read_handler
         self.id = memory_id
         self._backer = memory_backer
@@ -33,9 +33,11 @@ class SimFastMemory(SimMemory):
     #       mo = SimMemoryObject(claripy.BVV(snip), write_start)
     #       self._apply_object_to_page(n*self._page_size, mo, page=new_page)
 
-    @property
-    def width(self):
-        return self._width if self._width is not None else self.state.arch.bytes
+    def set_state(self, state):
+        super(SimFastMemory, self).set_state(state)
+
+        if self.width is None:
+            self.width = self.state.arch.bytes
 
     def _handle_uninitialized_read(self, addr):
         """
@@ -204,7 +206,7 @@ class SimFastMemory(SimMemory):
         return SimFastMemory(
             endness=self.endness,
             contents=dict(self._contents),
-            width=self._width,
+            width=self.width,
             uninitialized_read_handler=self._uninitialized_read_handler,
             memory_id=self.id
         )
