@@ -241,7 +241,7 @@ class SimProcedure(SimRun):
                 self.state.options.add(o.AST_DEPS)
                 self.state.options.add(o.AUTO_REFS)
 
-            self._add_successor(ret_state, ret_state.scratch.target)
+            self._add_successor_state(ret_state, ret_state.scratch.target)
 
     def call(self, addr, args, continue_at, cc=None):
         if cc is None:

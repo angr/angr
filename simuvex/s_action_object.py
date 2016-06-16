@@ -45,6 +45,14 @@ def ast_preserving_op(f, *args, **kwargs):
     else:
         return a
 
+def ast_stripping_decorator(f):
+    @functools.wraps(f)
+    def ast_stripper(*args, **kwargs):
+        new_args = _raw_ast(args)
+        new_kwargs = _raw_ast(kwargs)
+        return f(*new_args, **new_kwargs)
+    return ast_stripper
+
 class SimActionObject(object):
     """
     A SimActionObject tracks an AST and its dependencies.
