@@ -4,7 +4,7 @@ class DFS(ExplorationTechnique):
     """
     Depth-first search.
 
-    Will only keep one path active at a time, any others will be stashedin the 'deferred' stash.
+    Will only keep one path active at a time, any others will be stashed in the 'deferred' stash.
     When we run out of active paths to step, we take the longest one from deferred and continue.
     """
     def setup(self, pg):
