@@ -361,7 +361,7 @@ class PathGroup(ana.Storable):
             return mulpyplexer.MP([ p for p in itertools.chain.from_iterable(s for s in self.stashes.values()) ])
         elif k.startswith('mp_'):
             return mulpyplexer.MP(self.stashes[k[3:]])
-        elif k.startswith('one_') and k in self.stashes:
+        elif k.startswith('one_') and k[4:] in self.stashes:
             return self.stashes[k[4:]][0]
         elif k in self.stashes:
             return self.stashes[k]
