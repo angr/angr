@@ -516,17 +516,17 @@ class Path(object):
         """
         Step a path forward. Optionally takes any argument applicable to project.factory.sim_run.
 
-        :keyword jumpkind:          the jumpkind of the previous exit.
-        :keyword addr an address:   to execute at instead of the state's ip.
-        :keyword stmt_whitelist:    a list of stmt indexes to which to confine execution.
-        :keyword last_stmt:         a statement index at which to stop execution.
-        :keyword thumb:             whether the block should be lifted in ARM's THUMB mode.
-        :keyword backup_state:      a state to read bytes from instead of using project memory.
-        :keyword opt_level:         the VEX optimization level to use.
-        :keyword insn_bytes:        a string of bytes to use for the block instead of #the project.
-        :keyword max_size:          the maximum size of the block, in bytes.
-        :keyword num_inst:          the maximum number of instructions.
-        :keyword traceflags:        traceflags to be passed to VEX. Default: 0
+        :param jumpkind:          the jumpkind of the previous exit.
+        :param addr an address:   to execute at instead of the state's ip.
+        :param stmt_whitelist:    a list of stmt indexes to which to confine execution.
+        :param last_stmt:         a statement index at which to stop execution.
+        :param thumb:             whether the block should be lifted in ARM's THUMB mode.
+        :param backup_state:      a state to read bytes from instead of using project memory.
+        :param opt_level:         the VEX optimization level to use.
+        :param insn_bytes:        a string of bytes to use for the block instead of #the project.
+        :param max_size:          the maximum size of the block, in bytes.
+        :param num_inst:          the maximum number of instructions.
+        :param traceflags:        traceflags to be passed to VEX. Default: 0
 
         :returns:   An array of paths for the possible successors.
         """
