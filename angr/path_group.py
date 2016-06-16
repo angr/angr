@@ -480,7 +480,7 @@ class PathGroup(ana.Storable):
                                 path will be stepped. Otherwise, it will be kept as-is.
         :param step_func:       If provided, should be a function that takes a PathGroup and returns a PathGroup. Will
                                 be called with the PathGroup at every step. Note that this function should not actually
-                                perform any stepping - it is meant to be a maintnence function called after each step.
+                                perform any stepping - it is meant to be a maintenance function called after each step.
         :param successor_func:  If provided, should be a function that takes a path and return its successors.
                                 Otherwise, Path.successors will be used.
         :param until:           If provided, should be a function that takes a PathGroup and returns True or False.
