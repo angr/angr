@@ -236,6 +236,14 @@ class SimSolver(SimStatePlugin):
     @auto_actions
     @error_converter
     def eval(self, e, n, extra_constraints=(), exact=None):
+
+        # shortcuts for speed improvement
+        if not (exact is True and n > 1):
+            if isinstance(e, (int, long)):
+                return [ e ]
+            elif isinstance(e, claripy.ast.BV) and e.op == 'BVV':
+                return [ e.args[0] ]
+
         return self._solver.eval(e, n, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @auto_actions
@@ -318,7 +326,15 @@ class SimSolver(SimStatePlugin):
     #
 
     def any_int(self, e, extra_constraints=()):
-        ans = self.any_n_int(e, 1, extra_constraints=extra_constraints)
+
+        # shortcuts for speed improvement
+        # it looks ugly here, but it yields much improvement for concrete execution
+        if isinstance(e, (int, long)):
+            return e
+        elif isinstance(e, claripy.ast.BV) and e.op == 'BVV':
+            return e.args[0]
+
+        ans = self.eval(e, 1, extra_constraints=extra_constraints)
         if len(ans) > 0: return ans[0]
         else: raise SimUnsatError("Not satisfiable: %s" % e.shallow_repr())
 
