@@ -158,6 +158,7 @@ class SimPagedMemory(object):
         }
 
     def __setstate__(self, s):
+        self._cowed = set()
         self.__dict__.update(s)
 
     def branch(self):
