@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='angr',
-    version='4.6.6.15',
+    version='4.6.6.16',
     description='The next-generation binary analysis platform from UC Santa Barbara\'s Seclab!',
     packages=['angr', 'angr.surveyors', 'angr.analyses', 'angr.knowledge', 'angr.exploration_techniques'],
     install_requires=[
