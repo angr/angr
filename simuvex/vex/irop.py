@@ -357,7 +357,7 @@ class SimIROp(object):
         if cur_size < self._output_size_bits:
             l.debug("Extending output of %s from %d to %d bits", self.name, cur_size, self._output_size_bits)
             ext_size = self._output_size_bits - cur_size
-            if self._to_signed == 'S' or (self._from_signed == 'S' and self._to_signed == None):
+            if self._to_signed == 'S' or (self._from_signed == 'S' and self._to_signed is None):
                 return claripy.SignExt(ext_size, o)
             else:
                 return claripy.ZeroExt(ext_size, o)
@@ -746,9 +746,10 @@ class SimIROp(object):
 
             rounded = []
             for i in reversed(range(self._vector_count)):
-                left = claripy.Extract((i+1) * self._vector_size - 1,
-                                    i * self._vector_size,
-                                    args[0]).raw_to_fp()
+                #pylint:disable=no-member
+                left = claripy.Extract(
+                    (i+1) * self._vector_size - 1, i * self._vector_size, args[0]
+                ).raw_to_fp()
                 rounded.append(claripy.fpToSBV(rm, left, self._vector_size))
             return claripy.Concat(*rounded)
         else:
