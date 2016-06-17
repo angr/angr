@@ -1218,6 +1218,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         entries = [ ]
 
+        # pylint: disable=too-many-nested-blocks
         if jumpkind == 'Ijk_Boring':
             if target_addr is not None:
 
@@ -1420,7 +1421,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 memory_data.size = data_size
                 memory_data.sort = data_type
 
-    def _guess_data_type(self, irsb, irsb_addr, stmt_idx, data_addr):
+    def _guess_data_type(self, irsb, irsb_addr, stmt_idx, data_addr):  # pylint: disable=unused-argument
         """
 
         :param data_addr:
@@ -1654,6 +1655,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         annotatedcfg = AnnotatedCFG(self.project, None, detect_loops=False)
         annotatedcfg.from_digraph(b.slice)
 
+        # pylint: disable=too-many-nested-blocks
         for src_irsb, _ in sources:
             # Use slicecutor to execute each one, and get the address
             # We simply give up if any exception occurs on the way
