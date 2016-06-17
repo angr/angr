@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 
 class SimError(Exception):
-    pass
+    bbl_addr = None
+    stmt_idx = None
+    ins_addr = None
+    executed_instruction_count = None
 
 #
 # State-related errors
