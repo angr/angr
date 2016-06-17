@@ -151,7 +151,7 @@ class SimFile(SimStatePlugin):
     def all_bytes(self):
         indexes = self.content.mem.keys()
         if len(indexes) == 0:
-            raise SimFileError('no content in file %s' % self.name)
+            return self.state.se.BVV("")
 
         min_idx = min(indexes)
         max_idx = max(indexes)
@@ -266,4 +266,4 @@ class SimDialogue(SimFile):
         return SimDialogue(self.name, mode=self.mode, pos=self.pos, content=self.content.copy(), size=self.size, dialogue_entries=list(self.dialogue_entries))
 
 from ..plugins.symbolic_memory import SimSymbolicMemory
-from ..s_errors import SimMergeError, SimFileError
+from ..s_errors import SimMergeError

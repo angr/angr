@@ -443,6 +443,10 @@ class SimSolver(SimStatePlugin):
         else: raise SimUnsatError("Not satisfiable: %s" % e.shallow_repr())
 
     def any_n_str_iter(self, e, n, extra_constraints=(), exact=None):
+        if len(e) == 0:
+            yield ""
+            return
+
         for s in self.eval(e, n, extra_constraints=extra_constraints, exact=exact):
             yield ("%x" % s).zfill(len(e)/4).decode('hex')
 
