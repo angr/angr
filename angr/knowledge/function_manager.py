@@ -41,6 +41,18 @@ class FunctionManager(collections.Mapping):
         # Registers used for passing arguments around
         self._arg_registers = kb._project.arch.argument_registers
 
+    def copy(self):
+        fm = FunctionManager(self._kb)
+        fm._function_map = self._function_map.copy()
+        fm.callgraph = networkx.DiGraph(self.callgraph)
+        fm._arg_registers = self._arg_registers.copy()
+
+        return fm
+
+    def clear(self):
+        self._function_map.clear()
+        self.callgraph = networkx.DiGraph()
+
     def _genenare_callmap_sif(self, filepath):
         """
         Generate a sif file from the call map.
