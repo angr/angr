@@ -512,7 +512,7 @@ class Path(object):
     # Stepping methods and successor access
     #
 
-    def step(self, **run_args):
+    def step(self, throw=None, **run_args):
         """
         Step a path forward. Optionally takes any argument applicable to project.factory.sim_run.
 
@@ -532,7 +532,7 @@ class Path(object):
         """
         if self._run_args != run_args or not self._run:
             self._run_args = run_args
-            self._make_sim_run()
+            self._make_sim_run(throw=throw)
 
         if self._run_error:
             return [ self.copy(error=self._run_error) ]
@@ -554,7 +554,7 @@ class Path(object):
         self._run = None
 
 
-    def _make_sim_run(self):
+    def _make_sim_run(self, throw=None):
         self._run = None
         self._run_error = None
         try:
@@ -562,9 +562,13 @@ class Path(object):
         except (AngrError, simuvex.SimError, claripy.ClaripyError) as e:
             l.debug("Catching exception", exc_info=True)
             self._run_error = e
+            if throw:
+                raise
         except (TypeError, ValueError, ArithmeticError, MemoryError) as e:
             l.debug("Catching exception", exc_info=True)
             self._run_error = e
+            if throw:
+                raise
 
     @property
     def next_run(self):
