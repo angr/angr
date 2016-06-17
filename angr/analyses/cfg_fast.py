@@ -1257,6 +1257,9 @@ class CFGFast(ForwardAnalysis, CFGBase):
                     # Add it to our set. Will process it later if user allows.
                     self._indirect_jumps.add(CFGEntry(addr, current_function_addr, jumpkind))
 
+                    self._create_entry_call(addr, irsb, cfg_node, stmt_idx, current_function_addr, None, jumpkind,
+                                            is_syscall=is_syscall)
+
         elif jumpkind == "Ijk_Ret":
             if current_function_addr != -1:
                 self._function_exits[current_function_addr].add(target_addr)
@@ -1288,16 +1291,17 @@ class CFGFast(ForwardAnalysis, CFGBase):
         else:
             return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
 
-        r = self._function_add_call_edge(target_addr, cfg_node, return_site, current_function_addr,
-                                         syscall=is_syscall)
+        if new_function_addr is not None:
+            r = self._function_add_call_edge(new_function_addr, cfg_node, return_site, current_function_addr,
+                                             syscall=is_syscall)
+            if not r:
+                return [ ]
 
-        if not r:
-            return [ ]
-
-        # Keep tracing from the call
-        ce = CFGEntry(target_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
-                      src_stmt_idx=stmt_idx, syscall=is_syscall)
-        entries.append(ce)
+        if new_function_addr is not None:
+            # Keep tracing from the call
+            ce = CFGEntry(target_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
+                          src_stmt_idx=stmt_idx, syscall=is_syscall)
+            entries.append(ce)
 
         if return_site is not None:
             # Also, keep tracing from the return site
@@ -1305,23 +1309,24 @@ class CFGFast(ForwardAnalysis, CFGBase):
                           src_stmt_idx=stmt_idx, returning_source=new_function_addr, syscall=is_syscall)
             self._pending_entries.append(ce)
 
-        callee_function = self.kb.functions.function(addr=target_addr, syscall=is_syscall)
+        if new_function_addr is not None:
+            callee_function = self.kb.functions.function(addr=new_function_addr, syscall=is_syscall)
 
-        if callee_function.returning is True:
-            if return_site is not None:
-                self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
-                                                confirmed=True)
-                self._function_add_return_edge(target_addr, return_site, current_function_addr)
-        elif callee_function.returning is False:
-            # The function does not return - there is no fake ret edge
-            pass
-        else:
-            if return_site is not None:
-                self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
-                                                confirmed=None)
-                fr = FunctionReturn(target_addr, current_function_addr, addr, return_site)
-                if fr not in self._function_returns[target_addr]:
-                    self._function_returns[target_addr].append(fr)
+            if callee_function.returning is True:
+                if return_site is not None:
+                    self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
+                                                    confirmed=True)
+                    self._function_add_return_edge(new_function_addr, return_site, current_function_addr)
+            elif callee_function.returning is False:
+                # The function does not return - there is no fake ret edge
+                pass
+            else:
+                if return_site is not None:
+                    self._function_add_fakeret_edge(return_site, cfg_node, current_function_addr,
+                                                    confirmed=None)
+                    fr = FunctionReturn(new_function_addr, current_function_addr, addr, return_site)
+                    if fr not in self._function_returns[new_function_addr]:
+                        self._function_returns[new_function_addr].append(fr)
 
         return entries
 
