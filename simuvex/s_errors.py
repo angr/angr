@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 
 class SimError(Exception):
-    pass
+    bbl_addr = None
+    stmt_idx = None
+    ins_addr = None
+    executed_instruction_count = None
 
 #
 # State-related errors
@@ -81,6 +84,7 @@ class UnsupportedCCallError(SimCCallError):
 
 class SimUninitializedAccessError(SimExpressionError):
     def __init__(self, expr_type, expr):
+        SimExpressionError.__init__(self)
         self.expr_type = expr_type
         self.expr = expr
 

@@ -2,4 +2,4 @@ from . import SimIRStmt
 
 class SimIRStmt_IMark(SimIRStmt):
     def _execute(self):
-        pass
+        self.state.scratch.executed_instruction_count += 1
