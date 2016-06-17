@@ -77,7 +77,7 @@ class AngrObjectFactory(object):
                        whitelist=stmt_whitelist,
                        last_stmt=last_stmt)
 
-    def sim_run(self, state, addr=None, jumpkind=None, **block_opts):
+    def sim_run(self, state, addr=None, jumpkind=None, extra_stop_points=None, **block_opts):
         """
         Returns a simuvex SimRun object (supporting refs() and exits()), automatically choosing whether to create a
         SimIRSB or a SimProcedure.
@@ -96,6 +96,7 @@ class AngrObjectFactory(object):
         :param insn_bytes:        a string of bytes to use for the block instead of the project.
         :param max_size:          the maximum size of the block, in bytes.
         :param num_inst:          the maximum number of instructions.
+        :param extra_stop_points: addresses to stop at, other than hooked functions
         :param traceflags:        traceflags to be passed to VEX. Default: 0
         """
 
@@ -130,7 +131,11 @@ class AngrObjectFactory(object):
 
         elif o.UNICORN in state.options and state.unicorn.check():
             l.info('Creating SimUnicorn at %#x', addr)
-            r = SimUnicorn(state, stop_points=self._project._sim_procedures.keys())
+            stops = self._project._sim_procedures.keys()
+            if extra_stop_points is not None:
+                stops.extend(extra_stop_points)
+
+            r = SimUnicorn(state, stop_points=stops)
             if r.success:
                 return r
             else:
