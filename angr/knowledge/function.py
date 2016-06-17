@@ -334,7 +334,7 @@ class Function(object):
         self.transition_graph = networkx.DiGraph()
         self._local_transition_graph = None
 
-    def _transit_to(self, from_node, to_node):
+    def _transit_to(self, from_node, to_node, outside=False):
         """
         Registers an edge between basic blocks in this function's transition graph.
         Arguments are CodeNode objects.
@@ -343,10 +343,15 @@ class Function(object):
                                     flow leaves during this transition.
         :param to_node              The address of the basic block that control
                                     flow enters during this transition.
+        :param bool outside:        If this is a transition to another function, e.g. tail call optimization
+        :return: None
         """
 
-        self._register_nodes(from_node, to_node)
-        self.transition_graph.add_edge(from_node, to_node, type='transition')
+        if outside:
+            self._register_nodes(from_node)
+        else:
+            self._register_nodes(from_node, to_node)
+        self.transition_graph.add_edge(from_node, to_node, type='transition', outside=outside)
         self._local_transition_graph = None
 
     def _call_to(self, from_node, to_func, ret_node):
@@ -476,7 +481,7 @@ class Function(object):
             g.add_node(self.startpoint)
         for src, dst, data in self.transition_graph.edges_iter(data=True):
             if 'type' in data:
-                if data['type'] in ('transition',):
+                if data['type']  == 'transition' and data['outside'] == False:
                     g.add_edge(src, dst, attr_dict=data)
                 elif data['type'] == 'fake_return' and 'confirmed' in data:
                     g.add_edge(src, dst, attr_dict=data)

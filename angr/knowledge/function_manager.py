@@ -105,6 +105,13 @@ class FunctionManager(collections.Mapping):
             to_node = self._kb._project.factory.snippet(to_node)
         self._function_map[function_addr]._transit_to(from_node, to_node)
 
+    def _add_outside_transition_to(self, function_addr, from_node, to_node):
+        if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
+            from_node = self._kb._project.factory.snippet(from_node)
+        if type(to_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
+            to_node = self._kb._project.factory.snippet(to_node)
+        self._function_map[function_addr]._transit_to(from_node, to_node, outside=True)
+
     def _add_return_from_call(self, function_addr, src_function_addr, to_node):
 
         # Note that you will never return to a syscall
