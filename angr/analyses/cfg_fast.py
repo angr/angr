@@ -306,8 +306,28 @@ class SegmentList(object):
         if self._list[idx].start <= address < self._list[idx].end:
             return True
         if idx > 0 and address < self._list[idx - 1].end:
+            # TODO: It seems that this branch is never reached. Should it be removed?
             return True
         return False
+
+    def occupied_by_sort(self, address):
+        """
+        Check if an address belongs to any segment, and if yes, returns the sort of the segment
+
+        :param int address: The address to check
+        :return: Sort of the segment that occupies this address
+        :rtype: str
+        """
+
+        idx = self._search(address)
+        if len(self._list) <= idx:
+            return None
+        if self._list[idx].start <= address < self._list[idx].end:
+            return self._list[idx].sort
+        if idx > 0 and address < self._list[idx - 1].end:
+            # TODO: It seems that this branch is never reached. Should it be removed?
+            return self._list[idx - 1].sort
+        return None
 
     def occupy(self, address, size, sort):
         """
@@ -380,10 +400,13 @@ class FunctionReturn(object):
         return hash((self.callee_func_addr, self.caller_func_addr, self.call_site_addr, self.return_to))
 
 class MemoryData(object):
-    def __init__(self, address, size, sort):
+    def __init__(self, address, size, sort, irsb, irsb_addr, stmt_idx):
         self.address = address
         self.size = size
         self.sort = sort
+        self.irsb = irsb
+        self.irsb_addr = irsb_addr
+        self.stmt_idx = stmt_idx
 
         self.refs = [ ]
 
@@ -990,6 +1013,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         self._remove_redudant_overlapping_blocks()
 
+        self._tidy_data_references()
+
         CFGBase._post_analysis(self)
 
     # Methods to get start points for scanning
@@ -1162,7 +1187,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         # Scan the basic block to collect data references
         if self._collect_data_ref:
-            self._collect_data_references(irsb)
+            self._collect_data_references(irsb, addr)
 
         # Get all possible successors
         irsb_next, jumpkind = irsb.next, irsb.jumpkind
@@ -1334,7 +1359,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
     # Data reference processing
 
-    def _collect_data_references(self, irsb):
+    def _collect_data_references(self, irsb, irsb_addr):
         """
 
         :return:
@@ -1345,7 +1370,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         def _process(irsb_, stmt_, data_):
             if type(data_) is pyvex.expr.Const:  # pylint: disable=unidiomatic-typecheck
                 val = data_.con.value
-                self._add_data_reference(irsb_, stmt_, val)
+                self._add_data_reference(irsb_, irsb_addr, stmt_, val)
 
         for stmt in irsb.statements:
             if type(stmt) is pyvex.IRStmt.WrTmp:  # pylint: disable=unidiomatic-typecheck
@@ -1360,7 +1385,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 if stmt.offset not in (self._initial_state.arch.ip_offset, ):
                     _process(irsb, stmt, stmt.data)
 
-    def _add_data_reference(self, irsb, stmt, data_addr):  # pylint: disable=unused-argument
+    def _add_data_reference(self, irsb, irsb_addr, stmt, data_addr):  # pylint: disable=unused-argument
         """
 
         :param irsb:
@@ -1373,14 +1398,27 @@ class CFGFast(ForwardAnalysis, CFGBase):
         if data_addr not in self._initial_state.memory:
             return
 
-        # First, let's see what sort of data it is
-        data_type, data_size = self._guess_data_type(data_addr)
+        data = MemoryData(data_addr, 0, 'unknown', irsb, irsb_addr, stmt)
 
-        data = MemoryData(data_addr, data_size, data_type)
+        self._memory_data[data_addr] = data
 
-        self._memory_data[(data_addr, data_size)] = data
+    def _tidy_data_references(self):
+        """
 
-    def _guess_data_type(self, data_addr):
+        :return:
+        """
+
+        for data_addr, memory_data in self._memory_data.iteritems():
+            # let's see what sort of data it is
+            data_type, data_size = self._guess_data_type(memory_data.irsb, memory_data.irsb_addr, memory_data.stmt_idx,
+                                                         data_addr
+                                                         )
+
+            if data_type is not None:
+                memory_data.size = data_size
+                memory_data.sort = data_type
+
+    def _guess_data_type(self, irsb, irsb_addr, stmt_idx, data_addr):
         """
 
         :param data_addr:
@@ -1395,6 +1433,29 @@ class CFGFast(ForwardAnalysis, CFGBase):
             if o._model_concrete is not o:
                 return o._model_concrete.value
             return None
+
+        if self._seg_list.is_occupied(data_addr) and self._seg_list.occupied_by_sort(data_addr) == 'code':
+            # it's a code reference
+            # TODO: Further check if it's the beginning of an instruction
+            return "code reference", 0
+
+        pointer_size = self.project.arch.bits / 8
+
+        # who's using it?
+        plt_entry = self.project.loader.main_bin.reverse_plt.get(irsb_addr, None)
+        if plt_entry is not None:
+            # IRSB is owned by plt!
+            return "GOT PLT Entry", pointer_size
+
+        # try to decode it as a pointer
+        ptr = _cv(self._initial_state.memory.load(data_addr, pointer_size,
+                                                  endness=self.project.arch.memory_endness)
+                  )
+        if ptr is not None:
+            if self._seg_list.is_occupied(ptr) and self._seg_list.occupied_by_sort(ptr) == 'code':
+                # it's a code reference
+                # TODO: Further check if it's the beginning of an instruction
+                return "pointer to code", pointer_size
 
         block = self._initial_state.memory.load(data_addr, 8)
 
@@ -1422,7 +1483,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
                      for i in xrange(len(block_) / 8) ]):
                 return "string", length + 1
 
-        return "unknown", 0
+        return None, None
 
     # Indirect jumps processing
 
