@@ -25,7 +25,7 @@ def dump_reg(s):
 def broken_unicorn():
     p = angr.Project(os.path.join(test_location, './cgc_qualifier_event/cgc/99c22c01_01'))
 
-    s_unicorn = p.factory.entry_state(add_options={so.UNICORN, so.UNICORN_FAST}) # unicorn
+    s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
     s_angr = p.factory.entry_state() # pure angr
     # s_unicorn.options.add(so.UNICORN_DISABLE_NATIVE)
 
@@ -75,17 +75,9 @@ def test_longinit_i386():
 def test_longinit_x86_64():
     run_longinit('x86_64')
 
-def broken_fauxware():
-    p = angr.Project(os.path.join(test_location, '../binaries/tests/i386/fauxware'))
-    s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
-    pg = p.factory.path_group(s_unicorn)
-
-    pg.explore()
-    import IPython; IPython.embed()
-
 def broken_palindrome():
     b = angr.Project(os.path.join(test_location, "cgc_scored_event_2/cgc/0b32aa01_01"))
-    s_unicorn = b.factory.entry_state(add_options={so.UNICORN, so.UNICORN_FAST}, remove_options={so.LAZY_SOLVES}) # unicorn
+    s_unicorn = b.factory.entry_state(add_options=so.unicorn, remove_options={so.LAZY_SOLVES}) # unicorn
     pg = b.factory.path_group(s_unicorn)
     angr.path_group.l.setLevel("DEBUG")
     pg.step(300)
@@ -100,6 +92,33 @@ def run_similarity(binpath, depth):
         right_remove_options={so.LAZY_SOLVES, so.TRACK_MEMORY_MAPPING},
         depth=depth
     )
+
+def test_fauxware():
+    p = angr.Project(os.path.join(test_location, '../binaries/tests/i386/fauxware'))
+    s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
+    pg = p.factory.path_group(s_unicorn)
+    pg.explore()
+
+    assert sorted(pg.mp_deadended.state.posix.dumps(1).mp_items) == sorted((
+        'Username: \nPassword: \nWelcome to the admin console, trusted user!\n',
+        'Username: \nPassword: \nGo away!',
+        'Username: \nPassword: \nWelcome to the admin console, trusted user!\n'
+    ))
+
+def test_fauxware_aggressive():
+    p = angr.Project(os.path.join(test_location, '../binaries/tests/i386/fauxware'))
+    s_unicorn = p.factory.entry_state(
+        add_options=so.unicorn | { so.UNICORN_AGGRESSIVE_CONCRETIZATION },
+        remove_options={ so.LAZY_SOLVES }
+    ) # unicorn
+    s_unicorn.unicorn.cooldown_symbolic_registers = 0
+    s_unicorn.unicorn.cooldown_symbolic_memory = 0
+    s_unicorn.unicorn.cooldown_nonunicorn_blocks = 0
+
+    pg = p.factory.path_group(s_unicorn)
+    pg.explore()
+
+    assert len(pg.deadended) == 1
 
 def timesout_similarity_01cf6c01(): run_similarity("cgc_qualifier_event/cgc/01cf6c01_01", 5170)
 def timesout_similarity_38256a01(): run_similarity("cgc_qualifier_event/cgc/38256a01_01", 125)
