@@ -1292,6 +1292,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 self._function_exits[current_function_addr].add(target_addr)
                 self._function_add_return_site(addr, current_function_addr)
 
+            cfg_node.has_return = True
+
         else:
             # TODO: Support more jumpkinds
             l.debug("Unsupported jumpkind %s", jumpkind)

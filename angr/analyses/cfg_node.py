@@ -65,6 +65,8 @@ class CFGNode(object):
 
         self.final_states = [ ] if final_states is None else final_states
 
+        self.has_return = False
+
     @property
     def successors(self):
         return self._cfg.get_successors(self)

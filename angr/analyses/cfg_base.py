@@ -670,14 +670,21 @@ class CFGBase(Analysis):
 
                 traversed.add(n)
 
-                for src, dst, data in g.out_edges_iter(nbunch=[n], data=True):
+                if n.has_return:
+                    callback(n, None, {'jumpkind': 'Ijk_Ret'})
 
-                    callback(src, dst, data)
+                elif g.out_degree(n) == 0:
+                    # it's a single node
+                    callback(n, None, None)
 
-                    jumpkind = data.get('jumpkind', "")
-                    if not (jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys')):
-                        # Only follow none call edges
-                        stack.extend([ m for m in g.successors(n) if m not in traversed ])
+                else:
+                    for src, dst, data in g.out_edges_iter(nbunch=[n], data=True):
+                        callback(src, dst, data)
+
+                        jumpkind = data.get('jumpkind', "")
+                        if not (jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys')):
+                            # Only follow none call edges
+                            stack.extend([ m for m in g.successors(n) if m not in traversed ])
 
         function_nodes = set()
 
@@ -692,11 +699,22 @@ class CFGBase(Analysis):
                 function_nodes.add(n)
 
         def _traverse_handler(src, dst, data):
-            src_addr, dst_addr = src.addr, dst.addr
-
+            src_addr = src.addr
             src_function = _addr_to_function(src_addr)
 
+            if data is None:
+                # it's a single node only
+                return
+
             jumpkind = data['jumpkind']
+
+            if jumpkind == 'Ijk_Ret':
+                self.kb.functions._add_return_from(src_function.addr, src_addr, None)
+
+            if dst is None:
+                return
+
+            dst_addr = dst.addr
 
             if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
 
@@ -708,9 +726,7 @@ class CFGBase(Analysis):
                 self.kb.functions._add_call_to(src_function.addr, src_addr, dst_addr, None, syscall=is_syscall)
 
                 if dst_function.returning:
-                    self.kb.functions._add_fakeret_to(src_function.addr, src_addr, src.addr + src.size, confirmed=True,
-                                                      syscall=is_syscall)
-                    self.kb.functions._add_return_from(dst_function.addr, dst_addr, src.addr + src.size)
+                    self.kb.functions._add_fakeret_to(src_function.addr, src_addr, src.addr + src.size, confirmed=True)
 
             elif jumpkind == 'Ijk_Boring':
 
