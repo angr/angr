@@ -481,7 +481,7 @@ class Function(object):
             g.add_node(self.startpoint)
         for src, dst, data in self.transition_graph.edges_iter(data=True):
             if 'type' in data:
-                if data['type']  == 'transition' and data['outside'] == False:
+                if data['type']  == 'transition' and ('outside' not in data or data['outside'] == False):
                     g.add_edge(src, dst, attr_dict=data)
                 elif data['type'] == 'fake_return' and 'confirmed' in data:
                     g.add_edge(src, dst, attr_dict=data)
