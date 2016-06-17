@@ -983,6 +983,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
             if f.returning is None:
                 f.returning = True
 
+        self.make_functions()
+
         if self._show_progressbar:
             self._finish_progressbar()
 

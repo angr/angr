@@ -5,6 +5,7 @@ from collections import defaultdict
 import networkx
 
 from cle import ELF, PE
+import simuvex
 
 from ..knowledge import Function, HookNode
 from ..analysis import Analysis
@@ -355,6 +356,11 @@ class CFGBase(Analysis):
         We might as well analyze other features of functions in the future.
         """
 
+        # TODO: This implementation is slow as f*ck. Some optimizations should be useful, like:
+        # TODO: - Building a call graph before performing such an analysis. With the call dependency information, we
+        # TODO:   don't have to revisit functions unnecessarily
+        # TODO: - Create less temporary graphs, or reuse previously-created graphs
+
         changes = {
             'functions_return': [],
             'functions_do_not_return': []
@@ -599,3 +605,137 @@ class CFGBase(Analysis):
                     l.error('normalize(): Please report it to Fish.')
 
             end_addresses[tpl_to_find] = [smallest_node]
+
+    def make_functions(self):
+        """
+        Revisit the entire control flow graph, create Function instances accordingly, and correctly put blocks into
+        each function.
+
+        Although Function objects are crated during the CFG recovery, they are neither sound nor accurate. With a
+        pre-constructed CFG, this method rebuilds all functions bearing the following rules:
+        - A block may only belong to one function.
+        - Tail call optimizations are detected.
+
+        :return: None
+        """
+
+        tmp_functions = self.kb.functions.copy()
+
+        # Clear old functions dict
+        self.kb.functions.clear()
+
+        blockaddr_to_function = { }
+
+        def _addr_to_function(addr):
+            if addr in blockaddr_to_function:
+                f = blockaddr_to_function[addr]
+            else:
+                is_syscall = False
+                if self.project.is_hooked(addr):
+                    hooker = self.project.hooked_by(addr)
+                    if isinstance(hooker, simuvex.SimProcedure) and hooker.IS_SYSCALL:
+                        is_syscall = True
+
+                self.kb.functions._add_node(addr, addr, syscall=is_syscall)
+                f = self.kb.functions.function(addr=addr)
+
+                blockaddr_to_function[addr] = f
+
+                if addr in tmp_functions:
+                    f.returning = tmp_functions.function(addr).returning
+                else:
+                    # TODO:
+                    pass
+
+            return f
+
+        def _graph_bfs_custom(g, starts, callback):
+            """
+
+            :param networkx.DiGraph g:
+            :param starts:
+            :param callback:
+            :return:
+            """
+
+            stack = list(starts)
+            traversed = set()
+
+            while stack:
+                n = stack[0]
+                stack = stack[1:]
+
+                if n in traversed:
+                    continue
+
+                traversed.add(n)
+
+                for src, dst, data in g.out_edges_iter(nbunch=[n], data=True):
+
+                    callback(src, dst, data)
+
+                    jumpkind = data.get('jumpkind', "")
+                    if not (jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys')):
+                        # Only follow none call edges
+                        stack.extend([ m for m in g.successors(n) if m not in traversed ])
+
+        function_nodes = set()
+
+        # Find nodes for beginnings of all functions
+        for src, dst, data in self.graph.edges_iter(data=True):
+            jumpkind = data.get('jumpkind', "")
+            if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
+                function_nodes.add(dst)
+
+        for n in self.graph.nodes_iter():
+            if n.addr in tmp_functions:
+                function_nodes.add(n)
+
+        def _traverse_handler(src, dst, data):
+            src_addr, dst_addr = src.addr, dst.addr
+
+            src_function = _addr_to_function(src_addr)
+
+            jumpkind = data['jumpkind']
+
+            if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
+
+                is_syscall = jumpkind.startswith('Ijk_Sys')
+
+                # It must be calling a function
+                dst_function = _addr_to_function(dst_addr)
+
+                self.kb.functions._add_call_to(src_function.addr, src_addr, dst_addr, None, syscall=is_syscall)
+
+                if dst_function.returning:
+                    self.kb.functions._add_fakeret_to(src_function.addr, src_addr, src.addr + src.size, confirmed=True,
+                                                      syscall=is_syscall)
+                    self.kb.functions._add_return_from(dst_function.addr, dst_addr, src.addr + src.size)
+
+            elif jumpkind == 'Ijk_Boring':
+
+                # is it a jump to another function?
+                if dst_addr in tmp_functions:
+                    # yes it is
+                    self.kb.functions._add_outside_transition_to(src_function.addr, src_addr, dst_addr)
+
+                    _ = _addr_to_function(dst_addr)
+                else:
+                    # no it's not
+                    # add the transition code
+                    self.kb.functions._add_transition_to(src_function.addr, src_addr, dst_addr)
+
+                    blockaddr_to_function[dst_addr] = src_function
+
+            elif jumpkind == 'Ijk_FakeRet':
+
+                blockaddr_to_function[dst_addr] = src_function
+
+                self.kb.functions._add_fakeret_to(src_function.addr, src_addr, dst_addr, confirmed=True)
+
+            else:
+                l.debug('Ignored jumpkind %s', jumpkind)
+
+        # traverse the graph starting from each node, not following call edges
+        for fn in function_nodes:
+            _graph_bfs_custom(self.graph, [ fn ], _traverse_handler)
