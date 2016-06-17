@@ -157,14 +157,13 @@ class Runner(object):
         saved_limit = resource.getrlimit(resource.RLIMIT_CORE)
         resource.setrlimit(resource.RLIMIT_CORE,
                            (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
+        binary_name = os.path.basename(self.binary)
+        binary_replacement = tempfile.mktemp(prefix=binary_name)
+        shutil.copy(self.binary, binary_replacement)
+        binary_back = self.binary
+        self.binary = binary_replacement
 
         with self._newcwd('/dev/shm'):
-            binary_name = os.path.basename(self.binary)
-            binary_replacement = tempfile.mktemp(prefix=binary_name)
-            shutil.copy(self.binary, binary_replacement)
-            binary_back = self.binary
-            self.binary = binary_replacement
-
             # get the dynamic trace
             self._run_trace(stdout_file=stdout_file)
 
@@ -187,9 +186,9 @@ class Runner(object):
                 self._load_core_values(core_file)
                 os.remove(core_file)
 
-                # undo stuff
-                self.binary = binary_back
-                os.remove(binary_replacement)
+        # undo stuff
+        self.binary = binary_back
+        os.remove(binary_replacement)
 
     def _run_trace(self, stdout_file=None):
         """
