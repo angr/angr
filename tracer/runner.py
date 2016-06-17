@@ -8,6 +8,7 @@ import logging
 import resource
 import tempfile
 import subprocess
+import contextlib
 
 from .tracerpov import TracerPoV
 from .tracer import TracerEnvironmentError, TracerInstallError
@@ -141,48 +142,54 @@ class Runner(object):
 
 ### DYNAMIC TRACING
 
+    @staticmethod
+    @contextlib.contextmanager
+    def _newcwd(newdir):
+        curdir = os.getcwd()
+        os.chdir(newdir)
+        try:
+            yield
+        finally:
+            os.chdir(curdir)
+
     def dynamic_trace(self, stdout_file=None):
         # allow cores to be dumped
         saved_limit = resource.getrlimit(resource.RLIMIT_CORE)
         resource.setrlimit(resource.RLIMIT_CORE,
                            (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
 
-        binary_name = os.path.basename(self.binary)
-        binary_replacement = tempfile.mktemp(prefix=binary_name)
-        shutil.copy(self.binary, binary_replacement)
-        binary_back = self.binary
-        self.binary = binary_replacement
+        with self._newcwd('/dev/shm'):
+            binary_name = os.path.basename(self.binary)
+            binary_replacement = tempfile.mktemp(prefix=binary_name)
+            shutil.copy(self.binary, binary_replacement)
+            binary_back = self.binary
+            self.binary = binary_replacement
 
-        # some hacks to guarantee the coredump file has a unique filename
-        return_dir = os.getcwd()
-        os.chdir('/dev/shm')
+            # get the dynamic trace
+            self._run_trace(stdout_file=stdout_file)
 
-        # get the dynamic trace
-        self._run_trace(stdout_file=stdout_file)
+            # restore the resource limit now that the binary has run
+            resource.setrlimit(resource.RLIMIT_CORE, saved_limit)
 
-        # restore the resource limit now that the binary has run
-        resource.setrlimit(resource.RLIMIT_CORE, saved_limit)
+            if self.crash_mode:
+                # find core file
+                unique_prefix = "qemu_{}".format(os.path.basename(binary_replacement))
+                core_files = filter(
+                        lambda x: x.startswith(unique_prefix) and x.endswith('.core'),
+                        os.listdir('.')
+                        )
 
-        if self.crash_mode:
-            # find core file
-            unique_prefix = "qemu_{}".format(os.path.basename(binary_replacement))
-            core_files = filter(
-                    lambda x: x.startswith(unique_prefix) and x.endswith('.core'),
-                    os.listdir('.')
-                    )
+                a_mesg = "No core files found for binary, this shouldn't happen"
+                assert len(core_files) > 0, a_mesg
+                a_mesg = "Multiple core files found for binary, this shouldn't happen"
+                assert len(core_files) < 2, a_mesg
+                core_file = core_files[0]
+                self._load_core_values(core_file)
+                os.remove(core_file)
 
-            a_mesg = "No core files found for binary, this shouldn't happen"
-            assert len(core_files) > 0, a_mesg
-            a_mesg = "Multiple core files found for binary, this shouldn't happen"
-            assert len(core_files) < 2, a_mesg
-            core_file = core_files[0]
-            self._load_core_values(core_file)
-            os.remove(core_file)
-
-        # undo stuff
-        self.binary = binary_back
-        os.remove(binary_replacement)
-        os.chdir(return_dir)
+                # undo stuff
+                self.binary = binary_back
+                os.remove(binary_replacement)
 
     def _run_trace(self, stdout_file=None):
         """
