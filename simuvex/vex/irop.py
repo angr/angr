@@ -759,28 +759,28 @@ class SimIROp(object):
             rounded_bv = claripy.fpToSBV(rm, args[1].raw_to_fp(), args[1].length)
             return claripy.fpToFP(claripy.fp.RM_RNE, rounded_bv, claripy.fp.FSort.from_size(args[1].length))
 
-    def _op_Iop_Yl2xF64(self, args):
-        rm = self._translate_rm(args[0])
-        arg2_bv = args[2].to_bv()
-        # IEEE754 double looks like this:
-        # SEEEEEEEEEEEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
-        # thus, we extract the exponent bits, re-bias them, then
-        # (signed) convert them back into an FP value for the integer
-        # part of the log. then we make the approximation that log2(x)
-        # = x - 1 for 1.0 <= x < 2.0 to account for the mantissa.
+    #def _op_Iop_Yl2xF64(self, args):
+    #   rm = self._translate_rm(args[0])
+    #   arg2_bv = args[2].to_bv()
+    #   # IEEE754 double looks like this:
+    #   # SEEEEEEEEEEEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+    #   # thus, we extract the exponent bits, re-bias them, then
+    #   # (signed) convert them back into an FP value for the integer
+    #   # part of the log. then we make the approximation that log2(x)
+    #   # = x - 1 for 1.0 <= x < 2.0 to account for the mantissa.
 
-        # the bias for doubles is 1023
-        arg2_exp = (arg2_bv[62:52] - 1023).signed_to_fp(rm, claripy.fp.FSORT_DOUBLE)
-        arg2_mantissa = claripy.Concat(claripy.BVV(int('001111111111', 2), 12), arg2_bv[51:0]).raw_to_fp()
-        # this is the hacky approximation:
-        log2_arg2_mantissa = claripy.fpSub(rm, arg2_mantissa, claripy.FPV(1.0, claripy.fp.FSORT_DOUBLE))
-        return claripy.fpMul(rm, args[1].raw_to_fp(), claripy.fpAdd(rm, arg2_exp, log2_arg2_mantissa))
+    #   # the bias for doubles is 1023
+    #   arg2_exp = (arg2_bv[62:52] - 1023).signed_to_fp(rm, claripy.fp.FSORT_DOUBLE)
+    #   arg2_mantissa = claripy.Concat(claripy.BVV(int('001111111111', 2), 12), arg2_bv[51:0]).raw_to_fp()
+    #   # this is the hacky approximation:
+    #   log2_arg2_mantissa = claripy.fpSub(rm, arg2_mantissa, claripy.FPV(1.0, claripy.fp.FSORT_DOUBLE))
+    #   return claripy.fpMul(rm, args[1].raw_to_fp(), claripy.fpAdd(rm, arg2_exp, log2_arg2_mantissa))
 
-    def _op_Iop_Yl2xp1F64(self, args):
-        rm_raw, arg1, arg2 = args
-        rm = self._translate_rm(rm_raw)
-        arg2_p1 = claripy.fpAdd(rm, arg2.raw_to_fp(), claripy.FPV(1.0, claripy.fp.FSORT_DOUBLE))
-        return self._op_Iop_Yl2xF64((rm_raw, arg1, arg2_p1))
+    #def _op_Iop_Yl2xp1F64(self, args):
+    #   rm_raw, arg1, arg2 = args
+    #   rm = self._translate_rm(rm_raw)
+    #   arg2_p1 = claripy.fpAdd(rm, arg2.raw_to_fp(), claripy.FPV(1.0, claripy.fp.FSORT_DOUBLE))
+    #   return self._op_Iop_Yl2xF64((rm_raw, arg1, arg2_p1))
 
     @staticmethod
     def pow(rm, arg, n):
@@ -789,37 +789,37 @@ class SimIROp(object):
             out = claripy.fpMul(rm, arg, out)
         return out
 
-    def _op_Iop_SinF64(self, args):
-        rm, arg = args
-        rm = self._translate_rm(rm)
-        rounds = 15
-        accumulator = claripy.FPV(0.0, arg.sort)
-        factorialpart = 1.0
-        for i in xrange(1, rounds + 1):
-            term = claripy.fpDiv(rm, self.pow(rm, arg, 2*i - 1), claripy.FPV(float(factorialpart), arg.sort))
-            factorialpart *= ((i*2) + 1) * (i*2)
-            if i % 2 == 1:
-                accumulator = claripy.fpAdd(rm, accumulator, term)
-            else:
-                accumulator = claripy.fpSub(rm, accumulator, term)
+    #def _op_Iop_SinF64(self, args):
+    #   rm, arg = args
+    #   rm = self._translate_rm(rm)
+    #   rounds = 15
+    #   accumulator = claripy.FPV(0.0, arg.sort)
+    #   factorialpart = 1.0
+    #   for i in xrange(1, rounds + 1):
+    #       term = claripy.fpDiv(rm, self.pow(rm, arg, 2*i - 1), claripy.FPV(float(factorialpart), arg.sort))
+    #       factorialpart *= ((i*2) + 1) * (i*2)
+    #       if i % 2 == 1:
+    #           accumulator = claripy.fpAdd(rm, accumulator, term)
+    #       else:
+    #           accumulator = claripy.fpSub(rm, accumulator, term)
 
-        return accumulator
+    #   return accumulator
 
-    def _op_Iop_CosF64(self, args):
-        rm, arg = args
-        rm = self._translate_rm(rm)
-        rounds = 20
-        accumulator = claripy.FPV(1.0, arg.sort)
-        factorialpart = 2.0
-        for i in xrange(1, rounds + 1):
-            term = claripy.fpDiv(rm, self.pow(rm, arg, 2*i), claripy.FPV(float(factorialpart), arg.sort))
-            factorialpart *= (i*2 + 1) * (i*2 + 2)
-            if i % 2 == 1:
-                accumulator = claripy.fpSub(rm, accumulator, term)
-            else:
-                accumulator = claripy.fpAdd(rm, accumulator, term)
+    #def _op_Iop_CosF64(self, args):
+    #   rm, arg = args
+    #   rm = self._translate_rm(rm)
+    #   rounds = 20
+    #   accumulator = claripy.FPV(1.0, arg.sort)
+    #   factorialpart = 2.0
+    #   for i in xrange(1, rounds + 1):
+    #       term = claripy.fpDiv(rm, self.pow(rm, arg, 2*i), claripy.FPV(float(factorialpart), arg.sort))
+    #       factorialpart *= (i*2 + 1) * (i*2 + 2)
+    #       if i % 2 == 1:
+    #           accumulator = claripy.fpSub(rm, accumulator, term)
+    #       else:
+    #           accumulator = claripy.fpAdd(rm, accumulator, term)
 
-        return accumulator
+    #   return accumulator
 
 
 #
