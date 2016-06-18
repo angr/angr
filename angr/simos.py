@@ -138,7 +138,8 @@ class SimOS(object):
 
         cc, syscall_addr, syscall_name, syscall_class = self.syscall_info(state)
 
-        ret_to = state.ip
+        # The ip_at_syscall register is misused to save the return address for this syscall
+        ret_to = state.regs.ip_at_syscall
         state.ip = syscall_addr
 
         syscall = syscall_class(state, addr=syscall_addr, ret_to=ret_to, convention=cc, syscall_name=syscall_name)

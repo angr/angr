@@ -132,6 +132,10 @@ class AngrObjectFactory(object):
             l.debug("Creating SimIRSB at %#x", addr)
             r = self.sim_block(state, addr=addr, **block_opts)
 
+        # Peek and fix the IP for syscalls
+        if r.successors and r.successors[0].scratch.jumpkind.startswith('Ijk_Sys'):
+            self._fix_syscall_ip(r.successors[0])
+
         return r
 
     def blank_state(self, **kwargs):
@@ -343,8 +347,31 @@ class AngrObjectFactory(object):
     call_state.PointerWrapper = s_cc.PointerWrapper
 
 
+    #
+    # Private methods
+    #
+
+    def _fix_syscall_ip(self, state):
+        """
+        Resolve syscall information from the state, get the IP address of the syscall SimProcedure, and set the IP of
+        the state accordingly. Don't do anything if the resolution fails.
+
+        :param simuvex.s_state.SimState state: the program state.
+        :return: None
+        """
+
+        try:
+            cc, syscall_addr, syscall_name, syscall_class = self._project._simos.syscall_info(state)
+
+            # Fix the IP
+            state.ip = syscall_addr
+
+        except AngrUnsupportedSyscallError:
+            # the syscall is not supported. don't do anything
+            pass
+
 from .lifter import Lifter
-from .errors import AngrExitError, AngrError, AngrValueError
+from .errors import AngrExitError, AngrError, AngrValueError, AngrUnsupportedSyscallError
 from .path import Path
 from .path_group import PathGroup
 from .knowledge import HookNode
