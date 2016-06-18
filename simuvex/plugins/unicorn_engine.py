@@ -369,7 +369,8 @@ class Unicorn(SimStatePlugin):
                     taint = ctypes.create_string_buffer(length)
                     partial_symbolic = True
 
-                ctypes.memset(ctypes.byref(taint, pos), 0x2, size) # mark them as TAINT_SYMBOLIC
+                offset = ctypes.cast(ctypes.addressof(taint) + pos, ctypes.POINTER(ctypes.c_char))
+                ctypes.memset(offset, 0x2, size) # mark them as TAINT_SYMBOLIC
                 s = '\x00' * (len(d)/8)
             else:
                 s = self.state.se.any_str(d)
