@@ -8,7 +8,7 @@ logging.getLogger('simuvex.s_unicorn').setLevel('INFO')
 # logging.getLogger('angr.factory').setLevel('DEBUG')
 
 import os
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private/'))
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../'))
 
 
 from simuvex import s_options as so
@@ -59,7 +59,7 @@ def broken_unicorn():
     #embed()
 
 def run_longinit(arch):
-    p = angr.Project(os.path.join(test_location, '../binaries/tests/' + arch + '/longinit'))
+    p = angr.Project(os.path.join(test_location, 'binaries/tests/' + arch + '/longinit'))
     s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
     pg = p.factory.path_group(s_unicorn)
     pg.explore()
@@ -76,7 +76,7 @@ def test_longinit_x86_64():
     run_longinit('x86_64')
 
 def broken_palindrome():
-    b = angr.Project(os.path.join(test_location, "cgc_scored_event_2/cgc/0b32aa01_01"))
+    b = angr.Project(os.path.join(test_location, "binaries-private/cgc_scored_event_2/cgc/0b32aa01_01"))
     s_unicorn = b.factory.entry_state(add_options=so.unicorn, remove_options={so.LAZY_SOLVES}) # unicorn
     pg = b.factory.path_group(s_unicorn)
     angr.path_group.l.setLevel("DEBUG")
@@ -94,7 +94,7 @@ def run_similarity(binpath, depth):
     )
 
 def test_fauxware():
-    p = angr.Project(os.path.join(test_location, '../binaries/tests/i386/fauxware'))
+    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
     s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
     pg = p.factory.path_group(s_unicorn)
     pg.explore()
@@ -106,7 +106,7 @@ def test_fauxware():
     ))
 
 def test_fauxware_aggressive():
-    p = angr.Project(os.path.join(test_location, '../binaries/tests/i386/fauxware'))
+    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
     s_unicorn = p.factory.entry_state(
         add_options=so.unicorn | { so.UNICORN_AGGRESSIVE_CONCRETIZATION },
         remove_options={ so.LAZY_SOLVES }
@@ -120,20 +120,20 @@ def test_fauxware_aggressive():
 
     assert len(pg.deadended) == 1
 
-def timesout_similarity_01cf6c01(): run_similarity("cgc_qualifier_event/cgc/01cf6c01_01", 5170)
-def timesout_similarity_38256a01(): run_similarity("cgc_qualifier_event/cgc/38256a01_01", 125)
-def timesout_similarity_5821ad01(): run_similarity("cgc_qualifier_event/cgc/5821ad01_01", 125)
-def timesout_similarity_5c921501(): run_similarity("cgc_qualifier_event/cgc/5c921501_01", 250)
-def timesout_similarity_63cf1501(): run_similarity("cgc_qualifier_event/cgc/63cf1501_01", 125)
-def timesout_similarity_6787bf01(): run_similarity("cgc_qualifier_event/cgc/6787bf01_01", 125)
-def timesout_similarity_7185fe01(): run_similarity("cgc_qualifier_event/cgc/7185fe01_01", 500)
-def timesout_similarity_ab957801(): run_similarity("cgc_qualifier_event/cgc/ab957801_01", 125)
-def timesout_similarity_acedf301(): run_similarity("cgc_qualifier_event/cgc/acedf301_01", 600)
-def timesout_similarity_d009e601(): run_similarity("cgc_qualifier_event/cgc/d009e601_01", 600)
-def timesout_similarity_d4411101(): run_similarity("cgc_qualifier_event/cgc/d4411101_01", 500)
-def timesout_similarity_eae6fa01(): run_similarity("cgc_qualifier_event/cgc/eae6fa01_01", 250)
-def timesout_similarity_ee545a01(): run_similarity("cgc_qualifier_event/cgc/ee545a01_01", 1000)
-def timesout_similarity_f5adc401(): run_similarity("cgc_qualifier_event/cgc/f5adc401_01", 250)
+def timesout_similarity_01cf6c01(): run_similarity("binaries-private/cgc_qualifier_event/cgc/01cf6c01_01", 5170)
+def timesout_similarity_38256a01(): run_similarity("binaries-private/cgc_qualifier_event/cgc/38256a01_01", 125)
+def timesout_similarity_5821ad01(): run_similarity("binaries-private/cgc_qualifier_event/cgc/5821ad01_01", 125)
+def timesout_similarity_5c921501(): run_similarity("binaries-private/cgc_qualifier_event/cgc/5c921501_01", 250)
+def timesout_similarity_63cf1501(): run_similarity("binaries-private/cgc_qualifier_event/cgc/63cf1501_01", 125)
+def timesout_similarity_6787bf01(): run_similarity("binaries-private/cgc_qualifier_event/cgc/6787bf01_01", 125)
+def timesout_similarity_7185fe01(): run_similarity("binaries-private/cgc_qualifier_event/cgc/7185fe01_01", 500)
+def timesout_similarity_ab957801(): run_similarity("binaries-private/cgc_qualifier_event/cgc/ab957801_01", 125)
+def timesout_similarity_acedf301(): run_similarity("binaries-private/cgc_qualifier_event/cgc/acedf301_01", 600)
+def timesout_similarity_d009e601(): run_similarity("binaries-private/cgc_qualifier_event/cgc/d009e601_01", 600)
+def timesout_similarity_d4411101(): run_similarity("binaries-private/cgc_qualifier_event/cgc/d4411101_01", 500)
+def timesout_similarity_eae6fa01(): run_similarity("binaries-private/cgc_qualifier_event/cgc/eae6fa01_01", 250)
+def timesout_similarity_ee545a01(): run_similarity("binaries-private/cgc_qualifier_event/cgc/ee545a01_01", 1000)
+def timesout_similarity_f5adc401(): run_similarity("binaries-private/cgc_qualifier_event/cgc/f5adc401_01", 250)
 
 if __name__ == '__main__':
     #test_palindrome()
