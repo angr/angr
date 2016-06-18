@@ -127,7 +127,7 @@ class SimPagedMemory(object):
     """
     Represents paged memory.
     """
-    def __init__(self, memory_backer=None, permissions_backer=None, pages=None, initialized=None, name_mapping=None, hash_mapping=None, page_size=None):
+    def __init__(self, memory_backer=None, permissions_backer=None, pages=None, initialized=None, name_mapping=None, hash_mapping=None, page_size=None, symbolic_addrs=None):
         self._cowed = set()
         self._memory_backer = { } if memory_backer is None else memory_backer
         self._permissions_backer = permissions_backer # saved for copying
@@ -136,6 +136,7 @@ class SimPagedMemory(object):
         self._pages = { } if pages is None else pages
         self._initialized = set() if initialized is None else initialized
         self._page_size = 0x1000 if page_size is None else page_size
+        self._symbolic_addrs = dict() if symbolic_addrs is None else symbolic_addrs
         self.state = None
 
         # reverse mapping
@@ -172,7 +173,8 @@ class SimPagedMemory(object):
                            initialized=set(self._initialized),
                            page_size=self._page_size,
                            name_mapping=new_name_mapping,
-                           hash_mapping=new_hash_mapping)
+                           hash_mapping=new_hash_mapping,
+                           symbolic_addrs=dict(self._symbolic_addrs))
         return m
 
     def __getitem__(self, addr):
@@ -191,8 +193,8 @@ class SimPagedMemory(object):
         page_idx = addr % self._page_size
         #print "SET", addr, page_num, page_idx
 
-        self._update_mappings(addr, v.object)
         self._get_page(page_num, write=True, create=True)[page_idx] = v
+        self._update_mappings(addr, v.object)
         #print "...",id(self._pages[page_num])
 
     def __delitem__(self, addr):
@@ -319,6 +321,7 @@ class SimPagedMemory(object):
                 raise
 
             page = self._create_page()
+            self._symbolic_addrs[page_num] = set()
             if initialize:
                 initialized = self._initialize_page(page_num, page)
                 if not initialized and not create:
@@ -330,6 +333,7 @@ class SimPagedMemory(object):
 
         if write and page_num not in self._cowed:
             page = page.copy()
+            self._symbolic_addrs[page_num] = set(self._symbolic_addrs[page_num])
             self._cowed.add(page_num)
             self._pages[page_num] = page
 
@@ -453,8 +457,6 @@ class SimPagedMemory(object):
         :param memory_object: the memory object to store
         """
 
-        self._update_range_mappings(mo.base, mo.object, mo.length)
-
         mo_start = mo.base
         mo_end = mo.base + mo.length
         page_start = mo_start - mo_start%self._page_size
@@ -463,6 +465,8 @@ class SimPagedMemory(object):
 
         for p in pages:
             self._apply_object_to_page(p, mo, overwrite=overwrite)
+
+        self._update_range_mappings(mo.base, mo.object, mo.length)
 
     def replace_memory_object(self, old, new_content):
         """
@@ -483,9 +487,9 @@ class SimPagedMemory(object):
                 if here is not old:
                     continue
 
+                self[b] = new
                 if isinstance(new.object, claripy.ast.BV):
                     self._update_mappings(b, new.object)
-                self[b] = new
             except KeyError:
                 pass
 
@@ -564,13 +568,22 @@ class SimPagedMemory(object):
 
     def _update_range_mappings(self, actual_addr, cnt, size):
         if not (options.REVERSE_MEMORY_NAME_MAP in self.state.options or
-                options.REVERSE_MEMORY_HASH_MAP in self.state.options):
+                options.REVERSE_MEMORY_HASH_MAP in self.state.options or
+                options.MEMORY_SYMBOLIC_BYTES_MAP in self.state.options):
             return
 
         for i in range(actual_addr, actual_addr+size):
             self._update_mappings(i, cnt)
 
     def _update_mappings(self, actual_addr, cnt):
+        if options.MEMORY_SYMBOLIC_BYTES_MAP in self.state.options:
+            page_num = actual_addr / self._page_size
+            page_idx = actual_addr % self._page_size
+            if self.state.se.symbolic(cnt):
+                self._symbolic_addrs[page_num].add(page_idx)
+            else:
+                self._symbolic_addrs[page_num].discard(page_idx)
+
         if not (options.REVERSE_MEMORY_NAME_MAP in self.state.options or
                 options.REVERSE_MEMORY_HASH_MAP in self.state.options):
             return
@@ -582,7 +595,6 @@ class SimPagedMemory(object):
         l.debug("Updating mappings at address 0x%x", actual_addr)
 
         try:
-            old_obj = self[actual_addr]
             l.debug("... removing old mappings")
 
             # remove this address for the old variables
@@ -625,6 +637,12 @@ class SimPagedMemory(object):
             if h not in self._hash_mapping:
                 self._hash_mapping[h] = set()
             self._hash_mapping[h].add(actual_addr)
+
+    def get_symbolic_addrs(self):
+        symbolic_addrs = set()
+        for page in self._symbolic_addrs:
+            symbolic_addrs.update(page*self._page_size + page_off for page_off in self._symbolic_addrs[page])
+        return symbolic_addrs
 
     def addrs_for_name(self, n):
         """
@@ -727,5 +745,6 @@ class SimPagedMemory(object):
 
         for page in xrange(pages):
             self._pages[base_page_num + page] = Page(self._page_size, permissions)
+            self._symbolic_addrs[base_page_num + page] = set()
 
 from .. import s_options as o

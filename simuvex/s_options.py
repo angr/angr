@@ -137,6 +137,9 @@ ACTION_DEPS = "ACTION_DEPS"
 REVERSE_MEMORY_NAME_MAP = "REVERSE_MEMORY_NAME_MAP"
 REVERSE_MEMORY_HASH_MAP = "REVERSE_MEMORY_HASH_MAP"
 
+# This enables tracking of which bytes in the state are symbolic
+MEMORY_SYMBOLIC_BYTES_MAP = "MEMORY_SYMBOLIC_BYTES_MAP"
+
 # this makes s_run() copy states
 COW_STATES = "COW_STATES"
 
