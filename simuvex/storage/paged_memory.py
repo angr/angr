@@ -156,6 +156,7 @@ class SimPagedMemory(object):
             'state': None,
             '_name_mapping': self._name_mapping,
             '_hash_mapping': self._hash_mapping,
+            '_symbolic_addrs': self._symbolic_addrs
         }
 
     def __setstate__(self, s):
