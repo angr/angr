@@ -226,7 +226,7 @@ class CFGBase(Analysis):
             if cfg_node.addr == addr:
                 if is_syscall and cfg_node.is_syscall:
                     results.append(cfg_node)
-                elif is_syscall == False and not cfg_node.is_syscall:
+                elif is_syscall is False and not cfg_node.is_syscall:
                     results.append(cfg_node)
                 else:
                     results.append(cfg_node)
@@ -288,7 +288,7 @@ class CFGBase(Analysis):
         edge = (simrun_from, simrun_to)
 
         if edge in self._graph:
-            self._graph.remove_edge(edge)
+            self._graph.remove_edge(*edge)
 
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
@@ -336,7 +336,9 @@ class CFGBase(Analysis):
 
         if not memory_regions:
             memory_regions = [
-                (b.rebase_addr + start, b.rebase_addr + start + len(cbacker))
+                (self.project.loader.main_bin.rebase_addr + start,
+                 self.project.loader.main_bin.rebase_addr + start + len(cbacker)
+                 )
                 for start, cbacker in self.project.loader.memory.cbackers
                 ]
 
@@ -384,6 +386,7 @@ class CFGBase(Analysis):
         else:
             all_functions = self.kb.functions.values()
 
+        # pylint: disable=too-many-nested-blocks
         for func in all_functions:
             if func.returning is not None:
                 # It has been determined before. Skip it
@@ -606,6 +609,10 @@ class CFGBase(Analysis):
 
             end_addresses[tpl_to_find] = [smallest_node]
 
+    #
+    # Function identification and such
+    #
+
     def make_functions(self):
         """
         Revisit the entire control flow graph, create Function instances accordingly, and correctly put blocks into
@@ -615,9 +622,13 @@ class CFGBase(Analysis):
         pre-constructed CFG, this method rebuilds all functions bearing the following rules:
         - A block may only belong to one function.
         - Tail call optimizations are detected.
+        - PLT stubs are aligned by 16.
 
         :return: None
         """
+
+        # TODO: Is it required that PLT stubs are always aligned by 16? If so, on what architectures and platforms is it
+        # TODO:  enforced?
 
         tmp_functions = self.kb.functions.copy()
 
@@ -626,70 +637,10 @@ class CFGBase(Analysis):
 
         blockaddr_to_function = { }
 
-        def _addr_to_function(addr):
-            if addr in blockaddr_to_function:
-                f = blockaddr_to_function[addr]
-            else:
-                is_syscall = False
-                if self.project.is_hooked(addr):
-                    hooker = self.project.hooked_by(addr)
-                    if isinstance(hooker, simuvex.SimProcedure) and hooker.IS_SYSCALL:
-                        is_syscall = True
-
-                self.kb.functions._add_node(addr, addr, syscall=is_syscall)
-                f = self.kb.functions.function(addr=addr)
-
-                blockaddr_to_function[addr] = f
-
-                if addr in tmp_functions:
-                    f.returning = tmp_functions.function(addr).returning
-                else:
-                    # TODO:
-                    pass
-
-            return f
-
-        def _graph_bfs_custom(g, starts, callback):
-            """
-
-            :param networkx.DiGraph g:
-            :param starts:
-            :param callback:
-            :return:
-            """
-
-            stack = list(starts)
-            traversed = set()
-
-            while stack:
-                n = stack[0]
-                stack = stack[1:]
-
-                if n in traversed:
-                    continue
-
-                traversed.add(n)
-
-                if n.has_return:
-                    callback(n, None, {'jumpkind': 'Ijk_Ret'})
-
-                elif g.out_degree(n) == 0:
-                    # it's a single node
-                    callback(n, None, None)
-
-                else:
-                    for src, dst, data in g.out_edges_iter(nbunch=[n], data=True):
-                        callback(src, dst, data)
-
-                        jumpkind = data.get('jumpkind', "")
-                        if not (jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys')):
-                            # Only follow none call edges
-                            stack.extend([ m for m in g.successors(n) if m not in traversed ])
-
         function_nodes = set()
 
         # Find nodes for beginnings of all functions
-        for src, dst, data in self.graph.edges_iter(data=True):
+        for _, dst, data in self.graph.edges_iter(data=True):
             jumpkind = data.get('jumpkind', "")
             if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
                 function_nodes.add(dst)
@@ -698,60 +649,158 @@ class CFGBase(Analysis):
             if n.addr in tmp_functions:
                 function_nodes.add(n)
 
-        def _traverse_handler(src, dst, data):
-            src_addr = src.addr
-            src_function = _addr_to_function(src_addr)
+        # traverse the graph starting from each node, not following call edges
+        for fn in function_nodes:
+            self._graph_bfs_custom(self.graph, [ fn ], self._graph_traversal_handler, blockaddr_to_function, tmp_functions)
 
-            if data is None:
-                # it's a single node only
-                return
+        # Remove all stubs after PLT entries
+        to_remove = set()
+        for fn in self.kb.functions.values():
+            addr = fn.addr - (fn.addr % 16)
+            if addr != fn.addr and addr in self.kb.functions and self.kb.functions[addr].is_plt:
+                to_remove.add(fn.addr)
 
-            jumpkind = data['jumpkind']
+        for addr in to_remove:
+            del self.kb.functions[addr]
 
-            if jumpkind == 'Ijk_Ret':
-                self.kb.functions._add_return_from(src_function.addr, src_addr, None)
+    def _addr_to_function(self, addr, blockaddr_to_function, known_functions):
+        """
+        Convert an address to a Function object, and store the mapping in a dict. If the block is known to be part of a
+        function, just return that function.
 
-            if dst is None:
-                return
+        :param int addr: Address to convert
+        :param dict blockaddr_to_function: A mapping between block addresses to Function instances.
+        :param angr.knowledge.FunctionManager known_functions: Recovered functions.
+        :return: a Function object
+        :rtype: angr.knowledge.Function
+        """
 
-            dst_addr = dst.addr
+        if addr in blockaddr_to_function:
+            f = blockaddr_to_function[addr]
+        else:
+            is_syscall = False
+            if self.project.is_hooked(addr):
+                hooker = self.project.hooked_by(addr)
+                if isinstance(hooker, simuvex.SimProcedure) and hooker.IS_SYSCALL:
+                    is_syscall = True
 
-            if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
+            self.kb.functions._add_node(addr, addr, syscall=is_syscall)
+            f = self.kb.functions.function(addr=addr)
 
-                is_syscall = jumpkind.startswith('Ijk_Sys')
+            blockaddr_to_function[addr] = f
 
-                # It must be calling a function
-                dst_function = _addr_to_function(dst_addr)
+            if addr in known_functions:
+                f.returning = known_functions.function(addr).returning
+            else:
+                # TODO:
+                pass
 
-                self.kb.functions._add_call_to(src_function.addr, src_addr, dst_addr, None, syscall=is_syscall)
+        return f
 
-                if dst_function.returning:
-                    self.kb.functions._add_fakeret_to(src_function.addr, src_addr, src.addr + src.size, confirmed=True)
+    def _graph_bfs_custom(self, g, starts, callback, blockaddr_to_function, known_functions):
+        """
+        A customized control flow graph BFS implementation with the following rules:
+        - Call edges are not followed.
+        - Syscall edges are not followed.
 
-            elif jumpkind == 'Ijk_Boring':
+        :param networkx.DiGraph g: The graph.
+        :param list starts: A collection of beginning nodes to start graph traversal.
+        :param func callback: Callback function for each edge and node.
+        :param dict blockaddr_to_function: A mapping between block addresses to Function instances.
+        :param angr.knowledge.FunctionManager known_functions: Already recovered functions.
+        :return: None
+        """
 
-                # is it a jump to another function?
-                if dst_addr in tmp_functions:
-                    # yes it is
-                    self.kb.functions._add_outside_transition_to(src_function.addr, src_addr, dst_addr)
+        stack = list(starts)
+        traversed = set()
 
-                    _ = _addr_to_function(dst_addr)
-                else:
-                    # no it's not
-                    # add the transition code
-                    self.kb.functions._add_transition_to(src_function.addr, src_addr, dst_addr)
+        while stack:
+            n = stack[0]
+            stack = stack[1:]
 
-                    blockaddr_to_function[dst_addr] = src_function
+            if n in traversed:
+                continue
 
-            elif jumpkind == 'Ijk_FakeRet':
+            traversed.add(n)
+
+            if n.has_return:
+                callback(n, None, {'jumpkind': 'Ijk_Ret'}, blockaddr_to_function, known_functions)
+
+            elif g.out_degree(n) == 0:
+                # it's a single node
+                callback(n, None, None, blockaddr_to_function, known_functions)
+
+            else:
+                for src, dst, data in g.out_edges_iter(nbunch=[n], data=True):
+                    callback(src, dst, data, blockaddr_to_function, known_functions)
+
+                    jumpkind = data.get('jumpkind', "")
+                    if not (jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys')):
+                        # Only follow none call edges
+                        stack.extend([m for m in g.successors(n) if m not in traversed])
+
+    def _graph_traversal_handler(self, src, dst, data, blockaddr_to_function, known_functions):
+        """
+        Graph traversal handler. It takes in a node or an edge, and create new functions or add nodes to existing
+        functions accordingly. Oh, it also create edges on the transition map of functions.
+
+        :param CFGNode src: Beginning of the edge, or a single node when dst is None.
+        :param CFGNode dst: Destination of the edge. For processing a single node, `dst` is None.
+        :param dict data: Edge data in the CFG. 'jumpkind' should be there if it's not None.
+        :param dict blockaddr_to_function: A mapping between block addresses to Function instances.
+        :param angr.knowledge.FunctionManager known_functions: Already recovered functions.
+        :return: None
+        """
+
+        src_addr = src.addr
+        src_function = self._addr_to_function(src_addr, blockaddr_to_function, known_functions)
+
+        if data is None:
+            # it's a single node only
+            return
+
+        jumpkind = data['jumpkind']
+
+        if jumpkind == 'Ijk_Ret':
+            self.kb.functions._add_return_from(src_function.addr, src_addr, None)
+
+        if dst is None:
+            return
+
+        dst_addr = dst.addr
+
+        if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
+
+            is_syscall = jumpkind.startswith('Ijk_Sys')
+
+            # It must be calling a function
+            dst_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+
+            self.kb.functions._add_call_to(src_function.addr, src_addr, dst_addr, None, syscall=is_syscall)
+
+            if dst_function.returning:
+                self.kb.functions._add_fakeret_to(src_function.addr, src_addr, src.addr + src.size, confirmed=True)
+
+        elif jumpkind == 'Ijk_Boring':
+
+            # is it a jump to another function?
+            if dst_addr in known_functions:
+                # yes it is
+                self.kb.functions._add_outside_transition_to(src_function.addr, src_addr, dst_addr)
+
+                _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+            else:
+                # no it's not
+                # add the transition code
+                self.kb.functions._add_transition_to(src_function.addr, src_addr, dst_addr)
 
                 blockaddr_to_function[dst_addr] = src_function
 
-                self.kb.functions._add_fakeret_to(src_function.addr, src_addr, dst_addr, confirmed=True)
+        elif jumpkind == 'Ijk_FakeRet':
 
-            else:
-                l.debug('Ignored jumpkind %s', jumpkind)
+            blockaddr_to_function[dst_addr] = src_function
 
-        # traverse the graph starting from each node, not following call edges
-        for fn in function_nodes:
-            _graph_bfs_custom(self.graph, [ fn ], _traverse_handler)
+            self.kb.functions._add_fakeret_to(src_function.addr, src_addr, dst_addr, confirmed=True)
+
+        else:
+            l.debug('Ignored jumpkind %s', jumpkind)
