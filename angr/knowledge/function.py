@@ -33,6 +33,9 @@ class Function(object):
 
         self._project = project = self._function_manager._kb._project
 
+        self.is_plt = False
+        self.is_simprocedure = False
+
         if name is None:
             # Try to get a name from project.loader
             name = project.loader.find_symbol_name(addr)
@@ -40,8 +43,11 @@ class Function(object):
             name = project.loader.find_plt_stub_name(addr)
             if name is not None:
                 name = 'plt.' + name
+                # Whether this function is a plt entry or not is fully relying on the PLT detection in CLE
+                self.is_plt = True
         if project.is_hooked(addr):
             hooker = project.hooked_by(addr)
+            self.is_simprocedure = True
             if hooker is simuvex.SimProcedures['stubs']['ReturnUnconstrained']:
                 kwargs_dict = project._sim_procedures[addr][1]
                 if 'resolves' in kwargs_dict:
