@@ -21,7 +21,7 @@ class Runner(object):
     Trace an angr path with a concrete input
     """
 
-    def __init__(self, binary, input=None, pov_file=None, record_trace=False):
+    def __init__(self, binary, input=None, pov_file=None, record_trace=False, record_stdout=False):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -66,8 +66,18 @@ class Runner(object):
         # if the input causes a crash, what address does it crash at?
         self.crash_addr = None
 
-        # will set crash_mode correctly
-        self.dynamic_trace()
+        self.stdout = None
+
+        if record_stdout:
+            tmp = tempfile.mktemp(prefix="stdout_" + os.path.basename(binary))
+            # will set crash_mode correctly
+            self.dynamic_trace(stdout_file=tmp)
+            with open(tmp, "rb") as f:
+                self.stdout = f.read()
+            os.remove(tmp)
+        else:
+            # will set crash_mode correctly
+            self.dynamic_trace()
 
 
 ### SETUP
@@ -121,6 +131,8 @@ class Runner(object):
 
         if os.path.abspath(self.base) == "/":
             raise TracerInstallError("could not find tracer install directory")
+
+        self.base = os.path.abspath(self.base)
 
     def _check_qemu_install(self):
         """
