@@ -1,5 +1,6 @@
 from ..plugins.plugin import SimStatePlugin
 from ..s_action_object import SimActionObject
+from .. import s_options
 
 import claripy
 import logging
@@ -107,6 +108,10 @@ class SimFile(SimStatePlugin):
         read_length = length
         if self.size is not None:
             remaining = self.size - self.pos
+            if s_options.CONCRETIZE_SYMBOLIC_FILE_READ_SIZES in self.state.options and self.state.se.symbolic(length):
+                new_length = self.state.se.any_int(length)
+                self.state.add_constraints(length == new_length)
+                length = new_length
             read_length = self.state.se.If(remaining < length, remaining, length)
 
         self.content.copy_contents(dst_addr, self.pos, read_length , dst_memory=self.state.memory)

@@ -569,7 +569,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return r
 
-
     def _load(self, dst, size, condition=None, fallback=None):
         if self.state.se.symbolic(size):
             l.warning("Concretizing symbolic length. Much sad; think about implementing.")
@@ -717,6 +716,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if self.state.se.symbolic(req.addr) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
             return req
+
+        if req.size is not None and self.state.se.symbolic(req.size) and options.CONCRETIZE_SYMBOLIC_WRITE_SIZES in self.state.options:
+            new_size = self.state.se.any_int(req.size)
+            req.constraints.append(req.size == new_size)
+            req.size = new_size
 
         max_bytes = len(req.data)/8
 

@@ -93,6 +93,12 @@ ABSTRACT_MEMORY = "ABSTRACT_MEMORY"
 AVOID_MULTIVALUED_READS = "AVOID_SYMBOLIC_READS"
 AVOID_MULTIVALUED_WRITES = "AVOID_SYMBOLIC_WRITES"
 
+# This option concretizes symbolically sized writes
+CONCRETIZE_SYMBOLIC_WRITE_SIZES = "CONCRETIZE_SYMBOLIC_WRITE_SIZES"
+
+# This option concretizes the read size if it's symbolic from the file
+CONCRETIZE_SYMBOLIC_FILE_READ_SIZES = "CONCRETIZE_SYMBOLIC_FILE_READ_SIZES"
+
 # This causes angr to support fully symbolic writes. It is very likely that speed will suffer.
 SYMBOLIC_WRITE_ADDRESSES = "SYMBOLIC_WRITE_ADDRESSES"
 
