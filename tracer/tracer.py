@@ -138,6 +138,7 @@ class Tracer(object):
 
         # keep track of the last basic block we hit
         self.previous = None
+        self.previous_addr = None
 
         # whether we should follow the qemu trace
         self.no_follow = False
@@ -185,8 +186,11 @@ class Tracer(object):
 
                 # angr steps through the same basic block twice when a syscall
                 # occurs
-                elif current.addr == self.previous.addr:
+                elif current.addr == self.previous_addr or self._p.is_hooked(self.previous_addr) and \
+                        self._p.hooked_by(self.previous_addr).IS_SYSCALL:
                     pass
+                elif current.jumpkind.startswith("Ijk_Sys"):
+                    self.bb_cnt += 1
 
                 # handle library calls and simprocedures
                 elif self._p.is_hooked(current.addr) \
@@ -217,7 +221,10 @@ class Tracer(object):
                     else:
                         raise TracerMisfollowError
 
-            self.previous = current.copy()
+            # shouldn't need to copy
+            self.previous = current
+            # TODO this shouldn't be needed, fish fix the bug plesae
+            self.previous_addr = current.addr
 
             # Basic block's max size in angr is greater than the one in Qemu
             # We follow the one in Qemu
