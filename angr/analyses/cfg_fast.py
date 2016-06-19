@@ -1979,6 +1979,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
         """
 
         self.graph.remove_node(node)
+        if node.addr in self._nodes:
+            del self._nodes[node.addr]
 
         # We wanna remove the function as well
         if node.addr in self.kb.functions:
