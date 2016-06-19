@@ -531,13 +531,13 @@ class CFGBase(Analysis):
 
         graph = self.graph
 
-        end_addresses = defaultdict(list)
+        end_addresses = defaultdict(set)
 
         for n in graph.nodes():
             if n.is_simprocedure:
                 continue
             end_addr = n.addr + n.size
-            end_addresses[(end_addr, n.callstack_key)].append(n)
+            end_addresses[(end_addr, n.callstack_key)].add(n)
 
         while any([len(x) > 1 for x in end_addresses.itervalues()]):
             tpl_to_find = (None, None)
@@ -580,7 +580,7 @@ class CFGBase(Analysis):
                     new_node.instruction_addrs = [ins_addr for ins_addr in n.instruction_addrs
                                                   if ins_addr < n.addr + new_size]
                     # Put the new node into end_addresses list
-                    end_addresses[tpl].append(new_node)
+                    end_addresses[tpl].add(new_node)
 
                 # Modify the CFG
                 original_predecessors = list(graph.in_edges_iter([n], data=True))
