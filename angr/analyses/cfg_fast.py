@@ -1298,7 +1298,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         elif jumpkind == "Ijk_Ret":
             if current_function_addr != -1:
-                self._function_exits[current_function_addr].add(target_addr)
+                self._function_exits[current_function_addr].add(addr)
                 self._function_add_return_site(addr, current_function_addr)
 
             cfg_node.has_return = True
