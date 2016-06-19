@@ -47,6 +47,10 @@ patcherex:
     script: "angr-test patcherex"
     tags: [angr]
 
+fuzzer:
+    script: "angr-test fuzzer"
+    tags: [angr]
+
 docs:
     script: "angr-test docs"
     tags: [angr]
