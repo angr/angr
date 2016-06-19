@@ -108,7 +108,7 @@ class Function(object):
         return self.transition_graph.nodes_iter()
 
     def get_node(self, addr):
-        return self._addr_to_block_node[addr]
+        return self._addr_to_block_node.get(addr, None)
 
     @property
     def has_unresolved_jumps(self):
@@ -252,7 +252,11 @@ class Function(object):
 
             # force jumps to missing successors
             # (this is a slightly hacky way to force it to explore all the nodes in the function)
-            missing = set(x.addr for x in self.graph.successors(self.get_node(curr_ip))) - analyzed
+            node = self.get_node(curr_ip)
+            if node is None:
+                # the node does not exist. maybe it's not a block node.
+                continue
+            missing = set(x.addr for x in self.graph.successors(node)) - analyzed
             for succ_addr in missing:
                 l.info("Forcing jump to missing successor: %#x", succ_addr)
                 if succ_addr not in analyzed:
