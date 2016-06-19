@@ -12,7 +12,7 @@ from .. import SimProcedure
 # lib names.
 SimProcedures = defaultdict(dict)
 path = os.path.dirname(os.path.abspath(__file__))
-skip_dirs = ['__init__.py']
+skip_dirs = ['__init__.py', '__pycache__']
 skip_procs = ['__init__']
 
 for lib_module_name in os.listdir(path):
