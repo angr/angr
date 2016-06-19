@@ -241,7 +241,6 @@ class Tracer(object):
             if not self.crash_mode:
                 current.trim_history()
 
-            l.debug("bb_cnt: %d", self.bb_cnt)
             self.path_group = self.path_group.step(max_size=bbl_max_bytes)
 
             # if our input was preconstrained we have to keep on the lookout
