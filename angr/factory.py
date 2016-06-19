@@ -361,7 +361,7 @@ class AngrObjectFactory(object):
         """
 
         try:
-            cc, syscall_addr, syscall_name, syscall_class = self._project._simos.syscall_info(state)
+            _, syscall_addr, _, _ = self._project._simos.syscall_info(state)
 
             # Fix the IP
             state.ip = syscall_addr
