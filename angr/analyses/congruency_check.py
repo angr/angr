@@ -272,7 +272,7 @@ class CongruencyCheck(Analysis):
 		"""
 		Compares two states for similarity.
 		"""
-		joint_solver = claripy.FullFrontend(claripy.backends.z3)
+		joint_solver = claripy.Solver()
 
 		# make sure the canonicalized constraints are the same
 		n_map, n_counter, n_canon_constraint = claripy.And(*sr.se.constraints).canonicalize() #pylint:disable=no-member
