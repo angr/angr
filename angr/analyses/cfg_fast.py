@@ -1106,14 +1106,18 @@ class CFGFast(ForwardAnalysis, CFGBase):
         try:
             hooker = self.project.hooked_by(addr)
 
-            cfg_node = CFGNode(addr, 0, self, function_address=current_function_addr,
-                               simprocedure_name=hooker.__name__,
-                               no_ret=hooker.NO_RET,
-                               simrun_key=addr,
-                               )
+            if addr not in self._nodes:
+                cfg_node = CFGNode(addr, 0, self, function_address=current_function_addr,
+                                   simprocedure_name=hooker.__name__,
+                                   no_ret=hooker.NO_RET,
+                                   simrun_key=addr,
+                                   )
 
-            self._nodes[addr] = cfg_node
-            self._nodes_by_addr[addr].append(cfg_node)
+                self._nodes[addr] = cfg_node
+                self._nodes_by_addr[addr].append(cfg_node)
+
+            else:
+                cfg_node = self._nodes[addr]
 
             self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
 
@@ -1162,12 +1166,16 @@ class CFGFast(ForwardAnalysis, CFGBase):
             if irsb.size > 0:
                 self._seg_list.occupy(addr, irsb.size, "code")
 
-            # Create a CFG node, and add it to the graph
-            cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, simrun_key=addr,
-                               irsb=irsb)
+            if addr not in self._nodes:
+                # Create a CFG node, and add it to the graph
+                cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, simrun_key=addr,
+                                   irsb=irsb)
 
-            self._nodes[addr] = cfg_node
-            self._nodes_by_addr[addr].append(cfg_node)
+                self._nodes[addr] = cfg_node
+                self._nodes_by_addr[addr].append(cfg_node)
+
+            else:
+                cfg_node = self._nodes[addr]
 
             self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
 
