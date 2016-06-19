@@ -230,6 +230,8 @@ class Function(object):
             if not self._project.loader.main_bin.contains_addr(state.se.any_int(state.ip)):
                 continue
 
+            curr_ip = state.se.any_int(state.ip)
+
             # get runtime values from logs of successors
             p = self._project.factory.path(state)
             p.step()
@@ -250,7 +252,7 @@ class Function(object):
 
             # force jumps to missing successors
             # (this is a slightly hacky way to force it to explore all the nodes in the function)
-            missing = set(x.addr for x in self.graph.successors(self.get_node(state.se.any_int(state.ip)))) - analyzed
+            missing = set(x.addr for x in self.graph.successors(self.get_node(curr_ip))) - analyzed
             for succ_addr in missing:
                 l.info("Forcing jump to missing successor: %#x", succ_addr)
                 if succ_addr not in analyzed:
