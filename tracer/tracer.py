@@ -420,7 +420,7 @@ class Tracer(object):
                 self.previous._run = None
                 for var, concrete_vals in self._address_concretization:
                     if len(concrete_vals) > 0:
-                        print "adding constraints:", var == concrete_vals[0]
+                        l.debug("constraining addr to be %#x", concrete_vals[0])
                         self.previous.state.add_constraints(var == concrete_vals[0])
 
                 # then we step again up to the crashing instruction
@@ -445,7 +445,6 @@ class Tracer(object):
                 self.previous.step()
 
                 # now remove our breakpoints since other people might not want them
-                # TODO check if this breaks something, eg my explorer
                 self.previous.state.inspect.remove_breakpoint("address_concretization", bp1)
                 self.previous.state.inspect.remove_breakpoint("address_concretization", bp2)
 
