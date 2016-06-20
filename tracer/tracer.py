@@ -478,7 +478,7 @@ class Tracer(object):
         l.debug("downsizing unpreconstrained state")
         path.state.downsize()
         l.debug("simplifying solver")
-        #path.state.se.simplify()
+        path.state.se.simplify()
         l.debug("simplification done")
         path.state.se._solver.result = None
 
