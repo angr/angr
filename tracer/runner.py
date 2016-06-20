@@ -233,6 +233,7 @@ class Runner(object):
                     time.sleep(.01)
 
             ret = p.wait()
+            self.returncode = p.returncode
             # did a crash occur?
             if ret < 0:
                 if abs(ret) == signal.SIGSEGV or abs(ret) == signal.SIGILL:
