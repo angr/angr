@@ -41,6 +41,18 @@ class FunctionManager(collections.Mapping):
         # Registers used for passing arguments around
         self._arg_registers = kb._project.arch.argument_registers
 
+    def copy(self):
+        fm = FunctionManager(self._kb)
+        fm._function_map = self._function_map.copy()
+        fm.callgraph = networkx.DiGraph(self.callgraph)
+        fm._arg_registers = self._arg_registers.copy()
+
+        return fm
+
+    def clear(self):
+        self._function_map.clear()
+        self.callgraph = networkx.DiGraph()
+
     def _genenare_callmap_sif(self, filepath):
         """
         Generate a sif file from the call map.
@@ -104,6 +116,13 @@ class FunctionManager(collections.Mapping):
         if type(to_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
         self._function_map[function_addr]._transit_to(from_node, to_node)
+
+    def _add_outside_transition_to(self, function_addr, from_node, to_node):
+        if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
+            from_node = self._kb._project.factory.snippet(from_node)
+        if type(to_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
+            to_node = self._kb._project.factory.snippet(to_node)
+        self._function_map[function_addr]._transit_to(from_node, to_node, outside=True)
 
     def _add_return_from_call(self, function_addr, src_function_addr, to_node):
 
