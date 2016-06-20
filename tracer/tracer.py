@@ -152,6 +152,9 @@ class Tracer(object):
 
         self.path_group = self._prepare_paths()
 
+        # this is used to track constrained addresses
+        self._address_concretization = list()
+
 # EXPOSED
 
     def next_branch(self):
@@ -324,24 +327,45 @@ class Tracer(object):
 
         return rpg
 
+    def _grab_concretization_results(self, state):
+        """
+        grabs the concretized result so we can add the constraint ourselves
+        """
+        variables = state.inspect.address_concretization_expr.variables
+        hit_indices = self.to_indices(variables)
+
+        # only grab ones that match the constrained addrs
+        add_constraints = False
+        for action in self.constrained_addrs:
+            var_indices = self.to_indices(action.addr.variables)
+            if var_indices == hit_indices:
+                add_constraints = True
+                break
+
+        if add_constraints:
+            addr = state.inspect.address_concretization_expr
+            result = state.inspect.address_concretization_result
+            self._address_concretization.append((addr, result))
+
+    @staticmethod
+    def to_indices(variables):
+        indices = map(lambda y: int(y.split("_")[3], 16), variables)
+        return sorted(indices)
+
     def _dont_add_constraints(self, state):
         '''
         obnoxious way to handle this, should ONLY be called from 'run'
         '''
 
-        def to_indices(variables):
-            indices = map(lambda y: int(y.split("_")[3], 16), variables)
-            return sorted(indices)
-
         # for each constrained addrs check to see if the variables match,
         # if so keep the constraints
 
         variables = state.inspect.address_concretization_expr.variables
-        hit_indices = to_indices(variables)
+        hit_indices = self.to_indices(variables)
 
         add_constraints = False
         for action in self.constrained_addrs:
-            var_indices = to_indices(action.addr.variables)
+            var_indices = self.to_indices(action.addr.variables)
             if var_indices == hit_indices:
                 add_constraints = True
                 break
@@ -378,13 +402,28 @@ class Tracer(object):
                 else:
                     self.constrained_addrs = constrained_addrs
 
-                self.previous.state.inspect.b(
-                        'address_concretization',
-                        simuvex.BP_BEFORE,
-                        action=self._dont_add_constraints)
+                bp1 = self.previous.state.inspect.b(
+                    'address_concretization',
+                    simuvex.BP_BEFORE,
+                    action=self._dont_add_constraints)
+
+                bp2 = self.previous.state.inspect.b(
+                    'address_concretization',
+                    simuvex.BP_AFTER,
+                    action=self._grab_concretization_results)
 
                 # step to the end of the crashing basic block,
                 # to capture its actions
+                self.previous.step()
+
+                # Add the constraints from concretized addrs back
+                self.previous._run = None
+                for var, concrete_vals in self._address_concretization:
+                    if len(concrete_vals) > 0:
+                        print "adding constraints:", var == concrete_vals[0]
+                        self.previous.state.add_constraints(var == concrete_vals[0])
+
+                # then we step again up to the crashing instruction
                 p_block = self._p.factory.block(self.previous.addr)
                 inst_cnt = len(p_block.instruction_addrs)
                 insts = 0 if inst_cnt == 0 else inst_cnt - 1
@@ -404,6 +443,11 @@ class Tracer(object):
 
                 l.debug("final step...")
                 self.previous.step()
+
+                # now remove our breakpoints since other people might not want them
+                # TODO check if this breaks something, eg my explorer
+                self.previous.state.inspect.remove_breakpoint("address_concretization", bp1)
+                self.previous.state.inspect.remove_breakpoint("address_concretization", bp2)
 
                 successors = self.previous.next_run.successors
                 successors += self.previous.next_run.unconstrained_successors
@@ -427,6 +471,7 @@ class Tracer(object):
             return
 
         new_constraints = path.state.se.constraints[len(self.preconstraints):]
+        new_constraints = [path.state.se.simplify(c) for c in new_constraints]
 
         path.state.options.discard(so.REPLACEMENT_SOLVER)
         path.state.release_plugin('solver_engine')
@@ -434,7 +479,7 @@ class Tracer(object):
         l.debug("downsizing unpreconstrained state")
         path.state.downsize()
         l.debug("simplifying solver")
-        path.state.se.simplify()
+        #path.state.se.simplify()
         l.debug("simplification done")
         path.state.se._solver.result = None
 
