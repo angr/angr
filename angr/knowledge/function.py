@@ -26,6 +26,7 @@ class Function(object):
         self._local_transition_graph = None
 
         self._ret_sites = set()
+        self._endpoints = set()
         self._call_sites = {}
         self.addr = addr
         self._function_manager = function_manager
@@ -331,6 +332,10 @@ class Function(object):
 
     @property
     def endpoints(self):
+        return list(self._endpoints)
+
+    @property
+    def ret_sites(self):
         return list(self._ret_sites)
 
     def _clear_transition_graph(self):
@@ -358,6 +363,14 @@ class Function(object):
         else:
             self._register_nodes(from_node, to_node)
         self.transition_graph.add_edge(from_node, to_node, type='transition', outside=outside)
+
+        if outside:
+            # this node is an endpoint of the current function
+            self._endpoints.add(from_node)
+            if from_node.addr == 0x804d744:
+                import ipdb; ipdb.set_trace()
+
+        # clear the cache
         self._local_transition_graph = None
 
     def _call_to(self, from_node, to_func, ret_node):
@@ -423,13 +436,16 @@ class Function(object):
                     # checks that we don't have multiple block nodes at a single address
                     assert node == self._addr_to_block_node[node.addr]
 
-    def _add_return_site(self, return_site_addr):
+    def _add_return_site(self, return_site):
         """
         Registers a basic block as a site for control flow to return from this function.
 
-        :param return_site_addr:     The address of the basic block ending with a return.
+        :param CodeNode return_site:     The block node that ends with a return.
         """
-        self._ret_sites.add(return_site_addr)
+        self._ret_sites.add(return_site)
+        # A return site must be an endpoint of the function - you cannot continue execution of the current function
+        # after returning
+        self._endpoints.add(return_site)
 
     def _add_call_site(self, call_site_addr, call_target_addr, retn_addr):
         """
