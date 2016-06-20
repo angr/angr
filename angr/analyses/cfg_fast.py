@@ -1243,13 +1243,13 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
                 if not r:
                     if cfg_node is not None:
-                        l.warning("An angr exception occurred when adding a transition from %#x to %#x. "
+                        l.debug("An angr exception occurred when adding a transition from %#x to %#x. "
                                   "Ignore this successor.",
                                   cfg_node.addr,
                                   target_addr
                                   )
                     else:
-                        l.warning("AngrTranslationError occurred when creating a new entry to %#x. "
+                        l.debug("AngrTranslationError occurred when creating a new entry to %#x. "
                                   "Ignore this successor.",
                                   target_addr
                                   )
@@ -1718,7 +1718,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
                 if total_cases > self._indirect_jump_target_limit:
                     # We resolved too many targets for this indirect jump. Something might have gone wrong.
-                    l.warning("%d targets are resolved for the indirect jump at %#x. It may not be a jump table",
+                    l.debug("%d targets are resolved for the indirect jump at %#x. It may not be a jump table",
                               total_cases, addr)
                     return False, None
 
@@ -1822,7 +1822,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
                 if total_cases > self._indirect_jump_target_limit:
                     # We resolved too many targets for this indirect jump. Something might have gone wrong.
-                    l.warning("%d targets are resolved for the indirect jump at %#x. It may not be a jump table",
+                    l.debug("%d targets are resolved for the indirect jump at %#x. It may not be a jump table",
                               total_cases, addr)
                     return False, None
 
