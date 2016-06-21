@@ -158,7 +158,10 @@ class Runner(object):
     # at the end, it restores everything
     @contextlib.contextmanager
     def _setup_env(self):
-        prefix = "/dev/shm/"
+        # TODO switch back to /dev/shm, when this is fixed:
+        # https://trello.com/c/zTruwWry/247-dev-shm-size-issues
+        # prefix = "/dev/shm/"
+        prefix = "/tmp/tracer_"
         curdir = os.getcwd()
         tmpdir = tempfile.mkdtemp(prefix=prefix)
         # allow cores to be dumped
