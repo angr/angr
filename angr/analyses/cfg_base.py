@@ -812,7 +812,9 @@ class CFGBase(Analysis):
         elif jumpkind == 'Ijk_Boring':
 
             # is it a jump to another function?
-            if dst_addr in known_functions:
+            if dst_addr in known_functions or (
+                dst_addr in blockaddr_to_function and blockaddr_to_function[dst_addr] is not src_function
+            ):
                 # yes it is
                 self.kb.functions._add_outside_transition_to(src_function.addr, src_addr, dst_addr)
 
