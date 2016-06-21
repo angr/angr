@@ -495,7 +495,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
                  collect_data_references=False,
                  progress_callback=None,
                  show_progressbar=False,
-                 normalize=False
+                 normalize=False,
+                 function_starts=None
                  ):
         """
         :param binary:                  The binary to recover CFG on. By default the main binary is used.
@@ -514,6 +515,9 @@ class CFGFast(ForwardAnalysis, CFGBase):
                                              not.
         :param progress_callback:       Specify a callback function to get the progress during CFG recovery.
         :param bool show_progressbar:   Should CFGFast show a progressbar during CFG recovery or not.
+        :param bool normalize:          Normalize the CFG as well as all function graphs after CFG recovery.
+        :param list function_starts:    A list of extra function starting points. CFGFast will try to resume scanning
+                                        from each address in the list.
         :return: None
         """
 
@@ -536,6 +540,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         self._progress_callback = progress_callback
         self._show_progressbar = show_progressbar
+
+        self._extra_function_starts = function_starts
 
         self._progressbar = None  # will be initialized later if self._show_progressbar == True
 
@@ -819,6 +825,9 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         if self._use_symbols:
             starting_points |= set([ addr + rebase_addr for addr in self._function_addresses_from_symbols ])
+
+        if self._extra_function_starts:
+            starting_points |= set(self._extra_function_starts)
 
         # Sort it
         starting_points = sorted(list(starting_points), reverse=True)
@@ -1234,13 +1243,13 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
                 if not r:
                     if cfg_node is not None:
-                        l.warning("An angr exception occurred when adding a transition from %#x to %#x. "
+                        l.debug("An angr exception occurred when adding a transition from %#x to %#x. "
                                   "Ignore this successor.",
                                   cfg_node.addr,
                                   target_addr
                                   )
                     else:
-                        l.warning("AngrTranslationError occurred when creating a new entry to %#x. "
+                        l.debug("AngrTranslationError occurred when creating a new entry to %#x. "
                                   "Ignore this successor.",
                                   target_addr
                                   )
@@ -1709,7 +1718,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
                 if total_cases > self._indirect_jump_target_limit:
                     # We resolved too many targets for this indirect jump. Something might have gone wrong.
-                    l.warning("%d targets are resolved for the indirect jump at %#x. It may not be a jump table",
+                    l.debug("%d targets are resolved for the indirect jump at %#x. It may not be a jump table",
                               total_cases, addr)
                     return False, None
 
@@ -1813,7 +1822,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
                 if total_cases > self._indirect_jump_target_limit:
                     # We resolved too many targets for this indirect jump. Something might have gone wrong.
-                    l.warning("%d targets are resolved for the indirect jump at %#x. It may not be a jump table",
+                    l.debug("%d targets are resolved for the indirect jump at %#x. It may not be a jump table",
                               total_cases, addr)
                     return False, None
 

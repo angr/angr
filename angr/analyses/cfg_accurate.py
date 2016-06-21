@@ -1800,7 +1800,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
                     l.debug('All exits are returns (Ijk_Ret). It will be handled by pending exits.')
 
                 else:
-                    l.warning('It seems that we cannot resolve this indirect jump: %s', cfg_node)
+                    l.debug('It seems that we cannot resolve this indirect jump: %s', cfg_node)
                     self.kb._unresolved_indirect_jumps.add(simrun.addr)
 
         return successors
@@ -2268,7 +2268,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):
             else:
                 sec_name = section.name
             # AngrError shouldn't really happen though
-            l.error("Caught an AngrError during CFG recovery at %#x (%s)",
+            l.debug("Caught an AngrError during CFG recovery at %#x (%s)",
                     addr, sec_name, exc_info=True)
             # We might be on a wrong branch, and is likely to encounter the
             # "No bytes in memory xxx" exception
