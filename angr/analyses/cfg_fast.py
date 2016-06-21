@@ -1767,7 +1767,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
                 ij = self.indirect_jumps[addr]
                 ij.jumptable = True
-                ij.jumptable_addr = jump_addr
+                ij.jumptable_addr = state.se.min(jump_addr)
                 ij.jumptable_targets = jump_table
                 ij.jumptable_entries = total_cases
 
@@ -1875,7 +1875,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
                     ij = self.indirect_jumps[addr]
                     ij.jumptable = True
-                    ij.jumptable_addr = jump_target
+                    ij.jumptable_addr = state.se.min(jump_target)
                     ij.jumptable_targets = jump_table
                     ij.jumptable_entries = total_cases
 
