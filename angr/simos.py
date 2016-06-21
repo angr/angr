@@ -13,7 +13,7 @@ from cle import MetaELF, BackedCGC
 import pyvex
 import claripy
 
-from .errors import AngrUnsupportedSyscallError, AngrCallableError
+from .errors import AngrUnsupportedSyscallError, AngrCallableError, AngrSimOSError
 from .tablespecs import StringTableSpec
 
 l = logging.getLogger("angr.simos")
@@ -222,8 +222,21 @@ class SimOS(object):
                                                         explicit_name=True))
 
         for reg, val, is_addr, mem_region in state.arch.default_register_values:
+
+            region_base = None # so pycharm does not complain
+
+            if is_addr:
+                if isinstance(mem_region, tuple):
+                    # unpack it
+                    mem_region, region_base = mem_region
+                elif mem_region == 'global':
+                    # Backward compatibility
+                    region_base = 0
+                else:
+                    raise AngrSimOSError('You must specify the base address for memory region "%s". ' % mem_region)
+
             if o.ABSTRACT_MEMORY in state.options and is_addr:
-                address = claripy.ValueSet(region=mem_region, bits=state.arch.bits, val=val)
+                address = claripy.ValueSet(state.arch.bits, mem_region, region_base, val)
                 state.registers.store(reg, address)
             else:
                 state.registers.store(reg, val)
