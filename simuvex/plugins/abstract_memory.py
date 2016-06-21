@@ -208,6 +208,24 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     def regions(self):
         return self._regions
 
+    def _region_base(self, region):
+        """
+        Get the base address of a memory region.
+
+        :param str region: ID of the memory region
+        :return: Address of the memory region
+        :rtype: int
+        """
+
+        if region == 'global':
+            region_base_addr = 0
+        elif region.startswith('stack_'):
+            region_base_addr = self._stack_region_map.absolutize(region, 0)
+        else:
+            region_base_addr = self._generic_region_map.absolutize(region, 0)
+
+        return region_base_addr
+
     def stack_id(self, function_address):
         """
         Return a memory region ID for a function. If the default region ID exists in the region mapping, an integer
@@ -257,7 +275,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         """
         if self._stack_region_map.is_empty and self._generic_region_map.is_empty:
             # We don't have any mapped region right now
-            return AddressWrapper(region_id, relative_address, False, None)
+            return AddressWrapper(region_id, 0, relative_address, False, None)
 
         # We wanna convert this address to an absolute address first
         if region_id.startswith('stack_'):
@@ -278,7 +296,9 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
                 target_region_id=target_region
             )
 
-            return AddressWrapper(new_region_id, new_relative_address, True, related_function_addr)
+            return AddressWrapper(new_region_id, self._region_base(new_region_id), new_relative_address, True,
+                                  related_function_addr
+                                  )
 
         else:
             new_region_id, new_relative_address, related_function_addr = self._generic_region_map.relativize(
@@ -286,7 +306,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
                 target_region_id=target_region
             )
 
-            return AddressWrapper(new_region_id, new_relative_address, False, None)
+            return AddressWrapper(new_region_id, self._region_base(new_region_id), new_relative_address, False, None)
 
     def set_state(self, state):
         """
@@ -314,11 +334,10 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         if type(addr) in (int, long):
             addr = self.state.se.BVV(addr, self.state.arch.bits)
 
-        addr = addr._model_vsa
         addr_with_regions = self._normalize_address_type(addr)
         address_wrappers = [ ]
 
-        for region, addr_si in addr_with_regions.items():
+        for region, addr_si in addr_with_regions:
             if is_write:
                 concrete_addrs = addr_si.eval(WRITE_TARGETS_LIMIT)
                 if len(concrete_addrs) == WRITE_TARGETS_LIMIT:
@@ -339,22 +358,24 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             return address_wrappers
 
     def _normalize_address_type(self, addr): #pylint:disable=no-self-use
-        if isinstance(addr, claripy.bv.BVV):
-            # That's a global address
-            addr = claripy.vsa.ValueSet(region='global', bits=addr.bits, val=addr.value)
+        """
+        Convert address of different types to a list of mapping between region IDs and offsets (strided intervals).
 
-            return addr
-        elif isinstance(addr, claripy.vsa.StridedInterval):
-            l.warning('Converting an SI to address. This may implies an imprecise analysis (e.g. skipping functions) or a bug/"feature" in the program itself.')
-            # We'll convert as best as we can do...
-            # if len(addr.eval(20)) == 20:
-            #    l.warning('Returning more than 20 addresses - Unconstrained write?')
-            #    addr = claripy.vsa.ValueSet(region='global', bits=addr.bits, val=addr)
-            #else:
-            addr = claripy.vsa.ValueSet(region='global', bits=addr.bits, val=addr)
-            return addr
-        elif isinstance(addr, claripy.vsa.ValueSet):
-            return addr
+        :param claripy.ast.Base addr: Address to convert
+        :return: A list of mapping between region IDs and offsets.
+        :rtype: dict
+        """
+
+        if isinstance(addr, (claripy.bv.BVV, claripy.vsa.StridedInterval, claripy.vsa.ValueSet)):
+            raise SimMemoryError('_normalize_address_type() does not take claripy models.')
+
+        if isinstance(addr, claripy.ast.Base):
+            if not isinstance(addr._model_vsa, ValueSet):
+                # Convert it to a ValueSet first by annotating it
+                addr = addr.annotate(RegionAnnotation('global', 0, addr._model_vsa))
+
+            return addr._model_vsa.items()
+
         else:
             raise SimMemoryError('Unsupported address type %s' % type(addr))
 
@@ -451,14 +472,17 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         if type(addr) in (int, long):
             addr = self.state.se.BVV(addr, self.state.arch.bits)
 
-        addr = self._normalize_address_type(addr._model_vsa)
+        addr = self._normalize_address_type(addr)
 
         # TODO: For now we are only finding in one region!
-        for region, si in addr.items():
+        for region, si in addr:
             si = self.state.se.SI(to_conv=si)
             r, s, i = self._regions[region].memory.find(si, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
             # Post process r so that it's still a ValueSet variable
-            r = self.state.se.ValueSet(region=region, bits=r.size(), val=r._model_vsa)
+
+            region_base_addr = self._region_base(region)
+
+            r = self.state.se.ValueSet(r.size(), region, region_base_addr, r._model_vsa)
 
             return r, s, i
 
@@ -582,7 +606,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         addrs = self._normalize_address_type(dst)
 
 
-        for region, addr in addrs.items():
+        for region, addr in addrs:
             address_wrapper = self._normalize_address(region, addr.min)
 
             return address_wrapper.address in self.regions[address_wrapper.region]
@@ -599,5 +623,5 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
 from ..s_errors import SimMemoryError
 from ..storage.memory import MemoryStoreRequest, RegionMap
-from claripy.vsa import ValueSet
+from claripy.vsa import ValueSet, RegionAnnotation
 from ..s_options import KEEP_MEMORY_READS_DISCRETE
