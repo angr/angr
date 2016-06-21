@@ -695,6 +695,11 @@ class CFGBase(Analysis):
         for addr in to_remove:
             del self.kb.functions[addr]
 
+        # Update CFGNode.function_address
+        for node in self._nodes.itervalues():
+            if node.addr in blockaddr_to_function:
+                node.function_address = blockaddr_to_function[node.addr].addr
+
     def _process_irrational_functions(self, functions, blockaddr_to_function):
         """
         For unresolveable indirect jumps, angr marks those jump targets as individual functions. For example, usually

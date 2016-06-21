@@ -1015,14 +1015,14 @@ class CFGFast(ForwardAnalysis, CFGBase):
             if f.returning is None:
                 f.returning = True
 
+        self._remove_redudant_overlapping_blocks()
+
         self.make_functions()
+
+        self._tidy_data_references()
 
         if self._show_progressbar:
             self._finish_progressbar()
-
-        self._remove_redudant_overlapping_blocks()
-
-        self._tidy_data_references()
 
         CFGBase._post_analysis(self)
 
