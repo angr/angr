@@ -92,6 +92,8 @@ class SimStateLibc(SimStatePlugin):
         # It will be initialized in __libc_start_main SimProcedure
         self.ctype_table_ptr = None
 
+        self._errno_location = None
+
     def copy(self):
         c = SimStateLibc()
         c.heap_location = self.heap_location
@@ -109,6 +111,7 @@ class SimStateLibc(SimStatePlugin):
         c.strdup_stack = self.strdup_stack[:]
         c.ppc64_abiv = self.ppc64_abiv
         c.ctype_table_ptr = self.ctype_table_ptr
+        c._errno_location = self._errno_location
         #c.aa = self.aa
 
         return c
