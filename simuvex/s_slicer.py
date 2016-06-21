@@ -153,6 +153,10 @@ class SimSlicer(object):
 
         return (op0 + op1) & (2 ** 64 - 1)
 
+    def _forward_handler_expr_binop_Add32(self, op0, op1, state):
+
+        return (op0 + op1) & (2 ** 32 - 1)
+
     #
     # Backward slicing
     #
@@ -176,7 +180,7 @@ class SimSlicer(object):
                 if self._inslice_callback:
                     self._inslice_callback(stmt_idx, stmt, self.inslice_callback_infodict)
 
-            if not regs and not tmps:
+            if not regs and not tmps and not stack_offsets:
                 break
 
         self.final_regs = state.regs
