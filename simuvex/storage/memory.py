@@ -100,6 +100,10 @@ class RegionMap(object):
 
         return self._address_to_region_id.max_key()
 
+    @property
+    def region_ids(self):
+        return self._region_id_to_address.keys()
+
     #
     # Public methods
     #
