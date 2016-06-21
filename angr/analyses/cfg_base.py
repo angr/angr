@@ -15,6 +15,30 @@ from .cfg_node import CFGNode
 
 l = logging.getLogger(name="angr.cfg_base")
 
+
+class IndirectJump(object):
+    def __init__(self, addr, ins_addr, resolved_targets=None, jumptable=False, jumptable_addr=None,
+                 jumptable_entries=None):
+        self.addr = addr
+        self.ins_addr = ins_addr
+        self.resolved_targets = set() if resolved_targets is None else set(resolved_targets)
+        self.jumptable = jumptable
+        self.jumptable_addr = jumptable_addr
+        self.jumptable_entries = jumptable_entries
+
+    def __repr__(self):
+
+        status = ""
+        if self.jumptable:
+            status = "jumptable"
+            if self.jumptable_addr is not None:
+                status += "@%#08x" % self.jumptable_addr
+            if self.jumptable_entries is not None:
+                status += " with %d entries" % self.jumptable_entries
+
+        return "<IndirectJump %#08x - ins %#08x%s>" % (self.addr, self.ins_addr, " " + status if status else "")
+
+
 class CFGBase(Analysis):
     """
     The base class for control flow graphs.
@@ -46,6 +70,10 @@ class CFGBase(Analysis):
         self._changed_functions = None
 
         self._normalize = normalize
+
+        # IndirectJump object that describe all indirect exits found in the binary
+        # stores as a map between addresses and IndirectJump objects
+        self.indirect_jumps = {}
 
     def __contains__(self, cfg_node):
         return cfg_node in self._graph

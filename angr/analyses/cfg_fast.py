@@ -11,7 +11,7 @@ import simuvex
 import pyvex
 
 from .cfg_node import CFGNode
-from .cfg_base import CFGBase
+from .cfg_base import CFGBase, IndirectJump
 from .forward_analysis import ForwardAnalysis
 from ..blade import Blade
 from ..analysis import register_analysis
@@ -399,6 +399,7 @@ class FunctionReturn(object):
     def __hash__(self):
         return hash((self.callee_func_addr, self.caller_func_addr, self.call_site_addr, self.return_to))
 
+
 class MemoryData(object):
     def __init__(self, address, size, sort, irsb, irsb_addr, stmt_idx):
         self.address = address
@@ -563,8 +564,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         self._read_addr_to_run = defaultdict(list)
         self._write_addr_to_run = defaultdict(list)
 
-        # All IRSBs with an indirect exit target
-        self._indirect_jumps = set()
+        self._indirect_jumps_to_resolve = set()
 
         self._jump_tables = { }
 
@@ -625,12 +625,12 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
     def __setstate__(self, s):
         self._graph = s['graph']
-        self._jump_tables = s['jump_tables']
+        self.indirect_jumps = s['indirect_jumps']
 
     def __getstate__(self):
         s = {
             "graph": self.graph,
-            "jump_tables": self._jump_tables,
+            "indirect_jumps": self.indirect_jumps,
         }
         return s
 
@@ -948,7 +948,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 return
 
         # Try to see if there is any indirect jump left to be resolved
-        if self._resolve_indirect_jumps and self._indirect_jumps:
+        if self._resolve_indirect_jumps and self._indirect_jumps_to_resolve:
             jump_targets = list(set(self._process_indirect_jumps()))
 
             for addr, func_addr, source_addr in jump_targets:
@@ -1262,24 +1262,40 @@ class CFGFast(ForwardAnalysis, CFGBase):
             else:
                 l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
                 # Add it to our set. Will process it later if user allows.
-                self._indirect_jumps.add(CFGEntry(addr, current_function_addr, jumpkind))
+                self._indirect_jumps_to_resolve.add(CFGEntry(addr, current_function_addr, jumpkind))
+
+                # Create an IndirectJump instance
+                if addr not in self.indirect_jumps:
+                    tmp_statements = irsb.statements if stmt_idx == 'default' else irsb.statements[ : stmt_idx]
+                    ins_addr = next(iter(stmt.addr for stmt in reversed(tmp_statements)
+                                         if isinstance(stmt, pyvex.IRStmt.IMark)), None
+                                    )
+                    ij = IndirectJump(addr, ins_addr, [ ])
+                    self.indirect_jumps[addr] = ij
+                else:
+                    ij = self.indirect_jumps[addr]
 
                 if irsb:
                     # Test it on the initial state. Does it jump to a valid location?
-                    # It will be resolved in case this is a .plt entry
+                    # It will be resolved only if this is a .plt entry
                     tmp_simirsb = simuvex.SimIRSB(self._initial_state, irsb, addr=addr)
                     if len(tmp_simirsb.successors) == 1:
                         tmp_ip = tmp_simirsb.successors[0].ip
                         if tmp_ip._model_concrete is not tmp_ip:
                             tmp_addr = tmp_ip._model_concrete.value
                             tmp_function_addr = tmp_addr # TODO: FIX THIS
-                            if self._addr_in_memory_regions(tmp_addr) or self.project.is_hooked(tmp_addr):
+                            if (self.project.loader.addr_belongs_to_object(tmp_addr) is not
+                                    self.project.loader.main_bin) \
+                                    or self.project.is_hooked(tmp_addr):
 
                                 r = self._function_add_transition_edge(tmp_addr, cfg_node, current_function_addr)
                                 if r:
                                     ce = CFGEntry(tmp_addr, tmp_function_addr, jumpkind, last_addr=tmp_addr,
                                                   src_node=cfg_node, src_stmt_idx=stmt_idx)
                                     entries.append(ce)
+
+                                    # Fill the IndirectJump object
+                                    ij.resolved_targets.add(tmp_addr)
 
                                     self._function_add_call_edge(tmp_addr, None, None, tmp_function_addr)
 
@@ -1300,7 +1316,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 else:
                     l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
                     # Add it to our set. Will process it later if user allows.
-                    self._indirect_jumps.add(CFGEntry(addr, current_function_addr, jumpkind))
+                    self._indirect_jumps_to_resolve.add(CFGEntry(addr, current_function_addr, jumpkind))
 
                     self._create_entry_call(addr, irsb, cfg_node, stmt_idx, current_function_addr, None, jumpkind,
                                             is_syscall=is_syscall)
@@ -1580,7 +1596,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         resolved = set()
         # print "We have %d indirect jumps" % len(self._indirect_jumps)
 
-        for entry in self._indirect_jumps:
+        for entry in self._indirect_jumps_to_resolve:
 
             resolved.add(entry)
 
@@ -1589,6 +1605,14 @@ class CFGFast(ForwardAnalysis, CFGBase):
             if resolvable:
                 # Remove all targets that don't make sense
                 targets = [ t for t in targets if any(iter((a <= t < b) for a, b in self._exec_mem_regions)) ]
+
+                if entry.addr in self.indirect_jumps:
+                    ij = self.indirect_jumps[entry.addr]
+
+                    ij.jumptable = True
+
+                    # Fill the IndirectJump object
+                    ij.resolved_targets |= set(targets)
 
                 all_targets |= set([ (t, entry.func_addr, entry.addr) for t in targets ])
                 continue
@@ -1600,7 +1624,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
             #    continue
 
         for t in resolved:
-            self._indirect_jumps.remove(t)
+            self._indirect_jumps_to_resolve.remove(t)
 
         return all_targets
 
@@ -1740,7 +1764,13 @@ class CFGFast(ForwardAnalysis, CFGBase):
                     jump_table.append(target)
 
                 l.info("Jump table resolution: resolved %d targets from %#x", len(all_targets), addr)
-                self._jump_tables[addr] = jump_table
+
+                ij = self.indirect_jumps[addr]
+                ij.jumptable = True
+                ij.jumptable_addr = jump_addr
+                ij.jumptable_targets = jump_table
+                ij.jumptable_entries = total_cases
+
                 return True, all_targets
 
         return False, None
@@ -1842,7 +1872,13 @@ class CFGFast(ForwardAnalysis, CFGBase):
                     jump_table.append(target)
 
                     l.info("Jump table resolution: resolved %d targets from %#x", len(all_targets), addr)
-                    self._jump_tables[addr] = jump_table
+
+                    ij = self.indirect_jumps[addr]
+                    ij.jumptable = True
+                    ij.jumptable_addr = jump_target
+                    ij.jumptable_targets = jump_table
+                    ij.jumptable_entries = total_cases
+
                     return True, all_targets
 
     def _resolve_indirect_calls(self):
@@ -1855,7 +1891,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         function_starts = set()
 
-        for jumpkind, irsb_addr in self._indirect_jumps:
+        for jumpkind, irsb_addr in self._indirect_jumps_to_resolve:
             # First execute the current IRSB in concrete mode
 
             if len(function_starts) > 20:
