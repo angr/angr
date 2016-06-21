@@ -55,6 +55,9 @@ class AngrCallableMultistateError(AngrCallableError):
 class AngrUnsupportedSyscallError(AngrError):
     pass
 
+class AngrSimOSError(AngrError):
+    pass
+
 # Congruency check failure
 class AngrIncongruencyError(AngrAnalysisError):
     pass
