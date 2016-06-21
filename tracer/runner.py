@@ -154,37 +154,40 @@ class Runner(object):
 
 ### DYNAMIC TRACING
 
-    @staticmethod
+    # create a tmp dir in /dev/shm, chdir into it, set rlimit, save the current self.binary
+    # at the end, it restores everything
     @contextlib.contextmanager
-    def _newcwd(newdir):
+    def _setup_env(self):
+        prefix = "/dev/shm/"
         curdir = os.getcwd()
-        os.chdir(newdir)
-        try:
-            yield
-        finally:
-            os.chdir(curdir)
-
-    def dynamic_trace(self, stdout_file=None):
+        tmpdir = tempfile.mkdtemp(prefix=prefix)
         # allow cores to be dumped
         saved_limit = resource.getrlimit(resource.RLIMIT_CORE)
-        resource.setrlimit(resource.RLIMIT_CORE,
-                           (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
-        binary_name = os.path.basename(self.binary)
-        binary_replacement = tempfile.mktemp(prefix=binary_name)
-        shutil.copy(self.binary, binary_replacement)
-        binary_back = self.binary
-        self.binary = binary_replacement
+        resource.setrlimit(resource.RLIMIT_CORE, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
+        binary_old = self.binary
+        binary_replacement_fname = os.path.join(tmpdir,"binary_replacement")
+        shutil.copy(self.binary, binary_replacement_fname)
+        self.binary = binary_replacement_fname
+        os.chdir(tmpdir)
+        try:
+            yield (tmpdir,binary_replacement_fname)
+        finally:
+            assert tmpdir.startswith(prefix)
+            shutil.rmtree(tmpdir)
+            os.chdir(curdir)
+            resource.setrlimit(resource.RLIMIT_CORE, saved_limit)
+            self.binary = binary_old
 
-        with self._newcwd('/dev/shm'):
+    def dynamic_trace(self, stdout_file=None):
+        binary_name = os.path.basename(self.binary)
+
+        with self._setup_env() as (tmpdir,binary_replacement_fname):
             # get the dynamic trace
             self._run_trace(stdout_file=stdout_file)
 
-            # restore the resource limit now that the binary has run
-            resource.setrlimit(resource.RLIMIT_CORE, saved_limit)
-
             if self.crash_mode:
                 # find core file
-                unique_prefix = "qemu_{}".format(os.path.basename(binary_replacement))
+                unique_prefix = "qemu_{}".format(os.path.basename(binary_replacement_fname))
                 core_files = filter(
                         lambda x: x.startswith(unique_prefix) and x.endswith('.core'),
                         os.listdir('.')
@@ -195,12 +198,9 @@ class Runner(object):
                 a_mesg = "Multiple core files found for binary, this shouldn't happen"
                 assert len(core_files) < 2, a_mesg
                 core_file = core_files[0]
+                a_mesg = "Empty core file generated"
+                assert os.path.getsize(core_file) > 0, a_mesg
                 self._load_core_values(core_file)
-                os.remove(core_file)
-
-        # undo stuff
-        self.binary = binary_back
-        os.remove(binary_replacement)
 
     def _run_trace(self, stdout_file=None):
         """
