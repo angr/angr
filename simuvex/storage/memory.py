@@ -13,16 +13,18 @@ class AddressWrapper(object):
     object) that is normalized from an integer/BVV/StridedInterval.
     """
 
-    def __init__(self, region, address, is_on_stack, function_address):
+    def __init__(self, region, region_base_addr, address, is_on_stack, function_address):
         """
         Constructor for the class AddressWrapper.
 
-        :param region:              Name of the memory regions it belongs to.
+        :param strregion:              Name of the memory regions it belongs to.
+        :param int region_base_addr:   Base address of the memory region
         :param address:             An address (not a ValueSet object).
-        :param is_on_stack:         Whether this address is on a stack region or not.
-        :param function_address:    Related function address (if any).
+        :param bool is_on_stack:       Whether this address is on a stack region or not.
+        :param int function_address:   Related function address (if any).
         """
         self.region = region
+        self.region_base_addr = region_base_addr
         self.address = address
         self.is_on_stack = is_on_stack
         self.function_address = function_address
@@ -43,7 +45,7 @@ class AddressWrapper(object):
         :param state: A state
         :return: The converted ValueSet instance
         """
-        return state.se.VS(bits=state.arch.bits, region=self.region, val=self.address)
+        return state.se.VS(state.arch.bits, self.region, self.region_base_addr, self.address)
 
 class RegionDescriptor(object):
     """

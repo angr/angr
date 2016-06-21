@@ -115,7 +115,7 @@ def test_state_merge_static():
     # Aligned memory merging
     a = SimState(mode='static')
 
-    addr = a.se.ValueSet(region='global', bits=32, val=8)
+    addr = a.se.ValueSet(32, 'global', 0, 8)
     a.memory.store(addr, a.se.BVV(42, 32))
     # Clear a_locs, so further writes will not try to merge with value 42
     a.memory.regions['global']._alocs = { }

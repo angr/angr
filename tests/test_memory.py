@@ -322,7 +322,7 @@ def test_abstract_memory():
     se = s.se
 
     def to_vs(region, offset):
-        return s.se.VS(region=region, bits=s.arch.bits, val=offset)
+        return s.se.VS(s.arch.bits, region, 0, offset)
 
     # Load a single-byte constant from global region
     expr = s.memory.load(to_vs('global', 2), 1)
@@ -442,7 +442,7 @@ def test_abstract_memory_find():
     s.memory.store(4, se.TSI(bits=64))
 
     def to_vs(region, offset):
-        return VS(region=region, bits=s.arch.bits, val=offset)
+        return VS(s.arch.bits, region, 0, offset)
 
     r, _, _ = s.memory.find(to_vs('global', 1), BVV(ord('A'), 8))
 
