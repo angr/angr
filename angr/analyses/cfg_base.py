@@ -746,6 +746,9 @@ class CFGBase(Analysis):
                 continue
 
             startpoint = function.startpoint.addr
+            if not function.endpoints:
+                # Function should have at least one endpoint
+                continue
             endpoint = max([ a.addr for a in function.endpoints ])
 
             # sanity check: startpoint of the function should be greater than its endpoint
