@@ -15,6 +15,30 @@ from .cfg_node import CFGNode
 
 l = logging.getLogger(name="angr.cfg_base")
 
+
+class IndirectJump(object):
+    def __init__(self, addr, ins_addr, resolved_targets=None, jumptable=False, jumptable_addr=None,
+                 jumptable_entries=None):
+        self.addr = addr
+        self.ins_addr = ins_addr
+        self.resolved_targets = set() if resolved_targets is None else set(resolved_targets)
+        self.jumptable = jumptable
+        self.jumptable_addr = jumptable_addr
+        self.jumptable_entries = jumptable_entries
+
+    def __repr__(self):
+
+        status = ""
+        if self.jumptable:
+            status = "jumptable"
+            if self.jumptable_addr is not None:
+                status += "@%#08x" % self.jumptable_addr
+            if self.jumptable_entries is not None:
+                status += " with %d entries" % self.jumptable_entries
+
+        return "<IndirectJump %#08x - ins %#08x%s>" % (self.addr, self.ins_addr, " " + status if status else "")
+
+
 class CFGBase(Analysis):
     """
     The base class for control flow graphs.
@@ -46,6 +70,10 @@ class CFGBase(Analysis):
         self._changed_functions = None
 
         self._normalize = normalize
+
+        # IndirectJump object that describe all indirect exits found in the binary
+        # stores as a map between addresses and IndirectJump objects
+        self.indirect_jumps = {}
 
     def __contains__(self, cfg_node):
         return cfg_node in self._graph
@@ -621,6 +649,8 @@ class CFGBase(Analysis):
         Although Function objects are crated during the CFG recovery, they are neither sound nor accurate. With a
         pre-constructed CFG, this method rebuilds all functions bearing the following rules:
         - A block may only belong to one function.
+        - Small functions lying inside the startpoint and the endpoint of another function will be merged with the
+          other function
         - Tail call optimizations are detected.
         - PLT stubs are aligned by 16.
 
@@ -639,6 +669,8 @@ class CFGBase(Analysis):
 
         function_nodes = set()
 
+        removed_functions = self._process_irrational_functions(tmp_functions, blockaddr_to_function)
+
         # Find nodes for beginnings of all functions
         for _, dst, data in self.graph.edges_iter(data=True):
             jumpkind = data.get('jumpkind', "")
@@ -646,7 +678,7 @@ class CFGBase(Analysis):
                 function_nodes.add(dst)
 
         for n in self.graph.nodes_iter():
-            if n.addr in tmp_functions:
+            if n.addr in tmp_functions or n.addr in removed_functions:
                 function_nodes.add(n)
 
         # traverse the graph starting from each node, not following call edges
@@ -662,6 +694,94 @@ class CFGBase(Analysis):
 
         for addr in to_remove:
             del self.kb.functions[addr]
+
+        # Update CFGNode.function_address
+        for node in self._nodes.itervalues():
+            if node.addr in blockaddr_to_function:
+                node.function_address = blockaddr_to_function[node.addr].addr
+
+    def _process_irrational_functions(self, functions, blockaddr_to_function):
+        """
+        For unresolveable indirect jumps, angr marks those jump targets as individual functions. For example, usually
+        the following pattern is seen:
+
+        sub_0x400010:
+            push ebp
+            mov esp, ebp
+            ...
+            cmp eax, 10
+            ja end
+            mov eax, jumptable[eax]
+            jmp eax
+
+        sub_0x400080:
+            # do something here
+            jmp end
+
+        end (0x400e00):
+            pop ebp
+            ret
+
+        In the example above, `process_irrational_functions` will remove function 0x400080, and merge it with function
+        0x400010.
+
+        :param angr.knowledge.FunctionManager functions: all functions that angr recovers, including those ones that are
+            misidentified as functions.
+        :param dict blockaddr_to_function: A mapping between block addresses and Function instances.
+        :return: a list of addresses of all removed functions
+        :rtype: list
+        """
+
+        functions_to_remove = { }
+
+        for func_addr, function in functions.iteritems():
+
+            if func_addr in functions_to_remove:
+                continue
+
+            # check all blocks and see if any block ends with an indirect jump and is not resolved
+            has_unresolved_jumps = False
+            for block in function.blocks:
+                block_addr = block.addr
+                if block_addr in self.indirect_jumps and not self.indirect_jumps[block_addr].resolved_targets:
+                    # it's not resolved
+                    has_unresolved_jumps = True
+
+            if not has_unresolved_jumps:
+                continue
+
+            startpoint = function.startpoint.addr
+            if not function.endpoints:
+                # Function should have at least one endpoint
+                continue
+            endpoint = max([ a.addr for a in function.endpoints ])
+
+            # sanity check: startpoint of the function should be greater than its endpoint
+            if startpoint >= endpoint:
+                continue
+
+            # find all functions that are between [ startpoint, endpoint ]
+
+            for f_addr, f in functions.iteritems():
+                if f_addr in functions_to_remove:
+                    continue
+                if f_addr == func_addr:
+                    continue
+
+                if startpoint < f_addr < endpoint and all([startpoint < b.addr < endpoint for b in f.blocks]):
+                    functions_to_remove[f_addr] = func_addr
+                    continue
+
+        # merge all functions
+        for to_remove, merge_with in functions_to_remove.iteritems():
+            func_merge_with = self._addr_to_function(merge_with, blockaddr_to_function, functions)
+
+            for block in functions[to_remove].blocks:
+                blockaddr_to_function[block.addr] = func_merge_with
+
+            del functions[to_remove]
+
+        return functions_to_remove.keys()
 
     def _addr_to_function(self, addr, blockaddr_to_function, known_functions):
         """
@@ -784,7 +904,9 @@ class CFGBase(Analysis):
         elif jumpkind == 'Ijk_Boring':
 
             # is it a jump to another function?
-            if dst_addr in known_functions:
+            if dst_addr in known_functions or (
+                dst_addr in blockaddr_to_function and blockaddr_to_function[dst_addr] is not src_function
+            ):
                 # yes it is
                 self.kb.functions._add_outside_transition_to(src_function.addr, src_addr, dst_addr)
 
