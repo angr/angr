@@ -97,8 +97,8 @@ class SimTypeTop(SimType):
 
     _fields = ('size',)
 
-    def __init__(self, size=None):
-        SimType.__init__(self)
+    def __init__(self, size=None, label=None):
+        SimType.__init__(self, label)
         self._size = size
 
     def __repr__(self):
@@ -287,6 +287,20 @@ class SimTypeChar(SimTypeReg):
         return out
 
 
+class SimTypeBool(SimTypeChar):
+    def __repr__(self):
+        return 'bool'
+
+    def store(self, state, addr, value):
+        return super(SimTypeBool, self).store(state, addr, int(value))
+
+    def extract(self, state, addr, concrete=False):
+        ver = super(SimTypeBool, self).extract(state, addr, concrete)
+        if concrete:
+            return ver != '\0'
+        return ver != 0
+
+
 class SimTypeFd(SimTypeReg):
     """
     SimTypeFd is a type that specifies a file descriptor.
@@ -311,7 +325,7 @@ class SimTypePointer(SimTypeReg):
 
     _fields = SimTypeReg._fields + ('pts_to',)
 
-    def __init__(self, pts_to, label=None):
+    def __init__(self, pts_to, label=None, offset=0):
         """
         :param label:   The type label.
         :param pts_to:  The type to which this pointer points to.
@@ -319,6 +333,7 @@ class SimTypePointer(SimTypeReg):
         super(SimTypePointer, self).__init__(None, label=label)
         self.pts_to = pts_to
         self.signed = False
+        self.offset = offset
 
     def __repr__(self):
         return '{}*'.format(self.pts_to)

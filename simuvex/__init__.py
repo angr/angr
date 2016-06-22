@@ -28,3 +28,4 @@ from .s_cc import SimCC, DefaultCC
 from .s_slicer import SimSlicer
 from .s_variable import *
 from . import storage
+from . import s_type_backend
