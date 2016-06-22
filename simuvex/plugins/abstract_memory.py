@@ -468,7 +468,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         return self._regions[key].load(addr, size, bbl_addr, stmt_id, ins_addr)
 
-    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
+    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
         if type(addr) in (int, long):
             addr = self.state.se.BVV(addr, self.state.arch.bits)
 
@@ -477,7 +477,10 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         # TODO: For now we are only finding in one region!
         for region, si in addr:
             si = self.state.se.SI(to_conv=si)
-            r, s, i = self._regions[region].memory.find(si, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
+            r, s, i = self._regions[region].memory.find(si, what, max_search=max_search,
+                                                        max_symbolic_bytes=max_symbolic_bytes, default=default,
+                                                        step=step
+                                                        )
             # Post process r so that it's still a ValueSet variable
 
             region_base_addr = self._region_base(region)

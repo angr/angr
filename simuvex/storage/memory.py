@@ -674,7 +674,7 @@ class SimMemory(SimStatePlugin):
     def _load(self, addr, size, condition=None, fallback=None):
         raise NotImplementedError()
 
-    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
+    def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
         """
         Returns the address of bytes equal to 'what', starting from 'start'. Note that,  if you don't specify a default
         value, this search could cause the state to go unsat if no possible matching byte exists.
@@ -695,13 +695,14 @@ class SimMemory(SimStatePlugin):
             # Convert it to a BVV
             what = claripy.BVV(what, len(what) * 8)
 
-        r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default)
+        r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default,
+                           step=step)
         if o.AST_DEPS in self.state.options and self.category == 'reg':
             r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
         return r,c,m
 
-    def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
+    def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
         raise NotImplementedError()
 
     def copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None):

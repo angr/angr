@@ -196,7 +196,7 @@ class SimFastMemory(SimMemory):
         else:
             return [addr], claripy.Concat(*[self._single_load(a, o, s) for a,o,s in accesses]), []
 
-    def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None):
+    def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
         raise SimFastMemoryError("find unsupported")
 
     def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None):

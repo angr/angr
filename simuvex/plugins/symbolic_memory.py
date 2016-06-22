@@ -614,7 +614,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return addrs, read_value, load_constraint
 
-    def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None):
+    def _find(self, start, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
         if max_search is None:
             max_search = DEFAULT_MAX_SEARCH
 
@@ -632,7 +632,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         cases = [ ]
         match_indices = [ ]
         offsets_matched = [ ] # Only used in static mode
-        for i in itertools.count():
+        for i in itertools.count(step=step):
             l.debug("... checking offset %d", i)
             if i > max_search - seek_size:
                 l.debug("... hit max size")
