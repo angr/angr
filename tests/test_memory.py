@@ -300,7 +300,7 @@ def test_cased_store():
     #t = s.se.BVS('t', 32)
     s.memory.store_cases(0, [ s.se.BVV('AA'), s.se.BVV('AA'), s.se.BVV('AA') ], [ u == 0, u == 1, u == 2], fallback=s.se.BVV('XX'))
     r = s.memory.load(0, 2)
-    nose.tools.assert_equal(s.se.any_n_str(r, 3), ['AA', 'XX'])
+    nose.tools.assert_equal(sorted(s.se.any_n_str(r, 3)), ['AA', 'XX'])
 
     # and some identical values
     s = so.copy()
