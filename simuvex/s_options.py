@@ -202,6 +202,9 @@ APPROXIMATE_MEMORY_INDICES = "APPROXIMAGE_MEMORY_INDICES"
 # use an experimental replacement solver
 REPLACEMENT_SOLVER = "REPLACEMENT_SOLVER"
 
+# use a cache-less solver in claripy
+CACHELESS_SOLVER = "CACHELESS_SOLVER"
+
 # IR optimization
 OPTIMIZE_IR = "OPTIMIZE_IR"
 

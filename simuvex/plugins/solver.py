@@ -177,6 +177,15 @@ class SimSolver(SimStatePlugin):
         SimStatePlugin.__init__(self)
         self._stored_solver = solver
 
+    def reload_solver(self):
+        """
+        Reloads the solver. Useful when changing solver options.
+        """
+
+        constraints = self._solver.constraints
+        self._stored_solver = None
+        self._solver.add(*constraints)
+
     @property
     def _solver(self):
         if self._stored_solver is not None:
@@ -186,6 +195,8 @@ class SimSolver(SimStatePlugin):
             self._stored_solver = claripy.SolverVSA()
         elif o.REPLACEMENT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverReplacement()
+        elif o.CACHELESS_SOLVER in self.state.options:
+            self._stored_solver = claripy.SolverCacheless()
         elif o.COMPOSITE_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverComposite()
         elif o.SYMBOLIC in self.state.options and o.approximation & self.state.options:
