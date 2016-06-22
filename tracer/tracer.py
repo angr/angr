@@ -473,6 +473,7 @@ class Tracer(object):
         new_constraints = [path.state.se.simplify(c) for c in new_constraints]
 
         path.state.options.discard(so.REPLACEMENT_SOLVER)
+        path.state.options.add(so.COMPOSITE_SOLVER)
         path.state.release_plugin('solver_engine')
         path.state.add_constraints(*new_constraints)
         l.debug("downsizing unpreconstrained state")
