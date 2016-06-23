@@ -204,7 +204,7 @@ class CongruencyCheck(Analysis):
 			self._report_incongruency("Initial path comparison check failed.")
 			return False
 
-		while depth is None or self.pg.left[0].weighted_length < depth:
+		while len(self.pg.left) > 0 and len(self.pg.right) > 0:
 			if len(self.pg.deadended) != 0:
 				self._report_incongruency("Unexpected deadended paths before step.")
 				return False
@@ -236,6 +236,10 @@ class CongruencyCheck(Analysis):
 			except AngrIncongruencyError:
 				if self._validate_incongruency():
 					raise
+
+			if depth is not None:
+				self.pg.drop(stash='left', filter_func=lambda p: p.weighted_length >= depth)
+				self.pg.drop(stash='right', filter_func=lambda p: p.weighted_length >= depth)
 
 			self.pg.right.sort(key=lambda p: p.addr)
 			self.pg.left.sort(key=lambda p: p.addr)
