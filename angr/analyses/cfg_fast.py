@@ -944,7 +944,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 if self._seg_list.is_occupied(prolog_addr):
                     continue
 
-                self._insert_entry(CFGEntry(prolog_addr, prolog_addr, 'Ijk_Boring'))
+                self._entries.append(CFGEntry(prolog_addr, prolog_addr, 'Ijk_Boring'))
                 return
 
         # Try to see if there is any indirect jump left to be resolved
