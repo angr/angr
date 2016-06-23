@@ -21,7 +21,7 @@ class Runner(object):
     Trace an angr path with a concrete input
     """
 
-    def __init__(self, binary, input=None, pov_file=None, record_trace=False, record_stdout=False):
+    def __init__(self, binary, input=None, pov_file=None, record_trace=False, record_stdout=False, seed=None):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -37,6 +37,7 @@ class Runner(object):
         self.reg_vals = None
         self._state = None
         self.memory = None
+        self.seed = seed
 
         if self.pov_file is None and self.input is None:
             raise ValueError("must specify input or pov_file")
@@ -211,10 +212,14 @@ class Runner(object):
         """
 
         logname = tempfile.mktemp(dir="/dev/shm/", prefix="tracer-log-")
+        args = [self.tracer_qemu_path]
+        if self.seed is not None:
+            args.append("-seed")
+            args.append(str(self.seed))
         if self._record_trace:
-            args = [self.tracer_qemu_path, "-d", "exec", "-D", logname, self.binary]
+            args += ["-d", "exec", "-D", logname, self.binary]
         else:
-            args = [self.tracer_qemu_path, self.binary]
+            args += [self.binary]
 
         with open('/dev/null', 'wb') as devnull:
             stdout_f = devnull
