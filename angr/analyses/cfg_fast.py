@@ -944,7 +944,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 if self._seg_list.is_occupied(prolog_addr):
                     continue
 
-                self._entries.append(CFGEntry(prolog_addr, prolog_addr, 'Ijk_Boring'))
+                self._insert_entry(CFGEntry(prolog_addr, prolog_addr, 'Ijk_Boring'))
                 return
 
         # Try to see if there is any indirect jump left to be resolved
@@ -1420,6 +1420,10 @@ class CFGFast(ForwardAnalysis, CFGBase):
                 # e.g. PUT(rdi) = 0x0000000000400714
                 if stmt.offset not in (self._initial_state.arch.ip_offset, ):
                     _process(irsb, stmt, stmt.data)
+
+            elif type(stmt) is pyvex.IRStmt.Store:  # pylint: disable=unidiomatic-typecheck
+                # store
+                _process(irsb, stmt, stmt.data)
 
     def _add_data_reference(self, irsb, irsb_addr, stmt, data_addr):  # pylint: disable=unused-argument
         """
