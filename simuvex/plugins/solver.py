@@ -184,7 +184,7 @@ class SimSolver(SimStatePlugin):
 
         constraints = self._solver.constraints
         self._stored_solver = None
-        self._solver.add(*constraints)
+        self._solver.add(constraints)
 
     @property
     def _solver(self):
