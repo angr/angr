@@ -1419,6 +1419,11 @@ class CFGFast(ForwardAnalysis, CFGBase):
                     # e.g. t7 = LDle:I64(0x0000000000600ff8)
                     _process(irsb, stmt, stmt.data.addr)
 
+                elif type(stmt.data) in (pyvex.IRExpr.Binop, ):
+                    # binary operation
+                    for arg in stmt.data.args:
+                        _process(irsb, stmt, arg)
+
             elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck
                 # put
                 # e.g. PUT(rdi) = 0x0000000000400714
