@@ -1017,14 +1017,18 @@ class CFGFast(ForwardAnalysis, CFGBase):
 
         self._remove_redudant_overlapping_blocks()
 
+        if self._normalize:
+            # Normalize the control flow graph first before rediscovering all functions
+            self.normalize()
+
         self.make_functions()
 
         self._tidy_data_references()
 
+        CFGBase._post_analysis(self)
+
         if self._show_progressbar:
             self._finish_progressbar()
-
-        CFGBase._post_analysis(self)
 
     # Methods to get start points for scanning
 

@@ -70,6 +70,8 @@ class CFGBase(Analysis):
         self._changed_functions = None
 
         self._normalize = normalize
+        # Flag, whether the CFG has been normalized or not
+        self._normalized = False
 
         # IndirectJump object that describe all indirect exits found in the binary
         # stores as a map between addresses and IndirectJump objects
@@ -91,7 +93,9 @@ class CFGBase(Analysis):
     def _post_analysis(self):
 
         if self._normalize:
-            self.normalize()
+
+            if not self._normalized:
+                self.normalize()
 
             # Call normalize() on each function
             for f in self.kb.functions.values():
@@ -636,6 +640,8 @@ class CFGBase(Analysis):
                     l.error('normalize(): Please report it to Fish.')
 
             end_addresses[tpl_to_find] = [smallest_node]
+
+        self._normalized = True
 
     #
     # Function identification and such
