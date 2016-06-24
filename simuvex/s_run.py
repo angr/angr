@@ -78,6 +78,19 @@ class SimRun(object):
         guard = state._inspect_getattr("exit_guard", guard)
         jumpkind = state._inspect_getattr("exit_jumpkind", jumpkind)
 
+        #
+        # Simplification
+        #
+
+        if o.SIMPLIFY_EXIT_STATE in self.state.options:
+            state.se.simplify()
+
+        if o.SIMPLIFY_EXIT_GUARD in self.state.options:
+            guard = state.se.simplify(guard)
+
+        if o.SIMPLIFY_EXIT_TARGET in self.state.options:
+            target = state.se.simplify(target)
+
         state.scratch.target = _raw_ast(target)
         state.scratch.jumpkind = jumpkind
         state.scratch.guard = _raw_ast(guard)
