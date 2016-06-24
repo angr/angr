@@ -43,13 +43,16 @@ class CFGBase(Analysis):
     """
     The base class for control flow graphs.
     """
-    def __init__(self, context_sensitivity_level, normalize=False):
+    def __init__(self, context_sensitivity_level, normalize=False, binary=None, force_segment=False):
 
         self._context_sensitivity_level=context_sensitivity_level
 
         # Sanity checks
         if context_sensitivity_level < 0:
             raise ValueError("Unsupported context sensitivity level %d" % context_sensitivity_level)
+
+        self._binary = binary if binary is not None else self.project.loader.main_bin
+        self._force_segment = force_segment
 
         # Initialization
         self._graph = None
@@ -76,6 +79,10 @@ class CFGBase(Analysis):
         # IndirectJump object that describe all indirect exits found in the binary
         # stores as a map between addresses and IndirectJump objects
         self.indirect_jumps = {}
+
+        # Get all executable memory regions
+        self._exec_mem_regions = self._executable_memory_regions(self._binary, self._force_segment)
+        self._exec_mem_region_size = sum([(end - start) for start, end in self._exec_mem_regions])
 
     def __contains__(self, cfg_node):
         return cfg_node in self._graph
@@ -377,6 +384,85 @@ class CFGBase(Analysis):
         memory_regions = sorted(memory_regions, key=lambda x: x[0])
 
         return memory_regions
+
+    def _addr_in_exec_memory_regions(self, addr):
+        """
+        Test if the address belongs to an executable memory region.
+
+        :param int addr: The address to test
+        :return: True if the address belongs to an exectubale memory region, False otherwise
+        :rtype: bool
+        """
+
+        for start, end in self._exec_mem_regions:
+            if start <= addr < end:
+                return True
+        return False
+
+    def _addr_belongs_to_section(self, addr):
+        """
+        Return the section object that the address belongs to.
+
+        :param int addr: The address to test
+        :return: The section that the address belongs to, or None if the address does not belong to any section, or if
+                section information is not available.
+        :rtype: cle.Section
+        """
+
+        obj = self.project.loader.addr_belongs_to_object(addr)
+
+        if obj is None:
+            return None
+
+        for section in obj.sections:
+            start = section.vaddr + obj.rebase_addr
+            end = section.vaddr + section.memsize + obj.rebase_addr
+
+            if start <= addr < end:
+                return section
+
+        return None
+
+    def _addr_belongs_to_segment(self, addr):
+        """
+        Return the section object that the address belongs to.
+
+        :param int addr: The address to test
+        :return: The section that the address belongs to, or None if the address does not belong to any section, or if
+                section information is not available.
+        :rtype: cle.Segment
+        """
+
+        obj = self.project.loader.addr_belongs_to_object(addr)
+
+        if obj is None:
+            return None
+
+        for segment in obj.segments:
+            start = segment.vaddr + obj.rebase_addr
+            end = segment.vaddr + segment.memsize + obj.rebase_addr
+
+            if start <= addr < end:
+                return segment
+
+        return None
+
+    def _fast_memory_load(self, addr):
+        """
+        Perform a fast memory loading of static content from static regions, a.k.a regions that are mapped to the
+        memory by the loader.
+
+        :param int addr: Address to read from.
+        :return: The data, or None if the address does not exist.
+        :rtype: cffi.CData
+        """
+
+        try:
+            buff, buff_size = self.project.loader.memory.read_bytes_c(addr)
+            return buff
+
+        except KeyError:
+            return None
 
     #
     # Analyze function features

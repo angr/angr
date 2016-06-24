@@ -2,9 +2,11 @@ import logging
 import string
 import math
 import re
+import struct
 from collections import defaultdict
 
 import progressbar
+import cffi
 
 import claripy
 import simuvex
@@ -17,7 +19,7 @@ from ..blade import Blade
 from ..analysis import register_analysis
 from ..surveyors import Slicecutor
 from ..annocfg import AnnotatedCFG
-from ..errors import AngrTranslationError, AngrMemoryError
+from ..errors import AngrTranslationError, AngrMemoryError, AngrCFGError
 
 l = logging.getLogger("angr.analyses.cfg_fast")
 
@@ -401,13 +403,15 @@ class FunctionReturn(object):
 
 
 class MemoryData(object):
-    def __init__(self, address, size, sort, irsb, irsb_addr, stmt_idx):
+    def __init__(self, address, size, sort, irsb, irsb_addr, stmt_idx, max_size=None):
         self.address = address
         self.size = size
         self.sort = sort
         self.irsb = irsb
         self.irsb_addr = irsb_addr
         self.stmt_idx = stmt_idx
+
+        self.max_size = max_size
 
         self.refs = [ ]
 
@@ -523,9 +527,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         ForwardAnalysis.__init__(self, allow_merging=False)
-        CFGBase.__init__(self, 0, normalize=normalize)
+        CFGBase.__init__(self, 0, normalize=normalize, binary=binary, force_segment=force_segment)
 
-        self._binary = binary if binary is not None else self.project.loader.main_bin
         self._start = start if start is not None else (self._binary.rebase_addr + self._binary.get_min_addr())
         self._end = end if end is not None else (self._binary.rebase_addr + self._binary.get_max_addr())
 
@@ -536,7 +539,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._use_symbols = symbols
         self._use_function_prologues = function_prologues
         self._resolve_indirect_jumps = resolve_indirect_jumps
-        self._force_segment = force_segment
         self._force_complete_scan = force_complete_scan
 
         self._progress_callback = progress_callback
@@ -547,10 +549,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._progressbar = None  # will be initialized later if self._show_progressbar == True
 
         l.debug("Starts at %#x and ends at %#x.", self._start, self._end)
-
-        # Get all executable memory regions
-        self._exec_mem_regions = self._executable_memory_regions(self._binary, self._force_segment)
-        self._exec_mem_region_size = sum([(end - start) for start, end in self._exec_mem_regions])
 
         # A mapping between (address, size) and the actual data in memory
         self._memory_data = { }
@@ -581,6 +579,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._function_exits = None
 
         self._graph = None
+
+        self._ffi = cffi.FFI()
 
         # Start working!
         self._analyze()
@@ -633,23 +633,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             "indirect_jumps": self.indirect_jumps,
         }
         return s
-
-    def _addr_in_memory_regions(self, addr):
-        """
-        Check if the rebased address locates inside any of the valid memory regions
-        :param addr: A rebased address
-        :return: True/False
-        """
-
-        for start, end in self._exec_mem_regions:
-            if addr < start:
-                # The list is ordered!
-                break
-
-            if start <= addr < end:
-                return True
-
-        return False
 
     def _initialize_progressbar(self):
         """
@@ -1077,7 +1060,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 for mo in regex.finditer(bytes_):
                     position = mo.start() + start_
                     if position % self.project.arch.instruction_alignment == 0:
-                        if self._addr_in_memory_regions(self._binary.rebase_addr + position):
+                        if self._addr_in_exec_memory_regions(self._binary.rebase_addr + position):
                             unassured_functions.append(position)
 
         return unassured_functions
@@ -1456,21 +1439,73 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return:
         """
 
-        for data_addr, memory_data in self._memory_data.iteritems():
+        # Make sure all memory data entries cover all data sections
+        keys = sorted(self._memory_data.iterkeys())
+        for i, data_addr in enumerate(keys):
+            data = self._memory_data[data_addr]
+            if self._addr_in_exec_memory_regions(data.address):
+                # TODO: Handle data among code regions (or executable regions)
+                pass
+            else:
+                if i + 1 != len(keys):
+                    next_data_addr = keys[i + 1]
+                    data.max_size = next_data_addr - data_addr
+                else:
+                    # goes until the end of the section/segment
+                    # TODO: the logic needs more testing
+
+                    obj = self.project.loader.addr_belongs_to_object(data_addr)
+                    sec = self._addr_belongs_to_section(data_addr)
+                    if sec is not None:
+                        last_addr = sec.vaddr + sec.memsize + obj.rebase_addr
+                    else:
+                        seg = self._addr_belongs_to_segment(data_addr)
+                        last_addr = seg.vaddr + seg.memsize + obj.rebase_addr
+                    data.max_size = last_addr - data_addr
+
+        keys = sorted(self._memory_data.iterkeys())
+
+        i = 0
+        while i < len(keys):
+            data_addr = keys[i]
+            i += 1
+
+            memory_data = self._memory_data[data_addr]
+
             # let's see what sort of data it is
             data_type, data_size = self._guess_data_type(memory_data.irsb, memory_data.irsb_addr, memory_data.stmt_idx,
-                                                         data_addr
+                                                         data_addr, memory_data.max_size
                                                          )
 
             if data_type is not None:
                 memory_data.size = data_size
                 memory_data.sort = data_type
 
-    def _guess_data_type(self, irsb, irsb_addr, stmt_idx, data_addr):  # pylint: disable=unused-argument
-        """
+                if memory_data.size < memory_data.max_size:
+                    # Create another memory_data object to fill the gap
+                    new_addr = data_addr + memory_data.size
+                    new_md = MemoryData(new_addr, None, None, None, None, None,
+                                        memory_data.max_size - memory_data.size)
+                    self._memory_data[new_addr] = new_md
+                    keys.insert(i, new_addr)
 
-        :param data_addr:
-        :return:
+            else:
+                memory_data.size = memory_data.max_size
+
+    def _guess_data_type(self, irsb, irsb_addr, stmt_idx, data_addr, max_size):  # pylint: disable=unused-argument
+        """
+        Make a guess to the data type.
+
+        Users can provide their own data type guessing code when initializing CFGFast instance, and each guessing
+        handler will be called if this method fails to determine what the data is.
+
+        :param pyvex.IRSB irsb: The pyvex IRSB object.
+        :param int irsb_addr: Address of the IRSB.
+        :param int stmt_idx: ID of the statement.
+        :param int data_addr: Address of the data.
+        :param int max_size: The maximum size this data entry can be.
+        :return: a tuple of (data type, size). (None, None) if we fail to determine the type or the size.
+        :rtype: tuple
         """
 
         # some helper methods
@@ -1495,41 +1530,64 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # IRSB is owned by plt!
             return "GOT PLT Entry", pointer_size
 
-        # try to decode it as a pointer
-        ptr = _cv(self._initial_state.memory.load(data_addr, pointer_size,
-                                                  endness=self.project.arch.memory_endness)
-                  )
-        if ptr is not None:
-            if self._seg_list.is_occupied(ptr) and self._seg_list.occupied_by_sort(ptr) == 'code':
-                # it's a code reference
-                # TODO: Further check if it's the beginning of an instruction
-                return "pointer to code", pointer_size
+        # try to decode it as a pointer array
+        buf = self._fast_memory_load(data_addr)
+        if buf is None:
+            # The data address does not exist in static regions
+            return None, None
 
-        block = self._initial_state.memory.load(data_addr, 8)
+        if self.project.arch.memory_endness == 'Iend_LE':
+            fmt = "<"
+        else:
+            fmt = ">"
+        if pointer_size == 8:
+            fmt += "Q"
+        elif pointer_size == 4:
+            fmt += "I"
+        else:
+            raise AngrCFGError("Pointer size of %d is not supported", pointer_size)
+
+        pointers_count = 0
+
+        max_pointer_array_size = min(512 * pointer_size, max_size)
+        for i in xrange(0, max_pointer_array_size, pointer_size):
+            ptr_str = self._ffi.unpack(self._ffi.cast('char*', buf + i), pointer_size)
+            if len(ptr_str) != pointer_size:
+                break
+
+            ptr = struct.unpack(fmt, ptr_str)[0]  # type:int
+
+            if ptr is not None:
+                #if self._seg_list.is_occupied(ptr) and self._seg_list.occupied_by_sort(ptr) == 'code':
+                #    # it's a code reference
+                #    # TODO: Further check if it's the beginning of an instruction
+                #    pass
+                if self._addr_belongs_to_section(ptr) is not None or self._addr_belongs_to_segment(ptr) is not None:
+                    # it's a pointer of some sort
+                    # TODO: Determine what sort of pointer it is
+                    pointers_count += 1
+                else:
+                    break
+
+        if pointers_count:
+            return "pointer-array", pointer_size * pointers_count
+
+        block = self._fast_memory_load(data_addr)
 
         # Is it an unicode string?
-        if _cv(block[1]) == 0 and _cv(block[3]) == 0:
-            if chr(_cv(block[0])) in string.printable and chr(_cv(block[2])) in string.printable + "\x00":
-                r, c, _ = self._initial_state.memory.find(data_addr, "\x00\x00", max_search=4096)
-
-                if c and _c(c[0]) is True and _cv(r) - data_addr > 0:
-                    length = _cv(r) - data_addr
-                    block_ = self._initial_state.memory.load(data_addr, length)
-
-                    if all([ chr(_cv(block[i*8+7:i*8])) in string.printable for i in xrange(len(block_) / 8, 2) ]) and \
-                            all([ _cv(block[i*8+7:i*8]) == 0 for i in xrange(1, len(block_) / 8, 2) ]):
-                        return "unicode", length + 2
+        # TODO: Support unicode string longer than the max length
+        if block[1] == 0 and block[3] == 0 and chr(block[0]) in string.printable:
+            max_unicode_string_len = 1024
+            unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
+            if len(unicode_str) and all([ c in string.printable for c in unicode_str]):
+                return "unicode", (len(unicode_str) + 1) * 2
 
         # Is it a null-terminated printable string?
-        r, c, _ = self._initial_state.memory.find(data_addr, "\x00", max_search=4096)
-
-        if c and _c(c[0]) is True and _cv(r) - data_addr > 0:
-            # TODO: Add a cap for the length
-            length = _cv(r) - data_addr
-            block_ = self._initial_state.memory.load(data_addr, length)
-            if all([ (_cv(block_[i*8+7:i*8]) is not None and chr(_cv(block_[i*8+7:i*8])) in string.printable)
-                     for i in xrange(len(block_) / 8) ]):
-                return "string", length + 1
+        # TODO: Support strings longer than the max length
+        max_string_len = 2048
+        s = self._ffi.string(self._ffi.cast("char*", block), max_string_len)
+        if len(s) and all([ c in string.printable for c in s ]):
+            return "string", len(s) + 1
 
         return None, None
 
