@@ -24,11 +24,17 @@ class Lifter(object):
     Usually, the only way you'll ever have to interact with this class is that its `lift` method has
     been transplanted into the factory as `project.factory.block`.
     """
+
+    LRUCACHE_SIZE = 10000
+
     def __init__(self, project, cache=False):
         self._project = project
         self._thumbable = isinstance(project.arch, ArchARM)
         self._cache_enabled = cache
-        self._block_cache = LRUCache(maxsize=10000)
+        self._block_cache = LRUCache(maxsize=self.LRUCACHE_SIZE)
+
+    def clear_cache(self):
+        self._block_cache = LRUCache(maxsize=self.LRUCACHE_SIZE)
 
     def lift(self, addr, arch=None, insn_bytes=None, max_size=None, num_inst=None,
              traceflags=0, thumb=False, backup_state=None, opt_level=None):
