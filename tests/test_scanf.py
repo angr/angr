@@ -54,7 +54,6 @@ class Checker(object):
             component = self._extract_integer(s)
 
             if not self._check_func(component):
-                import ipdb; ipdb.set_trace()
                 return False
 
         return True
