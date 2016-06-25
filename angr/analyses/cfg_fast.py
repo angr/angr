@@ -2073,8 +2073,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # They are overlapping
                 if b.addr in self.kb.functions and (b.addr - a.addr < 0x10) and b.addr % 0x10 == 0:
                     # b is the beginning of a function
-                    # a should be removed
-                    self._remove_node(a)
+                    # a should be shrinked
+                    self._shrink_node(a, b.addr - a.addr)
 
                 else:
                     try:
@@ -2083,7 +2083,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         continue
                     if len(block.capstone.insns) == 1 and block.capstone.insns[0].insn_name() == "nop":
                         # It's a big nop
-                        self._remove_node(a)
+                        self._shrink_node(a, b.addr - a.addr)
 
     def _remove_node(self, node):
         """
@@ -2098,6 +2098,38 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             del self._nodes[node.addr]
 
         # We wanna remove the function as well
+        if node.addr in self.kb.functions:
+            del self.kb.functions[node.addr]
+
+        if node.addr in self.kb.functions.callgraph:
+            self.kb.functions.callgraph.remove_node(node.addr)
+
+    def _shrink_node(self, node, new_size):
+        """
+        Shrink the size of a node in CFG.
+
+        :param CFGNode node: The CFGNode to shrink
+        :param int new_size: The new size of the basic block
+        :return: None
+        """
+
+        # Generate the new node
+        new_node = CFGNode(node.addr, new_size, self, function_address=node.function_address)
+
+        old_edges = self.graph.in_edges(node, data=True)
+
+        for src, _, data in old_edges:
+            self.graph.add_edge(src, new_node, data)
+
+        successor_node_addr = node.addr + new_size
+        if successor_node_addr in self._nodes:
+            successor = self._nodes[successor_node_addr]
+            self.graph.add_edge(new_node, successor, jumpkind='Ijk_Boring')
+
+        self._nodes[new_node.addr] = new_node
+
+        # the function starting at this point is probably totally incorrect
+        # hopefull future call to `make_functions()` will correct everything
         if node.addr in self.kb.functions:
             del self.kb.functions[node.addr]
 
