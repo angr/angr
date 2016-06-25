@@ -1005,7 +1005,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self.make_functions()
 
-        self._tidy_data_references()
+        r = True
+        while r:
+            r = self._tidy_data_references()
 
         CFGBase._post_analysis(self)
 
@@ -1436,7 +1438,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _tidy_data_references(self):
         """
 
-        :return:
+        :return: True if new data entries are found, False otherwise.
+        :rtype: bool
         """
 
         # Make sure all memory data entries cover all data sections
@@ -1465,6 +1468,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         keys = sorted(self._memory_data.iterkeys())
 
+        new_data_found = False
+
         i = 0
         while i < len(keys):
             data_addr = keys[i]
@@ -1489,8 +1494,41 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     self._memory_data[new_addr] = new_md
                     keys.insert(i, new_addr)
 
+                if data_type == 'pointer-array':
+                    # make sure all pointers are identified
+                    pointer_size = self.project.arch.bits / 8
+                    buf = self._fast_memory_load(data_addr)
+
+                    # TODO: this part of code is duplicated in _guess_data_type()
+                    # TODO: remove the duplication
+                    if self.project.arch.memory_endness == 'Iend_LE':
+                        fmt = "<"
+                    else:
+                        fmt = ">"
+                    if pointer_size == 8:
+                        fmt += "Q"
+                    elif pointer_size == 4:
+                        fmt += "I"
+                    else:
+                        raise AngrCFGError("Pointer size of %d is not supported", pointer_size)
+
+                    for j in xrange(0, data_size, pointer_size):
+                        ptr_str = self._ffi.unpack(self._ffi.cast('char*', buf + j), pointer_size)
+                        ptr = struct.unpack(fmt, ptr_str)[0]  # type:int
+
+                        if self._seg_list.is_occupied(ptr):
+                            sort = self._seg_list.occupied_by_sort(ptr)
+                            if sort == 'code':
+                                continue
+                            # TODO: check other sorts
+                        if ptr not in self._memory_data:
+                            self._memory_data[ptr] = MemoryData(ptr, 0, 'unknown', None, None, None, None)
+                            new_data_found = True
+
             else:
                 memory_data.size = memory_data.max_size
+
+        return new_data_found
 
     def _guess_data_type(self, irsb, irsb_addr, stmt_idx, data_addr, max_size):  # pylint: disable=unused-argument
         """
