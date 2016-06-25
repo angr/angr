@@ -367,8 +367,6 @@ class Function(object):
         if outside:
             # this node is an endpoint of the current function
             self._endpoints.add(from_node)
-            if from_node.addr == 0x804d744:
-                import ipdb; ipdb.set_trace()
 
         # clear the cache
         self._local_transition_graph = None
