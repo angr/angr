@@ -1000,7 +1000,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if f.returning is None:
                 f.returning = True
 
-        self._remove_redudant_overlapping_blocks()
+        self._remove_redundant_overlapping_blocks()
 
         if self._normalize:
             # Normalize the control flow graph first before rediscovering all functions
@@ -2089,7 +2089,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     # Removers
 
-    def _remove_redudant_overlapping_blocks(self):
+    def _remove_redundant_overlapping_blocks(self):
         """
         On X86 and AMD64 there are sometimes garbage bytes (usually nops) between functions in order to properly
         align the succeeding function. CFGFast does a linear sweeping which might create duplicated blocks for
