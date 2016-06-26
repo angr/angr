@@ -725,7 +725,7 @@ class CFGBase(Analysis):
                     # We gotta create a new one
                     l.error('normalize(): Please report it to Fish.')
 
-            end_addresses[tpl_to_find] = [smallest_node]
+            end_addresses[tpl_to_find] = { smallest_node }
 
         self._normalized = True
 
