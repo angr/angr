@@ -2103,7 +2103,45 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         sorted_nodes = sorted(self.graph.nodes(), key=lambda n: n.addr if n is not None else 0)
 
+        # go over the list. for each node that is the beginning of a function and is not properly aligned, if its
+        # leading instruction is a single-byte or multi-byte nop, make sure there is another CFGNode starts after the
+        # nop instruction
+
+        nodes_to_append = {}
+        for a in sorted_nodes:
+            if a.addr % 0x10 != 0 and a.addr in self.functions and (a.size > 0x10 - (a.addr % 0x10)):
+                all_in_edges = self.graph.in_edges(a, data=True)
+                if not any([data['jumpkind'] == 'Ijk_Call' for _, _, data in all_in_edges]):
+                    # no one is calling it
+                    # this function might be created from linear sweeping
+                    try:
+                        block = self.project.factory.block(a.addr, max_size=0x10 - (a.addr % 0x10))
+                    except AngrTranslationError:
+                        continue
+                    if len(block.capstone.insns) == 1 and block.capstone.insns[0].insn_name() == "nop":
+                        # leading nop for alignment.
+                        next_node_addr = a.addr + 0x10 - (a.addr % 0x10)
+                        if not (next_node_addr in self._nodes or next_node_addr in nodes_to_append):
+                            # create a new CFGNode that starts there
+                            next_node = CFGNode(next_node_addr, a.size - (0x10 - (a.addr % 0x10)), self,
+                                                function_address=next_node_addr
+                                                )
+                            # create edges accordingly
+                            all_out_edges = self.graph.out_edges(a, data=True)
+                            for _, dst, data in all_out_edges:
+                                self.graph.add_edge(next_node, dst, **data)
+
+                            nodes_to_append[next_node_addr] = next_node
+
+                            # make sure there is a function begins there
+                            self.functions._add_node(next_node_addr, next_node_addr)
+
+        # append all new nodes to sorted nodes
+        if nodes_to_append:
+            sorted_nodes = sorted(sorted_nodes + nodes_to_append.values(), key=lambda n: n.addr if n is not None else 0)
+
         for i in xrange(len(sorted_nodes) - 1):
+
             a, b = sorted_nodes[i], sorted_nodes[i + 1]
 
             if a is None or b is None:
