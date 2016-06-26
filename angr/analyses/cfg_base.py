@@ -774,8 +774,12 @@ class CFGBase(Analysis):
                 function_nodes.add(n)
 
         # traverse the graph starting from each node, not following call edges
-        for fn in function_nodes:
-            self._graph_bfs_custom(self.graph, [ fn ], self._graph_traversal_handler, blockaddr_to_function, tmp_functions)
+        # it's important that we traverse all functions in order so that we have a greater chance to come across
+        # rational functions before its irrational counterparts (e.g. due to failed jump table resolution)
+        for fn in sorted(function_nodes, key=lambda n: n.addr):
+            self._graph_bfs_custom(self.graph, [ fn ], self._graph_traversal_handler, blockaddr_to_function,
+                                   tmp_functions
+                                   )
 
         # Remove all stubs after PLT entries
         to_remove = set()
