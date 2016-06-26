@@ -9,7 +9,7 @@ import simuvex
 
 from ..knowledge import Function, HookNode
 from ..analysis import Analysis
-from ..errors import AngrCFGError
+from ..errors import AngrCFGError, AngrTranslationError, AngrMemoryError
 
 from .cfg_node import CFGNode
 
@@ -853,6 +853,44 @@ class CFGBase(Analysis):
             # sanity check: startpoint of the function should be greater than its endpoint
             if startpoint_addr >= endpoint_addr:
                 continue
+
+            # scan forward from the endpoint to include any function tail jumps
+            # Here is an example:
+            # loc_8049562:
+            #       mov eax, ebp
+            #       add esp, 3ch
+            #       ...
+            #       ret
+            # loc_804956c:
+            #       mov ebp, 3
+            #       jmp loc_8049562
+            # loc_8049573:
+            #       mov ebp, 4
+            #       jmp loc_8049562
+            #
+            last_addr = endpoint_addr
+            tmp_state = self.project.factory.blank_state(mode='fastpath')
+            while True:
+                try:
+                    # use simrun is slow, but acceptable since we won't be creating millions of blocks here...
+                    b = self.project.factory.sim_run(tmp_state, addr=last_addr, jumpkind='Ijk_Boring')
+                    if len(b.successors) != 1:
+                        break
+                    if b.successors[0].scratch.jumpkind != 'Ijk_Boring':
+                        break
+                    if b.successors[0].ip.symbolic:
+                        break
+                    suc_addr = b.successors[0].ip._model_concrete
+                    if max(startpoint_addr, the_endpoint.addr - 0x40) <= suc_addr < the_endpoint.addr + the_endpoint.size:
+                        # increment the endpoint_addr
+                        endpoint_addr = b.addr + b.irsb.size
+                    else:
+                        break
+
+                    last_addr = b.addr + b.irsb.size
+
+                except (AngrTranslationError, AngrMemoryError):
+                    break
 
             # find all functions that are between [ startpoint, endpoint ]
 
