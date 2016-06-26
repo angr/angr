@@ -3,8 +3,11 @@ import copy
 from itertools import count
 
 import claripy
+from claripy.vsa import ValueSet, RegionAnnotation
 
-from ..storage.memory import SimMemory, AddressWrapper
+from ..storage.memory import SimMemory, AddressWrapper, MemoryStoreRequest, RegionMap
+from ..s_errors import SimMemoryError
+from ..s_options import KEEP_MEMORY_READS_DISCRETE, AVOID_MULTIVALUED_READS
 from .symbolic_memory import SimSymbolicMemory
 
 l = logging.getLogger("simuvex.plugins.abstract_memory")
@@ -261,7 +264,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     def set_stack_address_mapping(self, absolute_address, region_id, related_function_address=None):
         self._stack_region_map.map(absolute_address, region_id, related_function_address=related_function_address)
 
-    def unset_stack_address_mapping(self, absolute_address, region_id, function_address):
+    def unset_stack_address_mapping(self, absolute_address, region_id, function_address):  # pylint:disable=unused-argument
         self._stack_region_map.unmap_by_address(absolute_address)
 
     def _normalize_address(self, region_id, relative_address, target_region=None):
@@ -443,6 +446,11 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             return address_wrappers, self.state.se.Unconstrained(var_name, 32), [True]
 
         val = None
+
+        if len(address_wrappers) > 1 and AVOID_MULTIVALUED_READS in self.state.options:
+            val = self.state.se.Unconstrained('unconstrained_read', size * 8)
+            return address_wrappers, val, [True]
+
         for aw in address_wrappers:
             new_val = self._do_load(aw.address, size, aw.region,
                                  is_stack=aw.is_on_stack, related_function_addr=aw.function_address)
@@ -623,8 +631,3 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         for region_id, region in self.regions.items():
             print "Region [%s]:" % region_id
             region.dbg_print(indent=2)
-
-from ..s_errors import SimMemoryError
-from ..storage.memory import MemoryStoreRequest, RegionMap
-from claripy.vsa import ValueSet, RegionAnnotation
-from ..s_options import KEEP_MEMORY_READS_DISCRETE
