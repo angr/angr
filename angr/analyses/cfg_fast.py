@@ -805,6 +805,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         rebase_addr = self._binary.rebase_addr
 
+        # clear all existing functions
+        self.kb.functions.clear()
+
         if self._use_symbols:
             starting_points |= set([ addr + rebase_addr for addr in self._function_addresses_from_symbols ])
 
