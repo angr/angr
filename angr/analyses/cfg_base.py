@@ -842,14 +842,16 @@ class CFGBase(Analysis):
             if not has_unresolved_jumps:
                 continue
 
-            startpoint = function.startpoint.addr
+            startpoint_addr = function.startpoint.addr
             if not function.endpoints:
                 # Function should have at least one endpoint
                 continue
-            endpoint = max([ a.addr for a in function.endpoints ])
+            endpoint_addr = max([ a.addr for a in function.endpoints ])
+            the_endpoint = next(a for a in function.endpoints if a.addr == endpoint_addr)
+            endpoint_addr += the_endpoint.size
 
             # sanity check: startpoint of the function should be greater than its endpoint
-            if startpoint >= endpoint:
+            if startpoint_addr >= endpoint_addr:
                 continue
 
             # find all functions that are between [ startpoint, endpoint ]
@@ -860,7 +862,9 @@ class CFGBase(Analysis):
                 if f_addr == func_addr:
                     continue
 
-                if startpoint < f_addr < endpoint and all([startpoint < b.addr < endpoint for b in f.blocks]):
+                if startpoint_addr < f_addr < endpoint_addr and \
+                        all([startpoint_addr < b.addr < endpoint_addr for b in f.blocks]):
+
                     functions_to_remove[f_addr] = func_addr
                     continue
 
