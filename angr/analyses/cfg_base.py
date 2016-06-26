@@ -1054,11 +1054,13 @@ class CFGBase(Analysis):
                 # add the transition code
                 self.kb.functions._add_transition_to(src_function.addr, src_addr, dst_addr)
 
-                blockaddr_to_function[dst_addr] = src_function
+                if dst_addr not in blockaddr_to_function:
+                    blockaddr_to_function[dst_addr] = src_function
 
         elif jumpkind == 'Ijk_FakeRet':
 
-            blockaddr_to_function[dst_addr] = src_function
+            if dst_addr not in blockaddr_to_function:
+                blockaddr_to_function[dst_addr] = src_function
 
             self.kb.functions._add_fakeret_to(src_function.addr, src_addr, dst_addr, confirmed=True)
 
