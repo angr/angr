@@ -32,7 +32,7 @@ class CallFrame(object):
                 self.stack_ptr = None
 
             if state.arch.call_pushes_ret:
-                self.ret_addr = state.memory.load(state.regs.sp, state.arch.bits/8, endness=state.arch.memory_endness)
+                self.ret_addr = state.memory.load(state.regs.sp, state.arch.bits/8, endness=state.arch.memory_endness, inspect=False)
             else:
                 self.ret_addr = state.regs.lr
 
