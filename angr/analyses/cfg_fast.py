@@ -1821,7 +1821,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         simuvex.o.AVOID_MULTIVALUED_READS,
                     },
                     remove_options={
-                        simuvex.o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY
+                        simuvex.o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY,
+                        simuvex.o.UNINITIALIZED_ACCESS_AWARENESS,
                     }
             )
             start_state.regs.bp = start_state.arch.initial_sp + 0x2000
