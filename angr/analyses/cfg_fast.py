@@ -1818,6 +1818,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     add_options={
                         simuvex.o.DO_RET_EMULATION,
                         simuvex.o.TRUE_RET_EMULATION_GUARD,
+                        simuvex.o.AVOID_MULTIVALUED_READS,
                     },
                     remove_options={
                         simuvex.o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY
