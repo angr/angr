@@ -1472,7 +1472,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         dst_node = self._graph_get_node(dst_node_key, terminator_for_nonexistent_node=True)
         if src_node_key is None:
-            self.kb.functions.function(dst_node.function_address, create=True)._register_nodes(dst_node.to_codenode())
+            self.kb.functions.function(dst_node.function_address, create=True)._register_nodes(True,
+                                                                                               dst_node.to_codenode()
+                                                                                               )
             return
 
         src_node = self._graph_get_node(src_node_key, terminator_for_nonexistent_node=True)
