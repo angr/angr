@@ -606,6 +606,10 @@ class Function(object):
             smallest_node = all_nodes[0]
             other_nodes = all_nodes[1:]
 
+            is_outside_node = False
+            if smallest_node not in self.graph:
+                is_outside_node = True
+
             # Break other nodes
             for n in other_nodes:
                 new_size = smallest_node.addr - n.addr
@@ -644,7 +648,7 @@ class Function(object):
                                   if i.addr == smallest_node.addr]
                 if new_successors:
                     new_successor = new_successors[0]
-                    graph.add_edge(new_node, new_successor, type="transition")
+                    graph.add_edge(new_node, new_successor, type="transition", outside=is_outside_node)
                 else:
                     # We gotta create a new one
                     l.error('normalize(): Please report it to Fish/maybe john.')
