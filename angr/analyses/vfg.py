@@ -26,14 +26,13 @@ class VFGJob(EntryWrapper):
     def __init__(self, *args, **kwargs):
         super(VFGJob, self).__init__(*args, **kwargs)
 
-        self.func_addr = None
         self.call_stack_suffix = None
         self.jumpkind = None
         self.simrun = None
         self.vfg_node = None
         self.is_call_jump = None
         self.call_target = None
-        self.dbg_exit_status = None
+        self.dbg_exit_status = {}
         self.is_return_jump = None
 
 class VFGNode(object):
@@ -619,10 +618,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         if self._pending_returns:
             # We don't have any paths remaining. Let's pop a previously-missing return to
             # process
-            fake_exit_tuple = self._pending_returns.keys()[0]
+            fake_exit_key = self._pending_returns.keys()[0]
             fake_exit_state, fake_exit_call_stack, fake_exit_bbl_stack = \
-                self._pending_returns.pop(fake_exit_tuple)
-            fake_exit_addr = fake_exit_tuple[len(fake_exit_tuple) - 1]
+                self._pending_returns.pop(fake_exit_key)
+            fake_exit_addr = fake_exit_key.addr
 
             # Unlike CFG, we will still trace those blocks that have been traced before. In other words, we don't
             # remove fake returns even if they have been traced - otherwise we cannot come to a fixpoint.
@@ -635,8 +634,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                                       call_stack=fake_exit_call_stack,
                                       bbl_stack=fake_exit_bbl_stack)
             self._insert_entry(new_path_wrapper)
-            l.debug("Tracing a missing return %#08x, %s", fake_exit_addr,
-                    "->".join([hex(i) for i in fake_exit_tuple if i is not None]))
+            l.debug("Tracing a missing return %#08x, %s", fake_exit_addr, repr(fake_exit_key))
 
     def _post_analysis(self):
         pass

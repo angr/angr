@@ -17,8 +17,9 @@ class SimRunKey(object):
 
     def callsite_repr(self):
         s = [ ]
+        format_addr = lambda addr: 'None' if addr is None else hex(addr)
         for i in xrange(0, len(self.callsite_tuples), 2):
-            s.append("%#08x@%#08x" % (self.callsite_tuples[i], self.callsite_tuples[i + 1]))
+            s.append('@'.join(map(format_addr, self.callsite_tuples[i:i+2])))
         return " -> ".join(s)
 
     def __repr__(self):
@@ -366,13 +367,12 @@ class CallStack(object):
             self._stack = self._stack[ : levels]
 
         else:
-            l.warning("Returning to an unexpected address %#x", retn_target)\
+            l.warning("Returning to an unexpected address %#x", retn_target)
 
             # For Debugging
             # raise Exception()
             # There are cases especially in ARM where return is used as a jump
             # So we don't pop anything out
-            pass
 
     def copy(self):
         """
