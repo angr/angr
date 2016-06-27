@@ -70,7 +70,7 @@ class FunctionManager(collections.Mapping):
         dst_func = self._function_map[function_addr]
         if syscall in (True, False):
             dst_func.is_syscall = syscall
-        dst_func._register_nodes(node)
+        dst_func._register_nodes(True, node)
 
     def _add_call_to(self, function_addr, from_node, to_addr, retn_node, syscall=None):
 
