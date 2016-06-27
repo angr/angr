@@ -6,6 +6,53 @@ import simuvex
 
 l = logging.getLogger(name="angr.entry_wrapper")
 
+
+class SimRunKey(object):
+    def __init__(self, addr, callsite_tuples, jump_type):
+        self.addr = addr
+        self.callsite_tuples = callsite_tuples
+        self.jump_type = jump_type
+
+        self._hash = None
+
+    def callsite_repr(self):
+        s = [ ]
+        format_addr = lambda addr: 'None' if addr is None else hex(addr)
+        for i in xrange(0, len(self.callsite_tuples), 2):
+            s.append('@'.join(map(format_addr, self.callsite_tuples[i:i+2])))
+        return " -> ".join(s)
+
+    def __repr__(self):
+        return "<SRKey %#08x (%s) %% %s>" % (self.addr, self.callsite_repr(), self.jump_type)
+
+    def __hash__(self):
+        if self._hash is None:
+            self._hash = hash(self.callsite_tuples + (self.addr, self.jump_type, ))
+        return self._hash
+
+    def __eq__(self, other):
+        return isinstance(other, SimRunKey) and \
+               self.addr == other.addr and self.callsite_tuples == other.callsite_tuples and \
+               self.jump_type == other.jump_type
+
+    @staticmethod
+    def new(addr, callstack_suffix, jumpkind):
+        if jumpkind.startswith('Ijk_Sys') or jumpkind == 'syscall':
+            jump_type = 'syscall'
+        elif jumpkind in ('Ijk_Exit', 'exit'):
+            jump_type = 'exit'
+        else:
+            jump_type = "normal"
+        return SimRunKey(addr, callstack_suffix, jump_type)
+
+    @property
+    def func_addr(self):
+        if self.callsite_tuples:
+            return self.callsite_tuples[-1]
+        else:
+            return None
+
+
 class CallStackFrame(object):
     """
     CallStackFrame represents a stack frame in the call stack.
@@ -320,13 +367,12 @@ class CallStack(object):
             self._stack = self._stack[ : levels]
 
         else:
-            l.warning("Returning to an unexpected address %#x", retn_target)\
+            l.warning("Returning to an unexpected address %#x", retn_target)
 
             # For Debugging
             # raise Exception()
             # There are cases especially in ARM where return is used as a jump
             # So we don't pop anything out
-            pass
 
     def copy(self):
         """
@@ -404,10 +450,12 @@ class EntryWrapper(object):
     """
     Describes an entry in CFG or VFG. Only used internally by the analysis.
     """
-    def __init__(self, addr, path, context_sensitivity_level, src_simrun_key=None, src_exit_stmt_idx=None,
-                 jumpkind=None, call_stack=None, bbl_stack=None, is_narrowing=False, skip=False, cancelled_pending_entry=None):
+    def __init__(self, addr, path, context_sensitivity_level, simrun_key=None, src_simrun_key=None,
+                 src_exit_stmt_idx=None, jumpkind=None, call_stack=None, bbl_stack=None, is_narrowing=False,
+                 skip=False, cancelled_pending_entry=None, final_return_address=None):
         self.addr = addr # Note that addr may not always be equal to self.path.addr (for syscalls, for example)
         self._path = path
+        self.simrun_key = simrun_key
         self.jumpkind = jumpkind
         self.src_simrun_key = src_simrun_key
         self.src_exit_stmt_idx = src_exit_stmt_idx
@@ -434,14 +482,18 @@ class EntryWrapper(object):
                 # Set the stack pointer to None
                 sp = None
 
-            self._call_stack.call(None, self._path.addr, stack_pointer=sp)
+            self._call_stack.call(None, self._path.addr, retn_target=final_return_address, stack_pointer=sp)
 
+        else:
+            self._call_stack = call_stack
+
+        if bbl_stack is None:
             self._bbl_stack = BBLStack()
             # Initialize the BBL stack
             self._bbl_stack.call(self._call_stack.stack_suffix(self._context_sensitivity_level), path.addr)
         else:
-            self._call_stack = call_stack
             self._bbl_stack = bbl_stack
+
         assert self._call_stack is not None and self._bbl_stack is not None
 
     @property
@@ -455,7 +507,7 @@ class EntryWrapper(object):
     def call_stack_copy(self):
         return self._call_stack.copy()
 
-    def call_stack_suffix(self):
+    def get_call_stack_suffix(self):
         return self._call_stack.stack_suffix(self._context_sensitivity_level)
 
     def bbl_stack_push(self, call_stack_suffix, function_addr, bbl_addr):
@@ -471,7 +523,7 @@ class EntryWrapper(object):
         return self._bbl_stack.copy()
 
     @property
-    def current_function_address(self):
+    def func_addr(self):
         return self._call_stack.current_function_address
 
     @property
@@ -479,5 +531,8 @@ class EntryWrapper(object):
         return self._call_stack.current_stack_pointer
 
     @property
-    def current_function_accessed_registers(self):
+    def accessed_registers_in_function(self):
         return self._call_stack.current_function_accessed_registers
+
+    def __repr__(self):
+        return "<Entry %#08x %% %s>" % (self.addr, self.jumpkind)

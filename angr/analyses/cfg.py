@@ -7,7 +7,7 @@ from .cfg_fast import CFGFast
 class OutdatedError(Exception):
     pass
 
-class CFG(CFGFast):
+class CFG(CFGFast):     # pylint: disable=abstract-method
     """
     tl;dr  CFG is just a wrapper around CFGFast for compatibility issues. It will be fully replaced by CFGFast in future
       releases. Feel free to use CFG if you intend to use CFGFast. Please use CFGAccurate if you *have to* use the old,
