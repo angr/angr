@@ -1,4 +1,4 @@
-
+import networkx
 
 class EntryInfo(object):
     """
@@ -92,7 +92,7 @@ class ForwardAnalysis(object):
 
         # The graph!
         # Analysis results (nodes) are stored here
-        self._graph = None
+        self._graph = networkx.DiGraph()
 
     #
     # Properties
@@ -139,16 +139,16 @@ class ForwardAnalysis(object):
     def _entry_key(self, entry):
         raise NotImplementedError('_entry_key() is not implemented.')
 
-    def _get_successors(self, entry, _locals):
+    def _get_successors(self, entry):
         raise NotImplementedError('_get_successors() is not implemented.')
 
-    def _pre_entry_handling(self, entry, _locals):
+    def _pre_entry_handling(self, entry):
         raise NotImplementedError('_pre_entry_handling() is not implemented.')
 
-    def _post_entry_handling(self, entry, successors, _locals):
+    def _post_entry_handling(self, entry, successors):
         raise NotImplementedError('_post_entry_handling() is not implemented.')
 
-    def _handle_successor(self, entry, successor, successors, _locals):
+    def _handle_successor(self, entry, successor, successors):
         raise NotImplementedError('_handle_successor() is not implemented.')
 
     def _entry_list_empty(self):
@@ -167,22 +167,12 @@ class ForwardAnalysis(object):
     # Private methods
     #
 
-    def _init_analysis(self):
-        """
-        Do a bunch of initialization prior to the real analysis work
-        :return: None
-        """
-
-        self._entries = [ ]
-
     def _analyze(self):
         """
         The main analysis routine.
 
         :return: None
         """
-
-        self._init_analysis()
 
         self._pre_analysis()
 
@@ -213,25 +203,23 @@ class ForwardAnalysis(object):
         :return: None
         """
 
-        _locals = {}
-
         entry = entry_info.entry
 
         try:
-            self._pre_entry_handling(entry, _locals)
+            self._pre_entry_handling(entry)
         except AngrForwardAnalysisSkipEntry:
             return
 
-        successors = self._get_successors(entry, _locals)
+        successors = self._get_successors(entry)
 
         for successor in successors:
-            new_entries = self._handle_successor(entry, successor, successors, _locals)
+            new_entries = self._handle_successor(entry, successor, successors)
 
             if new_entries:
                 for new_entry in new_entries:
                     self._insert_entry(new_entry)
 
-        self._post_entry_handling(entry, successors, _locals)
+        self._post_entry_handling(entry, successors)
 
     def _insert_entry(self, entry):
         """

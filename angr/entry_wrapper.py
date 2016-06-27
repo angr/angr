@@ -44,6 +44,13 @@ class SimRunKey(object):
             jump_type = "normal"
         return SimRunKey(addr, callstack_suffix, jump_type)
 
+    @property
+    def func_addr(self):
+        if self.callsite_tuples:
+            return self.callsite_tuples[-1]
+        else:
+            return None
+
 
 class CallStackFrame(object):
     """
@@ -496,7 +503,7 @@ class EntryWrapper(object):
     def call_stack_copy(self):
         return self._call_stack.copy()
 
-    def call_stack_suffix(self):
+    def get_call_stack_suffix(self):
         return self._call_stack.stack_suffix(self._context_sensitivity_level)
 
     def bbl_stack_push(self, call_stack_suffix, function_addr, bbl_addr):
@@ -512,7 +519,7 @@ class EntryWrapper(object):
         return self._bbl_stack.copy()
 
     @property
-    def current_function_address(self):
+    def func_addr(self):
         return self._call_stack.current_function_address
 
     @property
@@ -520,7 +527,7 @@ class EntryWrapper(object):
         return self._call_stack.current_stack_pointer
 
     @property
-    def current_function_accessed_registers(self):
+    def accessed_registers_in_function(self):
         return self._call_stack.current_function_accessed_registers
 
     def __repr__(self):

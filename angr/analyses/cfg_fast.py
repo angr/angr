@@ -456,7 +456,7 @@ class CFGEntry(object):
                      self.src_stmt_idx, self.returning_source, self.syscall)
                     )
 
-class CFGFast(ForwardAnalysis, CFGBase):
+class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     """
     We find functions inside the given binary, and build a control-flow graph in very fast manners: instead of
     simulating program executions, keeping track of states, and performing expensive data-flow analysis, CFGFast will
@@ -793,11 +793,8 @@ class CFGFast(ForwardAnalysis, CFGBase):
     def _entry_key(self, entry):
         return entry.addr
 
-    def _init_analysis(self):
-
-        #
+    def _pre_analysis(self):
         # Initialize variables used during analysis
-        #
         self._pending_entries = [ ]
         self._traced_addresses = set()
         self._function_returns = defaultdict(list)
@@ -818,7 +815,6 @@ class CFGFast(ForwardAnalysis, CFGBase):
         # initial_options.remove(simuvex.o.COW_STATES)
         self._initial_state.options = initial_options
 
-    def _pre_analysis(self):
         if self._show_progressbar:
             self._initialize_progressbar()
 
@@ -851,7 +847,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
         if self._use_function_prologues:
             self._function_prologue_addrs = set([addr + rebase_addr for addr in self._func_addrs_from_prologues()])
 
-    def _pre_entry_handling(self, entry, _locals):
+    def _pre_entry_handling(self, entry):
 
         if self._show_progressbar or self._progress_callback:
             percentage = self._seg_list.occupied_size * 100.0 / self._exec_mem_region_size
@@ -871,7 +867,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
     def _intra_analysis(self):
         pass
 
-    def _get_successors(self, entry, _locals):
+    def _get_successors(self, entry):
 
         current_function_addr = entry.func_addr
         addr = entry.addr
@@ -880,14 +876,14 @@ class CFGFast(ForwardAnalysis, CFGBase):
         src_stmt_idx = entry.src_stmt_idx
 
         if current_function_addr != -1:
-            l.debug("Tracing new exit 0x%08x in function 0x%08x",
+            l.debug("Tracing new exit 0x%08x in function %#08x",
                     addr, current_function_addr)
         else:
-            l.debug("Tracing new exit 0x%08x", addr)
+            l.debug("Tracing new exit %#08x", addr)
 
         return self._scan_block(addr, current_function_addr, jumpkind, src_node, src_stmt_idx)
 
-    def _handle_successor(self, entry, successor, successors, _locals):
+    def _handle_successor(self, entry, successor, successors):
         return [ successor ]
 
     def _merge_entries(self, *entries):
@@ -896,7 +892,7 @@ class CFGFast(ForwardAnalysis, CFGBase):
     def _widen_entries(self, *entries):
         pass
 
-    def _post_entry_handling(self, entry, successors, _locals):
+    def _post_entry_handling(self, entry, successors):
         pass
 
     def _entry_list_empty(self):
