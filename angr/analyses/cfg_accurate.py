@@ -25,8 +25,6 @@ class CFGJob(EntryWrapper):
         super(CFGJob, self).__init__(*args, **kwargs)
 
         self.call_stack_suffix = None
-        self.func_addr = None
-        self.accessed_registers_in_function = None
         self.jumpkind = None
         self.current_function = None
 
@@ -973,7 +971,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if successors:
             self._handle_actions(successors[0],
                                  simrun,
-                                 entry.func_addr,
+                                 entry.current_function,
                                  entry.current_stack_pointer,
                                  entry.accessed_registers_in_function)
 
@@ -1290,7 +1288,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             new_bbl_stack = entry_wrapper.bbl_stack_copy()
         else:
             new_bbl_stack = entry_wrapper.bbl_stack_copy()
-            new_bbl_stack.push(new_call_stack_suffix, entry.func_addr, entry.target_addr)
+            new_bbl_stack.push(new_call_stack_suffix, entry.func_addr, target_addr)
 
         new_path = self.project.factory.path(new_state)
         # We might have changed the mode for this basic block
@@ -2317,7 +2315,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # Calculate the delta of stack pointer
             if sp is not None and old_sp is not None:
                 delta = sp - old_sp
-                func_addr = entry_wrapper.current_function_address
+                func_addr = entry_wrapper.func_addr
 
                 if self.kb.functions.function(func_addr) is None:
                     # Create the function if it doesn't exist
