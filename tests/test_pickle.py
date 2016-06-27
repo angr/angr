@@ -36,7 +36,7 @@ def make_pickles():
 
     f = open("/tmp/pickletest_good", "w")
     #fname = f.name
-    pickle.dump(mem_bvv, f)
+    pickle.dump(mem_bvv, f, -1)
     f.close()
 
     # If you do not have a state you cannot write
@@ -48,7 +48,7 @@ def make_pickles():
 
     f = open("/tmp/pickletest_bad", "w")
     #fname = f.name
-    pickle.dump(mem_bvv, f)
+    pickle.dump(mem_bvv, f, -1)
     f.close()
     #print "Test case generated run '%s <something>' to execute the test" % sys.argv[0]
 

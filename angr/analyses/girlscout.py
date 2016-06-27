@@ -651,9 +651,9 @@ class GirlScout(Analysis):
 
             if self._pickle_intermediate_results:
                 l.debug("Dumping intermediate results.")
-                pickle.dump(self._indirect_jumps, open(dump_file_prefix + "_indirect_jumps.angr", "wb"))
-                pickle.dump(self.cfg, open(dump_file_prefix + "_coercecfg.angr", "wb"))
-                pickle.dump(self._unassured_functions, open(dump_file_prefix + "_unassured_functions.angr", "wb"))
+                pickle.dump(self._indirect_jumps, open(dump_file_prefix + "_indirect_jumps.angr", "wb"), -1)
+                pickle.dump(self.cfg, open(dump_file_prefix + "_coercecfg.angr", "wb"), -1)
+                pickle.dump(self._unassured_functions, open(dump_file_prefix + "_unassured_functions.angr", "wb"), -1)
 
         if len(self._indirect_jumps):
             # We got some indirect jumps!
