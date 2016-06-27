@@ -49,13 +49,15 @@ def test_amd64():
         main_g_edges.append((src_node.addr, dst_node.addr, data))
 
     nose.tools.assert_true((0x40071d, 0x400510, {'type': 'call'}) in main_g_edges)
-    nose.tools.assert_true((0x40071d, 0x40073e, {'type': 'fake_return', 'confirmed': True}) in main_g_edges)
+    nose.tools.assert_true((0x40071d, 0x40073e, {'type': 'fake_return', 'confirmed': True, 'outside': False}) in
+                           main_g_edges
+                           )
     nose.tools.assert_true((0x40073e, 0x400530, {'type': 'call'}) in main_g_edges)
-    nose.tools.assert_true((0x40073e, 0x400754, {'type': 'fake_return', 'confirmed': True}) in main_g_edges)
+    nose.tools.assert_true((0x40073e, 0x400754, {'type': 'fake_return', 'confirmed': True, 'outside': False}) in main_g_edges)
 
     # rejected() does not return
     nose.tools.assert_true((0x4007c9, 0x4006fd, {'type': 'call'}) in main_g_edges)
-    nose.tools.assert_true((0x4007c9, 0x4007d3, {'type': 'fake_return'}) in main_g_edges)
+    nose.tools.assert_true((0x4007c9, 0x4007d3, {'type': 'fake_return', 'outside': False}) in main_g_edges)
 
     # These tests fail for reasons of fastpath, probably
     #nose.tools.assert_true(main.bp_on_stack)
