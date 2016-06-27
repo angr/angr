@@ -1761,6 +1761,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         b = Blade(self.graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True, max_level=2)
 
         stmt_loc = (addr, 'default')
+        if stmt_loc not in b.slice:
+            return False, None
 
         load_stmt_loc, load_stmt = None, None
         past_stmts = [ stmt_loc ]
@@ -1849,6 +1851,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 # Parse the memory load statement
                 load_addr_tmp = load_stmt.data.addr.tmp
+                if load_addr_tmp not in state.scratch.temps:
+                    # the tmp variable is not there... umm...
+                    continue
                 jump_addr = state.scratch.temps[load_addr_tmp]
                 total_cases = jump_addr._model_vsa.cardinality
                 all_targets = [ ]
