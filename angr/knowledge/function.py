@@ -631,6 +631,7 @@ class Function(object):
                     # Create a new one
                     new_node = BlockNode(n.addr, new_size, graph=graph)
                     self._block_sizes[n.addr] = new_size
+                    self._addr_to_block_node[n.addr] = new_node
                     # Put the newnode into end_addresses
                     end_addresses[new_end_addr].append(new_node)
 
@@ -654,6 +655,10 @@ class Function(object):
                     l.error('normalize(): Please report it to Fish/maybe john.')
 
             end_addresses[end_addr] = [smallest_node]
+
+        # Rebuild startpoint
+        if self.startpoint.size != self._block_sizes[self.startpoint.addr]:
+            self.startpoint = self.get_node(self.startpoint.addr)
 
         # Clear the cache
         self._local_transition_graph = None
