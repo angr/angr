@@ -9,6 +9,7 @@ from ..storage.memory import SimMemory, AddressWrapper, MemoryStoreRequest, Regi
 from ..s_errors import SimMemoryError
 from ..s_options import KEEP_MEMORY_READS_DISCRETE, AVOID_MULTIVALUED_READS
 from .symbolic_memory import SimSymbolicMemory
+from ..s_action_object import _raw_ast
 
 l = logging.getLogger("simuvex.plugins.abstract_memory")
 
@@ -369,18 +370,20 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         :rtype: dict
         """
 
-        if isinstance(addr, (claripy.bv.BVV, claripy.vsa.StridedInterval, claripy.vsa.ValueSet)):
+        addr_e = _raw_ast(addr)
+
+        if isinstance(addr_e, (claripy.bv.BVV, claripy.vsa.StridedInterval, claripy.vsa.ValueSet)):
             raise SimMemoryError('_normalize_address_type() does not take claripy models.')
 
-        if isinstance(addr, claripy.ast.Base):
-            if not isinstance(addr._model_vsa, ValueSet):
+        if isinstance(addr_e, claripy.ast.Base):
+            if not isinstance(addr_e._model_vsa, ValueSet):
                 # Convert it to a ValueSet first by annotating it
-                addr = addr.annotate(RegionAnnotation('global', 0, addr._model_vsa))
+                addr_e = addr_e.annotate(RegionAnnotation('global', 0, addr_e._model_vsa))
 
-            return addr._model_vsa.items()
+            return addr_e._model_vsa.items()
 
         else:
-            raise SimMemoryError('Unsupported address type %s' % type(addr))
+            raise SimMemoryError('Unsupported address type %s' % type(addr_e))
 
     # FIXME: symbolic_length is also a hack!
     def _store(self, req):
