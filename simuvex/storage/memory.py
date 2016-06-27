@@ -332,7 +332,7 @@ class SimMemory(SimStatePlugin):
                 if name in stn_map:
                     return (((stn_map[name] + self.load('ftop')) & 7) << 3) + self.state.arch.registers['fpu_regs'][0], 8
                 elif name in tag_map:
-                    return ((stn_map[name] + self.load('ftop')) & 7) + self.state.arch.registers['fpu_tags'][0], 1
+                    return ((tag_map[name] + self.load('ftop')) & 7) + self.state.arch.registers['fpu_tags'][0], 1
 
             return self.state.arch.registers[name]
         elif name[0] == '*':
