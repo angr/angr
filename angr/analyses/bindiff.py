@@ -223,7 +223,7 @@ def compare_statement_dict(statement_1, statement_2):
 
     # Yan's weird types
     differences = []
-    for attr in statement_1.__dict__:
+    for attr in statement_1.__slots__:
         # don't check arch, property, or methods
         if attr == "arch":
             continue
