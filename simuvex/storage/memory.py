@@ -7,6 +7,9 @@ l = logging.getLogger("simuvex.storage.memory")
 import claripy
 from ..plugins.plugin import SimStatePlugin
 
+stn_map = { 'st%d' % n: n for n in xrange(8) }
+tag_map = { 'tag%d' % n: n for n in xrange(8) }
+
 class AddressWrapper(object):
     """
     AddressWrapper is used in SimAbstractMemory, which provides extra meta information for an address (or a ValueSet
@@ -325,6 +328,12 @@ class SimMemory(SimStatePlugin):
 
     def _resolve_location_name(self, name):
         if self.category == 'reg':
+            if self.state.arch.name in ('X86', 'AMD64'):
+                if name in stn_map:
+                    return (((stn_map[name] + self.load('ftop')) & 7) << 3) + self.state.arch.registers['fpu_regs'][0], 8
+                elif name in tag_map:
+                    return ((stn_map[name] + self.load('ftop')) & 7) + self.state.arch.registers['fpu_tags'][0], 1
+
             return self.state.arch.registers[name]
         elif name[0] == '*':
             return self.state.registers.load(name[1:]), None

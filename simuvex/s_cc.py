@@ -679,8 +679,11 @@ class SimLyingRegArg(SimRegArg):
     def __init__(self, name):
         super(SimLyingRegArg, self).__init__(name, 8)
 
-    def get_value(self, state, size=None, **kwargs):
-        val = super(SimLyingRegArg, self).get_value(state, **kwargs)
+    def get_value(self, state, size=None, endness=None, **kwargs):
+        #val = super(SimLyingRegArg, self).get_value(state, **kwargs)
+        val = getattr(state.regs, self.reg_name)
+        if endness and endness != state.args.register_endness:
+            val = val.reversed
         if size == 4:
             val = claripy.fpToFP(claripy.fp.RM_RNE, val.raw_to_fp(), claripy.FSORT_FLOAT)
         return val
@@ -691,7 +694,10 @@ class SimLyingRegArg(SimRegArg):
                 val = claripy.fpToFP(claripy.fp.RM_RNE, val.reversed.raw_to_fp(), claripy.FSORT_DOUBLE).reversed
             else:
                 val = claripy.fpToFP(claripy.fp.RM_RNE, val.raw_to_fp(), claripy.FSORT_DOUBLE)
-        super(SimLyingRegArg, self).set_value(state, val, endness=endness, **kwargs)
+        if endness and endness != state.args.register_endness:
+            val = val.reversed
+        setattr(state.regs, self.reg_name, val)
+        #super(SimLyingRegArg, self).set_value(state, val, endness=endness, **kwargs)
 
 class SimCCCdecl(SimCC):
     ARG_REGS = [] # All arguments are passed in stack

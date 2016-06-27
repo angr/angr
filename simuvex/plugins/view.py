@@ -11,7 +11,7 @@ class SimRegNameView(SimStatePlugin):
     def __getattr__(self, k):
         state = super(SimRegNameView, self).__getattribute__('state')
         try:
-            return state.registers.load(state.arch.registers[k][0], state.arch.registers[k][1])
+            return state.registers.load(k)
         except KeyError:
             return super(SimRegNameView, self).__getattribute__(k)
 
@@ -19,18 +19,14 @@ class SimRegNameView(SimStatePlugin):
         if k == 'state' or k in dir(SimStatePlugin):
             return object.__setattr__(self, k, v)
 
-        v = _raw_ast(v)
-        if not isinstance(v, claripy.Bits):
-            v = self.state.se.BVV(v, self.state.arch.registers[k][1]*8)
-
         try:
-            reg_offset = self.state.arch.registers[k][0]
+            return self.state.registers.store(k, v)
         except KeyError:
             raise AttributeError(k)
 
-        return self.state.registers.store(reg_offset, v)
-
     def __dir__(self):
+        if self.state.arch.name in ('X86', 'AMD64'):
+            return self.state.arch.registers.keys() + ['st%d' % n for n in xrange(8)] + ['tag%d' % n for n in xrange(8)]
         return self.state.arch.registers.keys()
 
     def copy(self):
@@ -170,6 +166,5 @@ class SimMemView(SimStatePlugin):
 from ..s_type import ALL_TYPES
 SimMemView.types = ALL_TYPES # identity purposefully here
 
-from ..s_action_object import _raw_ast
 SimStatePlugin.register_default('regs', SimRegNameView)
 SimStatePlugin.register_default('mem', SimMemView)
