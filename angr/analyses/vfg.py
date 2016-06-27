@@ -11,7 +11,7 @@ import archinfo
 from ..entry_wrapper import SimRunKey, EntryWrapper, CallStack
 from ..analysis import Analysis, register_analysis
 from ..errors import AngrVFGError, AngrVFGRestartAnalysisNotice, AngrError
-from .forward_analysis import ForwardAnalysis
+from .forward_analysis import ForwardAnalysis, AngrForwardAnalysisSkipEntry
 
 l = logging.getLogger(name="angr.analyses.vfg")
 
@@ -108,6 +108,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
     # Start real AI analysis and try to compute a fix point of each merge point. Perform widening/narrowing only on
         variables \\in S_{var}.
     """
+
+    # TODO: right now the graph traversal method is not optimal. A new solution is needed to minimize the iteration we
+    # TODO: access each node in the graph
+
     def __init__(self, cfg=None,
                  context_sensitivity_level=2,
                  function_start=None,
@@ -115,7 +119,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                  initial_state=None,
                  avoid_runs=None,
                  remove_options=None,
-                 timeout=None
+                 timeout=None,
+                 start_at_function=True
                  ):
         """
         :param project: The project object.
@@ -125,7 +130,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         :param interfunction_level: The level of interfunction-ness to be
         :param initial_state: A state to use as the initial one
         :param avoid_runs: A list of runs to avoid
-        :param remove_options: State options to remove from the initial state. It only works when `initial_state` is None
+        :param remove_options: State options to remove from the initial state. It only works when `initial_state` is
+                                None
+        :param int timeout:
+        :param bool start_at_function:
         """
 
         ForwardAnalysis.__init__(self, order_entries=True, allow_merging=True)
@@ -143,6 +151,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         self._interfunction_level = interfunction_level
         self._state_options_to_remove = set() if remove_options is None else remove_options
         self._timeout = timeout
+        self._start_at_function = start_at_function
 
         self._initial_state = initial_state
 
@@ -160,7 +169,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         self._uninitialized_access = { }
         self._state_initialization_map = defaultdict(list)
 
-        self._state_ignored_variables = { }
         self._exit_targets = defaultdict(list) # A dict to log edges and the jumpkind between each basic block
         # A dict to record all blocks that returns to a specific address
         self._return_target_sources = defaultdict(list)
@@ -168,6 +176,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         self._pending_returns = {}
 
         self._thumb_addrs = set()   # set of all addresses that are code in thumb mode
+
+        self._final_address = None  # Address of the very last instruction. The analysis is terminated there.
 
         # local variables
 
@@ -253,21 +263,27 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
 
         # Prepare the state
-        loaded_state = self._prepare_state(self._start, self._initial_state, function_key=None)
-        loaded_state.ip = self._start
-        loaded_state.uninitialized_access_handler = self._uninitialized_access_handler
+        initial_state = self._prepare_state(self._start, self._initial_state, function_key=None)
+        initial_state.ip = self._start
+        initial_state.uninitialized_access_handler = self._uninitialized_access_handler
 
-        loaded_state = loaded_state.arch.prepare_state(loaded_state,
+        initial_state = initial_state.arch.prepare_state(initial_state,
                                                        {'current_function': self._start, }
         )
 
         # Create the initial path
-        # Also we want to identify all fresh variables at each merge point
-        entry_state = loaded_state.copy()
-        entry_state.options.add(simuvex.o.FRESHNESS_ANALYSIS)
+        entry_state = initial_state.copy()
         entry_path = self.project.factory.path(entry_state)
+
+        if self._start_at_function:
+            # set the return address to an address so we can catch it and terminate the VSA analysis
+            # TODO: Properly pick an address that will not conflict with any existing code and data in the program
+            self._final_address = 0x4fff0000
+            self._set_return_address(entry_state, self._final_address)
+
         entry_wrapper = VFGJob(entry_path.addr, entry_path, self._context_sensitivity_level,
-                                     jumpkind='Ijk_Boring')
+                               jumpkind='Ijk_Boring', final_return_address=self._final_address
+                               )
 
         self._insert_entry(entry_wrapper)
 
@@ -278,6 +294,17 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         return entry.simrun_key
 
     def _pre_entry_handling(self, entry):
+        """
+        Some code executed before actually processing the entry.
+
+        :param VFGJob entry: the VFGJob object.
+        :return: None
+        """
+
+        if self._final_address is not None and entry.addr == self._final_address:
+            # our analysis should be termianted here
+            raise AngrForwardAnalysisSkipEntry()
+
         entry.call_stack_suffix = entry.get_call_stack_suffix()
         entry.jumpkind = 'Ijk_Boring' if entry.path.state.scratch.jumpkind is None else \
             entry.path.state.scratch.jumpkind
@@ -309,13 +336,12 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         if restart_analysis:
             # We should restart the analysis because of something must be changed in the very initial state
-            import ipdb; ipdb.set_trace()
             raise AngrVFGRestartAnalysisNotice()
 
         if entry.simrun is None:
             # Ouch, we cannot get the simrun for some reason
-            import ipdb; ipdb.set_trace()
-            return
+            # Skip this guy
+            raise AngrForwardAnalysisSkipEntry()
 
         self._graph_add_edge(src_simrun_key,
                              simrun_key,
@@ -335,18 +361,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # save those states
         entry.vfg_node.final_states = all_successors[:]
-
-        # Get ignored variables
-        # TODO: We should merge it with existing ignored_variable set!
-        if isinstance(entry.simrun, simuvex.SimIRSB) and entry.simrun.default_exit is not None:
-            if entry.simrun.default_exit.scratch.ignored_variables:
-                self._state_ignored_variables[addr] = entry.simrun.default_exit.scratch.ignored_variables.copy()
-            else:
-                self._state_ignored_variables[addr] = None
-        elif all_successors:
-            # This is a SimProcedure instance
-            self._state_ignored_variables[addr] = all_successors[0].scratch.ignored_variables.copy() \
-                if all_successors[0].scratch.ignored_variables is not None else None
 
         # Update thumb_addrs
         if isinstance(entry.simrun, simuvex.SimIRSB) and current_path.state.thumb:
@@ -394,15 +408,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # this try-except block is to handle cases where the instruction pointer is symbolic
         try:
             if entry.is_return_jump:
-                # FIXME: This is a bad practice...
-                # TODO: this block of code is duplicated below...
                 ret_target = entry.call_stack.current_return_target
                 if ret_target is None:
-                    # We have no where to go according to our call stack
-                    # However, we still store the state as it is probably the last available state of the analysis
-                    # call_stack_suffix = entry.call_stack_suffix()
-                    # simrun_key = call_stack_suffix + (addr, )
-                    # self._normal_states[simrun_key] = suc_state
+                    # We have no where to go according to our call stack. However, the callstack might be corrupted
+                    l.debug("According to the call stack, we have nowhere to return to.")
                     return
 
                 successor.ip = ret_target
@@ -424,7 +433,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                                   MAX_NUMBER_OF_CONCRETE_VALUES)
                         return
                     else:
-                        import ipdb; ipdb.set_trace()
                         # Call this function for each possible IP
                         for ip in all_possible_ips:
                             concrete_successor = successor.copy()
@@ -489,9 +497,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 del self._pending_returns[new_simrun_key]
 
         if jumpkind == "Ijk_FakeRet" and entry.is_call_jump:
-            # This is the default "fake" return successor generated at each
-            # call. Save them first, but don't process them right
-            # away
+            # This is the default "fake" return successor generated at each call. Save them first, but don't process
+            # them right away
 
             # Clear the useless values (like return addresses, parameters) on stack if needed
             if self._cfg is not None:
@@ -510,7 +517,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
                 self._pending_returns[new_simrun_key] = \
                     (successor_state, new_call_stack, new_bbl_stack)
-                entry.dbg_exit_status[successor] = "Appended to fake_func_retn_exits"
+                entry.dbg_exit_status[successor] = "Appended to pending_returns"
 
         else:
             successor_path = self.project.factory.path(successor_state)
@@ -554,8 +561,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
             new_entries.append(new_exit_wrapper)
 
-            # TODO
-            entry.dbg_exit_status[successor] = "TODO"
+            entry.dbg_exit_status[successor] = "Appended"
 
         if not entry.is_call_jump or jumpkind != "Ijk_FakeRet":
             new_target = (new_simrun_key, jumpkind)
@@ -592,15 +598,13 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 except simuvex.SimValueError:
                     l.debug("|    target cannot be concretized. %s [%s] %s", entry.dbg_exit_status[suc], exit_type_str,
                             suc.scratch.jumpkind)
-            l.debug("len(remaining_exits) = %d, len(fake_func_retn_exits) = %d", len(self._entries),
+            l.debug("%d entries remaining, and %d return entries pending", len(self._entries),
                     len(self._pending_returns))
 
     def _intra_analysis(self):
         pass
 
     def _merge_entries(self, *entries):
-
-        import ipdb; ipdb.set_trace()
 
         assert len(entries) == 2
 
@@ -668,11 +672,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # The widening flag
         widening_occurred = False
 
-        if addr in self._state_ignored_variables:
-            old_state.scratch.ignored_variables = self._state_ignored_variables[addr]
-        else:
-            old_state.scratch.ignored_variables = simuvex.SimVariableSet()
-
         # TODO: _widen_points doesn't exist anymore!
         if addr in set(dst.addr for (_, dst) in self._widen_points):
             # We reached a merge point
@@ -739,9 +738,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         l.debug('Widening state at IP %s', old_state.ip)
 
-        if old_state.scratch.ignored_variables is None:
-            old_state.scratch.ignored_variables = new_state.scratch.ignored_variables
-
         widened_state, widening_occurred = old_state.widen(new_state)
 
         # print "Widened: "
@@ -765,12 +761,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         narrowing_occurred = False
 
-        # We will narrow all variables besides those in ignored_variables set
-
-        # Check each fresh variable in new_state, and update them in previously_widened_state if needed.
-        # Registers
-        ignored_register_vars = self._state_ignored_variables[node.addr].register_variables
-
         # TODO: Finish the narrowing logic
 
         return s, narrowing_occurred
@@ -787,9 +777,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # print old_state.dbg_print_stack()
         # print new_state.dbg_print_stack()
-
-        if old_state.scratch.ignored_variables is None:
-            old_state.scratch.ignored_variables = new_state.scratch.ignored_variables
 
         merged_state, _, merging_occurred = old_state.merge(new_state)
 
@@ -812,7 +799,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 # We have never saved any initial states for this function
                 # Gotta create a fresh state for it
                 s = self.project.factory.blank_state(mode="static",
-                                              add_options={ simuvex.o.FRESHNESS_ANALYSIS },
                                               remove_options=self._state_options_to_remove,
                 )
 
@@ -857,9 +843,38 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         initial_sp -= s.arch.bytes
         s.memory.set_stack_address_mapping(initial_sp,
                                            s.memory.stack_id(function_start),
-                                           function_start)
+                                           function_start
+                                           )
 
         return s
+
+    def _set_return_address(self, state, ret_addr):
+        """
+        Set the return address of the current state to a specific address. We assume we are at the beginning of a
+        function, or in other words, we are about to execute the very first instruction of the function.
+
+        :param simuvex.SimState state: The program state
+        :param int ret_addr: The return address
+        :return: None
+        """
+
+        # TODO: the following code is totally untested other than X86 and AMD64. Don't freak out if you find bugs :)
+        # TODO: Test it
+
+        ret_bvv = state.se.BVV(ret_addr, self.project.arch.bits)
+
+        if self.project.arch.name in ('X86', 'AMD64'):
+            state.stack_push(ret_bvv)
+        elif self.project.arch.name in ('ARMEL', 'ARMHF', 'AARCH64'):
+            state.regs.lr = ret_bvv
+        elif self.project.arch.name in ('MIPS32', 'MIPS64'):
+            state.regs.ra = ret_bvv
+        elif self.project.arch.name in ('PPC32', 'PPC64'):
+            state.regs.lr = ret_bvv
+        else:
+            l.warning('Return address cannot be set for architecture %s. Please add corresponding logic to '
+                      'VFG._set_return_address().', self.project.arch.name
+                      )
 
     def _create_graph(self, return_target_sources=None):
         """

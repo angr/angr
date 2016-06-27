@@ -452,7 +452,7 @@ class EntryWrapper(object):
     """
     def __init__(self, addr, path, context_sensitivity_level, simrun_key=None, src_simrun_key=None,
                  src_exit_stmt_idx=None, jumpkind=None, call_stack=None, bbl_stack=None, is_narrowing=False,
-                 skip=False, cancelled_pending_entry=None):
+                 skip=False, cancelled_pending_entry=None, final_return_address=None):
         self.addr = addr # Note that addr may not always be equal to self.path.addr (for syscalls, for example)
         self._path = path
         self.simrun_key = simrun_key
@@ -482,14 +482,18 @@ class EntryWrapper(object):
                 # Set the stack pointer to None
                 sp = None
 
-            self._call_stack.call(None, self._path.addr, stack_pointer=sp)
+            self._call_stack.call(None, self._path.addr, retn_target=final_return_address, stack_pointer=sp)
 
+        else:
+            self._call_stack = call_stack
+
+        if bbl_stack is None:
             self._bbl_stack = BBLStack()
             # Initialize the BBL stack
             self._bbl_stack.call(self._call_stack.stack_suffix(self._context_sensitivity_level), path.addr)
         else:
-            self._call_stack = call_stack
             self._bbl_stack = bbl_stack
+
         assert self._call_stack is not None and self._bbl_stack is not None
 
     @property
