@@ -9,7 +9,7 @@ import simuvex
 
 from ..knowledge import Function, HookNode
 from ..analysis import Analysis
-from ..errors import AngrCFGError
+from ..errors import AngrCFGError, AngrTranslationError, AngrMemoryError
 
 from .cfg_node import CFGNode
 
@@ -43,13 +43,16 @@ class CFGBase(Analysis):
     """
     The base class for control flow graphs.
     """
-    def __init__(self, context_sensitivity_level, normalize=False):
+    def __init__(self, context_sensitivity_level, normalize=False, binary=None, force_segment=False):
 
         self._context_sensitivity_level=context_sensitivity_level
 
         # Sanity checks
         if context_sensitivity_level < 0:
             raise ValueError("Unsupported context sensitivity level %d" % context_sensitivity_level)
+
+        self._binary = binary if binary is not None else self.project.loader.main_bin
+        self._force_segment = force_segment
 
         # Initialization
         self._graph = None
@@ -76,6 +79,10 @@ class CFGBase(Analysis):
         # IndirectJump object that describe all indirect exits found in the binary
         # stores as a map between addresses and IndirectJump objects
         self.indirect_jumps = {}
+
+        # Get all executable memory regions
+        self._exec_mem_regions = self._executable_memory_regions(self._binary, self._force_segment)
+        self._exec_mem_region_size = sum([(end - start) for start, end in self._exec_mem_regions])
 
     def __contains__(self, cfg_node):
         return cfg_node in self._graph
@@ -378,6 +385,85 @@ class CFGBase(Analysis):
 
         return memory_regions
 
+    def _addr_in_exec_memory_regions(self, addr):
+        """
+        Test if the address belongs to an executable memory region.
+
+        :param int addr: The address to test
+        :return: True if the address belongs to an exectubale memory region, False otherwise
+        :rtype: bool
+        """
+
+        for start, end in self._exec_mem_regions:
+            if start <= addr < end:
+                return True
+        return False
+
+    def _addr_belongs_to_section(self, addr):
+        """
+        Return the section object that the address belongs to.
+
+        :param int addr: The address to test
+        :return: The section that the address belongs to, or None if the address does not belong to any section, or if
+                section information is not available.
+        :rtype: cle.Section
+        """
+
+        obj = self.project.loader.addr_belongs_to_object(addr)
+
+        if obj is None:
+            return None
+
+        for section in obj.sections:
+            start = section.vaddr + obj.rebase_addr
+            end = section.vaddr + section.memsize + obj.rebase_addr
+
+            if start <= addr < end:
+                return section
+
+        return None
+
+    def _addr_belongs_to_segment(self, addr):
+        """
+        Return the section object that the address belongs to.
+
+        :param int addr: The address to test
+        :return: The section that the address belongs to, or None if the address does not belong to any section, or if
+                section information is not available.
+        :rtype: cle.Segment
+        """
+
+        obj = self.project.loader.addr_belongs_to_object(addr)
+
+        if obj is None:
+            return None
+
+        for segment in obj.segments:
+            start = segment.vaddr + obj.rebase_addr
+            end = segment.vaddr + segment.memsize + obj.rebase_addr
+
+            if start <= addr < end:
+                return segment
+
+        return None
+
+    def _fast_memory_load(self, addr):
+        """
+        Perform a fast memory loading of static content from static regions, a.k.a regions that are mapped to the
+        memory by the loader.
+
+        :param int addr: Address to read from.
+        :return: The data, or None if the address does not exist.
+        :rtype: cffi.CData
+        """
+
+        try:
+            buff, _ = self.project.loader.memory.read_bytes_c(addr)
+            return buff
+
+        except KeyError:
+            return None
+
     #
     # Analyze function features
     #
@@ -639,7 +725,7 @@ class CFGBase(Analysis):
                     # We gotta create a new one
                     l.error('normalize(): Please report it to Fish.')
 
-            end_addresses[tpl_to_find] = [smallest_node]
+            end_addresses[tpl_to_find] = { smallest_node }
 
         self._normalized = True
 
@@ -688,8 +774,12 @@ class CFGBase(Analysis):
                 function_nodes.add(n)
 
         # traverse the graph starting from each node, not following call edges
-        for fn in function_nodes:
-            self._graph_bfs_custom(self.graph, [ fn ], self._graph_traversal_handler, blockaddr_to_function, tmp_functions)
+        # it's important that we traverse all functions in order so that we have a greater chance to come across
+        # rational functions before its irrational counterparts (e.g. due to failed jump table resolution)
+        for fn in sorted(function_nodes, key=lambda n: n.addr):
+            self._graph_bfs_custom(self.graph, [ fn ], self._graph_traversal_handler, blockaddr_to_function,
+                                   tmp_functions
+                                   )
 
         # Remove all stubs after PLT entries
         to_remove = set()
@@ -756,15 +846,56 @@ class CFGBase(Analysis):
             if not has_unresolved_jumps:
                 continue
 
-            startpoint = function.startpoint.addr
+            startpoint_addr = function.startpoint.addr
             if not function.endpoints:
                 # Function should have at least one endpoint
                 continue
-            endpoint = max([ a.addr for a in function.endpoints ])
+            endpoint_addr = max([ a.addr for a in function.endpoints ])
+            the_endpoint = next(a for a in function.endpoints if a.addr == endpoint_addr)
+            endpoint_addr += the_endpoint.size
 
             # sanity check: startpoint of the function should be greater than its endpoint
-            if startpoint >= endpoint:
+            if startpoint_addr >= endpoint_addr:
                 continue
+
+            # scan forward from the endpoint to include any function tail jumps
+            # Here is an example:
+            # loc_8049562:
+            #       mov eax, ebp
+            #       add esp, 3ch
+            #       ...
+            #       ret
+            # loc_804956c:
+            #       mov ebp, 3
+            #       jmp loc_8049562
+            # loc_8049573:
+            #       mov ebp, 4
+            #       jmp loc_8049562
+            #
+            last_addr = endpoint_addr
+            tmp_state = self.project.factory.blank_state(mode='fastpath')
+            while True:
+                try:
+                    # use simrun is slow, but acceptable since we won't be creating millions of blocks here...
+                    tmp_state.ip = last_addr
+                    b = self.project.factory.sim_run(tmp_state, jumpkind='Ijk_Boring')
+                    if len(b.successors) != 1:
+                        break
+                    if b.successors[0].scratch.jumpkind != 'Ijk_Boring':
+                        break
+                    if b.successors[0].ip.symbolic:
+                        break
+                    suc_addr = b.successors[0].ip._model_concrete
+                    if max(startpoint_addr, the_endpoint.addr - 0x40) <= suc_addr < the_endpoint.addr + the_endpoint.size:
+                        # increment the endpoint_addr
+                        endpoint_addr = b.addr + b.irsb.size
+                    else:
+                        break
+
+                    last_addr = b.addr + b.irsb.size
+
+                except (AngrTranslationError, AngrMemoryError):
+                    break
 
             # find all functions that are between [ startpoint, endpoint ]
 
@@ -774,7 +905,9 @@ class CFGBase(Analysis):
                 if f_addr == func_addr:
                     continue
 
-                if startpoint < f_addr < endpoint and all([startpoint < b.addr < endpoint for b in f.blocks]):
+                if startpoint_addr < f_addr < endpoint_addr and \
+                        all([startpoint_addr < b.addr < endpoint_addr for b in f.blocks]):
+
                     functions_to_remove[f_addr] = func_addr
                     continue
 
@@ -905,7 +1038,15 @@ class CFGBase(Analysis):
             self.kb.functions._add_call_to(src_function.addr, src_addr, dst_addr, None, syscall=is_syscall)
 
             if dst_function.returning:
-                self.kb.functions._add_fakeret_to(src_function.addr, src_addr, src.addr + src.size, confirmed=True)
+                returning_target = src.addr + src.size
+                if returning_target not in blockaddr_to_function:
+                    blockaddr_to_function[returning_target] = src_function
+
+                to_outside = not blockaddr_to_function[returning_target] is src_function
+
+                self.kb.functions._add_fakeret_to(src_function.addr, src_addr, returning_target, confirmed=True,
+                                                  to_outside=to_outside
+                                                  )
 
         elif jumpkind == 'Ijk_Boring':
 
@@ -920,15 +1061,22 @@ class CFGBase(Analysis):
             else:
                 # no it's not
                 # add the transition code
-                self.kb.functions._add_transition_to(src_function.addr, src_addr, dst_addr)
 
-                blockaddr_to_function[dst_addr] = src_function
+                if dst_addr not in blockaddr_to_function:
+                    blockaddr_to_function[dst_addr] = src_function
+
+                self.kb.functions._add_transition_to(src_function.addr, src_addr, dst_addr)
 
         elif jumpkind == 'Ijk_FakeRet':
 
-            blockaddr_to_function[dst_addr] = src_function
+            if dst_addr not in blockaddr_to_function:
+                blockaddr_to_function[dst_addr] = src_function
 
-            self.kb.functions._add_fakeret_to(src_function.addr, src_addr, dst_addr, confirmed=True)
+            to_outside = not blockaddr_to_function[dst_addr] is src_function
+
+            self.kb.functions._add_fakeret_to(src_function.addr, src_addr, dst_addr, confirmed=True,
+                                              to_outside=to_outside
+                                              )
 
         else:
             l.debug('Ignored jumpkind %s', jumpkind)

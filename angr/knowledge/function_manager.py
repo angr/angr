@@ -70,7 +70,7 @@ class FunctionManager(collections.Mapping):
         dst_func = self._function_map[function_addr]
         if syscall in (True, False):
             dst_func.is_syscall = syscall
-        dst_func._register_nodes(node)
+        dst_func._register_nodes(True, node)
 
     def _add_call_to(self, function_addr, from_node, to_addr, retn_node, syscall=None):
 
@@ -86,7 +86,7 @@ class FunctionManager(collections.Mapping):
         self._function_map[function_addr]._add_call_site(from_node.addr, to_addr, retn_node.addr if retn_node else None)
         self.callgraph.add_edge(function_addr, to_addr)
 
-    def _add_fakeret_to(self, function_addr, from_node, to_node, confirmed=None, syscall=None):
+    def _add_fakeret_to(self, function_addr, from_node, to_node, confirmed=None, syscall=None, to_outside=False):
         if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
         if type(to_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
@@ -96,7 +96,7 @@ class FunctionManager(collections.Mapping):
         if syscall in (True, False):
             src_func.is_syscall = syscall
 
-        src_func._fakeret_to(from_node, to_node, confirmed=confirmed)
+        src_func._fakeret_to(from_node, to_node, confirmed=confirmed, to_outside=to_outside)
 
     def _remove_fakeret(self, function_addr, from_node, to_node):
         if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck

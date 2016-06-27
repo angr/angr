@@ -87,14 +87,15 @@ class Function(object):
         self._addr_to_block_node = {}  # map addresses to nodes
         self._block_sizes = {}  # map addresses to block sizes
         self._block_cache = {}  # a cache of real, hard data Block objects
+        self._local_blocks = set() # a set of all blocks inside the function
 
         self.info = { }  # storing special information, like $gp values for MIPS32
 
     @property
     def blocks(self):
-        for blockaddr in self.block_addrs:
+        for block in self._local_blocks:
             try:
-                yield self._get_block(blockaddr)
+                yield self._get_block(block.addr)
             except AngrTranslationError:
                 pass
 
@@ -321,7 +322,7 @@ class Function(object):
         s += '  Arguments: reg: %s, stack: %s\n' % \
             (self._argument_registers,
              self._argument_stack_variables)
-        s += '  Blocks: [%s]\n' % ", ".join(['%#x' % i for i in self.block_addrs])
+        s += '  Blocks: [%s]\n' % ", ".join(['%#x' % i.addr for i in self._local_blocks])
         s += "  Calling convention: %s" % self.call_convention
         return s
 
@@ -345,6 +346,22 @@ class Function(object):
         self.transition_graph = networkx.DiGraph()
         self._local_transition_graph = None
 
+    def _confirm_fakeret(self, src, dst):
+
+        if src not in self.transition_graph or dst not in self.transition_graph[src]:
+            raise AngrValueError('FakeRet edge (%s, %s) is not in transition graph.' % (src, dst))
+
+        data = self.transition_graph[src][dst]
+
+        if 'type' not in data or data['type'] != 'fake_return':
+            raise AngrValueError('Edge (%s, %s) is not a FakeRet edge' % (src, dst))
+
+        # it's confirmed. register the node if needed
+        if 'outside' not in data or data['outside'] is False:
+            self._register_nodes(True, dst)
+
+        self.transition_graph[src][dst]['confirmed'] = True
+
     def _transit_to(self, from_node, to_node, outside=False):
         """
         Registers an edge between basic blocks in this function's transition graph.
@@ -359,9 +376,10 @@ class Function(object):
         """
 
         if outside:
-            self._register_nodes(from_node)
+            self._register_nodes(True, from_node)
+            self._register_nodes(False, to_node)
         else:
-            self._register_nodes(from_node, to_node)
+            self._register_nodes(True, from_node, to_node)
         self.transition_graph.add_edge(from_node, to_node, type='transition', outside=outside)
 
         if outside:
@@ -384,7 +402,7 @@ class Function(object):
         :type  to_func:     angr.knowledge.CodeNode or None
         """
 
-        self._register_nodes(from_node)
+        self._register_nodes(True, from_node)
 
         if to_func.is_syscall:
             self.transition_graph.add_edge(from_node, to_func, type='syscall')
@@ -395,12 +413,17 @@ class Function(object):
 
         self._local_transition_graph = None
 
-    def _fakeret_to(self, from_node, to_node, confirmed=None):
-        self._register_nodes(from_node, to_node)
+    def _fakeret_to(self, from_node, to_node, confirmed=None, to_outside=False):
+        self._register_nodes(True, from_node)
+
         if confirmed is None:
-            self.transition_graph.add_edge(from_node, to_node, type='fake_return')
+            self.transition_graph.add_edge(from_node, to_node, type='fake_return', outside=to_outside)
         else:
-            self.transition_graph.add_edge(from_node, to_node, type='fake_return', confirmed=confirmed)
+            self.transition_graph.add_edge(from_node, to_node, type='fake_return', confirmed=confirmed,
+                                           outside=to_outside
+                                           )
+            if confirmed:
+                self._register_nodes(not to_outside, to_node)
 
         self._local_transition_graph = None
 
@@ -417,7 +440,10 @@ class Function(object):
 
         self._local_transition_graph = None
 
-    def _register_nodes(self, *nodes):
+    def _register_nodes(self, is_local, *nodes):
+        if not isinstance(is_local, bool):
+            raise AngrValueError('_register_nodes(): the "is_local" parameter must be a bool')
+
         for node in nodes:
             node._graph = self.transition_graph
             if node.addr not in self or self._block_sizes[node.addr] == 0:
@@ -425,6 +451,8 @@ class Function(object):
             if node.addr == self.addr:
                 if self.startpoint is None or not self.startpoint.is_hook:
                     self.startpoint = node
+            if is_local:
+                self._local_blocks.add(node)
             # add BlockNodes to the addr_to_block_node cache if not already there
             if isinstance(node, BlockNode):
                 if node.addr not in self._addr_to_block_node:
@@ -499,11 +527,14 @@ class Function(object):
         g = networkx.DiGraph()
         if self.startpoint is not None:
             g.add_node(self.startpoint)
+        for block in self._local_blocks:
+            g.add_node(block)
         for src, dst, data in self.transition_graph.edges_iter(data=True):
             if 'type' in data:
-                if data['type']  == 'transition' and ('outside' not in data or data['outside'] == False):
+                if data['type']  == 'transition' and ('outside' not in data or data['outside'] is False):
                     g.add_edge(src, dst, attr_dict=data)
-                elif data['type'] == 'fake_return' and 'confirmed' in data:
+                elif data['type'] == 'fake_return' and 'confirmed' in data and \
+                        ('outside' not in data or data['outside'] is False):
                     g.add_edge(src, dst, attr_dict=data)
 
         self._local_transition_graph = g
@@ -589,6 +620,10 @@ class Function(object):
             smallest_node = all_nodes[0]
             other_nodes = all_nodes[1:]
 
+            is_outside_node = False
+            if smallest_node not in self.graph:
+                is_outside_node = True
+
             # Break other nodes
             for n in other_nodes:
                 new_size = smallest_node.addr - n.addr
@@ -610,6 +645,7 @@ class Function(object):
                     # Create a new one
                     new_node = BlockNode(n.addr, new_size, graph=graph)
                     self._block_sizes[n.addr] = new_size
+                    self._addr_to_block_node[n.addr] = new_node
                     # Put the newnode into end_addresses
                     end_addresses[new_end_addr].append(new_node)
 
@@ -627,12 +663,16 @@ class Function(object):
                                   if i.addr == smallest_node.addr]
                 if new_successors:
                     new_successor = new_successors[0]
-                    graph.add_edge(new_node, new_successor, type="transition")
+                    graph.add_edge(new_node, new_successor, type="transition", outside=is_outside_node)
                 else:
                     # We gotta create a new one
                     l.error('normalize(): Please report it to Fish/maybe john.')
 
             end_addresses[end_addr] = [smallest_node]
+
+        # Rebuild startpoint
+        if self.startpoint.size != self._block_sizes[self.startpoint.addr]:
+            self.startpoint = self.get_node(self.startpoint.addr)
 
         # Clear the cache
         self._local_transition_graph = None
@@ -674,4 +714,4 @@ class Function(object):
         return simuvex.s_cc.SimCCUnknown(arch, args, ret_vals, sp_delta)
 
 from .codenode import BlockNode
-from ..errors import AngrTranslationError
+from ..errors import AngrTranslationError, AngrValueError
