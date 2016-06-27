@@ -27,7 +27,6 @@ class VFGJob(EntryWrapper):
         super(VFGJob, self).__init__(*args, **kwargs)
 
         self.call_stack_suffix = None
-        self.jumpkind = None
         self.simrun = None
         self.vfg_node = None
         self.is_call_jump = None
@@ -166,7 +165,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # All final states are put in this list
         self.final_states = [ ]
 
-        self._uninitialized_access = { }
         self._state_initialization_map = defaultdict(list)
 
         self._exit_targets = defaultdict(list) # A dict to log edges and the jumpkind between each basic block
@@ -228,22 +226,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
     # Pickling helpers
     def __setstate__(self, s):
         self.__dict__.update(s)
-        for n in self._nodes.values():
-            n.state.uninitialized_access_handler = self._uninitialized_access_handler
-            for state in n.final_states:
-                state.uninitialized_access_handler = self._uninitialized_access_handler
-        for a in self._function_initial_states.values():
-            for state in a.values():
-                state.uninitialized_access_handler = self._uninitialized_access_handler
 
     def __getstate__(self):
-        for n in self._nodes.values():
-            n.state.uninitialized_access_handler = None
-            for state in n.final_states:
-                state.uninitialized_access_handler = None
-        for a in self._function_initial_states.values():
-            for state in a.values():
-                state.uninitialized_access_handler = None
         return dict(self.__dict__)
 
     #
@@ -265,7 +249,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # Prepare the state
         initial_state = self._prepare_state(self._start, self._initial_state, function_key=None)
         initial_state.ip = self._start
-        initial_state.uninitialized_access_handler = self._uninitialized_access_handler
 
         initial_state = initial_state.arch.prepare_state(initial_state,
                                                        {'current_function': self._start, }
@@ -281,11 +264,13 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             self._final_address = 0x4fff0000
             self._set_return_address(entry_state, self._final_address)
 
-        entry_wrapper = VFGJob(entry_path.addr, entry_path, self._context_sensitivity_level,
-                               jumpkind='Ijk_Boring', final_return_address=self._final_address
-                               )
+        job = VFGJob(entry_path.addr, entry_path, self._context_sensitivity_level,
+                     jumpkind='Ijk_Boring', final_return_address=self._final_address
+                     )
+        simrun_key = SimRunKey.new(entry_path.addr, job.get_call_stack_suffix(), job.jumpkind)
+        job.simrun_key = simrun_key
 
-        self._insert_entry(entry_wrapper)
+        self._insert_entry(job)
 
     def _entry_sorting_key(self, entry):
         return self._cfg.get_topological_order(self._cfg.get_node(entry.simrun_key))
@@ -317,9 +302,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         addr = current_path.addr
         input_state = current_path.state
         simrun_key = SimRunKey.new(addr, entry.call_stack_suffix, entry.jumpkind)
-
-        # Initialize the state with necessary values
-        self._initialize_state(input_state)
 
         if simrun_key not in self._nodes:
             entry.vfg_node = VFGNode(addr, simrun_key, state=input_state)
@@ -615,30 +597,37 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         path = self.project.factory.path(merged_state)
 
-        return VFGJob(entries[0].addr, path, self._context_sensitivity_level, jumpkind=entries[0].jumpkind)
+        return VFGJob(entries[0].addr, path, self._context_sensitivity_level, jumpkind=entries[0].jumpkind,
+                      simrun_key=entries[0].simrun_key
+                      )
 
     def _entry_list_empty(self):
 
         if self._pending_returns:
             # We don't have any paths remaining. Let's pop a previously-missing return to
             # process
-            fake_exit_key = self._pending_returns.keys()[0]
-            fake_exit_state, fake_exit_call_stack, fake_exit_bbl_stack = \
-                self._pending_returns.pop(fake_exit_key)
-            fake_exit_addr = fake_exit_key.addr
+            pending_ret_key = self._pending_returns.keys()[0]
+            state, call_stack, bbl_stack = self._pending_returns.pop(pending_ret_key)
+            addr = pending_ret_key.addr
 
             # Unlike CFG, we will still trace those blocks that have been traced before. In other words, we don't
             # remove fake returns even if they have been traced - otherwise we cannot come to a fixpoint.
 
-            new_path = self.project.factory.path(fake_exit_state)
-            new_path_wrapper = VFGJob(new_path.addr,
-                                      new_path,
-                                      self._context_sensitivity_level,
-                                      jumpkind=new_path.state.scratch.jumpkind,
-                                      call_stack=fake_exit_call_stack,
-                                      bbl_stack=fake_exit_bbl_stack)
-            self._insert_entry(new_path_wrapper)
-            l.debug("Tracing a missing return %#08x, %s", fake_exit_addr, repr(fake_exit_key))
+            new_path = self.project.factory.path(state)
+            simrun_key = SimRunKey.new(addr,
+                                       call_stack.stack_suffix(self._context_sensitivity_level),
+                                       'Ijk_Ret'
+                                       )
+            job = VFGJob(new_path.addr,
+                         new_path,
+                         self._context_sensitivity_level,
+                         simrun_key=simrun_key,
+                         jumpkind=new_path.state.scratch.jumpkind,
+                         call_stack=call_stack,
+                         bbl_stack=bbl_stack
+                         )
+            self._insert_entry(job)
+            l.debug("Tracing a missing return %#08x, %s", addr, repr(pending_ret_key))
 
     def _post_analysis(self):
         pass
@@ -988,13 +977,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         try:
             sim_run = self.project.factory.sim_run(current_path.state, jumpkind=jumpkind)
-        except simuvex.SimUninitializedAccessError as ex:
-            l.error("Found an uninitialized access (used as %s) at expression %s.", ex.expr_type, ex.expr)
-            # We don't restart the analysis if it returns False, which indicates something is wrong
-            restart_analysis = self._add_expression_to_initialize(ex.expr, ex.expr_type)
-
-            sim_run = None
-            error_occured = True
         except simuvex.SimIRSBError as ex:
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
@@ -1151,97 +1133,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             self._function_initial_states[function_addr][function_key] = merged_state
         else:
             self._function_initial_states[function_addr][function_key] = successor_state
-
-    def _uninitialized_access_handler(self, mem_id, addrs, length, expr, bbl_addr, stmt_idx):
-        if type(addrs) is not list:
-            addrs = [ addrs ]
-
-        for addr in addrs:
-            if expr._model_vsa.name not in self._uninitialized_access:
-                self._uninitialized_access[expr._model_vsa.name] = (bbl_addr, stmt_idx, mem_id, addr, length)
-
-    def _find_innermost_uninitialized_expr(self, expr):
-        result = [ ]
-
-        if not expr.args:
-            if hasattr(expr._model_vsa, 'uninitialized') and expr._model_vsa.uninitialized:
-                result.append(expr)
-
-        else:
-            tmp_result = [ ]
-
-            for a in expr.args:
-                if isinstance(a, claripy.ast.Base):
-                    r = self._find_innermost_uninitialized_expr(a)
-
-                    if r:
-                        tmp_result.extend(r)
-
-            if tmp_result:
-                result = tmp_result
-
-            elif not tmp_result and \
-                    hasattr(expr._model_vsa, 'uninitialized') and \
-                    expr._model_vsa.uninitialized:
-                result.append(expr)
-
-        return result
-
-    def _add_expression_to_initialize(self, expr, expr_type):
-
-        expr = self._find_innermost_uninitialized_expr(expr)
-
-        next_expr_type = expr_type
-
-        for ex in expr:
-            name = ex._model_vsa.name
-
-            if name in self._uninitialized_access:
-                bbl_addr, stmt_idx, mem_id, addr, length = self._uninitialized_access[name]
-                # FIXME: Here we are reusing expr_type for all uninitialized variables.
-                # FIXME: However, it will cause problems for the following case:
-                # FIXME: addr(uninit) = addr_a(uninit) + offset_b(uninit)
-                # FIXME: In this case, both addr_a and offset_b will be treated as addresses
-                # FIXME: We should consider a fix for that
-                self._state_initialization_map[bbl_addr].append((mem_id, addr, length, next_expr_type, stmt_idx))
-                if next_expr_type == 'addr':
-                    next_expr_type = 'value'
-            else:
-                l.error('Variable %s does not exist in self._uninitialized_access. Please report it to Fish.', name)
-                return False
-
-        return True
-
-    def _initialize_state(self, state):
-
-        se = state.se
-        bbl_addr = se.exactly_int(state.ip)
-
-        if bbl_addr in self._state_initialization_map:
-            for data in self._state_initialization_map[bbl_addr]:
-                mem_id, addr, length, expr_type, stmt_idx = data
-
-                # Initialize it
-                if expr_type == 'addr':
-                    # Give it an address
-                    value = se.VS(region='_init_%x_%d' % (bbl_addr, stmt_idx), bits=state.arch.bits, val=0)
-
-                elif expr_type == 'value':
-                    # Give it a value
-                    value = se.SI(bits=length, stride=1, lower_bound=-(2**length-1), upper_bound=2**length)
-
-                else:
-                    raise Exception('Not implemented. Please report it to Fish.')
-
-                # Write to the state
-                if mem_id == 'reg':
-                    state.registers.store(addr, value)
-                else:
-                    # TODO: This is completely untested!
-                    region_id, offset = addr
-                    target_addr = se.VS(region=region_id, bits=state.arch.bits, val=offset)
-
-                    state.memory.store(target_addr, value, size=length)
 
     def _get_block_addr(self, b): #pylint:disable=R0201
         if isinstance(b, simuvex.SimIRSB):
