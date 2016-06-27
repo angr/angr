@@ -877,7 +877,8 @@ class CFGBase(Analysis):
             while True:
                 try:
                     # use simrun is slow, but acceptable since we won't be creating millions of blocks here...
-                    b = self.project.factory.sim_run(tmp_state, addr=last_addr, jumpkind='Ijk_Boring')
+                    tmp_state.ip = last_addr
+                    b = self.project.factory.sim_run(tmp_state, jumpkind='Ijk_Boring')
                     if len(b.successors) != 1:
                         break
                     if b.successors[0].scratch.jumpkind != 'Ijk_Boring':
