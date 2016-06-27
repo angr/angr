@@ -987,7 +987,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             edges_to_remove.append((src, dst))
                         else:
                             # Mark this edge as confirmed
-                            f.transition_graph[src][dst]['confirmed'] = True
+                            f._confirm_fakeret(src, dst)
 
             for edge in edges_to_remove:
                 f.transition_graph.remove_edge(*edge)

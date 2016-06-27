@@ -346,6 +346,22 @@ class Function(object):
         self.transition_graph = networkx.DiGraph()
         self._local_transition_graph = None
 
+    def _confirm_fakeret(self, src, dst):
+
+        if src not in self.transition_graph or dst not in self.transition_graph[src]:
+            raise AngrValueError('FakeRet edge (%s, %s) is not in transition graph.' % (src, dst))
+
+        data = self.transition_graph[src][dst]
+
+        if 'type' not in data or data['type'] != 'fake_return':
+            raise AngrValueError('Edge (%s, %s) is not a FakeRet edge' % (src, dst))
+
+        # it's confirmed. register the node if needed
+        if 'outside' not in data or data['outside'] is False:
+            self._register_nodes(True, dst)
+
+        self.transition_graph[src][dst]['confirmed'] = True
+
     def _transit_to(self, from_node, to_node, outside=False):
         """
         Registers an edge between basic blocks in this function's transition graph.
@@ -399,10 +415,6 @@ class Function(object):
 
     def _fakeret_to(self, from_node, to_node, confirmed=None, to_outside=False):
         self._register_nodes(True, from_node)
-        if to_outside:
-            self._register_nodes(False, to_node)
-        else:
-            self._register_nodes(True, to_node)
 
         if confirmed is None:
             self.transition_graph.add_edge(from_node, to_node, type='fake_return', outside=to_outside)
@@ -410,6 +422,8 @@ class Function(object):
             self.transition_graph.add_edge(from_node, to_node, type='fake_return', confirmed=confirmed,
                                            outside=to_outside
                                            )
+            if confirmed:
+                self._register_nodes(not to_outside, to_node)
 
         self._local_transition_graph = None
 
