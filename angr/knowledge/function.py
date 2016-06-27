@@ -395,12 +395,14 @@ class Function(object):
 
         self._local_transition_graph = None
 
-    def _fakeret_to(self, from_node, to_node, confirmed=None):
+    def _fakeret_to(self, from_node, to_node, confirmed=None, to_outside=False):
         self._register_nodes(from_node, to_node)
         if confirmed is None:
-            self.transition_graph.add_edge(from_node, to_node, type='fake_return')
+            self.transition_graph.add_edge(from_node, to_node, type='fake_return', outside=to_outside)
         else:
-            self.transition_graph.add_edge(from_node, to_node, type='fake_return', confirmed=confirmed)
+            self.transition_graph.add_edge(from_node, to_node, type='fake_return', confirmed=confirmed,
+                                           outside=to_outside
+                                           )
 
         self._local_transition_graph = None
 
@@ -501,9 +503,10 @@ class Function(object):
             g.add_node(self.startpoint)
         for src, dst, data in self.transition_graph.edges_iter(data=True):
             if 'type' in data:
-                if data['type']  == 'transition' and ('outside' not in data or data['outside'] == False):
+                if data['type']  == 'transition' and ('outside' not in data or data['outside'] is False):
                     g.add_edge(src, dst, attr_dict=data)
-                elif data['type'] == 'fake_return' and 'confirmed' in data:
+                elif data['type'] == 'fake_return' and 'confirmed' in data and \
+                        ('outside' not in data or data['outside'] is False):
                     g.add_edge(src, dst, attr_dict=data)
 
         self._local_transition_graph = g

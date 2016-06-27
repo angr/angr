@@ -1037,7 +1037,15 @@ class CFGBase(Analysis):
             self.kb.functions._add_call_to(src_function.addr, src_addr, dst_addr, None, syscall=is_syscall)
 
             if dst_function.returning:
-                self.kb.functions._add_fakeret_to(src_function.addr, src_addr, src.addr + src.size, confirmed=True)
+                returning_target = src.addr + src.size
+                if returning_target not in blockaddr_to_function:
+                    blockaddr_to_function[returning_target] = src_function
+
+                to_outside = not blockaddr_to_function[returning_target] is src_function
+
+                self.kb.functions._add_fakeret_to(src_function.addr, src_addr, returning_target, confirmed=True,
+                                                  to_outside=to_outside
+                                                  )
 
         elif jumpkind == 'Ijk_Boring':
 
@@ -1052,17 +1060,22 @@ class CFGBase(Analysis):
             else:
                 # no it's not
                 # add the transition code
-                self.kb.functions._add_transition_to(src_function.addr, src_addr, dst_addr)
 
                 if dst_addr not in blockaddr_to_function:
                     blockaddr_to_function[dst_addr] = src_function
+
+                self.kb.functions._add_transition_to(src_function.addr, src_addr, dst_addr)
 
         elif jumpkind == 'Ijk_FakeRet':
 
             if dst_addr not in blockaddr_to_function:
                 blockaddr_to_function[dst_addr] = src_function
 
-            self.kb.functions._add_fakeret_to(src_function.addr, src_addr, dst_addr, confirmed=True)
+            to_outside = not blockaddr_to_function[dst_addr] is src_function
+
+            self.kb.functions._add_fakeret_to(src_function.addr, src_addr, dst_addr, confirmed=True,
+                                              to_outside=to_outside
+                                              )
 
         else:
             l.debug('Ignored jumpkind %s', jumpkind)
