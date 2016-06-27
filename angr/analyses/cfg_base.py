@@ -458,7 +458,7 @@ class CFGBase(Analysis):
         """
 
         try:
-            buff, buff_size = self.project.loader.memory.read_bytes_c(addr)
+            buff, _ = self.project.loader.memory.read_bytes_c(addr)
             return buff
 
         except KeyError:
