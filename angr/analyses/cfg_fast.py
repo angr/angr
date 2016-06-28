@@ -1128,9 +1128,30 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             irsb = self.project.factory.block(addr).vex
 
+            if irsb.size == 0 and self.project.arch.name in ('ARMHF', 'ARMEL'):
+                # maybe the current mode is wrong?
+                if addr % 2 == 0:
+                    addr_0 = addr + 1
+                else:
+                    addr_0 = addr - 1
+                irsb = self.project.factory.block(addr_0).vex
+                if irsb.size > 0:
+                    if current_function_addr == addr:
+                        current_function_addr = addr_0
+                    addr = addr_0
+
+            if irsb.size == 0:
+                # decoding error
+                return [ ]
+
             # Occupy the block in segment list
             if irsb.size > 0:
-                self._seg_list.occupy(addr, irsb.size, "code")
+                if self.project.arch.name in ('ARMHF', 'ARMEL') and addr % 2 == 1:
+                    # thumb mode
+                    real_addr = addr - 1
+                else:
+                    real_addr = addr
+                self._seg_list.occupy(real_addr, irsb.size, "code")
 
             if addr not in self._nodes:
                 # Create a CFG node, and add it to the graph
