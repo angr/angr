@@ -1,5 +1,6 @@
 import nose
 import angr
+import tracer
 
 import logging
 l = logging.getLogger("angr.tests.unicorn")
@@ -26,15 +27,8 @@ def dump_reg(s):
 def test_unicorn():
     p = angr.Project(os.path.join(test_location, 'binaries-private/cgc_qualifier_event/cgc/99c22c01_01'))
 
-    s_unicorn = p.factory.entry_state(add_options=so.unicorn | {so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH}, remove_options={so.LAZY_SOLVES}) # unicorn
-    s_angr = p.factory.entry_state(add_options={so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH, so.INITIALIZE_ZERO_REGISTERS}, remove_options={so.LAZY_SOLVES}) # pure angr
-    # s_unicorn.options.add(so.UNICORN_DISABLE_NATIVE)
-
-    dump_reg(s_unicorn)
-    #s_unicorn.unicorn.max_steps = 1
-    s_unicorn.unicorn.cooldown_symbolic_registers = 0
-    s_unicorn.unicorn.cooldown_symbolic_memory = 0
-    s_unicorn.unicorn.cooldown_nonunicorn_blocks = 0
+    s_unicorn = p.factory.entry_state(add_options=so.unicorn | {so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH, so.STRICT_PAGE_ACCESS}, remove_options={so.LAZY_SOLVES}) # unicorn
+    s_angr = p.factory.entry_state(add_options={so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH, so.INITIALIZE_ZERO_REGISTERS, so.STRICT_PAGE_ACCESS}, remove_options={so.LAZY_SOLVES}) # pure angr
 
     pg_unicorn = p.factory.path_group(s_unicorn)
     pg_angr = p.factory.path_group(s_angr)
@@ -53,32 +47,19 @@ def test_unicorn():
     stdin.seek(0)
     stdin.size = len(inp)
 
-    import tracer
     tracer = tracer.Runner(p.filename, inp, record_trace=True)
     tracer.dynamic_trace()
     real_trace = tracer.trace
 
-    pg_unicorn.step(until=lambda lpg: len(lpg.one_active.addr_trace) >= 8200)
-    uc_trace = pg_unicorn.active[0].addr_trace.hardcopy
-    pg_angr.step(n=8200)
-    angr_trace = pg_angr.active[0].addr_trace.hardcopy
+    pg_unicorn.run()
+    uc_trace = pg_unicorn.one_errored.addr_trace.hardcopy + [pg_unicorn.one_errored.addr]
+    pg_angr.run()
+    angr_trace = pg_angr.one_errored.addr_trace.hardcopy + [pg_angr.one_errored.addr]
     uc_trace_filtered = [a for a in uc_trace if not p._extern_obj.contains_addr(a) and not p._syscall_obj.contains_addr(a)]
 
-    nose.tools.assert_true(uc_trace_filtered[:len(real_trace)] == real_trace)
-    nose.tools.assert_true(uc_trace[:len(angr_trace)] == angr_trace)
-
-    #cc = p.analyses.CongruencyCheck(throw=True)
-    #cc.set_states(s_unicorn, s_angr)
-    #cc.run()
-
-    #import IPython; IPython.embed()
-
-    #pg_unicorn.active[0].state.options.remove(so.UNICORN_FAST)
-
-    # run explore
-    # pg_unicorn.explore()
-    # pg_angr.explore()
-    #embed()
+    nose.tools.assert_true(uc_trace_filtered == real_trace)
+    nose.tools.assert_true(uc_trace == angr_trace)
+    nose.tools.assert_equal(pg_angr.one_errored.error.addr, pg_unicorn.one_errored.error.addr)
 
 def run_longinit(arch):
     p = angr.Project(os.path.join(test_location, 'binaries/tests/' + arch + '/longinit'))
