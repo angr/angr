@@ -504,7 +504,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  normalize=False,
                  function_starts=None,
                  arch_options=None,
-                 **kwargs
+                 **extra_arch_options
                  ):
         """
         :param binary:                  The binary to recover CFG on. By default the main binary is used.
@@ -525,7 +525,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :param list function_starts:    A list of extra function starting points. CFGFast will try to resume scanning
                                         from each address in the list.
         :param CFGArchOptions arch_options: Architecture-specific options.
-        :param dict kwargs:             Any key-value pair in kwargs will be seen as an arch-specific option and will
+        :param dict extra_arch_options: Any key-value pair in kwargs will be seen as an arch-specific option and will
                                         be used to set the option value in self._arch_options.
 
         Extra parameters that angr.Analysis takes:
@@ -552,7 +552,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._extra_function_starts = function_starts
 
-        self._arch_options = arch_options if arch_options is not None else CFGArchOptions(self.project.arch)
+        self._arch_options = arch_options if arch_options is not None else CFGArchOptions(self.project.arch,
+                                                                                          **extra_arch_options
+                                                                                          )
 
         l.debug("Starts at %#x and ends at %#x.", self._start, self._end)
 
@@ -1414,7 +1416,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # e.g. t7 = LDle:I64(0x0000000000600ff8)
                     _process(irsb, stmt, stmt.data.addr)
 
-                elif type(stmt.data) in (pyvex.IRExpr.Binop, ):
+                elif type(stmt.data) in (pyvex.IRExpr.Binop, ):  # pylint: disable=unidiomatic-typecheck
                     # binary operation
                     for arg in stmt.data.args:
                         _process(irsb, stmt, arg)
@@ -1482,6 +1484,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         new_data_found = False
 
         i = 0
+        # pylint:disable=too-many-nested-blocks
         while i < len(keys):
             data_addr = keys[i]
             i += 1
@@ -2123,6 +2126,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # nop instruction
 
         nodes_to_append = {}
+        # pylint:disable=too-many-nested-blocks
         for a in sorted_nodes:
             if a.addr % 0x10 != 0 and a.addr in self.functions and (a.size > 0x10 - (a.addr % 0x10)):
                 all_in_edges = self.graph.in_edges(a, data=True)
@@ -2387,6 +2391,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         initial_lr = 0xabcdef
         tmps = {}
 
+        # pylint:disable=too-many-nested-blocks
         for stmt in irsb.statements:
             if isinstance(stmt, pyvex.IRStmt.IMark):
                 if stmt.addr + stmt.delta != addr:
@@ -2426,7 +2431,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if 'lr_saved_on_stack' not in function.info:
             function.info['lr_saved_on_stack'] = False
 
-    def _arm_track_read_lr_from_stack(self, addr, irsb, function):
+    def _arm_track_read_lr_from_stack(self, addr, irsb, function):  # pylint:disable=unused-argument
         """
         At the end of a basic block, simulate the very last instruction to see if the return address is read from the
         stack and written in PC. If so, the jumpkind of this IRSB will be set to Ijk_Ret. For detailed explanations,
@@ -2450,6 +2455,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                            ), 0
                           )
         tmp_irsb = self.project.factory.block(last_imark.addr + last_imark.delta).vex
+        # pylint:disable=too-many-nested-blocks
         for stmt in tmp_irsb.statements:
             if isinstance(stmt, pyvex.IRStmt.WrTmp):
                 data = stmt.data
