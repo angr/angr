@@ -802,10 +802,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             self._update_progress(percentage)
 
-        current_function_addr = entry.func_addr
-
-        self._changed_functions.add(current_function_addr)
-
     def _intra_analysis(self):
         pass
 
@@ -1091,6 +1087,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             self._function_add_node(addr, current_function_addr)
 
+            self._changed_functions.add(current_function_addr)
+
         except (AngrTranslationError, AngrMemoryError):
             return [ ]
 
@@ -1148,6 +1146,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
 
             self._function_add_node(addr, current_function_addr)
+
+            self._changed_functions.add(current_function_addr)
 
         except (AngrTranslationError, AngrMemoryError):
             return [ ]
