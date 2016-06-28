@@ -488,6 +488,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     """
 
     # TODO: Move arch_options to CFGBase, and add those logic to CFGAccurate as well.
+    # TODO: Identify tail call optimization, and correctly mark the target as a new function
 
     def __init__(self,
                  binary=None,

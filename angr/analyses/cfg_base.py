@@ -911,11 +911,15 @@ class CFGBase(Analysis):
 
             # check all blocks and see if any block ends with an indirect jump and is not resolved
             has_unresolved_jumps = False
+            # the functions to merge with must be locating between the unresolved basic block address and the endpoint
+            # of the current function
+            max_unresolved_jump_addr = 0
             for block in function.blocks:
                 block_addr = block.addr
                 if block_addr in self.indirect_jumps and not self.indirect_jumps[block_addr].resolved_targets:
                     # it's not resolved
                     has_unresolved_jumps = True
+                    max_unresolved_jump_addr = max(max_unresolved_jump_addr, block_addr)
 
             if not has_unresolved_jumps:
                 continue
@@ -930,6 +934,8 @@ class CFGBase(Analysis):
 
             # sanity check: startpoint of the function should be greater than its endpoint
             if startpoint_addr >= endpoint_addr:
+                continue
+            if max_unresolved_jump_addr >= endpoint_addr:
                 continue
 
             # scan forward from the endpoint to include any function tail jumps
@@ -980,8 +986,8 @@ class CFGBase(Analysis):
                 if f_addr == func_addr:
                     continue
 
-                if startpoint_addr < f_addr < endpoint_addr and \
-                        all([startpoint_addr < b.addr < endpoint_addr for b in f.blocks]):
+                if max_unresolved_jump_addr < f_addr < endpoint_addr and \
+                        all([max_unresolved_jump_addr < b.addr < endpoint_addr for b in f.blocks]):
 
                     functions_to_remove[f_addr] = func_addr
                     continue
