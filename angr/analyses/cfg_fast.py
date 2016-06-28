@@ -1565,14 +1565,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype: tuple
         """
 
-        # some helper methods
-        def _c(o):
-            return o._model_concrete
-
-        def _cv(o):
-            if o._model_concrete is not o:
-                return o._model_concrete.value
-            return None
+        if max_size is None:
+            max_size = 0
 
         if self._seg_list.is_occupied(data_addr) and self._seg_list.occupied_by_sort(data_addr) == 'code':
             # it's a code reference
