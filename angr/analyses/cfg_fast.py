@@ -428,14 +428,15 @@ class CFGEntry(object):
     Defines an entry to resume the CFG recovery
     """
 
-    def __init__(self, addr, func_addr, jumpkind, ret_target=None, last_addr=None, src_node=None, src_stmt_idx=None,
-                 returning_source=None, syscall=False):
+    def __init__(self, addr, func_addr, jumpkind, ret_target=None, last_addr=None, src_node=None, src_ins_addr=None,
+                 src_stmt_idx=None, returning_source=None, syscall=False):
         self.addr = addr
         self.func_addr = func_addr
         self.jumpkind = jumpkind
         self.ret_target = ret_target
         self.last_addr = last_addr
         self.src_node = src_node
+        self.src_ins_addr = src_ins_addr
         self.src_stmt_idx = src_stmt_idx
         self.returning_source = returning_source
         self.syscall = syscall
@@ -831,6 +832,18 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _widen_entries(self, *entries):
         pass
 
+    def _post_process_successors(self, addr, successors):
+
+        if self.project.arch.name in ('ARMEL', 'ARMHF') and addr % 2 == 1:
+            # we are in thumb mode. filter successors
+            successors = self._arm_thumb_filter_jump_successors(addr,
+                                                                successors,
+                                                                lambda tpl: tpl[1],
+                                                                lambda tpl: tpl[0]
+                                                                )
+
+        return successors
+
     def _post_entry_handling(self, entry, successors):
         pass
 
@@ -1104,7 +1117,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     addr = addr._model_concrete.value
                 if not isinstance(addr, (int, long)):
                     continue
-                entries += self._create_entries(addr, jumpkind, current_function_addr, None, addr, cfg_node, None)
+                entries += self._create_entries(addr, jumpkind, current_function_addr, None, addr, cfg_node, None, None)
 
         return entries
 
@@ -1151,21 +1164,30 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Get all possible successors
         irsb_next, jumpkind = irsb.next, irsb.jumpkind
-        successors = [(i, stmt.dst, stmt.jumpkind) for i, stmt in enumerate(irsb.statements)
-                      if isinstance(stmt, pyvex.IRStmt.Exit)]
-        successors.append(('default', irsb_next, jumpkind))
+        successors = [ ]
+
+        ins_addr = addr
+        for i, stmt in enumerate(irsb.statements):
+            if isinstance(stmt, pyvex.IRStmt.Exit):
+                successors.append((i, ins_addr, stmt.dst, stmt.jumpkind))
+            elif isinstance(stmt, pyvex.IRStmt.IMark):
+                ins_addr = stmt.addr + stmt.delta
+
+        successors.append(('default', ins_addr, irsb_next, jumpkind))
 
         entries = [ ]
 
+        successors = self._post_process_successors(addr, successors)
+
         # Process each successor
         for suc in successors:
-            stmt_idx, target, jumpkind = suc
+            stmt_idx, ins_addr, target, jumpkind = suc
 
-            entries += self._create_entries(target, jumpkind, current_function_addr, irsb, addr, cfg_node, stmt_idx)
+            entries += self._create_entries(target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx)
 
         return entries
 
-    def _create_entries(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, stmt_idx):
+    def _create_entries(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx):
 
         if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
             target_addr = target.con.value
@@ -1199,7 +1221,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     return []
 
                 ce = CFGEntry(target_addr, current_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
-                              src_stmt_idx = stmt_idx)
+                              src_ins_addr=ins_addr, src_stmt_idx=stmt_idx)
                 entries.append(ce)
 
             else:
