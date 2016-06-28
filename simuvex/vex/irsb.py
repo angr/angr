@@ -166,7 +166,7 @@ class SimIRSB(SimRun):
                 target = ret_state.se.BVV(self.addr + self.irsb.size, ret_state.arch.bits)
                 if ret_state.arch.call_pushes_ret:
                     ret_state.regs.sp = ret_state.regs.sp + ret_state.arch.bytes
-                self.add_successor(ret_state, target, guard, 'Ijk_FakeRet')
+                self.add_successor(ret_state, target, guard, 'Ijk_FakeRet', exit_stmt_idx='default')
 
         if o.BREAK_SIRSB_END in self.state.options:
             import ipdb
