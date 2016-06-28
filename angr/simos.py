@@ -651,7 +651,8 @@ class SimCGC(SimOS):
         s = super(SimCGC, self).state_blank(**kwargs)  # pylint:disable=invalid-name
 
         # Special stack base for CGC binaries to work with Shellphish CRS
-        s.regs.sp = 0xbaff0000
+        s.regs.sp = 0xbaaaaffc
+        s.memory.mem._preapproved_stack = IRange(0xbaaab000 - 1024*1024*8, 0xbaaab000)
 
         # 'main' gets called with the magic page address as the first fast arg
         s.regs.ecx = 0x4347c000
