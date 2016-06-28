@@ -13,3 +13,4 @@ from .dfg import DFG
 from .loopfinder import LoopFinder
 from .cfg import CFG
 from .congruency_check import CongruencyCheck
+from .cfg_arch_options import CFGArchOptions

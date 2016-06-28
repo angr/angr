@@ -319,6 +319,8 @@ class Lifter(object):
 
 
 class Block(object):
+    __slots__ = ['_bytes', 'vex', '_thumb', '_arch', '_capstone', 'addr', 'size', 'instructions', 'instruction_addrs']
+
     def __init__(self, byte_string, vex, thumb):
         self._bytes = byte_string
         self.vex = vex
@@ -346,10 +348,11 @@ class Block(object):
 
     def __getstate__(self):
         self._bytes = self.bytes
-        return self.__dict__
+        return dict((k, getattr(self, k)) for k in self.__slots__)
 
     def __setstate__(self, data):
-        self.__dict__.update(data)
+        for k, v in data.iteritems():
+            setattr(self, k, v)
 
     def __hash__(self):
         return hash((type(self), self.addr, self.bytes))
@@ -405,6 +408,10 @@ class CopyClass(object):
 
 
 class CapstoneInsn(object):
+    __slots__ = [ '_cs', 'address', 'bytes', 'cc', 'groups', 'id', '_insn_name', 'mnemonic', 'op_str', 'operands',
+                  'size'
+                  ]
+
     def __init__(self, insn):
         self._cs = insn._cs
         self.address = insn.address
@@ -437,6 +444,8 @@ class CapstoneInsn(object):
 
 
 class CapstoneBlock(object):
+    __slots__ = [ 'addr', 'insns', 'thumb', 'arch' ]
+
     def __init__(self, addr, insns, thumb, arch):
         self.addr = addr
         self.insns = insns

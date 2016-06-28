@@ -332,6 +332,64 @@ class CFGBase(Analysis):
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
 
+    def _arm_thumb_filter_jump_successors(self, addr, successors, get_ins_addr, get_exit_stmt_idx):
+        """
+        Filter successors for THUMB mode basic blocks, and remove those successors that won't be taken normally.
+
+        :param int addr: Address of the basic block / SimIRSB.
+        :param list successors: A list of successors.
+        :param func get_ins_addr: A callable that returns the source instruction address for a successor.
+        :param func get_stmt_idx: A callable that returns the source statement ID for a successor.
+        :return: A new list of successors after filtering.
+        :rtype: list
+        """
+
+        if not successors:
+            return [ ]
+
+        it_counter = 0
+        conc_temps = {}
+        can_produce_exits = set()
+        bb = self.project.factory.block(addr, thumb=True, opt_level=0)
+
+        for stmt in bb.vex.statements:
+            if stmt.tag == 'Ist_IMark':
+                if it_counter > 0:
+                    it_counter -= 1
+                    can_produce_exits.add(stmt.addr)
+            elif stmt.tag == 'Ist_WrTmp':
+                val = stmt.data
+                if val.tag == 'Iex_Const':
+                    conc_temps[stmt.tmp] = val.con.value
+            elif stmt.tag == 'Ist_Put':
+                if stmt.offset == self.project.arch.registers['itstate'][0]:
+                    val = stmt.data
+                    if val.tag == 'Iex_RdTmp':
+                        if val.tmp in conc_temps:
+                            # We found an IT instruction!!
+                            # Determine how many instructions are conditional
+                            it_counter = 0
+                            itstate = conc_temps[val.tmp]
+                            while itstate != 0:
+                                it_counter += 1
+                                itstate >>= 8
+
+        if it_counter != 0:
+            l.error('Basic block ends before calculated IT block (%#x)', addr)
+
+        THUMB_BRANCH_INSTRUCTIONS = ('beq', 'bne', 'bcs', 'bhs', 'bcc', 'blo', 'bmi', 'bpl', 'bvs',
+                                     'bvc', 'bhi', 'bls', 'bge', 'blt', 'bgt', 'ble', 'cbz', 'cbnz')
+        for cs_insn in bb.capstone.insns:
+            if cs_insn.mnemonic in THUMB_BRANCH_INSTRUCTIONS:
+                can_produce_exits.add(cs_insn.address)
+
+        successors = filter(lambda suc: get_ins_addr(suc) in can_produce_exits or
+                                        get_exit_stmt_idx(suc) == 'default',
+                            successors
+                            )
+
+        return successors
+
     def _executable_memory_regions(self, binary=None, force_segment=False):
         """
         Get all executable memory regions from the binaries
