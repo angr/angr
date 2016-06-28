@@ -133,8 +133,10 @@ class Project(object):
         self._support_selfmodifying_code = support_selfmodifying_code
         self._ignore_functions = ignore_functions
         self._extern_obj = AngrExternObject(self.arch)
+        self._extern_obj.provides = 'angr externs'
         self.loader.add_object(self._extern_obj)
         self._syscall_obj = AngrExternObject(self.arch)
+        self._syscall_obj.provides = 'angr syscalls'
         self.loader.add_object(self._syscall_obj)
 
         self._cfg = None

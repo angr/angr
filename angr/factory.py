@@ -136,13 +136,10 @@ class AngrObjectFactory(object):
                 stops.extend(extra_stop_points)
 
             r = SimUnicorn(state, stop_points=stops)
-            if r.success:
-                return r
-            else:
+            if not r.success:
                 r = self.sim_block(state, **block_opts)
 
         else:
-
             l.debug("Creating SimIRSB at 0x%x", addr)
             r = self.sim_block(state, addr=addr, **block_opts)
 

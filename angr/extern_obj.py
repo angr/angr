@@ -17,6 +17,9 @@ class AngrExternObject(Backend):
     def get_min_addr(self):
         return self.rebase_addr
 
+    def contains_addr(self, addr):
+        return addr >= self.get_min_addr() and addr < self.get_max_addr()
+
     def get_pseudo_addr(self, ident, size=16):
         if ident not in self._lookup_table:
             self._lookup_table[ident] = self._next_addr
