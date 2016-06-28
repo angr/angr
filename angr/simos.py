@@ -18,6 +18,16 @@ from .tablespecs import StringTableSpec
 
 l = logging.getLogger("angr.simos")
 
+class IRange(object):
+    __slots__ = ('start', 'end')
+    def __init__(self, start, end):
+        self.start = start
+        self.end = end
+
+    def __contains__(self, k):
+        if type(k) in (int, long):
+            return k >= self.start and k < self.end
+        return False
 
 class SimOS(object):
     """
@@ -171,7 +181,7 @@ class SimOS(object):
 
         self.proj.loader.perform_irelative_relocs(irelative_resolver)
 
-    def state_blank(self, addr=None, initial_prefix=None, **kwargs):
+    def state_blank(self, addr=None, initial_prefix=None, stack_size=1024*1024*8, **kwargs):
         """
         Initialize a blank state.
 
@@ -209,11 +219,14 @@ class SimOS(object):
 
         state = SimState(**kwargs)
 
+        stack_end = state.arch.initial_sp
+        state.memory.mem._preapproved_stack = IRange(stack_end - stack_size, stack_end)
+
         if o.INITIALIZE_ZERO_REGISTERS in state.options:
             for r in self.arch.registers:
                 setattr(state.regs, r, 0)
 
-        state.regs.sp = self.arch.initial_sp
+        state.regs.sp = stack_end
 
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
@@ -535,8 +548,8 @@ class SimLinux(SimOS):
         table.add_null()
 
         # Dump the table onto the stack, calculate pointers to args, env, and auxv
-        state.memory.store(state.regs.sp, claripy.BVV(0, 8*16), endness='Iend_BE')
-        argv = table.dump(state, state.regs.sp)
+        state.memory.store(state.regs.sp - 16, claripy.BVV(0, 8*16))
+        argv = table.dump(state, state.regs.sp - 16)
         envp = argv + ((len(args) + 1) * state.arch.bytes)
         auxv = argv + ((len(args) + len(env) + 2) * state.arch.bytes)
 

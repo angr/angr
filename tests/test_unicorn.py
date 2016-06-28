@@ -1,3 +1,4 @@
+import nose
 import angr
 
 import logging
@@ -22,19 +23,18 @@ def dump_reg(s):
     for k in REGS:
         l.info('$%s = %r', k, getattr(s.regs, k))
 
-def broken_unicorn():
-    p = angr.Project(os.path.join(test_location, './cgc_qualifier_event/cgc/99c22c01_01'))
+def test_unicorn():
+    p = angr.Project(os.path.join(test_location, 'binaries-private/cgc_qualifier_event/cgc/99c22c01_01'))
 
-    s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
-    s_angr = p.factory.entry_state() # pure angr
+    s_unicorn = p.factory.entry_state(add_options=so.unicorn | {so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH}, remove_options={so.LAZY_SOLVES}) # unicorn
+    s_angr = p.factory.entry_state(add_options={so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH, so.INITIALIZE_ZERO_REGISTERS}, remove_options={so.LAZY_SOLVES}) # pure angr
     # s_unicorn.options.add(so.UNICORN_DISABLE_NATIVE)
 
-    # make sure all the registers are concrete
-    for k in dir(s_unicorn.regs):
-        r = getattr(s_unicorn.regs, k)
-        if r.symbolic:
-            setattr(s_unicorn.regs, k, 0)
     dump_reg(s_unicorn)
+    #s_unicorn.unicorn.max_steps = 1
+    s_unicorn.unicorn.cooldown_symbolic_registers = 0
+    s_unicorn.unicorn.cooldown_symbolic_memory = 0
+    s_unicorn.unicorn.cooldown_nonunicorn_blocks = 0
 
     pg_unicorn = p.factory.path_group(s_unicorn)
     pg_angr = p.factory.path_group(s_angr)
@@ -46,10 +46,32 @@ def broken_unicorn():
     stdin = s_unicorn.posix.get_file(0)
     stdin.write(inp, len(inp))
     stdin.seek(0)
+    stdin.size = len(inp)
 
     stdin = s_angr.posix.get_file(0)
     stdin.write(inp, len(inp))
     stdin.seek(0)
+    stdin.size = len(inp)
+
+    import tracer
+    tracer = tracer.Runner(p.filename, inp, record_trace=True)
+    tracer.dynamic_trace()
+    real_trace = tracer.trace
+
+    pg_unicorn.step(until=lambda lpg: len(lpg.one_active.addr_trace) >= 8200)
+    uc_trace = pg_unicorn.active[0].addr_trace.hardcopy
+    pg_angr.step(n=8200)
+    angr_trace = pg_angr.active[0].addr_trace.hardcopy
+    uc_trace_filtered = [a for a in uc_trace if not p._extern_obj.contains_addr(a) and not p._syscall_obj.contains_addr(a)]
+
+    nose.tools.assert_true(uc_trace_filtered[:len(real_trace)] == real_trace)
+    nose.tools.assert_true(uc_trace[:len(angr_trace)] == angr_trace)
+
+    #cc = p.analyses.CongruencyCheck(throw=True)
+    #cc.set_states(s_unicorn, s_angr)
+    #cc.run()
+
+    #import IPython; IPython.embed()
 
     #pg_unicorn.active[0].state.options.remove(so.UNICORN_FAST)
 
@@ -68,7 +90,7 @@ def run_longinit(arch):
     second = s.posix.files[0].content.load(9, 9)
     s.add_constraints(first == s.se.BVV('A'*9))
     s.add_constraints(second == s.se.BVV('B'*9))
-    assert s.posix.dumps(1) == "You entered AAAAAAAAA and BBBBBBBBB!\n"
+    nose.tools.assert_equal(s.posix.dumps(1), "You entered AAAAAAAAA and BBBBBBBBB!\n")
 
 def test_longinit_i386():
     run_longinit('i386')
@@ -85,13 +107,13 @@ def broken_palindrome():
 def run_similarity(binpath, depth):
     b = angr.Project(os.path.join(test_location, binpath))
     cc = b.analyses.CongruencyCheck()
-    assert cc.check_state_options(
+    nose.tools.assert_true(cc.check_state_options(
         left_add_options=so.unicorn,
         left_remove_options={so.LAZY_SOLVES, so.TRACK_MEMORY_MAPPING},
         right_add_options={so.INITIALIZE_ZERO_REGISTERS},
         right_remove_options={so.LAZY_SOLVES, so.TRACK_MEMORY_MAPPING},
         depth=depth
-    )
+    ))
 
 def test_fauxware():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
@@ -99,11 +121,11 @@ def test_fauxware():
     pg = p.factory.path_group(s_unicorn)
     pg.explore()
 
-    assert sorted(pg.mp_deadended.state.posix.dumps(1).mp_items) == sorted((
+    nose.tools.assert_equal(sorted(pg.mp_deadended.state.posix.dumps(1).mp_items), sorted((
         'Username: \nPassword: \nWelcome to the admin console, trusted user!\n',
         'Username: \nPassword: \nGo away!',
         'Username: \nPassword: \nWelcome to the admin console, trusted user!\n'
-    ))
+    )))
 
 def test_fauxware_aggressive():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
@@ -118,7 +140,7 @@ def test_fauxware_aggressive():
     pg = p.factory.path_group(s_unicorn)
     pg.explore()
 
-    assert len(pg.deadended) == 1
+    nose.tools.assert_equal(len(pg.deadended), 1)
 
 def timesout_similarity_01cf6c01(): run_similarity("binaries-private/cgc_qualifier_event/cgc/01cf6c01_01", 5170)
 def timesout_similarity_38256a01(): run_similarity("binaries-private/cgc_qualifier_event/cgc/38256a01_01", 125)
@@ -143,4 +165,12 @@ if __name__ == '__main__':
     #test_similarity_01cf6c01()
     #test_similarity_7185fe01()
     import sys
-    globals()['test_' + sys.argv[1]]()
+    if len(sys.argv) > 1:
+        for arg in sys.argv[1:]:
+            print 'test_' + arg
+            globals()['test_' + arg]()
+    else:
+        for fk, fv in globals().items():
+            if fk.startswith('test_') and callable(fv):
+                print fk
+                fv()

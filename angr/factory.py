@@ -1,5 +1,6 @@
 from simuvex import SimIRSB, SimProcedures, SimUnicorn, SimState, BP_BEFORE, BP_AFTER
 from simuvex import s_options as o, s_cc
+from simuvex.s_errors import SimSegfaultError
 from .surveyors.caller import Callable
 
 import logging
@@ -49,6 +50,17 @@ class AngrObjectFactory(object):
 
         if addr is None:
             addr = state.se.any_int(state.regs.ip)
+
+        if o.STRICT_PAGE_ACCESS in state.options:
+            try:
+                perms = state.memory.permissions(addr)
+            except KeyError:
+                raise SimSegfaultError(addr, 'exec-miss')
+            else:
+                if not perms.symbolic:
+                    perms = perms.args[0]
+                    if not perms & 4:
+                        raise SimSegfaultError(addr, 'non-executable')
 
         thumb = False
         if addr % state.arch.instruction_alignment != 0:
