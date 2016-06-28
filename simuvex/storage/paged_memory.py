@@ -185,7 +185,8 @@ class SimPagedMemory(object):
                            page_size=self._page_size,
                            name_mapping=new_name_mapping,
                            hash_mapping=new_hash_mapping,
-                           symbolic_addrs=dict(self._symbolic_addrs))
+                           symbolic_addrs=dict(self._symbolic_addrs),
+                           check_permissions=self._check_perms)
         m._preapproved_stack = self._preapproved_stack
         return m
 
