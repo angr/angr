@@ -483,6 +483,26 @@ class Function(object):
         """
         self._call_sites[call_site_addr] = (call_target_addr, retn_addr)
 
+    def mark_nonreturning_calls_endpoints(self):
+        """
+        Iterate through all call edges in transition graph. For each call a non-returning function, mark the source
+        basic block as an endpoint.
+
+        This method should only be executed once all functions are recovered and analyzed by CFG recovery, so we know
+        whether each function returns or not.
+
+        :return: None
+        """
+
+        for src, dst, data in self.transition_graph.edges_iter(data=True):
+            if 'type' in data and data['type'] == 'call':
+                func_addr = dst.addr
+                if dst.addr in self._function_manager:
+                    function = self._function_manager[dst.addr]
+                    if function.returning is False:
+                        # the target function does not return
+                        self._endpoints.add(self.get_node(src.addr))
+
     def get_call_sites(self):
         """
         Gets a list of all the basic blocks that end in calls.
