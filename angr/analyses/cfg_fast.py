@@ -1020,10 +1020,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         # Pre-compile all regexes
-        regexes = set()
+        regexes = list()
         for ins_regex in self.project.arch.function_prologs:
             r = re.compile(ins_regex)
-            regexes.add(r)
+            regexes.append(r)
 
         # TODO: Make sure self._start is aligned
 
