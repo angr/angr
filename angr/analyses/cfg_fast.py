@@ -787,7 +787,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._nodes_by_addr = defaultdict(list)
 
         if self._use_function_prologues:
-            self._function_prologue_addrs = set([addr + rebase_addr for addr in self._func_addrs_from_prologues()])
+            self._function_prologue_addrs = sorted(
+                set([addr + rebase_addr for addr in self._func_addrs_from_prologues()])
+            )
 
     def _pre_entry_handling(self, entry):
 
@@ -891,7 +893,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if self._use_function_prologues and self._function_prologue_addrs:
             while self._function_prologue_addrs:
-                prolog_addr = self._function_prologue_addrs.pop()
+                prolog_addr = self._function_prologue_addrs[0]
+                self._function_prologue_addrs = self._function_prologue_addrs[1:]
                 if self._seg_list.is_occupied(prolog_addr):
                     continue
 
