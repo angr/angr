@@ -21,7 +21,8 @@ class Runner(object):
     Trace an angr path with a concrete input
     """
 
-    def __init__(self, binary, input=None, pov_file=None, record_trace=False, record_stdout=False, seed=None):
+    def __init__(self, binary, input=None, pov_file=None, record_trace=False, record_stdout=False, record_magic=False,
+                 seed=None):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -32,6 +33,7 @@ class Runner(object):
         self.binary = binary
         self.input = input
         self.pov_file = pov_file
+        self._record_magic = record_magic
         self._record_trace = record_trace
         self.trace = None
         self.reg_vals = None
@@ -68,6 +70,7 @@ class Runner(object):
         self.crash_addr = None
 
         self.stdout = None
+        self.magic = None
 
         if record_stdout:
             tmp = tempfile.mktemp(prefix="stdout_" + os.path.basename(binary))
@@ -216,6 +219,9 @@ class Runner(object):
         if self.seed is not None:
             args.append("-seed")
             args.append(str(self.seed))
+        mname = tempfile.mktemp(dir="/dev/shm/", prefix="tracer-magic-")
+        if self._record_magic:
+            args += ["-magicdump", mname]
         if self._record_trace:
             args += ["-d", "exec", "-D", logname, self.binary]
         else:
@@ -265,6 +271,11 @@ class Runner(object):
             os.remove(logname)
             self.trace = addrs
             l.debug("trace consists of %d basic blocks", len(self.trace))
+
+        if self._record_magic:
+            magic = open(mname).read()
+            self.magic = magic
+            os.remove(mname)
 
     def _load_core_values(self, core_file):
         p = angr.Project(core_file)
