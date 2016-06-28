@@ -18,4 +18,6 @@ class mmap(simuvex.SimProcedure):
         # mmap on the heap, lol
         addr = self.state.libc.heap_location
         self.state.libc.heap_location += size
+
+        self.state.memory.map_region(addr, size, prot[2:0])
         return addr

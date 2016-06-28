@@ -224,6 +224,9 @@ KEEP_IP_SYMBOLIC = "KEEP_IP_SYMBOLIC"
 # It is only applied to SimAbstractMemory
 KEEP_MEMORY_READS_DISCRETE = "KEEP_MEMORY_READS_DISCRETE"
 
+# Raise a SigSegfaultError on illegal memory accesses
+STRICT_PAGE_ACCESS = "STRICT_PAGE_ACCESS"
+
 #
 # CGC specific state options
 #

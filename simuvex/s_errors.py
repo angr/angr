@@ -40,6 +40,12 @@ class SimFileError(SimMemoryError):
 class SimPosixError(SimStateError):
     pass
 
+class SimSegfaultError(SimMemoryError):
+    def __init__(self, addr, reason):
+        self.addr = addr
+        self.reason = reason
+        super(SimSegfaultError, self).__init__('%#x, %s' % (addr, reason))
+
 #
 # Solver-related errors
 #

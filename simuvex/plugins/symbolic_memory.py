@@ -18,10 +18,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     _SAFE_CONCRETIZATION_STRATEGIES = [ 'symbolic', 'symbolic_approx' ]
 
     def __init__(self, memory_backer=None, permissions_backer=None, mem=None, memory_id="mem", repeat_min=None,
-                 repeat_constraints=None, repeat_expr=None, endness=None, abstract_backer=False):
+                 repeat_constraints=None, repeat_expr=None, endness=None, abstract_backer=False, check_permissions=None):
         SimMemory.__init__(self, endness=endness, abstract_backer=abstract_backer)
-        self.mem = SimPagedMemory(memory_backer=memory_backer, permissions_backer=permissions_backer) if mem is None else mem
         self.id = memory_id
+
+        if check_permissions is None:
+            check_permissions = self.category == 'mem'
+        self.mem = SimPagedMemory(memory_backer=memory_backer, permissions_backer=permissions_backer, check_permissions=check_permissions) if mem is None else mem
 
         # for the norepeat stuff
         self._repeat_constraints = [ ] if repeat_constraints is None else repeat_constraints
@@ -426,10 +429,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         for s in strategy:
             l.debug("... trying strategy %s", s)
             try:
-                self.state._inspect('address_concretization', BP_BEFORE, address_concretization_strategy=s, 
-                                    address_concretization_action=action, address_concretization_memory_id=self.id, 
-                                    address_concretization_expr=v, address_concretization_limit=limit, 
-                                    address_concretization_approx_limit=approx_limit, 
+                self.state._inspect('address_concretization', BP_BEFORE, address_concretization_strategy=s,
+                                    address_concretization_action=action, address_concretization_memory_id=self.id,
+                                    address_concretization_expr=v, address_concretization_limit=limit,
+                                    address_concretization_approx_limit=approx_limit,
                                     address_concretization_add_constraints=True)
                 s = self.state._inspect_getattr('address_concretization_strategy', s)
                 v = self.state._inspect_getattr('address_concretization_expr', v)

@@ -3,7 +3,7 @@ import claripy
 import cffi
 import cle
 
-from ..s_errors import SimMemoryError
+from ..s_errors import SimMemoryError, SimSegfaultError
 from .. import s_options as options
 from .memory_object import SimMemoryObject
 from claripy.ast.bv import BV
@@ -43,6 +43,13 @@ class Page(object):
             self.permissions = claripy.BVV(perms, 3) # 3 bits is enough for PROT_EXEC, PROT_WRITE, PROT_READ, PROT_NONE
         else:
             self.permissions = permissions
+
+    @property
+    def concrete_permissions(self):
+        if self.permissions.symbolic:
+            return 7
+        else:
+            return self.permissions.args[0]
 
     def sinkhole(self, v, wipe=False):
         if wipe:
@@ -127,7 +134,7 @@ class SimPagedMemory(object):
     """
     Represents paged memory.
     """
-    def __init__(self, memory_backer=None, permissions_backer=None, pages=None, initialized=None, name_mapping=None, hash_mapping=None, page_size=None, symbolic_addrs=None):
+    def __init__(self, memory_backer=None, permissions_backer=None, pages=None, initialized=None, name_mapping=None, hash_mapping=None, page_size=None, symbolic_addrs=None, check_permissions=False):
         self._cowed = set()
         self._memory_backer = { } if memory_backer is None else memory_backer
         self._permissions_backer = permissions_backer # saved for copying
@@ -138,6 +145,8 @@ class SimPagedMemory(object):
         self._page_size = 0x1000 if page_size is None else page_size
         self._symbolic_addrs = dict() if symbolic_addrs is None else symbolic_addrs
         self.state = None
+        self._preapproved_stack = xrange(0)
+        self._check_perms = check_permissions
 
         # reverse mapping
         self._name_mapping = cooldict.BranchingDict() if name_mapping is None else name_mapping
@@ -156,7 +165,8 @@ class SimPagedMemory(object):
             'state': None,
             '_name_mapping': self._name_mapping,
             '_hash_mapping': self._hash_mapping,
-            '_symbolic_addrs': self._symbolic_addrs
+            '_symbolic_addrs': self._symbolic_addrs,
+            '_preapproved_stack': self._preapproved_stack
         }
 
     def __setstate__(self, s):
@@ -176,6 +186,7 @@ class SimPagedMemory(object):
                            name_mapping=new_name_mapping,
                            hash_mapping=new_hash_mapping,
                            symbolic_addrs=dict(self._symbolic_addrs))
+        m._preapproved_stack = self._preapproved_stack
         return m
 
     def __getitem__(self, addr):
@@ -226,9 +237,14 @@ class SimPagedMemory(object):
                     page = self._get_page(page_num)
                 except KeyError:
                     # missing page
+                    if self._check_perms and options.STRICT_PAGE_ACCESS in self.state.options:
+                        raise SimSegfaultError(actual_addr, 'read-miss')
                     missing.append(i)
                     i += self._page_size - page_idx
                     continue
+
+                if self._check_perms and options.STRICT_PAGE_ACCESS in self.state.options and not page.concrete_permissions & Page.PROT_READ:
+                    raise SimSegfaultError(actual_addr, 'non-readable')
 
             # get the next object out of the page
             what, length = page._get_object(page_idx, num_bytes-i)
@@ -271,8 +287,8 @@ class SimPagedMemory(object):
                     continue
 
                 # find permission backer associated with the address, there should be a
-                # memory backer that matches the start_backer
-                flags = None
+                # memory backer that matches the start_backer. if not fall back to read-write
+                flags = Page.PROT_READ | Page.PROT_WRITE
                 for start, end in self._permission_map:
                     if start == addr:
                         flags = self._permission_map[(start, end)]
@@ -315,17 +331,18 @@ class SimPagedMemory(object):
         return initialized
 
     def _get_page(self, page_num, write=False, create=False, initialize=True):
+        page_addr = page_num * self._page_size
         try:
             page = self._pages[page_num]
         except KeyError:
-            if not (initialize or create):
+            if not (initialize or create or page_addr in self._preapproved_stack):
                 raise
 
             page = self._create_page()
             self._symbolic_addrs[page_num] = set()
             if initialize:
                 initialized = self._initialize_page(page_num, page)
-                if not initialized and not create:
+                if not initialized and not create and page_addr not in self._preapproved_stack:
                     raise
 
             self._pages[page_num] = page
@@ -439,7 +456,15 @@ class SimPagedMemory(object):
         :param overwrite:   (optional) If False, only write to currently-empty memory.
         """
         page_num = page_base / self._page_size
-        page = self._get_page(page_num, write=True, create=True) if page is None else page
+        try:
+            page = self._get_page(page_num, write=True, create=not self._check_perms or not options.STRICT_PAGE_ACCESS in self.state.options) if page is None else page
+        except KeyError:
+            if self._check_perms and options.STRICT_PAGE_ACCESS in self.state.options:
+                raise SimSegfaultError(mo.base, 'write-miss')
+            else:
+                raise
+        if not page.concrete_permissions & Page.PROT_WRITE and self._check_perms and options.STRICT_PAGE_ACCESS in self.state.options:
+            raise SimSegfaultError(mo.base, 'non-writable')
 
         if mo.base <= page_base and mo.base + mo.length >= page_base + self._page_size:
             # takes up the whole page
