@@ -33,7 +33,7 @@ class BoyScout(Analysis):
 
         for arch in all_arches:
             regexes = set()
-            for ins_regex in arch.function_prologs.union(arch.function_epilogs):
+            for ins_regex in set(arch.function_prologs).union(arch.function_epilogs):
                 r = re.compile(ins_regex)
                 regexes.add(r)
 
