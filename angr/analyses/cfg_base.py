@@ -819,13 +819,18 @@ class CFGBase(Analysis):
 
         function_nodes = set()
 
-        removed_functions = self._process_irrational_functions(tmp_functions, blockaddr_to_function)
-
         # Find nodes for beginnings of all functions
         for _, dst, data in self.graph.edges_iter(data=True):
             jumpkind = data.get('jumpkind', "")
             if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
                 function_nodes.add(dst)
+
+        # aggressively remove and merge functions
+        # For any function, if there is a call to it, it won't be removed
+        removed_functions = self._process_irrational_functions(tmp_functions,
+                                                               set([n.addr for n in function_nodes]),
+                                                               blockaddr_to_function
+                                                               )
 
         for n in self.graph.nodes_iter():
             if n.addr in tmp_functions or n.addr in removed_functions:
@@ -863,7 +868,7 @@ class CFGBase(Analysis):
             if node.addr in blockaddr_to_function:
                 node.function_address = blockaddr_to_function[node.addr].addr
 
-    def _process_irrational_functions(self, functions, blockaddr_to_function):
+    def _process_irrational_functions(self, functions, predetermined_function_addrs, blockaddr_to_function):
         """
         For unresolveable indirect jumps, angr marks those jump targets as individual functions. For example, usually
         the following pattern is seen:
@@ -896,6 +901,8 @@ class CFGBase(Analysis):
         """
 
         functions_to_remove = { }
+
+        functions_can_be_removed = set(functions.keys()) - set(predetermined_function_addrs)
 
         for func_addr, function in functions.iteritems():
 
@@ -966,7 +973,8 @@ class CFGBase(Analysis):
 
             # find all functions that are between [ startpoint, endpoint ]
 
-            for f_addr, f in functions.iteritems():
+            for f_addr in functions_can_be_removed:
+                f = functions[f_addr]
                 if f_addr in functions_to_remove:
                     continue
                 if f_addr == func_addr:
