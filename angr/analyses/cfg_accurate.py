@@ -175,6 +175,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._analyzed_addrs = set()
         self._non_returning_functions = set()
 
+        self._pending_edges = defaultdict(list)
+
         if not no_construct:
             self._analyze()
 
@@ -782,6 +784,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: None
         """
 
+        # Create all pending edges
+        for _, edges in self._pending_edges.iteritems():
+            for src_node, dst_node, data in edges:
+                self._graph_add_edge(src_node, dst_node, **data)
+
         # Remove those edges that will never be taken!
         self._remove_non_return_edges()
 
@@ -887,6 +894,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._graph_add_edge(src_simrun_key, simrun_key, jumpkind=entry.jumpkind, exit_stmt_idx=src_exit_stmt_idx)
         self._update_function_transition_graph(src_simrun_key, simrun_key, jumpkind=entry.jumpkind)
 
+        if simrun_key in self._pending_edges:
+            # there are some edges waiting to be created. do it here.
+            for src_key, dst_key, data in self._pending_edges[simrun_key]:
+                self._graph_add_edge(src_key, dst_key, **data)
+            del self._pending_edges[simrun_key]
+
         # See if this entry cancels another FakeRet
         if entry.cancelled_pending_entry is not None:
             pending_entry = entry.cancelled_pending_entry
@@ -949,15 +962,28 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # do_return) , we should make it return to its call-site. However,
                 # we don't want to use its state anymore as it might be corrupted.
                 # Just create an edge in the graph.
-                retn_target = entry.call_stack.current_return_target
-                if retn_target is not None:
+                return_target = entry.call_stack.current_return_target
+                if return_target is not None:
                     new_call_stack = entry.call_stack_copy()
-                    exit_target_tpl = self._generate_simrun_key(
+                    return_target_key = self._generate_simrun_key(
                         new_call_stack.stack_suffix(self.context_sensitivity_level),
-                        retn_target,
+                        return_target,
                         False
                     )  # You can never return to a syscall
-                    self._graph_add_edge(entry.simrun_key, exit_target_tpl, jumpkind='Ijk_Ret', exit_stmt_id='default')
+
+                    # Things might be a bit difficult here. _graph_add_edge() requires both nodes to exist, but here
+                    # the return target node may not exist yet. If that's the case, we will put it into a "delayed edge
+                    # list", and add this edge later when the return target CFGNode is created.
+                    if return_target_key in self._nodes:
+                        self._graph_add_edge(entry.simrun_key, return_target_key, jumpkind='Ijk_Ret', exit_stmt_id='default')
+                    else:
+                        self._pending_edges[return_target_key].append((entry.simrun_key, return_target_key,
+                                                                       {
+                                                                           'jumpkind': 'Ijk_Ret',
+                                                                           'exit_stmt_id': 'default',
+                                                                        }
+                                                                       )
+                                                                      )
 
             else:
                 # Well, there is just no successors. What can you expect?
