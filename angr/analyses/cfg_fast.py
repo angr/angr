@@ -11,14 +11,15 @@ import claripy
 import simuvex
 import pyvex
 
-from .cfg_node import CFGNode
-from .cfg_base import CFGBase, IndirectJump
-from .forward_analysis import ForwardAnalysis
 from ..blade import Blade
 from ..analysis import register_analysis
 from ..surveyors import Slicecutor
 from ..annocfg import AnnotatedCFG
 from ..errors import AngrTranslationError, AngrMemoryError, AngrCFGError
+from .cfg_node import CFGNode
+from .cfg_base import CFGBase, IndirectJump
+from .forward_analysis import ForwardAnalysis
+from .cfg_arch_options import CFGArchOptions
 
 l = logging.getLogger("angr.analyses.cfg_fast")
 
@@ -486,6 +487,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     and then re-recover the CFG.
     """
 
+    # TODO: Move arch_options to CFGBase, and add those logic to CFGAccurate as well.
+
     def __init__(self,
                  binary=None,
                  start=None,
@@ -499,7 +502,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  indirect_jump_target_limit=100000,
                  collect_data_references=False,
                  normalize=False,
-                 function_starts=None
+                 function_starts=None,
+                 arch_options=None,
+                 **kwargs
                  ):
         """
         :param binary:                  The binary to recover CFG on. By default the main binary is used.
@@ -519,6 +524,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :param bool normalize:          Normalize the CFG as well as all function graphs after CFG recovery.
         :param list function_starts:    A list of extra function starting points. CFGFast will try to resume scanning
                                         from each address in the list.
+        :param CFGArchOptions arch_options: Architecture-specific options.
+        :param dict kwargs:             Any key-value pair in kwargs will be seen as an arch-specific option and will
+                                        be used to set the option value in self._arch_options.
 
         Extra parameters that angr.Analysis takes:
 
@@ -543,6 +551,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._force_complete_scan = force_complete_scan
 
         self._extra_function_starts = function_starts
+
+        self._arch_options = arch_options if arch_options is not None else CFGArchOptions(self.project.arch)
 
         l.debug("Starts at %#x and ends at %#x.", self._start, self._end)
 
@@ -2328,11 +2338,172 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self.kb.functions._add_return_from_call(function_addr, return_from_addr, return_to_addr)
 
     #
+    # Architecture-specific methods
+    #
+
+    def _arm_track_lr_on_stack(self, addr, irsb, function):
+        """
+        At the beginning of the basic block, we check if the first instruction stores the LR register onto the stack.
+        If it does, we calculate the offset of that store, and record the offset in function.info.
+
+        For instance, here is the disassembly of a THUMB mode function:
+
+        000007E4  STR.W           LR, [SP,#var_4]!
+        000007E8  MOV             R2, R1
+        000007EA  SUB             SP, SP, #0xC
+        000007EC  MOVS            R1, #0
+        ...
+        00000800  ADD             SP, SP, #0xC
+        00000802  LDR.W           PC, [SP+4+var_4],#4
+
+        The very last basic block has a jumpkind of Ijk_Boring, which is because VEX cannot do such complicated analysis
+        to determine the real jumpkind.
+
+        As we can see, instruction 7e4h stores LR at [sp-4], and at the end of this function, instruction 802 loads LR
+        from [sp], then increments sp by 4. We execute the first instruction, and track the following things:
+        - if the value from register LR is stored onto the stack.
+        - the difference between the offset of the LR store on stack, and the SP after the store.
+
+        If at the end of the function, the LR is read out from the stack at the exact same stack offset, we will change
+        the jumpkind of the final IRSB to Ijk_Ret.
+
+        This method can be enabled by setting "ret_jumpkind_heuristics", which is an architecture-specific option on
+        ARM, to True.
+
+        :param int addr: Address of the basic block.
+        :param pyvex.IRSB irsb: The basic block object.
+        :param Function function: The function instance.
+        :return: None
+        """
+
+        if 'lr_saved_on_stack' in function.info:
+            return
+
+        #
+        # if it does, we log it down to the Function object.
+        lr_offset = self.project.arch.registers['lr'][0]
+        sp_offset = self.project.arch.sp_offset
+        initial_sp = 0x7fff0000
+        initial_lr = 0xabcdef
+        tmps = {}
+
+        for stmt in irsb.statements:
+            if isinstance(stmt, pyvex.IRStmt.IMark):
+                if stmt.addr + stmt.delta != addr:
+                    break
+            elif isinstance(stmt, pyvex.IRStmt.WrTmp):
+                data = stmt.data
+                if isinstance(data, pyvex.IRExpr.Get):
+                    if data.offset == sp_offset:
+                        tmps[stmt.tmp] = initial_sp
+                    elif data.offset == lr_offset:
+                        tmps[stmt.tmp] = initial_lr
+                elif isinstance(data, pyvex.IRExpr.Binop):
+                    if data.op == 'Iop_Sub32':
+                        arg0, arg1 = data.args
+                        if isinstance(arg0, pyvex.IRExpr.RdTmp) and isinstance(arg1, pyvex.IRExpr.Const):
+                            if arg0.tmp in tmps:
+                                tmps[stmt.tmp] = tmps[arg0.tmp] - arg1.con.value
+
+            elif isinstance(stmt, (pyvex.IRStmt.Store, pyvex.IRStmt.StoreG)):
+                data = stmt.data
+                storing_lr = False
+                if isinstance(data, pyvex.IRExpr.RdTmp):
+                    if data.tmp in tmps:
+                        val = tmps[data.tmp]
+                        if val == initial_lr:
+                            # we are storing LR to somewhere
+                            storing_lr = True
+                if storing_lr:
+                    if isinstance(stmt.addr, pyvex.IRExpr.RdTmp):
+                        if stmt.addr.tmp in tmps:
+                            storing_addr = tmps[stmt.addr.tmp]
+
+                            function.info['lr_saved_on_stack'] = True
+                            function.info['lr_on_stack_offset'] = storing_addr - initial_sp
+                            break
+
+        if 'lr_saved_on_stack' not in function.info:
+            function.info['lr_saved_on_stack'] = False
+
+    def _arm_track_read_lr_from_stack(self, addr, irsb, function):
+        """
+        At the end of a basic block, simulate the very last instruction to see if the return address is read from the
+        stack and written in PC. If so, the jumpkind of this IRSB will be set to Ijk_Ret. For detailed explanations,
+        please see the documentation of _arm_track_lr_on_stack().
+
+        :param int addr: The address of the basic block.
+        :param pyvex.IRSB irsb: The basic block object.
+        :param Function function: The function instance.
+        :return: None
+        """
+
+        if 'lr_saved_on_stack' not in function.info or not function.info['lr_saved_on_stack']:
+            return
+
+        sp_offset = self.project.arch.sp_offset
+        initial_sp = 0x7fff0000
+        last_sp = None
+        tmps = {}
+        last_imark = next((stmt for stmt in reversed(irsb.statements)
+                           if isinstance(stmt, pyvex.IRStmt.IMark)
+                           ), 0
+                          )
+        tmp_irsb = self.project.factory.block(last_imark.addr + last_imark.delta).vex
+        for stmt in tmp_irsb.statements:
+            if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                data = stmt.data
+                if isinstance(data, pyvex.IRExpr.Get) and data.offset == sp_offset:
+                    # t0 = GET:I32(sp)
+                    tmps[stmt.tmp] = initial_sp
+                elif isinstance(data, pyvex.IRExpr.Binop):
+                    # only support Add
+                    if data.op == 'Iop_Add32':
+                        arg0, arg1 = data.args
+                        if isinstance(arg0, pyvex.IRExpr.RdTmp) and isinstance(arg1, pyvex.IRExpr.Const):
+                            if arg0.tmp in tmps:
+                                tmps[stmt.tmp] = tmps[arg0.tmp] + arg1.con.value
+                elif isinstance(data, pyvex.IRExpr.Load):
+                    if isinstance(data.addr, pyvex.IRExpr.RdTmp):
+                        if data.addr.tmp in tmps:
+                            tmps[stmt.tmp] = ('load', tmps[data.addr.tmp])
+            elif isinstance(stmt, pyvex.IRStmt.Put):
+                if stmt.offset == sp_offset and isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+                    if stmt.data.tmp in tmps:
+                        # loading things into sp
+                        last_sp = tmps[stmt.data.tmp]
+
+        if last_sp is not None and isinstance(tmp_irsb.next, pyvex.IRExpr.RdTmp):
+            val = tmps[tmp_irsb.next.tmp]
+            if isinstance(val, tuple) and val[0] == 'load':
+                # the value comes from memory
+                memory_addr = val[1]
+                lr_on_stack_offset = memory_addr - last_sp
+
+                if lr_on_stack_offset == function.info['lr_on_stack_offset']:
+                    # the jumpkind should be Ret instead of boring
+                    irsb.jumpkind = 'Ijk_Ret'
+
+    #
     # Other methods
     #
 
     def _process_block_arch_specific(self, addr, irsb, func_addr):  # pylint: disable=unused-argument
-        if self.project.arch.name == "MIPS32":
+
+        if self.project.arch.name in ('ARMEL', 'ARMHF'):
+            if self._arch_options.ret_jumpkind_heuristics:
+                if addr == func_addr:
+                    self._arm_track_lr_on_stack(addr, irsb, self.functions[func_addr])
+
+                elif 'lr_saved_on_stack' in self.functions[func_addr].info and \
+                        self.functions[func_addr].info['lr_saved_on_stack'] and \
+                        irsb.jumpkind == 'Ijk_Boring' and \
+                        irsb.next is not None and \
+                        isinstance(irsb.next, pyvex.IRExpr.RdTmp):
+                    # do a bunch of checks to avoid unnecessary simulation from happening
+                    self._arm_track_read_lr_from_stack(addr, irsb, self.functions[func_addr])
+
+        elif self.project.arch.name == "MIPS32":
             if addr == func_addr:
                 # Prudently search for $gp values
                 state = self.project.factory.blank_state(addr=addr, mode="fastpath")
