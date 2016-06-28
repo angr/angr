@@ -35,15 +35,12 @@ class SimUnicorn(SimRun):
         finally:
             self.state.unicorn.destroy()
 
-        self.success = True
-
-        # FIXME what's this?
-        guard = self.state.se.true
-
-        if self.state.unicorn.stop_reason == STOP.STOP_SYMBOLIC:
-            # subtract one step because it counted the block it couldn't execute
-            self.state.unicorn.steps -= 1
-            self.success = self.state.unicorn.steps > 0
+        self.stop_reason = self.state.unicorn.stop_reason
+        self.success = self.state.unicorn.steps > 0
+        try:
+            self.end_addr = self.state.scratch.bbl_addr_list[-1]
+        except IndexError:
+            self.end_addr = self.addr
 
         if self.state.unicorn.error is not None:
             # error from hook
@@ -60,12 +57,10 @@ class SimUnicorn(SimRun):
 
         if self.state.unicorn.jumpkind.startswith('Ijk_Sys'):
             self.state.ip = self.state.unicorn._syscall_pc
-            self.add_successor(self.state, self.state.ip, guard, self.state.unicorn.jumpkind)
-        else:
-            self.add_successor(self.state, self.state.ip, guard, self.state.unicorn.jumpkind)
+        self.add_successor(self.state, self.state.ip, self.state.se.true, self.state.unicorn.jumpkind)
 
     def __repr__(self):
-        return "<SimUnicorn from %#x with %d steps>" % (self.addr, self.state.unicorn.steps)
+        return "<SimUnicorn %#x-%#x with %d steps (%s)>" % (self.addr, self.end_addr, self.state.unicorn.steps, STOP.name_stop(self.stop_reason))
 
 from .s_errors import SimUnicornError
 from .plugins.unicorn_engine import STOP

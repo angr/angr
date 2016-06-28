@@ -12,7 +12,7 @@ except ImportError:
     l.warning("Unicorn is not installed. Support disabled.")
 
 from .plugin import SimStatePlugin
-from ..s_errors import SimValueError, SimUnicornUnsupport
+from ..s_errors import SimValueError, SimUnicornUnsupport, SimSegfaultError
 
 class MEM_PATCH(ctypes.Structure): # mem_update_t
     pass
@@ -31,6 +31,13 @@ class STOP(object): # stop_t
     STOP_EXECNONE   = 4
     STOP_ZEROPAGE   = 5
     STOP_NOSTART    = 6
+    STOP_SEGFAULT   = 7
+
+    @staticmethod
+    def name_stop(num):
+        for item in dir(STOP):
+            if item.startswith('STOP_') and getattr(STOP, item) == num:
+                return item
 
 #
 # Because Unicorn leaks like crazy, we use one Uc object per thread...
@@ -136,7 +143,7 @@ def _load_native():
         _setup_prototype(h, 'activate', None, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p)
         _setup_prototype(h, 'set_stops', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'logSetLogLevel', None, ctypes.c_uint64)
-        _setup_prototype(h, 'cache_page', ctypes.c_bool, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p)
+        _setup_prototype(h, 'cache_page', ctypes.c_bool, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p, ctypes.c_uint64)
 
         l.info('native plugin is enabled')
 
@@ -323,8 +330,9 @@ class Unicorn(SimStatePlugin):
         return d
 
     def _hook_mem_unmapped(self, uc, access, address, size, value, user_data): #pylint:disable=unused-argument
-        ''' load memory from current state'''
-
+        """
+        This callback is called when unicorn needs to access data that's not yet present in memory.
+        """
         # FIXME check angr hooks at `address`
 
         start = address & (0xffffffffffffff000)
@@ -339,7 +347,11 @@ class Unicorn(SimStatePlugin):
             _UC_NATIVE.stop(self._uc_state, STOP.STOP_ZEROPAGE)
             return False
 
-        the_bytes, _ = self.state.memory.mem.load_bytes(start, length)
+        try:
+            the_bytes, _ = self.state.memory.mem.load_bytes(start, length)
+        except SimSegfaultError:
+            _UC_NATIVE.stop(self._uc_state, STOP.STOP_SEGFAULT)
+            return False
 
         if access == unicorn.UC_MEM_FETCH_UNMAPPED and len(the_bytes) == 0:
             # we can not initalize an empty page then execute on it
@@ -350,7 +362,7 @@ class Unicorn(SimStatePlugin):
 
         data = bytearray(length)
 
-        partial_symbolic = False
+        taint = None
 
         offsets = sorted(the_bytes.keys())
         offsets.append(length)
@@ -365,10 +377,8 @@ class Unicorn(SimStatePlugin):
             if d.symbolic:
                 l.debug('loading symbolic memory [%#x, %#x]', start + pos, start + pos + size - 1)
 
-                if not partial_symbolic:
+                if taint is None:
                     taint = ctypes.create_string_buffer(length)
-                    partial_symbolic = True
-
                 offset = ctypes.cast(ctypes.addressof(taint) + pos, ctypes.POINTER(ctypes.c_char))
                 ctypes.memset(offset, 0x2, size) # mark them as TAINT_SYMBOLIC
                 s = '\x00' * (len(d)/8)
@@ -376,31 +386,22 @@ class Unicorn(SimStatePlugin):
                 s = self.state.se.any_str(d)
             data[pos:pos + size] = s
 
-        if access == unicorn.UC_MEM_FETCH_UNMAPPED:
-            l.debug('caching executable pages')
-            return _UC_NATIVE.cache_page(self._uc_state, start, length, str(data))
-
-        if access == unicorn.UC_MEM_WRITE_UNMAPPED:
-            l.info('mmap [%#x, %#x] rwx', start, start + length - 1)
-            uc.mem_map(start, length, unicorn.UC_PROT_ALL)
+        perm = self.state.memory.permissions(start)
+        if not perm.symbolic:
+            perm = perm.args[0]
         else:
-            # map all pages read-only
-            l.info('mmap [%#x, %#x] r-x', start, start + length - 1)
-            uc.mem_map(start, length,
-                            unicorn.UC_PROT_EXEC | unicorn.UC_PROT_READ)
+            perm = 7
 
+        l.info('mmap [%#x, %#x], %d', start, start + length - 1, perm)
+        if not perm & 2:
+            l.debug('caching non-writable page')
+            return _UC_NATIVE.cache_page(self._uc_state, start, length, str(data), perm)
+
+        uc.mem_map(start, length, perm)
+        uc.mem_write(start, str(data))
         self._mapped += 1
 
-        uc.mem_write(start, str(data))
-
-        l.info('mmap: activate new page [%#x, %#x]', start, start + length - 1)
-        if partial_symbolic:
-            # we have initalized tainted bits for this case
-            _UC_NATIVE.activate(self._uc_state, start, length, taint)
-        elif access == unicorn.UC_MEM_WRITE_UNMAPPED:
-            # we didn't initalize the bitmap for this case, should provide
-            # an empty bitmap
-            _UC_NATIVE.activate(self._uc_state, start, length, None)
+        _UC_NATIVE.activate(self._uc_state, start, length, taint)
 
         return True
 
@@ -435,14 +436,12 @@ class Unicorn(SimStatePlugin):
         self.sync()
 
         # get the addresses out of the state
-        num_bbl_addrs = _UC_NATIVE.bbl_addr_count(self._uc_state)
         bbl_addrs = _UC_NATIVE.bbl_addrs(self._uc_state)
-        self.state.scratch.bbl_addr_list = bbl_addrs[:num_bbl_addrs+1]
+        self.state.scratch.bbl_addr_list = bbl_addrs[:self.steps]
+        self.stop_reason = _UC_NATIVE.stop_reason(self._uc_state)
 
         addr = self.state.se.any_int(self.state.ip)
-        l.debug('finished emulation at %#x after %d steps', addr, self.steps)
-
-        self.stop_reason = _UC_NATIVE.stop_reason(self._uc_state)
+        l.debug('finished emulation at %#x after %d steps: %s', addr, self.steps, STOP.name_stop(self.stop_reason))
         # STOP.STOP_SYSCALL/STOP_EXECNONE/STOP_ZEROPAGE is already handled
 
     def destroy(self):
@@ -603,6 +602,7 @@ class Unicorn(SimStatePlugin):
             s = self.uc.mem_read(address, length)
             l.debug('syncing [%#x, %#x] = %s', address, address + length, str(s).encode('hex'))
             self.state.memory.store(address, str(s))
+
         self._dirty.clear()
 
     def copy(self):
@@ -642,6 +642,7 @@ class Unicorn(SimStatePlugin):
             #l.debug("not enough passed register checks")
             return False
 
+        # TODO: where is this checked?
         if self._current_symbolic_memory < self.cooldown_symbolic_memory:
             #l.debug("not enough runs since symbolic data")
             return False

@@ -29,10 +29,11 @@ typedef enum stop {
 	STOP_EXECNONE,
 	STOP_ZEROPAGE,
 	STOP_NOSTART,
+	STOP_SEGFAULT,
 } stop_t;
 
 typedef taint_t PageBitmap[PAGE_SIZE];
-typedef std::map<uint64_t, char *> PageCache;
+typedef std::map<uint64_t, std::pair<char *, uint64_t>> PageCache;
 std::map<uint64_t, PageCache*> global_cache;
 
 
@@ -51,7 +52,7 @@ typedef struct mem_update {
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
-static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
+//static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static void hook_block(uc_engine *uc, uint64_t address, uint64_t size, void *user_data);
 
 class State {
@@ -121,7 +122,7 @@ public:
 
 		err = uc_hook_add(uc, &h_block, UC_HOOK_BLOCK, (void *)hook_block, this, 1, 0);
 
-		err = uc_hook_add(uc, &h_prot, UC_HOOK_MEM_PROT, (void *)hook_mem_prot, this, 1, 0);
+		//err = uc_hook_add(uc, &h_prot, UC_HOOK_MEM_PROT, (void *)hook_mem_prot, this, 1, 0);
 		// should we only hook UC_HOOK_MEM_FETCH_UNMAPPED ?
 		err = uc_hook_add(uc, &h_unmap, UC_HOOK_MEM_UNMAPPED, (void *)hook_mem_unmapped, this, 1, 0);
 
@@ -136,7 +137,7 @@ public:
 		err = uc_hook_del(uc, h_read);
 		err = uc_hook_del(uc, h_write);
 		err = uc_hook_del(uc, h_block);
-		err = uc_hook_del(uc, h_prot);
+		//err = uc_hook_del(uc, h_prot);
 		err = uc_hook_del(uc, h_unmap);
 
 		hooked = false;
@@ -156,7 +157,7 @@ public:
 	uc_err start(uint64_t pc, uint64_t step = 1) {
 		stop_reason = STOP_NOSTART;
 		max_steps = step;
-		cur_steps = 0;
+		cur_steps = -1;
 		return uc_emu_start(uc, pc, 0, 0, 0);
 	}
 
@@ -186,6 +187,9 @@ public:
 			case STOP_NOSTART:
 				msg = "failed to start";
 				break;
+			case STOP_SEGFAULT:
+				msg = "permissions or mapping error";
+				break;
 			default:
 				msg = "unknown error";
 		}
@@ -196,8 +200,7 @@ public:
 	}
 
 	void step(uint64_t current_address) {
-		// save current registers
-		uc_reg_update(uc, tmp_reg, 1);
+		uc_reg_update(uc, tmp_reg, 1); // save current registers
 		bbl_addrs.push_back(current_address);
 
 		if (cur_steps >= max_steps)
@@ -205,9 +208,6 @@ public:
 		else if (stop_points.count(current_address) == 1)
 		{
 			stop(STOP_NORMAL);
-		}
-		else {
-			cur_steps++;
 		}
 	}
 
@@ -251,6 +251,7 @@ public:
 				LOG_D("commit: lazy initialize mem_write [%#lx, %#lx]", it->address, it->address + it->size);
 			}
 		mem_writes.clear();
+		cur_steps++;
 	}
 
 	/*
@@ -300,8 +301,9 @@ public:
 	taint_t *page_lookup(uint64_t address) const {
 		address &= ~0xFFFUL;
 		auto it = active_pages.find(address);
-		if (it == active_pages.end())
+		if (it == active_pages.end()) {
 			return NULL;
+		}
 		return it->second;
 	}
 
@@ -381,20 +383,22 @@ public:
 			stop_points.insert(stops[i]);
 	}
 
-	void cache_page(uint64_t address, char* bytes) {
+	void cache_page(uint64_t address, char* bytes, uint64_t permissions) {
 		// address should be aligned to 0x1000
 		char *copy = (char *)malloc(0x1000);
 		memcpy(copy, bytes, 0x1000);
-		page_cache->insert(std::pair<uint64_t, char*>(address, copy));
+		page_cache->insert(std::pair<uint64_t, std::pair<char *, uint64_t>>(address, std::pair<char *, uint64_t>(copy, permissions)));
 	}
 
 	bool map_cache(uint64_t address) {
 		auto it = page_cache->find(address);
 
 		if (it != page_cache->end()) {
-			char *bytes = it->second;
+			auto itt = it->second;
+			char *bytes = itt.first;
+			uint64_t permissions = itt.second;
 			LOG_D("hit cache [%#lx, %#lx]", address, address + 0x1000);
-			uc_err err = uc_mem_map_ptr(uc, address, 0x1000, UC_PROT_EXEC | UC_PROT_READ, bytes);
+			uc_err err = uc_mem_map_ptr(uc, address, 0x1000, permissions, bytes);
 			if (err) {
 				LOG_E("map_cache: %s", uc_strerror(err));
 				return false;
@@ -529,17 +533,16 @@ static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address,
 	uint64_t start = address & ~0xFFFUL;
 	uint64_t end = (address + size - 1) & ~0xFFFUL;
 
-	if (type == UC_MEM_FETCH_UNMAPPED) {
-		// only hook executable pages
+	// only hook nonwritable pages
+	if (type != UC_MEM_WRITE_UNMAPPED && state->map_cache(start) && (start == end || state->map_cache(end))) {
 		LOG_D("handle unmapped page natively");
-		if (state->map_cache(start) && (start == end || state->map_cache(end))) {
-				return true;
-		}
+		return true;
 	}
 
 	return false;
 }
 
+/*
 static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
 	if (type == UC_MEM_WRITE_PROT) {
 		// we only handle writing to readonly page
@@ -575,6 +578,7 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
 		return false;
 	}
 }
+*/
 
 /*
  * C style bindings makes it simple and dirty
@@ -663,10 +667,10 @@ void activate(State *state, uint64_t address, uint64_t length, uint8_t *taint) {
  */
 
 extern "C"
-bool cache_page(State *state, uint64_t address, uint64_t length, char *bytes) {
+bool cache_page(State *state, uint64_t address, uint64_t length, char *bytes, uint64_t permissions) {
 	LOG_I("caching [%#lx, %#lx]", address, address + length);
 	for (uint64_t offset = 0; offset < length; offset += 0x1000) {
-		state->cache_page(address + offset, &bytes[offset]);
+		state->cache_page(address + offset, &bytes[offset], permissions);
 		if (!state->map_cache(address + offset))
 				return false;
 	}
