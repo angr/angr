@@ -437,7 +437,7 @@ class Unicorn(SimStatePlugin):
         # get the addresses out of the state
         num_bbl_addrs = _UC_NATIVE.bbl_addr_count(self._uc_state)
         bbl_addrs = _UC_NATIVE.bbl_addrs(self._uc_state)
-        self.state.scratch.bbl_addr_list = bbl_addrs[:num_bbl_addrs]
+        self.state.scratch.bbl_addr_list = bbl_addrs[:num_bbl_addrs+1]
 
         addr = self.state.se.any_int(self.state.ip)
         l.debug('finished emulation at %#x after %d steps', addr, self.steps)
