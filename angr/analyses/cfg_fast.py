@@ -621,11 +621,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         return entropy
 
     #
-    # Public methods
+    # Properties
     #
     @property
     def functions(self):
         return self.kb.functions
+
+    @property
+    def memory_data(self):
+        return self._memory_data
 
     #
     # Private methods
