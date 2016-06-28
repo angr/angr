@@ -776,7 +776,16 @@ class CFGBase(Analysis):
         # traverse the graph starting from each node, not following call edges
         # it's important that we traverse all functions in order so that we have a greater chance to come across
         # rational functions before its irrational counterparts (e.g. due to failed jump table resolution)
-        for fn in sorted(function_nodes, key=lambda n: n.addr):
+
+        min_stage_2_progress = 50.0
+        max_stage_2_progress = 99.9
+        nodes_count = len(function_nodes)
+        for i, fn in enumerate(sorted(function_nodes, key=lambda n: n.addr)):
+
+            if self._show_progressbar or self._progress_callback:
+                progress = min_stage_2_progress + (max_stage_2_progress - min_stage_2_progress) * (i * 1.0 / nodes_count)
+                self._update_progress(progress)
+
             self._graph_bfs_custom(self.graph, [ fn ], self._graph_traversal_handler, blockaddr_to_function,
                                    tmp_functions
                                    )

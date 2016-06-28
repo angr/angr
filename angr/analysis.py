@@ -5,6 +5,10 @@ from collections import defaultdict
 import logging
 l = logging.getLogger('angr.analysis')
 
+import progressbar
+
+from .errors import AngrAnalysisError
+
 registered_analyses = {}
 
 def register_analysis(analysis, name):
@@ -59,7 +63,6 @@ class Analyses(object):
 
         :ivar p:                A project
         :type p:                angr.Project
-        :ivar analysis_results: The result cache.
         """
         self.project = p
         self._registered_analyses = {}
@@ -73,6 +76,8 @@ class Analyses(object):
         def make_analysis(*args, **kwargs): # pylint: disable=unused-argument
             fail_fast = kwargs.pop('fail_fast', False)
             kb = kwargs.pop('kb', self.project.kb)
+            progress_callback = kwargs.pop('progress_callback', None)
+            show_progressbar = kwargs.pop('show_progressbar', False)
 
             oself = analysis.__new__(analysis)
             oself.named_errors = {}
@@ -83,6 +88,13 @@ class Analyses(object):
             oself._name = name
             oself.project = self.project
             oself.kb = kb
+            oself._progress_callback = progress_callback
+
+            if oself._progress_callback is not None:
+                if not hasattr(oself._progress_callback, '__call__'):
+                    raise AngrAnalysisError('The "progress_callback" parameter must be a None or a callable.')
+
+            oself._show_progressbar = show_progressbar
 
             oself.__init__(*args, **kwargs)
             return oself
@@ -115,6 +127,13 @@ class Analysis(object):
 
     :ivar project:  The project for this analysis.
     :type project:  angr.Project
+    :ivar KnowledgeBase kb: The knowledgebase object.
+    :ivar callable _progress_callback: A callback function for receiving the progress of this analysis. It only takes
+                                        one argument, which is a float number from 0.0 to 100.0 indicating the current
+                                        progress.
+    :ivar bool _show_progressbar: If a progressbar should be shown during the analysis. It's independent from
+                                    _progress_callback.
+    :ivar progressbar.ProgressBar _progressbar: The progress bar object.
     """
     project = None
     kb = None
@@ -122,6 +141,9 @@ class Analysis(object):
     _name = None
     errors = []
     named_errors = defaultdict(list)
+    _progress_callback = None
+    _show_progressbar = False
+    _progressbar = None
 
     @contextlib.contextmanager
     def _resilience(self, name=None, exception=Exception):
@@ -137,6 +159,56 @@ class Analysis(object):
                     self.errors.append(error)
                 else:
                     self.named_errors[name].append(error)
+
+    def _initialize_progressbar(self):
+        """
+        Initialize the progressbar.
+        :return: None
+        """
+
+        widgets = [progressbar.Percentage(),
+                   ' ',
+                   progressbar.Bar(),
+                   ' ',
+                   progressbar.Timer(),
+                   ' ',
+                   progressbar.ETA()
+                   ]
+
+        self._progressbar = progressbar.ProgressBar(widgets=widgets, maxval=10000 * 100).start()
+
+    def _update_progress(self, percentage):
+        """
+        Update the progress with a percentage, including updating the progressbar as well as calling the progress
+        callback.
+
+        :param float percentage: Percentage of the progressbar. from 0.0 to 100.0.
+        :return: None
+        """
+
+        if self._show_progressbar:
+            if self._progressbar is None:
+                self._initialize_progressbar()
+
+            self._progressbar.update(percentage * 10000)
+
+        if self._progress_callback is not None:
+            self._progress_callback(percentage)  # pylint:disable=not-callable
+
+    def _finish_progress(self):
+        """
+        Mark the progressbar as finished.
+        :return: None
+        """
+
+        if self._show_progressbar:
+            if self._progressbar is None:
+                self._initialize_progressbar()
+            if self._progressbar is not None:
+                self._progressbar.finish()
+
+        if self._progress_callback is not None:
+            self._progress_callback(100.0)  # pylint:disable=not-callable
 
     def __repr__(self):
         return '<%s Analysis Result at %#x>' % (self._name, id(self))
