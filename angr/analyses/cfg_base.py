@@ -375,7 +375,7 @@ class CFGBase(Analysis):
                                 itstate >>= 8
 
         if it_counter != 0:
-            l.error('Basic block ends before calculated IT block (%#x)', addr)
+            l.debug('Basic block ends before calculated IT block (%#x)', addr)
 
         THUMB_BRANCH_INSTRUCTIONS = ('beq', 'bne', 'bcs', 'bhs', 'bcc', 'blo', 'bmi', 'bpl', 'bvs',
                                      'bvc', 'bhi', 'bls', 'bge', 'blt', 'bgt', 'ble', 'cbz', 'cbnz')
