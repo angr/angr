@@ -5,6 +5,8 @@ from collections import defaultdict
 import logging
 l = logging.getLogger('angr.analysis')
 
+import progressbar
+
 registered_analyses = {}
 
 def register_analysis(analysis, name):
@@ -73,6 +75,8 @@ class Analyses(object):
         def make_analysis(*args, **kwargs): # pylint: disable=unused-argument
             fail_fast = kwargs.pop('fail_fast', False)
             kb = kwargs.pop('kb', self.project.kb)
+            progress_callback = kwargs.pop('progress_callback', None)
+            show_progressbar = kwargs.pop('show_progressbar', False)
 
             oself = analysis.__new__(analysis)
             oself.named_errors = {}
@@ -83,6 +87,8 @@ class Analyses(object):
             oself._name = name
             oself.project = self.project
             oself.kb = kb
+            oself._progress_callback = progress_callback
+            oself._show_progressbar = show_progressbar
 
             oself.__init__(*args, **kwargs)
             return oself
@@ -122,6 +128,9 @@ class Analysis(object):
     _name = None
     errors = []
     named_errors = defaultdict(list)
+    _progress_callback = None
+    _show_progressbar = False
+    _progressbar = None
 
     @contextlib.contextmanager
     def _resilience(self, name=None, exception=Exception):
@@ -137,6 +146,56 @@ class Analysis(object):
                     self.errors.append(error)
                 else:
                     self.named_errors[name].append(error)
+
+    def _initialize_progressbar(self):
+        """
+        Initialize the progressbar.
+        :return: None
+        """
+
+        widgets = [progressbar.Percentage(),
+                   ' ',
+                   progressbar.Bar(marker=progressbar.RotatingMarker()),
+                   ' ',
+                   progressbar.Timer(),
+                   ' ',
+                   progressbar.ETA()
+                   ]
+
+        self._progressbar = progressbar.ProgressBar(widgets=widgets, maxval=10000 * 100).start()
+
+    def _update_progress(self, percentage):
+        """
+        Update the progress with a percentage, including updating the progressbar as well as calling the progress
+        callback.
+
+        :param float percentage: Percentage of the progressbar. from 0.0 to 100.0.
+        :return: None
+        """
+
+        if self._show_progressbar:
+            if self._progressbar is None:
+                self._initialize_progressbar()
+
+            self._progressbar.update(percentage * 10000)
+
+        if self._progress_callback is not None:
+            self._progress_callback(percentage)
+
+    def _finish_progress(self):
+        """
+        Mark the progressbar as finished.
+        :return: None
+        """
+
+        if self._show_progressbar:
+            if self._progressbar is None:
+                self._initialize_progressbar()
+            if self._progressbar is not None:
+                self._progressbar.finish()
+
+        if self._progress_callback is not None:
+            self._progress_callback(100.0)
 
     def __repr__(self):
         return '<%s Analysis Result at %#x>' % (self._name, id(self))

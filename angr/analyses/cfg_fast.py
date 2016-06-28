@@ -5,7 +5,6 @@ import re
 import struct
 from collections import defaultdict
 
-import progressbar
 import cffi
 
 import claripy
@@ -498,8 +497,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  force_complete_scan=True,
                  indirect_jump_target_limit=100000,
                  collect_data_references=False,
-                 progress_callback=None,
-                 show_progressbar=False,
                  normalize=False,
                  function_starts=None
                  ):
@@ -518,11 +515,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                             code blocks.
         :param bool collect_data_references: If CFGFast should collect data references from individual basic blocks or
                                              not.
-        :param progress_callback:       Specify a callback function to get the progress during CFG recovery.
-        :param bool show_progressbar:   Should CFGFast show a progressbar during CFG recovery or not.
         :param bool normalize:          Normalize the CFG as well as all function graphs after CFG recovery.
         :param list function_starts:    A list of extra function starting points. CFGFast will try to resume scanning
                                         from each address in the list.
+
+        Extra parameters that angr.Analysis takes:
+
+        :param progress_callback:       Specify a callback function to get the progress during CFG recovery.
+        :param bool show_progressbar:   Should CFGFast show a progressbar during CFG recovery or not.
         :return: None
         """
 
@@ -541,12 +541,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._resolve_indirect_jumps = resolve_indirect_jumps
         self._force_complete_scan = force_complete_scan
 
-        self._progress_callback = progress_callback
-        self._show_progressbar = show_progressbar
-
         self._extra_function_starts = function_starts
-
-        self._progressbar = None  # will be initialized later if self._show_progressbar == True
 
         l.debug("Starts at %#x and ends at %#x.", self._start, self._end)
 
@@ -633,43 +628,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             "indirect_jumps": self.indirect_jumps,
         }
         return s
-
-    def _initialize_progressbar(self):
-        """
-        Initialize the progressbar.
-        :return: None
-        """
-
-        widgets = [progressbar.Percentage(),
-                   ' ',
-                   progressbar.Bar(marker=progressbar.RotatingMarker()),
-                   ' ',
-                   progressbar.Timer(),
-                   ' ',
-                   progressbar.ETA()
-                   ]
-
-        self._progressbar = progressbar.ProgressBar(widgets=widgets, maxval=10000 * 100).start()
-
-    def _update_progressbar(self, percentage):
-        """
-        Update the progressbar with a percentage.
-
-        :param float percentage: Percentage of the progressbar. from 0.0 to 100.0.
-        :return: None
-        """
-
-        if self._progressbar is not None:
-            self._progressbar.update(percentage * 10000)
-
-    def _finish_progressbar(self):
-        """
-        Mark the progressbar as finished.
-        :return: None
-        """
-
-        if self._progressbar is not None:
-            self._progressbar.finish()
 
     # Methods for scanning the entire image
 
@@ -798,9 +756,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # initial_options.remove(simuvex.o.COW_STATES)
         self._initial_state.options = initial_options
 
-        if self._show_progressbar:
-            self._initialize_progressbar()
-
         starting_points = set()
 
         rebase_addr = self._binary.rebase_addr
@@ -835,16 +790,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _pre_entry_handling(self, entry):
 
+        # Do not calculate progress if the user doesn't care about the progress at all
         if self._show_progressbar or self._progress_callback:
-            percentage = self._seg_list.occupied_size * 100.0 / self._exec_mem_region_size
-            if percentage > 100.0:
-                percentage = 100.0
+            max_percentage_stage_1 = 50.0
+            percentage = self._seg_list.occupied_size * max_percentage_stage_1 / self._exec_mem_region_size
+            if percentage > max_percentage_stage_1:
+                percentage = max_percentage_stage_1
 
-            if self._show_progressbar:
-                self._update_progressbar(percentage)
-
-            if self._progress_callback:
-                self._progress_callback(percentage)
+            self._update_progress(percentage)
 
         current_function_addr = entry.func_addr
 
@@ -1014,8 +967,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         CFGBase._post_analysis(self)
 
-        if self._show_progressbar:
-            self._finish_progressbar()
+        self._finish_progress()
 
     # Methods to get start points for scanning
 
