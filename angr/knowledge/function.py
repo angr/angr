@@ -645,6 +645,12 @@ class Function(object):
         :return: None
         """
 
+        # let's put a check here
+        if self.startpoint is None:
+            # this function is empty
+            l.error('Unexpected error: %s does not have any blocks. normalize() fails.', repr(self))
+            return
+
         graph = self.transition_graph
         end_addresses = defaultdict(list)
 

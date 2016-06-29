@@ -986,18 +986,32 @@ class CFGBase(Analysis):
 
             # find all functions that are between [ startpoint, endpoint ]
 
+            should_merge = True
+            functions_to_merge = set()
             for f_addr in functions_can_be_removed:
                 f = functions[f_addr]
-                if f_addr in functions_to_remove:
-                    continue
                 if f_addr == func_addr:
                     continue
-
                 if max_unresolved_jump_addr < f_addr < endpoint_addr and \
                         all([max_unresolved_jump_addr < b.addr < endpoint_addr for b in f.blocks]):
+                    if f_addr in functions_to_remove:
+                        # this function has already been merged with other functions before... it cannot be merged with
+                        # this function anymore
+                        should_merge = False
+                        break
+                    if f_addr in predetermined_function_addrs:
+                        # this function is a legit one. it shouldn't be removed/merged
+                        should_merge = False
+                        break
+                    functions_to_merge.add(f_addr)
 
-                    functions_to_remove[f_addr] = func_addr
-                    continue
+            if not should_merge:
+                # we shouldn't merge...
+                continue
+
+            for f_addr in functions_to_merge:
+                functions_to_remove[f_addr] = func_addr
+                continue
 
         # merge all functions
         for to_remove, merge_with in functions_to_remove.iteritems():
@@ -1128,7 +1142,10 @@ class CFGBase(Analysis):
             if dst_function.returning:
                 returning_target = src.addr + src.size
                 if returning_target not in blockaddr_to_function:
-                    blockaddr_to_function[returning_target] = src_function
+                    if returning_target not in known_functions:
+                        blockaddr_to_function[returning_target] = src_function
+                    else:
+                        self._addr_to_function(returning_target, blockaddr_to_function, known_functions)
 
                 to_outside = not blockaddr_to_function[returning_target] is src_function
 
@@ -1158,9 +1175,15 @@ class CFGBase(Analysis):
         elif jumpkind == 'Ijk_FakeRet':
 
             if dst_addr not in blockaddr_to_function:
-                blockaddr_to_function[dst_addr] = src_function
+                if dst_addr not in known_functions:
+                    blockaddr_to_function[dst_addr] = src_function
+                    target_function = src_function
+                else:
+                    target_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+            else:
+                target_function = blockaddr_to_function[dst_addr]
 
-            to_outside = not blockaddr_to_function[dst_addr] is src_function
+            to_outside = target_function is src_function
 
             self.kb.functions._add_fakeret_to(src_function.addr, src_addr, dst_addr, confirmed=True,
                                               to_outside=to_outside
