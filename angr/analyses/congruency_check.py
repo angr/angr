@@ -5,7 +5,7 @@ import simuvex
 from ..analysis import Analysis, register_analysis
 
 l = logging.getLogger('angr.analyses.congruency_check')
-l.setLevel(logging.DEBUG)
+#l.setLevel(logging.DEBUG)
 
 class CongruencyCheck(Analysis):
 	"""
@@ -281,8 +281,10 @@ class CongruencyCheck(Analysis):
 		# make sure the canonicalized constraints are the same
 		n_map, n_counter, n_canon_constraint = claripy.And(*sr.se.constraints).canonicalize() #pylint:disable=no-member
 		u_map, u_counter, u_canon_constraint = claripy.And(*sl.se.constraints).canonicalize() #pylint:disable=no-member
-		joint_solver.add((n_canon_constraint, u_canon_constraint))
-		if n_canon_constraint is not u_canon_constraint:
+		n_canoner_constraint = sr.se.simplify(n_canon_constraint)
+		u_canoner_constraint = sl.se.simplify(u_canon_constraint)
+		joint_solver.add((n_canoner_constraint, u_canoner_constraint))
+		if n_canoner_constraint is not u_canoner_constraint:
 			self._report_incongruency("Different constraints!")
 			return False
 
