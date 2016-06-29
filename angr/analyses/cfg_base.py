@@ -771,7 +771,13 @@ class CFGBase(Analysis):
                     self._nodes_by_addr[n.addr].append(new_node)
 
                 for p, _, data in original_predecessors:
-                    graph.add_edge(p, new_node, data)
+                    # Consider the following case: two basic blocks ending at the same position, where A is larger, and
+                    # B is smaller. Suppose there is an edge going from the end of A to A itself, and apparently there
+                    # is another edge from B to A as well. After splitting A into A' and B, we DO NOT want to add A back
+                    # in, otherwise there will be an edge from A to A`, while A should totally be got rid of in the new
+                    # graph.
+                    if p not in other_nodes:
+                        graph.add_edge(p, new_node, data)
 
                 # We should find the correct successor
                 new_successors = [i for i in all_nodes
