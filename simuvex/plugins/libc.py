@@ -1,7 +1,6 @@
 from .plugin import SimStatePlugin
 
-global heap_location
-heap_location = 0xc0000000
+HEAP_LOCATION = 0xc0000000
 
 class SimStateLibc(SimStatePlugin):
     """
@@ -64,7 +63,7 @@ class SimStateLibc(SimStatePlugin):
         SimStatePlugin.__init__(self)
 
         # various thresholds
-        self.heap_location = heap_location
+        self.heap_location = HEAP_LOCATION
         self.buf_symbolic_bytes = 60
         self.max_symbolic_strstr = 1
         self.max_symbolic_strchr = 16
@@ -131,4 +130,13 @@ class SimStateLibc(SimStatePlugin):
         # TODO: Recheck this function
         return self.merge(others, merge_flag, flag_values)
 
+    def set_state(self, state):
+        SimStatePlugin.set_state(self, state)
+        try:
+            state.memory.permissions(self.heap_location)
+        except SimMemoryError:
+            state.memory.map_region(self.heap_location, 4096*64, 3)
+
 SimStatePlugin.register_default('libc', SimStateLibc)
+
+from ..s_errors import SimMemoryError

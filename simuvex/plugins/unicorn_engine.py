@@ -1,5 +1,6 @@
 import os
 import sys
+import struct
 import ctypes
 import logging
 import threading
@@ -25,13 +26,14 @@ MEM_PATCH._fields_ = [
 
 class STOP(object): # stop_t
     STOP_NORMAL     = 0
-    STOP_SYMBOLIC   = 1
-    STOP_ERROR      = 2
-    STOP_SYSCALL    = 3
-    STOP_EXECNONE   = 4
-    STOP_ZEROPAGE   = 5
-    STOP_NOSTART    = 6
-    STOP_SEGFAULT   = 7
+    STOP_STOPPOINT  = 1
+    STOP_SYMBOLIC   = 2
+    STOP_ERROR      = 3
+    STOP_SYSCALL    = 4
+    STOP_EXECNONE   = 5
+    STOP_ZEROPAGE   = 6
+    STOP_NOSTART    = 7
+    STOP_SEGFAULT   = 8
 
     @staticmethod
     def name_stop(num):
@@ -47,6 +49,7 @@ _unicounter = itertools.count()
 
 class Uniwrapper(unicorn.Uc):
     def __init__(self, arch, cache_key):
+        l.debug("Creating unicorn state!")
         self.arch = arch
         self.cache_key = cache_key
         self.wrapped_mapped = set()
@@ -56,46 +59,46 @@ class Uniwrapper(unicorn.Uc):
 
     def hook_add(self, htype, callback, user_data=None, begin=1, end=0, arg1=0):
         h = unicorn.Uc.hook_add(self, htype, callback, user_data=user_data, begin=begin, end=end, arg1=arg1)
-        l.debug("Hook: %s,%s -> %s", htype, callback.__name__, h)
+        #l.debug("Hook: %s,%s -> %s", htype, callback.__name__, h)
         self.wrapped_hooks.add(h)
         return h
 
     def hook_del(self, h):
-        l.debug("Clearing hook %s", h)
+        #l.debug("Clearing hook %s", h)
         h = unicorn.Uc.hook_del(self, h)
         self.wrapped_hooks.discard(h)
         return h
 
     def mem_map(self, addr, size, perms=7):
-        l.debug("Mapping %d bytes at %#x", size, addr)
+        #l.debug("Mapping %d bytes at %#x", size, addr)
         m = unicorn.Uc.mem_map(self, addr, size, perms=perms)
         self.wrapped_mapped.add((addr, size))
         return m
 
     def mem_unmap(self, addr, size):
-        l.debug("Unmapping %d bytes at %#x", size, addr)
+        #l.debug("Unmapping %d bytes at %#x", size, addr)
         m = unicorn.Uc.mem_unmap(self, addr, size)
         self.wrapped_mapped.discard((addr, size))
         return m
 
     def mem_reset(self):
-        l.debug("Resetting memory.")
+        #l.debug("Resetting memory.")
         for addr,size in self.wrapped_mapped:
-            l.debug("Unmapping %d bytes at %#x", size, addr)
+            #l.debug("Unmapping %d bytes at %#x", size, addr)
             unicorn.Uc.mem_unmap(self, addr, size)
         self.wrapped_mapped.clear()
 
     def hook_reset(self):
-        l.debug("Resetting hooks.")
+        #l.debug("Resetting hooks.")
         for h in self.wrapped_hooks:
-            l.debug("Clearing hook %s", h)
+            #l.debug("Clearing hook %s", h)
             unicorn.Uc.hook_del(self, h)
         self.wrapped_hooks.clear()
 
     def reset(self):
         self.mem_reset()
         #self.hook_reset()
-        l.debug("Reset complete.")
+        #l.debug("Reset complete.")
 
 _unicorn_tls = threading.local()
 _unicorn_tls.uc = None
@@ -167,7 +170,13 @@ class Unicorn(SimStatePlugin):
 
     UC_CONFIG = {} # config cache for each arch
 
-    def __init__(self, syscall_hooks=None, cache_key=None, runs_since_unicorn=0, runs_since_symbolic_data=0, register_check_count=0, unicount=None, cooldown_symbolic_registers=40, cooldown_symbolic_memory=40, cooldown_nonunicorn_blocks=20, max_steps=1000000):
+    def __init__(self,
+                 syscall_hooks=None,
+                 cache_key=None,
+                 unicount=None,
+                 cooldown_symbolic_registers=10,
+                 cooldown_nonunicorn_blocks=10,
+                 max_steps=1000000):
         """
         Initializes the Unicorn plugin for SimuVEX. This plugin handles communication with
         UnicornEngine.
@@ -183,17 +192,18 @@ class Unicorn(SimStatePlugin):
         self.cache_key = hash(self) if cache_key is None else cache_key
 
         # cooldowns to avoid thrashing in and out of unicorn
-        self._current_nonunicorn_blocks = runs_since_unicorn
-        self._current_symbolic_registers = register_check_count
-        self._current_symbolic_memory = runs_since_symbolic_data
-        self.cooldown_symbolic_registers = cooldown_symbolic_registers
-        self.cooldown_symbolic_memory = cooldown_symbolic_memory
+        # the countdown vars are the CURRENT counter that is counting down
+        # when they hit zero execution will start
+        # the cooldown vars are the settings for what the countdown should start at
+        # the val is copied from cooldown to countdown on check fail
         self.cooldown_nonunicorn_blocks = cooldown_nonunicorn_blocks
+        self.cooldown_symbolic_registers = cooldown_symbolic_registers
+        self.countdown_nonunicorn_blocks = 0
+        self.countdown_symbolic_registers = 0
 
         # the default step limit
         self.max_steps = max_steps
 
-        self._dirty = {}
         self.steps = 0
         self._mapped = 0
 
@@ -225,13 +235,12 @@ class Unicorn(SimStatePlugin):
         new_id = next(_unicounter)
 
         if _unicorn_tls.uc is None or _unicorn_tls.uc.arch != self.state.arch or _unicorn_tls.uc.cache_key != self.cache_key:
-            l.debug("Creating unicorn state!")
             _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key)
         elif _unicorn_tls.uc.id != self._unicount:
             if not self._reuse_unicorn:
                 _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key)
             else:
-                l.debug("Reusing unicorn state!")
+                #l.debug("Reusing unicorn state!")
                 _unicorn_tls.uc.reset()
         else:
             #l.debug("Reusing unicorn state!")
@@ -256,7 +265,7 @@ class Unicorn(SimStatePlugin):
         )
 
     def hook(self):
-        l.debug('adding native hooks')
+        #l.debug('adding native hooks')
         _UC_NATIVE.hook(self._uc_state) # prefer to use native hooks
 
         self.uc.hook_add(unicorn.UC_HOOK_MEM_UNMAPPED, self._hook_mem_unmapped, None, 1, 0)
@@ -367,24 +376,34 @@ class Unicorn(SimStatePlugin):
         offsets = sorted(the_bytes.keys())
         offsets.append(length)
 
+        if offsets[0] != 0 and options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options:
+            taint = ctypes.create_string_buffer(length)
+            offset = ctypes.cast(ctypes.addressof(taint), ctypes.POINTER(ctypes.c_char))
+            ctypes.memset(offset, 0x2, offsets[0])
+
         for i in xrange(len(offsets)-1):
             pos = offsets[i]
+            next_pos = offsets[i+1]
             chunk = the_bytes[pos]
-            size = min((chunk.base + len(chunk) / 8) - (start + pos), offsets[i + 1] - pos)
+            size = min((chunk.base + len(chunk) / 8) - (start + pos), next_pos - pos)
             d = self._symbolic_passthrough(chunk.bytes_at(start + pos, size))
             # if not self.state.se.unique(d):
 
             if d.symbolic:
-                l.debug('loading symbolic memory [%#x, %#x]', start + pos, start + pos + size - 1)
-
                 if taint is None:
                     taint = ctypes.create_string_buffer(length)
                 offset = ctypes.cast(ctypes.addressof(taint) + pos, ctypes.POINTER(ctypes.c_char))
                 ctypes.memset(offset, 0x2, size) # mark them as TAINT_SYMBOLIC
-                s = '\x00' * (len(d)/8)
             else:
                 s = self.state.se.any_str(d)
-            data[pos:pos + size] = s
+                data[pos:pos + size] = s
+
+            if pos + size < next_pos and options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options:
+                if taint is None:
+                    taint = ctypes.create_string_buffer(length)
+                offset = ctypes.cast(ctypes.addressof(taint) + pos + size, ctypes.POINTER(ctypes.c_char))
+                ctypes.memset(offset, 0x2, next_pos - pos - size)
+
 
         perm = self.state.memory.permissions(start)
         if not perm.symbolic:
@@ -392,18 +411,17 @@ class Unicorn(SimStatePlugin):
         else:
             perm = 7
 
-        l.info('mmap [%#x, %#x], %d', start, start + length - 1, perm)
+        l.info('mmap [%#x, %#x], %d%s', start, start + length - 1, perm, ' (symbolic)' if taint else '')
         if not perm & 2:
+            # page is non-writable, handle it with native code
             l.debug('caching non-writable page')
             return _UC_NATIVE.cache_page(self._uc_state, start, length, str(data), perm)
-
-        uc.mem_map(start, length, perm)
-        uc.mem_write(start, str(data))
-        self._mapped += 1
-
-        _UC_NATIVE.activate(self._uc_state, start, length, taint)
-
-        return True
+        else:
+            uc.mem_map(start, length, perm)
+            uc.mem_write(start, str(data))
+            self._mapped += 1
+            _UC_NATIVE.activate(self._uc_state, start, length, taint)
+            return True
 
     def setup(self):
         self._setup_unicorn()
@@ -412,44 +430,50 @@ class Unicorn(SimStatePlugin):
         self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key)
 
     def start(self, step=None):
-        addr = self.state.se.any_int(self.state.ip)
-
         self.jumpkind = 'Ijk_Boring'
+        self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
 
-        l.debug('emu_start at %#x (%d steps)', addr, self.max_steps if step is None else step)
-        self._current_nonunicorn_blocks = 0
+        addr = self.state.se.any_int(self.state.ip)
+        l.info('started emulation at %#x (%d steps)', addr, self.max_steps if step is None else step)
         self.errno = _UC_NATIVE.start(self._uc_state, addr, self.max_steps if step is None else step)
 
     def finish(self):
+        # do the superficial syncronization
         self.get_regs()
+        self.steps = _UC_NATIVE.step(self._uc_state)
+        self.stop_reason = _UC_NATIVE.stop_reason(self._uc_state)
+
+        addr = self.state.se.any_int(self.state.ip)
+        l.info('finished emulation at %#x after %d steps: %s', addr, self.steps, STOP.name_stop(self.stop_reason))
+
+        # syncronize memory contents - head is a linked list of memory updates
         head = _UC_NATIVE.sync(self._uc_state)
         p_update = head
         while bool(p_update):
             update = p_update.contents
-            l.debug('Got dirty [%#x, %#x]', update.address, update.length - 1)
-            self._dirty[update.address] = update.length
+            address, length = update.address, update.length
+            s = str(self.uc.mem_read(address, length))
+            l.debug('...changed memory: [%#x, %#x] = %s', address, address + length, s.encode('hex'))
+            self.state.memory.store(address, s)
             p_update = update.next
 
-        _UC_NATIVE.destroy(head)
-        self.steps = _UC_NATIVE.step(self._uc_state)
+        _UC_NATIVE.destroy(head)    # free the linked list
 
-        self.sync()
+        if self.stop_reason in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT, STOP.STOP_SYSCALL):
+            self.countdown_nonunicorn_blocks = 0
+        if self.stop_reason == STOP.STOP_SYMBOLIC:
+            self.countdown_symbolic_registers = self.cooldown_symbolic_registers
 
-        # get the addresses out of the state
+        # get the address list out of the state
         bbl_addrs = _UC_NATIVE.bbl_addrs(self._uc_state)
         self.state.scratch.bbl_addr_list = bbl_addrs[:self.steps]
-        self.stop_reason = _UC_NATIVE.stop_reason(self._uc_state)
-
-        addr = self.state.se.any_int(self.state.ip)
-        l.debug('finished emulation at %#x after %d steps: %s', addr, self.steps, STOP.name_stop(self.stop_reason))
-        # STOP.STOP_SYSCALL/STOP_EXECNONE/STOP_ZEROPAGE is already handled
 
     def destroy(self):
-        l.debug("Unhooking.")
+        #l.debug("Unhooking.")
         _UC_NATIVE.unhook(self._uc_state)
         self.uc.hook_reset()
 
-        l.debug('deallocting native state %#x', self._uc_state)
+        #l.debug('deallocting native state %#x', self._uc_state)
         _UC_NATIVE.dealloc(self._uc_state)
         self._uc_state = None
 
@@ -458,7 +482,7 @@ class Unicorn(SimStatePlugin):
         if self.stop_reason == STOP.STOP_SYSCALL:
             _unicorn_tls.uc = None
 
-        l.debug("Resetting the unicorn state.")
+        #l.debug("Resetting the unicorn state.")
         self.uc.reset()
 
     def set_regs(self):
@@ -541,7 +565,6 @@ class Unicorn(SimStatePlugin):
         to_ret |= ((limit >> 16) & 0xf) << 48
         to_ret |= (flags & 0xff) << 52
         to_ret |= ((base >> 24) & 0xff) << 56
-        import struct
         return struct.pack('<Q', to_ret)
 
 
@@ -597,27 +620,17 @@ class Unicorn(SimStatePlugin):
             self.state.regs.cc_dep1 = self.state.se.BVV(self.uc.reg_read(self._uc_const.UC_X86_REG_EFLAGS), self.state.arch.bits)
             self.state.regs.cc_op = ccall.data['AMD64']['OpTypes']['G_CC_OP_COPY']
 
-    def sync(self):
-        for address, length in self._dirty.iteritems():
-            s = self.uc.mem_read(address, length)
-            l.debug('syncing [%#x, %#x] = %s', address, address + length, str(s).encode('hex'))
-            self.state.memory.store(address, str(s))
-
-        self._dirty.clear()
-
     def copy(self):
         u = Unicorn(
             syscall_hooks=dict(self.syscall_hooks),
             cache_key=self.cache_key,
-            register_check_count=self._current_symbolic_registers + 1,
-            runs_since_unicorn=self._current_nonunicorn_blocks + 1,
-            runs_since_symbolic_data=self._current_symbolic_memory + 1,
             unicount=self._unicount,
-            cooldown_symbolic_registers=self.cooldown_symbolic_registers,
-            cooldown_symbolic_memory=self.cooldown_symbolic_memory,
             cooldown_nonunicorn_blocks=self.cooldown_nonunicorn_blocks,
+            cooldown_symbolic_registers=self.cooldown_symbolic_registers,
             max_steps=self.max_steps,
         )
+        u.countdown_nonunicorn_blocks = self.countdown_nonunicorn_blocks
+        u.countdown_symbolic_registers = self.countdown_symbolic_registers
         return u
 
     def _check_registers(self):
@@ -638,22 +651,20 @@ class Unicorn(SimStatePlugin):
         return True
 
     def check(self):
-        if self._current_symbolic_registers < self.cooldown_symbolic_registers:
-            #l.debug("not enough passed register checks")
+        self.countdown_nonunicorn_blocks -= 1
+        self.countdown_symbolic_registers -= 1
+
+        if self.countdown_nonunicorn_blocks > 0:
+            l.debug("not enough runs since last unicorn (%d)", self.countdown_nonunicorn_blocks)
             return False
 
-        # TODO: where is this checked?
-        if self._current_symbolic_memory < self.cooldown_symbolic_memory:
-            #l.debug("not enough runs since symbolic data")
-            return False
-
-        if self._current_nonunicorn_blocks < self.cooldown_nonunicorn_blocks:
-            #l.debug("not enough runs since last unicorn")
+        if self.countdown_symbolic_registers > 0:
+            l.debug("not enough passed register checks (%d)", self.countdown_symbolic_registers)
             return False
 
         if not self._check_registers():
             l.debug("failed register check")
-            #self._current_symbolic_registers = 0
+            self.countdown_symbolic_registers = self.cooldown_symbolic_registers
             return False
 
         return True

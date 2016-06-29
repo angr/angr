@@ -23,6 +23,7 @@ typedef enum taint: uint8_t {
 
 typedef enum stop {
 	STOP_NORMAL=0,
+	STOP_STOPPOINT,
 	STOP_SYMBOLIC,
 	STOP_ERROR,
 	STOP_SYSCALL,
@@ -52,7 +53,7 @@ typedef struct mem_update {
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
-//static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
+static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static void hook_block(uc_engine *uc, uint64_t address, uint64_t size, void *user_data);
 
 class State {
@@ -122,8 +123,8 @@ public:
 
 		err = uc_hook_add(uc, &h_block, UC_HOOK_BLOCK, (void *)hook_block, this, 1, 0);
 
-		//err = uc_hook_add(uc, &h_prot, UC_HOOK_MEM_PROT, (void *)hook_mem_prot, this, 1, 0);
-		// should we only hook UC_HOOK_MEM_FETCH_UNMAPPED ?
+		err = uc_hook_add(uc, &h_prot, UC_HOOK_MEM_PROT, (void *)hook_mem_prot, this, 1, 0);
+
 		err = uc_hook_add(uc, &h_unmap, UC_HOOK_MEM_UNMAPPED, (void *)hook_mem_unmapped, this, 1, 0);
 
 		hooked = true;
@@ -137,7 +138,7 @@ public:
 		err = uc_hook_del(uc, h_read);
 		err = uc_hook_del(uc, h_write);
 		err = uc_hook_del(uc, h_block);
-		//err = uc_hook_del(uc, h_prot);
+		err = uc_hook_del(uc, h_prot);
 		err = uc_hook_del(uc, h_unmap);
 
 		hooked = false;
@@ -165,7 +166,10 @@ public:
 		const char *msg = NULL;
 		switch (reason) {
 			case STOP_NORMAL:
-				msg = "reaches maximal steps";
+				msg = "reached maximum steps";
+				break;
+			case STOP_STOPPOINT:
+				msg = "hit a stop point";
 				break;
 			case STOP_SYMBOLIC:
 				msg = "read symbolic data";
@@ -203,11 +207,10 @@ public:
 		uc_reg_update(uc, tmp_reg, 1); // save current registers
 		bbl_addrs.push_back(current_address);
 
-		if (cur_steps >= max_steps)
+		if (cur_steps >= max_steps) {
 			stop(STOP_NORMAL);
-		else if (stop_points.count(current_address) == 1)
-		{
-			stop(STOP_NORMAL);
+		} else if (stop_points.count(current_address) == 1) {
+			stop(STOP_STOPPOINT);
 		}
 	}
 
@@ -542,43 +545,11 @@ static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address,
 	return false;
 }
 
-/*
 static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
-	if (type == UC_MEM_WRITE_PROT) {
-		// we only handle writing to readonly page
-		LOG_I("writing to readonly page [%#lx, %#lx]", address, address + size);
-		uint64_t start = address & ~0xFFFUL;
-		uint64_t length = ((address + size + 0xFFFUL) & ~0xFFFUL) - start;
-
-		if (((State *)user_data)->in_cache(start)) {
-			// this page is a cached executable page, we should not write to it
-			LOG_E("hook_mem_prot: writing to cached executable page");
-			return false;
-		}
-
-		uc_err err = uc_mem_protect(uc, start, length, UC_PROT_ALL);
-		if (err) {
-			LOG_E("hook_mem_prot: %s", uc_strerror(err));
-			return false;
-		}
-
-		// unicorn does not write to protected page
-		err = uc_mem_write(uc, address, &value, size);
-		if (err) {
-			LOG_E("hook_mem_prot: %s", uc_strerror(err));
-			return false;
-		}
-
-		State *state = (State *)user_data;
-		for (uint64_t offset = 0; offset < length; offset += 0x1000)
-			state->page_activate(start + offset);
-		return true;
-	} else {
-		// any other exception should terminate to program
-		return false;
-	}
+	State *state = (State *)user_data;
+	state->stop(STOP_SEGFAULT);
+	return true;
 }
-*/
 
 /*
  * C style bindings makes it simple and dirty
