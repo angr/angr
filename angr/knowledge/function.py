@@ -25,8 +25,16 @@ class Function(object):
         self.transition_graph = networkx.DiGraph()
         self._local_transition_graph = None
 
+        # block nodes at whose ends the function returns
         self._ret_sites = set()
+        # block nodes at whose ends the function jumps out to another function (jumps outside)
+        self._jumpout_sites = set()
+        # block nodes at whose ends the function calls out to another non-returning function
+        self._callout_sites = set()
+        # block nodes (basic block nodes) at whose ends the function terminates
+        # in theory, if everything works fine, endpoints == ret_sites | jumpout_sites | callout_sites
         self._endpoints = set()
+
         self._call_sites = {}
         self.addr = addr
         self._function_manager = function_manager
@@ -339,6 +347,14 @@ class Function(object):
     def ret_sites(self):
         return list(self._ret_sites)
 
+    @property
+    def jumpout_sites(self):
+        return list(self._jumpout_sites)
+
+    @property
+    def callout_sites(self):
+        return list(self._callout_sites)
+
     def _clear_transition_graph(self):
         self._block_cache = {}
         self._block_sizes = {}
@@ -378,8 +394,11 @@ class Function(object):
         if outside:
             self._register_nodes(True, from_node)
             self._register_nodes(False, to_node)
+
+            self._jumpout_sites.add(from_node)
         else:
             self._register_nodes(True, from_node, to_node)
+
         self.transition_graph.add_edge(from_node, to_node, type='transition', outside=outside)
 
         if outside:
@@ -482,6 +501,28 @@ class Function(object):
         :param retn_addr:            The address that said call will return to.
         """
         self._call_sites[call_site_addr] = (call_target_addr, retn_addr)
+
+    def mark_nonreturning_calls_endpoints(self):
+        """
+        Iterate through all call edges in transition graph. For each call a non-returning function, mark the source
+        basic block as an endpoint.
+
+        This method should only be executed once all functions are recovered and analyzed by CFG recovery, so we know
+        whether each function returns or not.
+
+        :return: None
+        """
+
+        for src, dst, data in self.transition_graph.edges_iter(data=True):
+            if 'type' in data and data['type'] == 'call':
+                func_addr = dst.addr
+                if func_addr in self._function_manager:
+                    function = self._function_manager[func_addr]
+                    if function.returning is False:
+                        # the target function does not return
+                        the_node = self.get_node(src.addr)
+                        self._callout_sites.add(the_node)
+                        self._endpoints.add(the_node)
 
     def get_call_sites(self):
         """

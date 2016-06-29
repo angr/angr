@@ -812,6 +812,9 @@ class CFGBase(Analysis):
 
         tmp_functions = self.kb.functions.copy()
 
+        for function in tmp_functions.values():
+            function.mark_nonreturning_calls_endpoints()
+
         # Clear old functions dict
         self.kb.functions.clear()
 
@@ -867,6 +870,10 @@ class CFGBase(Analysis):
         for node in self._nodes.itervalues():
             if node.addr in blockaddr_to_function:
                 node.function_address = blockaddr_to_function[node.addr].addr
+
+        # mark endpoints
+        for function in self.kb.functions.values():
+            function.mark_nonreturning_calls_endpoints()
 
     def _process_irrational_functions(self, functions, predetermined_function_addrs, blockaddr_to_function):
         """
