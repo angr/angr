@@ -13,7 +13,7 @@ except ImportError:
     l.warning("Unicorn is not installed. Support disabled.")
 
 from .plugin import SimStatePlugin
-from ..s_errors import SimValueError, SimUnicornUnsupport, SimSegfaultError
+from ..s_errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError
 
 class MEM_PATCH(ctypes.Structure): # mem_update_t
     pass
@@ -347,7 +347,7 @@ class Unicorn(SimStatePlugin):
         start = address & (0xffffffffffffff000)
         length = ((address + size + 0xfff) & (0xffffffffffffff000)) - start
 
-        if start == 0 or ((start + length) & ((1 << self.state.arch.bits) - 1)) == 0:
+        if (start == 0 or ((start + length) & ((1 << self.state.arch.bits) - 1)) == 0) and options.UNICORN_ZEROPAGE_GUARD in self.state.options:
             # sometimes it happens because of %fs is not correctly set
             self.error = 'accessing zero page [%#x, %#x] (%#x)' % (address, address + size - 1, access)
             l.warning(self.error)
@@ -355,6 +355,24 @@ class Unicorn(SimStatePlugin):
             # tell uc_state to rollback
             _UC_NATIVE.stop(self._uc_state, STOP.STOP_ZEROPAGE)
             return False
+
+        try:
+            perm = self.state.memory.permissions(start)
+        except SimMemoryError as e:
+            if e.message == "page does not exist at given address":
+                if options.STRICT_PAGE_ACCESS in self.state.options:
+                    _UC_NATIVE.stop(self._uc_state, STOP.STOP_SEGFAULT)
+                    return False
+                else:
+                    self.state.memory.map_region(start, length, 3)
+                    perm = 3
+            else:
+                raise
+        else:
+            if not perm.symbolic:
+                perm = perm.args[0]
+            else:
+                perm = 7
 
         try:
             the_bytes, _ = self.state.memory.mem.load_bytes(start, length)
@@ -404,12 +422,6 @@ class Unicorn(SimStatePlugin):
                 offset = ctypes.cast(ctypes.addressof(taint) + pos + size, ctypes.POINTER(ctypes.c_char))
                 ctypes.memset(offset, 0x2, next_pos - pos - size)
 
-
-        perm = self.state.memory.permissions(start)
-        if not perm.symbolic:
-            perm = perm.args[0]
-        else:
-            perm = 7
 
         l.info('mmap [%#x, %#x], %d%s', start, start + length - 1, perm, ' (symbolic)' if taint else '')
         if not perm & 2:
@@ -652,19 +664,19 @@ class Unicorn(SimStatePlugin):
 
     def check(self):
         self.countdown_nonunicorn_blocks -= 1
-        self.countdown_symbolic_registers -= 1
-
-        if self.countdown_nonunicorn_blocks > 0:
-            l.debug("not enough runs since last unicorn (%d)", self.countdown_nonunicorn_blocks)
-            return False
-
-        if self.countdown_symbolic_registers > 0:
-            l.debug("not enough passed register checks (%d)", self.countdown_symbolic_registers)
-            return False
 
         if not self._check_registers():
             l.debug("failed register check")
             self.countdown_symbolic_registers = self.cooldown_symbolic_registers
+            return False
+        else:
+            self.countdown_symbolic_registers -= 1
+            if self.countdown_symbolic_registers > 0:
+                l.debug("not enough passed register checks (%d)", self.countdown_symbolic_registers)
+                return False
+
+        if self.countdown_nonunicorn_blocks > 0:
+            l.debug("not enough runs since last unicorn (%d)", self.countdown_nonunicorn_blocks)
             return False
 
         return True
