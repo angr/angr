@@ -17,13 +17,15 @@ arch_data = { # (steps, [hit addrs], finished)
 }
 
 def emulate(arch):
-    if arch not in ('x86_64', 'i386'):
-        return
-
     steps, hit_addrs, finished = arch_data[arch]
     filepath = test_location + arch + '/test_arrays'
     p = angr.Project(filepath, use_sim_procedures=False)
-    state = p.factory.full_init_state(args=['./test_arrays'], add_options={simuvex.o.STRICT_PAGE_ACCESS})
+
+    if arch not in ('x86_64', 'i386'):
+        state = p.factory.full_init_state(args=['./test_arrays'])
+    else:
+        state = p.factory.full_init_state(args=['./test_arrays'], add_options={simuvex.o.STRICT_PAGE_ACCESS})
+
     pg = p.factory.path_group(state)
     pg2 = pg.step(until=lambda lpg: len(lpg.active) != 1,
                   step_func=lambda lpg: lpg if len(lpg.active) == 1 else lpg.prune()
