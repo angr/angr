@@ -865,6 +865,24 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _entry_list_empty(self):
 
         if self._pending_entries:
+            # look for an entry that comes from a function that must return
+            # if we can find one, just use it
+            entry_index = None
+            for i, entry in enumerate(self._pending_entries):
+                src_func_addr = entry.returning_source
+                if src_func_addr is None or src_func_addr not in self.kb.functions:
+                    continue
+                function = self.kb.functions[src_func_addr]
+                if function.returning is True:
+                    entry_index = i
+                    break
+
+            if entry_index is not None:
+                self._insert_entry(self._pending_entries[entry_index])
+                del self._pending_entries[entry_index]
+                return
+
+        if self._pending_entries:
 
             new_returning_functions = set()
             new_not_returning_functions = set()
