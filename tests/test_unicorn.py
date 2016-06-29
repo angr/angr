@@ -2,12 +2,6 @@ import nose
 import angr
 import tracer
 
-import logging
-l = logging.getLogger("angr.tests.unicorn")
-l.setLevel('DEBUG')
-logging.getLogger('simuvex.plugins.unicorn').setLevel('DEBUG')
-logging.getLogger('simuvex.s_unicorn').setLevel('INFO')
-# logging.getLogger('angr.factory').setLevel('DEBUG')
 
 import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../'))
@@ -18,11 +12,6 @@ from simuvex import s_options as so
 
 
 REGS = ['eax', 'ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp', 'esp', 'eip', 'd']
-
-def dump_reg(s):
-    # for k in dir(s.regs):
-    for k in REGS:
-        l.info('$%s = %r', k, getattr(s.regs, k))
 
 def test_unicorn():
     p = angr.Project(os.path.join(test_location, 'binaries-private/cgc_qualifier_event/cgc/99c22c01_01'))
@@ -60,6 +49,44 @@ def test_unicorn():
     nose.tools.assert_true(uc_trace_filtered == real_trace)
     nose.tools.assert_true(uc_trace == angr_trace)
     nose.tools.assert_equal(pg_angr.one_errored.error.addr, pg_unicorn.one_errored.error.addr)
+
+def test_stops():
+    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/uc_stop'))
+
+    # test STOP_NORMAL, STOP_STOPPOINT
+    s_normal = p.factory.entry_state(args=['a'], add_options=so.unicorn)
+    s_normal.unicorn.max_steps = 100
+    pg_normal = p.factory.path_group(s_normal).run()
+    p_normal = pg_normal.one_deadended
+    nose.tools.assert_equal(p_normal.trace.hardcopy, ['<SimUnicorn 0x8048340-0x8048320 with 2 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>', '<SimUnicorn 0x8048520-0x8048575 with 15 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>', '<SimUnicorn 0x80484b6-0x804844a with 100 steps (STOP_NORMAL)>', '<SimUnicorn 0x804844a-0x804850c with 8 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>'])
+
+    s_normal_angr = p.factory.entry_state(args=['a'])
+    pg_normal_angr = p.factory.path_group(s_normal_angr).run()
+    p_normal_angr = pg_normal_angr.one_deadended
+    nose.tools.assert_equal(p_normal_angr.addr_trace.hardcopy, p_normal.addr_trace.hardcopy)
+
+    # test STOP_SYMBOLIC
+    s_symbolic = p.factory.entry_state(args=['a', 'a'], add_options=so.unicorn)
+    pg_symbolic = p.factory.path_group(s_symbolic).run()
+    p_symbolic = pg_symbolic.one_deadended
+    nose.tools.assert_equal(p_symbolic.trace.hardcopy, ['<SimUnicorn 0x8048340-0x8048320 with 2 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>', '<SimUnicorn 0x8048520-0x8048575 with 15 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>', '<SimUnicorn 0x80484b6-0x80484e3 with 3 steps (STOP_SYMBOLIC)>', '<SimIRSB 0x8048457>', '<SimIRSB 0x804848c>', '<SimIRSB 0x80484e8>', '<SimIRSB 0x804850c>', '<SimProcedure __libc_start_main>'])
+
+    s_symbolic_angr = p.factory.entry_state(args=['a', 'a'])
+    pg_symbolic_angr = p.factory.path_group(s_symbolic_angr).run()
+    p_symbolic_angr = pg_symbolic_angr.one_deadended
+    nose.tools.assert_equal(p_symbolic_angr.addr_trace.hardcopy, p_symbolic.addr_trace.hardcopy)
+
+    # test STOP_SEGFAULT
+    s_segfault = p.factory.entry_state(args=['a', 'a', 'a', 'a', 'a', 'a', 'a'], add_options=so.unicorn | {so.STRICT_PAGE_ACCESS})
+    pg_segfault = p.factory.path_group(s_segfault).run()
+    p_segfault = pg_segfault.one_errored
+    #nose.tools.assert_equal(p_symbolic.trace.hardcopy, ['<SimUnicorn 0x8048340-0x8048320 with 2 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>', '<SimUnicorn 0x8048520-0x8048575 with 15 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>', '<SimUnicorn 0x80484b6-0x80484e3 with 3 steps (STOP_SYMBOLIC)>', '<SimIRSB 0x8048457>', '<SimIRSB 0x804848c>', '<SimIRSB 0x80484e8>', '<SimIRSB 0x804850c>', '<SimProcedure __libc_start_main>'])
+
+    s_segfault_angr = p.factory.entry_state(args=['a', 'a', 'a', 'a', 'a', 'a', 'a'], add_options={so.STRICT_PAGE_ACCESS})
+    pg_segfault_angr = p.factory.path_group(s_segfault_angr).run()
+    p_segfault_angr = pg_segfault_angr.one_errored
+    nose.tools.assert_equal(p_segfault_angr.addr_trace.hardcopy, p_segfault.addr_trace.hardcopy)
+    nose.tools.assert_equal(p_segfault_angr.error.addr, p_segfault.error.addr)
 
 def run_longinit(arch):
     p = angr.Project(os.path.join(test_location, 'binaries/tests/' + arch + '/longinit'))
@@ -139,12 +166,12 @@ def timesout_similarity_ee545a01(): run_similarity("binaries-private/cgc_qualifi
 def timesout_similarity_f5adc401(): run_similarity("binaries-private/cgc_qualifier_event/cgc/f5adc401_01", 250)
 
 if __name__ == '__main__':
-    #test_palindrome()
-    #test_fauxware()
-    #test_longinit()
-    #test_unicorn()
-    #test_similarity_01cf6c01()
-    #test_similarity_7185fe01()
+    import logging
+    logging.getLogger('simuvex.plugins.unicorn').setLevel('DEBUG')
+    logging.getLogger('simuvex.s_unicorn').setLevel('INFO')
+    logging.getLogger('angr.factory').setLevel('DEBUG')
+    logging.getLogger('angr.project').setLevel('DEBUG')
+
     import sys
     if len(sys.argv) > 1:
         for arg in sys.argv[1:]:

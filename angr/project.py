@@ -272,6 +272,7 @@ class Project(object):
                             :class:`SimProcedure`'s run function.
         """
 
+        l.debug('hooking %#x with %s', addr, func)
         if kwargs is None: kwargs = {}
 
         if self.is_hooked(addr):
@@ -355,7 +356,6 @@ class Project(object):
                 self.unhook(pseudo_addr)
 
             self.hook(pseudo_addr, obj, kwargs=kwargs)
-            l.debug("\t -> setting SimProcedure with pseudo_addr 0x%x...", pseudo_addr)
         else:
             # This is pretty intensely sketchy
             pseudo_vaddr = obj - self._extern_obj.rebase_addr

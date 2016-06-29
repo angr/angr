@@ -417,7 +417,7 @@ class SimLinux(SimOS):
                 if self.proj.arch.name == 'X86':
                     self.proj.hook(tlsfunc2.rebased_addr, _tls_get_addr_tunder_x86, kwargs={'ld': self.proj.loader})
                 else:
-                    l.warning("Found an unknown ___tls_get_addr, please tell Andrew")
+                    l.error("Found an unknown ___tls_get_addr, please tell Andrew")
 
             _rtld_global = ld_obj.get_symbol('_rtld_global')
             if _rtld_global is not None:
