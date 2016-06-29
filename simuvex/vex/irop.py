@@ -680,18 +680,25 @@ class SimIROp(object):
         return claripy.Concat(*components)
 
     def _op_divmod(self, args):
-        # TODO: handle signdness
-        #try:
-        quotient = (args[0] / claripy.ZeroExt(self._from_size - self._to_size, args[1]))
-        remainder = (args[0] % claripy.ZeroExt(self._from_size - self._to_size, args[1]))
-        quotient_size = self._to_size
-        remainder_size = self._to_size
-        return claripy.Concat(
-            claripy.Extract(remainder_size - 1, 0, remainder),
-            claripy.Extract(quotient_size - 1, 0, quotient)
-        )
-        #except ZeroDivisionError:
-        #   return state.se.BVV(0, self._to_size)
+        if self.is_signed:
+            quotient = (args[0].SDiv(claripy.SignExt(self._from_size - self._to_size, args[1])))
+            remainder = (args[0].SMod(claripy.SignExt(self._from_size - self._to_size, args[1])))
+            quotient_size = self._to_size
+            remainder_size = self._to_size
+            return claripy.Concat(
+                claripy.Extract(remainder_size - 1, 0, remainder),
+                claripy.Extract(quotient_size - 1, 0, quotient)
+            )
+        else:
+            quotient = (args[0] / claripy.ZeroExt(self._from_size - self._to_size, args[1]))
+            remainder = (args[0] % claripy.ZeroExt(self._from_size - self._to_size, args[1]))
+            quotient_size = self._to_size
+            remainder_size = self._to_size
+            return claripy.Concat(
+                claripy.Extract(remainder_size - 1, 0, remainder),
+                claripy.Extract(quotient_size - 1, 0, quotient)
+            )
+
     #pylint:enable=no-self-use,unused-argument
 
     # FP!
