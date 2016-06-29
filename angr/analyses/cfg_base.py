@@ -1166,7 +1166,11 @@ class CFGBase(Analysis):
                 dst_addr in blockaddr_to_function and blockaddr_to_function[dst_addr] is not src_function
             ):
                 # yes it is
-                self.kb.functions._add_outside_transition_to(src_function.addr, src_addr, dst_addr)
+                dst_function_addr = blockaddr_to_function[dst_addr].addr if dst_addr in blockaddr_to_function else \
+                    dst_addr
+                self.kb.functions._add_outside_transition_to(src_function.addr, src_addr, dst_addr,
+                                                             to_function_addr=dst_function_addr
+                                                             )
 
                 _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
             else:
@@ -1192,7 +1196,7 @@ class CFGBase(Analysis):
             to_outside = not target_function is src_function
 
             self.kb.functions._add_fakeret_to(src_function.addr, src_addr, dst_addr, confirmed=True,
-                                              to_outside=to_outside
+                                              to_outside=to_outside, to_function_addr=target_function.addr
                                               )
 
         else:
