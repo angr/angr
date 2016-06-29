@@ -2,16 +2,10 @@ import nose
 import angr
 import tracer
 
-
 import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../'))
 
-
 from simuvex import s_options as so
-
-
-
-REGS = ['eax', 'ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp', 'esp', 'eip', 'd']
 
 def test_unicorn():
     p = angr.Project(os.path.join(test_location, 'binaries-private/cgc_qualifier_event/cgc/99c22c01_01'))
@@ -36,9 +30,9 @@ def test_unicorn():
     stdin.seek(0)
     stdin.size = len(inp)
 
-    tracer = tracer.Runner(p.filename, inp, record_trace=True)
-    tracer.dynamic_trace()
-    real_trace = tracer.trace
+    t = tracer.Runner(p.filename, inp, record_trace=True)
+    t.dynamic_trace()
+    real_trace = t.trace
 
     pg_unicorn.run()
     uc_trace = pg_unicorn.one_errored.addr_trace.hardcopy + [pg_unicorn.one_errored.addr]
@@ -46,6 +40,7 @@ def test_unicorn():
     angr_trace = pg_angr.one_errored.addr_trace.hardcopy + [pg_angr.one_errored.addr]
     uc_trace_filtered = [a for a in uc_trace if not p._extern_obj.contains_addr(a) and not p._syscall_obj.contains_addr(a)]
 
+    # not assert_equal because it tries to use a fancy algorithm that blows up on long lists
     nose.tools.assert_true(uc_trace_filtered == real_trace)
     nose.tools.assert_true(uc_trace == angr_trace)
     nose.tools.assert_equal(pg_angr.one_errored.error.addr, pg_unicorn.one_errored.error.addr)
@@ -107,24 +102,6 @@ def test_longinit_i386():
 def test_longinit_x86_64():
     run_longinit('x86_64')
 
-def broken_palindrome():
-    b = angr.Project(os.path.join(test_location, "binaries-private/cgc_scored_event_2/cgc/0b32aa01_01"))
-    s_unicorn = b.factory.entry_state(add_options=so.unicorn, remove_options={so.LAZY_SOLVES}) # unicorn
-    pg = b.factory.path_group(s_unicorn)
-    angr.path_group.l.setLevel("DEBUG")
-    pg.step(300)
-
-def run_similarity(binpath, depth):
-    b = angr.Project(os.path.join(test_location, binpath))
-    cc = b.analyses.CongruencyCheck()
-    nose.tools.assert_true(cc.check_state_options(
-        left_add_options=so.unicorn,
-        left_remove_options={so.LAZY_SOLVES, so.TRACK_MEMORY_MAPPING},
-        right_add_options={so.INITIALIZE_ZERO_REGISTERS},
-        right_remove_options={so.LAZY_SOLVES, so.TRACK_MEMORY_MAPPING},
-        depth=depth
-    ))
-
 def test_fauxware():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
     s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
@@ -152,35 +129,69 @@ def test_fauxware_aggressive():
 
     nose.tools.assert_equal(len(pg.deadended), 1)
 
-def timesout_similarity_01cf6c01(): run_similarity("binaries-private/cgc_qualifier_event/cgc/01cf6c01_01", 5170)
-def timesout_similarity_38256a01(): run_similarity("binaries-private/cgc_qualifier_event/cgc/38256a01_01", 125)
-def timesout_similarity_5821ad01(): run_similarity("binaries-private/cgc_qualifier_event/cgc/5821ad01_01", 125)
-def timesout_similarity_5c921501(): run_similarity("binaries-private/cgc_qualifier_event/cgc/5c921501_01", 250)
-def timesout_similarity_63cf1501(): run_similarity("binaries-private/cgc_qualifier_event/cgc/63cf1501_01", 125)
-def timesout_similarity_6787bf01(): run_similarity("binaries-private/cgc_qualifier_event/cgc/6787bf01_01", 125)
-def timesout_similarity_7185fe01(): run_similarity("binaries-private/cgc_qualifier_event/cgc/7185fe01_01", 500)
-def timesout_similarity_ab957801(): run_similarity("binaries-private/cgc_qualifier_event/cgc/ab957801_01", 125)
-def timesout_similarity_acedf301(): run_similarity("binaries-private/cgc_qualifier_event/cgc/acedf301_01", 600)
-def timesout_similarity_d009e601(): run_similarity("binaries-private/cgc_qualifier_event/cgc/d009e601_01", 600)
-def timesout_similarity_d4411101(): run_similarity("binaries-private/cgc_qualifier_event/cgc/d4411101_01", 500)
-def timesout_similarity_eae6fa01(): run_similarity("binaries-private/cgc_qualifier_event/cgc/eae6fa01_01", 250)
-def timesout_similarity_ee545a01(): run_similarity("binaries-private/cgc_qualifier_event/cgc/ee545a01_01", 1000)
-def timesout_similarity_f5adc401(): run_similarity("binaries-private/cgc_qualifier_event/cgc/f5adc401_01", 250)
+def run_similarity(binpath, depth):
+    b = angr.Project(os.path.join(test_location, binpath))
+    cc = b.analyses.CongruencyCheck(throw=True)
+    cc.set_state_options(
+        left_add_options=so.unicorn,
+        left_remove_options={so.LAZY_SOLVES, so.TRACK_MEMORY_MAPPING, so.COMPOSITE_SOLVER},
+        right_add_options={so.INITIALIZE_ZERO_REGISTERS},
+        right_remove_options={so.LAZY_SOLVES, so.TRACK_MEMORY_MAPPING, so.COMPOSITE_SOLVER}
+    )
+    if depth == 29:
+        cc.pg.left[0].state.unicorn.max_steps = 500
+    cc.run(depth=depth)
+
+sims = [("binaries-private/cgc_qualifier_event/cgc/01cf6c01_01", 1500),
+        ("binaries-private/cgc_qualifier_event/cgc/38256a01_01", 50),
+        ("binaries-private/cgc_qualifier_event/cgc/5821ad01_01", 50),
+        #("binaries-private/cgc_qualifier_event/cgc/5c921501_01", 70),
+        ("binaries-private/cgc_qualifier_event/cgc/63cf1501_01", 30),
+        ("binaries-private/cgc_qualifier_event/cgc/6787bf01_01", 29),
+        ("binaries-private/cgc_qualifier_event/cgc/7185fe01_01", 29),
+        ("binaries-private/cgc_qualifier_event/cgc/ab957801_01", 29),
+        ("binaries-private/cgc_qualifier_event/cgc/acedf301_01", 250),
+        ("binaries-private/cgc_qualifier_event/cgc/d009e601_01", 250),
+        ("binaries-private/cgc_qualifier_event/cgc/d4411101_01", 200),
+        ("binaries-private/cgc_qualifier_event/cgc/eae6fa01_01", 100),
+        ("binaries-private/cgc_qualifier_event/cgc/ee545a01_01", 200),
+        ("binaries-private/cgc_qualifier_event/cgc/f5adc401_01", 100)]
+
+def test_similarity():
+    for path, depth in sims:
+        yield run_similarity, path, depth
 
 if __name__ == '__main__':
-    import logging
-    logging.getLogger('simuvex.plugins.unicorn').setLevel('DEBUG')
-    logging.getLogger('simuvex.s_unicorn').setLevel('INFO')
-    logging.getLogger('angr.factory').setLevel('DEBUG')
-    logging.getLogger('angr.project').setLevel('DEBUG')
+    #import logging
+    #logging.getLogger('simuvex.plugins.unicorn').setLevel('DEBUG')
+    #logging.getLogger('simuvex.s_unicorn').setLevel('INFO')
+    #logging.getLogger('angr.factory').setLevel('DEBUG')
+    #logging.getLogger('angr.project').setLevel('DEBUG')
 
     import sys
     if len(sys.argv) > 1:
         for arg in sys.argv[1:]:
             print 'test_' + arg
-            globals()['test_' + arg]()
+            res = globals()['test_' + arg]()
+            if hasattr(res, '__iter__'):
+                for ft in res:
+                    fo = ft[0]
+                    fa = ft[1:]
+                    print '...', fa
+                    fo(*fa)
     else:
         for fk, fv in globals().items():
             if fk.startswith('test_') and callable(fv):
                 print fk
-                fv()
+                res = fv()
+                if hasattr(res, '__iter__'):
+                    for ft in res:
+                        fo = ft[0]
+                        fa = ft[1:]
+                        print '...', fa
+                        fo(*fa)
+
+# unicorn TODO:
+# test fp reg syncing
+# find memory leak
+# concrete transmits
