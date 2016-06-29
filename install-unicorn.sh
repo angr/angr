@@ -9,6 +9,7 @@ else
 	cd ..
 fi
 
+cd unicorn
 make -j install PREFIX=$VIRTUAL_ENV
 cd bindings/python
 make -j install PREFIX=$VIRTUAL_ENV
