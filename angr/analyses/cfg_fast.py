@@ -1089,14 +1089,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 cfg_node = self._nodes[addr]
 
-            self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
-
-            self._function_add_node(addr, current_function_addr)
-
-            self._changed_functions.add(current_function_addr)
-
         except (AngrTranslationError, AngrMemoryError):
             return [ ]
+
+        self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
+        self._function_add_node(addr, current_function_addr)
+        self._changed_functions.add(current_function_addr)
 
         # If we have traced it before, don't trace it anymore
         if addr in self._traced_addresses:
@@ -1129,37 +1127,44 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         return entries
 
     def _scan_irsb(self, addr, current_function_addr, previous_jumpkind, previous_src_node, previous_src_stmt_idx):  # pylint:disable=unused-argument
+
+        irsb = None  # make pylint happy
+
         try:
-            # Let's try to create the pyvex IRSB directly, since it's much faster
 
-            irsb = self.project.factory.block(addr).vex
+            if addr in self._nodes:
+                cfg_node = self._nodes[addr]
 
-            if irsb.size == 0 and self.project.arch.name in ('ARMHF', 'ARMEL'):
-                # maybe the current mode is wrong?
-                if addr % 2 == 0:
-                    addr_0 = addr + 1
-                else:
-                    addr_0 = addr - 1
-                irsb = self.project.factory.block(addr_0).vex
+            else:
+
+                # Let's try to create the pyvex IRSB directly, since it's much faster
+                irsb = self.project.factory.block(addr).vex
+
+                if irsb.size == 0 and self.project.arch.name in ('ARMHF', 'ARMEL'):
+                    # maybe the current mode is wrong?
+                    if addr % 2 == 0:
+                        addr_0 = addr + 1
+                    else:
+                        addr_0 = addr - 1
+                    irsb = self.project.factory.block(addr_0).vex
+                    if irsb.size > 0:
+                        if current_function_addr == addr:
+                            current_function_addr = addr_0
+                        addr = addr_0
+
+                if irsb.size == 0:
+                    # decoding error
+                    return [ ]
+
+                # Occupy the block in segment list
                 if irsb.size > 0:
-                    if current_function_addr == addr:
-                        current_function_addr = addr_0
-                    addr = addr_0
+                    if self.project.arch.name in ('ARMHF', 'ARMEL') and addr % 2 == 1:
+                        # thumb mode
+                        real_addr = addr - 1
+                    else:
+                        real_addr = addr
+                    self._seg_list.occupy(real_addr, irsb.size, "code")
 
-            if irsb.size == 0:
-                # decoding error
-                return [ ]
-
-            # Occupy the block in segment list
-            if irsb.size > 0:
-                if self.project.arch.name in ('ARMHF', 'ARMEL') and addr % 2 == 1:
-                    # thumb mode
-                    real_addr = addr - 1
-                else:
-                    real_addr = addr
-                self._seg_list.occupy(real_addr, irsb.size, "code")
-
-            if addr not in self._nodes:
                 # Create a CFG node, and add it to the graph
                 cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, simrun_key=addr,
                                    irsb=irsb)
@@ -1167,19 +1172,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._nodes[addr] = cfg_node
                 self._nodes_by_addr[addr].append(cfg_node)
 
-            else:
-                cfg_node = self._nodes[addr]
-
-            self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
-
-            self._function_add_node(addr, current_function_addr)
-
-            self._changed_functions.add(current_function_addr)
-
         except (AngrTranslationError, AngrMemoryError):
             return [ ]
 
-        self._process_block_arch_specific(addr, irsb, current_function_addr)
+        self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
+        self._function_add_node(addr, current_function_addr)
+        self._changed_functions.add(current_function_addr)
 
         # If we have traced it before, don't trace it anymore
         if addr in self._traced_addresses:
@@ -1187,6 +1185,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         else:
             # Mark the address as traced
             self._traced_addresses.add(addr)
+
+        # irsb cannot be None here
+        # assert irsb is not None
+
+        self._process_block_arch_specific(addr, irsb, current_function_addr)
 
         # Scan the basic block to collect data references
         if self._collect_data_ref:
