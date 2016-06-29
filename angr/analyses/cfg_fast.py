@@ -884,33 +884,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if self._pending_entries:
 
-            new_returning_functions = set()
-            new_not_returning_functions = set()
-
-            while True:
-                new_changes = self._analyze_function_features()
-
-                new_returning_functions |= set(new_changes['functions_return'])
-                new_not_returning_functions |= set(new_changes['functions_do_not_return'])
-
-                if not new_changes['functions_do_not_return']:
-                    break
-
-            for returning_function in new_returning_functions:
-                if returning_function.addr in self._function_returns:
-                    for fr in self._function_returns[returning_function.addr]:
-                        # Confirm them all
-                        self.kb.functions._add_return_from_call(fr.caller_func_addr, fr.callee_func_addr, fr.return_to)
-
-                    del self._function_returns[returning_function.addr]
-
-            for not_returning_function in new_not_returning_functions:
-                if not_returning_function.addr in self._function_returns:
-                    for fr in self._function_returns[not_returning_function.addr]:
-                        # Remove all those FakeRet edges
-                        self.kb.functions._remove_fakeret(fr.caller_func_addr, fr.call_site_addr, fr.return_to)
-
-                    del self._function_returns[not_returning_function.addr]
+            self._analyze_all_function_features()
 
             self._clean_pending_exits(self._pending_entries)
 
@@ -957,10 +931,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _post_analysis(self):
 
-        while True:
-            new_changes = self._analyze_function_features()
-            if not new_changes['functions_do_not_return']:
-                break
+        self._analyze_all_function_features()
 
         # Scan all functions, and make sure all fake ret edges are either confirmed or removed
         for f in self.functions.values():
@@ -998,7 +969,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Scan all functions, and make sure .returning for all functions are either True or False
         for f in self.functions.values():
             if f.returning is None:
-                f.returning = True
+                    f.returning = len(f.endpoints) > 0
 
         self._remove_redundant_overlapping_blocks()
 
@@ -2250,6 +2221,46 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if node.addr in self.kb.functions.callgraph:
             self.kb.functions.callgraph.remove_node(node.addr)
+
+    def _analyze_all_function_features(self):
+        """
+        Iteratively analyze all changed functions, update their returning attribute, until a fix-point is reached (i.e.
+        no new returning/not-returning functions are found).
+
+        :return: None
+        """
+
+        while True:
+            new_returning_functions = set()
+            new_not_returning_functions = set()
+            while True:
+                new_changes = self._analyze_function_features()
+                new_not_returning_functions |= set(new_changes['functions_do_not_return'])
+                new_returning_functions |= set(new_changes['functions_return'])
+
+                if not new_changes['functions_do_not_return'] and not new_changes['functions_return']:
+                    break
+
+            if not new_returning_functions and not new_not_returning_functions:
+                break
+
+            for returning_function in new_returning_functions:
+                if returning_function.addr in self._function_returns:
+                    for fr in self._function_returns[returning_function.addr]:
+                        # Confirm them all
+                        self._changed_functions.add(fr.caller_func_addr)
+                        self.kb.functions._add_return_from_call(fr.caller_func_addr, fr.callee_func_addr, fr.return_to)
+
+                    del self._function_returns[returning_function.addr]
+
+            for not_returning_function in new_not_returning_functions:
+                if not_returning_function.addr in self._function_returns:
+                    for fr in self._function_returns[not_returning_function.addr]:
+                        # Remove all those FakeRet edges
+                        self._changed_functions.add(fr.caller_func_addr)
+                        self.kb.functions._remove_fakeret(fr.caller_func_addr, fr.call_site_addr, fr.return_to)
+
+                    del self._function_returns[not_returning_function.addr]
 
     def _clean_pending_exits(self, pending_exits):
         """
