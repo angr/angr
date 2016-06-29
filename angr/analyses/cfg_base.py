@@ -1183,7 +1183,7 @@ class CFGBase(Analysis):
             else:
                 target_function = blockaddr_to_function[dst_addr]
 
-            to_outside = target_function is src_function
+            to_outside = not target_function is src_function
 
             self.kb.functions._add_fakeret_to(src_function.addr, src_addr, dst_addr, confirmed=True,
                                               to_outside=to_outside
