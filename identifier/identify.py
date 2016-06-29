@@ -97,6 +97,8 @@ class Identifier(object):
                     continue
                 if f not in self.func_info:
                     continue
+                if self.func_info[f] is None:
+                    continue
                 if len(self.func_info[f].stack_args) != func.num_args():
                     continue
 
@@ -154,8 +156,7 @@ class Identifier(object):
         for f in self._cfg.functions.values():
             for callsite in f.get_call_sites():
                 if f.get_call_target(callsite) is None:
-                    print "...."
-                    import ipdb; ipdb.set_trace()
+                    continue
                 callsites[callsite] = f.get_call_target(callsite)
         self.callsites = callsites
 
@@ -172,7 +173,7 @@ class Identifier(object):
 
     def do_trace(self, addr_trace, reverse_accesses, func_info):
         # get to the callsite
-        s = rop_utils.make_symbolic_state(self.project, self._reg_list)
+        s = rop_utils.make_symbolic_state(self.project, self._reg_list, stack_length=200)
         s.options.discard(simuvex.o.AVOID_MULTIVALUED_WRITES)
         s.options.discard(simuvex.o.AVOID_MULTIVALUED_READS)
         s.options.add(simuvex.o.UNDER_CONSTRAINED_SYMEXEC)
