@@ -987,7 +987,7 @@ class CFGBase(Analysis):
 
                     last_addr = b.addr + b.irsb.size
 
-                except (AngrTranslationError, AngrMemoryError):
+                except (AngrTranslationError, AngrMemoryError, simuvex.SimIRSBError):
                     break
 
             # find all functions that are between [ startpoint, endpoint ]
