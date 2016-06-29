@@ -703,7 +703,8 @@ class Function(object):
                 graph.remove_node(n)
 
                 for p, _, data in original_predecessors:
-                    graph.add_edge(p, new_node, data)
+                    if p not in other_nodes:
+                        graph.add_edge(p, new_node, data)
 
                 # We should find the correct successor
                 new_successors = [i for i in all_nodes
