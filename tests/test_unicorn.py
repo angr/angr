@@ -143,8 +143,8 @@ def run_similarity(binpath, depth):
         cc.pg.left[0].state.unicorn.max_steps = 500
     cc.run(depth=depth)
 
-sims = [("binaries-private/cgc_qualifier_event/cgc/01cf6c01_01", 1500),
-        ("binaries-private/cgc_qualifier_event/cgc/38256a01_01", 50),
+sims = [("binaries-private/cgc_qualifier_event/cgc/01cf6c01_01", 1200),
+        ("binaries-private/cgc_qualifier_event/cgc/38256a01_01", 40),
         ("binaries-private/cgc_qualifier_event/cgc/5821ad01_01", 50),
         #("binaries-private/cgc_qualifier_event/cgc/5c921501_01", 70),
         ("binaries-private/cgc_qualifier_event/cgc/63cf1501_01", 30),
