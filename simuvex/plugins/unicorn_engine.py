@@ -519,8 +519,8 @@ class Unicorn(SimStatePlugin):
             self.setup_gdt(fs, gs)
 
         for r, c in self._uc_regs.iteritems():
-            if r in ('cs', 'ds', 'es', 'fs', 'gs', 'ss'):
-                continue        # :/
+            if r in self.reg_blacklist:
+                continue
             v = self._symbolic_passthrough(getattr(self.state.regs, r))
             if not v.symbolic:
                 # l.debug('setting $%s = %#x', r, self.state.se.any_int(v))
@@ -528,7 +528,59 @@ class Unicorn(SimStatePlugin):
             else:
                 raise SimValueError('setting a symbolic register')
 
+        if self.state.arch.name in ('X86', 'AMD64'):
+            # sync the fp clerical data
+            c3210 = self.state.se.any_int(self.state.regs.fc3210)
+            top = self.state.se.any_int(self.state.regs.ftop[1:0])
+            rm = self.state.se.any_int(self.state.regs.fpround[1:0])
+            control = 0x037F | (rm << 10)
+            status = (top << 11) | c3210
+            self.uc.reg_write(unicorn.x86_const.UC_X86_REG_FPCW, control)
+            self.uc.reg_write(unicorn.x86_const.UC_X86_REG_FPSW, status)
 
+            # we gotta convert the 64-bit doubles values to 80-bit extended precision!
+            uc_offset = unicorn.x86_const.UC_X86_REG_FP0
+            vex_offset = self.state.arch.registers['fpu_regs'][0]
+            vex_tag_offset = self.state.arch.registers['fpu_tags'][0]
+            tag_word = 0
+            for _ in xrange(8):
+                tag = self.state.se.any_int(self.state.registers.load(vex_tag_offset, size=1))
+                tag_word <<= 2
+                if tag == 0:
+                    tag_word |= 3       # unicorn doesn't care about any value other than 3 for setting
+                else:
+                    val = self.state.registers.load(vex_offset, size=8)
+                    if not val.symbolic:
+                        val = self.state.se.any_int(val)
+                    else:
+                        raise SimValueError('setting a symbolic fp register')
+
+                    sign = bool(val & 0x8000000000000000)
+                    exponent = (val & 0x7FF0000000000000) >> 52
+                    mantissa =  val & 0x000FFFFFFFFFFFFF
+                    if exponent not in (0, 0x7FF): # normal value
+                        exponent = exponent - 1023 + 16383
+                        mantissa <<= 11
+                        mantissa |= 0x8000000000000000  # set integer part bit, implicit to double
+                    elif exponent == 0:     # zero or subnormal value
+                        mantissa = 0
+                    elif exponent == 0x7FF:    # nan or infinity
+                        exponent = 0x7FFF
+                        if mantissa != 0:
+                            mantissa = 0x8000000000000000
+                        else:
+                            mantissa = 0xFFFFFFFFFFFFFFFF
+
+                    if sign:
+                        exponent |= 0x8000
+
+                    self.uc.reg_write(uc_offset, (exponent, mantissa))
+
+                uc_offset += 1
+                vex_offset += 8
+                vex_tag_offset += 1
+
+            self.uc.reg_write(unicorn.x86_const.UC_X86_REG_FPTAG, tag_word)
     # this stuff is 100% copied from the unicorn regression tests
     def setup_gdt(self, fs, gs, fs_size=0xFFFFFFFF, gs_size=0xFFFFFFFF):
         GDT_ADDR = 0x1000
@@ -605,32 +657,80 @@ class Unicorn(SimStatePlugin):
         self.uc.emu_start(BASE, BASE + len(setup_code))
         self.uc.mem_unmap(BASE, 0x1000)
 
+    reg_blacklist = ('cs', 'ds', 'es', 'fs', 'gs', 'ss', 'mm0', 'mm1', 'mm2', 'mm3', 'mm4', 'mm5', 'mm6', 'mm7')
+
     def get_regs(self):
         ''' loading registers from unicorn '''
         for r, c in self._uc_regs.iteritems():
-            if r in ('cs', 'ds', 'es', 'fs', 'gs', 'ss'):
-                continue        # :/
+            if r in self.reg_blacklist:
+                continue
             v = self.uc.reg_read(c)
             # l.debug('getting $%s = %#x', r, v)
             setattr(self.state.regs, r, v)
 
         # some architecture-specific register fixups
-        if self.state.arch.qemu_name == 'i386':
+        if self.state.arch.name in ('X86', 'AMD64'):
             if self.jumpkind.startswith('Ijk_Sys'):
-                # update the guest_AT_SYSCALL register
-                self.state.registers.store(340, self.state.regs.eip - 2)
+                self.state.registers.store('ip_at_syscall', self.state.regs.ip - 2)
 
             # update the eflags
             self.state.regs.cc_dep1 = self.state.se.BVV(self.uc.reg_read(self._uc_const.UC_X86_REG_EFLAGS), self.state.arch.bits)
-            self.state.regs.cc_op = ccall.data['X86']['OpTypes']['G_CC_OP_COPY']
-        if self.state.arch.qemu_name == 'x86_64':
-            if self.jumpkind.startswith('Ijk_Sys'):
-                # update the guest_AT_SYSCALL register
-                self.state.registers.store(912, self.state.regs.eip - 2)
+            self.state.regs.cc_op = ccall.data[self.state.arch.name]['OpTypes']['G_CC_OP_COPY']
 
-            # update the eflags
-            self.state.regs.cc_dep1 = self.state.se.BVV(self.uc.reg_read(self._uc_const.UC_X86_REG_EFLAGS), self.state.arch.bits)
-            self.state.regs.cc_op = ccall.data['AMD64']['OpTypes']['G_CC_OP_COPY']
+            # sync the fp clerical data
+            status = self.uc.reg_read(unicorn.x86_const.UC_X86_REG_FPSW)
+            c3210 = status & 0x4700
+            top = (status & 0x3800) >> 11
+            control = self.uc.reg_read(unicorn.x86_const.UC_X86_REG_FPCW)
+            rm = (control & 0x0C00) >> 10
+            self.state.regs.fpround = rm
+            self.state.regs.fc3210 = c3210
+            self.state.regs.ftop = top
+
+            # sync the stx registers
+            # we gotta round the 80-bit extended precision values to 64-bit doubles!
+            uc_offset = unicorn.x86_const.UC_X86_REG_FP0
+            vex_offset = self.state.arch.registers['fpu_regs'][0]
+            vex_tag_offset = self.state.arch.registers['fpu_tags'][0] + 7
+            tag_word = self.uc.reg_read(unicorn.x86_const.UC_X86_REG_FPTAG)
+
+            for _ in xrange(8):
+                if tag_word & 3 == 3:
+                    self.state.registers.store(vex_tag_offset, 0, size=1)
+                else:
+                    self.state.registers.store(vex_tag_offset, 1, size=1)
+
+                    mantissa, exponent = self.uc.reg_read(uc_offset)
+                    sign = bool(exponent & 0x8000)
+                    exponent = (exponent & 0x7FFF)
+                    if exponent not in (0, 0x7FFF): # normal value
+                        exponent = exponent - 16383 + 1023
+                        if exponent <= 0:   # underflow to zero
+                            exponent = 0
+                            mantissa = 0
+                        elif exponent >= 0x7FF: # overflow to infinity
+                            exponent = 0x7FF
+                            mantissa = 0
+                    elif exponent == 0:     # zero or subnormal value
+                        mantissa = 0
+                    elif exponent == 0x7FFF:    # nan or infinity
+                        exponent = 0x7FF
+                        if mantissa != 0:
+                            mantissa = 0xFFFF
+
+                    val = 0x8000000000000000 if sign else 0
+                    val |= exponent << 52
+                    val |= (mantissa >> 11) & 0xFFFFFFFFFFFFF
+                    # the mantissa calculation is to convert from the 64-bit mantissa to 52-bit
+                    # additionally, extended precision keeps around an high bit that we don't care about
+                    # so 11-shift, not 12
+
+                    self.state.registers.store(vex_offset, val, size=8)
+
+                uc_offset += 1
+                vex_offset += 8
+                tag_word >>= 2
+                vex_tag_offset -= 1
 
     def copy(self):
         u = Unicorn(
