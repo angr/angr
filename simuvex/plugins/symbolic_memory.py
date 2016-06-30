@@ -145,10 +145,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     l.info("... not present in %s", fv)
                     unconstrained_in.append((sm, fv))
 
+            mos = set(mo for mo,_ in memory_objects)
             mo_bases = set(mo.base for mo, _ in memory_objects)
             mo_lengths = set(mo.length for mo, _ in memory_objects)
 
-            if len(unconstrained_in) == 0 and len(set(memory_objects) - merged_objects) == 0:
+            if len(unconstrained_in) == 0 and len(mos - merged_objects) == 0:
                 continue
 
             # first, optimize the case where we are dealing with the same-sized memory objects
@@ -165,8 +166,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 )
 
                 # do the replacement
-                self.mem.replace_memory_object(our_mo, merged_val)
-                merged_objects.update(memory_objects)
+                new_object = self.mem.replace_memory_object(our_mo, merged_val)
+                merged_objects.add(new_object)
+                merged_objects.update(mos)
             else:
                 # get the size that we can merge easily. This is the minimum of
                 # the size of all memory objects and unallocated spaces.

@@ -514,6 +514,7 @@ class SimPagedMemory(object):
         :param old:         A SimMemoryObject (i.e., one from :func:`memory_objects_for_hash()` or :func:`
                             memory_objects_for_name()`).
         :param new_content: The content (claripy expression) for the new memory object.
+        :returns: the new memory object
     """
 
         if old.object.size() != new_content.size():
@@ -531,6 +532,7 @@ class SimPagedMemory(object):
                     self._update_mappings(b, new.object)
             except KeyError:
                 pass
+        return new
 
     def replace_all(self, old, new):
         """

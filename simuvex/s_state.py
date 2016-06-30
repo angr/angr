@@ -365,13 +365,19 @@ class SimState(ana.Storable): # pylint: disable=R0904
         :return: (merged state, merge flag, a bool indicating if any merging occured)
         """
 
-        merge_conditions = kwargs.get('merge_conditions', None)
+        merge_conditions = kwargs.pop('merge_conditions', None)
+        if len(kwargs) != 0:
+            raise ValueError("invalid arguments: %s" % kwargs.keys())
 
         if merge_conditions is None:
             # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
             merge_flag = self.se.BVS("state_merge_%d" % merge_counter.next(), 16)
             merge_values = range(len(others)+1)
             merge_conditions = [ merge_flag == b for b in merge_values ]
+        else:
+            merge_conditions = [
+                (self.se.true if len(mc) == 0 else self.se.And(*mc)) for mc in merge_conditions
+            ]
 
         if len(set(o.arch.name for o in others)) != 1:
             import ipdb; ipdb.set_trace()
