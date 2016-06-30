@@ -733,6 +733,7 @@ class Tracer(object):
         '''
         c = entry_state.se.BVV(self._magic_content) == flag_page_var
         entry_state.add_constraints(c)
+        self.preconstraints.append(c)
 
     def _set_cgc_simprocedures(self):
         for symbol in self.simprocedures:
