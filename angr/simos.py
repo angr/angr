@@ -220,7 +220,8 @@ class SimOS(object):
         state = SimState(**kwargs)
 
         stack_end = state.arch.initial_sp
-        state.memory.mem._preapproved_stack = IRange(stack_end - stack_size, stack_end)
+        if o.ABSTRACT_MEMORY not in state.options:
+            state.memory.mem._preapproved_stack = IRange(stack_end - stack_size, stack_end)
 
         if o.INITIALIZE_ZERO_REGISTERS in state.options:
             for r in self.arch.registers:
@@ -652,7 +653,8 @@ class SimCGC(SimOS):
 
         # Special stack base for CGC binaries to work with Shellphish CRS
         s.regs.sp = 0xbaaaaffc
-        s.memory.mem._preapproved_stack = IRange(0xbaaab000 - 1024*1024*8, 0xbaaab000)
+        if o.ABSTRACT_MEMORY not in s.options:
+            s.memory.mem._preapproved_stack = IRange(0xbaaab000 - 1024*1024*8, 0xbaaab000)
 
         # 'main' gets called with the magic page address as the first fast arg
         s.regs.ecx = 0x4347c000
