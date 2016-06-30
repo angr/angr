@@ -181,7 +181,8 @@ class ForwardAnalysis(object):
 
         while not self.should_abort and self._entries:
 
-            entry_info = self._entries.pop()
+            entry_info = self._entries[0]
+            self._entries = self._entries[1:]
 
             self._handle_entry(entry_info)
 
