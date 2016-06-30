@@ -1,0 +1,3 @@
+*.pyc
+tracer.egg-info/
+*.z3-trace

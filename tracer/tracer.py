@@ -1,4 +1,5 @@
 import os
+import pickle
 import time
 import angr
 import signal
@@ -8,15 +9,18 @@ import simuvex
 import tempfile
 import subprocess
 import shellphish_qemu
+from threading import Timer
 from .tracerpov import TracerPoV
 from .cachemanager import LocalCacheManager
 from .simprocedures import receive
 from .simprocedures import FixedOutTransmit, FixedInReceive, FixedRandom
 from simuvex import s_options as so
+from simuvex import s_cc
 
 import logging
 
 l = logging.getLogger("tracer.Tracer")
+# l.setLevel('INFO')
 
 # global writable attribute used for specifying cache procedures
 GlobalCacheManager = None
@@ -86,6 +90,10 @@ class Tracer(object):
         self.add_options = set() if add_options is None else add_options
         self.trim_history = trim_history
         self.constrained_addrs = []
+        # the final state after execution with input/pov_file
+        self.final_state = None
+        # the path after execution with input/pov_file
+        self.path = None
 
         cm = LocalCacheManager() if GlobalCacheManager is None else GlobalCacheManager
         # cache managers need the tracer to be set for them
@@ -128,8 +136,10 @@ class Tracer(object):
             self.pov = False
 
         # internal project object, useful for obtaining certain kinds of info
-        self._p = angr.Project(self.binary)
-
+        if project is None:
+            self._p = angr.Project(self.binary)
+        else:
+            self._p = project
         self.base = None
         self.tracer_qemu = None
         self.tracer_qemu_path = None
@@ -184,6 +194,7 @@ class Tracer(object):
         # this is used to track constrained addresses
         self._address_concretization = list()
 
+        self.syscall_statistics = list()
 # EXPOSED
 
     def next_branch(self):
@@ -366,7 +377,6 @@ class Tracer(object):
         if not self.path_group.active[0].state.se.satisfiable():
             l.warning("detected small discrepency between qemu and angr, "
                     "attempting to fix known cases")
-
             # did our missed branch try to go back to a rep?
             target = self.path_group.missed[0].addr
             if self._p.arch.name == 'X86' or self._p.arch.name == 'AMD64':
@@ -446,6 +456,9 @@ class Tracer(object):
         branches = None
         while (branches is None or len(branches.active)) and self.bb_cnt < len(self.trace):
             branches = self.next_branch()
+            # import resource
+            # if resource.getrusage(resource.RUSAGE_SELF).ru_maxrss > 4000000:
+            #     import bpdb; bpdb.set_trace()
 
             # if we spot a crashed path in crash mode return the goods
             if self.crash_mode and 'crashed' in branches.stashes:
@@ -515,6 +528,8 @@ class Tracer(object):
                 state = successors[0]
 
                 l.debug("tracing done!")
+                self.final_state = state
+                self.path = self.previous
                 return (self.previous, state)
 
         # this is a concrete trace, there should only be ONE path
@@ -524,6 +539,8 @@ class Tracer(object):
                     expected only one path")
 
         # the caller is responsible for removing preconstraints
+        self.final_state = None
+        self.path = all_paths[0]
         return all_paths[0], None
 
     def remove_preconstraints(self, path, to_composite_solver=True, simplify=True):
@@ -574,6 +591,9 @@ class Tracer(object):
                         path.state.add_constraints(self.variable_map[var])
                     else:
                         l.warning("var %s not found in self.variable_map", var)
+
+    def dump(self, file_name):
+        pickle.dump(self, open(file_name, 'wb'), -1)
 
 # SETUP
 
@@ -707,7 +727,14 @@ class Tracer(object):
                     out_s.send(write)
                     time.sleep(.01)
 
-            ret = p.wait()
+            timer = Timer(5, lambda process: process.kill(), [p])
+            ret = 0
+            try:
+                timer.start()
+                ret = p.wait()
+            finally:
+                timer.cancel()
+            l.debug("program finished. return %d" % ret)
             # did a crash occur?
             if ret < 0:
                 if abs(ret) == signal.SIGSEGV or abs(ret) == signal.SIGILL:
@@ -838,6 +865,7 @@ class Tracer(object):
         '''
 
         if self.os == "cgc":
+            l.info('prepare_paths')
 
             cache_tuple = self._cache_lookup()
             pg = None
@@ -953,6 +981,7 @@ class Tracer(object):
         self._preconstrain_flag_page(entry_state, self.cgc_flag_bytes)
         entry_state.memory.store(0x4347c000, claripy.Concat(*self.cgc_flag_bytes))
 
+        entry_state.inspect.b('syscall', when=simuvex.BP_BEFORE, action=self.syscall_statistics)
         pg = project.factory.path_group(
             entry_state,
             immutable=True,
@@ -964,6 +993,17 @@ class Tracer(object):
         l.info("oppologist enabled")
 
         return pg
+
+    def syscall_statistics(self, state):
+        syscall_addr = state.se.any_int(state.ip)
+        # 0xa000008 is terminate, which we exclude from syscall statistics.
+        if syscall_addr != 0xa000008:
+	    args = s_cc.SyscallCC['X86']['CGC'](self._p.arch).get_args(state, 4)
+	    d = {'syscall_addr': syscall_addr}
+	    for i in xrange(4):
+	        d['arg_%d' % i] = args[i]
+	        d['arg_%d_symbolic' % i] = args[i].ast.symbolic
+	    self.syscall_statistics.append(d)
 
     def _linux_prepare_paths(self):
         '''

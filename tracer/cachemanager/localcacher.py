@@ -31,9 +31,8 @@ class LocalCacheManager(CacheManager):
                 return pickle.load(f)
 
     def cacher(self, simstate):
-
         cdata = self._prepare_cache_data(simstate)
-        if cdata is not None:
-            l.warning("caching state to %s", self._cache_file)
-            with open(self._cache_file, 'wb') as f:
-                f.write(cdata)
+        # if cdata is not None:
+        #     l.warning("caching state to %s", self._cache_file)
+        #     with open(self._cache_file, 'wb') as f:
+        #         f.write(cdata)

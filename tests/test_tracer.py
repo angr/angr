@@ -1,7 +1,8 @@
 import os
 import nose
+import pickle
 import tracer
-
+import traceback
 import logging
 l = logging.getLogger("tracer.tests.test_tracer")
 
@@ -40,6 +41,13 @@ def test_cgc_0b32aa01_01_raw():
     # now test crashing input
     t = tracer.Tracer(os.path.join(bin_location, "cgc_scored_event_1/cgc/0b32aa01_01"), "A" * 129)
     crash_path, crash_state = t.run()
+    import bpdb; bpdb.set_trace()
+    pickle.dump(crash_path, open('path', 'wb'), -1)
+    pickle.dump(crash_state, open('state', 'wb'), -1)
+    tt = pickle.load(open('path', 'rb'))
+
+    x = t.path.addr_trace.hardcopy
+    xx = tt.path.addr_trace.hardcopy
 
     nose.tools.assert_not_equal(crash_path, None)
     nose.tools.assert_not_equal(crash_state, None)
@@ -100,6 +108,26 @@ def run_all():
         if hasattr(all_functions[f], '__call__'):
             all_functions[f]()
 
+def test_cgc_0f4f4901_01_pov():
+    '''
+    Test CGC Qualifier 0f4f4901_01 (KPRCA_00007) with pov for-release__GEN_00311.xml
+    '''
+    from simuvex import s_options as so
+    t = tracer.Tracer('../../alphack-test-mini/train/binary/0f4f4901_01',
+    pov_file='../../alphack-test-mini/train/pov_benign/KPRCA_00007/for-release__GEN_00311.xml',
+    add_options={so.TRACK_ACTION_HISTORY})
+    import time
+    start = time.time()
+    path, state = t.run()
+    tag1 = time.time()
+    print "tracer work time:", tag1 - start
+    t.dump('temp')
+    tag2 = time.time()
+    print "tracer save time:", tag2 - tag1
+    tt = pickle.load(open('temp', 'rb'))
+    tag3 = time.time()
+    print "tracer load time:", tag3 - tag2
+    import bpdb; bpdb.set_trace()
 
 if __name__ == "__main__":
 
