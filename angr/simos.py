@@ -286,6 +286,7 @@ class SimOS(object):
             state = self.state_blank(addr=addr, **kwargs)
         else:
             state = state.copy()
+            state.regs.ip = addr
         cc.setup_callsite(state, ret_addr, args, stack_base, alloc_base, grow_like_stack)
 
         if state.arch.name == 'PPC64' and toc is not None:

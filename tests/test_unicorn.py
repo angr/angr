@@ -5,6 +5,7 @@ import tracer
 import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../'))
 
+import simuvex
 from simuvex import s_options as so
 
 def test_unicorn():
@@ -160,6 +161,22 @@ sims = [("binaries-private/cgc_qualifier_event/cgc/01cf6c01_01", 1500),
 def test_similarity():
     for path, depth in sims:
         yield run_similarity, path, depth
+
+def test_fp():
+    type_cache = simuvex.s_type.parse_defns(open(os.path.join(test_location, 'binaries/tests_src/manyfloatsum.c')).read())
+    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/manyfloatsum'))
+
+    for function in ('sum_floats', 'sum_combo', 'sum_segregated', 'sum_doubles', 'sum_combo_doubles', 'sum_segregated_doubles'):
+        cc = p.factory.cc(func_ty=type_cache[function])
+        args = list(range(len(cc.func_ty.args)))
+        answer = float(sum(args))
+        addr = p.loader.main_bin.get_symbol(function).rebased_addr
+        my_callable = p.factory.callable(addr, cc=cc)
+        my_callable.set_base_state(p.factory.blank_state(add_options=so.unicorn))
+        result = my_callable(*args)
+        nose.tools.assert_false(result.symbolic)
+        result_concrete = result.args[0]
+        nose.tools.assert_equal(answer, result_concrete)
 
 if __name__ == '__main__':
     #import logging
