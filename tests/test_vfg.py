@@ -106,6 +106,12 @@ def run_vfg_1(arch):
     all_block_addresses = set([ n.addr for n in vfg.graph.nodes() ])
     nose.tools.assert_true(vfg_1_addresses[arch].issubset(all_block_addresses))
 
+    # optimal execution tests
+    # - the basic block after returning from `authenticate` should only be executed once
+    nose.tools.assert_equal(vfg._execution_counter[0x4007b3], 1)
+    # - the last basic block in `authenticate` should only be executed twice (on a non-normalized CFG)
+    nose.tools.assert_equal(vfg._execution_counter[0x4006eb], 2)
+
 def test_vfg_1():
     # Test the code coverage of VFG
     for arch in vfg_1_addresses:
