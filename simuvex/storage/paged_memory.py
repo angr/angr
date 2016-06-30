@@ -219,6 +219,10 @@ class SimPagedMemory(object):
         #     2. if the page throws a key error, the backer dict is accessed. Thus, deleting things would simply
         #        change them back to what they were in the backer dict
 
+    @property
+    def allow_segv(self):
+        return self._check_perms and not self.state.scratch.priv and options.STRICT_PAGE_ACCESS in self.state.options
+
     def load_bytes(self, addr, num_bytes):
         missing = [ ]
         the_bytes = { }
@@ -239,13 +243,13 @@ class SimPagedMemory(object):
                     page = self._get_page(page_num)
                 except KeyError:
                     # missing page
-                    if self._check_perms and options.STRICT_PAGE_ACCESS in self.state.options:
+                    if self.allow_segv:
                         raise SimSegfaultError(actual_addr, 'read-miss')
                     missing.append(i)
                     i += self._page_size - page_idx
                     continue
 
-                if self._check_perms and options.STRICT_PAGE_ACCESS in self.state.options and not page.concrete_permissions & Page.PROT_READ:
+                if self.allow_segv and not page.concrete_permissions & Page.PROT_READ:
                     raise SimSegfaultError(actual_addr, 'non-readable')
 
             # get the next object out of the page
@@ -274,6 +278,7 @@ class SimPagedMemory(object):
 
         new_page_addr = n*self._page_size
         initialized = False
+        self.state.scratch.push_priv(True)
 
         if self._memory_backer is None:
             pass
@@ -330,6 +335,7 @@ class SimPagedMemory(object):
                 except KeyError:
                     pass
 
+        self.state.scratch.pop_priv()
         return initialized
 
     def _get_page(self, page_num, write=False, create=False, initialize=True):
@@ -459,13 +465,15 @@ class SimPagedMemory(object):
         """
         page_num = page_base / self._page_size
         try:
-            page = self._get_page(page_num, write=True, create=not self._check_perms or not options.STRICT_PAGE_ACCESS in self.state.options) if page is None else page
+            page = self._get_page(page_num,
+                                  write=True,
+                                  create=not self.allow_segv) if page is None else page
         except KeyError:
-            if self._check_perms and options.STRICT_PAGE_ACCESS in self.state.options:
+            if self.allow_segv:
                 raise SimSegfaultError(mo.base, 'write-miss')
             else:
                 raise
-        if not page.concrete_permissions & Page.PROT_WRITE and self._check_perms and options.STRICT_PAGE_ACCESS in self.state.options:
+        if self.allow_segv and not page.concrete_permissions & Page.PROT_WRITE:
             raise SimSegfaultError(mo.base, 'non-writable')
 
         if mo.base <= page_base and mo.base + mo.length >= page_base + self._page_size:

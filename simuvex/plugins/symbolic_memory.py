@@ -541,7 +541,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             for m in missing:
                 the_bytes[m] = default_mo
             #   self.mem[addr+m] = default_mo
+            self.state.scratch.push_priv(True)
             self.mem.store_memory_object(default_mo, overwrite=False)
+            self.state.scratch.pop_priv()
 
         if 0 in the_bytes and isinstance(the_bytes[0], SimMemoryObject) and len(the_bytes) == the_bytes[0].object.length/8:
             for mo in the_bytes.itervalues():

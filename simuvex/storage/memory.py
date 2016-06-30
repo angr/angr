@@ -356,7 +356,7 @@ class SimMemory(SimStatePlugin):
 
         return data_e
 
-    def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None, inspect=True):
+    def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None, inspect=True, priv=None):
         """
         Stores content into memory.
 
@@ -371,6 +371,8 @@ class SimMemory(SimStatePlugin):
         :param endness:         The endianness for the data.
         :param action:          A SimActionData to fill out with the final written value and constraints.
         """
+        if priv is not None: self.state.scratch.push_priv(priv)
+
         addr_e = _raw_ast(addr)
         data_e = _raw_ast(data)
         size_e = _raw_ast(size)
@@ -416,6 +418,7 @@ class SimMemory(SimStatePlugin):
 
         # if the condition is false, bail
         if condition_e is not None and self.state.se.is_false(condition_e):
+            if priv is not None: self.state.scratch.pop_priv()
             return
 
         if (
@@ -453,6 +456,8 @@ class SimMemory(SimStatePlugin):
                 action.added_constraints = action._make_object(self.state.se.And(*request.constraints))
             else:
                 action.added_constraints = action._make_object(self.state.se.true)
+
+        if priv is not None: self.state.scratch.pop_priv()
 
     def _store(self, request):
         raise NotImplementedError()
