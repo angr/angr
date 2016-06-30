@@ -32,11 +32,11 @@ class SimRegNameView(SimStatePlugin):
     def copy(self):
         return SimRegNameView()
 
-    def merge(self, others, merge_flag, flag_values):
-        return False, [ ]
+    def merge(self, others, merge_conditions):
+        return False
 
-    def widen(self, others, merge_flag, flag_values):
-        return False, [ ]
+    def widen(self, others):
+        return False
 
 class SimMemView(SimStatePlugin):
     def __init__(self, ty=None, addr=None, state=None):
@@ -117,11 +117,11 @@ class SimMemView(SimStatePlugin):
     def copy(self):
         return SimMemView()
 
-    def merge(self, others, merge_flag, flag_values):
-        return False, [ ]
+    def merge(self, others, merge_conditions):
+        return False
 
-    def widen(self, others, merge_flag, flag_values):
-        return False, [ ]
+    def widen(self, others):
+        return False
 
     @property
     def resolvable(self):

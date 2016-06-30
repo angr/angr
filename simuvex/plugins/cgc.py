@@ -65,24 +65,35 @@ class SimStateCGC(SimStatePlugin):
         c.input_size = self.input_size
         return c
 
-    def merge(self, others, merge_flag, flag_values):
+    def _combine(self, others):
         merging_occured = False
 
         new_allocation_base = max(o.allocation_base for o in others)
         if self.state.se.symbolic(new_allocation_base):
             raise ValueError("wat")
-        concrete_allocation_base = self.allocation_base if type(self.allocation_base) in (int, long) else \
+
+        concrete_allocation_base = (
+            self.allocation_base
+            if type(self.allocation_base) in (int, long) else
             self.state.se.any_int(self.allocation_base)
-        concrete_new_allocation_base = new_allocation_base if type(new_allocation_base) in (int, long) else \
+        )
+
+        concrete_new_allocation_base = (
+            new_allocation_base
+            if type(new_allocation_base) in (int, long) else
             self.state.se.any_int(new_allocation_base)
+        )
+
         if concrete_allocation_base != concrete_new_allocation_base:
             self.allocation_base = new_allocation_base
             merging_occured = True
 
-        return merging_occured, [ ]
+        return merging_occured
 
-    def widen(self, others, merge_flag, flag_values):
-        # TODO: Recheck this function
-        return self.merge(others, merge_flag, flag_values)
+    def merge(self, others, merge_conditions):
+        return self._combine(others)
+
+    def widen(self, others):
+        return self._combine(others)
 
 SimStatePlugin.register_default('cgc', SimStateCGC)

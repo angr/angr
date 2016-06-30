@@ -266,7 +266,7 @@ class SimInspector(SimStatePlugin):
             if hasattr(self, k):
                 setattr(self, k, None)
 
-    def merge(self, others, merge_flag, merge_values): # pylint: disable=unused-argument
+    def _combine(self, others):
         for t in event_types:
             seen = { id(e) for e in self._breakpoints[t] }
             for o in others:
@@ -274,9 +274,12 @@ class SimInspector(SimStatePlugin):
                     if id(b) not in seen:
                         self._breakpoints[t].append(b)
                         seen.add(id(b))
-        return False, [ ]
+        return False
 
-    def widen(self, others, merge_flag, flag_values):
-        return self.merge(others, merge_flag, flag_values)
+    def merge(self, others, merge_conditions):
+        return self._combine(others)
+
+    def widen(self, others):
+        return self._combine(others)
 
 SimInspector.register_default('inspector', SimInspector)

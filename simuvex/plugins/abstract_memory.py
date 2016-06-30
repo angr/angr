@@ -126,42 +126,32 @@ class MemoryRegion(object):
         #if bbl_addr is not None and stmt_id is not None:
         return self.memory.load(addr, size, inspect=False)
 
-    def merge(self, others, merge_flag, flag_values):
+    def _merge_alocs(self, other_region):
+        """
+        Helper function for merging.
+        """
         merging_occurred = False
-
-        for other_region in others:
-            # Merge alocs
-            for aloc_id, aloc in other_region.alocs.iteritems():
-                if aloc_id not in self.alocs:
-                    self.alocs[aloc_id] = aloc.copy()
-                    merging_occurred = True
-                else:
-                    # Update it
-                    merging_occurred |= self.alocs[aloc_id].merge(aloc)
-
-            # Merge memory
-            merging_result, _ = self.memory.merge([other_region.memory], merge_flag, flag_values)
-
-            merging_occurred |= merging_result
-
+        for aloc_id, aloc in other_region.alocs.iteritems():
+            if aloc_id not in self.alocs:
+                self.alocs[aloc_id] = aloc.copy()
+                merging_occurred = True
+            else:
+                # Update it
+                merging_occurred |= self.alocs[aloc_id].merge(aloc)
         return merging_occurred
 
-    def widen(self, others, merge_flag, flag_values):
-        widening_occurred = False
-
+    def merge(self, others, merge_conditions):
+        merging_occurred = False
         for other_region in others:
-            for aloc_id, aloc in other_region.alocs.iteritems():
-                if aloc_id not in self.alocs:
-                    self.alocs[aloc_id] = aloc.copy()
-                    widening_occurred = True
-                else:
-                    widening_occurred |= self.alocs[aloc_id].merge(aloc)
+            merging_occurred |= self._merge_alocs(other_region)
+            merging_occurred |= self.memory.merge([other_region.memory], merge_conditions)
+        return merging_occurred
 
-            # Widen the values inside memory
-            widening_result = self.memory.widen([ other_region.memory ], merge_flag, flag_values)
-
-            widening_occurred |= widening_result
-
+    def widen(self, others):
+        widening_occurred = False
+        for other_region in others:
+            widening_occurred |= self._merge_alocs(other_region)
+            widening_occurred |= self.memory.widen([ other_region.memory ])
         return widening_occurred
 
     def __contains__(self, addr):
@@ -578,40 +568,33 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         am._stack_size = self._stack_size
         return am
 
-    def merge(self, others, merge_flag, flag_values):
+    def merge(self, others, merge_conditions):
         """
         Merge this guy with another SimAbstractMemory instance
-        :param others:
-        :param merge_flag:
-        :param flag_values:
-        :return:
         """
         merging_occurred = False
 
         for o in others:
             for region_id, region in o._regions.items():
                 if region_id in self._regions:
-                    merging_occurred |= self._regions[region_id].merge([region], merge_flag, flag_values)
+                    merging_occurred |= self._regions[region_id].merge([region], merge_conditions)
                 else:
                     merging_occurred = True
                     self._regions[region_id] = region
 
-        # We have no constraints to return!
-        return merging_occurred, []
+        return merging_occurred
 
-    def widen(self, others, merge_flag, flag_values):
-
+    def widen(self, others):
         widening_occurred = False
-
         for o in others:
             for region_id, region in o._regions.items():
                 if region_id in self._regions:
-                    widening_occurred |= self._regions[region_id].widen([ region ], merge_flag, flag_values)
+                    widening_occurred |= self._regions[region_id].widen([ region ])
                 else:
                     widening_occurred = True
                     self._regions[region_id] = region
 
-        return widening_occurred, [ ]
+        return widening_occurred
 
     def __contains__(self, dst):
         if type(dst) in (int, long):

@@ -58,107 +58,71 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         c._default_symbolic_write_strategy = list(self._default_symbolic_write_strategy)
         return c
 
-    def merge(self, others, flag, flag_values):
+    #
+    # Merging stuff
+    #
+
+    def _changes_to_merge(self, others):
+        changed_bytes = set()
+
+        for o in others:  # pylint:disable=redefined-outer-name
+            self._repeat_constraints += o._repeat_constraints
+            changed_bytes |= self.changed_bytes(o)
+
+        if options.FRESHNESS_ANALYSIS in self.state.options and self.state.scratch.ignored_variables is not None:
+            ignored_var_changed_bytes = set()
+
+            if self.category == 'reg':
+                fresh_vars = self.state.scratch.ignored_variables.register_variables
+
+                for v in fresh_vars:
+                    offset, size = v.reg, v.size
+                    ignored_var_changed_bytes |= set(xrange(offset, offset + size))
+
+            else:
+                fresh_vars = self.state.scratch.ignored_variables.memory_variables
+
+                for v in fresh_vars:
+                    # v.addr is an AddressWrapper object
+                    region_id = v.addr.region
+                    offset = v.addr.address
+                    size = v.size
+
+                    if region_id == self.id:
+                        ignored_var_changed_bytes |= set(range(offset, offset + size))
+
+            changed_bytes = changed_bytes - ignored_var_changed_bytes
+
+        return changed_bytes
+
+    def merge(self, others, merge_conditions):
         """
         Merge this SimMemory with the other SimMemory
 
         :param others: A list of SimMemory objects to be merged with
-        :param flag:
-        :param flag_values:
-        :return: A tuple of (merging_occurred, extra_constraints)
+        :param merge_conditions:
+        :return: whether merging occurred
         """
 
-        changed_bytes = set()
-
-        for o in others:  # pylint:disable=redefined-outer-name
-            self._repeat_constraints += o._repeat_constraints
-            changed_bytes |= self.changed_bytes(o)
-
-        if options.FRESHNESS_ANALYSIS in self.state.options and self.state.scratch.ignored_variables is not None:
-            ignored_var_changed_bytes = set()
-
-            if self.category == 'reg':
-                fresh_vars = self.state.scratch.ignored_variables.register_variables
-
-                for v in fresh_vars:
-                    offset, size = v.reg, v.size
-                    ignored_var_changed_bytes |= set(xrange(offset, offset + size))
-
-            else:
-                fresh_vars = self.state.scratch.ignored_variables.memory_variables
-
-                for v in fresh_vars:
-                    # v.addr is an AddressWrapper object
-                    region_id = v.addr.region
-                    offset = v.addr.address
-                    size = v.size
-
-                    if region_id == self.id:
-                        ignored_var_changed_bytes |= set(range(offset, offset + size))
-
-            changed_bytes = changed_bytes - ignored_var_changed_bytes
+        changed_bytes = self._changes_to_merge(others)
 
         l.info("Merging %d bytes", len(changed_bytes))
         l.info("... %s has changed bytes %s", self.id, changed_bytes)
 
-        merging_occurred = len(changed_bytes) > 0
         self._repeat_min = max(other._repeat_min for other in others)
+        self._merge(others, changed_bytes, merge_conditions=merge_conditions)
+        return len(changed_bytes) > 0
 
-        self._merge(others, changed_bytes, flag, flag_values)
-
-        # Generate constraints
-        if options.ABSTRACT_MEMORY in self.state.options:
-            constraints = []
-        else:
-            constraints = [self.state.se.Or(*[flag == fv for fv in flag_values])]
-
-        return merging_occurred, constraints
-
-    def widen(self, others, merge_flag, flag_values):
-
-        widening_occurred = False
-        changed_bytes = set()
-
-        for o in others:  # pylint:disable=redefined-outer-name
-            self._repeat_constraints += o._repeat_constraints
-            changed_bytes |= self.changed_bytes(o)
-
-        if options.FRESHNESS_ANALYSIS in self.state.options and self.state.scratch.ignored_variables is not None:
-            ignored_var_changed_bytes = set()
-
-            if self.category == 'reg':
-                fresh_vars = self.state.scratch.ignored_variables.register_variables
-
-                for v in fresh_vars:
-                    offset, size = v.reg, v.size
-                    ignored_var_changed_bytes |= set(xrange(offset, offset + size))
-
-            else:
-                fresh_vars = self.state.scratch.ignored_variables.memory_variables
-
-                for v in fresh_vars:
-                    # v.addr is an AddressWrapper object
-                    region_id = v.addr.region
-                    offset = v.addr.address
-                    size = v.size
-
-                    if region_id == self.id:
-                        ignored_var_changed_bytes |= set(range(offset, offset + size))
-
-            changed_bytes = changed_bytes - ignored_var_changed_bytes
-
-        widening_occurred = (len(changed_bytes) > 0)
-
+    def widen(self, others):
+        changed_bytes = self._changes_to_merge(others)
         l.info("Memory %s widening bytes %s", self.id, changed_bytes)
+        self._merge(others, changed_bytes, is_widening=True)
+        return len(changed_bytes) > 0
 
-        # TODO: How to properly set the flag and flag_values?
-        self._merge(others, changed_bytes, merge_flag, flag_values, is_widening=True)
-
-        return widening_occurred
-
-    def _merge(self, others, changed_bytes, flag, flag_values, is_widening=False):
-
+    def _merge(self, others, changed_bytes, merge_conditions=None, is_widening=False):
         all_memories = [self] + others
+        if merge_conditions is None:
+            merge_conditions = [ None ] * len(all_memories)
 
         merged_to = None
         merged_objects = set()
@@ -173,7 +137,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             # first get a list of all memory objects at that location, and
             # all memories that don't have those bytes
-            for sm, fv in zip(all_memories, flag_values):
+            for sm, fv in zip(all_memories, merge_conditions):
                 if b in sm.mem:
                     l.info("... present in %s", fv)
                     memory_objects.append((sm.mem[b], fv))
@@ -196,7 +160,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 mo_base = list(mo_bases)[0]
                 merged_to = mo_base + list(mo_lengths)[0]
 
-                merged_val = self._merge_values(to_merge, memory_objects[0][0].length, flag, is_widening=is_widening)
+                merged_val = self._merge_values(
+                    to_merge, memory_objects[0][0].length, is_widening=is_widening
+                )
 
                 # do the replacement
                 self.mem.replace_memory_object(our_mo, merged_val)
@@ -216,11 +182,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 # Now, we have the minimum size. We'll extract/create expressions of that
                 # size and merge them
                 extracted = [(mo.bytes_at(b, min_size), fv) for mo, fv in memory_objects] if min_size != 0 else []
-                created = [(self.get_unconstrained_bytes("merge_uc_%s_%x" % (uc.id, b), min_size * 8), fv) for uc, fv in
-                           unconstrained_in]
+                created = [
+                    (self.get_unconstrained_bytes("merge_uc_%s_%x" % (uc.id, b), min_size * 8), fv) for
+                    uc, fv in unconstrained_in
+                ]
                 to_merge = extracted + created
 
-                merged_val = self._merge_values(to_merge, min_size, flag, is_widening=is_widening)
+                merged_val = self._merge_values(to_merge, min_size, is_widening=is_widening)
                 self.store(b, merged_val)
 
     def set_state(self, s):
@@ -429,11 +397,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         for s in strategy:
             l.debug("... trying strategy %s", s)
             try:
-                self.state._inspect('address_concretization', BP_BEFORE, address_concretization_strategy=s,
-                                    address_concretization_action=action, address_concretization_memory_id=self.id,
-                                    address_concretization_expr=v, address_concretization_limit=limit,
-                                    address_concretization_approx_limit=approx_limit,
-                                    address_concretization_add_constraints=True)
+                self.state._inspect(
+                    'address_concretization', BP_BEFORE, address_concretization_strategy=s,
+                    address_concretization_action=action, address_concretization_memory_id=self.id,
+                    address_concretization_expr=v, address_concretization_limit=limit,
+                    address_concretization_approx_limit=approx_limit,
+                    address_concretization_add_constraints=True
+                )
                 s = self.state._inspect_getattr('address_concretization_strategy', s)
                 v = self.state._inspect_getattr('address_concretization_expr', v)
                 limit = self.state._inspect_getattr('address_concretization_limit', limit)
@@ -964,7 +934,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def _is_uninitialized(a):
         return getattr(a._model_vsa, 'uninitialized', False)
 
-    def _merge_values(self, to_merge, merged_size, merge_flag, is_widening=False):
+    def _merge_values(self, to_merge, merged_size, is_widening=False):
         if options.ABSTRACT_MEMORY in self.state.options:
             if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
                 should_reverse = True
@@ -996,7 +966,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             merged_val = self.state.se.BVV(0, merged_size*8)
             for tm,fv in to_merge:
                 l.debug("In merge: %s if flag is %s", tm, fv)
-                merged_val = self.state.se.If(merge_flag == fv, tm, merged_val)
+                merged_val = self.state.se.If(fv, tm, merged_val)
 
         return merged_val
 

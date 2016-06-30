@@ -53,11 +53,12 @@ def test_state_merge():
     nose.tools.assert_true(c.se.unique(c.memory.load(2, 1)))
 
     logging.getLogger('simuvex.plugins.symbolic_memory').setLevel(logging.DEBUG)
-    m, merge_flag, merging_occurred = a.merge(b, c)
+    m, merge_conditions, merging_occurred = a.merge([b, c])
     logging.getLogger('simuvex.plugins.symbolic_memory').setLevel(logging.WARNING)
 
     nose.tools.assert_true(merging_occurred)
-    nose.tools.assert_equals(sorted(m.se.any_n_int(merge_flag, 10)), [ 0,1,2 ])
+    #nose.tools.assert_equals(sorted(m.se.any_n_int(merge_flag, 10)), [ 0,1,2 ])
+    assert len(merge_conditions) == 3
 
     # the byte at 2 should now *not* be unique for a
     nose.tools.assert_false(m.se.unique(m.memory.load(2, 1)))
@@ -70,17 +71,17 @@ def test_state_merge():
 
     # we should be able to select them by adding constraints
     a_a = m.copy()
-    a_a.add_constraints(merge_flag == 0)
+    a_a.add_constraints(merge_conditions[0])
     nose.tools.assert_true(a_a.se.unique(a_a.memory.load(2, 1)))
     nose.tools.assert_equal(a_a.se.any_int(a_a.memory.load(2, 1)), 43)
 
     a_b = m.copy()
-    a_b.add_constraints(merge_flag == 1)
+    a_b.add_constraints(merge_conditions[1])
     nose.tools.assert_true(a_b.se.unique(a_b.memory.load(2, 1)))
     nose.tools.assert_equal(a_b.se.any_int(a_b.memory.load(2, 1)), 84)
 
     a_c = m.copy()
-    a_c.add_constraints(merge_flag == 2)
+    a_c.add_constraints(merge_conditions[2])
     nose.tools.assert_true(a_c.se.unique(a_c.memory.load(2, 1)))
     nose.tools.assert_equal(a_c.se.any_int(a_c.memory.load(2, 1)), 21)
 
@@ -94,8 +95,8 @@ def test_state_merge():
     a.get_plugin('libc')
     nose.tools.assert_true(a.has_plugin('libc'))
     nose.tools.assert_false(b.has_plugin('libc'))
-    c = a.copy().merge(b.copy())[0]
-    d = b.copy().merge(a.copy())[0]
+    c = a.copy().merge([b.copy()])[0]
+    d = b.copy().merge([a.copy()])[0]
     nose.tools.assert_true(c.has_plugin('libc'))
     nose.tools.assert_true(d.has_plugin('libc'))
 
@@ -105,8 +106,8 @@ def test_state_merge():
     a.posix.get_file(3)
     nose.tools.assert_equal(len(a.posix.files), 4)
     nose.tools.assert_equal(len(b.posix.files), 3)
-    c = a.copy().merge(b.copy())[0]
-    d = b.copy().merge(a.copy())[0]
+    c = a.copy().merge([b.copy()])[0]
+    d = b.copy().merge([a.copy()])[0]
     nose.tools.assert_equal(len(c.posix.files), 4)
     nose.tools.assert_equal(len(d.posix.files), 4)
 
@@ -126,7 +127,7 @@ def test_state_merge_static():
     b.memory.store(addr, a.se.BVV(60, 32), endness='Iend_LE')
     c.memory.store(addr, a.se.BVV(70, 32), endness='Iend_LE')
 
-    merged, _, _ = a.merge(b, c)
+    merged, _, _ = a.merge([b, c])
     actual = claripy.backends.vsa.convert(merged.memory.load(addr, 4))
     expected = claripy.backends.vsa.convert(a.se.SI(bits=32, stride=10, lower_bound=50, upper_bound=70))
     nose.tools.assert_true(actual.identical(expected))

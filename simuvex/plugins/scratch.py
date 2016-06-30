@@ -109,14 +109,10 @@ class SimStateScratch(SimStatePlugin):
     def copy(self):
         return SimStateScratch(scratch=self)
 
-    def merge(self, others, flag, flag_values): #pylint:disable=unused-argument
-        return False, [ ]
+    def merge(self, others, merge_conditions):
+        return False
 
-    def widen(self, others, flag, flag_values):
-
-        # Just call self.merge() to perform a merging
-        self.merge(others, flag, flag_values)
-
+    def widen(self, others):
         return False
 
     def clear(self):
