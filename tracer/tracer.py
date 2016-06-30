@@ -834,7 +834,7 @@ class Tracer(object):
             self._preconstrain_flag_page(entry_state, cgc_flag_data)
 
         # PROT_READ region
-        entry_state.memory.map_region(0x4347c000, 0x1000, 1)
+        #entry_state.memory.map_region(0x4347c000, 0x1000, 1)   # already done in simos
         entry_state.memory.store(0x4347c000, cgc_flag_data)
 
         pg = project.factory.path_group(
