@@ -240,6 +240,14 @@ class Tracer(object):
                 if bbl_max_bytes <= 0:
                     bbl_max_bytes = 800
 
+            # detect back loops
+            # this might still break for huge basic blocks with back loops
+            # but it seems unlikely
+            bl = self._p.factory.block(self.trace[self.bb_cnt-1])
+            back_targets = set(bl.vex.constant_jump_targets) & set(bl.instruction_addrs)
+            if self.trace[self.bb_cnt] in back_targets:
+                bbl_max_bytes = 800
+
             # if we're not in crash mode we don't care about the history
             if not self.crash_mode:
                 current.trim_history()
