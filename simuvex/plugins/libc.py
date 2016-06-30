@@ -132,13 +132,17 @@ class SimStateLibc(SimStatePlugin):
         # TODO: Recheck this function
         return self.merge(others, merge_flag, flag_values)
 
-    def set_state(self, state):
-        SimStatePlugin.set_state(self, state)
+    def init_state(self):
+        if o.ABSTRACT_MEMORY in self.state.options:
+            return
+
         try:
-            state.memory.permissions(HEAP_LOCATION)
+            self.state.memory.permissions(HEAP_LOCATION)
         except SimMemoryError:
-            state.memory.map_region(HEAP_LOCATION, 4096*64, 3)
+            self.state.memory.map_region(HEAP_LOCATION, 4096*64, 3)
+
 
 SimStatePlugin.register_default('libc', SimStateLibc)
 
 from ..s_errors import SimMemoryError
+from .. import s_options as o

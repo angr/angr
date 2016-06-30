@@ -236,6 +236,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         #l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
         plugin.set_state(self._get_weakref() if not isinstance(plugin, SimAbstractMemory) else self)
         self.plugins[name] = plugin
+        plugin.init_state()
         return plugin
 
     def release_plugin(self, name):
