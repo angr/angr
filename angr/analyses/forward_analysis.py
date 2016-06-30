@@ -255,6 +255,20 @@ class ForwardAnalysis(object):
         else:
             self._entries.append(entry_info)
 
+    def _peek_entry(self, pos):
+        """
+        Return the entry currently at position `pos`, but still keep it in the entry list. An IndexError will be raised
+        if that position does not currently exist in the entry list.
+
+        :param int pos: Position of the entry to get.
+        :return: The entry
+        """
+
+        if pos < len(self._entries):
+            return self._entries[pos].entry
+
+        raise IndexError()
+
     #
     # Utils
     #
