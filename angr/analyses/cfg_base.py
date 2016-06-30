@@ -88,6 +88,10 @@ class CFGBase(Analysis):
         return cfg_node in self._graph
 
     @property
+    def normalized(self):
+        return self._normalized
+
+    @property
     def context_sensitivity_level(self):
         return self._context_sensitivity_level
 
