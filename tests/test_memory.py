@@ -381,7 +381,7 @@ def test_abstract_memory():
     a = s.copy()
     a.memory.store(to_vs('function_merge', 0), s.se.BVS('unnamed', 8, 0x20, 0x20, 0))
 
-    b = s.merge([a])[0]
+    b = s.merge(a)[0]
     expr = b.memory.load(to_vs('function_merge', 0), 1)
     nose.tools.assert_true(claripy.backends.vsa.identical(expr, s.se.BVS('unnamed', 8, 0x10, 0x20, 0x10)))
 
@@ -393,7 +393,7 @@ def test_abstract_memory():
     a.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0, lower_bound=0x100000, upper_bound=0x100000))
     b = s.copy()
     b.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0, lower_bound=0x100001, upper_bound=0x100001))
-    c = a.merge([b])[0]
+    c = a.merge(b)[0]
     expr = c.memory.load(to_vs('function_merge', 0x20), 4)
     nose.tools.assert_true(claripy.backends.vsa.identical(expr, se.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001)))
     c_mem = c.memory.regions['function_merge'].memory.mem
@@ -404,7 +404,7 @@ def test_abstract_memory():
     a.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x200000))
     b = s.copy()
     b.memory.store(to_vs('function_merge', 0x20), se.SI(bits=32, stride=0, lower_bound=0x300000, upper_bound=0x300000))
-    c = a.merge([b])[0]
+    c = a.merge(b)[0]
     expr = c.memory.load(to_vs('function_merge', 0x20), 4)
     nose.tools.assert_true(claripy.backends.vsa.identical(expr, se.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x300000)))
     object_set = set([c_mem[0x20], c_mem[0x20], c_mem[0x22], c_mem[0x23]])

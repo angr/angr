@@ -356,13 +356,16 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         return state
 
-    def merge(self, others, merge_conditions=None):
+    def merge(self, *others, **kwargs):
         """
         Merges this state with the other states. Returns the merging result, merged state, and the merge flag.
 
-        :param others: the other states to merge
+        :param states: the states to merge
+        :param merge_conditions: a tuple of the conditions under which each state holds
         :return: (merged state, merge flag, a bool indicating if any merging occured)
         """
+
+        merge_conditions = kwargs.get('merge_conditions', None)
 
         if merge_conditions is None:
             # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
@@ -371,6 +374,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             merge_conditions = [ merge_flag == b for b in merge_values ]
 
         if len(set(o.arch.name for o in others)) != 1:
+            import ipdb; ipdb.set_trace()
             raise SimMergeError("Unable to merge due to different architectures.")
 
         all_plugins = set(self.plugins.keys()) | set.union(*(set(o.plugins.keys()) for o in others))
