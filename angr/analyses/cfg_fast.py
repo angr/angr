@@ -864,7 +864,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return successors
 
-    def _post_entry_handling(self, entry, successors):
+    def _post_entry_handling(self, entry, new_entries, successors):
         pass
 
     def _entry_list_empty(self):

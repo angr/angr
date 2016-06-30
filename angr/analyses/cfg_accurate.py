@@ -1003,7 +1003,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return successors
 
-    def _post_entry_handling(self, entry, successors):
+    def _post_entry_handling(self, entry, new_entries, successors):
         """
 
         :param entry:

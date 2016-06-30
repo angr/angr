@@ -145,7 +145,7 @@ class ForwardAnalysis(object):
     def _pre_entry_handling(self, entry):
         raise NotImplementedError('_pre_entry_handling() is not implemented.')
 
-    def _post_entry_handling(self, entry, successors):
+    def _post_entry_handling(self, entry, new_entries, successors):
         raise NotImplementedError('_post_entry_handling() is not implemented.')
 
     def _handle_successor(self, entry, successor, successors):
@@ -212,14 +212,18 @@ class ForwardAnalysis(object):
 
         successors = self._get_successors(entry)
 
+        all_new_entries = [ ]
+
         for successor in successors:
             new_entries = self._handle_successor(entry, successor, successors)
 
             if new_entries:
+                all_new_entries.extend(new_entries)
+
                 for new_entry in new_entries:
                     self._insert_entry(new_entry)
 
-        self._post_entry_handling(entry, successors)
+        self._post_entry_handling(entry, all_new_entries, successors)
 
     def _insert_entry(self, entry):
         """
