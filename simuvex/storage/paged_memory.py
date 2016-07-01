@@ -278,7 +278,9 @@ class SimPagedMemory(object):
 
         new_page_addr = n*self._page_size
         initialized = False
-        self.state.scratch.push_priv(True)
+
+        if self.state is not None:
+            self.state.scratch.push_priv(True)
 
         if self._memory_backer is None:
             pass
@@ -335,7 +337,8 @@ class SimPagedMemory(object):
                 except KeyError:
                     pass
 
-        self.state.scratch.pop_priv()
+        if self.state is not None:
+            self.state.scratch.pop_priv()
         return initialized
 
     def _get_page(self, page_num, write=False, create=False, initialize=True):
