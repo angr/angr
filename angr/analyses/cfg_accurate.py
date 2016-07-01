@@ -1133,7 +1133,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         Remove those pending exits if:
         a) they are the return exits of non-returning SimProcedures
         b) they are the return exits of non-returning syscalls
-        b) they are the return exits of non-returning functions
+        c) they are the return exits of non-returning functions
 
         :param pending_exits: A dict of all pending exits
         """
@@ -1250,22 +1250,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             _, target_addr, _, _ = self.project._simos.syscall_info(new_state)
 
         self._pre_handle_successor_state(entry.extra_info, suc_jumpkind, target_addr)
-
-        # Remove pending targets - type 2
-        simrun_key = self._generate_simrun_key(entry.call_stack_suffix, target_addr, suc_jumpkind.startswith('Ijk_Sys'))
-        """
-        if suc_jumpkind == 'Ijk_Ret' and simrun_key in self._pending_entries:
-
-            # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it in
-            # the graph
-            cancelled_pending_entry = self._pending_entries[simrun_key]
-            l.debug("Removing pending exits (type 2) to %s", hex(target_addr))
-            del self._pending_entries[simrun_key]
-
-            # create the FakeRet edge
-            self._graph_add_edge(cancelled_pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet',
-                                 exit_stmt_idx=cancelled_pending_entry.src_exit_stmt_idx)
-        """
 
         if suc_jumpkind == "Ijk_FakeRet":
             if target_addr == entry.extra_info['last_call_exit_target']:
