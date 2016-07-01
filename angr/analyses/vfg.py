@@ -789,7 +789,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             return entries[1]
 
         # it must be a merge point
-        assert entries[0].path.addr not in self._merge_points(self._current_function_address)
+        assert entries[0].path.addr in self._merge_points(self._current_function_address)
 
         # update jobs
         for entry in entries:
