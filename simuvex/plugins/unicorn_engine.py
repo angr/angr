@@ -424,7 +424,7 @@ class Unicorn(SimStatePlugin):
 
 
         l.info('mmap [%#x, %#x], %d%s', start, start + length - 1, perm, ' (symbolic)' if taint else '')
-        if not perm & 2:
+        if taint is None and not perm & 2:
             # page is non-writable, handle it with native code
             l.debug('caching non-writable page')
             return _UC_NATIVE.cache_page(self._uc_state, start, length, str(data), perm)
