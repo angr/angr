@@ -549,7 +549,7 @@ class Unicorn(SimStatePlugin):
                 if tag == 0:
                     tag_word |= 3       # unicorn doesn't care about any value other than 3 for setting
                 else:
-                    val = self.state.registers.load(vex_offset, size=8)
+                    val = self._symbolic_passthrough(self.state.registers.load(vex_offset, size=8))
                     if not val.symbolic:
                         val = self.state.se.any_int(val)
                     else:
