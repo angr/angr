@@ -764,18 +764,16 @@ class Unicorn(SimStatePlugin):
 
     def check(self):
         self.countdown_nonunicorn_blocks -= 1
+        self.countdown_symbolic_registers -= 1
 
-        if not self._check_registers():
+        if self.countdown_symbolic_registers > 0:
+            l.debug("not enough passed register checks (%d)", self.countdown_symbolic_registers)
+            return False
+        elif not self._check_registers():
             l.debug("failed register check")
             self.countdown_symbolic_registers = self.cooldown_symbolic_registers
             return False
-        else:
-            self.countdown_symbolic_registers -= 1
-            if self.countdown_symbolic_registers > 0:
-                l.debug("not enough passed register checks (%d)", self.countdown_symbolic_registers)
-                return False
-
-        if self.countdown_nonunicorn_blocks > 0:
+        elif self.countdown_nonunicorn_blocks > 0:
             l.debug("not enough runs since last unicorn (%d)", self.countdown_nonunicorn_blocks)
             return False
 
