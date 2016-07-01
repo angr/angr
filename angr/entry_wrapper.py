@@ -16,6 +16,10 @@ class SimRunKey(object):
         self._hash = None
 
     def callsite_repr(self):
+
+        if self.callsite_tuples is None:
+            return "None"
+
         s = [ ]
         format_addr = lambda addr: 'None' if addr is None else hex(addr)
         for i in xrange(0, len(self.callsite_tuples), 2):
@@ -27,7 +31,7 @@ class SimRunKey(object):
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash(self.callsite_tuples + (self.addr, self.jump_type, ))
+            self._hash = hash((self.callsite_tuples,) + (self.addr, self.jump_type, ))
         return self._hash
 
     def __eq__(self, other):
@@ -452,15 +456,14 @@ class EntryWrapper(object):
     """
     def __init__(self, addr, path, context_sensitivity_level, simrun_key=None, src_simrun_key=None,
                  src_exit_stmt_idx=None, jumpkind=None, call_stack=None, bbl_stack=None, is_narrowing=False,
-                 skip=False, cancelled_pending_entry=None, final_return_address=None):
+                 skip=False, final_return_address=None):
         self.addr = addr # Note that addr may not always be equal to self.path.addr (for syscalls, for example)
         self._path = path
-        self.simrun_key = simrun_key
         self.jumpkind = jumpkind
         self.src_simrun_key = src_simrun_key
         self.src_exit_stmt_idx = src_exit_stmt_idx
         self.skip = skip
-        self.cancelled_pending_entry = cancelled_pending_entry
+        self._simrun_key = simrun_key
 
         # Other parameters
         self._context_sensitivity_level = context_sensitivity_level
