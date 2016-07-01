@@ -20,6 +20,7 @@ l = logging.getLogger("angr.simos")
 
 class IRange(object):
     __slots__ = ('start', 'end')
+
     def __init__(self, start, end):
         self.start = start
         self.end = end
@@ -28,6 +29,13 @@ class IRange(object):
         if type(k) in (int, long):
             return k >= self.start and k < self.end
         return False
+
+    def __getstate__(self):
+        return self.start, self.end
+
+    def __setstate__(self, state):
+        self.start, self.end = state
+
 
 class SimOS(object):
     """
