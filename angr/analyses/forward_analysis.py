@@ -235,19 +235,20 @@ class ForwardAnalysis(object):
         :return: None
         """
 
-        key = self._entry_key(entry)
+        if self._allow_merging:
+            key = self._entry_key(entry)
 
-        if key in self._entries_map:
-            entry_info = self._entries_map[key]
-            if self._allow_merging:
+            if key in self._entries_map:
+                entry_info = self._entries_map[key]
                 merged_entry = self._merge_entries(entry_info.entry, entry)
                 entry_info.add_entry(merged_entry, merged=True)
-            else:
-                entry_info.entries = [ entry ]
 
+            else:
+                entry_info = EntryInfo(key, entry)
+                self._entries_map[key] = entry_info
         else:
+            key = self._entry_key(entry)
             entry_info = EntryInfo(key, entry)
-            self._entries_map[key] = entry_info
 
         if self._order_entries:
             self._binary_insert(self._entries, entry_info, lambda elem: self._entry_sorting_key(elem.entry))
