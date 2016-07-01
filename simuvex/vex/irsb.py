@@ -65,7 +65,11 @@ class SimIRSB(SimRun):
         if o.BLOCK_SCOPE_CONSTRAINTS in self.state.options and 'solver_engine' in self.state.plugins:
             self.state.release_plugin('solver_engine')
 
-        self._handle_irsb()
+        try:
+            self._handle_irsb()
+        except SimError as e:
+            e.record_state(self.state)
+            raise
 
         # It's for debugging
         # irsb.pp()
@@ -273,5 +277,5 @@ from .expressions import translate_expr
 from . import size_bits
 from .. import s_options as o
 from ..plugins.inspect import BP_AFTER, BP_BEFORE
-from ..s_errors import SimIRSBError, SimSolverError, SimMemoryAddressError
+from ..s_errors import SimError, SimIRSBError, SimSolverError, SimMemoryAddressError
 from ..s_action import SimActionExit, SimActionObject

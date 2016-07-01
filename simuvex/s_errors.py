@@ -6,6 +6,13 @@ class SimError(Exception):
     ins_addr = None
     executed_instruction_count = None
 
+    def record_state(self, state):
+        self.bbl_addr = state.scratch.bbl_addr
+        self.stmt_idx = state.scratch.stmt_idx
+        self.ins_addr = state.scratch.ins_addr
+        self.executed_instruction_count = state.scratch.executed_instruction_count
+        return self
+
 #
 # State-related errors
 #
@@ -47,6 +54,13 @@ class SimSegfaultError(SimMemoryError):
         super(SimSegfaultError, self).__init__('%#x, %s' % (addr, reason))
 
 #
+# Error class during VEX parsing
+#
+
+class SimUnsupportedError(SimError):
+    pass
+
+#
 # Solver-related errors
 #
 
@@ -69,7 +83,7 @@ class SimUnsatError(SimValueError):
 class SimOperationError(SimError):
     pass
 
-class UnsupportedIROpError(SimOperationError):
+class UnsupportedIROpError(SimOperationError, SimUnsupportedError):
     pass
 
 #
@@ -79,13 +93,13 @@ class UnsupportedIROpError(SimOperationError):
 class SimExpressionError(SimError):
     pass
 
-class UnsupportedIRExprError(SimExpressionError):
+class UnsupportedIRExprError(SimExpressionError, SimUnsupportedError):
     pass
 
 class SimCCallError(SimExpressionError):
     pass
 
-class UnsupportedCCallError(SimCCallError):
+class UnsupportedCCallError(SimCCallError, SimUnsupportedError):
     pass
 
 class SimUninitializedAccessError(SimExpressionError):
@@ -104,10 +118,10 @@ class SimUninitializedAccessError(SimExpressionError):
 class SimStatementError(SimError):
     pass
 
-class UnsupportedIRStmtError(SimStatementError):
+class UnsupportedIRStmtError(SimStatementError, SimUnsupportedError):
     pass
 
-class UnsupportedDirtyError(UnsupportedIRStmtError):
+class UnsupportedDirtyError(UnsupportedIRStmtError, SimUnsupportedError):
     pass
 
 #
@@ -129,7 +143,7 @@ class SimProcedureArgumentError(SimProcedureError):
 class SimFastPathError(SimIRSBError):
     pass
 
-class UnsupportedSyscallError(SimProcedureError):
+class UnsupportedSyscallError(SimProcedureError, SimUnsupportedError):
     pass
 
 #

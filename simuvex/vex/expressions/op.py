@@ -16,10 +16,6 @@ class SimIRExpr_Op(SimIRExpr):
                 if self.type.startswith('Ity_F'):
                     self.expr = self.expr.raw_to_fp()
             else:
-                e.bbl_addr = self.state.scratch.bbl_addr
-                e.stmt_idx = self.state.scratch.stmt_idx
-                e.ins_addr = self.state.scratch.ins_addr
-                e.executed_instruction_count = self.state.scratch.executed_instruction_count
                 raise
         except SimOperationError as e:
             e.bbl_addr = self.state.scratch.bbl_addr
