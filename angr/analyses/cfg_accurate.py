@@ -888,7 +888,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             # This is the real return exit
             # Check if this retn is inside our pending_exits set
-            if simrun_key in self._pending_entries:
+            if (entry.jumpkind == 'Ijk_Call' or entry.is_syscall) and simrun_key in self._pending_entries:
                 # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
                 # in the graph.
 
@@ -932,7 +932,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             del self._pending_edges[simrun_key]
 
         # See if this entry cancels another FakeRet
-        if simrun_key in self._pending_entries:
+        if (entry.jumpkind == 'Ijk_Call' or entry.is_syscall) and simrun_key in self._pending_entries:
             # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
             # in the graph.
 
