@@ -752,28 +752,33 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # pop all tasks if they are finished
         task = self._top_task
 
-        assert isinstance(task, FunctionAnalysis)
-
-        if task.done:
+        if isinstance(task, CallAnalysis):
+            # the call never returns
+            l.debug('%s never returns.', task)
             self._task_stack.pop()
 
-            # the next guy *might be* a call analysis task
-            task = self._top_task
-            if isinstance(task, CallAnalysis):
-                if task.done:
-                    # awesome!
-                    # pop it from the task stack
-                    self._task_stack.pop()
+        else:
+            if task.done:
+                l.debug('%s is finished.', task)
+                self._task_stack.pop()
 
-                    if task._final_jobs:
-                        # merge all jobs, and create a new job
-                        new_job = task.merge_jobs()
+                # the next guy *might be* a call analysis task
+                task = self._top_task
+                if isinstance(task, CallAnalysis):
+                    if task.done:
+                        # awesome!
+                        # pop it from the task stack
+                        self._task_stack.pop()
 
-                        # insert the entry
-                        self._insert_entry(new_job)
+                        if task._final_jobs:
+                            # merge all jobs, and create a new job
+                            new_job = task.merge_jobs()
 
-                        # register the job to the top task
-                        self._top_task.jobs.append(new_job)
+                            # insert the entry
+                            self._insert_entry(new_job)
+
+                            # register the job to the top task
+                            self._top_task.jobs.append(new_job)
 
     def _intra_analysis(self):
         pass
@@ -1258,7 +1263,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         if jumpkind == "Ijk_FakeRet":
             assert job.is_call_jump
 
-            # This is the default "fake" return successor generated at each call.
+            # This is the default "fake" return successor generated at each call, if and only if the target function
+            # returns.
 
             # if the call is skipped (for whatever reason, like we reached the interfunction tracing limit), we use
             # this FakeRet successor as the final state of the function. Otherwise we save the FakeRet state in case the
