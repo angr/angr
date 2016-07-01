@@ -34,7 +34,10 @@ class VFGJob(EntryWrapper):
         self.dbg_exit_status = {}
         self.is_return_jump = None
 
-        self.call_task = None
+        # if this job has a call successor, do we plan to skip the call successor or not
+        self.call_skipped = False
+
+        self.call_task = None  # type: CallAnalysis
 
     @property
     def state(self):
@@ -44,6 +47,11 @@ class VFGJob(EntryWrapper):
     @state.setter
     def state(self, state):
         self.path.state = state
+
+    @property
+    def simrun_key(self):
+        return self._simrun_key
+
 
 class AnalysisTask(object):
     """
@@ -406,10 +414,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             self._set_return_address(entry_state, self._final_address)
 
         job = VFGJob(entry_path.addr, entry_path, self._context_sensitivity_level,
-                     jumpkind='Ijk_Boring', final_return_address=self._final_address
+                     jumpkind='Ijk_Boring', final_return_address=self._final_address,
                      )
         simrun_key = SimRunKey.new(entry_path.addr, job.get_call_stack_suffix(), job.jumpkind)
-        job.simrun_key = simrun_key
+        job._simrun_key = simrun_key
 
         self._insert_entry(job)
 
@@ -626,21 +634,30 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         fakeret_successor = None
         if self._is_call_jumpkind(jumpkind):
+
+            # Get the fakeret successor.
+            fakeret_successor = all_successors[-1]
+
+            # If the function we're calling into doesn't return, we should discard it
+            if self._cfg is not None:
+                func = self.kb.functions.function(addr=job.call_target)
+                if func is not None and func.returning is False and len(all_successors) == 2:
+                    del all_successors[-1]
+                    fakeret_successor = None
+
             # bail out if we hit the interfunction_level cap
             if len(job.call_stack) > self._interfunction_level:
                 l.debug('We are not tracing into a new function %#08x as we hit interfunction_level limit', successor_addr)
                 # However, we do want to save out the state here
                 # TODO: revisit this _save_state() method. Is it really useful?
                 self._save_state(job, successor_addr, successor.copy())
-                return [ ]
 
-            # Get the fakeret successor. If the function we're calling into doesn't return, we should discard it.
-            fakeret_successor = all_successors[-1]
-            if self._cfg is not None:
-                func = self.kb.functions.function(addr=job.call_target)
-                if func is not None and func.returning is False and len(all_successors) == 2:
-                    del all_successors[-1]
-                    fakeret_successor = None
+                # mark it as skipped
+                job.dbg_exit_status[successor] = "Skipped"
+
+                job.call_skipped = True
+
+                return [ ]
 
         # Create a new call stack
         # TODO: why are we creating a new callstack even when we're not doing a call?
@@ -767,8 +784,12 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # there should not be more than two entries being merged at the same time
         assert len(entries) == 2
+
+        if not self._merge_points(self._current_function_address):
+            return entries[1]
+
         # it must be a merge point
-        assert entries[0].path.addr in self._function_merge_points[self._current_function_address]
+        assert entries[0].path.addr not in self._merge_points(self._current_function_address)
 
         # update jobs
         for entry in entries:
@@ -1237,8 +1258,11 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         if jumpkind == "Ijk_FakeRet":
             assert job.is_call_jump
 
-            # This is the default "fake" return successor generated at each call. Save them first, but don't process
-            # them right away
+            # This is the default "fake" return successor generated at each call.
+
+            # if the call is skipped (for whatever reason, like we reached the interfunction tracing limit), we use
+            # this FakeRet successor as the final state of the function. Otherwise we save the FakeRet state in case the
+            # callee does not return normally, but don't process them right away.
 
             # Clear the useless values (like return addresses, parameters) on stack if needed
             if self._cfg is not None:
@@ -1255,6 +1279,28 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 top_si = successor_state.se.TSI(successor_state.arch.bits)
                 successor_state.registers.store(successor_state.arch.ret_offset, top_si)
 
+            if job.call_skipped:
+                successor_path = self.project.factory.path(successor_state)
+                new_job = VFGJob(successor_path.addr,
+                                 successor_path,
+                                 self._context_sensitivity_level,
+                                 simrun_key=new_simrun_key,
+                                 jumpkind='Ijk_Ret',
+                                 call_stack=new_call_stack,
+                                 bbl_stack=new_bbl_stack,
+                                 )
+
+                # create the function analysis task, since it should be created when we trace the callee, but we
+                # skipped it
+                task = FunctionAnalysis(successor_path.addr, None)
+                self._task_stack.append(task)
+                # Register the job to the call analysis task
+                job.call_task.register_function_analysis(task)
+                job.call_task.add_final_job(new_job)
+
+                job.dbg_exit_status[successor] = "Added as a final job"
+
+            else:
                 self._pending_returns[new_simrun_key] = \
                     (successor_state, new_call_stack, new_bbl_stack)
                 job.dbg_exit_status[successor] = "Pending"
