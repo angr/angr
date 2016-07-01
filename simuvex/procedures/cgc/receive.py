@@ -4,7 +4,7 @@ from itertools import count
 fastpath_data_counter = count()
 
 class receive(simuvex.SimProcedure):
-    #pylint:disable=arguments-differ
+    #pylint:disable=arguments-differ,attribute-defined-outside-init,redefined-outer-name
 
     IS_SYSCALL = True
 
@@ -41,9 +41,20 @@ class receive(simuvex.SimProcedure):
 
             if self.state.satisfiable(extra_constraints=[count != 0]):
                 read_length = self.state.posix.read(fd, buf, actual_size)
-                list(self.state.log.actions)[-1].size.ast = actual_size
-                list(self.state.log.actions)[-2].data.ast = list(self.state.log.actions)[-1].actual_value.ast
-                self.data = self.state.memory.load(buf, read_length)
+                action_list = list(self.state.log.actions)
+
+                try:
+                    # get and fix up the memory write
+                    action = next(
+                        a for a in reversed(action_list) if
+                        isinstance(a, SimActionData) and a.action == 'write' and a.type == 'mem'
+                    )
+                    action.size.ast = actual_size
+                    action.data.ast = action.actual_value.ast
+                    self.data = self.state.memory.load(buf, read_length)
+                except StopIteration:
+                    # the write didn't occur (i.e., size of 0)
+                    self.data = None
             else:
                 self.data = None
 
@@ -51,9 +62,11 @@ class receive(simuvex.SimProcedure):
             self.state.memory.store(rx_bytes, actual_size, condition=rx_bytes != 0, endness='Iend_LE')
 
             # return values
-            return self.state.se.If(actual_size == 0,
-                                    self.state.se.BVV(0xffffffff, self.state.arch.bits),
-                                    self.state.se.BVV(0, self.state.arch.bits)
-                                    )
+            return self.state.se.If(
+                actual_size == 0,
+                self.state.se.BVV(0xffffffff, self.state.arch.bits),
+                self.state.se.BVV(0, self.state.arch.bits)
+            )
 
-from simuvex.s_options import ABSTRACT_MEMORY, CGC_NO_SYMBOLIC_RECEIVE_LENGTH
+from ...s_options import ABSTRACT_MEMORY, CGC_NO_SYMBOLIC_RECEIVE_LENGTH
+from ...s_action import SimActionData
