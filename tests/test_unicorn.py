@@ -143,24 +143,33 @@ def run_similarity(binpath, depth):
         cc.pg.left[0].state.unicorn.max_steps = 500
     cc.run(depth=depth)
 
-sims = [("binaries-private/cgc_qualifier_event/cgc/01cf6c01_01", 1200),
-        ("binaries-private/cgc_qualifier_event/cgc/38256a01_01", 40),
-        ("binaries-private/cgc_qualifier_event/cgc/5821ad01_01", 50),
-        #("binaries-private/cgc_qualifier_event/cgc/5c921501_01", 70),
-        ("binaries-private/cgc_qualifier_event/cgc/63cf1501_01", 30),
-        ("binaries-private/cgc_qualifier_event/cgc/6787bf01_01", 29),
-        ("binaries-private/cgc_qualifier_event/cgc/7185fe01_01", 29),
-        ("binaries-private/cgc_qualifier_event/cgc/ab957801_01", 29),
-        ("binaries-private/cgc_qualifier_event/cgc/acedf301_01", 250),
-        ("binaries-private/cgc_qualifier_event/cgc/d009e601_01", 250),
-        ("binaries-private/cgc_qualifier_event/cgc/d4411101_01", 200),
-        ("binaries-private/cgc_qualifier_event/cgc/eae6fa01_01", 100),
-        ("binaries-private/cgc_qualifier_event/cgc/ee545a01_01", 200),
-        ("binaries-private/cgc_qualifier_event/cgc/f5adc401_01", 100)]
-
-def test_similarity():
-    for path, depth in sims:
-        yield run_similarity, path, depth
+def test_similarity_01cf6c01():
+    run_similarity("binaries-private/cgc_qualifier_event/cgc/01cf6c01_01", 1200)
+def test_similarity_38256a01():
+    run_similarity("binaries-private/cgc_qualifier_event/cgc/38256a01_01", 40)
+def test_similarity_5821ad01():
+    run_similarity("binaries-private/cgc_qualifier_event/cgc/5821ad01_01", 50)
+def test_similarity_63cf1501():
+    run_similarity("binaries-private/cgc_qualifier_event/cgc/63cf1501_01", 30)
+def test_similarity_6787bf01():
+    run_similarity("binaries-private/cgc_qualifier_event/cgc/6787bf01_01", 29)
+def test_similarity_7185fe01():
+    run_similarity("binaries-private/cgc_qualifier_event/cgc/7185fe01_01", 29)
+def test_similarity_ab957801():
+    run_similarity("binaries-private/cgc_qualifier_event/cgc/ab957801_01", 29)
+def test_similarity_acedf301():
+    run_similarity("binaries-private/cgc_qualifier_event/cgc/acedf301_01", 250)
+def test_similarity_d009e601():
+    run_similarity("binaries-private/cgc_qualifier_event/cgc/d009e601_01", 250)
+def test_similarity_d4411101():
+    run_similarity("binaries-private/cgc_qualifier_event/cgc/d4411101_01", 200)
+def test_similarity_eae6fa01():
+    run_similarity("binaries-private/cgc_qualifier_event/cgc/eae6fa01_01", 100)
+def test_similarity_ee545a01():
+    run_similarity("binaries-private/cgc_qualifier_event/cgc/ee545a01_01", 200)
+def test_similarity_f5adc401():
+    run_similarity("binaries-private/cgc_qualifier_event/cgc/f5adc401_01", 100)
+#("binaries-private/cgc_qualifier_event/cgc/5c921501_01", 70),
 
 def test_fp():
     type_cache = simuvex.s_type.parse_defns(open(os.path.join(test_location, 'binaries/tests_src/manyfloatsum.c')).read())
