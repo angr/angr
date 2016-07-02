@@ -8,7 +8,7 @@ import claripy
 import angr
 import archinfo
 
-from ..entry_wrapper import SimRunKey, EntryWrapper, CallStack
+from ..entry_wrapper import SimRunKey, FunctionKey, EntryWrapper, CallStack
 from ..analysis import Analysis, register_analysis
 from ..errors import AngrVFGError, AngrVFGRestartAnalysisNotice, AngrError
 from .forward_analysis import ForwardAnalysis, AngrForwardAnalysisSkipEntry
@@ -36,12 +36,13 @@ class VFGJob(EntryWrapper):
 
         # if this job has a call successor, do we plan to skip the call successor or not
         self.call_skipped = False
+        # if the call is skipped, calling stack of the skipped function is saved in `call_context_key`
+        self.call_function_key = None  # type: FunctionKey
 
         self.call_task = None  # type: CallAnalysis
 
     @property
     def state(self):
-
         return self.path.state
 
     @state.setter
@@ -270,9 +271,13 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         self._normal_states = { }   # Last available state for each program point without widening
         self._widened_states = { }  # States on which widening has occurred
 
-        # Initial states for start analyzing different functions
+        # Initial states of each function, which is context sensitive
         # It maps function key to its states
         self._function_initial_states = defaultdict(dict)
+        # Final states of each function, right after `ret` is called. Also context sensitive.
+        # even if a function may have multiple return sites, as long as they all return to the same place, there is
+        # only one final state of that function.
+        self._function_final_states = defaultdict(dict)
 
         # All final states are put in this list
         self.final_states = [ ]
@@ -310,6 +315,14 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
     @property
     def _top_task(self):
         return self._task_stack[-1]
+
+    @property
+    def function_initial_states(self):
+        return self._function_initial_states
+
+    @property
+    def function_final_states(self):
+        return self._function_final_states
 
     #
     # Public methods
@@ -393,12 +406,12 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                       "analysis.")
 
         # Prepare the state
-        initial_state = self._prepare_state(self._start, self._initial_state, function_key=None)
+        initial_state = self._prepare_initial_state(self._start, self._initial_state)
         initial_state.ip = self._start
 
-        initial_state = initial_state.arch.prepare_state(initial_state,
-                                                       {'current_function': self._start, }
-        )
+        initial_state = self.project.arch.prepare_state(initial_state,
+                                                        {'current_function': self._start, }
+                                                        )
 
         # clear function merge points cache
         self._function_merge_points = {}
@@ -632,10 +645,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # Now there should be one single target for the successor
         successor_addr = successor.se.exactly_int(successor.ip)
 
+        # Get the fake ret successor
         fakeret_successor = None
         if self._is_call_jumpkind(jumpkind):
-
-            # Get the fakeret successor.
             fakeret_successor = all_successors[-1]
 
             # If the function we're calling into doesn't return, we should discard it
@@ -645,27 +657,33 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                     del all_successors[-1]
                     fakeret_successor = None
 
-            # bail out if we hit the interfunction_level cap
-            if len(job.call_stack) > self._interfunction_level:
-                l.debug('We are not tracing into a new function %#08x as we hit interfunction_level limit', successor_addr)
-                # However, we do want to save out the state here
-                # TODO: revisit this _save_state() method. Is it really useful?
-                self._save_state(job, successor_addr, successor.copy())
-
-                # mark it as skipped
-                job.dbg_exit_status[successor] = "Skipped"
-
-                job.call_skipped = True
-
-                return [ ]
-
-        # Create a new call stack
+        # Create a new call stack for the successor
         # TODO: why are we creating a new callstack even when we're not doing a call?
         new_call_stack = self._create_callstack(job, successor_addr, jumpkind, job.is_call_jump, fakeret_successor)
         if new_call_stack is None:
             l.debug("Cannot create a new callstack for address %#x", successor_addr)
             return
         new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
+
+        if self._is_call_jumpkind(jumpkind):
+
+            new_function_key = FunctionKey.new(successor_addr, new_call_stack_suffix)
+            # Save the initial state for the function
+            self._save_function_initial_state(new_function_key, successor_addr, successor.copy())
+
+            # bail out if we hit the interfunction_level cap
+            if len(job.call_stack) > self._interfunction_level:
+                l.debug('We are not tracing into a new function %#08x as we hit interfunction_level limit', successor_addr)
+
+                # mark it as skipped
+                job.dbg_exit_status[successor] = "Skipped"
+
+                job.call_skipped = True
+                job.call_function_key = new_function_key
+
+                return [ ]
+
+        # Generate the new SimRun key
         new_simrun_key = SimRunKey.new(successor_addr, new_call_stack_suffix, jumpkind)
 
         # Generate the new BBL stack of target block
@@ -675,7 +693,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                                               job.is_call_jump,
                                               job.call_stack_suffix,
                                               new_call_stack_suffix,
-                                              job.func_addr)
+                                              job.func_addr
+                                              )
 
         #
         # Generate new VFG jobs
@@ -994,63 +1013,38 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
     # Helper methods
     #
 
-    def _prepare_state(self, function_start, initial_state, function_key):
+    def _prepare_initial_state(self, function_start, state):
         """
-        Generate the state used to begin analysis
-        """
-        if initial_state is None:
-            if function_start not in self._function_initial_states:
-                # We have never saved any initial states for this function
-                # Gotta create a fresh state for it
-                s = self.project.factory.blank_state(mode="static",
-                                              remove_options=self._state_options_to_remove,
-                )
+        Get the state to start the analysis for function.
 
-                if function_start != self.project.entry:
-                    # This function might have arguments passed on stack, so make
-                    # some room for them.
-                    # TODO: Decide the number of arguments and their positions
-                    #  during CFG analysis
-                    sp = s.regs.sp
-                    # Set the address mapping
-                    sp_val = s.se.any_int(sp) # FIXME: What will happen if we lose track of multiple sp values?
-                    s.memory.set_stack_address_mapping(sp_val,
-                                                       s.memory.stack_id(function_start) + '_pre',
-                                                       0x0)
-                    s.registers.store('sp', sp - 160)
-            elif function_key is None:
-                l.debug('We should combine all existing states for this function, then analyze it.')
-                merged_state = None
-                for state in self._function_initial_states[function_start].values():
-                    if merged_state is None:
-                        merged_state = state
-                    else:
-                        merged_state, _, _ = merged_state.merge(state)
-                s = merged_state
-            elif function_key in self._function_initial_states[function_start]:
-                l.debug('Loading previously saved state for function %#x %s', function_start,
-                        CallStack.stack_suffix_to_string(function_key))
-                s = self._function_initial_states[function_start][function_key]
-            else:
-                raise AngrVFGError('Initial state for function %#x and function key %s is not found.' %
-                                   (function_start, CallStack.stack_suffix_to_string(function_key)))
-        else:
-            if function_key is not None:
-                # Warn the user
-                l.warning('Arguments "function_key" and "initial_state" should not be specified together. ' +
-                          'Using specified initial_state as the state.')
-            s = initial_state
+        :param int function_start: Address of the function
+        :param SimState state: The program state to base on.
+        """
+
+        if state is None:
+            state = self.project.factory.blank_state(mode="static",
+                                                     remove_options=self._state_options_to_remove
+                                                     )
+
+        # make room for arguments passed to the function
+        sp = state.regs.sp
+        sp_val = state.se.exactly_int(sp)
+        state.memory.set_stack_address_mapping(sp_val,
+                                               state.memory.stack_id(function_start) + '_pre',
+                                               0
+                                               )
+        state.registers.store('sp', sp - 0x100)
 
         # Set the stack address mapping for the initial stack
-        s.memory.set_stack_size(s.arch.stack_size)
-        initial_sp = s.se.any_int(s.registers.load('sp')) # FIXME: This is bad, as it may lose tracking of multiple sp values
-        initial_sp -= s.arch.bytes
-        s.memory.set_stack_address_mapping(initial_sp,
-                                           s.memory.stack_id(function_start),
-                                           function_start
-                                           )
+        state.memory.set_stack_size(state.arch.stack_size)
+        initial_sp = state.se.any_int(state.regs.sp) # FIXME: This is bad, as it may lose tracking of multiple sp values
+        initial_sp -= state.arch.bytes
+        state.memory.set_stack_address_mapping(initial_sp,
+                                               state.memory.stack_id(function_start),
+                                               function_start
+                                               )
 
-        return s
+        return state
 
     def _set_return_address(self, state, ret_addr):
         """
@@ -1304,6 +1298,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 job.call_task.register_function_analysis(task)
                 job.call_task.add_final_job(new_job)
 
+                self._save_function_final_state(job.call_function_key, job.call_target, successor_state)
+
                 job.dbg_exit_status[successor] = "Added as a final job"
 
             else:
@@ -1352,6 +1348,11 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
             if successor.scratch.jumpkind == 'Ijk_Ret':
                 # it's returning to the return site
+
+                # save the state as a final state of the function that we are returning from
+                source_function_key = FunctionKey.new(job.func_addr, job.call_stack_suffix) # key of the function that we are returning from
+                self._save_function_final_state(source_function_key, job.func_addr, successor_state)
+
                 # TODO: add an assertion that requires the returning target being the same as the return address we
                 # TODO: stored before
 
@@ -1525,22 +1526,50 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return new_bbl_stack
 
-    def _save_state(self, entry_wrapper, successor_ip, successor_state):
-        addr = entry_wrapper.path.addr
+    def _save_function_initial_state(self, function_key, function_address, state):
+        """
+        Save the initial state of a function, and merge it with existing ones if there are any.
 
-        new_call_stack_suffix = entry_wrapper.call_stack.stack_suffix(self._context_sensitivity_level)
-        function_key = new_call_stack_suffix + (addr, )
-        function_addr = successor_ip
-        l.debug('Saving out the state for function %#x with function_key %s',
-                function_addr,
-                CallStack.stack_suffix_to_string(function_key))
-        if function_addr in self._function_initial_states and \
-                        function_key in self._function_initial_states[function_addr]:
-            existing_state = self._function_initial_states[function_addr][function_key]
-            merged_state, _, _ = existing_state.merge(successor_state)
-            self._function_initial_states[function_addr][function_key] = merged_state
+        :param FunctionKey function_key: The key to this function.
+        :param int function_address: Address of the function.
+        :param simuvex.SimState state: Initial state of the function.
+        :return: None
+        """
+
+        l.debug('Saving the initial state for function %#08x with function key %s',
+                function_address,
+                function_key
+                )
+        if function_key in self._function_initial_states[function_address]:
+            existing_state = self._function_initial_states[function_address][function_key]
+            merged_state, _, _ = existing_state.merge(state)
+            self._function_initial_states[function_address][function_key] = merged_state
+
         else:
-            self._function_initial_states[function_addr][function_key] = successor_state
+            self._function_initial_states[function_address][function_key] = state
+
+    def _save_function_final_state(self, function_key, function_address, state):
+        """
+        Save the final state of a function, and merge it with existing ones if there are any.
+
+        :param FunctionKey function_key: The key to this function.
+        :param int function_address: Address of the function.
+        :param simuvex.SimState state: Initial state of the function.
+        :return: None
+        """
+
+        l.debug('Saving the final state for function %#08x with function key %s',
+                function_address,
+                function_key
+                )
+
+        if function_key in self._function_final_states[function_address]:
+            existing_state = self._function_final_states[function_address][function_key]
+            merged_state = existing_state.merge(state)[0]
+            self._function_final_states[function_address][function_key] = merged_state
+
+        else:
+            self._function_final_states[function_address][function_key] = state
 
     def _get_block_addr(self, b): #pylint:disable=R0201
         if isinstance(b, simuvex.SimIRSB):

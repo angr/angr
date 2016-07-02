@@ -6,8 +6,13 @@ import simuvex
 
 l = logging.getLogger(name="angr.entry_wrapper")
 
+# TODO: Make callsite an object and use it in SimRunKey and FunctionKey
 
 class SimRunKey(object):
+    """
+    A context-sensitive key for a SimRun object.
+    """
+
     def __init__(self, addr, callsite_tuples, jump_type):
         self.addr = addr
         self.callsite_tuples = callsite_tuples
@@ -55,6 +60,46 @@ class SimRunKey(object):
             return self.callsite_tuples[-1]
         else:
             return None
+
+
+class FunctionKey(object):
+    """
+    A context-sensitive key for a function.
+    """
+
+    def __init__(self, addr, callsite_tuples):
+        self.addr = addr
+        self.callsite_tuples = callsite_tuples
+
+        self._hash = None
+
+    def callsite_repr(self):
+
+        if self.callsite_tuples is None:
+            return "None"
+
+        s = []
+        format_addr = lambda addr: 'None' if addr is None else hex(addr)
+        for i in xrange(0, len(self.callsite_tuples), 2):
+            s.append('@'.join(map(format_addr, self.callsite_tuples[i:i + 2])))
+        return " -> ".join(s)
+
+    def __repr__(self):
+        s = "<FuncKey %#08x (%s)>" % (self.addr, self.callsite_repr())
+        return s
+
+    def __hash__(self):
+        if self._hash is None:
+            self._hash = hash((self.callsite_tuples, ) + (self.addr, ))
+        return self._hash
+
+    def __eq__(self, other):
+        return isinstance(other, FunctionKey) and \
+                self.addr == other.addr and self.callsite_tuples == other.callsite_tuples
+
+    @staticmethod
+    def new(addr, callsite_tuples):
+        return FunctionKey(addr, callsite_tuples)
 
 
 class CallStackFrame(object):
