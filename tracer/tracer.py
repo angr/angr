@@ -38,16 +38,19 @@ class Tracer(object):
     '''
 
     def __init__(self, binary, input=None, pov_file=None, simprocedures=None,
-                 seed=None, preconstrain=True, resiliency=True, chroot=None,
-                 add_options=None, remove_options=None):
+                 seed=None, preconstrain_input=True, preconstrain_flag=True,
+                 resiliency=True, chroot=None, add_options=None,
+                 remove_options=None):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
         :param povfile: CGC PoV describing the input to trace
         :param simprocedures: dictionary of replacement simprocedures
         :param seed: optional seed used for randomness, will be passed to QEMU
-        :param preconstrain: should the path be preconstrained to the provided
-            input
+        :param preconstrain_input: should the path be preconstrained to the
+            provided input
+        :param preconstrain_flag: should the path have the cgc flag page
+            preconstrained
         :param resiliency: should we continue to step forward even if qemu and
             angr disagree?
         :param chroot: trace the program as though it were executing in a
@@ -60,7 +63,8 @@ class Tracer(object):
         self.binary = binary
         self.input = input
         self.pov_file = pov_file
-        self.preconstrain = preconstrain
+        self.preconstrain_input = preconstrain_input
+        self.preconstrain_flag = preconstrain_flag
         self.simprocedures = {} if simprocedures is None else simprocedures
         if isinstance(seed, (int, long)):
             seed = str(seed)
@@ -259,7 +263,7 @@ class Tracer(object):
 
             # if our input was preconstrained we have to keep on the lookout
             # for unsat paths
-            if self.preconstrain:
+            if self.preconstrain_input:
                 self.path_group = self.path_group.stash(from_stash='unsat',
                                                         to_stash='active')
 
@@ -477,7 +481,7 @@ class Tracer(object):
 
     def remove_preconstraints(self, path):
 
-        if not self.preconstrain:
+        if not (self.preconstrain_input or self.preconstrain_flag):
             return
 
         new_constraints = path.state.se.constraints[len(self.preconstraints):]
@@ -733,6 +737,7 @@ class Tracer(object):
         '''
         c = entry_state.se.BVV(self._magic_content) == flag_page_var
         entry_state.add_constraints(c)
+        self.preconstraints.append(c)
 
     def _set_cgc_simprocedures(self):
         for symbol in self.simprocedures:
@@ -820,7 +825,7 @@ class Tracer(object):
             #entry_state.unicorn.cooldown_symbolic_memory = 4
             #entry_state.unicorn.cooldown_nonunicorn_blocks = 4
 
-        if self.preconstrain:
+        if self.preconstrain_input:
             self._preconstrain_state(entry_state)
 
         if not self.pov:
@@ -830,7 +835,7 @@ class Tracer(object):
         cgc_flag_data = claripy.BVS('cgc-flag-data', 0x1000 * 8)
         # preconstrain flag page
 
-        if self.preconstrain:
+        if self.preconstrain_flag:
             self._preconstrain_flag_page(entry_state, cgc_flag_data)
 
         # PROT_READ region
@@ -876,7 +881,7 @@ class Tracer(object):
                 add_options=self.add_options,
                 remove_options=self.remove_options)
 
-        if self.preconstrain:
+        if self.preconstrain_input:
             self._preconstrain_state(entry_state)
 
         # increase size of libc limits
