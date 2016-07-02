@@ -407,7 +407,7 @@ class Unicorn(SimStatePlugin):
             d = self._symbolic_passthrough(chunk.bytes_at(start + pos, size))
             # if not self.state.se.unique(d):
 
-            if d.symbolic:
+            if d.symbolic or len(d.annotations) > 0:
                 if taint is None:
                     taint = ctypes.create_string_buffer(length)
                 offset = ctypes.cast(ctypes.addressof(taint) + pos, ctypes.POINTER(ctypes.c_char))
