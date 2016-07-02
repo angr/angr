@@ -338,6 +338,13 @@ class Unicorn(SimStatePlugin):
             d = cd
         return d
 
+    def _process_value(self, d):
+        d = self._symbolic_passthrough(d)
+        if d.symbolic or len(d.annotations):
+            return None
+        else:
+            return d
+
     def _hook_mem_unmapped(self, uc, access, address, size, value, user_data): #pylint:disable=unused-argument
         """
         This callback is called when unicorn needs to access data that's not yet present in memory.
@@ -404,10 +411,10 @@ class Unicorn(SimStatePlugin):
             next_pos = offsets[i+1]
             chunk = the_bytes[pos]
             size = min((chunk.base + len(chunk) / 8) - (start + pos), next_pos - pos)
-            d = self._symbolic_passthrough(chunk.bytes_at(start + pos, size))
+            d = self._process_value(chunk.bytes_at(start + pos, size))
             # if not self.state.se.unique(d):
 
-            if d.symbolic or len(d.annotations) > 0:
+            if d is None:
                 if taint is None:
                     taint = ctypes.create_string_buffer(length)
                 offset = ctypes.cast(ctypes.addressof(taint) + pos, ctypes.POINTER(ctypes.c_char))
@@ -505,13 +512,13 @@ class Unicorn(SimStatePlugin):
             gs = self.state.se.any_int(self.state.regs.gs)
             self.write_msr(fs, 0xC0000100)
             self.write_msr(gs, 0xC0000101)
-            flags = self._symbolic_passthrough(ccall._get_flags(self.state)[0])
-            if flags.symbolic:
+            flags = self._process_value(ccall._get_flags(self.state)[0])
+            if flags is None:
                 raise SimValueError('symbolic eflags')
             self.uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.any_int(flags))
         elif self.state.arch.qemu_name == 'i386':
-            flags = self._symbolic_passthrough(ccall._get_flags(self.state)[0])
-            if flags.symbolic:
+            flags = self._process_value(ccall._get_flags(self.state)[0])
+            if flags is None:
                 raise SimValueError('symbolic eflags')
             self.uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.any_int(flags))
             fs = self.state.se.any_int(self.state.regs.fs) << 16
@@ -521,12 +528,11 @@ class Unicorn(SimStatePlugin):
         for r, c in self._uc_regs.iteritems():
             if r in self.reg_blacklist:
                 continue
-            v = self._symbolic_passthrough(getattr(self.state.regs, r))
-            if not v.symbolic:
-                # l.debug('setting $%s = %#x', r, self.state.se.any_int(v))
-                self.uc.reg_write(c, self.state.se.any_int(v))
-            else:
-                raise SimValueError('setting a symbolic register')
+            v = self._process_value(getattr(self.state.regs, r))
+            if v is None:
+                    raise SimValueError('setting a symbolic register')
+            # l.debug('setting $%s = %#x', r, self.state.se.any_int(v))
+            self.uc.reg_write(c, self.state.se.any_int(v))
 
         if self.state.arch.name in ('X86', 'AMD64'):
             # sync the fp clerical data
@@ -549,11 +555,10 @@ class Unicorn(SimStatePlugin):
                 if tag == 0:
                     tag_word |= 3       # unicorn doesn't care about any value other than 3 for setting
                 else:
-                    val = self._symbolic_passthrough(self.state.registers.load(vex_offset, size=8))
-                    if not val.symbolic:
-                        val = self.state.se.any_int(val)
-                    else:
+                    val = self._process_value(self.state.registers.load(vex_offset, size=8))
+                    if val is None:
                         raise SimValueError('setting a symbolic fp register')
+                    val = self.state.se.any_int(val)
 
                     sign = bool(val & 0x8000000000000000)
                     exponent = (val & 0x7FF0000000000000) >> 52
@@ -748,14 +753,14 @@ class Unicorn(SimStatePlugin):
     def _check_registers(self):
         ''' check if this state might be used in unicorn (has no concrete register)'''
         for r in self.state.arch.uc_regs.iterkeys():
-            v = self._symbolic_passthrough(getattr(self.state.regs, r))
-            if v.symbolic:
+            v = self._process_value(getattr(self.state.regs, r))
+            if v is None:
                 #l.info('detected symbolic register %s', r)
                 return False
 
         if self.state.arch.vex_conditional_helpers:
-            flags = self._symbolic_passthrough(ccall._get_flags(self.state)[0])
-            if flags is not None and flags.symbolic:
+            flags = self._process_value(ccall._get_flags(self.state)[0])
+            if flags is None:
                 #l.info("detected symbolic rflags/eflags")
                 return False
 
