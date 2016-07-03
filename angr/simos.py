@@ -18,6 +18,24 @@ from .tablespecs import StringTableSpec
 
 l = logging.getLogger("angr.simos")
 
+class IRange(object):
+    __slots__ = ('start', 'end')
+
+    def __init__(self, start, end):
+        self.start = start
+        self.end = end
+
+    def __contains__(self, k):
+        if type(k) in (int, long):
+            return k >= self.start and k < self.end
+        return False
+
+    def __getstate__(self):
+        return self.start, self.end
+
+    def __setstate__(self, state):
+        self.start, self.end = state
+
 
 class SimOS(object):
     """
@@ -171,7 +189,7 @@ class SimOS(object):
 
         self.proj.loader.perform_irelative_relocs(irelative_resolver)
 
-    def state_blank(self, addr=None, initial_prefix=None, **kwargs):
+    def state_blank(self, addr=None, initial_prefix=None, stack_size=1024*1024*8, **kwargs):
         """
         Initialize a blank state.
 
@@ -209,11 +227,15 @@ class SimOS(object):
 
         state = SimState(**kwargs)
 
+        stack_end = state.arch.initial_sp
+        if o.ABSTRACT_MEMORY not in state.options:
+            state.memory.mem._preapproved_stack = IRange(stack_end - stack_size, stack_end)
+
         if o.INITIALIZE_ZERO_REGISTERS in state.options:
             for r in self.arch.registers:
                 setattr(state.regs, r, 0)
 
-        state.regs.sp = self.arch.initial_sp
+        state.regs.sp = stack_end
 
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
@@ -272,6 +294,7 @@ class SimOS(object):
             state = self.state_blank(addr=addr, **kwargs)
         else:
             state = state.copy()
+            state.regs.ip = addr
         cc.setup_callsite(state, ret_addr, args, stack_base, alloc_base, grow_like_stack)
 
         if state.arch.name == 'PPC64' and toc is not None:
@@ -404,7 +427,7 @@ class SimLinux(SimOS):
                 if self.proj.arch.name == 'X86':
                     self.proj.hook(tlsfunc2.rebased_addr, _tls_get_addr_tunder_x86, kwargs={'ld': self.proj.loader})
                 else:
-                    l.warning("Found an unknown ___tls_get_addr, please tell Andrew")
+                    l.error("Found an unknown ___tls_get_addr, please tell Andrew")
 
             _rtld_global = ld_obj.get_symbol('_rtld_global')
             if _rtld_global is not None:
@@ -535,8 +558,8 @@ class SimLinux(SimOS):
         table.add_null()
 
         # Dump the table onto the stack, calculate pointers to args, env, and auxv
-        state.memory.store(state.regs.sp, claripy.BVV(0, 8*16), endness='Iend_BE')
-        argv = table.dump(state, state.regs.sp)
+        state.memory.store(state.regs.sp - 16, claripy.BVV(0, 8*16))
+        argv = table.dump(state, state.regs.sp - 16)
         envp = argv + ((len(args) + 1) * state.arch.bytes)
         auxv = argv + ((len(args) + len(env) + 2) * state.arch.bytes)
 
@@ -638,7 +661,12 @@ class SimCGC(SimOS):
         s = super(SimCGC, self).state_blank(**kwargs)  # pylint:disable=invalid-name
 
         # Special stack base for CGC binaries to work with Shellphish CRS
-        s.regs.sp = 0xbaff0000
+        s.regs.sp = 0xbaaaaffc
+
+        # Map the special cgc memory
+        if o.ABSTRACT_MEMORY not in s.options:
+            s.memory.mem._preapproved_stack = IRange(0xbaaab000 - 1024*1024*8, 0xbaaab000)
+            s.memory.map_region(0x4347c000, 4096, 1)
 
         # 'main' gets called with the magic page address as the first fast arg
         s.regs.ecx = 0x4347c000
@@ -647,6 +675,7 @@ class SimCGC(SimOS):
 
         # Create the CGC plugin
         s.get_plugin('cgc')
+
 
         return s
 

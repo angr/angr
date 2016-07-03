@@ -1,5 +1,6 @@
-from simuvex import SimIRSB, SimProcedures, SimState, BP_BEFORE, BP_AFTER
+from simuvex import SimIRSB, SimProcedures, SimUnicorn, SimState, BP_BEFORE, BP_AFTER
 from simuvex import s_options as o, s_cc
+from simuvex.s_errors import SimSegfaultError
 from .surveyors.caller import Callable
 
 import logging
@@ -50,6 +51,17 @@ class AngrObjectFactory(object):
         if addr is None:
             addr = state.se.any_int(state.regs.ip)
 
+        if o.STRICT_PAGE_ACCESS in state.options:
+            try:
+                perms = state.memory.permissions(addr)
+            except KeyError:
+                raise SimSegfaultError(addr, 'exec-miss')
+            else:
+                if not perms.symbolic:
+                    perms = perms.args[0]
+                    if not perms & 4:
+                        raise SimSegfaultError(addr, 'non-executable')
+
         thumb = False
         if addr % state.arch.instruction_alignment != 0:
             if state.thumb:
@@ -77,7 +89,7 @@ class AngrObjectFactory(object):
                        whitelist=stmt_whitelist,
                        last_stmt=last_stmt)
 
-    def sim_run(self, state, addr=None, jumpkind=None, **block_opts):
+    def sim_run(self, state, addr=None, jumpkind=None, extra_stop_points=None, **block_opts):
         """
         Returns a simuvex SimRun object (supporting refs() and exits()), automatically choosing whether to create a
         SimIRSB or a SimProcedure.
@@ -96,6 +108,7 @@ class AngrObjectFactory(object):
         :param insn_bytes:        a string of bytes to use for the block instead of the project.
         :param max_size:          the maximum size of the block, in bytes.
         :param num_inst:          the maximum number of instructions.
+        :param extra_stop_points: addresses to stop at, other than hooked functions
         :param traceflags:        traceflags to be passed to VEX. Default: 0
         """
 
@@ -128,8 +141,18 @@ class AngrObjectFactory(object):
             state._inspect('call', BP_AFTER, function_name=sim_proc_class.__name__)
             l.debug("... %s created", r)
 
+        elif o.UNICORN in state.options and state.unicorn.check():
+            l.info('Creating SimUnicorn at %#x', addr)
+            stops = self._project._sim_procedures.keys()
+            if extra_stop_points is not None:
+                stops.extend(extra_stop_points)
+
+            r = SimUnicorn(state, stop_points=stops)
+            if not r.success:
+                r = self.sim_block(state, **block_opts)
+
         else:
-            l.debug("Creating SimIRSB at %#x", addr)
+            l.debug("Creating SimIRSB at 0x%x", addr)
             r = self.sim_block(state, addr=addr, **block_opts)
 
         # Peek and fix the IP for syscalls

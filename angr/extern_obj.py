@@ -1,4 +1,4 @@
-from cle import Backend, Clemory
+from cle import Backend, Clemory, Segment
 
 class AngrExternObject(Backend):
     def __init__(self, arch, alloc_size=0x4000, granularity=16):
@@ -10,12 +10,19 @@ class AngrExternObject(Backend):
         self._granularity = granularity
         self.memory = Clemory(arch)
         self.memory.add_backer(0, '\0'*alloc_size)
+        self.segments = [Segment(0, 0, 0, alloc_size)]
+        self.segments[0].is_readable = True
+        self.segments[0].is_writable = False
+        self.segments[0].is_executable = True
 
     def get_max_addr(self):
         return self._alloc_size + self.rebase_addr
 
     def get_min_addr(self):
         return self.rebase_addr
+
+    def contains_addr(self, addr):
+        return addr >= self.get_min_addr() and addr < self.get_max_addr()
 
     def get_pseudo_addr(self, ident, size=16):
         if ident not in self._lookup_table:

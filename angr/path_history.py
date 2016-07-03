@@ -176,7 +176,7 @@ class HistoryIter(TreeIter):
 class AddrIter(TreeIter):
 	def __reversed__(self):
 		for hist in self._iter_nodes():
-			for a in iter(hist._addrs):
+			for a in reversed(hist._addrs):
 				yield a
 
 class RunstrIter(TreeIter):

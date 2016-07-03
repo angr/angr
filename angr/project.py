@@ -133,8 +133,10 @@ class Project(object):
         self._support_selfmodifying_code = support_selfmodifying_code
         self._ignore_functions = ignore_functions
         self._extern_obj = AngrExternObject(self.arch)
+        self._extern_obj.provides = 'angr externs'
         self.loader.add_object(self._extern_obj)
         self._syscall_obj = AngrExternObject(self.arch)
+        self._syscall_obj.provides = 'angr syscalls'
         self.loader.add_object(self._syscall_obj)
 
         self._cfg = None
@@ -270,6 +272,7 @@ class Project(object):
                             :class:`SimProcedure`'s run function.
         """
 
+        l.debug('hooking %#x with %s', addr, func)
         if kwargs is None: kwargs = {}
 
         if self.is_hooked(addr):
@@ -353,7 +356,6 @@ class Project(object):
                 self.unhook(pseudo_addr)
 
             self.hook(pseudo_addr, obj, kwargs=kwargs)
-            l.debug("\t -> setting SimProcedure with pseudo_addr 0x%x...", pseudo_addr)
         else:
             # This is pretty intensely sketchy
             pseudo_vaddr = obj - self._extern_obj.rebase_addr
