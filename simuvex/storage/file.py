@@ -114,20 +114,24 @@ class SimFile(SimStatePlugin):
 
         # TODO: check file close status
 
-        if s_options.CONCRETIZE_SYMBOLIC_FILE_READ_SIZES in self.state.options:
-            # we need to concretize the length
-            if self.state.se.symbolic(orig_length) or self.state.se.symbolic(max_length):
-                real_length = self.state.se.max_int(
-                    orig_length,
-                    extra_constraints=[
-                        orig_length <= max_length
-                    ] if orig_length is not max_length else [ ]
-                )
-                self.state.se.add_constraints(orig_length == real_length)
-            else:
-                real_length = min(max_length, orig_length)
-        elif self.state.se.symbolic(real_length) or self.state.se.symbolic(max_length):
-            self.state.add_constraints(self.pos + real_length <= self.size)
+        # check if we need to concretize the length
+        if (
+            s_options.CONCRETIZE_SYMBOLIC_FILE_READ_SIZES in self.state.options and
+            (self.state.se.symbolic(orig_length) or self.state.se.symbolic(max_length))
+        ):
+            real_length = self.state.se.max_int(
+                orig_length,
+                extra_constraints=(
+                    orig_length <= max_length
+                ,) if orig_length is not max_length else ( )
+            )
+            self.state.add_constraints(orig_length == real_length)
+
+        if self.size is not None:
+            if self.state.se.symbolic(real_length) or self.state.se.symbolic(max_length):
+                self.state.add_constraints(self.pos + real_length <= self.size)
+            elif not self.state.se.symbolic(real_length) and not self.state.se.symbolic(max_length):
+                real_length = min(self.state.se.any_int(max_length), self.state.se.any_int(real_length))
 
         self.content.copy_contents(dst_addr, self.pos, real_length , dst_memory=self.state.memory)
         self.read_pos += _deps_unpack(real_length)[0]
