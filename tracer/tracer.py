@@ -6,6 +6,7 @@ import socket
 import claripy
 import simuvex
 import tempfile
+import topsecret
 import subprocess
 from .tracerpov import TracerPoV
 from .simprocedures import FixedOutTransmit, FixedInReceive
@@ -848,6 +849,9 @@ class Tracer(object):
             save_unsat=True,
             hierarchy=False,
             save_unconstrained=self.crash_mode)
+
+        pg.use_technique(topsecret.Oppologist())
+        l.info("oppologist enabled")
 
         return pg
 
