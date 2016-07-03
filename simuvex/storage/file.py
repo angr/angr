@@ -104,20 +104,38 @@ class SimFile(SimStatePlugin):
         :param length:      The length of the read.
         :return:            The length of the read.
         """
-        # TODO: check file close status
-        read_length = length
+
+        orig_length = length
+        real_length = length
+        max_length = length
+
         if self.size is not None:
-            remaining = self.size - self.pos
-            if s_options.CONCRETIZE_SYMBOLIC_FILE_READ_SIZES in self.state.options and self.state.se.symbolic(length):
-                new_length = self.state.se.any_int(length)
-                self.state.add_constraints(length == new_length)
-                length = new_length
-            read_length = self.state.se.If(remaining < length, remaining, length)
+            max_length = self.size - self.pos
 
-        self.content.copy_contents(dst_addr, self.pos, read_length , dst_memory=self.state.memory)
+        # TODO: check file close status
 
-        self.read_pos += _deps_unpack(read_length)[0]
-        return read_length
+        # check if we need to concretize the length
+        if (
+            s_options.CONCRETIZE_SYMBOLIC_FILE_READ_SIZES in self.state.options and
+            (self.state.se.symbolic(orig_length) or self.state.se.symbolic(max_length))
+        ):
+            real_length = self.state.se.max_int(
+                orig_length,
+                extra_constraints=(
+                    orig_length <= max_length
+                ,) if orig_length is not max_length else ( )
+            )
+            self.state.add_constraints(orig_length == real_length)
+
+        if self.size is not None:
+            if self.state.se.symbolic(real_length) or self.state.se.symbolic(max_length):
+                self.state.add_constraints(self.pos + real_length <= self.size)
+            elif not self.state.se.symbolic(real_length) and not self.state.se.symbolic(max_length):
+                real_length = min(self.state.se.any_int(max_length), self.state.se.any_int(real_length))
+
+        self.content.copy_contents(dst_addr, self.pos, real_length , dst_memory=self.state.memory)
+        self.read_pos += _deps_unpack(real_length)[0]
+        return real_length
 
     def read_from(self, length):
 

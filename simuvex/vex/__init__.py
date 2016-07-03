@@ -19,6 +19,8 @@ def translate_irconst(state, c):
     if isinstance(c.value, (int, long)):
         return state.se.BVV(c.value, size)
     elif isinstance(c.value, float):
+        if options.SUPPORT_FLOATING_POINT not in state.options:
+            raise UnsupportedIRExprError("floating point support disabled")
         if size == 32:
             return state.se.FPV(c.value, FSORT_FLOAT)
         elif size == 64:
@@ -31,4 +33,5 @@ from .expressions import SimIRExpr, translate_expr
 from .statements import SimIRStmt, translate_stmt
 from .irsb import SimIRSB, SimIRSBError
 from . import ccall
-from ..s_errors import SimExpressionError
+from ..s_errors import SimExpressionError, UnsupportedIRExprError
+from .. import s_options as options

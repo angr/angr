@@ -179,6 +179,16 @@ FAST_REGISTERS = "FAST_REGISTERS"
 # Under-constrained symbolic execution
 UNDER_CONSTRAINED_SYMEXEC = "UNDER_CONSTRAINED_SYMEXEC"
 
+# enable unicorn engine
+UNICORN = "UNICORN"
+UNICORN_ZEROPAGE_GUARD = "UNICORN_ZEROPAGE_GUARD"
+
+# aggressively concretize symbolic data when we see it in unicorn
+UNICORN_AGGRESSIVE_CONCRETIZATION = "UNICORN_AGGRESSIVE_CONCRETIZATION"
+
+# floating point support
+SUPPORT_FLOATING_POINT = "SUPPORT_FLOATING_POINT"
+
 # Resilience options
 BYPASS_UNSUPPORTED_IROP = "BYPASS_UNSUPPORTED_IROP"
 BYPASS_ERRORED_IROP = "BYPASS_ERRORED_IROP"
@@ -217,6 +227,9 @@ KEEP_IP_SYMBOLIC = "KEEP_IP_SYMBOLIC"
 # It is only applied to SimAbstractMemory
 KEEP_MEMORY_READS_DISCRETE = "KEEP_MEMORY_READS_DISCRETE"
 
+# Raise a SigSegfaultError on illegal memory accesses
+STRICT_PAGE_ACCESS = "STRICT_PAGE_ACCESS"
+
 #
 # CGC specific state options
 #
@@ -233,8 +246,9 @@ refs = { TRACK_REGISTER_ACTIONS, TRACK_MEMORY_ACTIONS, TRACK_TMP_ACTIONS, TRACK_
 approximation = { APPROXIMATE_SATISFIABILITY, APPROXIMATE_MEMORY_SIZES, APPROXIMATE_MEMORY_INDICES }
 symbolic = { DO_CCALLS, SYMBOLIC, TRACK_CONSTRAINTS, LAZY_SOLVES, SYMBOLIC_INITIAL_VALUES, COMPOSITE_SOLVER }
 simplification = { SIMPLIFY_MEMORY_WRITES, SIMPLIFY_REGISTER_WRITES }
-common_options_without_simplification = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES, OPTIMIZE_IR, TRACK_MEMORY_MAPPING }
+common_options_without_simplification = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES, OPTIMIZE_IR, TRACK_MEMORY_MAPPING, SUPPORT_FLOATING_POINT }
 common_options = common_options_without_simplification | simplification
+unicorn = { UNICORN, INITIALIZE_ZERO_REGISTERS }
 
 modes = { }
 modes['symbolic'] = common_options | symbolic | refs #| approximation | { VALIDATE_APPROXIMATIONS }

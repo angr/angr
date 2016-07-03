@@ -47,3 +47,6 @@ class SimStatePlugin(object):
         if name in default_plugins:
             raise Exception("%s is already set as the default for %s" % (default_plugins[name], name))
         default_plugins[name] = cls
+
+    def init_state(self):
+        pass

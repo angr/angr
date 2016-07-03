@@ -12,6 +12,7 @@ from .s_state import SimState
 from .s_errors import *
 from .s_action import *
 from .s_procedure import SimProcedure
+from .s_unicorn import SimUnicorn
 import simuvex.procedures
 from .procedures import SimProcedures
 from .s_run import *

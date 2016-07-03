@@ -203,6 +203,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def uc_manager(self):
         return self.get_plugin('uc_manager')
 
+    @property
+    def unicorn(self):
+        return self.get_plugin('unicorn')
+
     def _inspect(self, *args, **kwargs):
         if self.has_plugin('inspector'):
             self.inspect.action(*args, **kwargs)
@@ -232,6 +236,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         #l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
         plugin.set_state(self._get_weakref() if not isinstance(plugin, SimAbstractMemory) else self)
         self.plugins[name] = plugin
+        plugin.init_state()
         return plugin
 
     def release_plugin(self, name):

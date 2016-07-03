@@ -282,7 +282,7 @@ class SimProcedure(SimRun):
         if isinstance(exit_code, (int, long)):
             exit_code = self.state.se.BVV(exit_code, self.state.arch.bits)
         self.state.log.add_event('terminate', exit_code=exit_code)
-        self.add_successor(self.state, self.state.ip, self.state.se.true, 'Ijk_Exit')
+        self.add_successor(self.state, self.state.regs.ip, self.state.se.true, 'Ijk_Exit')
 
     def ty_ptr(self, ty):
         return SimTypePointer(self.state.arch, ty)

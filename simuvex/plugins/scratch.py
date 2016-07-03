@@ -57,6 +57,21 @@ class SimStateScratch(SimStatePlugin):
             self.sim_procedure = scratch.sim_procedure
             self.bbl_addr_list = scratch.bbl_addr_list
 
+        # priveleges
+        self._priv_stack = [False]
+
+    @property
+    def priv(self):
+        return self._priv_stack[-1]
+
+    def push_priv(self, priv):
+        self._priv_stack.append(priv)
+
+    def pop_priv(self):
+        self._priv_stack.pop()
+        if len(self._priv_stack) == 0:
+            raise SimValueError("Priv stack is empty")
+
     def tmp_expr(self, tmp):
         """
         Returns the Claripy expression of a VEX temp value.
@@ -113,6 +128,7 @@ class SimStateScratch(SimStatePlugin):
         self.ignored_variables = self.used_variables.complement(self.input_variables)
 
 from ..s_variable import SimVariableSet
+from ..s_errors import SimValueError
 from .. import s_options as o
 from .inspect import BP_AFTER, BP_BEFORE
 SimStateScratch.register_default('scratch', SimStateScratch)

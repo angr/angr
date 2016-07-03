@@ -15,7 +15,11 @@ class mmap(simuvex.SimProcedure):
         else:
             size = self.state.se.any_int(length) * 8
 
-        # mmap on the heap, lol
-        addr = self.state.libc.heap_location
-        self.state.libc.heap_location += size
+        addr = self.state.libc.mmap_base
+        new_base = addr + size
+        if new_base & 0xfff:
+            new_base = (new_base & ~0xfff) + 0x1000
+        self.state.libc.mmap_base = new_base
+
+        self.state.memory.map_region(addr, size, prot[2:0])
         return addr

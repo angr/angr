@@ -836,7 +836,10 @@ class SimIROp(object):
 def translate(state, op, s_args):
     if op in operations:
         try:
-            return operations[op].calculate( *s_args)
+            irop = operations[op]
+            if irop._float and not options.SUPPORT_FLOATING_POINT in state.options:
+                raise UnsupportedIROpError("floating point support disabled")
+            return irop.calculate( *s_args)
         except ZeroDivisionError:
             if state.mode == 'static' and len(s_args) == 2 and state.se.is_true(s_args[1] == 0):
                 # Monkeypatch the dividend to another value instead of 0
