@@ -237,7 +237,11 @@ class Unicorn(SimStatePlugin):
     def uc(self):
         new_id = next(_unicounter)
 
-        if _unicorn_tls.uc is None or _unicorn_tls.uc.arch != self.state.arch or _unicorn_tls.uc.cache_key != self.cache_key:
+        if (
+            _unicorn_tls.uc is None or
+            _unicorn_tls.uc.arch != self.state.arch or
+            _unicorn_tls.uc.cache_key != self.cache_key
+        ):
             _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key)
         elif _unicorn_tls.uc.id != self._unicount:
             if not self._reuse_unicorn:
