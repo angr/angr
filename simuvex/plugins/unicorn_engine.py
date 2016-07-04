@@ -47,7 +47,7 @@ class STOP(object): # stop_t
 
 _unicounter = itertools.count()
 
-class Uniwrapper(object):
+class Uniwrapper(unicorn.Uc):
     def __init__(self, arch, cache_key):
         l.debug("Creating unicorn state!")
         self.arch = arch
@@ -55,32 +55,29 @@ class Uniwrapper(object):
         self.wrapped_mapped = set()
         self.wrapped_hooks = set()
         self.id = None
-        self._uc = unicorn.Uc(arch.uc_arch, arch.uc_mode)
-
-    def __getattr__(self, v):
-        return getattr(self._uc, v)
+        unicorn.Uc.__init__(self, arch.uc_arch, arch.uc_mode)
 
     def hook_add(self, htype, callback, user_data=None, begin=1, end=0, arg1=0):
-        h = self._uc.hook_add(htype, callback, user_data=user_data, begin=begin, end=end, arg1=arg1)
+        h = unicorn.Uc.hook_add(self, htype, callback, user_data=user_data, begin=begin, end=end, arg1=arg1)
         #l.debug("Hook: %s,%s -> %s", htype, callback.__name__, h)
         self.wrapped_hooks.add(h)
         return h
 
     def hook_del(self, h):
         #l.debug("Clearing hook %s", h)
-        h = self._uc.hook_del(h)
+        h = unicorn.Uc.hook_del(self, h)
         self.wrapped_hooks.discard(h)
         return h
 
     def mem_map(self, addr, size, perms=7):
         #l.debug("Mapping %d bytes at %#x", size, addr)
-        m = self._uc.mem_map(addr, size, perms=perms)
+        m = unicorn.Uc.mem_map(self, addr, size, perms=perms)
         self.wrapped_mapped.add((addr, size))
         return m
 
     def mem_unmap(self, addr, size):
         #l.debug("Unmapping %d bytes at %#x", size, addr)
-        m = self._uc.mem_unmap(addr, size)
+        m = unicorn.Uc.mem_unmap(self, addr, size)
         self.wrapped_mapped.discard((addr, size))
         return m
 
@@ -88,14 +85,14 @@ class Uniwrapper(object):
         #l.debug("Resetting memory.")
         for addr,size in self.wrapped_mapped:
             #l.debug("Unmapping %d bytes at %#x", size, addr)
-            self._uc.mem_unmap(addr, size)
+            unicorn.Uc.mem_unmap(self, addr, size)
         self.wrapped_mapped.clear()
 
     def hook_reset(self):
         #l.debug("Resetting hooks.")
         for h in self.wrapped_hooks:
             #l.debug("Clearing hook %s", h)
-            self._uc.hook_del(h)
+            unicorn.Uc.hook_del(self, h)
         self.wrapped_hooks.clear()
 
     def reset(self):
