@@ -257,6 +257,10 @@ class Unicorn(SimStatePlugin):
         self._unicount = new_id
         return _unicorn_tls.uc
 
+    @staticmethod
+    def delete_uc():
+        _unicorn_tls.uc = None
+
     def _setup_unicorn(self):
         if self.state.arch.uc_mode is None:
             raise SimUnicornUnsupport("unsupported architecture %r" % self.state.arch)
@@ -505,8 +509,8 @@ class Unicorn(SimStatePlugin):
 
         # there's something we're not properly resetting for syscalls, so
         # we'll clear the state when they happen
-        if self.stop_reason == STOP.STOP_SYSCALL:
-            _unicorn_tls.uc = None
+        if self.stop_reason not in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT, STOP.STOP_SYMBOLIC):
+            self.delete_uc()
 
         #l.debug("Resetting the unicorn state.")
         self.uc.reset()
