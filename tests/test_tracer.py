@@ -44,6 +44,31 @@ def test_cgc_0b32aa01_01_raw():
     nose.tools.assert_not_equal(crash_path, None)
     nose.tools.assert_not_equal(crash_state, None)
 
+def test_symbolic_sized_receives():
+    '''
+    Make sure symbolic sized receives are correctly handled
+    '''
+
+    binary_path = os.path.join(bin_location, "cgc_trials/CROMU_00070")
+    t = tracer.Tracer(binary_path, "hello")
+
+    # will except if failed
+    result_path, crash_state = t.run()
+
+    nose.tools.assert_true(result_path is not None)
+
+    nose.tools.assert_equal(crash_state, None)
+
+    t = tracer.Tracer(binary_path, "\x00" * 20)
+
+    # will except if failed
+    result_path, crash_state = t.run()
+
+    nose.tools.assert_true(result_path is not None)
+
+    nose.tools.assert_equal(crash_state, None)
+
+
 def test_allocation_base_continuity():
     '''
     Make sure the heap base is correct in angr after concrete heap manipulation
