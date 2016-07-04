@@ -615,7 +615,7 @@ class Tracer(object):
     def _local_cache_lookup(self):
 
         if os.path.exists(self._cache_file):
-            l.info("loading state from cache file %s", self._cache_file)
+            l.warning("loading state from cache file %s", self._cache_file)
 
             # just for the testcase
             self._loaded_from_cache = True
@@ -632,7 +632,7 @@ class Tracer(object):
 
         state = cache_path.state
 
-        l.info("caching state to %s", self._cache_file)
+        l.warning("caching state to %s", self._cache_file)
         with open(self._cache_file, 'w') as f:
             pickle.dump((self.bb_cnt - 1, state), f)
 
