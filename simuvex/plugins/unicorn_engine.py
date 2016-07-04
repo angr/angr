@@ -517,6 +517,7 @@ class Unicorn(SimStatePlugin):
 
     def set_regs(self):
         ''' setting unicorn registers '''
+        uc = self.uc
 
         if self.state.arch.qemu_name == 'x86_64':
             fs = self.state.se.any_int(self.state.regs.fs)
@@ -526,12 +527,12 @@ class Unicorn(SimStatePlugin):
             flags = self._process_value(ccall._get_flags(self.state)[0])
             if flags is None:
                 raise SimValueError('symbolic eflags')
-            self.uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.any_int(flags))
+            uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.any_int(flags))
         elif self.state.arch.qemu_name == 'i386':
             flags = self._process_value(ccall._get_flags(self.state)[0])
             if flags is None:
                 raise SimValueError('symbolic eflags')
-            self.uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.any_int(flags))
+            uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.any_int(flags))
             fs = self.state.se.any_int(self.state.regs.fs) << 16
             gs = self.state.se.any_int(self.state.regs.gs) << 16
             self.setup_gdt(fs, gs)
@@ -543,7 +544,7 @@ class Unicorn(SimStatePlugin):
             if v is None:
                     raise SimValueError('setting a symbolic register')
             # l.debug('setting $%s = %#x', r, self.state.se.any_int(v))
-            self.uc.reg_write(c, self.state.se.any_int(v))
+            uc.reg_write(c, self.state.se.any_int(v))
 
         if self.state.arch.name in ('X86', 'AMD64'):
             # sync the fp clerical data
@@ -552,8 +553,8 @@ class Unicorn(SimStatePlugin):
             rm = self.state.se.any_int(self.state.regs.fpround[1:0])
             control = 0x037F | (rm << 10)
             status = (top << 11) | c3210
-            self.uc.reg_write(unicorn.x86_const.UC_X86_REG_FPCW, control)
-            self.uc.reg_write(unicorn.x86_const.UC_X86_REG_FPSW, status)
+            uc.reg_write(unicorn.x86_const.UC_X86_REG_FPCW, control)
+            uc.reg_write(unicorn.x86_const.UC_X86_REG_FPSW, status)
 
             # we gotta convert the 64-bit doubles values to 80-bit extended precision!
             uc_offset = unicorn.x86_const.UC_X86_REG_FP0
@@ -590,13 +591,14 @@ class Unicorn(SimStatePlugin):
                     if sign:
                         exponent |= 0x8000
 
-                    self.uc.reg_write(uc_offset, (exponent, mantissa))
+                    uc.reg_write(uc_offset, (exponent, mantissa))
 
                 uc_offset += 1
                 vex_offset += 8
                 vex_tag_offset += 1
 
-            self.uc.reg_write(unicorn.x86_const.UC_X86_REG_FPTAG, tag_word)
+            uc.reg_write(unicorn.x86_const.UC_X86_REG_FPTAG, tag_word)
+
     # this stuff is 100% copied from the unicorn regression tests
     def setup_gdt(self, fs, gs, fs_size=0xFFFFFFFF, gs_size=0xFFFFFFFF):
         GDT_ADDR = 0x1000
@@ -610,26 +612,28 @@ class Unicorn(SimStatePlugin):
         S_GDT = 0x0
         S_PRIV_0 = 0x0
 
-        self.uc.mem_map(GDT_ADDR, GDT_LIMIT)
+        uc = self.uc
+
+        uc.mem_map(GDT_ADDR, GDT_LIMIT)
         normal_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
         stack_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0, F_PROT_32)
         fs_entry = self.create_gdt_entry(fs, fs_size, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
         gs_entry = self.create_gdt_entry(gs, gs_size, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
-        self.uc.mem_write(GDT_ADDR + 8, normal_entry + stack_entry + fs_entry + gs_entry)
+        uc.mem_write(GDT_ADDR + 8, normal_entry + stack_entry + fs_entry + gs_entry)
 
-        self.uc.reg_write(self._uc_const.UC_X86_REG_GDTR, (0, GDT_ADDR, GDT_LIMIT, 0x0))
+        uc.reg_write(self._uc_const.UC_X86_REG_GDTR, (0, GDT_ADDR, GDT_LIMIT, 0x0))
 
         selector = self.create_selector(1, S_GDT | S_PRIV_0)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_CS, selector)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_DS, selector)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_ES, selector)
+        uc.reg_write(self._uc_const.UC_X86_REG_CS, selector)
+        uc.reg_write(self._uc_const.UC_X86_REG_DS, selector)
+        uc.reg_write(self._uc_const.UC_X86_REG_ES, selector)
         selector = self.create_selector(2, S_GDT | S_PRIV_0)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_SS, selector)
+        uc.reg_write(self._uc_const.UC_X86_REG_SS, selector)
         selector = self.create_selector(3, S_GDT | S_PRIV_0)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_FS, selector)
+        uc.reg_write(self._uc_const.UC_X86_REG_FS, selector)
         selector = self.create_selector(4, S_GDT | S_PRIV_0)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_GS, selector)
-        self.uc.mem_unmap(GDT_ADDR, GDT_LIMIT)
+        uc.reg_write(self._uc_const.UC_X86_REG_GS, selector)
+        uc.mem_unmap(GDT_ADDR, GDT_LIMIT)
 
     @staticmethod
     def create_selector(idx, flags):
@@ -652,26 +656,30 @@ class Unicorn(SimStatePlugin):
     def read_msr(self, msr=0xC0000100):
         setup_code = '\x0f\x32'
         BASE = 0x100B000000
-        self.uc.mem_map(BASE, 0x1000)
-        self.uc.mem_write(BASE, setup_code)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_RCX, msr)
-        self.uc.emu_start(BASE, BASE + len(setup_code))
-        self.uc.mem_unmap(BASE, 0x1000)
 
-        a = self.uc.reg_read(self._uc_const.UC_X86_REG_RAX)
-        d = self.uc.reg_read(self._uc_const.UC_X86_REG_RDX)
+        uc = self.uc
+        uc.mem_map(BASE, 0x1000)
+        uc.mem_write(BASE, setup_code)
+        uc.reg_write(self._uc_const.UC_X86_REG_RCX, msr)
+        uc.emu_start(BASE, BASE + len(setup_code))
+        uc.mem_unmap(BASE, 0x1000)
+
+        a = uc.reg_read(self._uc_const.UC_X86_REG_RAX)
+        d = uc.reg_read(self._uc_const.UC_X86_REG_RDX)
         return (d << 32) + a
 
     def write_msr(self, val, msr=0xC0000100):
         setup_code = '\x0f\x30'
         BASE = 0x100B000000
-        self.uc.mem_map(BASE, 0x1000)
-        self.uc.mem_write(BASE, setup_code)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_RCX, msr)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_RAX, val & 0xFFFFFFFF)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_RDX, val >> 32)
-        self.uc.emu_start(BASE, BASE + len(setup_code))
-        self.uc.mem_unmap(BASE, 0x1000)
+
+        uc = self.uc
+        uc.mem_map(BASE, 0x1000)
+        uc.mem_write(BASE, setup_code)
+        uc.reg_write(self._uc_const.UC_X86_REG_RCX, msr)
+        uc.reg_write(self._uc_const.UC_X86_REG_RAX, val & 0xFFFFFFFF)
+        uc.reg_write(self._uc_const.UC_X86_REG_RDX, val >> 32)
+        uc.emu_start(BASE, BASE + len(setup_code))
+        uc.mem_unmap(BASE, 0x1000)
 
     reg_blacklist = ('cs', 'ds', 'es', 'fs', 'gs', 'ss', 'mm0', 'mm1', 'mm2', 'mm3', 'mm4', 'mm5', 'mm6', 'mm7')
 
