@@ -224,6 +224,20 @@ class Unicorn(SimStatePlugin):
         # this is the counter for the unicorn count
         self._unicount = next(_unicounter) if unicount is None else unicount
 
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        del d['_uc_state']
+        del d['cache_key']
+        del d['_unicount']
+        return d
+
+    def __setstate__(self, s):
+        self.__dict__.update(s)
+        self._unicount = next(_unicounter)
+        self._uc_state = None
+        self.cache_key = hash(self)
+        _unicorn_tls.uc = None
+
     def set_state(self, state):
         SimStatePlugin.set_state(self, state)
         if state.arch.name == "MIPS32":
@@ -760,7 +774,7 @@ class Unicorn(SimStatePlugin):
         u = Unicorn(
             syscall_hooks=dict(self.syscall_hooks),
             cache_key=self.cache_key,
-            unicount=self._unicount,
+            #unicount=self._unicount,
             cooldown_nonunicorn_blocks=self.cooldown_nonunicorn_blocks,
             cooldown_symbolic_registers=self.cooldown_symbolic_registers,
             max_steps=self.max_steps,
