@@ -201,6 +201,9 @@ public:
 		LOG_D("stop: %s", msg);
 		rollback();
 		uc_emu_stop(uc);
+
+		// if we errored out right away, fix the step count to 0
+		if (cur_steps == -1) cur_steps = 0;
 	}
 
 	void step(uint64_t current_address) {

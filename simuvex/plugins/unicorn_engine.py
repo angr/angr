@@ -47,7 +47,7 @@ class STOP(object): # stop_t
 
 _unicounter = itertools.count()
 
-class Uniwrapper(unicorn.Uc):
+class Uniwrapper(object):
     def __init__(self, arch, cache_key):
         l.debug("Creating unicorn state!")
         self.arch = arch
@@ -55,29 +55,32 @@ class Uniwrapper(unicorn.Uc):
         self.wrapped_mapped = set()
         self.wrapped_hooks = set()
         self.id = None
-        unicorn.Uc.__init__(self, arch.uc_arch, arch.uc_mode)
+        self._uc = unicorn.Uc(arch.uc_arch, arch.uc_mode)
+
+    def __getattr__(self, v):
+        return getattr(self._uc, v)
 
     def hook_add(self, htype, callback, user_data=None, begin=1, end=0, arg1=0):
-        h = unicorn.Uc.hook_add(self, htype, callback, user_data=user_data, begin=begin, end=end, arg1=arg1)
+        h = self._uc.hook_add(htype, callback, user_data=user_data, begin=begin, end=end, arg1=arg1)
         #l.debug("Hook: %s,%s -> %s", htype, callback.__name__, h)
         self.wrapped_hooks.add(h)
         return h
 
     def hook_del(self, h):
         #l.debug("Clearing hook %s", h)
-        h = unicorn.Uc.hook_del(self, h)
+        h = self._uc.hook_del(h)
         self.wrapped_hooks.discard(h)
         return h
 
     def mem_map(self, addr, size, perms=7):
         #l.debug("Mapping %d bytes at %#x", size, addr)
-        m = unicorn.Uc.mem_map(self, addr, size, perms=perms)
+        m = self._uc.mem_map(addr, size, perms=perms)
         self.wrapped_mapped.add((addr, size))
         return m
 
     def mem_unmap(self, addr, size):
         #l.debug("Unmapping %d bytes at %#x", size, addr)
-        m = unicorn.Uc.mem_unmap(self, addr, size)
+        m = self._uc.mem_unmap(addr, size)
         self.wrapped_mapped.discard((addr, size))
         return m
 
@@ -85,14 +88,14 @@ class Uniwrapper(unicorn.Uc):
         #l.debug("Resetting memory.")
         for addr,size in self.wrapped_mapped:
             #l.debug("Unmapping %d bytes at %#x", size, addr)
-            unicorn.Uc.mem_unmap(self, addr, size)
+            self._uc.mem_unmap(addr, size)
         self.wrapped_mapped.clear()
 
     def hook_reset(self):
         #l.debug("Resetting hooks.")
         for h in self.wrapped_hooks:
             #l.debug("Clearing hook %s", h)
-            unicorn.Uc.hook_del(self, h)
+            self._uc.hook_del(h)
         self.wrapped_hooks.clear()
 
     def reset(self):
@@ -221,6 +224,20 @@ class Unicorn(SimStatePlugin):
         # this is the counter for the unicorn count
         self._unicount = next(_unicounter) if unicount is None else unicount
 
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        del d['_uc_state']
+        del d['cache_key']
+        del d['_unicount']
+        return d
+
+    def __setstate__(self, s):
+        self.__dict__.update(s)
+        self._unicount = next(_unicounter)
+        self._uc_state = None
+        self.cache_key = hash(self)
+        _unicorn_tls.uc = None
+
     def set_state(self, state):
         SimStatePlugin.set_state(self, state)
         if state.arch.name == "MIPS32":
@@ -234,7 +251,11 @@ class Unicorn(SimStatePlugin):
     def uc(self):
         new_id = next(_unicounter)
 
-        if _unicorn_tls.uc is None or _unicorn_tls.uc.arch != self.state.arch or _unicorn_tls.uc.cache_key != self.cache_key:
+        if (
+            _unicorn_tls.uc is None or
+            _unicorn_tls.uc.arch != self.state.arch or
+            _unicorn_tls.uc.cache_key != self.cache_key
+        ):
             _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key)
         elif _unicorn_tls.uc.id != self._unicount:
             if not self._reuse_unicorn:
@@ -249,6 +270,10 @@ class Unicorn(SimStatePlugin):
         _unicorn_tls.uc.id = new_id
         self._unicount = new_id
         return _unicorn_tls.uc
+
+    @staticmethod
+    def delete_uc():
+        _unicorn_tls.uc = None
 
     def _setup_unicorn(self):
         if self.state.arch.uc_mode is None:
@@ -498,14 +523,15 @@ class Unicorn(SimStatePlugin):
 
         # there's something we're not properly resetting for syscalls, so
         # we'll clear the state when they happen
-        if self.stop_reason == STOP.STOP_SYSCALL:
-            _unicorn_tls.uc = None
+        if self.stop_reason not in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT, STOP.STOP_SYMBOLIC):
+            self.delete_uc()
 
         #l.debug("Resetting the unicorn state.")
         self.uc.reset()
 
     def set_regs(self):
         ''' setting unicorn registers '''
+        uc = self.uc
 
         if self.state.arch.qemu_name == 'x86_64':
             fs = self.state.se.any_int(self.state.regs.fs)
@@ -515,12 +541,12 @@ class Unicorn(SimStatePlugin):
             flags = self._process_value(ccall._get_flags(self.state)[0])
             if flags is None:
                 raise SimValueError('symbolic eflags')
-            self.uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.any_int(flags))
+            uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.any_int(flags))
         elif self.state.arch.qemu_name == 'i386':
             flags = self._process_value(ccall._get_flags(self.state)[0])
             if flags is None:
                 raise SimValueError('symbolic eflags')
-            self.uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.any_int(flags))
+            uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.any_int(flags))
             fs = self.state.se.any_int(self.state.regs.fs) << 16
             gs = self.state.se.any_int(self.state.regs.gs) << 16
             self.setup_gdt(fs, gs)
@@ -532,7 +558,7 @@ class Unicorn(SimStatePlugin):
             if v is None:
                     raise SimValueError('setting a symbolic register')
             # l.debug('setting $%s = %#x', r, self.state.se.any_int(v))
-            self.uc.reg_write(c, self.state.se.any_int(v))
+            uc.reg_write(c, self.state.se.any_int(v))
 
         if self.state.arch.name in ('X86', 'AMD64'):
             # sync the fp clerical data
@@ -541,8 +567,8 @@ class Unicorn(SimStatePlugin):
             rm = self.state.se.any_int(self.state.regs.fpround[1:0])
             control = 0x037F | (rm << 10)
             status = (top << 11) | c3210
-            self.uc.reg_write(unicorn.x86_const.UC_X86_REG_FPCW, control)
-            self.uc.reg_write(unicorn.x86_const.UC_X86_REG_FPSW, status)
+            uc.reg_write(unicorn.x86_const.UC_X86_REG_FPCW, control)
+            uc.reg_write(unicorn.x86_const.UC_X86_REG_FPSW, status)
 
             # we gotta convert the 64-bit doubles values to 80-bit extended precision!
             uc_offset = unicorn.x86_const.UC_X86_REG_FP0
@@ -579,13 +605,14 @@ class Unicorn(SimStatePlugin):
                     if sign:
                         exponent |= 0x8000
 
-                    self.uc.reg_write(uc_offset, (exponent, mantissa))
+                    uc.reg_write(uc_offset, (exponent, mantissa))
 
                 uc_offset += 1
                 vex_offset += 8
                 vex_tag_offset += 1
 
-            self.uc.reg_write(unicorn.x86_const.UC_X86_REG_FPTAG, tag_word)
+            uc.reg_write(unicorn.x86_const.UC_X86_REG_FPTAG, tag_word)
+
     # this stuff is 100% copied from the unicorn regression tests
     def setup_gdt(self, fs, gs, fs_size=0xFFFFFFFF, gs_size=0xFFFFFFFF):
         GDT_ADDR = 0x1000
@@ -599,26 +626,28 @@ class Unicorn(SimStatePlugin):
         S_GDT = 0x0
         S_PRIV_0 = 0x0
 
-        self.uc.mem_map(GDT_ADDR, GDT_LIMIT)
+        uc = self.uc
+
+        uc.mem_map(GDT_ADDR, GDT_LIMIT)
         normal_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
         stack_entry = self.create_gdt_entry(0, 0xFFFFFFFF, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0, F_PROT_32)
         fs_entry = self.create_gdt_entry(fs, fs_size, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
         gs_entry = self.create_gdt_entry(gs, gs_size, A_PRESENT | A_DATA | A_DATA_WRITABLE | A_PRIV_0 | A_DIR_CON_BIT, F_PROT_32)
-        self.uc.mem_write(GDT_ADDR + 8, normal_entry + stack_entry + fs_entry + gs_entry)
+        uc.mem_write(GDT_ADDR + 8, normal_entry + stack_entry + fs_entry + gs_entry)
 
-        self.uc.reg_write(self._uc_const.UC_X86_REG_GDTR, (0, GDT_ADDR, GDT_LIMIT, 0x0))
+        uc.reg_write(self._uc_const.UC_X86_REG_GDTR, (0, GDT_ADDR, GDT_LIMIT, 0x0))
 
         selector = self.create_selector(1, S_GDT | S_PRIV_0)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_CS, selector)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_DS, selector)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_ES, selector)
+        uc.reg_write(self._uc_const.UC_X86_REG_CS, selector)
+        uc.reg_write(self._uc_const.UC_X86_REG_DS, selector)
+        uc.reg_write(self._uc_const.UC_X86_REG_ES, selector)
         selector = self.create_selector(2, S_GDT | S_PRIV_0)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_SS, selector)
+        uc.reg_write(self._uc_const.UC_X86_REG_SS, selector)
         selector = self.create_selector(3, S_GDT | S_PRIV_0)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_FS, selector)
+        uc.reg_write(self._uc_const.UC_X86_REG_FS, selector)
         selector = self.create_selector(4, S_GDT | S_PRIV_0)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_GS, selector)
-        self.uc.mem_unmap(GDT_ADDR, GDT_LIMIT)
+        uc.reg_write(self._uc_const.UC_X86_REG_GS, selector)
+        uc.mem_unmap(GDT_ADDR, GDT_LIMIT)
 
     @staticmethod
     def create_selector(idx, flags):
@@ -641,26 +670,30 @@ class Unicorn(SimStatePlugin):
     def read_msr(self, msr=0xC0000100):
         setup_code = '\x0f\x32'
         BASE = 0x100B000000
-        self.uc.mem_map(BASE, 0x1000)
-        self.uc.mem_write(BASE, setup_code)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_RCX, msr)
-        self.uc.emu_start(BASE, BASE + len(setup_code))
-        self.uc.mem_unmap(BASE, 0x1000)
 
-        a = self.uc.reg_read(self._uc_const.UC_X86_REG_RAX)
-        d = self.uc.reg_read(self._uc_const.UC_X86_REG_RDX)
+        uc = self.uc
+        uc.mem_map(BASE, 0x1000)
+        uc.mem_write(BASE, setup_code)
+        uc.reg_write(self._uc_const.UC_X86_REG_RCX, msr)
+        uc.emu_start(BASE, BASE + len(setup_code))
+        uc.mem_unmap(BASE, 0x1000)
+
+        a = uc.reg_read(self._uc_const.UC_X86_REG_RAX)
+        d = uc.reg_read(self._uc_const.UC_X86_REG_RDX)
         return (d << 32) + a
 
     def write_msr(self, val, msr=0xC0000100):
         setup_code = '\x0f\x30'
         BASE = 0x100B000000
-        self.uc.mem_map(BASE, 0x1000)
-        self.uc.mem_write(BASE, setup_code)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_RCX, msr)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_RAX, val & 0xFFFFFFFF)
-        self.uc.reg_write(self._uc_const.UC_X86_REG_RDX, val >> 32)
-        self.uc.emu_start(BASE, BASE + len(setup_code))
-        self.uc.mem_unmap(BASE, 0x1000)
+
+        uc = self.uc
+        uc.mem_map(BASE, 0x1000)
+        uc.mem_write(BASE, setup_code)
+        uc.reg_write(self._uc_const.UC_X86_REG_RCX, msr)
+        uc.reg_write(self._uc_const.UC_X86_REG_RAX, val & 0xFFFFFFFF)
+        uc.reg_write(self._uc_const.UC_X86_REG_RDX, val >> 32)
+        uc.emu_start(BASE, BASE + len(setup_code))
+        uc.mem_unmap(BASE, 0x1000)
 
     reg_blacklist = ('cs', 'ds', 'es', 'fs', 'gs', 'ss', 'mm0', 'mm1', 'mm2', 'mm3', 'mm4', 'mm5', 'mm6', 'mm7')
 
@@ -741,7 +774,7 @@ class Unicorn(SimStatePlugin):
         u = Unicorn(
             syscall_hooks=dict(self.syscall_hooks),
             cache_key=self.cache_key,
-            unicount=self._unicount,
+            #unicount=self._unicount,
             cooldown_nonunicorn_blocks=self.cooldown_nonunicorn_blocks,
             cooldown_symbolic_registers=self.cooldown_symbolic_registers,
             max_steps=self.max_steps,
