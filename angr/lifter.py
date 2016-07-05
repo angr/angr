@@ -33,8 +33,14 @@ class Lifter(object):
         self._cache_enabled = cache
         self._block_cache = LRUCache(maxsize=self.LRUCACHE_SIZE)
 
+        self._cache_hit_count = 0
+        self._cache_miss_count = 0
+
     def clear_cache(self):
         self._block_cache = LRUCache(maxsize=self.LRUCACHE_SIZE)
+
+        self._cache_hit_count = 0
+        self._cache_miss_count = 0
 
     def lift(self, addr, arch=None, insn_bytes=None, max_size=None, num_inst=None,
              traceflags=0, thumb=False, backup_state=None, opt_level=None):
@@ -71,7 +77,10 @@ class Lifter(object):
 
         cache_key = (addr, insn_bytes, max_size, num_inst, thumb, opt_level)
         if self._cache_enabled and cache_key in self._block_cache:
+            self._cache_hit_count += 1
             return self._block_cache[cache_key]
+        else:
+            self._cache_miss_count += 1
 
         # TODO: FIXME: figure out what to do if we're about to exhaust the memory
         # (we can probably figure out how many instructions we have left by talking to IDA)
