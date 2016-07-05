@@ -56,7 +56,6 @@ class CFGBase(Analysis):
 
         # Initialization
         self._graph = None
-        self._nodes = None
         self._edge_map = None
         self._loop_back_edges = None
         self._overlapped_loop_headers = None
@@ -65,7 +64,7 @@ class CFGBase(Analysis):
         # Traverse all the IRSBs, and put the corresponding CFGNode objects to a dict
         # CFGNodes dict indexed by SimRun key
         self._nodes = None
-        # CFGNodes dict indexed by addresses of each SimRun
+        # Lists of CFGNodes indexed by addresses of each SimRun
         self._nodes_by_addr = None
 
         # Store all the functions analyzed before the set is cleared

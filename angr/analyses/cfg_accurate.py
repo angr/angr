@@ -920,7 +920,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             cfg_node.input_state = simrun.initial_state
 
         self._nodes[simrun_key] = cfg_node
-        self._nodes_by_addr[cfg_node.addr].append((simrun_key, cfg_node))
+        self._nodes_by_addr[cfg_node.addr].append(cfg_node)
 
         self._graph_add_edge(src_simrun_key, simrun_key, jumpkind=entry.jumpkind, exit_stmt_idx=src_exit_stmt_idx)
         self._update_function_transition_graph(src_simrun_key, simrun_key, jumpkind=entry.jumpkind)
@@ -1429,7 +1429,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 pt.input_state = self.project.factory.entry_state()
                 pt.input_state.ip = pt.addr
             self._nodes[node_key] = pt
-            self._nodes_by_addr[pt.addr].append((node_key, pt))
+            self._nodes_by_addr[pt.addr].append(pt)
 
             if isinstance(self.project.arch, ArchARM) and addr % 2 == 1:
                 self._thumb_addrs.add(addr)
@@ -2458,7 +2458,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             other_preds = set()
 
-            for _, node in self._nodes_by_addr[next_irsb.addr]:
+            for node in self._nodes_by_addr[next_irsb.addr]:
                 predecessors = self.graph.predecessors(node)
                 for pred in predecessors:
                     if pred.addr != sim_run.addr:
