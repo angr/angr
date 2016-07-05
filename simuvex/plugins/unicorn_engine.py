@@ -249,6 +249,7 @@ class Unicorn(SimStatePlugin):
         new_id = next(_unicounter)
 
         if (
+            not hasattr(_unicorn_tls, "uc") or
             _unicorn_tls.uc is None or
             _unicorn_tls.uc.arch != self.state.arch or
             _unicorn_tls.uc.cache_key != self.cache_key
