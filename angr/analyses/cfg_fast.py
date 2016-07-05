@@ -28,6 +28,8 @@ class Segment(object):
     Representing a memory block. This is not the "Segment" in ELF memory model
     """
 
+    __slots__ = ['start', 'end', 'sort']
+
     def __init__(self, start, end, sort):
         """
         :param int start:   Start address.
