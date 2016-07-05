@@ -1467,19 +1467,36 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 if i + 1 != len(keys):
                     next_data_addr = keys[i + 1]
-                    data.max_size = next_data_addr - data_addr
                 else:
-                    # goes until the end of the section/segment
-                    # TODO: the logic needs more testing
+                    next_data_addr = None
 
-                    obj = self.project.loader.addr_belongs_to_object(data_addr)
-                    sec = self._addr_belongs_to_section(data_addr)
-                    if sec is not None:
-                        last_addr = sec.vaddr + sec.memsize + obj.rebase_addr
-                    else:
-                        seg = self._addr_belongs_to_segment(data_addr)
+                # goes until the end of the section/segment
+                # TODO: the logic needs more testing
+
+                obj = self.project.loader.addr_belongs_to_object(data_addr)
+                sec = self._addr_belongs_to_section(data_addr)
+                if sec is not None:
+                    last_addr = sec.vaddr + sec.memsize + obj.rebase_addr
+                else:
+                    seg = self._addr_belongs_to_segment(data_addr)
+                    if seg is not None:
                         last_addr = seg.vaddr + seg.memsize + obj.rebase_addr
-                    data.max_size = last_addr - data_addr
+                    else:
+                        # We got an address that is not inside the current binary...
+                        l.warning('_tidy_data_references() sees an address %#08x that does not belong to any '
+                                  'section or segment.', last_addr
+                                  )
+                        last_addr = None
+
+                if next_data_addr is None:
+                    boundary = last_addr
+                elif last_addr is None:
+                    boundary = next_data_addr
+                else:
+                    boundary = min(last_addr, next_data_addr)
+
+                if boundary is not None:
+                    data.max_size = boundary - data_addr
 
         keys = sorted(self._memory_data.iterkeys())
 
