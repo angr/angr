@@ -101,11 +101,28 @@ class Function(object):
 
     @property
     def blocks(self):
+        """
+        An iterator of all local blocks in the current function.
+
+        :return: angr.lifter.Block instances.
+        """
+
         for block in self._local_blocks:
             try:
                 yield self._get_block(block.addr)
             except AngrTranslationError:
                 pass
+
+    @property
+    def block_addrs(self):
+        """
+        An iterator of all local block addresses in the current function.
+
+        :return: block addresses.
+        """
+
+        for block in self._local_blocks:
+            yield block.addr
 
     def _get_block(self, addr):
         if addr in self._block_cache:

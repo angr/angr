@@ -930,8 +930,7 @@ class CFGBase(Analysis):
             # the functions to merge with must be locating between the unresolved basic block address and the endpoint
             # of the current function
             max_unresolved_jump_addr = 0
-            for block in function.blocks:
-                block_addr = block.addr
+            for block_addr in function.block_addrs:
                 if block_addr in self.indirect_jumps and not self.indirect_jumps[block_addr].resolved_targets:
                     # it's not resolved
                     has_unresolved_jumps = True
@@ -1002,7 +1001,7 @@ class CFGBase(Analysis):
                 if f_addr == func_addr:
                     continue
                 if max_unresolved_jump_addr < f_addr < endpoint_addr and \
-                        all([max_unresolved_jump_addr < b.addr < endpoint_addr for b in f.blocks]):
+                        all([max_unresolved_jump_addr < b_addr < endpoint_addr for b_addr in f.block_addrs]):
                     if f_addr in functions_to_remove:
                         # this function has already been merged with other functions before... it cannot be merged with
                         # this function anymore
@@ -1026,8 +1025,8 @@ class CFGBase(Analysis):
         for to_remove, merge_with in functions_to_remove.iteritems():
             func_merge_with = self._addr_to_function(merge_with, blockaddr_to_function, functions)
 
-            for block in functions[to_remove].blocks:
-                blockaddr_to_function[block.addr] = func_merge_with
+            for block_addr in functions[to_remove].block_addrs:
+                blockaddr_to_function[block_addr] = func_merge_with
 
             del functions[to_remove]
 
