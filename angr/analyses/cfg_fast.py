@@ -1532,6 +1532,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         ptr_str = self._ffi.unpack(self._ffi.cast('char*', buf + j), pointer_size)
                         ptr = struct.unpack(fmt, ptr_str)[0]  # type:int
 
+                        # is this pointer coming from the current binary?
+                        obj = self.project.loader.addr_belongs_to_object(ptr)
+                        if obj is not self.project.loader.main_bin:
+                            # the pointer does not come from current binary. skip.
+                            continue
+
                         if self._seg_list.is_occupied(ptr):
                             sort = self._seg_list.occupied_by_sort(ptr)
                             if sort == 'code':
