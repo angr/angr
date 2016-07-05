@@ -10,8 +10,8 @@ import archinfo
 
 from ..entry_wrapper import SimRunKey, FunctionKey, EntryWrapper, CallStack
 from ..analysis import Analysis, register_analysis
-from ..errors import AngrVFGError, AngrVFGRestartAnalysisNotice, AngrError
-from .forward_analysis import ForwardAnalysis, AngrForwardAnalysisSkipEntry
+from ..errors import AngrVFGError, AngrError, AngrVFGRestartAnalysisNotice, AngrJobMergingFailureNotice
+from .forward_analysis import ForwardAnalysis, AngrSkipEntryNotice
 
 l = logging.getLogger(name="angr.analyses.vfg")
 
@@ -487,7 +487,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # did we reach the final address?
         if self._final_address is not None and job.addr == self._final_address:
             # our analysis should be termianted here
-            raise AngrForwardAnalysisSkipEntry()
+            raise AngrSkipEntryNotice()
 
         l.debug("Handling VFGJob %s", job)
 
@@ -532,7 +532,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         if job.simrun is None:
             # Ouch, we cannot get the simrun for some reason
             # Skip this guy
-            raise AngrForwardAnalysisSkipEntry()
+            raise AngrSkipEntryNotice()
 
         self._graph_add_edge(src_simrun_key,
                              simrun_key,
@@ -810,7 +810,13 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         assert len(entries) == 2
 
         if not self._merge_points(self._current_function_address):
-            return entries[1]
+            raise AngrJobMergingFailureNotice()
+
+        addr = entries[0].path.addr
+
+        if self.project.is_hooked(addr) and \
+                self.project.hooked_by(addr) is simuvex.s_procedure.SimProcedureContinuation:
+            raise AngrJobMergingFailureNotice()
 
         # it must be a merge point
         assert entries[0].path.addr in self._merge_points(self._current_function_address)
@@ -828,8 +834,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         path = self.project.factory.path(merged_state)
 
         new_job = VFGJob(entries[0].addr, path, self._context_sensitivity_level, jumpkind=entries[0].jumpkind,
-                      simrun_key=entries[0].simrun_key
-                      )
+                         simrun_key=entries[0].simrun_key
+                         )
 
         self._top_task.jobs.append(new_job)
 

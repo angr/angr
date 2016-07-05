@@ -11,7 +11,7 @@ from archinfo import ArchARM
 
 from ..entry_wrapper import SimRunKey, EntryWrapper
 from ..analysis import register_analysis
-from ..errors import AngrCFGError, AngrError, AngrForwardAnalysisSkipEntry
+from ..errors import AngrCFGError, AngrError, AngrSkipEntryNotice
 from ..knowledge import FunctionManager
 from ..path import make_path
 from .cfg_node import CFGNode
@@ -899,7 +899,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 self._update_function_transition_graph(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet')
 
             # We are good. Raise the exception and leave
-            raise AngrForwardAnalysisSkipEntry()
+            raise AngrSkipEntryNotice()
 
         self._update_thumb_addrs(simrun, entry.path.state)
 

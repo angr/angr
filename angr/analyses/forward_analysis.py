@@ -208,7 +208,7 @@ class ForwardAnalysis(object):
 
         try:
             self._pre_entry_handling(entry)
-        except AngrForwardAnalysisSkipEntry:
+        except AngrSkipEntryNotice:
             return
 
         successors = self._get_successors(entry)
@@ -240,9 +240,12 @@ class ForwardAnalysis(object):
 
             if key in self._entries_map:
                 entry_info = self._entries_map[key]
-                merged_entry = self._merge_entries(entry_info.entry, entry)
-                entry_info.add_entry(merged_entry, merged=True)
-
+                try:
+                    merged_entry = self._merge_entries(entry_info.entry, entry)
+                    entry_info.add_entry(merged_entry, merged=True)
+                except AngrJobMergingFailureNotice:
+                    # merging failed
+                    entry_info = EntryInfo(key, entry)
             else:
                 entry_info = EntryInfo(key, entry)
                 self._entries_map[key] = entry_info
@@ -305,4 +308,4 @@ class ForwardAnalysis(object):
 
         lst.insert(lo, elem)
 
-from ..errors import AngrForwardAnalysisSkipEntry
+from ..errors import AngrSkipEntryNotice, AngrJobMergingFailureNotice
