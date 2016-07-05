@@ -128,9 +128,11 @@ class SimFile(SimStatePlugin):
             self.state.add_constraints(orig_length == real_length)
 
         if self.size is not None:
-            if self.state.se.symbolic(real_length) or self.state.se.symbolic(max_length):
-                self.state.add_constraints(self.pos + real_length <= self.size)
-            elif not self.state.se.symbolic(real_length) and not self.state.se.symbolic(max_length):
+            length_constraint = self.pos + real_length <= self.size
+            if (self.state.se.symbolic(real_length) or self.state.se.symbolic(max_length)) and \
+                    self.state.se.satisfiable(extra_constraints=(length_constraint,)):
+                self.state.add_constraints(length_constraint)
+            elif not self.state.se.symbolic(real_length) or not self.state.se.symbolic(max_length):
                 real_length = min(self.state.se.any_int(max_length), self.state.se.any_int(real_length))
 
         self.content.copy_contents(dst_addr, self.pos, real_length , dst_memory=self.state.memory)
