@@ -1137,51 +1137,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _scan_irsb(self, addr, current_function_addr, previous_jumpkind, previous_src_node, previous_src_stmt_idx):  # pylint:disable=unused-argument
 
-        irsb = None  # make pylint happy
+        addr, current_function_addr, cfg_node, irsb = self._generate_cfgnode(addr, current_function_addr)
 
-        try:
-
-            if addr in self._nodes:
-                cfg_node = self._nodes[addr]
-
-            else:
-
-                # Let's try to create the pyvex IRSB directly, since it's much faster
-                irsb = self.project.factory.block(addr).vex
-
-                if irsb.size == 0 and self.project.arch.name in ('ARMHF', 'ARMEL'):
-                    # maybe the current mode is wrong?
-                    if addr % 2 == 0:
-                        addr_0 = addr + 1
-                    else:
-                        addr_0 = addr - 1
-                    irsb = self.project.factory.block(addr_0).vex
-                    if irsb.size > 0:
-                        if current_function_addr == addr:
-                            current_function_addr = addr_0
-                        addr = addr_0
-
-                if irsb.size == 0:
-                    # decoding error
-                    return [ ]
-
-                # Occupy the block in segment list
-                if irsb.size > 0:
-                    if self.project.arch.name in ('ARMHF', 'ARMEL') and addr % 2 == 1:
-                        # thumb mode
-                        real_addr = addr - 1
-                    else:
-                        real_addr = addr
-                    self._seg_list.occupy(real_addr, irsb.size, "code")
-
-                # Create a CFG node, and add it to the graph
-                cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, simrun_key=addr,
-                                   irsb=irsb)
-
-                self._nodes[addr] = cfg_node
-                self._nodes_by_addr[addr].append(cfg_node)
-
-        except (AngrTranslationError, AngrMemoryError):
+        if cfg_node is None:
+            # exceptions occurred, or we cannot get a CFGNode for other reasons
             return [ ]
 
         self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
@@ -1197,6 +1156,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # irsb cannot be None here
         # assert irsb is not None
+
+        # IRSB is only used once per CFGNode. We should be able to clean up the CFGNode here in order to save memory
+        cfg_node.irsb = None
 
         self._process_block_arch_specific(addr, irsb, current_function_addr)
 
@@ -2613,6 +2575,74 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     #
     # Other methods
     #
+
+    def _generate_cfgnode(self, addr, current_function_addr):
+        """
+        Generate a CFGNode that starts at `addr`.
+
+        Since lifting machine code to IRSBs is slow, self._nodes is used as a cache of CFGNodes.
+
+        If the current architecture is ARM, this method will try to lift the block in the mode specified by the address
+        (determined by the parity of the address: even for ARM, odd for THUMB), and in case of decoding failures, try
+        the other mode. If the basic block is successfully decoded in the other mode (different from the initial one),
+         `addr` and `current_function_addr` are updated.
+
+        :param int addr: Address of the basic block.
+        :param int current_function_addr: Address of the current function.
+        :return: A 4-tuple of (new address, new function address, CFGNode instance, IRSB object)
+        :rtype: tuple
+        """
+
+        try:
+
+            if addr in self._nodes:
+                cfg_node = self._nodes[addr]
+                irsb = cfg_node.irsb
+
+                if cfg_node.function_address != current_function_addr:
+                    cfg_node.function_address = current_function_addr
+
+            else:
+
+                # Let's try to create the pyvex IRSB directly, since it's much faster
+                irsb = self.project.factory.block(addr).vex
+
+                if irsb.size == 0 and self.project.arch.name in ('ARMHF', 'ARMEL'):
+                    # maybe the current mode is wrong?
+                    if addr % 2 == 0:
+                        addr_0 = addr + 1
+                    else:
+                        addr_0 = addr - 1
+                    irsb = self.project.factory.block(addr_0).vex
+                    if irsb.size > 0:
+                        if current_function_addr == addr:
+                            current_function_addr = addr_0
+                        addr = addr_0
+
+                if irsb.size == 0:
+                    # decoding error
+                    return None, None, None, None
+
+                # Occupy the block in segment list
+                if irsb.size > 0:
+                    if self.project.arch.name in ('ARMHF', 'ARMEL') and addr % 2 == 1:
+                        # thumb mode
+                        real_addr = addr - 1
+                    else:
+                        real_addr = addr
+                    self._seg_list.occupy(real_addr, irsb.size, "code")
+
+                # Create a CFG node, and add it to the graph
+                cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, simrun_key=addr,
+                                   irsb=irsb)
+
+                self._nodes[addr] = cfg_node
+                self._nodes_by_addr[addr].append(cfg_node)
+
+            return addr, current_function_addr, cfg_node, irsb
+
+        except (AngrTranslationError, AngrMemoryError):
+            return None, None, None, None
 
     def _process_block_arch_specific(self, addr, irsb, func_addr):  # pylint: disable=unused-argument
 
