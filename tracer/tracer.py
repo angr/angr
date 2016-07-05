@@ -122,6 +122,9 @@ class Tracer(object):
         # if the input causes a crash, what address does it crash at?
         self.crash_addr = None
 
+        # CGC flag data
+        self.cgc_flag_data = claripy.BVS('cgc-flag-data', 0x1000)
+
         # content of the magic flag page as reported by QEMU
         # we need this to keep symbolic traces following the same path
         # as their dynamic counterpart
@@ -832,16 +835,13 @@ class Tracer(object):
         if not self.pov:
             entry_state.cgc.input_size = len(self.input)
 
-        # map the CGC flag page
-        cgc_flag_data = claripy.BVS('cgc-flag-data', 0x1000 * 8)
         # preconstrain flag page
-
         if self.preconstrain_flag:
-            self._preconstrain_flag_page(entry_state, cgc_flag_data)
+            self._preconstrain_flag_page(entry_state, self.cgc_flag_data)
 
         # PROT_READ region
         #entry_state.memory.map_region(0x4347c000, 0x1000, 1)   # already done in simos
-        entry_state.memory.store(0x4347c000, cgc_flag_data)
+        entry_state.memory.store(0x4347c000, self.cgc_flag_data)
 
         pg = project.factory.path_group(
             entry_state,
