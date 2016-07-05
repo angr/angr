@@ -504,6 +504,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  collect_data_references=False,
                  normalize=False,
                  function_starts=None,
+                 extra_memory_regions=None,
                  arch_options=None,
                  **extra_arch_options
                  ):
@@ -525,6 +526,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :param bool normalize:          Normalize the CFG as well as all function graphs after CFG recovery.
         :param list function_starts:    A list of extra function starting points. CFGFast will try to resume scanning
                                         from each address in the list.
+        :param list extra_memory_regions: A list of 2-tuple (start-address, end-address) that shows extra memory
+                                          regions. Integers falling inside will be considered as pointers.
         :param CFGArchOptions arch_options: Architecture-specific options.
         :param dict extra_arch_options: Any key-value pair in kwargs will be seen as an arch-specific option and will
                                         be used to set the option value in self._arch_options.
@@ -552,6 +555,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._force_complete_scan = force_complete_scan
 
         self._extra_function_starts = function_starts
+
+        self._extra_memory_regions = extra_memory_regions
 
         self._arch_options = arch_options if arch_options is not None else CFGArchOptions(self.project.arch,
                                                                                           **extra_arch_options
@@ -1605,7 +1610,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 #    # it's a code reference
                 #    # TODO: Further check if it's the beginning of an instruction
                 #    pass
-                if self._addr_belongs_to_section(ptr) is not None or self._addr_belongs_to_segment(ptr) is not None:
+                if self._addr_belongs_to_section(ptr) is not None or self._addr_belongs_to_segment(ptr) is not None or \
+                        (self._extra_memory_regions and
+                         next(((a < ptr < b) for (a, b) in self._extra_memory_regions), None)
+                         ):
                     # it's a pointer of some sort
                     # TODO: Determine what sort of pointer it is
                     pointers_count += 1
