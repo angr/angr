@@ -198,7 +198,7 @@ class CFGBase(Analysis):
 
     def get_any_node(self, addr, is_syscall=None, anyaddr=False):
         """
-        Get an artitrary CFGNode (without considering their contexts) from our graph.
+        Get an arbitrary CFGNode (without considering their contexts) from our graph.
 
         :param addr: Address of the beginning of the basic block. Set anyaddr to True to support arbitrary address.
         :param is_syscall: Whether you want to get the syscall node or any other node. This is due to the fact that
@@ -212,6 +212,10 @@ class CFGBase(Analysis):
 
         # TODO: Loop though self._nodes instead of self.graph.nodes()
         # TODO: Of course, I should first fix the issue that .normalize() doesn't update self._nodes
+
+        if not anyaddr and self._nodes_by_addr and \
+                addr in self._nodes_by_addr and self._nodes_by_addr[addr]:
+            return self._nodes_by_addr[addr][0]
 
         for n in self.graph.nodes_iter():
             cond = n.looping_times == 0
