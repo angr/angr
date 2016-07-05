@@ -59,6 +59,8 @@ class SegmentList(object):
     blocks or not, and obtain the exact block(segment) that the address belongs to.
     """
 
+    __slots__ = ['_list', '_bytes_occupied']
+
     def __init__(self):
         self._list = []
         self._bytes_occupied = 0
