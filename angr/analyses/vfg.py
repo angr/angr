@@ -672,7 +672,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             self._save_function_initial_state(new_function_key, successor_addr, successor.copy())
 
             # bail out if we hit the interfunction_level cap
-            if len(job.call_stack) > self._interfunction_level:
+            if len(job.call_stack) >= self._interfunction_level:
                 l.debug('We are not tracing into a new function %#08x as we hit interfunction_level limit', successor_addr)
 
                 # mark it as skipped
