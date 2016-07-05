@@ -7,7 +7,7 @@ import networkx
 from cle import ELF, PE
 import simuvex
 
-from ..knowledge import Function, HookNode
+from ..knowledge import Function, HookNode, BlockNode
 from ..analysis import Analysis
 from ..errors import AngrCFGError, AngrTranslationError, AngrMemoryError
 
@@ -331,6 +331,24 @@ class CFGBase(Analysis):
 
         if edge in self._graph:
             self._graph.remove_edge(*edge)
+
+    def _to_snippet(self, cfg_node, jumpkind=None):
+        """
+        Convert a CFGNode instance to a CodeNode object.
+
+        :param angr.analyses.CFGNode cfg_node: The CFGNode instance.
+        :return: A converted CodeNode instance.
+        :rtype: CodeNode
+        """
+
+        addr = cfg_node.addr
+
+        if self.project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
+            _, kwargs = self.project._sim_procedures[addr]
+            size = kwargs.get('length', 0)
+            return HookNode(addr, size, self.project.hooked_by(addr))
+        else:
+            return BlockNode(cfg_node.addr, cfg_node.size)  # pylint: disable=no-member
 
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
@@ -1053,7 +1071,11 @@ class CFGBase(Analysis):
                 if isinstance(hooker, simuvex.SimProcedure) and hooker.IS_SYSCALL:
                     is_syscall = True
 
-            self.kb.functions._add_node(addr, addr, syscall=is_syscall)
+            n = self.get_any_node(addr, is_syscall=is_syscall)
+            if n is None: node = addr
+            else: node = self._to_snippet(n)
+
+            self.kb.functions._add_node(addr, node, syscall=is_syscall)
             f = self.kb.functions.function(addr=addr)
 
             blockaddr_to_function[addr] = f
@@ -1131,7 +1153,10 @@ class CFGBase(Analysis):
         jumpkind = data['jumpkind']
 
         if jumpkind == 'Ijk_Ret':
-            self.kb.functions._add_return_from(src_function.addr, src_addr, None)
+            n = self.get_any_node(src_addr)
+            if n is None: from_node = src_addr
+            else: from_node = self._to_snippet(n)
+            self.kb.functions._add_return_from(src_function.addr, from_node, None)
 
         if dst is None:
             return
@@ -1145,7 +1170,11 @@ class CFGBase(Analysis):
             # It must be calling a function
             dst_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
 
-            self.kb.functions._add_call_to(src_function.addr, src_addr, dst_addr, None, syscall=is_syscall)
+            n = self.get_any_node(src_addr)
+            if n is None: src_node = src_addr
+            else: src_node = self._to_snippet(n)
+
+            self.kb.functions._add_call_to(src_function.addr, src_node, dst_addr, None, syscall=is_syscall)
 
             if dst_function.returning:
                 returning_target = src.addr + src.size
@@ -1157,11 +1186,24 @@ class CFGBase(Analysis):
 
                 to_outside = not blockaddr_to_function[returning_target] is src_function
 
-                self.kb.functions._add_fakeret_to(src_function.addr, src_addr, returning_target, confirmed=True,
+                n = self.get_any_node(returning_target)
+                if n is None: returning_node = returning_target
+                else: returning_node = self._to_snippet(n)
+
+                self.kb.functions._add_fakeret_to(src_function.addr, src_node, returning_node, confirmed=True,
                                                   to_outside=to_outside
                                                   )
 
         elif jumpkind == 'Ijk_Boring':
+
+            # convert src_addr and dst_addr to CodeNodes
+            n = self.get_any_node(src_addr)
+            if n is None: src_node = src_addr
+            else: src_node = self._to_snippet(n)
+
+            n = self.get_any_node(dst_addr)
+            if n is None: dst_node = dst_addr
+            else: dst_node = self._to_snippet(n)
 
             # is it a jump to another function?
             if dst_addr in known_functions or (
@@ -1170,7 +1212,8 @@ class CFGBase(Analysis):
                 # yes it is
                 dst_function_addr = blockaddr_to_function[dst_addr].addr if dst_addr in blockaddr_to_function else \
                     dst_addr
-                self.kb.functions._add_outside_transition_to(src_function.addr, src_addr, dst_addr,
+
+                self.kb.functions._add_outside_transition_to(src_function.addr, src_node, dst_node,
                                                              to_function_addr=dst_function_addr
                                                              )
 
@@ -1182,9 +1225,18 @@ class CFGBase(Analysis):
                 if dst_addr not in blockaddr_to_function:
                     blockaddr_to_function[dst_addr] = src_function
 
-                self.kb.functions._add_transition_to(src_function.addr, src_addr, dst_addr)
+                self.kb.functions._add_transition_to(src_function.addr, src_node, dst_node)
 
         elif jumpkind == 'Ijk_FakeRet':
+
+            # convert src_addr and dst_addr to CodeNodes
+            n = self.get_any_node(src_addr)
+            if n is None: src_node = src_addr
+            else: src_node = self._to_snippet(n)
+
+            n = self.get_any_node(dst_addr)
+            if n is None: dst_node = dst_addr
+            else: dst_node = self._to_snippet(n)
 
             if dst_addr not in blockaddr_to_function:
                 if dst_addr not in known_functions:
@@ -1197,7 +1249,7 @@ class CFGBase(Analysis):
 
             to_outside = not target_function is src_function
 
-            self.kb.functions._add_fakeret_to(src_function.addr, src_addr, dst_addr, confirmed=True,
+            self.kb.functions._add_fakeret_to(src_function.addr, src_node, dst_node, confirmed=True,
                                               to_outside=to_outside, to_function_addr=target_function.addr
                                               )
 

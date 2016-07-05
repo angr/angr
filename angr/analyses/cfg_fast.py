@@ -2283,7 +2283,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     for fr in self._function_returns[returning_function.addr]:
                         # Confirm them all
                         self._changed_functions.add(fr.caller_func_addr)
-                        self.kb.functions._add_return_from_call(fr.caller_func_addr, fr.callee_func_addr, fr.return_to)
+
+                        try:
+                            return_to_node = self._to_snippet(self._nodes[fr.return_to])
+                        except KeyError:
+                            return_to_node = fr.return_to
+
+                        self.kb.functions._add_return_from_call(fr.caller_func_addr, fr.callee_func_addr,
+                                                                return_to_node)
 
                     del self._function_returns[returning_function.addr]
 
@@ -2292,7 +2299,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     for fr in self._function_returns[not_returning_function.addr]:
                         # Remove all those FakeRet edges
                         self._changed_functions.add(fr.caller_func_addr)
-                        self.kb.functions._remove_fakeret(fr.caller_func_addr, fr.call_site_addr, fr.return_to)
+
+                        # convert them to codenodes
+                        try:
+                            call_site_node = self._to_snippet(self._nodes[fr.call_site_addr])
+                        except KeyError:
+                            call_site_node = fr.call_site_addr
+
+                        try:
+                            return_to_node = self._to_snippet(self._nodes[fr.return_to])
+                        except KeyError:
+                            return_to_node = fr.return_to
+
+                        self.kb.functions._remove_fakeret(fr.caller_func_addr, call_site_node, return_to_node)
 
                     del self._function_returns[not_returning_function.addr]
 
@@ -2346,7 +2365,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     #
 
     def _function_add_node(self, addr, function_addr):
-        self.kb.functions._add_node(function_addr, addr)
+        try:
+            node = self._to_snippet(self._nodes[addr])
+        except KeyError:
+            node = addr
+        self.kb.functions._add_node(function_addr, node)
 
     def _function_add_transition_edge(self, addr, src_node, function_addr):
         """
@@ -2361,11 +2384,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         try:
-            # Add this basic block into the function manager
+            try:
+                target = self._to_snippet(self._nodes[addr])
+            except KeyError:
+                target = addr
+
             if src_node is None:
-                self.kb.functions._add_node(function_addr, addr)
+                # Add this basic block into the function manager
+                self.kb.functions._add_node(function_addr, target)
             else:
-                self.kb.functions._add_transition_to(function_addr, src_node.addr, addr)
+                src_node = self._to_snippet(src_node)
+                self.kb.functions._add_transition_to(function_addr, src_node, target)
             return True
         except (AngrMemoryError, AngrTranslationError):
             return False
@@ -2386,22 +2415,47 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if src_node is None:
                 self.kb.functions._add_node(function_addr, addr, syscall=syscall)
             else:
-                self.kb.functions._add_call_to(function_addr, src_node.addr, addr, ret_addr, syscall=syscall)
+                src_node = self._to_snippet(src_node)
+
+                try:
+                    ret_node = self._to_snippet(self._nodes[ret_addr])
+                except KeyError:
+                    ret_node = ret_addr
+
+                self.kb.functions._add_call_to(function_addr, src_node, addr, ret_node, syscall=syscall)
             return True
         except (AngrMemoryError, AngrTranslationError):
             return False
 
     def _function_add_fakeret_edge(self, addr, src_node, function_addr, confirmed=None):
+
+        try:
+            target = self._to_snippet(self._nodes[addr])
+        except KeyError:
+            target = addr
+
         if src_node is None:
-            self.kb.functions._add_node(function_addr, addr)
+            self.kb.functions._add_node(function_addr, target)
         else:
-            self.kb.functions._add_fakeret_to(function_addr, src_node.addr, addr, confirmed=confirmed)
+            src_node = self._to_snippet(src_node)
+            self.kb.functions._add_fakeret_to(function_addr, src_node, target, confirmed=confirmed)
 
     def _function_add_return_site(self, addr, function_addr):
-        self.kb.functions._add_return_from(function_addr, addr)
+
+        try:
+            target = self._to_snippet(self._nodes[addr])
+        except KeyError:
+            target = addr
+
+        self.kb.functions._add_return_from(function_addr, target)
 
     def _function_add_return_edge(self, return_from_addr, return_to_addr, function_addr):
-        self.kb.functions._add_return_from_call(function_addr, return_from_addr, return_to_addr)
+        try:
+            return_to_ = self._to_snippet(self._nodes[return_to_addr])
+        except KeyError:
+            return_to_ = return_to_addr
+
+        self.kb.functions._add_return_from_call(function_addr, return_from_addr, return_to_)
 
     #
     # Architecture-specific methods
