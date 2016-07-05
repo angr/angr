@@ -546,6 +546,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         ForwardAnalysis.__init__(self, allow_merging=False)
         CFGBase.__init__(self, 0, normalize=normalize, binary=binary, force_segment=force_segment)
 
+        # necessary warnings
+        if self.project.loader._auto_load_libs is True and end is None and len(self.project.loader.all_objects) > 3:
+            l.warning('"auto_load_libs" is enabled. With libraries loaded in project, CFGFast will cover libraries, '
+                      'which may take significantly more time than expected. You may reload the binary with '
+                      '"auto_load_libs" disabled, or specify "start" and "end" paramenters to limit the scope of CFG '
+                      'recovery.'
+                      )
+
         self._start = start if start is not None else (self._binary.rebase_addr + self._binary.get_min_addr())
         self._end = end if end is not None else (self._binary.rebase_addr + self._binary.get_max_addr())
 
