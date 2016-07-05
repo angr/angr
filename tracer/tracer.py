@@ -123,7 +123,7 @@ class Tracer(object):
         self.crash_addr = None
 
         # CGC flag data
-        self.cgc_flag_data = claripy.BVS('cgc-flag-data', 0x1000)
+        self.cgc_flag_data = claripy.BVS('cgc-flag-data', 0x1000 * 8)
 
         # content of the magic flag page as reported by QEMU
         # we need this to keep symbolic traces following the same path
