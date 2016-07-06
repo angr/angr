@@ -1404,7 +1404,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     _process(irsb, stmt, stmt.data)
 
             elif type(stmt) is pyvex.IRStmt.Store:  # pylint: disable=unidiomatic-typecheck
-                # store
+                # store addr
+                _process(irsb, stmt, stmt.addr)
+                # store data
                 _process(irsb, stmt, stmt.data)
 
     def _add_data_reference(self, irsb, irsb_addr, stmt, data_addr):  # pylint: disable=unused-argument
