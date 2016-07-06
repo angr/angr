@@ -42,14 +42,15 @@ class Tracer(object):
     '''
 
     def __init__(self, binary, input=None, pov_file=None, simprocedures=None,
-                 seed=None, preconstrain_input=True, preconstrain_flag=True,
-                 resiliency=True, chroot=None,
+                 hooks=None, seed=None, preconstrain_input=True,
+                 preconstrain_flag=True, resiliency=True, chroot=None,
                  cache_lookup_hook=None, cache_hook=None,
                  add_options=None, remove_options=None):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
         :param povfile: CGC PoV describing the input to trace
+        :param hooks: A dictionary of hooks to add
         :param simprocedures: dictionary of replacement simprocedures
         :param seed: optional seed used for randomness, will be passed to QEMU
         :param preconstrain_input: should the path be preconstrained to the
@@ -73,6 +74,7 @@ class Tracer(object):
         self.preconstrain_input = preconstrain_input
         self.preconstrain_flag = preconstrain_flag
         self.simprocedures = {} if simprocedures is None else simprocedures
+        self._hooks = {} if hooks is None else hooks
         if isinstance(seed, (int, long)):
             seed = str(seed)
         self.seed = seed
@@ -234,6 +236,17 @@ class Tracer(object):
                             and self.previous.addr in r_plt:
                         self.bb_cnt += 2
                         self._resolved.add(current.addr)
+
+                # handle hooked functions
+                # we use current._project since it seems to be different than self._p
+                elif current._project.is_hooked(self.previous_addr) and self.previous_addr in self._hooks:
+                    # we need step to the return
+                    while current.addr != self.trace[self.bb_cnt] and self.bb_cnt < len(self.trace):
+                        self.bb_cnt += 1
+                    # step 1 more for the normal step that would happen
+                    self.bb_cnt += 1
+                    if self.bb_cnt >= len(self.trace):
+                        return self.path_group
 
                 else:
                     l.error(
@@ -817,6 +830,10 @@ class Tracer(object):
                     symbol,
                     self.simprocedures[symbol])
 
+    def _set_hooks(self, project):
+        for addr, proc in self._hooks.items():
+            project.hook(addr, proc)
+
     def _prepare_paths(self):
         '''
         prepare initial paths
@@ -868,6 +885,8 @@ class Tracer(object):
             self._set_cgc_simprocedures()
 
         project = angr.Project(self.binary)
+
+        self._set_hooks(project)
 
         if not self.pov:
             fs = {'/dev/stdin': simuvex.storage.file.SimFile(
@@ -952,6 +971,8 @@ class Tracer(object):
 
         if not self.crash_mode:
             self._set_linux_simprocedures(project)
+
+        self._set_hooks(project)
 
         # fix stdin to the size of the input being traced
         fs = {'/dev/stdin': simuvex.storage.file.SimFile(
