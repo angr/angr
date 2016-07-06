@@ -2170,6 +2170,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if b.addr in self.kb.functions and (b.addr - a.addr < 0x10) and b.addr % 0x10 == 0:
                     # b is the beginning of a function
                     # a should be shrinked
+
+                    self._nodes[b.addr] = b
+                    self._nodes_by_addr[b.addr].append(b)
+
                     self._shrink_node(a, b.addr - a.addr)
 
                 else:
