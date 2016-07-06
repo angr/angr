@@ -97,17 +97,17 @@ class Runner(object):
             count = state.se.any_int(state.regs.edx)
             if count > 0x10000:
                 state.regs.edx = 0
-                state.add_constraints(False)
+                state.add_constraints(claripy.BoolV(False))
         if syscall_name == "receive":
             count = state.se.any_int(state.regs.edx)
             if count > 0x10000:
                 state.regs.edx = 0
-                state.add_constraints(False)
+                state.add_constraints(claripy.BoolV(False))
         if syscall_name == "random":
             count = state.se.any_int(state.regs.ecx)
             if count > 0x10000:
                 state.regs.ecx = 0
-                state.add_constraints(False)
+                state.add_constraints(claripy.BoolV(False))
 
     def get_base_call_state(self, function, test_data, initial_state=None):
         curr_buf_loc = 0x1000
