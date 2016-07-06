@@ -316,7 +316,7 @@ public:
 	/*
 	 * allocate a new PageBitmap and put into active_pages.
 	 */
-	void page_activate(uint64_t address, uint8_t *taint = NULL) {
+	void page_activate(uint64_t address, uint8_t *taint = NULL, uint64_t taint_offset = 0) {
 		address &= ~0xFFFUL;
 		taint_t *bitmap = NULL;
 		auto it = active_pages.find(address);
@@ -328,7 +328,7 @@ public:
 			if (taint != NULL) {
 				// taint is not NULL iff current page contains symbolic data
 				// check previous write acctions.
-				memcpy(bitmap, taint, sizeof(PageBitmap));
+				memcpy(bitmap, &taint[taint_offset], sizeof(PageBitmap));
 			} else {
 				memset(bitmap, TAINT_NONE, sizeof(PageBitmap));
 			}
@@ -633,7 +633,7 @@ extern "C"
 void activate(State *state, uint64_t address, uint64_t length, uint8_t *taint) {
 	// LOG_D("activate [%#lx, %#lx]", address, address + length);
 	for (uint64_t offset = 0; offset < length; offset += 0x1000)
-		state->page_activate(address + offset, &taint[offset]);
+		state->page_activate(address + offset, taint, offset);
 }
 
 /*
