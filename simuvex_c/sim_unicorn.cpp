@@ -54,7 +54,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
-static void hook_block(uc_engine *uc, uint64_t address, uint64_t size, void *user_data);
+static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user_data);
 
 class State {
 private:
@@ -527,7 +527,7 @@ static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, in
 	}
 }
 
-static void hook_block(uc_engine *uc, uint64_t address, uint64_t size, void *user_data) {
+static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user_data) {
 	LOG_I("block [%#lx, %#lx]", address, address + size);
 	State *state = (State *)user_data;
 	state->commit();
