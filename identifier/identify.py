@@ -83,6 +83,7 @@ class Identifier(object):
                 else:
                     l.debug("Found match for function %#x, %s", f.addr, match_name)
                 self.matches[f] = match_name, match_func
+                yield f.addr, match_name
             else:
                 if f.name is not None:
                     l.debug("No match for function %s at %#x", f.name, f.addr)
@@ -104,6 +105,7 @@ class Identifier(object):
 
                 if func.try_match(f, self, self._runner):
                     self.matches[f] = func.get_name(), func
+                    yield f.addr, match_name
 
     def get_func_info(self, func):
         if isinstance(func, (int, long)):
