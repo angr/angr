@@ -731,7 +731,10 @@ class SimCGC(SimOS):
             state.regs.esi = 0
             state.regs.esp = 0xbaaaaffc
             state.regs.ebp = 0
-            #state.regs.eflags = s.se.BVV(0x202, 32)
+            state.regs.cc_dep1 = 0x202  # default eflags
+            state.regs.cc_op = 0        # OP_COPY
+            state.regs.cc_dep2 = 0      # doesn't matter
+            state.regs.cc_ndep = 0      # doesn't matter
 
             # fpu values
             state.regs.mm0 = 0
