@@ -745,8 +745,8 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
         r = globals()[funcname](state, cc_dep1, cc_dep2, cc_ndep)
         return state.se.Concat(state.se.BVV(0, state.arch.bits - 1), r), []
 
-    # TODO: Fallback to the complex-mode if the target method is not found.
-    raise Exception('%s not found.' % funcname)
+    l.warning('%s is not supported in pc_calculate_condition_simple(). Consider implementing.', funcname)
+    raise KeyError('%s not found.' % funcname)
 
 def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
     cc_op = flag_concretize(state, cc_op)
@@ -769,9 +769,12 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
 ###########################
 def amd64g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
     if USE_SIMPLIFIED_CCALLS in state.options:
-        return pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
-    else:
-        return pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
+        try:
+            return pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
+        except KeyError:
+
+            pass
+    return pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
 
 def amd64g_calculate_rflags_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
     return pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform='AMD64')
