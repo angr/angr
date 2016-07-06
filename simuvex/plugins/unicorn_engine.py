@@ -12,6 +12,7 @@ try:
 except ImportError:
     l.warning("Unicorn is not installed. Support disabled.")
 
+import claripy
 from .plugin import SimStatePlugin
 from ..s_errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError
 
@@ -40,6 +41,15 @@ class STOP(object): # stop_t
         for item in dir(STOP):
             if item.startswith('STOP_') and getattr(STOP, item) == num:
                 return item
+
+#
+# This annotation is added to constraints that Unicorn generates in aggressive concretization mode
+#
+
+class AggressiveConcretizationAnnotation(claripy.SimplificationAvoidanceAnnotation):
+    def __init__(self, addr):
+        claripy.SimplificationAvoidanceAnnotation.__init__(self)
+        self.unicorn_start_addr = addr
 
 #
 # Because Unicorn leaks like crazy, we use one Uc object per thread...
@@ -357,9 +367,11 @@ class Unicorn(SimStatePlugin):
     def _symbolic_passthrough(self, d):
         if d.symbolic and options.UNICORN_AGGRESSIVE_CONCRETIZATION in self.state.options:
             cd = self.state.se.eval_to_ast(d, 1)[0]
-            self.state.add_constraints(d == cd)
-            d = cd
-        return d
+            constraint = (d == cd).annotate(AggressiveConcretizationAnnotation(self.state.regs.ip))
+            self.state.add_constraints(constraint)
+            return cd
+        else:
+            return d
 
     def _process_value(self, d):
         d = self._symbolic_passthrough(d)
