@@ -205,7 +205,8 @@ class CongruencyCheck(Analysis):
 			return False
 
 		while len(self.pg.left) > 0 and len(self.pg.right) > 0:
-			self._update_progress(100. * float(self.pg.one_left.weighted_length) / depth)
+			if depth is not None:
+				self._update_progress(100. * float(self.pg.one_left.weighted_length) / depth)
 
 			if len(self.pg.deadended) != 0:
 				self._report_incongruency("Unexpected deadended paths before step.")
