@@ -13,8 +13,6 @@ l.setLevel("DEBUG")
 
 NUM_TESTS = 5
 
-# FIXME CFGFAST??
-
 class FuncInfo(object):
     def __init__(self):
         self.stack_vars = None
@@ -35,11 +33,10 @@ class Identifier(object):
 
     def __init__(self, project, cfg=None):
         self.project = project
-        # FIXME use CFGFast when it works
         if cfg is not None:
             self._cfg = cfg
         else:
-            self._cfg = project.analyses.CFG(resolve_indirect_jumps=True)
+            self._cfg = project.analyses.CFGFast(resolve_indirect_jumps=True)
         self._runner = Runner(project, self._cfg)
 
         # reg list
@@ -103,7 +100,14 @@ class Identifier(object):
                 if len(self.func_info[f].stack_args) != func.num_args():
                     continue
 
-                if func.try_match(f, self, self._runner):
+                try:
+                    result = func.try_match(f, self, self._runner)
+                except IdentifierException as e:
+                    l.warning('Encountered IdentifierException trying to analyze %#x, reason: %s',
+                            f.addr, e.message)
+                    continue
+
+                if result:
                     self.matches[f] = func.get_name(), func
                     yield f.addr, match_name
 
