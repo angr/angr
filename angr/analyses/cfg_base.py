@@ -10,6 +10,7 @@ import simuvex
 from ..knowledge import Function, HookNode, BlockNode
 from ..analysis import Analysis
 from ..errors import AngrCFGError, AngrTranslationError, AngrMemoryError
+from ..extern_obj import AngrExternObject
 
 from .cfg_node import CFGNode
 
@@ -497,6 +498,10 @@ class CFGBase(Analysis):
         if obj is None:
             return None
 
+        if isinstance(obj, AngrExternObject):
+            # the address is from a section allocated by angr.
+            return None
+
         for section in obj.sections:
             start = section.vaddr + obj.rebase_addr
             end = section.vaddr + section.memsize + obj.rebase_addr
@@ -519,6 +524,10 @@ class CFGBase(Analysis):
         obj = self.project.loader.addr_belongs_to_object(addr)
 
         if obj is None:
+            return None
+
+        if isinstance(obj, AngrExternObject):
+            # the address is from a section allocated by angr.
             return None
 
         for segment in obj.segments:
