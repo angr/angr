@@ -384,7 +384,7 @@ class Block(object):
         insns = []
 
         for cs_insn in cs.disasm(self.bytes, self.addr):
-            insns.append(CapstoneInsn(cs_insn))
+            insns.append(cs_insn)
         block = CapstoneBlock(self.addr, insns, self._thumb, self._arch)
 
         self._capstone = block
@@ -393,54 +393,6 @@ class Block(object):
     @property
     def codenode(self):
         return BlockNode(self.addr, self.size, bytestr=self.bytes)
-
-
-class CopyClass(object):
-    def __init__(self, obj):
-        for attr in dir(obj):
-            if attr.startswith('_'):
-                continue
-            val = getattr(obj, attr)
-            if type(val) in (int, long, list, tuple, str, dict, float, bool):  # pylint: disable=unidiomatic-typecheck
-                setattr(self, attr, val)
-            else:
-                setattr(self, attr, CopyClass(val))
-
-
-class CapstoneInsn(object):
-    __slots__ = [ '_cs', 'address', 'bytes', 'cc', 'groups', 'id', '_insn_name', 'mnemonic', 'op_str', 'operands',
-                  'size'
-                  ]
-
-    def __init__(self, insn):
-        self._cs = insn._cs
-        self.address = insn.address
-        self.bytes = insn.bytes
-        if hasattr(insn, 'cc'):
-            self.cc = insn.cc
-        self.groups = insn.groups
-        self.id = insn.id
-        self._insn_name = insn.insn_name()
-        self.mnemonic = insn.mnemonic
-        self.op_str = insn.op_str
-        self.operands = map(CopyClass, insn.operands)
-        self.size = insn.size
-
-    def group(self, grpnum):
-        return grpnum in self.groups
-
-    def insn_name(self):
-        return self._insn_name
-
-    def reg_name(self, reg_id):
-        # I don't like this API, but it's replicating Capstone's...
-        return capstone._cs.cs_reg_name(self._cs.csh, reg_id).decode('ascii')
-
-    def __str__(self):
-        return "0x%x:\t%s\t%s" % (self.address, self.mnemonic, self.op_str)
-
-    def __repr__(self):
-        return '<CapstoneInsn "%s" for %#x>' % (self.mnemonic, self.address)
 
 
 class CapstoneBlock(object):
