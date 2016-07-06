@@ -3,12 +3,15 @@ import time
 import angr
 import signal
 import socket
+import pickle
 import claripy
 import simuvex
+import hashlib
 import tempfile
 import topsecret
 import subprocess
 from .tracerpov import TracerPoV
+from .simprocedures import receive
 from .simprocedures import FixedOutTransmit, FixedInReceive
 from simuvex import s_options as so
 
@@ -40,8 +43,9 @@ class Tracer(object):
 
     def __init__(self, binary, input=None, pov_file=None, simprocedures=None,
                  seed=None, preconstrain_input=True, preconstrain_flag=True,
-                 resiliency=True, chroot=None, add_options=None,
-                 remove_options=None):
+                 resiliency=True, chroot=None,
+                 cache_lookup_hook=None, cache_hook=None,
+                 add_options=None, remove_options=None):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -56,6 +60,8 @@ class Tracer(object):
             angr disagree?
         :param chroot: trace the program as though it were executing in a
             chroot
+        :param cache_lookup_hook: cache finding function, returns a state or None
+        :param cache_hook: cache function, decides how to cache the state
         :param add_options: add options to the state which used to do tracing
         :param remove_options: remove options from the state which is used to
             do tracing
@@ -74,6 +80,18 @@ class Tracer(object):
         self.chroot = chroot
         self.add_options = set() if add_options is None else add_options
         self.constrained_addrs = []
+        self._cache_lookup_hook = self._local_cache_lookup if cache_lookup_hook is None \
+            else cache_lookup_hook
+        self._cache_hook = self._local_cacher if cache_hook is None \
+            else cache_hook
+
+        # set by local_cache_lookup
+        self._loaded_from_cache = False
+        # set up cache_file
+        binhash = hashlib.md5(open(self.binary).read()).hexdigest()
+        self._cache_file = os.path.join("/tmp", "%s-%s.tcache" % (os.path.basename(self.binary), binhash))
+        # overwrite any cache hooks if a file with them was set in the env
+        self._check_env_for_cache_hook()
 
         if remove_options is None:
             self.remove_options = set()
@@ -96,6 +114,9 @@ class Tracer(object):
                 raise ValueError(
                     "the passed seed is either not an integer or is not between 0 and UINT_MAX"
                     )
+
+        # set up cache hook
+        receive.cache_hook = self._cache_hook
 
         # a PoV was provided
         if self.pov_file is not None:
@@ -483,16 +504,22 @@ class Tracer(object):
         # the caller is responsible for removing preconstraints
         return all_paths[0], None
 
-    def remove_preconstraints(self, path):
+    def remove_preconstraints(self, path, to_composite_solver=True):
 
         if not (self.preconstrain_input or self.preconstrain_flag):
             return
 
-        new_constraints = path.state.se.constraints[len(self.preconstraints):]
-        new_constraints = [path.state.se.simplify(c) for c in new_constraints]
+        # cache key set creation
+        precon_cache_keys = set()
 
-        path.state.options.discard(so.REPLACEMENT_SOLVER)
-        path.state.options.add(so.COMPOSITE_SOLVER)
+        for con in self.preconstraints:
+            precon_cache_keys.add(con.cache_key)
+
+        new_constraints = filter(lambda x: x.cache_key not in precon_cache_keys, path.state.se.constraints)
+
+        if to_composite_solver:
+            path.state.options.discard(so.REPLACEMENT_SOLVER)
+            path.state.options.add(so.COMPOSITE_SOLVER)
         path.state.release_plugin('solver_engine')
         path.state.add_constraints(*new_constraints)
         l.debug("downsizing unpreconstrained state")
@@ -587,6 +614,41 @@ class Tracer(object):
             else:
                 l.error("\"%s\" does not exist", self.tracer_qemu_path)
                 raise TracerEnvironmentError
+
+    def _local_cache_lookup(self):
+
+        if os.path.exists(self._cache_file):
+            l.warning("loading state from cache file %s", self._cache_file)
+
+            # just for the testcase
+            self._loaded_from_cache = True
+
+            # disable the cache_hook if we loaded from the cache_file
+            receive.cache_hook = None
+
+            return pickle.loads(open(self._cache_file).read())
+
+    def _local_cacher(self, state):
+        cache_path = self.previous.copy()
+        # for a cache, we want the solver type to remain the same
+        self.remove_preconstraints(cache_path, to_composite_solver=False)
+
+        state = cache_path.state
+
+        l.warning("caching state to %s", self._cache_file)
+        with open(self._cache_file, 'w') as f:
+            pickle.dump((self.bb_cnt - 1, state), f)
+
+    def _check_env_for_cache_hook(self):
+
+        if "TRACER_CACHE_HOOK_MODULE" in os.environ:
+            l.info("found cache hook module in environment, hooking...")
+
+            ch = __import__(os.environ["TRACER_CACHE_HOOK_MODULE"]).cache_hook
+            clh = __import__(os.environ["TRACER_CACHE_HOOK_MODULE"]).cache_lookup_hook
+
+            self._cache_hook = ch
+            self._cache_lookup_hook = clh
 
 # DYNAMIC TRACING
 
@@ -760,7 +822,18 @@ class Tracer(object):
         '''
 
         if self.os == "cgc":
-            return self._cgc_prepare_paths()
+
+            cache_tuple = self._cache_lookup_hook()
+            pg = None
+            if cache_tuple is not None:
+                bb_cnt, state = cache_tuple
+                pg = self._cgc_prepare_paths(state)
+                self.bb_cnt = bb_cnt
+            else:
+                pg = self._cgc_prepare_paths()
+
+            return pg
+
         elif self.os == "unix":
             return self._linux_prepare_paths()
 
@@ -779,9 +852,10 @@ class Tracer(object):
 
         return {'/dev/stdin': s}
 
-    def _cgc_prepare_paths(self):
+    def _cgc_prepare_paths(self, state=None):
         '''
         prepare the initial paths for CGC binaries
+        :param state: optional state to use instead of preparing a fresh one
         '''
 
         # FixedInReceive and FixedOutReceive always are applied as defaults
@@ -802,32 +876,45 @@ class Tracer(object):
         else:
             fs = self._prepare_dialogue()
 
-        options = set()
-        options.add(so.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
-        options.add(so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
-        options.add(so.REPLACEMENT_SOLVER)
+        entry_state = None
+        if state is None:
+            options = set()
+            options.add(so.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
+            options.add(so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
+            options.add(so.REPLACEMENT_SOLVER)
 
-        # try to enable unicorn, continue if it doesn't exist
-        try:
-            options.add(so.UNICORN)
-            self.unicorn_enabled = True
-            l.info("unicorn tracing enabled")
-        except AttributeError:
-            pass
+            # try to enable unicorn, continue if it doesn't exist
+            try:
+                options.add(so.UNICORN)
+                self.unicorn_enabled = True
+                l.info("unicorn tracing enabled")
+            except AttributeError:
+                pass
 
-        self.remove_options |= so.simplification | set(so.LAZY_SOLVES)
-        self.add_options |= options
-        entry_state = project.factory.entry_state(
-            fs=fs,
-            add_options=self.add_options,
-            remove_options=self.remove_options)
+            self.remove_options |= so.simplification | set(so.LAZY_SOLVES)
+            self.add_options |= options
+            entry_state = project.factory.entry_state(
+                fs=fs,
+                add_options=self.add_options,
+                remove_options=self.remove_options)
+        else:
+            # hookup the new files
+            for name in fs:
+                fs[name].set_state(state)
+                for fd in state.posix.files:
+                    if state.posix.files[fd].name == name:
+                        state.posix.files[fd] = fs[name]
+                        break
 
-        # set unicorn cooldowns
-        if self.unicorn_enabled:
-            pass
-            #entry_state.unicorn.cooldown_symbolic_registers = 4
-            #entry_state.unicorn.cooldown_symbolic_memory = 4
-            #entry_state.unicorn.cooldown_nonunicorn_blocks = 4
+            state.scratch.executed_block_count = 0
+
+            for option in self.add_options:
+                state.options.add(option)
+
+            for option in self.remove_options:
+                state.options.discard(option)
+
+            entry_state = state
 
         if self.preconstrain_input:
             self._preconstrain_state(entry_state)
