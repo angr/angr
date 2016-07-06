@@ -67,7 +67,6 @@ class receive_until_fd(Func):
     def pre_test(self, func, runner):
         for perm in itertools.permutations(range(len(self.base_args()))):
             self.arg_order = perm
-            print "trying arg order:", self.arg_order
             if self.do_pretests(func, runner):
                 return True
         return False

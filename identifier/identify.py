@@ -133,7 +133,7 @@ class Identifier(object):
             # test it
             if f.num_args() != len(func_info.stack_args) or f.var_args() != func_info.var_args:
                 continue
-            print "testing:", name
+            #print "testing:", name
             if not self.check_tests(function, f):
                 continue
             # match!
@@ -147,7 +147,6 @@ class Identifier(object):
         for i in xrange(NUM_TESTS):
             test_data = match_func.gen_input_output_pair()
             if test_data is not None and not self._runner.test(cfg_func, test_data):
-                print "failed test 2"
                 return False
         return True
 

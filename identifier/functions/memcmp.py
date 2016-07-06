@@ -65,9 +65,5 @@ class memcmp(Func):
         if outval1 == 0 or outval2 == 0:
             return False
 
-        # should not have the same signs
-        if (outval1 ^ outval2) & 0x80000000 == 0:
-            return False
-
 
         return True

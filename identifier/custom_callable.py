@@ -1,6 +1,9 @@
 import simuvex
 from angr.errors import AngrCallableError, AngrCallableMultistateError
 
+import logging
+l = logging.getLogger("identifier.custom_callable")
+l.setLevel("DEBUG")
 
 class Callable(object):
     """
@@ -84,7 +87,7 @@ class Callable(object):
             if len(caller.active) == 0:
                 break
             if caller.active[0].weighted_length > 100000:
-                print "super long path", caller.active[0]
+                l.debug("super long path %s", caller.active[0])
                 raise AngrCallableError("Super long path")
             caller = caller.step(step_func=step_func if self._concrete_only else None)
         if len(caller.active) > 0:

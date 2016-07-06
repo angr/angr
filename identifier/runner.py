@@ -8,7 +8,6 @@ from tracer.simprocedures import FixedOutTransmit, FixedInReceive
 
 import logging
 l = logging.getLogger("identifier.runner")
-l.setLevel("DEBUG")
 
 
 class Runner(object):
@@ -34,12 +33,11 @@ class Runner(object):
         # try to enable unicorn, continue if it doesn't exist
         try:
             options.add(so.UNICORN)
-            options.add(so.UNICORN_FAST)
             l.info("unicorn tracing enabled")
         except AttributeError:
             pass
 
-        remove_options = so.simplification | set(so.LAZY_SOLVES) | so.symbolic
+        remove_options = so.simplification | set(so.LAZY_SOLVES)
         add_options = options
         if initial_state is None:
             entry_state = self.project.factory.entry_state(
@@ -59,10 +57,11 @@ class Runner(object):
 
         if initial_state is None:
             # map the CGC flag page
-            cgc_flag_data = claripy.BVS('cgc-flag-data', 0x1000 * 8)
+            #cgc_flag_data = claripy.BVS('cgc-flag-data', 0x1000 * 8)
 
             # PROT_READ region
-            entry_state.memory.map_region(0x4347c000, 0x1000, 1)
+            #entry_state.memory.map_region(0x4347c000, 0x1000, 1)
+            cgc_flag_data = entry_state.se.BVV("A" * 0x1000)
             entry_state.memory.store(0x4347c000, cgc_flag_data)
 
         # make sure unicorn will run
