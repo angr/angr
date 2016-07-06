@@ -626,7 +626,8 @@ class Tracer(object):
             # disable the cache_hook if we loaded from the cache_file
             receive.cache_hook = None
 
-            return pickle.loads(open(self._cache_file).read())
+            with open(self._cache_file) as f:
+                return pickle.load(f)
 
     def _local_cacher(self, state):
         cache_path = self.previous.copy()
