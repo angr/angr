@@ -2137,10 +2137,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         continue
                     if len(block.capstone.insns) == 1 and block.capstone.insns[0].insn_name() == "nop":
                         # leading nop for alignment.
-                        next_node_addr = a.addr + 0x10 - (a.addr % 0x10)
+                        next_node_addr = a.addr + block.size
                         if not (next_node_addr in self._nodes or next_node_addr in nodes_to_append):
                             # create a new CFGNode that starts there
-                            next_node = CFGNode(next_node_addr, a.size - (0x10 - (a.addr % 0x10)), self,
+                            next_node = CFGNode(next_node_addr, a.size - block.size, self,
                                                 function_address=next_node_addr
                                                 )
                             # create edges accordingly
