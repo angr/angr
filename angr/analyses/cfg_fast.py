@@ -494,6 +494,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     # TODO: Move arch_options to CFGBase, and add those logic to CFGAccurate as well.
     # TODO: Identify tail call optimization, and correctly mark the target as a new function
 
+    PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "")
+
     def __init__(self,
                  binary=None,
                  start=None,
@@ -733,7 +735,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         # else:
                         #   we reach the end of the memory region
                         break
-                    if chr(val) not in string.printable:
+                    if chr(val) not in self.PRINTABLES:
                         is_sz = False
                         break
                     sz += chr(val)
@@ -1626,17 +1628,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Is it an unicode string?
         # TODO: Support unicode string longer than the max length
-        if block[1] == 0 and block[3] == 0 and chr(block[0]) in string.printable:
+        if block[1] == 0 and block[3] == 0 and chr(block[0]) in self.PRINTABLES:
             max_unicode_string_len = 1024
             unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
-            if len(unicode_str) and all([ c in string.printable for c in unicode_str]):
+            if len(unicode_str) and all([ c in self.PRINTABLES for c in unicode_str]):
                 return "unicode", (len(unicode_str) + 1) * 2
 
         # Is it a null-terminated printable string?
         # TODO: Support strings longer than the max length
         max_string_len = 2048
         s = self._ffi.string(self._ffi.cast("char*", block), max_string_len)
-        if len(s) and all([ c in string.printable for c in s ]):
+        if len(s) and all([ c in self.PRINTABLES for c in s ]):
             return "string", len(s) + 1
 
         return None, None
