@@ -61,7 +61,6 @@ build_images:
     only: ["master"]
     stage: deploy
     script:
-    - angr-build angr
-    - angr-build angr-ci
     - cgc-build worker
+    - angr-build angr-ci
     tags: ["docker-builder"]
