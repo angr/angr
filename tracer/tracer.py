@@ -650,8 +650,11 @@ class Tracer(object):
         state = cache_path.state
 
         l.warning("caching state to %s", self._cache_file)
-        with open(self._cache_file, 'w') as f:
-            pickle.dump((self.bb_cnt - 1, state), f)
+        try:
+            with open(self._cache_file, 'w') as f:
+                pickle.dump((self.bb_cnt - 1, self.cgc_flag_data, state), f)
+        except RuntimeError as e: # maximum recursion depth can be reached here
+            l.error("unable to cache state, '%s' during pickling", e.message)
 
     def _check_env_for_cache_hook(self):
 
@@ -844,7 +847,7 @@ class Tracer(object):
             cache_tuple = self._cache_lookup_hook()
             pg = None
             if cache_tuple is not None:
-                bb_cnt, state = cache_tuple
+                bb_cnt, self.cgc_flag_data, state = cache_tuple
                 pg = self._cgc_prepare_paths(state)
                 self.bb_cnt = bb_cnt
             else:
