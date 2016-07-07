@@ -1403,6 +1403,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 val = data_.con.value
                 self._add_data_reference(irsb_, irsb_addr, stmt_, val)
 
+        # first pass to see if there are any cross-statement optimizations. if so, we relift the basic block with
+        # optimization level 0 to preserve as much constant references as possible
+        empty_insn = False
+        for i, stmt in enumerate(irsb.statements[:-1]):
+            if isinstance(stmt, pyvex.IRStmt.IMark) and isinstance(irsb.statements[i + 1], pyvex.IRStmt.IMark):
+                empty_insn = True
+                break
+
+        if empty_insn:
+            # make sure opt_level is 0
+            irsb = self.project.factory.block(addr=irsb_addr, max_size=irsb.size, opt_level=0).vex
+
+        # second pass. for each statement, collect all constants that are referenced or used.
         for stmt in irsb.statements:
             if type(stmt) is pyvex.IRStmt.WrTmp:  # pylint: disable=unidiomatic-typecheck
                 if type(stmt.data) is pyvex.IRExpr.Load:  # pylint: disable=unidiomatic-typecheck
@@ -1414,6 +1427,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # binary operation
                     for arg in stmt.data.args:
                         _process(irsb, stmt, arg)
+
+                elif type(stmt.data) is pyvex.IRExpr.Const:
+                    _process(irsb, stmt, stmt.data)
 
             elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck
                 # put
