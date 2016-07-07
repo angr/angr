@@ -328,10 +328,6 @@ class Function(object):
     def num_arguments(self):
         return len(self._argument_registers) + len(self._argument_stack_variables)
 
-    @property
-    def block_addrs(self):
-        return self._block_sizes.iterkeys()
-
     def __contains__(self, val):
         if isinstance(val, (int, long)):
             return val in self._block_sizes
