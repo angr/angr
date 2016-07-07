@@ -110,7 +110,7 @@ class Function(object):
         for block in self._local_blocks:
             try:
                 yield self._get_block(block.addr)
-            except AngrTranslationError:
+            except (AngrTranslationError, AngrMemoryError):
                 pass
 
     @property
@@ -784,4 +784,4 @@ class Function(object):
         return simuvex.s_cc.SimCCUnknown(arch, args, ret_vals, sp_delta)
 
 from .codenode import BlockNode
-from ..errors import AngrTranslationError, AngrValueError
+from ..errors import AngrTranslationError, AngrValueError, AngrMemoryError
