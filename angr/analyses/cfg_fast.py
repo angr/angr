@@ -998,6 +998,22 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self.make_functions()
 
+        if self.project.loader.main_bin.sections:
+            # this binary has sections
+            # make sure we have data entries assigned at the beginning of each data section
+            for sec in self.project.loader.main_bin.sections:
+                if sec.memsize > 0 and not sec.is_executable and sec.is_readable:
+                    addr = sec.vaddr + self.project.loader.main_bin.rebase_addr
+                    for seg in self.project.loader.main_bin.segments:
+                        seg_addr = seg.vaddr + self.project.loader.main_bin.rebase_addr
+                        if seg_addr <= addr < seg_addr + seg.memsize:
+                            break
+                    else:
+                        continue
+
+                    if addr not in self.memory_data:
+                        self.memory_data[addr] = MemoryData(addr, 0, 'unknown', None, None, None)
+
         r = True
         while r:
             r = self._tidy_data_references()
