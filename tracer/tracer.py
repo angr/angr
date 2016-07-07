@@ -651,8 +651,9 @@ class Tracer(object):
 
         l.warning("caching state to %s", self._cache_file)
         try:
-            with open(self._cache_file, 'w') as f:
-                pickle.dump((self.bb_cnt - 1, self.cgc_flag_data, state), f)
+            ds = pickle.dumps((self.bb_cnt - 1, self.cgc_flag_data, state))
+            with open(self._cache_file, 'wb') as f:
+                f.write(ds)
         except RuntimeError as e: # maximum recursion depth can be reached here
             l.error("unable to cache state, '%s' during pickling", e.message)
 
