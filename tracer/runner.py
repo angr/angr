@@ -9,6 +9,7 @@ import resource
 import tempfile
 import subprocess
 import contextlib
+import shellphish_qemu
 
 from .tracerpov import TracerPoV
 from .tracer import TracerEnvironmentError, TracerInstallError
@@ -113,30 +114,9 @@ class Runner(object):
             raise TracerEnvironmentError
 
         # try to find the install base
-        self.base = os.path.dirname(__file__)
-        self._adjust_base()
-
-        try:
-            self._check_qemu_install()
-        except TracerEnvironmentError:
-            self.base = os.path.join(self.base, "..", "..")
-            self._check_qemu_install()
-
+        self.base = shellphish_qemu.qemu_base()
+        self._check_qemu_install()
         return True
-
-    def _adjust_base(self):
-        """
-        adjust self.base to point to the directory containing bin, there should always be a directory
-        containing bin below base intially
-        """
-
-        while "bin" not in os.listdir(self.base) and os.path.abspath(self.base) != "/":
-            self.base = os.path.join(self.base, "..")
-
-        if os.path.abspath(self.base) == "/":
-            raise TracerInstallError("could not find tracer install directory")
-
-        self.base = os.path.abspath(self.base)
 
     def _check_qemu_install(self):
         """
@@ -144,13 +124,13 @@ class Runner(object):
         """
 
         if self.os == "cgc":
-            self.tracer_qemu = "tracer-qemu-cgc"
+            self.tracer_qemu = "shellphish-qemu-cgc"
 
-        self.tracer_qemu_path = os.path.join(self.base, "bin", self.tracer_qemu)
+        self.tracer_qemu_path = shellphish_qemu.qemu_path(self.tracer_qemu)
 
         if not os.access(self.tracer_qemu_path, os.X_OK):
             if os.path.isfile(self.tracer_qemu_path):
-                l.error("%s is not executable" % self.tracer_qemu)
+                l.error("%s is not executable", self.tracer_qemu)
                 raise TracerEnvironmentError
             else:
                 l.error("\"%s\" does not exist", self.tracer_qemu_path)

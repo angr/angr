@@ -121,14 +121,12 @@ class Tracer(object):
         else:
             self.pov = False
 
-        self.base = os.path.join(os.path.dirname(__file__), "..", "..")
-
         # internal project object, useful for obtaining certain kinds of info
         self._p = angr.Project(self.binary)
 
+        self.base = None
         self.tracer_qemu = None
         self.tracer_qemu_path = None
-
         self._setup()
 
         l.debug("accumulating basic block trace...")
@@ -575,8 +573,7 @@ class Tracer(object):
             raise TracerEnvironmentError
 
         # try to find the install base
-        self.base = os.path.dirname(__file__)
-        self._adjust_base()
+        self.base = shellphish_qemu.qemu_base()
 
         try:
             self._check_qemu_install()
@@ -585,19 +582,6 @@ class Tracer(object):
             self._check_qemu_install()
 
         return True
-
-    def _adjust_base(self):
-        '''
-        adjust self.base to point to the directory containing bin, there should
-        always be a directory containing bin below base intially
-        '''
-
-        while "bin" not in os.listdir(self.base) \
-                and os.path.abspath(self.base) != "/":
-            self.base = os.path.join(self.base, "..")
-
-        if os.path.abspath(self.base) == "/":
-            raise TracerInstallError("could not find tracer install directory")
 
     def _check_qemu_install(self):
         '''
