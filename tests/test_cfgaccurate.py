@@ -190,7 +190,7 @@ def test_cfg_6():
     proj = angr.Project(binary_path,
                         use_sim_procedures=True,
                         load_options={'auto_load_libs': False})
-    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=1)
+    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=1)  # pylint:disable=unused-variable
     nose.tools.assert_greater_equal(set(f for f in proj.kb.functions), set(function_addresses))
     simuvex.o.modes['fastpath'] ^= {simuvex.s_options.DO_CCALLS}
 

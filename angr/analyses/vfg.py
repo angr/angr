@@ -8,7 +8,7 @@ import claripy
 import angr
 import archinfo
 
-from ..entry_wrapper import SimRunKey, FunctionKey, EntryWrapper, CallStack
+from ..entry_wrapper import SimRunKey, FunctionKey, EntryWrapper
 from ..analysis import Analysis, register_analysis
 from ..errors import AngrVFGError, AngrError, AngrVFGRestartAnalysisNotice, AngrJobMergingFailureNotice
 from .forward_analysis import ForwardAnalysis, AngrSkipEntryNotice
@@ -178,12 +178,12 @@ class VFGNode(object):
         return hash(self.key)
 
     def __eq__(self, o):
-        return type(self) == type(o) and \
-               self.key == o.key and self.addr == o.addr and \
-               self.state == o.state and self.actions == o.actions and \
-               self.events == o.events and self.narrowing_times == o.narrowing_times and \
-               self.all_states == o.all_states and self.widened_state == o.widened_state and \
-               self.input_variables == o.input_variables
+        return (type(self) == type(o) and # pylint:disable=unidiomatic-typecheck
+               self.key == o.key and self.addr == o.addr and
+               self.state == o.state and self.actions == o.actions and
+               self.events == o.events and self.narrowing_times == o.narrowing_times and
+               self.all_states == o.all_states and self.widened_state == o.widened_state and
+               self.input_variables == o.input_variables)
 
     def __repr__(self):
         s = "VFGNode[%#x] <%s>" % (self.addr, repr(self.key))
@@ -762,7 +762,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return new_jobs
 
-    def _post_entry_handling(self, job, new_jobs, successors):
+    def _post_entry_handling(self, job, new_jobs, successors):  # pylint:disable=unused-argument
 
         # Debugging output
         if l.level == logging.DEBUG:
@@ -974,7 +974,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return widened_state, widening_occurred
 
-    def _narrow_states(self, node, old_state, new_state, previously_widened_state):
+    def _narrow_states(self, node, old_state, new_state, previously_widened_state):  # pylint:disable=unused-argument,no-self-use
         """
         Try to narrow the state!
 
@@ -1461,15 +1461,15 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         reg_sp_offset = successor_state.arch.sp_offset
         reg_sp_expr = successor_state.registers.load(reg_sp_offset)
 
-        if type(reg_sp_expr._model_vsa) is claripy.BVV:
+        if type(reg_sp_expr._model_vsa) is claripy.BVV:  # pylint:disable=unidiomatic-typecheck
             reg_sp_val = successor_state.se.any_int(reg_sp_expr)
             reg_sp_si = successor_state.se.SI(to_conv=reg_sp_expr)
             reg_sp_si = reg_sp_si._model_vsa
-        elif type(reg_sp_expr._model_vsa) in (int, long):
+        elif type(reg_sp_expr._model_vsa) in (int, long):  # pylint:disable=unidiomatic-typecheck
             reg_sp_val = reg_sp_expr._model_vsa
             reg_sp_si = successor_state.se.SI(bits=successor_state.arch.bits, to_conv=reg_sp_val)
             reg_sp_si = reg_sp_si._model_vsa
-        elif type(reg_sp_expr._model_vsa) is claripy.vsa.StridedInterval:
+        elif type(reg_sp_expr._model_vsa) is claripy.vsa.StridedInterval:  # pylint:disable=unidiomatic-typecheck
             reg_sp_si = reg_sp_expr._model_vsa
             reg_sp_val = reg_sp_si.min
         else:
@@ -1592,11 +1592,11 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         Input: addresses or node instances
         Return: a list of lists of nodes representing paths.
         """
-        if type(begin) in (int, long) and type(end) in (int, long):
+        if type(begin) in (int, long) and type(end) in (int, long):  # pylint:disable=unidiomatic-typecheck
             n_begin = self.get_any_node(begin)
             n_end = self.get_any_node(end)
 
-        elif isinstance(begin, VFGNode) and isinstance(end, VFGNode):
+        elif isinstance(begin, VFGNode) and isinstance(end, VFGNode):  # pylint:disable=unidiomatic-typecheck
             n_begin = begin
             n_end = end
         else:
@@ -1604,7 +1604,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return networkx.all_simple_paths(self.graph, n_begin, n_end)
 
-    def _find_merge_points(self, function_addr, function_endpoints, graph):
+    def _find_merge_points(self, function_addr, function_endpoints, graph):  # pylint:disable=unused-argument,no-self-use
         """
         Given a local transition graph of a function, find all merge points inside, and then perform a
         quasi-topological sort of those merge points.
