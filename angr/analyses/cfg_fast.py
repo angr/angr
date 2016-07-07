@@ -1494,7 +1494,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     else:
                         # We got an address that is not inside the current binary...
                         l.warning('_tidy_data_references() sees an address %#08x that does not belong to any '
-                                  'section or segment.', last_addr
+                                  'section or segment.', data_addr
                                   )
                         last_addr = None
 
@@ -2166,7 +2166,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # no one is calling it
                     # this function might be created from linear sweeping
                     try:
-                        block = self.project.factory.block(a.addr, max_size=0x10 - (a.addr % 0x10))
+                        block = self.project.factory.fresh_block(a.addr, 0x10 - (a.addr % 0x10))
                     except AngrTranslationError:
                         continue
                     if len(block.capstone.insns) == 1 and block.capstone.insns[0].insn_name() == "nop":
@@ -2212,7 +2212,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 else:
                     try:
-                        block = self.project.factory.block(a.addr, max_size=b.addr - a.addr)
+                        block = self.project.factory.fresh_block(a.addr, b.addr - a.addr)
                     except AngrTranslationError:
                         continue
                     if len(block.capstone.insns) == 1 and block.capstone.insns[0].insn_name() == "nop":
