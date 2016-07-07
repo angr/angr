@@ -2166,7 +2166,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # no one is calling it
                     # this function might be created from linear sweeping
                     try:
-                        block = self.project.factory.fresh_block(a.addr, 0x10 - (a.addr % 0x10))
+                        block = self.project.factory.block(a.addr, max_size=0x10 - (a.addr % 0x10))
                     except AngrTranslationError:
                         continue
                     if len(block.capstone.insns) == 1 and block.capstone.insns[0].insn_name() == "nop":
