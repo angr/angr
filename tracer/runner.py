@@ -124,7 +124,7 @@ class Runner(object):
         """
 
         if self.os == "cgc":
-            self.tracer_qemu = "shellphish-qemu-cgc"
+            self.tracer_qemu = "shellphish-qemu-cgc-tracer"
 
         self.tracer_qemu_path = shellphish_qemu.qemu_path(self.tracer_qemu)
 

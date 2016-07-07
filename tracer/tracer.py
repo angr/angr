@@ -589,8 +589,8 @@ class Tracer(object):
         '''
 
         if self.os == "cgc":
-            self.tracer_qemu = "shellphish-qemu-cgc"
-            qemu_platform = 'cgc'
+            self.tracer_qemu = "shellphish-qemu-cgc-tracer"
+            qemu_platform = 'cgc-tracer'
         elif self.os == "unix":
             self.tracer_qemu = "shellphish-qemu-linux-%s" % self._p.arch.qemu_name
             qemu_platform = self._p.arch.qemu_name
