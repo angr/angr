@@ -11,7 +11,7 @@ from archinfo import ArchARM
 
 from ..entry_wrapper import SimRunKey, EntryWrapper
 from ..analysis import register_analysis
-from ..errors import AngrCFGError, AngrError, AngrForwardAnalysisSkipEntry
+from ..errors import AngrCFGError, AngrError, AngrSkipEntryNotice
 from ..knowledge import FunctionManager
 from ..path import make_path
 from .cfg_node import CFGNode
@@ -24,17 +24,34 @@ class CFGJob(EntryWrapper):
     def __init__(self, *args, **kwargs):
         super(CFGJob, self).__init__(*args, **kwargs)
 
+        #
+        # local variables used during analysis
+        #
         self.call_stack_suffix = None
         self.jumpkind = None
         self.current_function = None
 
         self.simrun = None
-        self.simrun_key = None
         self.cfg_node = None
         self.error_occurred = None
         self.successor_status = None
 
         self.extra_info = None
+
+    @property
+    def simrun_key(self):
+        if self._simrun_key is None:
+            self._simrun_key = CFGAccurate._generate_simrun_key(
+                self.call_stack.stack_suffix(self._context_sensitivity_level), self.addr, self.is_syscall
+            )
+        return self._simrun_key
+
+    @property
+    def is_syscall(self):
+        return self.jumpkind is not None and self.jumpkind.startswith('Ijk_Sys')
+
+    def __hash__(self):
+        return hash(self.simrun_key)
 
 
 class PendingExit(object):
@@ -587,7 +604,15 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     # The main loop and sub-methods
 
     def _entry_key(self, entry):
-        return entry.addr
+        """
+        Get the key for a specific CFG job. THe key is a context-sensitive SimRun key.
+
+        :param CFGJob entry: The CFGJob instance.
+        :return: The SimRun key of the specific CFG job.
+        :rtype: SimRunKey
+        """
+
+        return entry.simrun_key
 
     def _pre_analysis(self):
         """
@@ -710,40 +735,40 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: An EntryWrapper instance or None
         """
 
-        pending_exit_tuple = self._pending_entries.keys()[0]
-        pending_exit = self._pending_entries.pop(pending_exit_tuple)
-        pending_exit_state = pending_exit.state
-        pending_exit_call_stack = pending_exit.call_stack
-        pending_exit_bbl_stack = pending_exit.bbl_stack
-        pending_entry_src_simrun_key = pending_exit.src_simrun_key
-        pending_entry_src_exit_stmt_idx = pending_exit.src_exit_stmt_idx
+        pending_entry_key = self._pending_entries.keys()[0]
+        pending_entry = self._pending_entries.pop(pending_entry_key)
+        pending_entry_state = pending_entry.state
+        pending_entry_call_stack = pending_entry.call_stack
+        pending_entry_bbl_stack = pending_entry.bbl_stack
+        pending_entry_src_simrun_key = pending_entry.src_simrun_key
+        pending_entry_src_exit_stmt_idx = pending_entry.src_exit_stmt_idx
 
         # Let's check whether this address has been traced before.
-        if pending_exit_tuple in self._nodes:
-            node = self._nodes[pending_exit_tuple]
+        if pending_entry_key in self._nodes:
+            node = self._nodes[pending_entry_key]
             if node in self.graph:
-                pending_exit_addr = self._simrun_key_addr(pending_exit_tuple)
+                pending_exit_addr = self._simrun_key_addr(pending_entry_key)
                 # That block has been traced before. Let's forget about it
                 l.debug("Target 0x%08x has been traced before. " + "Trying the next one...", pending_exit_addr)
 
                 # However, we should still create the FakeRet edge
-                self._graph_add_edge(pending_entry_src_simrun_key, pending_exit_tuple, jumpkind="Ijk_FakeRet",
+                self._graph_add_edge(pending_entry_src_simrun_key, pending_entry_key, jumpkind="Ijk_FakeRet",
                                      exit_stmt_idx=pending_entry_src_exit_stmt_idx)
 
                 return None
 
-        pending_exit_state.scratch.jumpkind = 'Ijk_FakeRet'
+        pending_entry_state.scratch.jumpkind = 'Ijk_FakeRet'
 
-        path = self.project.factory.path(pending_exit_state)
+        path = self.project.factory.path(pending_entry_state)
         entry = CFGJob(path.addr,
                        path,
                        self._context_sensitivity_level,
                        src_simrun_key=pending_entry_src_simrun_key,
                        src_exit_stmt_idx=pending_entry_src_exit_stmt_idx,
-                       call_stack=pending_exit_call_stack,
-                       bbl_stack=pending_exit_bbl_stack
+                       call_stack=pending_entry_call_stack,
+                       bbl_stack=pending_entry_bbl_stack
         )
-        l.debug("Tracing a missing return exit %s", self._simrun_key_repr(pending_exit_tuple))
+        l.debug("Tracing a missing return exit %s", self._simrun_key_repr(pending_entry_key))
 
         return entry
 
@@ -812,7 +837,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         before tracing it.
         An AngrForwardAnalysisSkipEntry exception is raised in order to skip analyzing the entry.
 
-        :param EntryWrapper entry: The entry object
+        :param CFGJob entry: The entry object
         :param dict _locals: A bunch of local variables that will be kept around when handling this entry and its
                         corresponding successors.
         :return: None
@@ -837,7 +862,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self._function_input_states[entry.func_addr] = entry.path.state
 
         # Generate a unique key for this SimRun
-        simrun_key = self._generate_simrun_key(entry.call_stack_suffix, addr, entry.jumpkind.startswith('Ijk_Sys'))
+        simrun_key = entry.simrun_key
 
         # Should we skip tracing this SimRun?
         should_skip = False
@@ -860,15 +885,21 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self._update_function_transition_graph(src_simrun_key, simrun_key, jumpkind=entry.jumpkind)
 
             # If this entry cancels another FakeRet entry, we should also create the FekeRet edge
-            if entry.cancelled_pending_entry is not None:
-                pending_entry = entry.cancelled_pending_entry
+
+            # This is the real return exit
+            # Check if this retn is inside our pending_exits set
+            if (entry.jumpkind == 'Ijk_Call' or entry.is_syscall) and simrun_key in self._pending_entries:
+                # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
+                # in the graph.
+
+                pending_entry = self._pending_entries.pop(simrun_key)
                 self._graph_add_edge(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet',
                                      exit_stmt_idx=pending_entry.src_exit_stmt_idx
                                      )
                 self._update_function_transition_graph(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet')
 
             # We are good. Raise the exception and leave
-            raise AngrForwardAnalysisSkipEntry()
+            raise AngrSkipEntryNotice()
 
         self._update_thumb_addrs(simrun, entry.path.state)
 
@@ -889,7 +920,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             cfg_node.input_state = simrun.initial_state
 
         self._nodes[simrun_key] = cfg_node
-        self._nodes_by_addr[cfg_node.addr].append((simrun_key, cfg_node))
+        self._nodes_by_addr[cfg_node.addr].append(cfg_node)
 
         self._graph_add_edge(src_simrun_key, simrun_key, jumpkind=entry.jumpkind, exit_stmt_idx=src_exit_stmt_idx)
         self._update_function_transition_graph(src_simrun_key, simrun_key, jumpkind=entry.jumpkind)
@@ -901,8 +932,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             del self._pending_edges[simrun_key]
 
         # See if this entry cancels another FakeRet
-        if entry.cancelled_pending_entry is not None:
-            pending_entry = entry.cancelled_pending_entry
+        if (entry.jumpkind == 'Ijk_Call' or entry.is_syscall) and simrun_key in self._pending_entries:
+            # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
+            # in the graph.
+
+            pending_entry = self._pending_entries.pop(simrun_key)
             self._graph_add_edge(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet',
                                  exit_stmt_idx=pending_entry.src_exit_stmt_idx
                                  )
@@ -912,7 +946,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._simrun_info_collection[addr] = simrun_info
 
         entry.simrun = simrun
-        entry.simrun_key = simrun_key
         entry.cfg_node = cfg_node
         entry.error_occurred = error_occurred
 
@@ -1003,7 +1036,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return successors
 
-    def _post_entry_handling(self, entry, successors):
+    def _post_entry_handling(self, entry, new_entries, successors):
         """
 
         :param entry:
@@ -1100,7 +1133,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         Remove those pending exits if:
         a) they are the return exits of non-returning SimProcedures
         b) they are the return exits of non-returning syscalls
-        b) they are the return exits of non-returning functions
+        c) they are the return exits of non-returning functions
 
         :param pending_exits: A dict of all pending exits
         """
@@ -1218,17 +1251,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         self._pre_handle_successor_state(entry.extra_info, suc_jumpkind, target_addr)
 
-        # Remove pending targets - type 2
-        tpl = self._generate_simrun_key(entry.call_stack_suffix, target_addr, suc_jumpkind.startswith('Ijk_Sys'))
-        cancelled_pending_entry = None
-        if suc_jumpkind == 'Ijk_Ret' and tpl in self._pending_entries:
-
-            # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it in
-            # the graph
-            cancelled_pending_entry = self._pending_entries[tpl]
-            l.debug("Removing pending exits (type 2) to %s", hex(target_addr))
-            del self._pending_entries[tpl]
-
         if suc_jumpkind == "Ijk_FakeRet":
             if target_addr == entry.extra_info['last_call_exit_target']:
                 l.debug("... skipping a fake return exit that has the same target with its call exit.")
@@ -1294,25 +1316,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     src_exit_stmt_idx=suc_exit_stmt_idx,
                     call_stack=new_call_stack,
                     bbl_stack=new_bbl_stack,
-                    cancelled_pending_entry=cancelled_pending_entry
         )
 
         # Generate new exits
         if suc_jumpkind == "Ijk_Ret":
             # This is the real return exit
-            # Check if this retn is inside our pending_exits set
-            if new_tpl in self._pending_entries:
-
-                # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
-                # in the graph. However, we don't want to create the edge here, since the destination node hasn't been
-                # created yet at this moment. So we save the pending entry to the real entry, and create the FakeRet
-                # edge when that entry is processed later.
-                pending_entry = self._pending_entries[new_tpl]
-                # TODO: is it possible that the cancelled_pending_entry has already been assigned before?
-                pw.cancelled_pending_entry = pending_entry
-
-                del self._pending_entries[new_tpl]
-
             entry.successor_status[state] = "Appended"
 
         elif suc_jumpkind == "Ijk_FakeRet":
@@ -1421,7 +1429,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 pt.input_state = self.project.factory.entry_state()
                 pt.input_state.ip = pt.addr
             self._nodes[node_key] = pt
-            self._nodes_by_addr[pt.addr].append((node_key, pt))
+            self._nodes_by_addr[pt.addr].append(pt)
 
             if isinstance(self.project.arch, ArchARM) and addr % 2 == 1:
                 self._thumb_addrs.add(addr)
@@ -2450,7 +2458,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             other_preds = set()
 
-            for _, node in self._nodes_by_addr[next_irsb.addr]:
+            for node in self._nodes_by_addr[next_irsb.addr]:
                 predecessors = self.graph.predecessors(node)
                 for pred in predecessors:
                     if pred.addr != sim_run.addr:

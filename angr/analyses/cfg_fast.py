@@ -28,6 +28,8 @@ class Segment(object):
     Representing a memory block. This is not the "Segment" in ELF memory model
     """
 
+    __slots__ = ['start', 'end', 'sort']
+
     def __init__(self, start, end, sort):
         """
         :param int start:   Start address.
@@ -56,6 +58,8 @@ class SegmentList(object):
     SegmentList describes a series of segmented memory blocks. You may query whether an address belongs to any of the
     blocks or not, and obtain the exact block(segment) that the address belongs to.
     """
+
+    __slots__ = ['_list', '_bytes_occupied']
 
     def __init__(self):
         self._list = []
@@ -490,6 +494,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     # TODO: Move arch_options to CFGBase, and add those logic to CFGAccurate as well.
     # TODO: Identify tail call optimization, and correctly mark the target as a new function
 
+    PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "")
+
     def __init__(self,
                  binary=None,
                  start=None,
@@ -541,6 +547,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         ForwardAnalysis.__init__(self, allow_merging=False)
         CFGBase.__init__(self, 0, normalize=normalize, binary=binary, force_segment=force_segment)
+
+        # necessary warnings
+        if self.project.loader._auto_load_libs is True and end is None and len(self.project.loader.all_objects) > 3:
+            l.warning('"auto_load_libs" is enabled. With libraries loaded in project, CFGFast will cover libraries, '
+                      'which may take significantly more time than expected. You may reload the binary with '
+                      '"auto_load_libs" disabled, or specify "start" and "end" paramenters to limit the scope of CFG '
+                      'recovery.'
+                      )
 
         self._start = start if start is not None else (self._binary.rebase_addr + self._binary.get_min_addr())
         self._end = end if end is not None else (self._binary.rebase_addr + self._binary.get_max_addr())
@@ -721,7 +735,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         # else:
                         #   we reach the end of the memory region
                         break
-                    if chr(val) not in string.printable:
+                    if chr(val) not in self.PRINTABLES:
                         is_sz = False
                         break
                     sz += chr(val)
@@ -864,7 +878,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return successors
 
-    def _post_entry_handling(self, entry, successors):
+    def _post_entry_handling(self, entry, new_entries, successors):
         pass
 
     def _entry_list_empty(self):
@@ -983,6 +997,22 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self.normalize()
 
         self.make_functions()
+
+        if self.project.loader.main_bin.sections:
+            # this binary has sections
+            # make sure we have data entries assigned at the beginning of each data section
+            for sec in self.project.loader.main_bin.sections:
+                if sec.memsize > 0 and not sec.is_executable and sec.is_readable:
+                    addr = sec.vaddr + self.project.loader.main_bin.rebase_addr
+                    for seg in self.project.loader.main_bin.segments:
+                        seg_addr = seg.vaddr + self.project.loader.main_bin.rebase_addr
+                        if seg_addr <= addr < seg_addr + seg.memsize:
+                            break
+                    else:
+                        continue
+
+                    if addr not in self.memory_data:
+                        self.memory_data[addr] = MemoryData(addr, 0, 'unknown', None, None, None)
 
         r = True
         while r:
@@ -1133,51 +1163,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _scan_irsb(self, addr, current_function_addr, previous_jumpkind, previous_src_node, previous_src_stmt_idx):  # pylint:disable=unused-argument
 
-        irsb = None  # make pylint happy
+        addr, current_function_addr, cfg_node, irsb = self._generate_cfgnode(addr, current_function_addr)
 
-        try:
-
-            if addr in self._nodes:
-                cfg_node = self._nodes[addr]
-
-            else:
-
-                # Let's try to create the pyvex IRSB directly, since it's much faster
-                irsb = self.project.factory.block(addr).vex
-
-                if irsb.size == 0 and self.project.arch.name in ('ARMHF', 'ARMEL'):
-                    # maybe the current mode is wrong?
-                    if addr % 2 == 0:
-                        addr_0 = addr + 1
-                    else:
-                        addr_0 = addr - 1
-                    irsb = self.project.factory.block(addr_0).vex
-                    if irsb.size > 0:
-                        if current_function_addr == addr:
-                            current_function_addr = addr_0
-                        addr = addr_0
-
-                if irsb.size == 0:
-                    # decoding error
-                    return [ ]
-
-                # Occupy the block in segment list
-                if irsb.size > 0:
-                    if self.project.arch.name in ('ARMHF', 'ARMEL') and addr % 2 == 1:
-                        # thumb mode
-                        real_addr = addr - 1
-                    else:
-                        real_addr = addr
-                    self._seg_list.occupy(real_addr, irsb.size, "code")
-
-                # Create a CFG node, and add it to the graph
-                cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, simrun_key=addr,
-                                   irsb=irsb)
-
-                self._nodes[addr] = cfg_node
-                self._nodes_by_addr[addr].append(cfg_node)
-
-        except (AngrTranslationError, AngrMemoryError):
+        if cfg_node is None:
+            # exceptions occurred, or we cannot get a CFGNode for other reasons
             return [ ]
 
         self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
@@ -1193,6 +1182,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # irsb cannot be None here
         # assert irsb is not None
+
+        # IRSB is only used once per CFGNode. We should be able to clean up the CFGNode here in order to save memory
+        cfg_node.irsb = None
 
         self._process_block_arch_specific(addr, irsb, current_function_addr)
 
@@ -1411,6 +1403,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 val = data_.con.value
                 self._add_data_reference(irsb_, irsb_addr, stmt_, val)
 
+        # first pass to see if there are any cross-statement optimizations. if so, we relift the basic block with
+        # optimization level 0 to preserve as much constant references as possible
+        empty_insn = False
+        for i, stmt in enumerate(irsb.statements[:-1]):
+            if isinstance(stmt, pyvex.IRStmt.IMark) and isinstance(irsb.statements[i + 1], pyvex.IRStmt.IMark):
+                empty_insn = True
+                break
+
+        if empty_insn:
+            # make sure opt_level is 0
+            irsb = self.project.factory.block(addr=irsb_addr, max_size=irsb.size, opt_level=0).vex
+
+        # second pass. for each statement, collect all constants that are referenced or used.
         for stmt in irsb.statements:
             if type(stmt) is pyvex.IRStmt.WrTmp:  # pylint: disable=unidiomatic-typecheck
                 if type(stmt.data) is pyvex.IRExpr.Load:  # pylint: disable=unidiomatic-typecheck
@@ -1423,6 +1428,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     for arg in stmt.data.args:
                         _process(irsb, stmt, arg)
 
+                elif type(stmt.data) is pyvex.IRExpr.Const:
+                    _process(irsb, stmt, stmt.data)
+
             elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck
                 # put
                 # e.g. PUT(rdi) = 0x0000000000400714
@@ -1430,7 +1438,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     _process(irsb, stmt, stmt.data)
 
             elif type(stmt) is pyvex.IRStmt.Store:  # pylint: disable=unidiomatic-typecheck
-                # store
+                # store addr
+                _process(irsb, stmt, stmt.addr)
+                # store data
                 _process(irsb, stmt, stmt.data)
 
     def _add_data_reference(self, irsb, irsb_addr, stmt, data_addr):  # pylint: disable=unused-argument
@@ -1443,7 +1453,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         # Make sure data_addr is within a valid memory range
-        if data_addr not in self._initial_state.memory:
+        if not self._addr_belongs_to_segment(data_addr):
             return
 
         data = MemoryData(data_addr, 0, 'unknown', irsb, irsb_addr, stmt)
@@ -1484,7 +1494,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     else:
                         # We got an address that is not inside the current binary...
                         l.warning('_tidy_data_references() sees an address %#08x that does not belong to any '
-                                  'section or segment.', last_addr
+                                  'section or segment.', data_addr
                                   )
                         last_addr = None
 
@@ -1650,17 +1660,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Is it an unicode string?
         # TODO: Support unicode string longer than the max length
-        if block[1] == 0 and block[3] == 0 and chr(block[0]) in string.printable:
+        if block[1] == 0 and block[3] == 0 and chr(block[0]) in self.PRINTABLES:
             max_unicode_string_len = 1024
             unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
-            if len(unicode_str) and all([ c in string.printable for c in unicode_str]):
+            if len(unicode_str) and all([ c in self.PRINTABLES for c in unicode_str]):
                 return "unicode", (len(unicode_str) + 1) * 2
 
         # Is it a null-terminated printable string?
         # TODO: Support strings longer than the max length
         max_string_len = 2048
         s = self._ffi.string(self._ffi.cast("char*", block), max_string_len)
-        if len(s) and all([ c in string.printable for c in s ]):
+        if len(s) and all([ c in self.PRINTABLES for c in s ]):
             return "string", len(s) + 1
 
         return None, None
@@ -2161,10 +2171,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         continue
                     if len(block.capstone.insns) == 1 and block.capstone.insns[0].insn_name() == "nop":
                         # leading nop for alignment.
-                        next_node_addr = a.addr + 0x10 - (a.addr % 0x10)
+                        next_node_addr = a.addr + block.size
                         if not (next_node_addr in self._nodes or next_node_addr in nodes_to_append):
                             # create a new CFGNode that starts there
-                            next_node = CFGNode(next_node_addr, a.size - (0x10 - (a.addr % 0x10)), self,
+                            next_node = CFGNode(next_node_addr, a.size - block.size, self,
                                                 function_address=next_node_addr
                                                 )
                             # create edges accordingly
@@ -2194,11 +2204,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if b.addr in self.kb.functions and (b.addr - a.addr < 0x10) and b.addr % 0x10 == 0:
                     # b is the beginning of a function
                     # a should be shrinked
+
+                    self._nodes[b.addr] = b
+                    self._nodes_by_addr[b.addr].append(b)
+
                     self._shrink_node(a, b.addr - a.addr)
 
                 else:
                     try:
-                        block = self.project.factory.block(a.addr, max_size=b.addr - a.addr)
+                        block = self.project.factory.fresh_block(a.addr, b.addr - a.addr)
                     except AngrTranslationError:
                         continue
                     if len(block.capstone.insns) == 1 and block.capstone.insns[0].insn_name() == "nop":
@@ -2283,7 +2297,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     for fr in self._function_returns[returning_function.addr]:
                         # Confirm them all
                         self._changed_functions.add(fr.caller_func_addr)
-                        self.kb.functions._add_return_from_call(fr.caller_func_addr, fr.callee_func_addr, fr.return_to)
+
+                        try:
+                            return_to_node = self._to_snippet(self._nodes[fr.return_to])
+                        except KeyError:
+                            return_to_node = fr.return_to
+
+                        self.kb.functions._add_return_from_call(fr.caller_func_addr, fr.callee_func_addr,
+                                                                return_to_node)
 
                     del self._function_returns[returning_function.addr]
 
@@ -2292,7 +2313,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     for fr in self._function_returns[not_returning_function.addr]:
                         # Remove all those FakeRet edges
                         self._changed_functions.add(fr.caller_func_addr)
-                        self.kb.functions._remove_fakeret(fr.caller_func_addr, fr.call_site_addr, fr.return_to)
+
+                        # convert them to codenodes
+                        try:
+                            call_site_node = self._to_snippet(self._nodes[fr.call_site_addr])
+                        except KeyError:
+                            call_site_node = fr.call_site_addr
+
+                        try:
+                            return_to_node = self._to_snippet(self._nodes[fr.return_to])
+                        except KeyError:
+                            return_to_node = fr.return_to
+
+                        self.kb.functions._remove_fakeret(fr.caller_func_addr, call_site_node, return_to_node)
 
                     del self._function_returns[not_returning_function.addr]
 
@@ -2346,7 +2379,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     #
 
     def _function_add_node(self, addr, function_addr):
-        self.kb.functions._add_node(function_addr, addr)
+        try:
+            node = self._to_snippet(self._nodes[addr])
+        except KeyError:
+            node = addr
+        self.kb.functions._add_node(function_addr, node)
 
     def _function_add_transition_edge(self, addr, src_node, function_addr):
         """
@@ -2361,11 +2398,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         try:
-            # Add this basic block into the function manager
+            try:
+                target = self._to_snippet(self._nodes[addr])
+            except KeyError:
+                target = addr
+
             if src_node is None:
-                self.kb.functions._add_node(function_addr, addr)
+                # Add this basic block into the function manager
+                self.kb.functions._add_node(function_addr, target)
             else:
-                self.kb.functions._add_transition_to(function_addr, src_node.addr, addr)
+                src_node = self._to_snippet(src_node)
+                self.kb.functions._add_transition_to(function_addr, src_node, target)
             return True
         except (AngrMemoryError, AngrTranslationError):
             return False
@@ -2386,22 +2429,47 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if src_node is None:
                 self.kb.functions._add_node(function_addr, addr, syscall=syscall)
             else:
-                self.kb.functions._add_call_to(function_addr, src_node.addr, addr, ret_addr, syscall=syscall)
+                src_node = self._to_snippet(src_node)
+
+                try:
+                    ret_node = self._to_snippet(self._nodes[ret_addr])
+                except KeyError:
+                    ret_node = ret_addr
+
+                self.kb.functions._add_call_to(function_addr, src_node, addr, ret_node, syscall=syscall)
             return True
         except (AngrMemoryError, AngrTranslationError):
             return False
 
     def _function_add_fakeret_edge(self, addr, src_node, function_addr, confirmed=None):
+
+        try:
+            target = self._to_snippet(self._nodes[addr])
+        except KeyError:
+            target = addr
+
         if src_node is None:
-            self.kb.functions._add_node(function_addr, addr)
+            self.kb.functions._add_node(function_addr, target)
         else:
-            self.kb.functions._add_fakeret_to(function_addr, src_node.addr, addr, confirmed=confirmed)
+            src_node = self._to_snippet(src_node)
+            self.kb.functions._add_fakeret_to(function_addr, src_node, target, confirmed=confirmed)
 
     def _function_add_return_site(self, addr, function_addr):
-        self.kb.functions._add_return_from(function_addr, addr)
+
+        try:
+            target = self._to_snippet(self._nodes[addr])
+        except KeyError:
+            target = addr
+
+        self.kb.functions._add_return_from(function_addr, target)
 
     def _function_add_return_edge(self, return_from_addr, return_to_addr, function_addr):
-        self.kb.functions._add_return_from_call(function_addr, return_from_addr, return_to_addr)
+        try:
+            return_to_ = self._to_snippet(self._nodes[return_to_addr])
+        except KeyError:
+            return_to_ = return_to_addr
+
+        self.kb.functions._add_return_from_call(function_addr, return_from_addr, return_to_)
 
     #
     # Architecture-specific methods
@@ -2555,6 +2623,74 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     #
     # Other methods
     #
+
+    def _generate_cfgnode(self, addr, current_function_addr):
+        """
+        Generate a CFGNode that starts at `addr`.
+
+        Since lifting machine code to IRSBs is slow, self._nodes is used as a cache of CFGNodes.
+
+        If the current architecture is ARM, this method will try to lift the block in the mode specified by the address
+        (determined by the parity of the address: even for ARM, odd for THUMB), and in case of decoding failures, try
+        the other mode. If the basic block is successfully decoded in the other mode (different from the initial one),
+         `addr` and `current_function_addr` are updated.
+
+        :param int addr: Address of the basic block.
+        :param int current_function_addr: Address of the current function.
+        :return: A 4-tuple of (new address, new function address, CFGNode instance, IRSB object)
+        :rtype: tuple
+        """
+
+        try:
+
+            if addr in self._nodes:
+                cfg_node = self._nodes[addr]
+                irsb = cfg_node.irsb
+
+                if cfg_node.function_address != current_function_addr:
+                    cfg_node.function_address = current_function_addr
+
+            else:
+
+                # Let's try to create the pyvex IRSB directly, since it's much faster
+                irsb = self.project.factory.block(addr).vex
+
+                if irsb.size == 0 and self.project.arch.name in ('ARMHF', 'ARMEL'):
+                    # maybe the current mode is wrong?
+                    if addr % 2 == 0:
+                        addr_0 = addr + 1
+                    else:
+                        addr_0 = addr - 1
+                    irsb = self.project.factory.block(addr_0).vex
+                    if irsb.size > 0:
+                        if current_function_addr == addr:
+                            current_function_addr = addr_0
+                        addr = addr_0
+
+                if irsb.size == 0:
+                    # decoding error
+                    return None, None, None, None
+
+                # Occupy the block in segment list
+                if irsb.size > 0:
+                    if self.project.arch.name in ('ARMHF', 'ARMEL') and addr % 2 == 1:
+                        # thumb mode
+                        real_addr = addr - 1
+                    else:
+                        real_addr = addr
+                    self._seg_list.occupy(real_addr, irsb.size, "code")
+
+                # Create a CFG node, and add it to the graph
+                cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, simrun_key=addr,
+                                   irsb=irsb)
+
+                self._nodes[addr] = cfg_node
+                self._nodes_by_addr[addr].append(cfg_node)
+
+            return addr, current_function_addr, cfg_node, irsb
+
+        except (AngrTranslationError, AngrMemoryError):
+            return None, None, None, None
 
     def _process_block_arch_specific(self, addr, irsb, func_addr):  # pylint: disable=unused-argument
 

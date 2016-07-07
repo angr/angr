@@ -3,6 +3,9 @@ l = logging.getLogger("angr.knowledge.codenode")
 
 
 class CodeNode(object):
+
+    __slots__ = ['addr', 'size', '_graph']
+
     def __init__(self, addr, size, graph=None):
         self.addr = addr
         self.size = size
@@ -48,6 +51,9 @@ class CodeNode(object):
 
 
 class BlockNode(CodeNode):
+
+    __slots__ = ['bytestr']
+
     is_hook = False
     def __init__(self, addr, size, bytestr=None, **kwargs):
         super(BlockNode, self).__init__(addr, size, **kwargs)
@@ -64,6 +70,9 @@ class BlockNode(CodeNode):
 
 
 class HookNode(CodeNode):
+
+    __slots__ = ['sim_procedure']
+
     is_hook = True
     def __init__(self, addr, size, sim_procedure, **kwargs):
         super(HookNode, self).__init__(addr, size, **kwargs)

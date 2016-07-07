@@ -14,6 +14,7 @@ class AngrObjectFactory(object):
         self._project = project
         self._lifter = Lifter(project, cache=translation_cache)
         self.block = self._lifter.lift
+        self.fresh_block = self._lifter.fresh_block
         self._default_cc = s_cc.DefaultCC[project.arch.name]
 
     def snippet(self, addr, jumpkind=None, **block_opts):

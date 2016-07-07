@@ -145,7 +145,7 @@ class ForwardAnalysis(object):
     def _pre_entry_handling(self, entry):
         raise NotImplementedError('_pre_entry_handling() is not implemented.')
 
-    def _post_entry_handling(self, entry, successors):
+    def _post_entry_handling(self, entry, new_entries, successors):
         raise NotImplementedError('_post_entry_handling() is not implemented.')
 
     def _handle_successor(self, entry, successor, successors):
@@ -181,7 +181,8 @@ class ForwardAnalysis(object):
 
         while not self.should_abort and self._entries:
 
-            entry_info = self._entries.pop()
+            entry_info = self._entries[0]
+            self._entries = self._entries[1:]
 
             self._handle_entry(entry_info)
 
@@ -207,19 +208,23 @@ class ForwardAnalysis(object):
 
         try:
             self._pre_entry_handling(entry)
-        except AngrForwardAnalysisSkipEntry:
+        except AngrSkipEntryNotice:
             return
 
         successors = self._get_successors(entry)
+
+        all_new_entries = [ ]
 
         for successor in successors:
             new_entries = self._handle_successor(entry, successor, successors)
 
             if new_entries:
+                all_new_entries.extend(new_entries)
+
                 for new_entry in new_entries:
                     self._insert_entry(new_entry)
 
-        self._post_entry_handling(entry, successors)
+        self._post_entry_handling(entry, all_new_entries, successors)
 
     def _insert_entry(self, entry):
         """
@@ -230,25 +235,43 @@ class ForwardAnalysis(object):
         :return: None
         """
 
-        key = self._entry_key(entry)
+        if self._allow_merging:
+            key = self._entry_key(entry)
 
-        if key in self._entries_map:
-            entry_info = self._entries_map[key]
-            if self._allow_merging:
-                merged_entry = self._merge_entries(entry_info.entry, entry)
-                entry_info.add_entry(merged_entry, merged=True)
+            if key in self._entries_map:
+                entry_info = self._entries_map[key]
+                try:
+                    merged_entry = self._merge_entries(entry_info.entry, entry)
+                    entry_info.add_entry(merged_entry, merged=True)
+                except AngrJobMergingFailureNotice:
+                    # merging failed
+                    entry_info = EntryInfo(key, entry)
             else:
-                entry_info.entries = [ entry ]
-
+                entry_info = EntryInfo(key, entry)
+                self._entries_map[key] = entry_info
         else:
+            key = self._entry_key(entry)
             entry_info = EntryInfo(key, entry)
-            self._entries_map[key] = entry_info
 
         if self._order_entries:
             self._binary_insert(self._entries, entry_info, lambda elem: self._entry_sorting_key(elem.entry))
 
         else:
             self._entries.append(entry_info)
+
+    def _peek_entry(self, pos):
+        """
+        Return the entry currently at position `pos`, but still keep it in the entry list. An IndexError will be raised
+        if that position does not currently exist in the entry list.
+
+        :param int pos: Position of the entry to get.
+        :return: The entry
+        """
+
+        if pos < len(self._entries):
+            return self._entries[pos].entry
+
+        raise IndexError()
 
     #
     # Utils
@@ -285,4 +308,4 @@ class ForwardAnalysis(object):
 
         lst.insert(lo, elem)
 
-from ..errors import AngrForwardAnalysisSkipEntry
+from ..errors import AngrSkipEntryNotice, AngrJobMergingFailureNotice

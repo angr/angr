@@ -69,7 +69,10 @@ class AngrIncongruencyError(AngrAnalysisError):
 class AngrForwardAnalysisError(AngrError):
     pass
 
-class AngrForwardAnalysisSkipEntry(AngrForwardAnalysisError):
+class AngrSkipEntryNotice(AngrForwardAnalysisError):
+    pass
+
+class AngrJobMergingFailureNotice(AngrForwardAnalysisError):
     pass
 
 #

@@ -182,14 +182,16 @@ def disabled_cfg_5():
     perform_single(binary_path, cfg_path)
 
 def test_cfg_6():
+    function_addresses = [0xfa630, 0xfa683, 0xfa6d4, 0xfa707, 0xfa754, 0xfa779, 0xfa7a9, 0xfa7d6, 0xfa844, 0xfa857, 0xfa8d9, 0xfa92f, 0xfa959, 0xfa9fb, 0xfabd6, 0xfac61, 0xfacc2, 0xfad29, 0xfaf94, 0xfbd07, 0xfc100L, 0xfc101, 0xfc14fL, 0xfc18e, 0xfc25e, 0xfc261, 0xfc3c6, 0xfc42fL, 0xfc4a3, 0xfc4cf, 0xfc4db, 0xfc5ba, 0xfc5ef, 0xfc5fe, 0xfc611, 0xfc682, 0xfc6b7, 0xfc7fc, 0xfc8a8, 0xfc8e7, 0xfcb42, 0xfcb50, 0xfcb72, 0xfcc3b, 0xfcc7a, 0xfcc8b, 0xfccdc, 0xfd1a3, 0xff06e]
+
     # We need to add DO_CCALLS to resolve long jmp and support real mode
     simuvex.o.modes['fastpath'] |= {simuvex.s_options.DO_CCALLS}
     binary_path = test_location + "/i386/bios.bin.elf"
     proj = angr.Project(binary_path,
                         use_sim_procedures=True,
                         load_options={'auto_load_libs': False})
-    proj.analyses.CFGAccurate(context_sensitivity_level=1)
-    nose.tools.assert_greater_equal(len(proj.kb.functions), 58)
+    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=1)  # pylint:disable=unused-variable
+    nose.tools.assert_greater_equal(set(f for f in proj.kb.functions), set(function_addresses))
     simuvex.o.modes['fastpath'] ^= {simuvex.s_options.DO_CCALLS}
 
 def test_fauxware():
@@ -318,7 +320,7 @@ if __name__ == "__main__":
     logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
     logging.getLogger("angr.surveyors.Explorer").setLevel(logging.DEBUG)
     #logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
-    logging.getLogger("angr.analyses.cfg").setLevel(logging.DEBUG)
+    # logging.getLogger("angr.analyses.cfg_accurate").setLevel(logging.DEBUG)
     # logging.getLogger("s_irsb").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend
     #logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)

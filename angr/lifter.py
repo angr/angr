@@ -33,8 +33,51 @@ class Lifter(object):
         self._cache_enabled = cache
         self._block_cache = LRUCache(maxsize=self.LRUCACHE_SIZE)
 
+        self._cache_hit_count = 0
+        self._cache_miss_count = 0
+
     def clear_cache(self):
         self._block_cache = LRUCache(maxsize=self.LRUCACHE_SIZE)
+
+        self._cache_hit_count = 0
+        self._cache_miss_count = 0
+
+    def fresh_block(self, addr, size, arch=None, insn_bytes=None, thumb=False):
+        """
+        Returns a Block object with the specified size. No lifting will be performed.
+
+        :param int addr: Address at which to start the block.
+        :param int size: Size of the block.
+        :return: A Block instance.
+        :rtype: Block
+        """
+
+        if self._thumbable and addr % 2 == 1:
+            thumb = True
+        elif not self._thumbable and thumb:
+            l.warning("Why did you pass in thumb=True on a non-ARM architecture")
+            thumb = False
+
+        if thumb:
+            addr &= ~1
+
+        if self._cache_enabled:
+            for opt_level in (0, 1):
+                cache_key = (addr, insn_bytes, size, None, thumb, opt_level)
+                if cache_key in self._block_cache:
+                    return self._block_cache[cache_key]
+
+        if insn_bytes is None:
+            insn_bytes, size = self._load_bytes(addr, size, None)
+
+        arch = arch or self._project.arch
+
+        b = Block(insn_bytes, arch=arch, addr=addr, size=size, thumb=thumb)
+
+        if self._cache_enabled:
+            self._block_cache[cache_key] = b
+
+        return b
 
     def lift(self, addr, arch=None, insn_bytes=None, max_size=None, num_inst=None,
              traceflags=0, thumb=False, backup_state=None, opt_level=None):
@@ -70,8 +113,11 @@ class Lifter(object):
             addr &= ~1
 
         cache_key = (addr, insn_bytes, max_size, num_inst, thumb, opt_level)
-        if self._cache_enabled and cache_key in self._block_cache:
+        if self._cache_enabled and cache_key in self._block_cache and self._block_cache[cache_key].vex is not None:
+            self._cache_hit_count += 1
             return self._block_cache[cache_key]
+        else:
+            self._cache_miss_count += 1
 
         # TODO: FIXME: figure out what to do if we're about to exhaust the memory
         # (we can probably figure out how many instructions we have left by talking to IDA)
@@ -81,16 +127,10 @@ class Lifter(object):
             max_size = min(max_size, size)
             passed_max_size = True
         else:
-            buff, size = "", 0
-
-            if backup_state:
-                buff, size = self._bytes_from_state(backup_state, addr, max_size)
-                max_size = min(max_size, size)
-            else:
-                try:
-                    buff, size = self._project.loader.memory.read_bytes_c(addr)
-                except KeyError:
-                    pass
+            try:
+                buff, size = self._load_bytes(addr, max_size, state=backup_state)
+            except KeyError:
+                buff, size = "", 0
 
             if not buff or size == 0:
                 raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
@@ -111,7 +151,7 @@ class Lifter(object):
         try:
             if passed_max_size and not passed_num_inst:
                 irsb = pyvex.IRSB(buff, addr, arch,
-                                  num_bytes=max_size,
+                                  num_bytes=size,
                                   bytes_offset=byte_offset,
                                   traceflags=traceflags)
             elif not passed_max_size and passed_num_inst:
@@ -153,10 +193,19 @@ class Lifter(object):
                     break
 
         irsb = self._post_process(irsb)
-        b = Block(buff, irsb, thumb)
+        b = Block(buff, arch=arch, addr=addr, size=irsb.size, vex=irsb, thumb=thumb)
         if self._cache_enabled:
             self._block_cache[cache_key] = b
         return b
+
+    def _load_bytes(self, addr, max_size, state=None):
+        if state:
+            buff, size = self._bytes_from_state(state, addr, max_size)
+        else:
+            buff, size = self._project.loader.memory.read_bytes_c(addr)
+        size = min(max_size, size)
+
+        return buff, size
 
     @staticmethod
     def _bytes_from_state(backup_state, addr, max_size):
@@ -319,25 +368,37 @@ class Lifter(object):
 
 
 class Block(object):
-    __slots__ = ['_bytes', 'vex', '_thumb', '_arch', '_capstone', 'addr', 'size', 'instructions', 'instruction_addrs']
+    # TODO: Automatically lift the bytes to VEX IRSB if _vex is None
 
-    def __init__(self, byte_string, vex, thumb):
+    __slots__ = ['_bytes', '_vex', '_thumb', '_arch', '_capstone', 'addr', 'size', 'instructions', 'instruction_addrs']
+
+    def __init__(self, byte_string, arch=None, addr=None, size=None, vex=None, thumb=None):
         self._bytes = byte_string
-        self.vex = vex
+        self._vex = vex
         self._thumb = thumb
-        self._arch = vex.arch
+        self._arch = arch
         self._capstone = None
-        self.addr = None
-        self.size = vex.size
-        self.instructions = vex.instructions
+        self.addr = addr
+        self.size = size
+
+        self.instructions = None
         self.instruction_addrs = []
 
-        for stmt in vex.statements:
-            if stmt.tag != 'Ist_IMark':
-                continue
-            if self.addr is None:
-                self.addr = stmt.addr + stmt.delta
-            self.instruction_addrs.append(stmt.addr + stmt.delta)
+        if vex is not None:
+            self.instructions = vex.instructions
+
+            if self._arch is None:
+                self._arch = vex.arch
+
+            if self.size is None:
+                self.size = vex.size
+
+            for stmt in vex.statements:
+                if stmt.tag != 'Ist_IMark':
+                    continue
+                if self.addr is None:
+                    self.addr = stmt.addr + stmt.delta
+                self.instruction_addrs.append(stmt.addr + stmt.delta)
 
         if self.addr is None:
             l.warning('Lifted basic block with no IMarks!')
@@ -367,6 +428,10 @@ class Block(object):
 
     def pp(self):
         return self.capstone.pp()
+
+    @property
+    def vex(self):
+        return self._vex
 
     @property
     def bytes(self):

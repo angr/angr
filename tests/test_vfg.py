@@ -106,6 +106,23 @@ def run_vfg_1(arch):
     all_block_addresses = set([ n.addr for n in vfg.graph.nodes() ])
     nose.tools.assert_true(vfg_1_addresses[arch].issubset(all_block_addresses))
 
+    # return value for functions
+
+    # function authenticate has only two possible return values: 0 and 1
+    authenticate = cfg.functions.function(name='authenticate')
+    nose.tools.assert_true(authenticate.addr in vfg.function_final_states)
+    authenticate_final_states = vfg.function_final_states[authenticate.addr]
+    nose.tools.assert_equal(len(authenticate_final_states), 1)
+    authenticate_final_state = authenticate_final_states.values()[0]
+    nose.tools.assert_is_not_none(authenticate_final_state)
+    nose.tools.assert_equal(authenticate_final_state.se.any_n_int(authenticate_final_state.regs.rax, 3), [0, 1])
+
+    # optimal execution tests
+    # - the basic block after returning from `authenticate` should only be executed once
+    nose.tools.assert_equal(vfg._execution_counter[0x4007b3], 1)
+    # - the last basic block in `authenticate` should only be executed twice (on a non-normalized CFG)
+    nose.tools.assert_equal(vfg._execution_counter[0x4006eb], 2)
+
 def test_vfg_1():
     # Test the code coverage of VFG
     for arch in vfg_1_addresses:

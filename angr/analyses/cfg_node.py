@@ -64,6 +64,7 @@ class CFGNode(object):
                 self.instruction_addrs = [ s.addr for s in irsb.statements if type(s) is pyvex.IRStmt.IMark ]  # pylint:disable=unidiomatic-typecheck
 
         self.final_states = [ ] if final_states is None else final_states
+        self.irsb = irsb
 
         self.has_return = False
 
