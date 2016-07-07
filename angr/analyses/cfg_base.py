@@ -798,7 +798,10 @@ class CFGBase(Analysis):
 
                 for _, d, data in original_successors:
                     if d not in graph[smallest_node]:
-                        graph.add_edge(smallest_node, d, **data)
+                        if d is n:
+                            graph.add_edge(smallest_node, new_node, **data)
+                        else:
+                            graph.add_edge(smallest_node, d, **data)
 
                 for p, _, _ in original_predecessors:
                     graph.remove_edge(p, n)
@@ -807,7 +810,7 @@ class CFGBase(Analysis):
                 # Update nodes dict
                 self._nodes[n.simrun_key] = new_node
                 if n in self._nodes_by_addr[n.addr]:
-                    self._nodes_by_addr[n.addr].remove(n)
+                    self._nodes_by_addr[n.addr] = filter(lambda x: x is not n, self._nodes_by_addr[n.addr])
                     self._nodes_by_addr[n.addr].append(new_node)
 
                 for p, _, data in original_predecessors:

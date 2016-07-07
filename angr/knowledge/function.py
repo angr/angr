@@ -715,7 +715,10 @@ class Function(object):
 
                 for _, d, data in original_successors:
                     if d not in graph[smallest_node]:
-                        graph.add_edge(smallest_node, d, **data)
+                        if d is n:
+                            graph.add_edge(smallest_node, new_node, **data)
+                        else:
+                            graph.add_edge(smallest_node, d, **data)
 
                 for p, _, _ in original_predecessors:
                     graph.remove_edge(p, n)
