@@ -1453,7 +1453,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         # Make sure data_addr is within a valid memory range
-        if data_addr not in self._initial_state.memory:
+        if not self._addr_belongs_to_segment(data_addr):
             return
 
         data = MemoryData(data_addr, 0, 'unknown', irsb, irsb_addr, stmt)
