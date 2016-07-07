@@ -1,3 +1,4 @@
 cle
 angr
 simuvex
+shellphish-qemu
