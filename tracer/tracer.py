@@ -10,6 +10,7 @@ import hashlib
 import tempfile
 import topsecret
 import subprocess
+import shellphish_qemu
 from .tracerpov import TracerPoV
 from .simprocedures import receive
 from .simprocedures import FixedOutTransmit, FixedInReceive
@@ -611,14 +612,13 @@ class Tracer(object):
         '''
 
         if self.os == "cgc":
-            self.tracer_qemu = "tracer-qemu-cgc"
+            self.tracer_qemu = "shellphish-qemu-cgc"
+            qemu_platform = 'cgc'
         elif self.os == "unix":
-            self.tracer_qemu = "tracer-qemu-linux-%s" % self._p.arch.qemu_name
+            self.tracer_qemu = "shellphish-qemu-linux-%s" % self._p.arch.qemu_name
+            qemu_platform = self._p.arch.qemu_name
 
-        self.tracer_qemu_path = os.path.join(
-                self.base,
-                "bin",
-                self.tracer_qemu)
+        self.tracer_qemu_path = shellphish_qemu.qemu_path(qemu_platform)
 
         if not os.access(self.tracer_qemu_path, os.X_OK):
             if os.path.isfile(self.tracer_qemu_path):
