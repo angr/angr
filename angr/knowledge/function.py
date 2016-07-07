@@ -711,6 +711,12 @@ class Function(object):
 
                 # Modify the CFG
                 original_predecessors = list(graph.in_edges_iter([n], data=True))
+                original_successors = list(graph.out_edges_iter([n], data=True))
+
+                for _, d, data in original_successors:
+                    if d not in graph[smallest_node]:
+                        graph.add_edge(smallest_node, d, **data)
+
                 for p, _, _ in original_predecessors:
                     graph.remove_edge(p, n)
                 graph.remove_node(n)
