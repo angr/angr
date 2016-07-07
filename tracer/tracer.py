@@ -3,15 +3,14 @@ import time
 import angr
 import signal
 import socket
-import pickle
 import claripy
 import simuvex
-import hashlib
 import tempfile
 import topsecret
 import subprocess
 import shellphish_qemu
 from .tracerpov import TracerPoV
+from .cachemanager import LocalCacheManager
 from .simprocedures import receive
 from .simprocedures import FixedOutTransmit, FixedInReceive
 from simuvex import s_options as so
@@ -20,6 +19,8 @@ import logging
 
 l = logging.getLogger("tracer.Tracer")
 
+# global writable attribute used for specifying cache procedures
+GlobalCacheManager = None
 
 class TracerInstallError(Exception):
     pass
@@ -45,7 +46,6 @@ class Tracer(object):
     def __init__(self, binary, input=None, pov_file=None, simprocedures=None,
                  hooks=None, seed=None, preconstrain_input=True,
                  preconstrain_flag=True, resiliency=True, chroot=None,
-                 cache_lookup_hook=None, cache_hook=None,
                  add_options=None, remove_options=None):
         """
         :param binary: path to the binary to be traced
@@ -62,8 +62,6 @@ class Tracer(object):
             angr disagree?
         :param chroot: trace the program as though it were executing in a
             chroot
-        :param cache_lookup_hook: cache finding function, returns a state or None
-        :param cache_hook: cache function, decides how to cache the state
         :param add_options: add options to the state which used to do tracing
         :param remove_options: remove options from the state which is used to
             do tracing
@@ -83,18 +81,13 @@ class Tracer(object):
         self.chroot = chroot
         self.add_options = set() if add_options is None else add_options
         self.constrained_addrs = []
-        self._cache_lookup_hook = self._local_cache_lookup if cache_lookup_hook is None \
-            else cache_lookup_hook
-        self._cache_hook = self._local_cacher if cache_hook is None \
-            else cache_hook
 
-        # set by local_cache_lookup
+        cm = LocalCacheManager if GlobalCacheManager is None else GlobalCacheManager
+        # cache managers accept accept a tracer as an arg
+        self._cache_manager = cm(self)
+
+        # set by a cache manager
         self._loaded_from_cache = False
-        # set up cache_file
-        binhash = hashlib.md5(open(self.binary).read()).hexdigest()
-        self._cache_file = os.path.join("/tmp", "%s-%s.tcache" % (os.path.basename(self.binary), binhash))
-        # overwrite any cache hooks if a file with them was set in the env
-        self._check_env_for_cache_hook()
 
         if remove_options is None:
             self.remove_options = set()
@@ -119,7 +112,7 @@ class Tracer(object):
                     )
 
         # set up cache hook
-        receive.cache_hook = self._cache_hook
+        receive.cache_hook = self._cache_manager.cacher
 
         # a PoV was provided
         if self.pov_file is not None:
@@ -628,45 +621,15 @@ class Tracer(object):
                 l.error("\"%s\" does not exist", self.tracer_qemu_path)
                 raise TracerEnvironmentError
 
-    def _local_cache_lookup(self):
+    def _cache_lookup(self):
 
-        if os.path.exists(self._cache_file):
-            l.warning("loading state from cache file %s", self._cache_file)
+        cache_tuple = self._cache_manager.cache_lookup()
 
-            # just for the testcase
-            self._loaded_from_cache = True
-
-            # disable the cache_hook if we loaded from the cache_file
+        if cache_tuple is not None:
+            # disable the cache_hook if we loaded from the cache
             receive.cache_hook = None
 
-            with open(self._cache_file) as f:
-                return pickle.load(f)
-
-    def _local_cacher(self, state):
-        cache_path = self.previous.copy()
-        # for a cache, we want the solver type to remain the same
-        self.remove_preconstraints(cache_path, to_composite_solver=False)
-
-        state = cache_path.state
-
-        l.warning("caching state to %s", self._cache_file)
-        try:
-            ds = pickle.dumps((self.bb_cnt - 1, self.cgc_flag_data, state))
-            with open(self._cache_file, 'wb') as f:
-                f.write(ds)
-        except RuntimeError as e: # maximum recursion depth can be reached here
-            l.error("unable to cache state, '%s' during pickling", e.message)
-
-    def _check_env_for_cache_hook(self):
-
-        if "TRACER_CACHE_HOOK_MODULE" in os.environ:
-            l.info("found cache hook module in environment, hooking...")
-
-            ch = __import__(os.environ["TRACER_CACHE_HOOK_MODULE"]).cache_hook
-            clh = __import__(os.environ["TRACER_CACHE_HOOK_MODULE"]).cache_lookup_hook
-
-            self._cache_hook = ch
-            self._cache_lookup_hook = clh
+        return cache_tuple
 
 # DYNAMIC TRACING
 
@@ -845,7 +808,7 @@ class Tracer(object):
 
         if self.os == "cgc":
 
-            cache_tuple = self._cache_lookup_hook()
+            cache_tuple = self._cache_lookup()
             pg = None
             if cache_tuple is not None:
                 bb_cnt, self.cgc_flag_data, state = cache_tuple
