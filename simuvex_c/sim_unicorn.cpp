@@ -3,9 +3,15 @@
 
 #include <cstring>
 
+#include <memory>
 #include <map>
 #include <vector>
 #include <unordered_set>
+
+extern "C" {
+#include <libvex.h>
+#include <pyvex_static.h>
+}
 
 #define PAGE_SIZE 0x1000
 #define PAGE_SHIFT 12
@@ -24,7 +30,8 @@ typedef enum taint: uint8_t {
 typedef enum stop {
 	STOP_NORMAL=0,
 	STOP_STOPPOINT,
-	STOP_SYMBOLIC,
+	STOP_SYMBOLIC_MEM,
+	STOP_SYMBOLIC_REG,
 	STOP_ERROR,
 	STOP_SYSCALL,
 	STOP_EXECNONE,
@@ -70,17 +77,20 @@ private:
 	std::map<uint64_t, taint_t *> active_pages;
 	std::unordered_set<uint64_t> stop_points;
 
-	std::unordered_set(uint64_t> symbolic_registers; // tracking of symbolic registers
-
 public:
 	std::vector<uint64_t> bbl_addrs;
 	uint64_t cur_steps, max_steps;
 	uc_hook h_read, h_write, h_block, h_prot, h_unmap;
 	stop_t stop_reason;
+
 	bool ignore_next_block;
 	bool ignore_next_selfmod;
 	uint64_t cur_address;
 	int32_t cur_size;
+
+  VexArch vex_guest;
+  VexArchInfo vex_archinfo;
+	RegisterSet symbolic_registers; // tracking of symbolic registers
 
 	State(uc_engine *_uc, uint64_t cache_key):uc(_uc)
 	{
@@ -90,6 +100,7 @@ public:
 		stop_reason = STOP_NOSTART;
 		ignore_next_block = false;
 		ignore_next_selfmod = false;
+    vex_guest = VexArch_INVALID;
 
 		auto it = global_cache.find(cache_key);
 		if (it == global_cache.end()) {
@@ -187,7 +198,7 @@ public:
 			case STOP_STOPPOINT:
 				msg = "hit a stop point";
 				break;
-			case STOP_SYMBOLIC:
+			case STOP_SYMBOLIC_MEM:
 				msg = "read symbolic data";
 				break;
 			case STOP_ERROR:
@@ -444,6 +455,7 @@ public:
 	// check if we can safely handle this IRExpr
 	inline bool check_expr(IRExpr *e)
 	{
+    int i, expr_size;
 		if (e == NULL) return true;
 		switch (e->tag)
 		{
@@ -459,26 +471,26 @@ public:
 				break;
 			case Iex_RdTmp:
 				break;
-			case Iex_Get:
+      case Iex_Get:
 				if (e->Iex.Get.ty == Ity_I1)
 				{
 					LOG_W("seeing a 1-bit get from a register");
 					return false;
 				}
 
-				int expr_size = sizeofIRType(e->Iex.Get.ty);
+				expr_size = sizeofIRType(e->Iex.Get.ty);
 				if (!this->check_register_read(e->Iex.Get.offset, expr_size)) return false;
 				break;
 			case Iex_Qop:
-				if (!this->check_expr(e->Iex.Qop.details.arg1)) return false;
-				if (!this->check_expr(e->Iex.Qop.details.arg2)) return false;
-				if (!this->check_expr(e->Iex.Qop.details.arg3)) return false;
-				if (!this->check_expr(e->Iex.Qop.details.arg4)) return false;
+				if (!this->check_expr(e->Iex.Qop.details->arg1)) return false;
+				if (!this->check_expr(e->Iex.Qop.details->arg2)) return false;
+				if (!this->check_expr(e->Iex.Qop.details->arg3)) return false;
+				if (!this->check_expr(e->Iex.Qop.details->arg4)) return false;
 				break;
 			case Iex_Triop:
-				if (!this->check_expr(e->Iex.Triop.details.arg1)) return false;
-				if (!this->check_expr(e->Iex.Triop.details.arg2)) return false;
-				if (!this->check_expr(e->Iex.Triop.details.arg3)) return false;
+				if (!this->check_expr(e->Iex.Triop.details->arg1)) return false;
+				if (!this->check_expr(e->Iex.Triop.details->arg2)) return false;
+				if (!this->check_expr(e->Iex.Triop.details->arg3)) return false;
 				break;
 			case Iex_Binop:
 				if (!this->check_expr(e->Iex.Binop.arg1)) return false;
@@ -498,9 +510,9 @@ public:
 				if (!this->check_expr(e->Iex.ITE.iftrue)) return false;
 				break;
 			case Iex_CCall:
-				for (int i = 0; i < 20; i++)
+				for (i = 0; i < 20; i++)
 				{
-					if (!this->check_expr(s->Iex.CCall.args[i])) return false;
+					if (!this->check_expr(e->Iex.CCall.args[i])) return false;
 				}
 				break;
 		}
@@ -512,7 +524,7 @@ public:
 	inline void mark_register_safe(uint64_t offset, int size)
 	{
 		for (int i = 0; i < size; i++)
-			this->symbolic_registers->erase(offset+i);
+			this->symbolic_registers.erase(offset+i);
 	}
 
 	// check register access
@@ -520,19 +532,19 @@ public:
 	{
 		for (int i = 0; i < size; i++)
 		{
-			if (this->symbolic_registers->find(offset + i) != this->symbolic_registers->end())
+			if (this->symbolic_registers.find(offset + i) != this->symbolic_registers.end())
 				return false;
 		}
 	}
 
 	// check if we can safely handle this IRStmt
-	inline void check_stmt(IRStmt *s)
+	inline bool check_stmt(IRTypeEnv *tyenv, IRStmt *s)
 	{
 		switch (s->tag)
 		{
-			case Ist_Put:
+      case Ist_Put: {
 				if (!this->check_expr(s->Ist.Put.data)) return false;
-				IRType expr_type = typeOfIRTemp(s->Ist.Put.data);
+				IRType expr_type = typeOfIRExpr(tyenv, s->Ist.Put.data);
 				if (expr_type == Ity_I1)
 				{
 					LOG_W("seeing a 1-bit write to a register");
@@ -542,6 +554,7 @@ public:
 				int expr_size = sizeofIRType(expr_type);
 				this->mark_register_safe(s->Ist.Put.offset, expr_size);
 				break;
+      }
 			case Ist_PutI:
 				// we cannot handle the PutI because:
 				// 1. in the case of symbolic registers, we need to have a good
@@ -562,37 +575,37 @@ public:
 				if (!this->check_expr(s->Ist.Store.data)) return false;
 				break;
 			case Ist_CAS:
-				if (!this->check_expr(s->Ist.CAS.details.addr)) return false;
-				if (!this->check_expr(s->Ist.CAS.details.dataLo)) return false;
-				if (!this->check_expr(s->Ist.CAS.details.dataHi)) return false;
-				if (!this->check_expr(s->Ist.CAS.details.expdLo)) return false;
-				if (!this->check_expr(s->Ist.CAS.details.expdHi)) return false;
+				if (!this->check_expr(s->Ist.CAS.details->addr)) return false;
+				if (!this->check_expr(s->Ist.CAS.details->dataLo)) return false;
+				if (!this->check_expr(s->Ist.CAS.details->dataHi)) return false;
+				if (!this->check_expr(s->Ist.CAS.details->expdLo)) return false;
+				if (!this->check_expr(s->Ist.CAS.details->expdHi)) return false;
 				break;
 			case Ist_LLSC:
 				if (!this->check_expr(s->Ist.LLSC.addr)) return false;
 				if (!this->check_expr(s->Ist.LLSC.storedata)) return false;
 				break;
-			case Ist_Dirty:
-				if (!this->check_expr(s->Ist.Dirty.details.guard)) return false;
-				if (!this->check_expr(s->Ist.Dirty.details.mAddr)) return false;
+      case Ist_Dirty: {
+				if (!this->check_expr(s->Ist.Dirty.details->guard)) return false;
+				if (!this->check_expr(s->Ist.Dirty.details->mAddr)) return false;
 				for (int i = 0; i < 20; i++)
 				{
-					if (!this->check_expr(s->Ist.Dirty.details.args[i])) return false;
+					if (!this->check_expr(s->Ist.Dirty.details->args[i])) return false;
 				}
 				break;
+      }
 			case Ist_Exit:
 				if (!this->check_expr(s->Ist.Exit.guard)) return false;
-				if (!this->check_expr(s->Ist.Exit.dst)) return false;
 				break;
 			case Ist_LoadG:
-				if (!this->check_expr(s->Ist.LoadG.addr)) return false;
-				if (!this->check_expr(s->Ist.LoadG.alt)) return false;
-				if (!this->check_expr(s->Ist.LoadG.guard)) return false;
+				if (!this->check_expr(s->Ist.LoadG.details->addr)) return false;
+				if (!this->check_expr(s->Ist.LoadG.details->alt)) return false;
+				if (!this->check_expr(s->Ist.LoadG.details->guard)) return false;
 				break;
 			case Ist_StoreG:
-				if (!this->check_expr(s->Ist.StoreG.addr)) return false;
-				if (!this->check_expr(s->Ist.StoreG.data)) return false;
-				if (!this->check_expr(s->Ist.StoreG.guard)) return false;
+				if (!this->check_expr(s->Ist.StoreG.details->addr)) return false;
+				if (!this->check_expr(s->Ist.StoreG.details->data)) return false;
+				if (!this->check_expr(s->Ist.StoreG.details->guard)) return false;
 				break;
 			case Ist_NoOp:
 			case Ist_IMark:
@@ -609,20 +622,37 @@ public:
 	}
 
 	// check if the block is feasible
-	bool check_block(address, size)
+	bool check_block(uint64_t address, int32_t size)
 	{
+    // assume we're good if we're not checking symbolic registers
+    if (this->vex_guest == VexArch_INVALID) {
+      return true;
+    }
+
 		// if there are no symbolic registers we're ok
-		if (state->symbolic_registers->size() == 0) return true;
+		if (this->symbolic_registers.size() == 0) {
+      return true;
+    }
 
-		void *instructions = malloc(size);
-		uc_mem_read(this->uc, address, instructions, size);
-		IRSB *the_block = vex_block_bytes(TODO, TODO, instructions, address, size, 0);
+    std::unique_ptr<uint8_t[]> instructions(new uint8_t[size]);
+		uc_mem_read(this->uc, address, instructions.get(), size);
+		IRSB *the_block = vex_block_bytes(this->vex_guest, this->vex_archinfo, instructions.get(), address, size, 0);
 
-		for (int i = 0; i < the_block->stmts_used; i++)
-		{
-			if (!this->check_stmt(the_block->stmts[i])) return false;
+    if (the_block == NULL) {
+      // TODO: how to handle?
+      return false;
+    }
+
+		for (int i = 0; i < the_block->stmts_used; i++) {
+			if (!this->check_stmt(the_block->tyenv, the_block->stmts[i])) {
+        return false;
+      }
 		}
-		if (!this->check_expr(the_block->next)) return false;
+
+		if (!this->check_expr(the_block->next)) {
+      return false;
+    }
+
 		return true;
 	}
 
@@ -642,7 +672,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 		if (bitmap) {
 			for (int i = start; i <= end; i++)  {
 				if (bitmap[i] & TAINT_SYMBOLIC) {
-					state->stop(STOP_SYMBOLIC);
+					state->stop(STOP_SYMBOLIC_MEM);
 					return ;
 				}
 			}
@@ -652,7 +682,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 		if (bitmap) {
 			for (int i = start; i <= 0xFFF; i++) {
 				if (bitmap[i] & TAINT_SYMBOLIC) {
-					state->stop(STOP_SYMBOLIC);
+					state->stop(STOP_SYMBOLIC_MEM);
 					return ;
 				}
 			}
@@ -662,7 +692,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 		if (bitmap) {
 			for (int i = 0; i <= end; i++) {
 				if (bitmap[i] & TAINT_SYMBOLIC) {
-					state->stop(STOP_SYMBOLIC);
+					state->stop(STOP_SYMBOLIC_MEM);
 					return ;
 				}
 			}
@@ -747,16 +777,21 @@ static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, in
 static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user_data) {
 	LOG_I("block [%#lx, %#lx]", address, address + size);
 
-	if (!state->check_block(the_block)) return false;
-
 	if (state->ignore_next_block) {
 		state->ignore_next_block = false;
 		state->ignore_next_selfmod = true;
 		return;
 	}
-	LOG_I("block [%#lx, %#lx]", address, address + size);
+	State *state = (State *)user_data;
+  // TODO: is this right?
 	state->commit();
-	state->step(address, size);
+
+	if (!state->check_block(address, size)) {
+    state->stop(STOP_SYMBOLIC_REG);
+    return;
+  }
+
+	state->step(address);
 }
 
 static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
@@ -862,12 +897,24 @@ void activate(State *state, uint64_t address, uint64_t length, uint8_t *taint) {
 }
 
 extern "C"
-void symbolic_register_data(State *state, uint64_t count, uint64_t offsets*)
+void symbolic_register_data(State *state, uint64_t count, uint64_t *offsets)
 {
+  state->symbolic_registers.clear();
 	for (int i = 0; i < count; i++)
 	{
 		state->symbolic_registers.insert(offsets[i]);
 	}
+}
+
+extern "C"
+void enable_symbolic_reg_tracking(State *state, VexArch guest, VexArchInfo archinfo) {
+  state->vex_guest = guest;
+  state->vex_archinfo = archinfo;
+}
+
+extern "C"
+void disable_symbolic_reg_tracking(State *state) {
+  state->vex_guest = VexArch_INVALID;
 }
 
 /*

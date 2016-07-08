@@ -1,4 +1,6 @@
 UNICORN_PATH?=../unicorn
+VEX_PATH?=../../vex
+PYVEX_PATH?=../../pyvex/pyvex_c
 QEMU_PATH := ${UNICORN_PATH}/qemu
 
 UNAME := $(shell uname)
@@ -10,8 +12,9 @@ ifeq ($(UNAME), Linux)
 endif
 
 CC := gcc
-CFLAGS := -I ${UNICORN_PATH}/include -I ${UNICORN_PATH}/include/unicorn -I ${QEMU_PATH} -I ${QEMU_PATH}/include -L ${UNICORN_PATH} `pkg-config --cflags glib-2.0`
-LIBS := -lglib-2.0 -lunicorn
+CFLAGS := -I ${UNICORN_PATH}/include -I ${UNICORN_PATH}/include/unicorn -I ${QEMU_PATH} \
+	-I ${QEMU_PATH}/include -I ${VEX_PATH}/pub -I ${PYVEX_PATH} -L ${UNICORN_PATH} `pkg-config --cflags glib-2.0`
+LIBS := -lglib-2.0 # -L ${PYVEX_PATH} -lpyvex_static
 OBJS := log.o arch/x86.o arch/mips.o
 
 all: ${LIB_SIM_UNICORN}

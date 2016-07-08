@@ -1,10 +1,12 @@
 import os
 import sys
+import copy
 import struct
 import ctypes
 import logging
 import threading
 import itertools
+from collections import defaultdict
 l = logging.getLogger('simuvex.plugins.unicorn')
 
 try:
@@ -12,6 +14,7 @@ try:
 except ImportError:
     l.warning("Unicorn is not installed. Support disabled.")
 
+import pyvex
 import claripy
 from .plugin import SimStatePlugin
 from ..s_errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError
@@ -26,15 +29,16 @@ MEM_PATCH._fields_ = [
     ]
 
 class STOP(object): # stop_t
-    STOP_NORMAL     = 0
-    STOP_STOPPOINT  = 1
-    STOP_SYMBOLIC   = 2
-    STOP_ERROR      = 3
-    STOP_SYSCALL    = 4
-    STOP_EXECNONE   = 5
-    STOP_ZEROPAGE   = 6
-    STOP_NOSTART    = 7
-    STOP_SEGFAULT   = 8
+    STOP_NORMAL         = 0
+    STOP_STOPPOINT      = 1
+    STOP_SYMBOLIC_MEM   = 2
+    STOP_SYMBOLIC_REG   = 3
+    STOP_ERROR          = 4
+    STOP_SYSCALL        = 5
+    STOP_EXECNONE       = 6
+    STOP_ZEROPAGE       = 7
+    STOP_NOSTART        = 8
+    STOP_SEGFAULT       = 9
 
     @staticmethod
     def name_stop(num):
@@ -113,6 +117,27 @@ class Uniwrapper(unicorn.Uc):
 _unicorn_tls = threading.local()
 _unicorn_tls.uc = None
 
+class _VexCacheInfo(ctypes.Structure):
+    _fields_ = [
+        ("num_levels", ctypes.c_uint),
+        ("num_caches", ctypes.c_uint),
+        ("caches", ctypes.c_void_p),
+        ("icaches_maintain_coherence", ctypes.c_bool),
+    ]
+
+class _VexArchInfo(ctypes.Structure):
+    _fields_ = [
+        ("hwcaps", ctypes.c_uint),
+        ("endness", ctypes.c_int),
+        ("hwcache_info", _VexCacheInfo),
+        ("ppc_icache_line_szB", ctypes.c_int),
+        ("ppc_dcbz_szB", ctypes.c_uint),
+        ("ppc_dcbzl_szB", ctypes.c_uint),
+        ("arm64_dMinLine_lg2_szB", ctypes.c_uint),
+        ("arm64_iMinLine_lg2_szB", ctypes.c_uint),
+        ("x86_cr0", ctypes.c_uint),
+    ]
+
 def _load_native():
     if sys.platform == 'darwin':
         libfile = 'sim_unicorn.dylib'
@@ -132,6 +157,7 @@ def _load_native():
             l.warning('failed loading sim_unicorn, unicorn support disabled')
             raise ImportError("Could not find sim_unicorn shared object.")
 
+        VexArch = ctypes.c_int
         uc_err = ctypes.c_int
         state_t = ctypes.c_void_p
         stop_t = ctypes.c_int
@@ -157,6 +183,9 @@ def _load_native():
         _setup_prototype(h, 'set_stops', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'logSetLogLevel', None, ctypes.c_uint64)
         _setup_prototype(h, 'cache_page', ctypes.c_bool, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p, ctypes.c_uint64)
+        _setup_prototype(h, 'enable_symbolic_reg_tracking', None, state_t, VexArch, _VexArchInfo)
+        _setup_prototype(h, 'disable_symbolic_reg_tracking', None, state_t)
+        _setup_prototype(h, 'symbolic_register_data', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
 
         l.info('native plugin is enabled')
 
@@ -540,6 +569,9 @@ class Unicorn(SimStatePlugin):
                 l.debug("... concretized")
             return d
 
+    def _valid_reg_value(self, v):
+        return v is not None or self.UNICORN_SYM_REG_SUPPORT in self.state.options
+
     def _hook_mem_unmapped(self, uc, access, address, size, value, user_data): #pylint:disable=unused-argument
         """
         This callback is called when unicorn needs to access data that's not yet present in memory.
@@ -647,6 +679,31 @@ class Unicorn(SimStatePlugin):
         self.jumpkind = 'Ijk_Boring'
         self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
 
+        # should this be in setup?
+        if options.UNICORN_SYM_REGS_SUPPORT in self.state.options and \
+           options.UNICORN_AGGRESSIVE_CONCRETIZATION not in self.state.options:
+            archinfo = copy.deepcopy(self.state.arch.vex_archinfo)
+            archinfo['hwcache_info']['caches'] = 0
+            archinfo['hwcache_info'] = _VexCacheInfo(**archinfo['hwcache_info'])
+            _UC_NATIVE.enable_symbolic_reg_tracking(
+                self._uc_state,
+                getattr(pyvex.pvc, self.state.arch.vex_arch),
+                _VexArchInfo(**archinfo),
+            )
+
+            offset_to_largest = defaultdict(int)
+            for offset, size in self.state.arch.registers.values():
+                if offset_to_largest[offset] < size:
+                    offset_to_largest[offset] = size
+
+            symbolic_offsets = set()
+            for offset, size in offset_to_largest.items():
+                if self.state.registers.load(offset, size).symbolic:
+                    symbolic_offsets.add(offset)
+
+            sym_regs_array = (ctypes.c_uint64 * len(symbolic_offsets))(*map(ctypes.c_uint64, symbolic_offsets))
+            _UC_NATIVE.symbolic_register_data(self._uc_state, len(symbolic_offsets), sym_regs_array)
+
         addr = self.state.se.any_int(self.state.ip)
         l.info('started emulation at %#x (%d steps)', addr, self.max_steps if step is None else step)
         self.errno = _UC_NATIVE.start(self._uc_state, addr, self.max_steps if step is None else step)
@@ -659,6 +716,9 @@ class Unicorn(SimStatePlugin):
 
         addr = self.state.se.any_int(self.state.ip)
         l.info('finished emulation at %#x after %d steps: %s', addr, self.steps, STOP.name_stop(self.stop_reason))
+
+        # should this be in destroy?
+        _UC_NATIVE.disable_symbolic_reg_tracking(self._uc_state)
 
         # syncronize memory contents - head is a linked list of memory updates
         head = _UC_NATIVE.sync(self._uc_state)
@@ -675,7 +735,7 @@ class Unicorn(SimStatePlugin):
 
         if self.stop_reason in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT, STOP.STOP_SYSCALL):
             self.countdown_nonunicorn_blocks = 0
-        if self.stop_reason == STOP.STOP_SYMBOLIC:
+        if self.stop_reason == STOP.STOP_SYMBOLIC_MEM:
             self.countdown_symbolic_registers = self.cooldown_symbolic_registers
 
         # get the address list out of the state
@@ -693,7 +753,7 @@ class Unicorn(SimStatePlugin):
 
         # there's something we're not properly resetting for syscalls, so
         # we'll clear the state when they happen
-        if self.stop_reason not in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT, STOP.STOP_SYMBOLIC):
+        if self.stop_reason not in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT, STOP.STOP_SYMBOLIC_MEM, STOP.STOP_SYMBOLIC_REG):
             self.delete_uc()
 
         #l.debug("Resetting the unicorn state.")
@@ -708,13 +768,13 @@ class Unicorn(SimStatePlugin):
             gs = self.state.se.any_int(self.state.regs.gs)
             self.write_msr(fs, 0xC0000100)
             self.write_msr(gs, 0xC0000101)
-            flags = self._process_value(ccall._get_flags(self.state)[0], 'reg')
-            if flags is None:
+            flags = self._process_value(ccall._get_flags(self.state)[0])
+            if not self._valid_reg_value(flags):
                 raise SimValueError('symbolic eflags')
             uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.any_int(flags))
         elif self.state.arch.qemu_name == 'i386':
-            flags = self._process_value(ccall._get_flags(self.state)[0], 'reg')
-            if flags is None:
+            flags = self._process_value(ccall._get_flags(self.state)[0])
+            if not self._valid_reg_value(flags):
                 raise SimValueError('symbolic eflags')
             uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.any_int(flags))
             fs = self.state.se.any_int(self.state.regs.fs) << 16
@@ -724,8 +784,8 @@ class Unicorn(SimStatePlugin):
         for r, c in self._uc_regs.iteritems():
             if r in self.reg_blacklist:
                 continue
-            v = self._process_value(getattr(self.state.regs, r), 'reg')
-            if v is None:
+            v = self._process_value(getattr(self.state.regs, r))
+            if not self._valid_reg_value(v):
                     raise SimValueError('setting a symbolic register')
             # l.debug('setting $%s = %#x', r, self.state.se.any_int(v))
             uc.reg_write(c, self.state.se.any_int(v))
@@ -751,8 +811,8 @@ class Unicorn(SimStatePlugin):
                 if tag == 0:
                     tag_word |= 3       # unicorn doesn't care about any value other than 3 for setting
                 else:
-                    val = self._process_value(self.state.registers.load(vex_offset, size=8), 'reg')
-                    if val is None:
+                    val = self._process_value(self.state.registers.load(vex_offset, size=8))
+                    if not self._valid_reg_value(val):
                         raise SimValueError('setting a symbolic fp register')
                     val = self.state.se.any_int(val)
 
