@@ -570,7 +570,7 @@ class Unicorn(SimStatePlugin):
             return d
 
     def _valid_reg_value(self, v):
-        return v is not None or options.UNICORN_SYM_REG_SUPPORT in self.state.options
+        return v is not None or options.UNICORN_SYM_REGS_SUPPORT in self.state.options
 
     def _hook_mem_unmapped(self, uc, access, address, size, value, user_data): #pylint:disable=unused-argument
         """
