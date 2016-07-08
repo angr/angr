@@ -777,7 +777,8 @@ class SimPagedMemory(object):
         if self.state.mode != 'fastpath':
             for page in xrange(pages):
                 if base_page_num + page in self._pages:
-                    raise SimMemoryError("map_page received address and length combination which contained mapped page")
+                    l.warning("map_page received address and length combination which contained mapped page")
+                    return
 
         if isinstance(permissions, (int, long)):
             permissions = claripy.BVV(permissions, 3)
