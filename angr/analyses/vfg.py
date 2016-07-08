@@ -508,7 +508,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             raise AngrSkipEntryNotice()
 
         assert isinstance(self._top_task, FunctionAnalysis)
-        assert job in self._top_task.jobs
+
+        if job not in self._top_task.jobs:
+            l.debug("The job is not recorded. SKip the entry.")
+            raise AngrSkipEntryNotice()
 
         # increment the execution counter
         self._execution_counter[job.addr] += 1
@@ -888,7 +891,20 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         if self._pending_returns:
             # We don't have any paths remaining. Let's pop a previously-missing return to
             # process
-            pending_ret_key = self._pending_returns.keys()[0]
+
+            top_task = self._top_task  # type: FunctionAnalysis
+            func_addr = top_task.function_address
+
+            pending_ret_key = None
+            for k in self._pending_returns.keys():  # type: SimRunKey
+                if k.func_addr == func_addr:
+                    pending_ret_key = k
+                    break
+
+            if pending_ret_key is None:
+                # TODO: rewind the stack, and pop the correct pending job out of the queue
+                raise NotImplementedError('Task stack rewinding is not implemented yet.')
+
             state, call_stack, bbl_stack = self._pending_returns.pop(pending_ret_key)
             addr = pending_ret_key.addr
 
@@ -909,6 +925,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                          bbl_stack=bbl_stack
                          )
             self._insert_entry(job)
+
+            top_task.jobs.append(job)
+
             l.debug("Tracing a missing return %#08x, %s", addr, repr(pending_ret_key))
 
     def _post_analysis(self):
