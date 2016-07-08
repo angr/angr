@@ -17,7 +17,7 @@ l = logging.getLogger(name="angr.analyses.vfg")
 
 # The maximum tracing times of a basic block before we widen the results
 MAX_ANALYSIS_TIMES_WITHOUT_MERGING = 5
-MAX_ANALYSIS_TIMES = 10
+MAX_ANALYSIS_TIMES = 30
 
 class VFGJob(EntryWrapper):
     """
@@ -298,6 +298,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         self._task_stack = [ ]
 
+        self._tracing_times = defaultdict(int)
+
         # counters for debugging
         self._execution_counter = defaultdict(int)
 
@@ -520,6 +522,11 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         addr = current_path.addr
         input_state = current_path.state
         simrun_key = SimRunKey.new(addr, job.call_stack_suffix, job.jumpkind)
+
+        if self._tracing_times[simrun_key] > MAX_ANALYSIS_TIMES:
+            raise AngrSkipEntryNotice()
+
+        self._tracing_times[simrun_key] += 1
 
         if simrun_key not in self._nodes:
             vfg_node = VFGNode(addr, simrun_key, state=input_state)
