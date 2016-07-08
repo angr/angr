@@ -314,6 +314,15 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
     @property
     def _top_task(self):
+        """
+        Get the first task in the stack.
+
+        :return: The top task in the stack, or None if the stack is empty.
+        :rtype: AnalysisTask
+        """
+
+        if not self._task_stack:
+            return None
         return self._task_stack[-1]
 
     @property
@@ -513,11 +522,15 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         simrun_key = SimRunKey.new(addr, job.call_stack_suffix, job.jumpkind)
 
         if simrun_key not in self._nodes:
-            job.vfg_node = VFGNode(addr, simrun_key, state=input_state)
-            self._nodes[simrun_key] = job.vfg_node
+            vfg_node = VFGNode(addr, simrun_key, state=input_state)
+            self._nodes[simrun_key] = vfg_node
 
         else:
-            job.vfg_node = self._nodes[simrun_key]
+            vfg_node = self._nodes[simrun_key]
+
+        job.vfg_node = vfg_node
+        # log the current state
+        vfg_node.state = input_state
 
         current_path.state = input_state
 
@@ -710,6 +723,18 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             if new_simrun_key in self._pending_returns:
                 del self._pending_returns[new_simrun_key]
 
+        # Check if we have reached a fixpoint
+        if new_simrun_key in self._nodes:
+            last_state = self._nodes[new_simrun_key].state
+
+            _, _, merged = last_state.merge(successor)
+
+            if merged:
+                l.debug("%s didn't reach a fix-point", new_simrun_key)
+            else:
+                l.debug("%s reaches a fix-point.", new_simrun_key)
+                return [ ]
+
         new_jobs = self._create_new_jobs(job, successor, new_simrun_key, new_call_stack, new_bbl_stack)
 
         return new_jobs
@@ -770,6 +795,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # pop all tasks if they are finished
         task = self._top_task
+
+        if task is None:
+            # the task stack is empty
+            return
 
         if isinstance(task, CallAnalysis):
             # the call never returns
@@ -834,7 +863,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         path = self.project.factory.path(merged_state)
 
         new_job = VFGJob(entries[0].addr, path, self._context_sensitivity_level, jumpkind=entries[0].jumpkind,
-                         simrun_key=entries[0].simrun_key
+                         simrun_key=entries[0].simrun_key, call_stack=entries[0].call_stack
                          )
 
         self._top_task.jobs.append(new_job)
