@@ -503,6 +503,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         l.debug("Handling VFGJob %s", job)
 
+        if not self._top_task:
+            l.debug("No more tasks available. Skip the entry.")
+            raise AngrSkipEntryNotice()
+
         assert isinstance(self._top_task, FunctionAnalysis)
         assert job in self._top_task.jobs
 
