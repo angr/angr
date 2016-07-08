@@ -724,6 +724,9 @@ class Tracer(object):
         preconstrain the entry state to the input
         '''
 
+        if not self.preconstrain_input:
+            return
+
         repair_entry_state_opts = False
         if so.TRACK_ACTION_HISTORY in entry_state.options:
             repair_entry_state_opts = True
@@ -796,11 +799,13 @@ class Tracer(object):
 
             cache_tuple = self._cache_lookup()
             pg = None
+            # if we're restoring from a cache, we preconstrain
             if cache_tuple is not None:
                 bb_cnt, self.cgc_flag_data, state = cache_tuple
                 pg = self._cgc_prepare_paths(state)
+                self._preconstrain_state(state)
                 self.bb_cnt = bb_cnt
-            else:
+            else: # if we're not restoring from a cache, the cacher will preconstrain
                 pg = self._cgc_prepare_paths()
 
             return pg
@@ -888,9 +893,6 @@ class Tracer(object):
                 state.options.discard(option)
 
             entry_state = state
-
-        if self.preconstrain_input:
-            self._preconstrain_state(entry_state)
 
         if not self.pov:
             entry_state.cgc.input_size = len(self.input)
