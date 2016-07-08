@@ -1,5 +1,6 @@
 import nose
 import angr
+import pickle
 import tracer
 
 import os
@@ -109,6 +110,7 @@ def test_fauxware():
     pg = p.factory.path_group(s_unicorn)
     pg.explore()
 
+    assert all("SimUnicorn" in ''.join(p.trace.hardcopy) for p in pg.deadended)
     nose.tools.assert_equal(sorted(pg.mp_deadended.state.posix.dumps(1).mp_items), sorted((
         'Username: \nPassword: \nWelcome to the admin console, trusted user!\n',
         'Username: \nPassword: \nGo away!',
@@ -186,6 +188,56 @@ def test_fp():
         nose.tools.assert_false(result.symbolic)
         result_concrete = result.args[0]
         nose.tools.assert_equal(answer, result_concrete)
+
+def test_unicorn_pickle():
+    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
+
+    def _uni_state():
+        # try pickling out paths that went through unicorn
+        s_unicorn = p.factory.entry_state(add_options=so.unicorn)
+        s_unicorn.unicorn.countdown_nonunicorn_blocks = 0
+        s_unicorn.unicorn.countdown_symbolic_registers = 0
+        s_unicorn.unicorn.cooldown_nonunicorn_blocks = 0
+        s_unicorn.unicorn.cooldown_symbolic_registers = 0
+        return s_unicorn
+
+    pg = p.factory.path_group(_uni_state())
+    pg.one_active.state.options.update(simuvex.o.unicorn)
+    pg.step(until=lambda lpg: "SimUnicorn" in lpg.one_active.history._runstr)
+    assert len(pg.active) > 0
+
+    pgp = pickle.dumps(pg, -1)
+    del pg
+    import gc
+    gc.collect()
+    pg2 = pickle.loads(pgp)
+    pg2.explore()
+
+    nose.tools.assert_equal(sorted(pg2.mp_deadended.state.posix.dumps(1).mp_items), sorted((
+        'Username: \nPassword: \nWelcome to the admin console, trusted user!\n',
+        'Username: \nPassword: \nGo away!',
+        'Username: \nPassword: \nWelcome to the admin console, trusted user!\n'
+    )))
+
+    # test the pickling of SimUnicorn itself
+    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
+    pg = p.factory.path_group(_uni_state())
+    pg.step(n=2)
+    pg.one_active.step()
+    assert isinstance(pg.one_active._run, simuvex.SimUnicorn)
+
+    pgp = pickle.dumps(pg, -1)
+    del pg
+    gc.collect()
+    pg2 = pickle.loads(pgp)
+    assert isinstance(pg2.one_active._run, simuvex.SimUnicorn)
+    pg2.explore()
+
+    nose.tools.assert_equal(sorted(pg2.mp_deadended.state.posix.dumps(1).mp_items), sorted((
+        'Username: \nPassword: \nWelcome to the admin console, trusted user!\n',
+        'Username: \nPassword: \nGo away!',
+        'Username: \nPassword: \nWelcome to the admin console, trusted user!\n'
+    )))
 
 if __name__ == '__main__':
     #import logging
