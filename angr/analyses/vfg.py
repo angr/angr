@@ -847,8 +847,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 self.project.hooked_by(addr) is simuvex.s_procedure.SimProcedureContinuation:
             raise AngrJobMergingFailureNotice()
 
-        # it must be a merge point
-        assert entries[0].path.addr in self._merge_points(self._current_function_address)
+        if entries[0].path.addr not in self._merge_points(self._current_function_address):
+            # if it's not a valid merge point, we don't merge it right now
+            raise AngrJobMergingFailureNotice()
 
         # update jobs
         for entry in entries:
