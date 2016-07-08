@@ -99,7 +99,9 @@ class Analyses(object):
             oself.__init__(*args, **kwargs)
             return oself
 
-        make_analysis.__doc__ = analysis.__init__.__doc__
+        cdoc = analysis.__doc__ if analysis.__doc__ else ''
+        idoc = analysis.__init__.__doc__ if analysis.__init__.__doc__ else ''
+        make_analysis.__doc__ = cdoc + '\n' + idoc
         return make_analysis
 
     def __getstate__(self):

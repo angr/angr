@@ -235,10 +235,11 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                  start_at_function=True
                  ):
         """
-        :param project: The project object.
+        :param cfg: The control-flow graph to base this analysis on. If none is provided, we will
+                    construct a CFGAccurate.
         :param context_sensitivity_level: The level of context-sensitivity of this VFG.
                                         It ranges from 0 to infinity. Default 2.
-        :param function_start: The address of the function to analyze. N
+        :param function_start: The address of the function to analyze.
         :param interfunction_level: The level of interfunction-ness to be
         :param initial_state: A state to use as the initial one
         :param avoid_runs: A list of runs to avoid
