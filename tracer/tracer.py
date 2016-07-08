@@ -903,6 +903,7 @@ class Tracer(object):
             # try to enable unicorn, continue if it doesn't exist
             try:
                 options.add(so.UNICORN)
+                options.add(so.UNICORN_SYM_REGS_SUPPORT)
                 self.unicorn_enabled = True
                 l.debug("unicorn tracing enabled")
             except AttributeError:
