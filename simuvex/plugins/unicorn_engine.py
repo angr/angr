@@ -325,6 +325,7 @@ class Unicorn(SimStatePlugin):
             self._handle_syscall(uc, user_data)
         else:
             l.warning('unhandled interrupt %d', intno)
+            _UC_NATIVE.stop(self._uc_state, STOP.STOP_ERROR)
 
     def _hook_intr_x86(self, uc, intno, user_data):
         if intno == 0x80:
@@ -334,6 +335,7 @@ class Unicorn(SimStatePlugin):
                 self._hook_syscall_x86_64(uc, user_data)
         else:
             l.warning('unhandled interrupt %d', intno)
+            _UC_NATIVE.stop(self._uc_state, STOP.STOP_ERROR)
 
     def _hook_syscall_x86_64(self, uc, user_data):
         sysno = uc.reg_read(self._uc_regs['rax'])
