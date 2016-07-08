@@ -82,9 +82,10 @@ class Tracer(object):
         self.add_options = set() if add_options is None else add_options
         self.constrained_addrs = []
 
-        cm = LocalCacheManager if GlobalCacheManager is None else GlobalCacheManager
-        # cache managers accept accept a tracer as an arg
-        self._cache_manager = cm(self)
+        cm = LocalCacheManager() if GlobalCacheManager is None else GlobalCacheManager
+        # cache managers need the tracer to be set for them
+        self._cache_manager = cm
+        self._cache_manager.set_tracer(self)
 
         # set by a cache manager
         self._loaded_from_cache = False
@@ -768,6 +769,7 @@ class Tracer(object):
         '''
         c = entry_state.se.BVV(self._magic_content) == flag_page_var
         entry_state.add_constraints(c)
+        self.variable_map[list(flag_page_var.variables)[0]] = c
         self.preconstraints.append(c)
 
     def _set_cgc_simprocedures(self):

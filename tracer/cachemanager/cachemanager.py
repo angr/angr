@@ -5,7 +5,10 @@ l = logging.getLogger("tracer.cachemanager.CacheManager")
 
 class CacheManager(object):
 
-    def __init__(self, tracer):
+    def __init__(self):
+        self.tracer = None
+
+    def set_tracer(self, tracer):
         self.tracer = tracer
 
     def cacher(self):

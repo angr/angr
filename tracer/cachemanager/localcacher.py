@@ -8,8 +8,12 @@ l = logging.getLogger("tracer.cachemanager.LocalCacheManager")
 
 class LocalCacheManager(CacheManager):
 
-    def __init__(self, tracer):
-        super(LocalCacheManager, self).__init__(tracer)
+    def __init__(self):
+        super(LocalCacheManager, self).__init__()
+        self._cache_file = None
+
+    def set_tracer(self, tracer):
+        super(LocalCacheManager, self).set_tracer(tracer)
 
         binhash = hashlib.md5(open(self.tracer.binary).read()).hexdigest()
         self._cache_file = os.path.join("/tmp", \
