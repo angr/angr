@@ -349,7 +349,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 return n
 
     def irsb_from_node(self, node):
-        return self.project.factory.sim_run(node.state, addr=node.addr)
+        return self.project.factory.sim_run(node.state, addr=node.addr, num_inst=len(node.instruction_addrs))
 
     def get_paths(self, begin, end):
         """
@@ -1231,8 +1231,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             jumpkind = current_path.state.scratch.jumpkind
 
         try:
-            # TODO: respect the block size from the CFG, especially when we have a normalized CFG available
-            sim_run = self.project.factory.sim_run(current_path.state, jumpkind=jumpkind)
+            node = self._cfg.get_any_node(current_path.addr)
+            num_inst = None if node is None else len(node.instruction_addrs)
+            sim_run = self.project.factory.sim_run(current_path.state, jumpkind=jumpkind, num_inst=num_inst)
         except simuvex.SimIRSBError as ex:
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there

@@ -64,10 +64,13 @@ def broken_vfg_buffer_overflow():
 # VFG test case 0
 #
 
+def test_vfg_0():
+    yield run_vfg_0, 'x86_64'
+
 def run_vfg_0(arch):
     proj = angr.Project(os.path.join(test_location, arch, "vfg_0"))
 
-    cfg = proj.analyses.CFG()
+    cfg = proj.analyses.CFG(normalize=True)
     main = cfg.functions.function(name='main')
     vfg = proj.analyses.VFG(cfg, function_start=main.addr, context_sensitivity_level=1, interfunction_level=3)
 
@@ -78,7 +81,7 @@ def run_vfg_0(arch):
     stdout = final_state_main.posix.dumps(1)
 
     nose.tools.assert_equal(stdout[:4], "i = ")
-    # nose.tools.assert_equal(stdout, "i = 64, j = 63")
+    nose.tools.assert_equal(stdout, "i = 64, j = 63")
 
 #
 # VFG test case 1
@@ -158,7 +161,7 @@ if __name__ == "__main__":
     # logging.getLogger("simuvex.s_state").setLevel(logging.DEBUG)
     # logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
     # logging.getLogger("angr.analyses.cfg").setLevel(logging.DEBUG)
-    # logging.getLogger("angr.analyses.vfg").setLevel(logging.DEBUG)
+    logging.getLogger("angr.analyses.vfg").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend
     # logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
     # logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
