@@ -191,6 +191,7 @@ class Path(object):
 
             # the previous run
             self.previous_run = None
+            self.history._jumpkind = state.scratch.jumpkind
 
             # A custom information store that will be passed to all its descendents
             self.info = {}
