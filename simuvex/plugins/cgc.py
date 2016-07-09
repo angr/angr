@@ -54,7 +54,7 @@ class SimStateCGC(SimStatePlugin):
             self.output_strings.pop(0)
 
     def addr_invalid(self, a):
-        return not self.state.satisfiable(extra_constraints=[a!=0])
+        return not self.state.se.solution(a != 0, True)
 
     def copy(self):
         c = SimStateCGC()

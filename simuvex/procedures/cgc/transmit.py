@@ -19,7 +19,7 @@ class transmit(simuvex.SimProcedure):
             self.state.memory.store(tx_bytes, count, endness='Iend_LE')
 
         else:
-            if self.state.satisfiable(extra_constraints=[count != 0]):
+            if self.state.se.solution(count != 0, True):
                 data = self.state.memory.load(buf, count)
                 self.state.posix.write(fd, data, count)
                 self.data = data
