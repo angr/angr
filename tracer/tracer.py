@@ -353,8 +353,8 @@ class Tracer(object):
         # something weird... maybe we hit a rep instruction?
         # qemu and vex have slightly different behaviors...
         if not self.path_group.active[0].state.se.satisfiable():
-            l.warning("detected small discrepency between qemu and angr, \
-                    attempting to fix known cases")
+            l.warning("detected small discrepency between qemu and angr, "
+                    "attempting to fix known cases")
 
             # did our missed branch try to go back to a rep?
             target = self.path_group.missed[0].addr
@@ -770,6 +770,9 @@ class Tracer(object):
         '''
         preconstrain the data in the flag page
         '''
+        if not self.preconstrain_flag:
+            return
+
         c = entry_state.se.BVV(self._magic_content) == flag_page_var
         entry_state.add_constraints(c)
         self.variable_map[list(flag_page_var.variables)[0]] = c
@@ -807,6 +810,11 @@ class Tracer(object):
                 self.bb_cnt = bb_cnt
             else: # if we're not restoring from a cache, the cacher will preconstrain
                 pg = self._cgc_prepare_paths()
+
+                entry_state = pg.one_active.state
+                # preconstrain flag page
+                self._preconstrain_flag_page(entry_state, self.cgc_flag_data)
+                entry_state.memory.store(0x4347c000, self.cgc_flag_data)
 
             return pg
 
@@ -897,14 +905,6 @@ class Tracer(object):
 
         if not self.pov:
             entry_state.cgc.input_size = len(self.input)
-
-        # preconstrain flag page
-        if self.preconstrain_flag:
-            self._preconstrain_flag_page(entry_state, self.cgc_flag_data)
-
-        # PROT_READ region
-        #entry_state.memory.map_region(0x4347c000, 0x1000, 1)   # already done in simos
-        entry_state.memory.store(0x4347c000, self.cgc_flag_data)
 
         pg = project.factory.path_group(
             entry_state,
