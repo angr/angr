@@ -260,6 +260,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 constraints = args
 
             self._inspect('constraints', BP_BEFORE, added_constraints=constraints)
+            constraints = self._inspect_getattr("added_constraints", constraints)
             self.se.add(*constraints)
             self._inspect('constraints', BP_AFTER)
 
