@@ -356,18 +356,31 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         return state
 
-    def merge(self, *others):
+    def merge(self, *others, **kwargs):
         """
         Merges this state with the other states. Returns the merging result, merged state, and the merge flag.
 
-        :param others: the other states to merge
+        :param states: the states to merge
+        :param merge_conditions: a tuple of the conditions under which each state holds
         :return: (merged state, merge flag, a bool indicating if any merging occured)
         """
-        # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
-        merge_flag = self.se.BVS("state_merge_%d" % merge_counter.next(), 16)
-        merge_values = range(len(others)+1)
+
+        merge_conditions = kwargs.pop('merge_conditions', None)
+        if len(kwargs) != 0:
+            raise ValueError("invalid arguments: %s" % kwargs.keys())
+
+        if merge_conditions is None:
+            # TODO: maybe make the length of this smaller? Maybe: math.ceil(math.log(len(others)+1, 2))
+            merge_flag = self.se.BVS("state_merge_%d" % merge_counter.next(), 16)
+            merge_values = range(len(others)+1)
+            merge_conditions = [ merge_flag == b for b in merge_values ]
+        else:
+            merge_conditions = [
+                (self.se.true if len(mc) == 0 else self.se.And(*mc)) for mc in merge_conditions
+            ]
 
         if len(set(o.arch.name for o in others)) != 1:
+            import ipdb; ipdb.set_trace()
             raise SimMergeError("Unable to merge due to different architectures.")
 
         all_plugins = set(self.plugins.keys()) | set.union(*(set(o.plugins.keys()) for o in others))
@@ -376,27 +389,34 @@ class SimState(ana.Storable): # pylint: disable=R0904
         merging_occurred = False
 
         # plugins
-        m_constraints = [ ]
         for p in all_plugins:
             our_plugin = merged.plugins[p] if p in merged.plugins else None
             their_plugins = [ (pl.plugins[p] if p in pl.plugins else None) for pl in others ]
 
-            plugin_classes = (set([our_plugin.__class__]) | set(pl.__class__ for pl in their_plugins)) - set([None.__class__])
+            plugin_classes = (
+                set([our_plugin.__class__]) | set(pl.__class__ for pl in their_plugins)
+            ) - set([None.__class__])
             if len(plugin_classes) != 1:
-                raise SimMergeError("There are differing plugin classes (%s) for plugin %s" % (plugin_classes, p))
+                raise SimMergeError(
+                    "There are differing plugin classes (%s) for plugin %s" % (plugin_classes, p)
+                )
             plugin_class = plugin_classes.pop()
 
-            our_filled_plugin = our_plugin if our_plugin is not None else merged.register_plugin(p, plugin_class())
-            their_filled_plugins = [ (tp if tp is not None else t.register_plugin(p, plugin_class())) for t,tp in zip(others, their_plugins) ]
+            our_filled_plugin = our_plugin if our_plugin is not None else merged.register_plugin(
+                p, plugin_class()
+            )
+            their_filled_plugins = [
+                (tp if tp is not None else t.register_plugin(p, plugin_class()))
+                for t,tp in zip(others, their_plugins)
+            ]
 
-            plugin_state_merged, new_constraints = our_filled_plugin.merge(their_filled_plugins, merge_flag, merge_values)
+            plugin_state_merged = our_filled_plugin.merge(their_filled_plugins, merge_conditions)
             if plugin_state_merged:
                 l.debug('Merging occured in %s', p)
                 merging_occurred = True
-            m_constraints += new_constraints
-        merged.add_constraints(*m_constraints)
 
-        return merged, merge_flag, merging_occurred
+        merged.add_constraints(merged.se.Or(*merge_conditions))
+        return merged, merge_conditions, merging_occurred
 
     def widen(self, *others):
         """

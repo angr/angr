@@ -14,11 +14,10 @@ class SimProcedureData(SimStatePlugin):
         out.callstack = list(self.callstack)
         return out
 
-    def merge(self, others, flag, flag_values): #pylint:disable=unused-argument
-        return False, [ ]
+    def merge(self, others, merge_conditions):
+        return False
 
-    def widen(self, others, flag, flag_values):
-        self.merge(others, flag, flag_values)
+    def widen(self, others):
         return False
 
     def clear(self):

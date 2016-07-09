@@ -346,20 +346,25 @@ class SimStateSystem(SimStatePlugin):
 
         return SimStateSystem(initialize=False, files=files, concrete_fs=self.concrete_fs, chroot=self.chroot, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, auxv=self.auxv, tls_modules=self.tls_modules, fs=self.fs, queued_syscall_returns=list(self.queued_syscall_returns), sigmask=self._sigmask, pid=self.pid)
 
-    def merge(self, others, merge_flag, flag_values):
+    def merge(self, others, merge_conditions):
         all_files = set.union(*(set(o.files.keys()) for o in [ self ] + others))
-        all_constraints = [ ]
 
-        merging_occured = False
+        merging_occurred = False
         for fd in all_files:
-            merging_result, constraints = self.get_file(fd).merge([ o.get_file(fd) for o in others ], merge_flag, flag_values)
-            merging_occured |= merging_result
-            all_constraints += constraints
+            merging_occurred |= self.get_file(fd).merge(
+                [ o.get_file(fd) for o in others ], merge_conditions
+            )
 
-        return merging_occured, all_constraints
+        return merging_occurred
 
-    def widen(self, others, merge_flag, flag_values):
-        return self.merge(others, merge_flag, flag_values)
+    def widen(self, others):
+        all_files = set.union(*(set(o.files.keys()) for o in [ self ] + others))
+
+        merging_occurred = False
+        for fd in all_files:
+            merging_occurred |= self.get_file(fd).widen([ o.get_file(fd) for o in others ])
+
+        return merging_occurred
 
     def dumps(self, fd):
         """

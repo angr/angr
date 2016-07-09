@@ -49,17 +49,16 @@ class SimStateLog(SimStatePlugin):
     def copy(self):
         return SimStateLog(log=self)
 
-    def merge(self, others, flag, flag_values): #pylint:disable=unused-argument
+    def _combine(self, others):
         all_events = [ e.events for e in itertools.chain([self], others) ]
         self.events = [ SimEvent(self.state, 'merge', event_lists=all_events) ]
-        return False, [ ]
-
-    def widen(self, others, flag, flag_values):
-
-        # Just call self.merge() to perform a merging
-        self.merge(others, flag, flag_values)
-
         return False
+
+    def merge(self, others, merge_conditions):
+        return self._combine(others)
+
+    def widen(self, others):
+        return self._combine(others)
 
     def clear(self):
         s = self.state

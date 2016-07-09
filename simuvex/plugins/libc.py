@@ -117,20 +117,19 @@ class SimStateLibc(SimStatePlugin):
 
         return c
 
-    def merge(self, others, merge_flag, flag_values):
-        merging_occured = False
-
+    def _combine(self, others):
         new_heap_location = max(o.heap_location for o in others)
         if self.heap_location != new_heap_location:
             self.heap_location = new_heap_location
-            merging_occured = True
+            return True
+        else:
+            return False
 
-        return merging_occured, [ ]
+    def merge(self, others, merge_conditions):
+        return self._combine(others)
 
-    def widen(self, others, merge_flag, flag_values):
-
-        # TODO: Recheck this function
-        return self.merge(others, merge_flag, flag_values)
+    def widen(self, others):
+        return self._combine(others)
 
     def init_state(self):
         if o.ABSTRACT_MEMORY in self.state.options:

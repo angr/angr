@@ -277,16 +277,20 @@ class SimSolver(SimStatePlugin):
         return SimSolver(solver=self._solver.branch())
 
     @error_converter
-    def merge(self, others, merge_flag, flag_values): # pylint: disable=W0613
+    def merge(self, others, merge_conditions): # pylint: disable=W0613
         #import ipdb; ipdb.set_trace()
-        merging_occurred, self._stored_solver = self._solver.merge([ oc._solver for oc in others ], merge_flag, flag_values)
+        merging_occurred, self._stored_solver = self._solver.merge(
+            [ oc._solver for oc in others ],
+            merge_conditions,
+        )
         #import ipdb; ipdb.set_trace()
-        return merging_occurred, [ ]
+        return merging_occurred
 
-    def widen(self, others, merge_flag, flag_values):
-
-        merging_occurred, _ = self.merge(others, merge_flag, flag_values)
-
+    @error_converter
+    def widen(self, others):
+        c = self.state.se.BVS('random_widen_condition', 32)
+        merge_conditions = [ [ c == i ] for i in range(len(others)+1) ]
+        merging_occurred = self.merge(others, merge_conditions)
         return merging_occurred
 
     #
