@@ -548,7 +548,10 @@ class Tracer(object):
             solver.timeout = 1000 * 10  # 10 seconds
             if not solver.satisfiable():
                 for var in solver.variables:
-                    path.state.add_constraints(self.variable_map[var])
+                    if var in self.variable_map:
+                        path.state.add_constraints(self.variable_map[var])
+                    else:
+                        l.warning("var %s not found in self.variable_map", var)
 
 # SETUP
 
