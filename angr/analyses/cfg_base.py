@@ -1168,6 +1168,12 @@ class CFGBase(Analysis):
         src_addr = src.addr
         src_function = self._addr_to_function(src_addr, blockaddr_to_function, known_functions)
 
+        if src_addr not in src_function.block_addrs:
+            n = self.get_any_node(src_addr)
+            if n is None: node = src_addr
+            else: node = self._to_snippet(n)
+            self.kb.functions._add_node(src_function.addr, node)
+
         if data is None:
             # it's a single node only
             return
