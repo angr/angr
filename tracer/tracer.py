@@ -811,11 +811,6 @@ class Tracer(object):
             else: # if we're not restoring from a cache, the cacher will preconstrain
                 pg = self._cgc_prepare_paths()
 
-                entry_state = pg.one_active.state
-                # preconstrain flag page
-                self._preconstrain_flag_page(entry_state, self.cgc_flag_data)
-                entry_state.memory.store(0x4347c000, self.cgc_flag_data)
-
             return pg
 
         elif self.os == "unix":
@@ -905,6 +900,10 @@ class Tracer(object):
 
         if not self.pov:
             entry_state.cgc.input_size = len(self.input)
+
+        # preconstrain flag page
+        self._preconstrain_flag_page(entry_state, self.cgc_flag_data)
+        entry_state.memory.store(0x4347c000, self.cgc_flag_data)
 
         pg = project.factory.path_group(
             entry_state,
