@@ -1,5 +1,6 @@
 import pickle
 import logging
+from ..simprocedures import receive
 
 l = logging.getLogger("tracer.cachemanager.CacheManager")
 
@@ -26,6 +27,9 @@ class CacheManager(object):
             ds = pickle.dumps((self.tracer.bb_cnt - 1, self.tracer.cgc_flag_data, state))
         except RuntimeError as e: # maximum recursion depth can be reached here
             l.error("unable to cache state, '%s' during pickling", e.message)
+
+        # unhook receive
+        receive.cache_hook = None
 
         # add preconstraints to tracer
         self.tracer._preconstrain_state(simstate)
