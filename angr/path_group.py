@@ -197,7 +197,8 @@ class PathGroup(ana.Storable):
                 return [], [], [], [a], []
             else:
                 if self._hierarchy:
-                    self._hierarchy.unreachable(a)
+                    self._hierarchy.unreachable_path(a)
+                    self._hierarchy.simplify()
                 return [], [], [], [], [a]
         else:
             try:
@@ -205,8 +206,6 @@ class PathGroup(ana.Storable):
                     successors = successor_func(a)
                 else:
                     successors = a.step(**kwargs)
-                if self._hierarchy:
-                    self._hierarchy.add_successors(a, successors)
                 return successors, a.unconstrained_successors, a.unsat_successors, [], []
             except (AngrError, simuvex.SimError, claripy.ClaripyError):
                 if not self._resilience:
@@ -227,6 +226,12 @@ class PathGroup(ana.Storable):
         :param pruned:          The pruned successors
         :param errored:         The errored successors
         """
+
+        if self._hierarchy:
+            for p in successors:
+                self._hierarchy.add_path(p)
+            self._hierarchy.simplify()
+
         if len(self._hooks_filter) == 0:
             new_active.extend(successors)
         else:
@@ -550,7 +555,8 @@ class PathGroup(ana.Storable):
                     new_stashes[to_stash] = [ ]
                 new_stashes[to_stash].append(p)
                 if self._hierarchy:
-                    self._hierarchy.unreachable(p)
+                    self._hierarchy.unreachable_path(p)
+                    self._hierarchy.simplify()
             else:
                 new_active.append(p)
 

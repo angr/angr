@@ -170,10 +170,6 @@ class Path(object):
         self._project = project
 
         if path is None:
-            # this path's information
-            self.length = 0
-            self.extra_length = 0
-
             # the path history
             self.history = PathHistory()
             self.callstack = CallStack()
@@ -195,7 +191,7 @@ class Path(object):
 
             # the previous run
             self.previous_run = None
-            self._eref = None
+            self.history._jumpkind = state.scratch.jumpkind
 
             # A custom information store that will be passed to all its descendents
             self.info = {}
@@ -209,13 +205,6 @@ class Path(object):
             self._merge_depths = []
 
         else:
-            # this path's information
-            self.length = path.length + 1
-            if simuvex.o.UNICORN not in path.state.options:
-                self.extra_length = path.extra_length
-            else:
-                self.extra_length = path.extra_length + self.state.scratch.executed_block_count - 1
-
             # the path history
             self.history = PathHistory(path.history)
             self.callstack = path.callstack.copy()
@@ -224,8 +213,7 @@ class Path(object):
 
             # the previous run
             self.previous_run = path._run
-            self._eref = ReverseListProxy(state.log.events)
-            self.history._record_state(state, self._eref)
+            self.history._record_state(state)
             self.history._record_run(path._run)
             self._manage_callstack(state)
 
@@ -247,7 +235,6 @@ class Path(object):
         self._run_args = None       # sim_run args, to determine caching
         self._run = None
         self._run_error = None
-        self._reachable = None
 
     @property
     def addr(self):
@@ -257,8 +244,38 @@ class Path(object):
     def addr(self, val):
         self.state.regs.ip = val
 
-    def __len__(self):
-        return self.length
+    #
+    # Pass-throughs to history
+    #
+
+    @property
+    def length(self):
+        return self.history.length
+
+    @length.setter
+    def length(self, v):
+        l.warning("Manually setting length -- change this behavior.")
+        self.history.length = v
+
+    @property
+    def extra_length(self):
+        return self.history.extra_length
+
+    @property
+    def weighted_length(self):
+        return self.history.length + self.history.extra_length
+
+    @property
+    def jumpkind(self):
+        return self.history._jumpkind
+
+    @property
+    def last_actions(self):
+        return self.history.actions
+
+    #
+    # History traversal
+    #
 
     @property
     def history_iterator(self):
@@ -284,9 +301,6 @@ class Path(object):
     @property
     def actions(self):
         return ActionIter(self.history)
-    @property
-    def last_actions(self):
-        return tuple(ev for ev in self.history._events if isinstance(ev, simuvex.SimAction))
 
     def trim_history(self):
         self.history = self.history.copy()
@@ -490,15 +504,7 @@ class Path(object):
 
     @property
     def reachable(self):
-        return self._reachable if self._reachable is not None else self.state.satisfiable()
-
-    @property
-    def weighted_length(self):
-        return self.length + self.extra_length
-
-    @property
-    def jumpkind(self):
-        return self.state.scratch.jumpkind
+        return self.history.reachable()
 
     @property
     def _s0(self):
@@ -624,14 +630,11 @@ class Path(object):
             p = ErroredPath(error, self._project, self.state.copy())
 
         p.history = self.history.copy()
-        p._eref = self._eref
         p.callstack = self.callstack.copy()
         p.callstack_backtrace = list(self.callstack_backtrace)
         p.popped_callframe = self.popped_callframe
 
 
-        p.length = self.length
-        p.extra_length = self.extra_length
         p.previous_run = self.previous_run
         p._run = self._run
 
@@ -793,15 +796,14 @@ def make_path(project, runs):
 
     # We then go through all the nodes except the last one
     for r in runs[1:-1]:
-        a_p.history._record_state(r.initial_state, ReverseListProxy(runs[-1].initial_state.log.events))
+        a_p.history._record_state(r.initial_state)
         a_p._manage_callstack(r.initial_state)
         a_p.history = PathHistory(a_p.history)
         a_p.history._record_run(r)
 
     # We record the last state and set it as current (it is the initial
     # state of the next run).
-    a_p._eref = ReverseListProxy(runs[-1].initial_state.log.events)
-    a_p.history._record_state(runs[-1].initial_state, a_p._eref)
+    a_p.history._record_state(runs[-1].initial_state)
     a_p._manage_callstack(runs[-1].initial_state)
     a_p.state = runs[-1].initial_state
 

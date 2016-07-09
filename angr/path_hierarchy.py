@@ -1,63 +1,116 @@
 import logging
-l = logging.getLogger('angr.path_hierarchy')
-
 import weakref
+import networkx
+import itertools
+
+import claripy
+
+l = logging.getLogger('angr.path_hierarchy')
 
 class PathHierarchy(object):
     def __init__(self):
-        self._parents = { }
-        self._successors = { }
-        self._good = set()
         self._path_mapping = weakref.WeakValueDictionary()
 
+        # The New Order
+        self._graph = networkx.DiGraph()
+        self._leaves = set() # nodes with no children
+        self._twigs = set() # nodes with one child
+
     def __getstate__(self):
-        return self._parents, self._successors, self._good, dict(self._path_mapping)
+        histories = [ h() for h in networkx.algorithms.dfs_postorder_nodes(self._graph) ]
+        return dict(self._path_mapping), histories
 
     def __setstate__(self, s):
-        self._parents, self._successors, self._good, self._path_mapping = s
-        self._path_mapping = weakref.WeakValueDictionary(self._path_mapping)
+        self._graph = networkx.DiGraph()
+        self._leaves = set()
+        self._twigs = set()
 
+        path_mapping, nodes = s
+        for n in nodes:
+            self.add_history(n)
+        self._path_mapping = weakref.WeakValueDictionary(path_mapping)
 
-    def _lineage(self, se):
+    #
+    # Graph management
+    #
+
+    def _remove_history(self, h):
+        try:
+            predecessors = self._graph.predecessors(h)
+            successors = self._graph.successors(h)
+
+            for p,s in itertools.product(predecessors, successors):
+                self._graph.add_edge(p, s)
+
+            self._graph.remove_node(h)
+        except networkx.NetworkXError:
+            pass
+
+        self._leaves.discard(h)
+        self._twigs.discard(h)
+        self._path_mapping.pop(h(), None)
+
+    def add_path(self, p):
+        h = p.history
+        self._path_mapping[h] = p
+        self.add_history(h)
+
+    def add_history(self, h):
+        cur_node = weakref.ref(h, self._remove_history)
+        self._graph.add_node(cur_node)
+        if h._parent is not None:
+            prev_node = weakref.ref(h._parent, self._remove_history)
+            self._graph.add_edge(prev_node, cur_node)
+
+            self._leaves.discard(prev_node)
+            if len(self._graph.successors(prev_node)) == 1:
+                self._twigs.add(prev_node)
+            else:
+                self._twigs.discard(prev_node)
+
+        self._leaves.add(cur_node)
+
+    def simplify(self):
+        tw = self._twigs
+        self._twigs = set()
+        for h in tw:
+            self._remove_history(h)
+
+    def full_simplify(self):
+        for h in self._graph.nodes():
+            if self._graph.out_degree(h) == 1:
+                self._remove_history(h)
+
+    def lineage(self, h):
+        """
+        Returns the lineage of histories leading up to `h`.
+        """
+
         lineage = [ ]
 
-        cur = se
-        while cur in self._parents:
-            cur = self._parents[cur]
-            lineage.append(cur)
+        predecessors = self._graph.predecessors(h)
+        while len(predecessors):
+            lineage.append(predecessors[0])
+            predecessors = self._graph.predecessors(predecessors[0])
 
         lineage.reverse()
-
         return lineage
 
-    def _all_successors(self, se):
-        todo = [ se ]
-        successors = [ ]
+    def all_successors(self, h):
+        nodes = list(networkx.algorithms.dfs_postorder_nodes(self._graph, h))[:-1]
+        nodes.reverse()
+        return nodes
 
-        while len(todo) != 0:
-            cur = todo.pop()
-            if cur in self._successors:
-                todo += self._successors[cur]
-            successors.append(cur)
+    #
+    # LAZY_SOLVES support
+    #
 
-        return successors
+    def _find_root_unreachable(self, h):
+        lineage = self.lineage(h)
+        if len(lineage) == 0 or lineage[-1]().reachable():
+            return h
 
-    def _is_reachable(self, se):
-        if se in self._good:
-            return True
-        else:
-            s = se._solver.satisfiable()
-            se.downsize()
-            if s:
-                self._good.add(se)
-            return s
-
-    def _find_root_unreachable(self, se):
-        lineage = self._lineage(se)
-        if len(lineage) == 0 or self._is_reachable(lineage[-1]):
-            return se
-
-        good = max([0] + [ i for i,s in enumerate(lineage) if s in self._good ])
+        good = 0
         bad = len(lineage) - 1
 
         while True:
@@ -65,78 +118,38 @@ class PathHierarchy(object):
             cur = (bad+good)/2
 
             if cur == good or cur == bad:
-                if self._is_reachable(lineage[bad]):
+                if lineage[bad]().reachable():
                     bad += 1
 
                 root = lineage[bad]
                 l.debug("... returning %d (%s)", bad, root)
                 return root
-            elif self._is_reachable(lineage[cur]):
+            elif lineage[cur]().reachable():
                 l.debug("... %d is reachable", cur)
                 good = cur
             else:
                 l.debug("... %d is unreachable", bad)
                 bad = cur
 
-    def _prune(self, se):
-        to_prune = self._all_successors(se)
-        to_prune.append(se)
+    def _prune_subtree(self, h):
+        ph = self._graph.predecessors(h)
+        if len(ph) == 1 and len(self._graph.successors(ph[0])) == 1:
+            self._twigs.add(ph[0])
 
-        for c in to_prune:
-            l.debug("... pruning %s", c)
+        all_children = list(networkx.algorithms.dfs_postorder_nodes(self._graph, h))
+        for n in all_children:
+            n()._satisfiable = False
+            if n().state is not None:
+                n().state.add_constraints(claripy.false)
+        self._graph.remove_nodes_from(all_children)
 
-            try:
-                p = self._path_mapping[c]
-                l.debug("... still there: %s", p)
-                if not p.errored:
-                    # This is a hack! This entire operation is a hack!
-                    p.error = PathUnreachableError('ancestral path %s is unreachable' % p)
-                    p._run_error = p.error
-                    p._reachable = False
-                    p.errored = True
-            except KeyError:
-                l.debug("... gc'ed: path of %s", c)
+    def unreachable_path(self, p):
+        self.unreachable_history(p.history)
 
-        for c in to_prune:
-            self._remove(c)
+    def unreachable_history(self, h):
+        href = weakref.ref(h)
 
-        return to_prune
-
-    def _remove(self, se):
-        if se in self._parents:
-            del self._parents[se]
-        if se in self._successors:
-            del self._successors[se]
-        self._good.discard(se)
-
-    def unreachable(self, p):
-        se = p.state.se
-
-        l.debug("Pruning tree given unreachable %s", se)
-        root = self._find_root_unreachable(se)
+        l.debug("Pruning tree given unreachable %s", h)
+        root = self._find_root_unreachable(href)
         l.debug("... root is %s", root)
-        self._prune(root)
-
-        #paths = [ ]
-        #for se in pruned:
-        #   try:
-        #       paths.append(self._path_mapping[se])
-        #   except KeyError:
-        #       pass
-        #return paths
-
-    def add_successors(self, p, successors):
-        l.debug("Adding %d successors for %s", len(successors), p)
-
-        if p.state.se not in self._successors:
-            self._successors[p.state.se] = [ ]
-        self._successors[p.state.se] += [ s.state.se for s in successors ]
-        self._path_mapping[p.state.se] = p
-
-        for s in successors:
-            self._parents[s.state.se] = p.state.se
-            self._path_mapping[s.state.se] = s
-
-        p.state.downsize()
-
-from .errors import PathUnreachableError
+        self._prune_subtree(href)
