@@ -298,11 +298,11 @@ class JumpkindIter(TreeIter):
 class EventIter(TreeIter):
 	def __reversed__(self):
 		for hist in self._iter_nodes():
-			for ev in iter(hist.events):
+			for ev in reversed(hist.events):
 				yield ev
 
 class ActionIter(TreeIter):
 	def __reversed__(self):
 		for hist in self._iter_nodes():
-			for ev in iter(hist.actions):
+			for ev in reversed(hist.actions):
 				yield ev
