@@ -1432,7 +1432,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     for arg in stmt.data.args:
                         _process(irsb, stmt, arg)
 
-                elif type(stmt.data) is pyvex.IRExpr.Const:
+                elif type(stmt.data) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
                     _process(irsb, stmt, stmt.data)
 
             elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck

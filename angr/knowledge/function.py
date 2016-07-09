@@ -179,7 +179,7 @@ class Function(object):
     def string_references(self, minimum_length=2):
         """
         All of the constant string references used by this function.
-        
+
         :param minimum_length:  The minimum length of strings to find (default is 1)
         :return:                A list of tuples of (address, string) where is address is the location of the string in
                                 memory.
