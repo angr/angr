@@ -292,7 +292,8 @@ class Surveyor(object):
                     if self._keep_pruned:
                         self.pruned.append(p)
                 else:
-                    self._hierarchy.unreachable(p)
+                    self._hierarchy.unreachable_path(p)
+                    self._hierarchy.simplify()
                     self.errored.append(p)
                 continue
             self._step_path(p)
@@ -346,7 +347,9 @@ class Surveyor(object):
             successors = p.successors
 
         l.debug("Ticking path %s", p)
-        self._hierarchy.add_successors(p, successors)
+        for s in successors:
+            self._hierarchy.add_path(s)
+        self._hierarchy.simplify()
 
         l.debug("... path %s has produced %d successors.", p, len(successors))
         l.debug("... addresses: %s", ["0x%x" % s.addr for s in successors])
@@ -375,13 +378,15 @@ class Surveyor(object):
 
         for p in list(self.active):
             if not p.reachable:
-                self._hierarchy.unreachable(p)
+                self._hierarchy.unreachable_path(p)
+                self._hierarchy.simplify()
                 self.active.remove(p)
                 self.pruned.append(p)
 
         for p in list(self.spilled):
             if not p.reachable:
-                self._hierarchy.unreachable(p)
+                self._hierarchy.unreachable_path(p)
+                self._hierarchy.simplify()
                 self.spilled.remove(p)
                 self.pruned.append(p)
 
