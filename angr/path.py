@@ -549,37 +549,6 @@ class Path(object):
     # Merging and splitting
     #
 
-    def unmerge(self):
-        """
-        Unmerges the state back into different possible states.
-        """
-
-        l.debug("Unmerging %s!", self)
-
-        states = [ self.state ]
-
-        for flag,values in zip(self._merge_flags, self._merge_values):
-            l.debug("... processing %s with %d possibilities", flag, len(values))
-
-            new_states = [ ]
-
-            for v in values:
-                for s in states:
-                    s_copy = s.copy()
-                    s_copy.add_constraints(flag == v)
-                    new_states.append(s_copy)
-
-            states = [ s for s in new_states if s.satisfiable() ]
-            l.debug("... resulting in %d satisfiable states", len(states))
-
-        new_paths = [ ]
-        for s in states:
-            s.simplify()
-
-            p = Path(self._project, s, path=self)
-            new_paths.append(p)
-        return new_paths
-
     def merge(self, *others):
         """
         Returns a merger of this path with `*others`.
