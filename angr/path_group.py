@@ -625,6 +625,33 @@ class PathGroup(ana.Storable):
         from_stash = 'stashed' if from_stash is None else from_stash
         return self.move(from_stash, to_stash, filter_func=filter_func)
 
+    def _merge_paths(self, paths):
+        """
+        Merges a list of paths.
+
+        :param paths: the paths to merge
+        :returns: the resulting path
+        :rtype: Path
+        """
+
+        if self._hierarchy:
+            optimal, common_history, others = self._hierarchy.most_mergeable(paths)
+        else:
+            optimal, common_history, others = paths, None, [ ]
+
+        if len(optimal) < 2:
+            raise AngrPathGroupError("unable to find merge candidates")
+        o = optimal.pop()
+        m = o.merge(*optimal, common_history=common_history)
+        if self._hierarchy:
+            self._hierarchy.add_path(m)
+
+        if len(others):
+            others.append(m)
+            return self._merge_paths(others)
+        else:
+            return m
+
     def merge(self, merge_func=None, stash=None):
         """
         Merge the states in a given stash.
@@ -650,7 +677,7 @@ class PathGroup(ana.Storable):
 
         for g in merge_groups:
             try:
-                m = g[0].merge(*g[1:]) if merge_func is None else merge_func(*g)
+                m = self._merge_paths(g) if merge_func is None else merge_func(*g)
                 not_to_merge.append(m)
             except simuvex.SimMergeError:
                 l.warning("SimMergeError while merging %d paths", len(g), exc_info=True)

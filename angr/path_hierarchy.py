@@ -153,3 +153,30 @@ class PathHierarchy(object):
         root = self._find_root_unreachable(href)
         l.debug("... root is %s", root)
         self._prune_subtree(href)
+
+    #
+    # Smart merging support
+    #
+
+    def most_mergeable(self, paths):
+        """
+        Find the "most mergeable" set of paths from those provided.
+
+        :param paths: a list of paths
+        :returns: a tuple of: (a list of paths to merge, those paths' common history, a list of paths to not merge yet)
+        """
+
+        histories = set(weakref.ref(p.history) for p in paths)
+
+        for n in networkx.algorithms.dfs_postorder_nodes(self._graph):
+            intersection = histories.intersection(self.all_successors(n))
+            if len(intersection) > 1:
+                return (
+                    [ p for p in paths if weakref.ref(p.history) in intersection ],
+                    n(),
+                    [ p for p in paths if weakref.ref(p.history) not in intersection ]
+                )
+
+        # didn't find any?
+        import ipdb; ipdb.set_trace()
+        return set(), None, paths
