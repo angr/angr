@@ -139,8 +139,8 @@ class PathHierarchy(object):
         all_children = list(networkx.algorithms.dfs_postorder_nodes(self._graph, h))
         for n in all_children:
             n()._satisfiable = False
-            if n()._state_ref() is not None:
-                n()._state_ref().add_constraints(claripy.false)
+            if n().state is not None:
+                n().state.add_constraints(claripy.false)
         self._graph.remove_nodes_from(all_children)
 
     def unreachable_path(self, p):

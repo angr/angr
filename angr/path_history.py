@@ -61,13 +61,15 @@ class PathHistory(object):
 		return c
 
 	def __getstate__(self):
-		attributes = ('_addrs', '_runstr', '_target', '_guard', '_jumpkind', '_events')
-		state = {name: getattr(self,name) for name in attributes}
-		return state
+		return [
+			(k, getattr(self, k)) for k in self.__slots__ if k not in
+			('__weakref__', '_state_ref')
+		]
 
 	def __setstate__(self, state):
-		for name, value in state.iteritems():
-			setattr(self,name,value)
+		for k,v in state:
+			setattr(self, k, v)
+		self._state_ref = None
 
 	def _record_state(self, state):
 		self._jumpkind = state.scratch.jumpkind
@@ -108,6 +110,10 @@ class PathHistory(object):
 	def _record_run(self, run):
 		self._runstr = str(run)
 
+	@property
+	def state(self):
+		return self._state_ref() if self._state_ref is not None else None
+
 	#
 	# Some GC-dependent pass-throughts to the state
 	#
@@ -116,16 +122,16 @@ class PathHistory(object):
 	def events(self):
 		if self._events is not None:
 			return self._events
-		elif self._state_ref() is not None:
-			return self._state_ref().log.events
+		elif self.state is not None:
+			return self.state.log.events
 		else:
 			return ()
 
 	def reachable(self):
 		if self._satisfiable is not None:
 			pass
-		elif self._state_ref() is not None:
-			self._satisfiable = self._state_ref().se.satisfiable()
+		elif self.state is not None:
+			self._satisfiable = self.state.se.satisfiable()
 		else:
 			solver = claripy.Solver()
 			solver.add(self._all_constraints)
