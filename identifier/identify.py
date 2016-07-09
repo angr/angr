@@ -60,6 +60,8 @@ class Identifier(object):
         for f in self._cfg.functions.values():
             if f.is_syscall:
                 continue
+            if self.project.is_hooked(f.addr):
+                continue
             try:
                 func_info = self.find_stack_vars_x86(f)
             except IdentifierException as e:
@@ -345,13 +347,24 @@ class Identifier(object):
 
         if succ.state.scratch.jumpkind == "Ijk_Call":
             goal_sp = succ.state.se.any_int(succ.state.regs.sp + self.project.arch.bytes)
+            # could be that this is wrong since we could be pushing args...
+            # so let's do a hacky check for pushes after a sub
+            bl = self.project.factory.block(func.startpoint.addr)
+            # find the sub sp
+            for i, insn in enumerate(bl.capstone.insns):
+                if str(insn.mnemonic) == "sub" and str(insn.op_str).startswith("esp"):
+                    initial_path = self.project.factory.path(initial_state)
+                    initial_path.step(num_inst=i+1)
+                    succ = (initial_path.successors + initial_path.unconstrained_successors)[0]
+                    goal_sp = succ.state.se.any_int(succ.state.regs.sp)
+
         elif succ.state.scratch.jumpkind == "Ijk_Ret":
             # here we need to know the min sp val
             min_sp = initial_state.se.any_int(initial_state.regs.sp)
             for i in xrange(self.project.factory.block(func.startpoint.addr).instructions):
                 test_p = self.project.factory.path(initial_state)
                 test_p.step(num_inst=i)
-                succ = (initial_path.successors + initial_path.unconstrained_successors)[0]
+                succ = (test_p.successors + test_p.unconstrained_successors)[0]
                 test_sp = succ.state.se.any_int(succ.state.regs.sp)
                 if test_sp < min_sp:
                     min_sp = test_sp
@@ -372,14 +385,23 @@ class Identifier(object):
             if test_sp == goal_sp:
                 num_preamble_inst = i
                 break
+
+        # hacky check for mov ebp esp
+        # happens when this is after the pushes...
+        end_addr = func.startpoint.addr + self.project.factory.block(func.startpoint.addr, num_inst=num_preamble_inst).size
+        if self.project.factory.block(end_addr, num_inst=1).bytes == '\x89\xe5':
+            num_preamble_inst += 1
+            test_p = self.project.factory.path(initial_state)
+            test_p.step(num_inst=num_preamble_inst)
+            succ = (test_p.successors + test_p.unconstrained_successors)[0]
+
         min_sp = goal_sp
         initial_sp = initial_state.se.any_int(initial_state.regs.sp)
         frame_size = initial_sp - min_sp - self.project.arch.bytes
         if num_preamble_inst is None or succ is None:
             raise IdentifierException("preamble checks failed for %#x" % func.startpoint.addr)
 
-        if succ.state.se.any_n_int((initial_path.state.regs.sp - succ.state.regs.bp), 2) == \
-                [self.project.arch.bytes]:
+        if len(succ.state.se.any_n_int((initial_path.state.regs.sp - succ.state.regs.bp), 2)) == 1:
             bp_based = True
         else:
             bp_based = False
