@@ -198,11 +198,6 @@ class Path(object):
 
             # for merging
             self._upcoming_merge_points = []
-            self._merge_flags = []
-            self._merge_values = []
-            self._merge_traces = []
-            self._merge_addr_traces = []
-            self._merge_depths = []
 
         else:
             # the path history
@@ -221,11 +216,6 @@ class Path(object):
             self.info = { k:copy.copy(v) for k, v in path.info.iteritems() }
 
             self._upcoming_merge_points = list(path._upcoming_merge_points)
-            self._merge_flags = list(path._merge_flags)
-            self._merge_values = list(path._merge_values)
-            self._merge_traces = list(path._merge_traces)
-            self._merge_addr_traces = list(path._merge_addr_traces)
-            self._merge_depths = list(path._merge_depths)
 
         # for printing/ID stuff and inheritance
         self.name = str(id(self))
@@ -549,47 +539,48 @@ class Path(object):
     # Merging and splitting
     #
 
-    def merge(self, *others):
+    def merge(*all_paths, **kwargs): #pylint:disable=no-self-argument,no-method-argument
         """
         Returns a merger of this path with `*others`.
+
+        :param *paths: the paths to merge
+        :param common_history: a PathHistory node shared by all the paths. When this is provided, the
+                               merging becomes more efficient, and actions and such are merged.
+        :returns: the merged Path
+        :rtype: Path
         """
-        all_paths = list(others) + [ self ]
+
+        common_history = kwargs.pop('common_history')
+        if len(kwargs) != 0:
+            raise ValueError("invalid arguments: %s" % kwargs.keys())
+
         if len(set(( o.addr for o in all_paths))) != 1:
             raise AngrPathError("Unable to merge paths.")
 
-        # merge the state
-        new_state, merge_flag, _ = self.state.merge(*[ o.state for o in others ])
-        new_path = Path(self._project, new_state, path=self)
+        if common_history is None:
+            raise AngrPathError("TODO: implement mergining without a provided common history")
 
-        addr_lists = [x.addr_trace.hardcopy for x in all_paths]
+        # get the different constraints
+        constraints = [ p.history.constraints_since(common_history) for p in all_paths ]
 
-        # fix the traces
-        for i, addrs in enumerate(zip(*addr_lists)):
-            if len(frozenset(addrs)) != 1:
-                divergence_index = i
-                break
-        else:
-            # divergence either happens at the end of the shortest history or doesn't at all
-            divergence_index = i + 1
+        # merge the state with these constraints
+        new_state, merge_conditions, _ = all_paths[0].state.merge(
+            *[ p.state for p in all_paths[1:] ], merge_conditions=constraints
+        )
+        new_path = Path(all_paths[0]._project, new_state, path=all_paths[0])
 
-        rewind_count = len(addr_lists[0]) - divergence_index
-        common_ancestor = all_paths[0].history
-        for _ in xrange(rewind_count):
-            common_ancestor = common_ancestor._parent
-
-        assert common_ancestor.addr == addr_lists[0][divergence_index-1]
-        new_path.history = PathHistory(common_ancestor)
-        new_path.history._runstr = "MERGE POINT: %s" % merge_flag
-        new_path.length = divergence_index
+        # fix up the new path
+        new_path.history = PathHistory(common_history)
+        new_path.history.merged_from.extend(p.history for p in all_paths)
+        new_path.history.merge_conditions = merge_conditions
+        new_path.history._record_state(new_state)
+        new_path.history._runstr = "MERGE POINT (at %#x)" % new_path.addr
+        new_path.history.length -= 1
 
         # reset the upcoming merge points
         new_path._upcoming_merge_points = []
-        new_path._merge_flags.append(merge_flag)
-        new_path._merge_values.append(list(range(len(all_paths))))
-        new_path._merge_traces.append([o.trace.hardcopy for o in all_paths])
-        new_path._merge_addr_traces.append(addr_lists)
-        new_path._merge_depths.append(new_path.length)
 
+        # and return
         return new_path
 
     def copy(self, error=None):
@@ -610,12 +601,6 @@ class Path(object):
         p.info = {k: copy.copy(v) for k, v in self.info.iteritems()}
 
         p._upcoming_merge_points = list(self._upcoming_merge_points)
-        p._merge_flags = list(self._merge_flags)
-        p._merge_values = list(self._merge_values)
-        p._merge_traces = list(self._merge_traces)
-        p._merge_addr_traces = list(self._merge_addr_traces)
-        p._merge_depths = list(self._merge_depths)
-
         return p
 
     def filter_actions(self, block_addr=None, block_stmt=None, insn_addr=None, read_from=None, write_to=None):
