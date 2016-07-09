@@ -252,6 +252,11 @@ class Path(object):
     def length(self):
         return self.history.length
 
+    @length.setter
+    def length(self, v):
+        l.warning("Manually setting length -- change this behavior.")
+        self.history.length = v
+
     @property
     def extra_length(self):
         return self.history.extra_length
