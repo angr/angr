@@ -124,7 +124,7 @@ class MemoryRegion(object):
 
     def load(self, addr, size, bbl_addr, stmt_idx, ins_addr): #pylint:disable=unused-argument
         #if bbl_addr is not None and stmt_id is not None:
-        return self.memory.load(addr, size)
+        return self.memory.load(addr, size, inspect=False)
 
     def merge(self, others, merge_flag, flag_values):
         merging_occurred = False
