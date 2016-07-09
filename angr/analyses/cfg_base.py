@@ -686,7 +686,12 @@ class CFGBase(Analysis):
 
                     elif isinstance(endpoint, HookNode):
                         hooker = self.project.hooked_by(endpoint.addr)
-                        all_endpoints_returning.append((transition_type, not hooker.NO_RET))
+                        if hooker is None:
+                            l.error('CFGBase._analyze_function_features(): Cannot find the hooking object for %s',
+                                    endpoint
+                                    )
+                        else:
+                            all_endpoints_returning.append((transition_type, not hooker.NO_RET))
 
                     else:
                         successors = [ dst for _, dst in func.transition_graph.out_edges(endpoint) ]
@@ -1167,6 +1172,12 @@ class CFGBase(Analysis):
 
         src_addr = src.addr
         src_function = self._addr_to_function(src_addr, blockaddr_to_function, known_functions)
+
+        if src_addr not in src_function.block_addrs:
+            n = self.get_any_node(src_addr)
+            if n is None: node = src_addr
+            else: node = self._to_snippet(n)
+            self.kb.functions._add_node(src_function.addr, node)
 
         if data is None:
             # it's a single node only

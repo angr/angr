@@ -407,7 +407,7 @@ class FunctionReturn(object):
 
 
 class MemoryData(object):
-    def __init__(self, address, size, sort, irsb, irsb_addr, stmt_idx, max_size=None):
+    def __init__(self, address, size, sort, irsb, irsb_addr, stmt_idx, pointer_addr=None, max_size=None):
         self.address = address
         self.size = size
         self.sort = sort
@@ -416,6 +416,7 @@ class MemoryData(object):
         self.stmt_idx = stmt_idx
 
         self.max_size = max_size
+        self.pointer_addr = pointer_addr
 
         self.refs = [ ]
 
@@ -511,6 +512,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  normalize=False,
                  function_starts=None,
                  extra_memory_regions=None,
+                 data_type_guessing_handlers=None,
                  arch_options=None,
                  **extra_arch_options
                  ):
@@ -575,6 +577,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._arch_options = arch_options if arch_options is not None else CFGArchOptions(self.project.arch,
                                                                                           **extra_arch_options
                                                                                           )
+
+        self._data_type_guessing_handlers = [ ] if data_type_guessing_handlers is None else data_type_guessing_handlers
 
         l.debug("Starts at %#x and ends at %#x.", self._start, self._end)
 
@@ -1428,7 +1432,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     for arg in stmt.data.args:
                         _process(irsb, stmt, arg)
 
-                elif type(stmt.data) is pyvex.IRExpr.Const:
+                elif type(stmt.data) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
                     _process(irsb, stmt, stmt.data)
 
             elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck
@@ -1529,11 +1533,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 memory_data.size = data_size
                 memory_data.sort = data_type
 
-                if memory_data.size < memory_data.max_size:
+                if memory_data.size > 0 and memory_data.size < memory_data.max_size:
                     # Create another memory_data object to fill the gap
                     new_addr = data_addr + memory_data.size
                     new_md = MemoryData(new_addr, None, None, None, None, None,
-                                        memory_data.max_size - memory_data.size)
+                                        max_size=memory_data.max_size - memory_data.size)
                     self._memory_data[new_addr] = new_md
                     keys.insert(i, new_addr)
 
@@ -1571,7 +1575,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                 continue
                             # TODO: check other sorts
                         if ptr not in self._memory_data:
-                            self._memory_data[ptr] = MemoryData(ptr, 0, 'unknown', None, None, None, None)
+                            self._memory_data[ptr] = MemoryData(ptr, 0, 'unknown', None, None, None,
+                                                                pointer_addr=data_addr + j
+                                                                )
                             new_data_found = True
 
             else:
@@ -1667,11 +1673,18 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return "unicode", (len(unicode_str) + 1) * 2
 
         # Is it a null-terminated printable string?
-        # TODO: Support strings longer than the max length
         max_string_len = 2048
         s = self._ffi.string(self._ffi.cast("char*", block), max_string_len)
-        if len(s) and all([ c in self.PRINTABLES for c in s ]):
-            return "string", len(s) + 1
+        if len(s):
+            if all([ c in self.PRINTABLES for c in s ]):
+                # it's a string
+                # however, it may not be terminated
+                return "string", min(len(s) + 1, max_string_len)
+
+        for handler in self._data_type_guessing_handlers:
+            sort, size = handler(self, irsb, irsb_addr, stmt_idx, data_addr, max_size)
+            if sort is not None:
+                return sort, size
 
         return None, None
 

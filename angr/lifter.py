@@ -449,7 +449,7 @@ class Block(object):
         insns = []
 
         for cs_insn in cs.disasm(self.bytes, self.addr):
-            insns.append(cs_insn)
+            insns.append(CapstoneInsn(cs_insn))
         block = CapstoneBlock(self.addr, insns, self._thumb, self._arch)
 
         self._capstone = block
@@ -477,6 +477,24 @@ class CapstoneBlock(object):
 
     def __repr__(self):
         return '<CapstoneBlock for %#x>' % self.addr
+
+
+class CapstoneInsn(object):
+    def __init__(self, capstone_insn):
+        self.insn = capstone_insn
+
+    def __getattr__(self, item):
+        if item in ('__str__', '__repr__'):
+            return self.__getattribute__(item)
+        if hasattr(self.insn, item):
+            return getattr(self.insn, item)
+        raise AttributeError()
+
+    def __str__(self):
+        return "%#x:\t%s\t%s" % (self.address, self.mnemonic, self.op_str)
+
+    def __repr__(self):
+        return '<CapstoneInsn "%s" for %#x>' % (self.mnemonic, self.address)
 
 
 from .errors import AngrMemoryError, AngrTranslationError
