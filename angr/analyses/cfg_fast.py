@@ -1673,11 +1673,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return "unicode", (len(unicode_str) + 1) * 2
 
         # Is it a null-terminated printable string?
-        # TODO: Support strings longer than the max length
         max_string_len = 2048
         s = self._ffi.string(self._ffi.cast("char*", block), max_string_len)
-        if len(s) and all([ c in self.PRINTABLES for c in s ]):
-            return "string", len(s) + 1
+        if len(s):
+            if all([ c in self.PRINTABLES for c in s ]):
+                # it's a string
+                # however, it may not be terminated
+                return "string", min(len(s) + 1, max_string_len)
 
         for handler in self._data_type_guessing_handlers:
             sort, size = handler(self, irsb, irsb_addr, stmt_idx, data_addr, max_size)
