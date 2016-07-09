@@ -407,7 +407,7 @@ class FunctionReturn(object):
 
 
 class MemoryData(object):
-    def __init__(self, address, size, sort, irsb, irsb_addr, stmt_idx, max_size=None):
+    def __init__(self, address, size, sort, irsb, irsb_addr, stmt_idx, pointer_addr=None, max_size=None):
         self.address = address
         self.size = size
         self.sort = sort
@@ -416,6 +416,7 @@ class MemoryData(object):
         self.stmt_idx = stmt_idx
 
         self.max_size = max_size
+        self.pointer_addr = pointer_addr
 
         self.refs = [ ]
 
@@ -1529,11 +1530,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 memory_data.size = data_size
                 memory_data.sort = data_type
 
-                if memory_data.size < memory_data.max_size:
+                if memory_data.size > 0 and memory_data.size < memory_data.max_size:
                     # Create another memory_data object to fill the gap
                     new_addr = data_addr + memory_data.size
                     new_md = MemoryData(new_addr, None, None, None, None, None,
-                                        memory_data.max_size - memory_data.size)
+                                        max_size=memory_data.max_size - memory_data.size)
                     self._memory_data[new_addr] = new_md
                     keys.insert(i, new_addr)
 
@@ -1571,7 +1572,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                 continue
                             # TODO: check other sorts
                         if ptr not in self._memory_data:
-                            self._memory_data[ptr] = MemoryData(ptr, 0, 'unknown', None, None, None, None)
+                            self._memory_data[ptr] = MemoryData(ptr, 0, 'unknown', None, None, None,
+                                                                pointer_addr=data_addr + j
+                                                                )
                             new_data_found = True
 
             else:
