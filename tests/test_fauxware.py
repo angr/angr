@@ -90,6 +90,22 @@ def run_nodecode(arch):
     stdin = results.found[0].state.posix.dumps(0)
     nose.tools.assert_equal('\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
+def run_merge(arch):
+    p = angr.Project(os.path.join(test_location, arch, "fauxware"))
+    pg = p.factory.path_group()
+    pg.explore()
+    pg.merge(stash='deadended')
+
+    path = pg.deadended[[ 'Welcome' in s for s in pg.mp_deadended.state.posix.dumps(1).mp_items ].index(True)]
+    yes, no = sorted(path.history.merge_conditions, key=lambda c: c.depth)
+    inp = path.state.posix.files[0].content.load(0, 18)
+    assert 'SOSNEAKY' in path.state.se.any_str(inp, extra_constraints=(yes,))
+    assert 'SOSNEAKY' not in path.state.se.any_str(inp, extra_constraints=(no,))
+
+def test_merge():
+    for arch in target_addrs:
+        yield run_merge, arch
+
 def test_fauxware():
     for arch in target_addrs:
         yield run_fauxware, arch

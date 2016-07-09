@@ -100,8 +100,9 @@ class PathHistory(object):
 		# record constraints, added constraints, and satisfiability
 		self._all_constraints = state.se.constraints
 		self._fresh_constraints = [
-			ev.constraint for ev in state.log.events if isinstance(ev, simuvex.SimActionConstraint)
+			ev.constraint.ast for ev in state.log.events if isinstance(ev, simuvex.SimActionConstraint)
 		]
+
 		if isinstance(state.se._solver, claripy.frontend_mixins.SatCacheMixin):
 			self._satisfiable = state.se._solver._cached_satness
 		else:
