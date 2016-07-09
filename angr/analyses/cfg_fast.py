@@ -512,6 +512,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  normalize=False,
                  function_starts=None,
                  extra_memory_regions=None,
+                 data_type_guessing_handlers=None,
                  arch_options=None,
                  **extra_arch_options
                  ):
@@ -576,6 +577,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._arch_options = arch_options if arch_options is not None else CFGArchOptions(self.project.arch,
                                                                                           **extra_arch_options
                                                                                           )
+
+        self._data_type_guessing_handlers = [ ] if data_type_guessing_handlers is None else data_type_guessing_handlers
 
         l.debug("Starts at %#x and ends at %#x.", self._start, self._end)
 
@@ -1675,6 +1678,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         s = self._ffi.string(self._ffi.cast("char*", block), max_string_len)
         if len(s) and all([ c in self.PRINTABLES for c in s ]):
             return "string", len(s) + 1
+
+        for handler in self._data_type_guessing_handlers:
+            sort, size = handler(self, irsb, irsb_addr, stmt_idx, data_addr, max_size)
+            if sort is not None:
+                return sort, size
 
         return None, None
 
