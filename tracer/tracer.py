@@ -12,7 +12,7 @@ import shellphish_qemu
 from .tracerpov import TracerPoV
 from .cachemanager import LocalCacheManager
 from .simprocedures import receive
-from .simprocedures import FixedOutTransmit, FixedInReceive
+from .simprocedures import FixedOutTransmit, FixedInReceive, FixedRandom
 from simuvex import s_options as so
 
 import logging
@@ -834,9 +834,10 @@ class Tracer(object):
         :param state: optional state to use instead of preparing a fresh one
         '''
 
-        # FixedInReceive and FixedOutReceive always are applied as defaults
-        simuvex.SimProcedures['cgc']['transmit'] = FixedOutTransmit
+        # FixedRandom, FixedInReceive, and FixedOutTransmit always are applied as defaults
+        simuvex.SimProcedures['cgc']['random'] = FixedRandom
         simuvex.SimProcedures['cgc']['receive'] = FixedInReceive
+        simuvex.SimProcedures['cgc']['transmit'] = FixedOutTransmit
 
         # if we're in crash mode we want the authentic system calls
         if not self.crash_mode:
