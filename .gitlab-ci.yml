@@ -1,0 +1,7 @@
+before_script:
+    - which angr-test && angr-test sync hard
+
+identifier:
+    script: "angr-test identifier"
+    tags:
+        - "angr"
