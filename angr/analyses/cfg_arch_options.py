@@ -43,7 +43,7 @@ class CFGArchOptions(object):
             for k, (_, value) in self.OPTIONS[self.arch.name].iteritems():
                 self._options[k] = value
 
-        for k, v in options:
+        for k, v in options.iteritems():
             self.__setattr__(k, v)
 
     def __getattr__(self, option_name):
