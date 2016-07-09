@@ -223,9 +223,6 @@ class Unicorn(SimStatePlugin):
 
         # native state in libsimunicorn
         self._uc_state = None
-        self._uc_const = None
-        self._uc_prefix = None
-        self._uc_regs = None
         self.stop_reason = None
 
         # this is the counter for the unicorn count
@@ -283,13 +280,21 @@ class Unicorn(SimStatePlugin):
     def delete_uc():
         _unicorn_tls.uc = None
 
+    @property
+    def _uc_regs(self):
+        return self.state.arch.uc_regs
+
+    @property
+    def _uc_prefix(self):
+        return self.state.arch.uc_prefix
+
+    @property
+    def _uc_const(self):
+        return self.state.arch.uc_const
+
     def _setup_unicorn(self):
         if self.state.arch.uc_mode is None:
             raise SimUnicornUnsupport("unsupported architecture %r" % self.state.arch)
-
-        self._uc_regs = self.state.arch.uc_regs
-        self._uc_prefix = self.state.arch.uc_prefix
-        self._uc_const = self.state.arch.uc_const
 
     def set_stops(self, stop_points):
         _UC_NATIVE.set_stops(self._uc_state,
@@ -325,6 +330,7 @@ class Unicorn(SimStatePlugin):
             self._handle_syscall(uc, user_data)
         else:
             l.warning('unhandled interrupt %d', intno)
+            _UC_NATIVE.stop(self._uc_state, STOP.STOP_ERROR)
 
     def _hook_intr_x86(self, uc, intno, user_data):
         if intno == 0x80:
@@ -334,6 +340,7 @@ class Unicorn(SimStatePlugin):
                 self._hook_syscall_x86_64(uc, user_data)
         else:
             l.warning('unhandled interrupt %d', intno)
+            _UC_NATIVE.stop(self._uc_state, STOP.STOP_ERROR)
 
     def _hook_syscall_x86_64(self, uc, user_data):
         sysno = uc.reg_read(self._uc_regs['rax'])
