@@ -501,6 +501,8 @@ class Function(object):
 
         :param CodeNode return_site:     The block node that ends with a return.
         """
+        self._register_nodes(True, return_site)
+
         self._ret_sites.add(return_site)
         # A return site must be an endpoint of the function - you cannot continue execution of the current function
         # after returning
