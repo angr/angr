@@ -8,6 +8,7 @@ logging.getLogger("simuvex").addHandler(logging.NullHandler())
 
 # pylint: disable=W0401
 
+from . import concretization_strategies
 from .s_state import SimState
 from .s_errors import *
 from .s_action import *

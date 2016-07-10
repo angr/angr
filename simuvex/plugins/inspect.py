@@ -62,10 +62,8 @@ inspect_attributes = {
     'symbolic_expr',
 
     'address_concretization_strategy',
-    'address_concretization_limit',
-    'address_concretization_approx_limit',
     'address_concretization_action',
-    'address_concretization_memory_id',
+    'address_concretization_memory',
     'address_concretization_expr',
     'address_concretization_result',
     'address_concretization_add_constraints',

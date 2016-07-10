@@ -446,51 +446,51 @@ class SimSolver(SimStatePlugin):
     #
 
     @concrete_path_scalar
-    def any_int(self, e, extra_constraints=()):
-        ans = self.eval(e, 1, extra_constraints=extra_constraints)
+    def any_int(self, e, **kwargs):
+        ans = self.eval(e, 1, **kwargs)
         if len(ans) > 0: return ans[0]
         else: raise SimUnsatError("Not satisfiable: %s" % e.shallow_repr())
 
-    def any_str(self, e, extra_constraints=()):
-        ans = self.any_n_str(e, 1, extra_constraints=extra_constraints)
+    def any_str(self, e, **kwargs):
+        ans = self.any_n_str(e, 1, **kwargs)
         if len(ans) > 0: return ans[0]
         else: raise SimUnsatError("Not satisfiable: %s" % e.shallow_repr())
 
-    def any_n_str_iter(self, e, n, extra_constraints=(), exact=None):
+    def any_n_str_iter(self, e, n, **kwargs):
         if len(e) == 0:
             yield ""
             return
 
-        for s in self.eval(e, n, extra_constraints=extra_constraints, exact=exact):
+        for s in self.eval(e, n, **kwargs):
             yield ("%x" % s).zfill(len(e)/4).decode('hex')
 
-    def any_n_str(self, e, n, extra_constraints=(), exact=None):
-        return list(self.any_n_str_iter(e, n, extra_constraints=extra_constraints, exact=exact))
+    def any_n_str(self, e, n, **kwargs):
+        return list(self.any_n_str_iter(e, n, **kwargs))
 
     min_int = min
     max_int = max
 
-    def any_n_int(self, e, n, extra_constraints=(), exact=None):
+    def any_n_int(self, e, n, **kwargs):
         try:
-            return list(self.eval(e, n, extra_constraints=extra_constraints, exact=exact))
+            return list(self.eval(e, n, **kwargs))
         except SimUnsatError:
             return [ ]
 
-    def exactly_n(self, e, n, extra_constraints=(), exact=None):
-        r = self.any_n_int(e, n, extra_constraints=extra_constraints, exact=exact)
+    def exactly_n(self, e, n, **kwargs):
+        r = self.any_n_int(e, n, **kwargs)
         if len(r) != n:
             raise SimValueError("concretized %d values (%d required) in exactly_n" % (len(r), n))
         return r
 
-    def exactly_n_int(self, e, n, extra_constraints=(), exact=None):
-        r = self.any_n_int(e, n, extra_constraints=extra_constraints, exact=exact)
+    def exactly_n_int(self, e, n, **kwargs):
+        r = self.any_n_int(e, n, **kwargs)
         if len(r) != n:
             raise SimValueError("concretized %d values (%d required) in exactly_n" % (len(r), n))
         return r
 
-    def exactly_int(self, e, extra_constraints=(), default=None, exact=None):
+    def exactly_int(self, e, default=None, **kwargs):
         try:
-            r = self.any_n_int(e, 1, extra_constraints=extra_constraints, exact=exact)
+            r = self.any_n_int(e, 1, **kwargs)
         except (SimValueError, SimSolverModeError):
             if default is not None:
                 return default
@@ -505,7 +505,7 @@ class SimSolver(SimStatePlugin):
 
     @timed_function
     @ast_stripping_decorator
-    def unique(self, e, extra_constraints=(), exact=None):
+    def unique(self, e, **kwargs):
         if not isinstance(e, claripy.ast.Base):
             return True
 
@@ -513,7 +513,7 @@ class SimSolver(SimStatePlugin):
         if o.SYMBOLIC not in self.state.options and self.symbolic(e):
             return False
 
-        r = self.any_n_int(e, 2, extra_constraints=extra_constraints, exact=exact)
+        r = self.any_n_int(e, 2, **kwargs)
         if len(r) == 1:
             self.add(e == r[0])
             return True
