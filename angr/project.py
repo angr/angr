@@ -28,7 +28,7 @@ def deprecated(f):
 
 class Project(object):
     """
-    This is the main class of the Angr module. It is meant to contain a set of binaries and the relationships between
+    This is the main class of the angr module. It is meant to contain a set of binaries and the relationships between
     them, and perform analyses on them.
 
     :ivar analyses: The available analyses.

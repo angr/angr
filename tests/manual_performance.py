@@ -75,7 +75,7 @@ def time_one(args, test, queue):
     queue.put(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1000.0)
 
 
-parser = argparse.ArgumentParser(description='Angr performance tests')
+parser = argparse.ArgumentParser(description='angr performance tests')
 parser.add_argument(
     '-n', '--n-runs', default=100, type=int,
     help='How many runs to perform for each test (default: 100)')

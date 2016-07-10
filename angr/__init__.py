@@ -1,4 +1,4 @@
-""" Angr module """
+""" angr module """
 # pylint: disable=wildcard-import
 
 import logging
