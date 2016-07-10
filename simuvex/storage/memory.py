@@ -462,7 +462,6 @@ class SimMemory(SimStatePlugin):
     def _store(self, request):
         raise NotImplementedError()
 
-    # TODO(sduquette) : endness should be renamed endianness.
     def store_cases(self, addr, contents, conditions, fallback=None, add_constraints=None, endness=None, action=None):
         """
         Stores content into memory, conditional by case.

@@ -146,7 +146,16 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def ip(self, val):
         self.regs.ip = val
 
-    # accessors for memory and registers and such
+    #
+    # Plugin accessors
+    #
+
+    def __getattr__(self, v):
+        try:
+            return self.get_plugin(v)
+        except KeyError:
+            raise AttributeError(v)
+
     @property
     def memory(self):
         return self.get_plugin('memory')
