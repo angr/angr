@@ -94,7 +94,7 @@ class GDB(SimStatePlugin):
             val = int(re.split(" +", r)[1],16)
             try:
                 self.state.registers.store(reg, claripy.BVV(val, self.state.arch.bits))
-            # Some registers such as cs, ds, eflags etc. aren't supported in Angr
+            # Some registers such as cs, ds, eflags etc. aren't supported in angr
             except KeyError as e:
                 l.warning("Reg %s was not set" % str(e))
 
@@ -102,7 +102,7 @@ class GDB(SimStatePlugin):
 
     def _adjust_regs(self):
         """
-        Adjust bp and sp w.r.t. stack difference between GDB session and Angr.
+        Adjust bp and sp w.r.t. stack difference between GDB session and angr.
         This matches sp and bp registers, but there is a high risk of pointers inconsistencies.
         """
         if not self.adjust_stack:
