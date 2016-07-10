@@ -789,4 +789,30 @@ class SimPagedMemory(object):
             self._pages[base_page_num + page] = Page(self._page_size, permissions)
             self._symbolic_addrs[base_page_num + page] = set()
 
+    def unmap_region(self, addr, length):
+        if o.TRACK_MEMORY_MAPPING not in self.state.options:
+            return
+
+        if self.state.se.symbolic(addr):
+            raise SimMemoryError("cannot unmap region with a symbolic address")
+
+        if isinstance(addr, claripy.ast.bv.BV):
+            addr = self.state.se.max_int(addr)
+
+        base_page_num = addr / self._page_size
+
+        pages = length / self._page_size
+        if length % self._page_size > 0:
+            pages += 1
+
+        # this check should not be performed when constructing a CFG
+        if self.state.mode != 'fastpath':
+            for page in xrange(pages):
+                if base_page_num + page not in self._pages:
+                    l.warning("unmap_region received address and length combination is not mapped")
+                    return
+
+        for page in xrange(pages):
+            del self._pages[base_page_num + page]
+
 from .. import s_options as o

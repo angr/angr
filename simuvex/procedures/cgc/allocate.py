@@ -26,17 +26,27 @@ class allocate(simuvex.SimProcedure):
 
         if isinstance(self.state.cgc.allocation_base, (int, long)):
             self.state.cgc.allocation_base = self.state.se.BVV(self.state.cgc.allocation_base, self.state.arch.bits)
-        self.state.memory.store(addr, self.state.cgc.allocation_base - aligned_length, condition=self.state.se.And(r == 0, addr != 0), endness='Iend_LE')
 
-        self.state.cgc.allocation_base -= self.state.se.If(r == 0, aligned_length, self.state.se.BVV(0, self.state.arch.bits))
+        chosen = sinkhole_chosen = self.state.cgc.get_max_sinkhole(aligned_length)
+        if chosen is None:
+            chosen = self.state.cgc.allocation_base - aligned_length
+
+        self.state.memory.store(addr, chosen, condition=self.state.se.And(r == 0, addr != 0), endness='Iend_LE')
+
+        if sinkhole_chosen is None:
+            self.state.cgc.allocation_base -= self.state.se.If(r == 0,
+                    aligned_length,
+                    self.state.se.BVV(0, self.state.arch.bits))
 
         # PROT_READ | PROT_WRITE default
         permissions = self.state.se.BVV(1 | 2, 3)
         permissions |= self.state.se.If(is_x != 0, claripy.BVV(4, 3), claripy.BVV(0, 3))
 
-        if (self.state.se.max_int(r) == 0):  # map only on success
+        if self.state.se.max_int(r) == 0:  # map only on success
+
+            l.debug("Allocate address %#x", self.state.se.any_int(chosen))
             self.state.memory.map_region(
-                    self.state.cgc.allocation_base,
+                    chosen,
                     aligned_length,
                     permissions
                     )
