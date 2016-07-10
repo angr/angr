@@ -75,13 +75,12 @@ class AngrObjectFactory(object):
 
         if opt_level is None:
             opt_level = 1 if o.OPTIMIZE_IR in state.options else 0
-        backup_state = state if self._project._support_selfmodifying_code else None
 
         bb = self.block(addr,
                         arch=state.arch,
                         opt_level=opt_level,
                         thumb=thumb,
-                        backup_state=backup_state,
+                        backup_state=state,
                         **block_opts)
 
         return SimIRSB(state,
