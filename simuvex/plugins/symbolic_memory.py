@@ -1100,6 +1100,14 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         """
         return self.mem.map_region(addr, length, permissions)
 
+    def unmap_region(self, addr, length):
+        """
+        Unmap a number of pages at address `addr`
+        :param addr: address to unmap the pages at
+        :param length: length in bytes of region to map, will be rounded upwards to the page size
+        """
+        return self.mem.unmap_region(addr, length)
+
 SimSymbolicMemory.register_default('memory', SimSymbolicMemory)
 SimSymbolicMemory.register_default('registers', SimSymbolicMemory)
 from ..s_errors import SimUnsatError, SimMemoryError, SimMemoryLimitError, SimMemoryAddressError
