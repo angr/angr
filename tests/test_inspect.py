@@ -112,7 +112,7 @@ def test_inspect_exit():
         nose.tools.assert_equal(state.inspect.exit_jumpkind, "Ijk_Boring")
         nose.tools.assert_true(state.inspect.exit_guard.is_true())
 
-    def handle_exit_after(state):
+    def handle_exit_after(state): #pylint:disable=unused-argument
         counts.exit_after += 1
 
     s = simuvex.SimState(arch="AMD64", mode="symbolic")
@@ -206,11 +206,18 @@ def test_inspect_concretization():
 
     def abort_unconstrained(state):
         print state.inspect.address_concretization_strategy, state.inspect.address_concretization_result
-        if state.inspect.address_concretization_strategy == 'symbolic' and state.inspect.address_concretization_result == None:
+        if (
+            isinstance(
+                state.inspect.address_concretization_strategy,
+                simuvex.concretization_strategies.SimConcretizationStrategyRange
+            ) and state.inspect.address_concretization_result is None
+        ):
             raise UnconstrainedAbort("uh oh", state)
 
     s = simuvex.SimState()
-    s.memory._default_write_strategy.insert(0, 'symbolic')
+    s.memory.write_strategies.insert(
+        0, simuvex.concretization_strategies.SimConcretizationStrategyRange(128)
+    )
     s.memory._write_address_range = 1
     s.memory._write_address_range_approx = 1
     s.add_constraints(y == 10)

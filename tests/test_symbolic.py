@@ -38,6 +38,7 @@ def test_concretization_strategies():
     x = s.se.BVS('x', s.arch.bits)
     s.add_constraints(x >= 1)
     ss.options.add(simuvex.o.CONSERVATIVE_READ_STRATEGY)
+    ss.memory._create_default_read_strategies()
     nose.tools.assert_true('symbolic' in next(iter(ss.memory.load(x, 1).variables)))
 
 #def test_concretization():
