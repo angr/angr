@@ -7,6 +7,8 @@ import claripy
 # Dirty calls
 #####################
 
+# they return retval, constraints
+
 # Reference:
 # http://www-inteng.fnal.gov/Integrated_Eng/GoodwinDocs/pdf/Sys%20docs/PowerPC/PowerPC%20Elapsed%20Time.pdf
 # and
@@ -260,3 +262,43 @@ def x86g_dirtyhelper_FINIT(state, bbptr): #pylint:disable=unused-argument
 def x86g_dirtyhelper_write_cr0(state, value):
     state.arch.vex_archinfo['x86_cr0'] = state.se.exactly_int(value)
     return None, [ ]
+
+def x86g_dirtyhelper_loadF80le(state, addr):
+    tbyte = state.memory.load(addr, size=10, endness='Iend_LE')
+    sign = tbyte[79]
+    exponent = tbyte[78:64]
+    mantissa = tbyte[62:0]
+
+    normalized_exponent = exponent - 16383 + 1023
+    zero_exponent = state.se.BVV(0, 11)
+    inf_exponent = state.se.BVV(-1, 11)
+    final_exponent = claripy.If(exponent == 0, zero_exponent, claripy.If(exponent == -1, inf_exponent, normalized_exponent))
+
+    normalized_mantissa = tbyte[62:11]
+    zero_mantissa = claripy.BVV(0, 52)
+    inf_mantissa = claripy.BVV(-1, 52)
+    final_mantissa = claripy.If(exponent == 0, zero_mantissa, claripy.If(exponent == -1, claripy.If(mantissa == 0, zero_mantissa, inf_mantissa), normalized_mantissa))
+
+    qword = claripy.Concat(sign, final_exponent, final_mantissa)
+    assert len(qword) == 64
+    return qword, []
+
+def x86g_dirtyhelper_storeF80le(state, addr, qword):
+    sign = qword[63]
+    exponent = qword[62:52]
+    mantissa = qword[51:0]
+
+    normalized_exponent = exponent - 1023 + 16383
+    zero_exponent = state.se.BVV(0, 15)
+    inf_exponent = state.se.BVV(-1, 15)
+    final_exponent = claripy.If(exponent == 0, zero_exponent, claripy.If(exponent == -1, inf_exponent, normalized_exponent))
+
+    normalized_mantissa = claripy.Concat(claripy.BVV(1, 1), mantissa, claripy.BVV(0, 11))
+    zero_mantissa = claripy.BVV(0, 64)
+    inf_mantissa = claripy.BVV(-1, 64)
+    final_mantissa = claripy.If(exponent == 0, zero_mantissa, claripy.If(exponent == -1, claripy.If(mantissa == 0, zero_mantissa, inf_mantissa), normalized_mantissa))
+
+    tbyte = claripy.Concat(sign, final_exponent, final_mantissa)
+    assert len(tbyte) == 80
+    state.memory.store(addr, tbyte, endness='Iend_LE')
+    return None, []
