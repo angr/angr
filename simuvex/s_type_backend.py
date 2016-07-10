@@ -45,6 +45,7 @@ class TypeBackend(claripy.Backend):
         else:
             out.ty = Top()
 
+        out.ty.label = a.ty.label + b.ty.label
         return out
 
     def _do_and(self, *args):
@@ -65,6 +66,7 @@ class TypeBackend(claripy.Backend):
         else:
             out.ty = Top()
 
+        out.ty.label = a.ty.label + b.ty.label
         return out
 
     def _do_or(self, *args):
@@ -85,6 +87,7 @@ class TypeBackend(claripy.Backend):
         else:
             out.ty = Top(label=[])
 
+        out.ty.label = a.ty.label + b.ty.label
         return out
 
     def _do_xor(self, *args):
@@ -105,6 +108,7 @@ class TypeBackend(claripy.Backend):
         else:
             out.ty = Top()
 
+        out.ty.label = a.ty.label + b.ty.label
         return out
 
     def _do_sub(self, *args):
@@ -122,6 +126,7 @@ class TypeBackend(claripy.Backend):
         else:
             out.ty = Top()
 
+        out.ty.label = a.ty.label + b.ty.label
         return out
 
     def apply_annotation(self, obj, a):
