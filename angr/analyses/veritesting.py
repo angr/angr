@@ -13,6 +13,8 @@ from ..path import Path, AngrPathError
 
 l = logging.getLogger('angr.analyses.veritesting')
 
+l.setLevel('DEBUG')
+
 
 class VeritestingError(Exception):
     pass
@@ -91,7 +93,7 @@ class CallTracingFilter(object):
                 return ACCEPT
             else:
                 # reject
-                l.debug('Rejecting target 0x%x - syscall %s not in whitelist', addr, syscall)
+                l.debug('Rejecting target 0x%x - syscall %s not in whitelist', addr, type(next_run))
                 return REJECT
 
         cfg_key = (addr, jumpkind)
@@ -149,7 +151,7 @@ class CallTracingFilter(object):
 
 
 class Ref(object):
-    def __init__(self, type, addr, actual_addrs, bits, value, action):
+    def __init__(self, type, addr, actual_addrs, bits, value, action): #pylint:disable=redefined-builtin
         """
         This is a reference object that is used internally in Veritesting. It holds less information than SimActions,
         but it has a little bit better interface, and saves a lot more keystrokes.
@@ -194,7 +196,8 @@ class ITETreeNode(object):
         self.true_expr = true_expr
         self.false_expr = false_expr
 
-    def _encode(self, se, expr):
+    @staticmethod
+    def _encode(se, expr):
         if type(expr) is ITETreeNode:
             return expr.encode(se)
         else:
@@ -218,7 +221,7 @@ class ITETreeNode(object):
 
 
 class ActionQueue(object):
-    def __init__(self, id, actions, parent_key=None):
+    def __init__(self, id, actions, parent_key=None): #pylint:disable=redefined-builtin
         self.id = id
         self.actions = actions
         self.parent_key = parent_key
@@ -321,7 +324,6 @@ class Veritesting(Analysis):
         """
 
         state = path.state
-        se = state.se
         ip_int = path.addr
 
         # Remove path._run
@@ -336,7 +338,7 @@ class Veritesting(Analysis):
         else:
             if self._enable_function_inlining:
                 call_tracing_filter = CallTracingFilter(self.project, depth=0)
-                filter = call_tracing_filter.filter
+                filter = call_tracing_filter.filter #pylint:disable=redefined-builtin
             else:
                 filter = None
             # To better handle syscalls, we make a copy of all registers if they are not symbolic
@@ -377,10 +379,6 @@ class Veritesting(Analysis):
         initial_path = path
         initial_path.info['loop_ctrs'] = defaultdict(int)
         initial_path.info['actionqueue_list'] = [ self._new_actionqueue() ]
-
-        # This is a special hack for CGC stuff, since the CGCAnalysis relies on correct conditions of file actions
-        # Otherwise we may just save out those actions, and then copy them back when returning those paths
-        initial_path.history._events = [ a for a in initial_path.actions if a.type.startswith('file') ]
 
         path_group = PathGroup(self.project,
                                active_paths=[ initial_path ],
@@ -560,72 +558,78 @@ class Veritesting(Analysis):
                         break
 
                     stash_name = "_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
+                    if stash_name not in path_group.stashes:
+                        continue
 
-                    if stash_name in path_group.stashes:
-                        # Try to prune the stash, so unsatisfiable paths will be thrown away
-                        path_group.prune(from_stash=stash_name, to_stash='pruned')
-                        if 'pruned' in path_group.stashes and len(path_group.pruned):
-                            l.info('... pruned %d paths from stash %s', len(path_group.pruned), stash_name)
-                        # Remove the pruned stash to save memory
-                        path_group.drop(stash='pruned')
+                    stash_size = len(path_group.stashes[stash_name])
+                    if stash_size == 0:
+                        continue
+                    if stash_size == 1:
+                        l.info("Skipping merge of 1 path in stash %s.", stash_size)
+                        path_group.move(stash_name, 'active')
+                        continue
 
-                        stash = path_group.stashes[stash_name]
-                        if not len(stash):
-                            continue
+                    # let everyone know of the impending disaster
+                    l.info("Merging %d paths in stash %s", stash_size, stash_name)
 
-                        # Group all those paths based on their callstacks
-                        groups = defaultdict(list)
-                        for p in stash:
-                            groups[p.callstack].append(p)
+                    # Try to prune the stash, so unsatisfiable paths will be thrown away
+                    path_group.prune(from_stash=stash_name, to_stash='pruned')
+                    if 'pruned' in path_group.stashes and len(path_group.pruned):
+                        l.debug('... pruned %d paths from stash %s', len(path_group.pruned), stash_name)
+                    # Remove the pruned stash to save memory
+                    path_group.drop(stash='pruned')
 
-                        l.debug('Trying to merge and activate stash %s', stash_name)
-                        l.debug('%d paths are grouped into %d groups based on their callstacks',
-                               len(stash),
-                               len(groups)
-                               )
+                    # merge things callstack by callstack
+                    while len(path_group.stashes[stash_name]):
+                        r = path_group.stashes[stash_name][0]
+                        path_group.move(
+                            stash_name, 'merge_tmp',
+                            lambda p: p.callstack == r.callstack #pylint:disable=cell-var-from-loop
+                        )
 
-                        for g in groups.itervalues():
-                            if len(g) == 1:
-                                # Just unstash it
-                                p = g[0]
-                                path_group.stashes[stash_name].remove(p)
+                        old_count = len(path_group.merge_tmp)
+                        l.debug("... trying to merge %d paths.", old_count)
 
-                                if any([loop_ctr >= self._loop_unrolling_limit + 1 for loop_ctr in p.info['loop_ctrs'].itervalues()]):
-                                    l.debug("%s is overlooping", p)
-                                    path_group.deadended.append(p)
-                                else:
-                                    l.debug('Put %s into active stash', p)
-                                    path_group.active.append(p)
-                                merged_anything = True
+                        # merge the loop_ctrs
+                        new_loop_ctrs = defaultdict(int)
+                        for m in path_group.merge_tmp:
+                            for head_addr, looping_times in m.info['loop_ctrs'].iteritems():
+                                new_loop_ctrs[head_addr] = max(
+                                    looping_times,
+                                    m.info['loop_ctrs'][head_addr]
+                                )
 
-                            elif len(g) > 1:
-                                for p in g:
-                                    path_group.stashes[stash_name].remove(p)
+                        path_group.merge(stash='merge_tmp')
+                        for m in path_group.merge_tmp:
+                            m.info['loop_ctrs'] = new_loop_ctrs
 
-                                # Merge them first
+                        new_count = len(path_group.stashes['merge_tmp'])
+                        l.debug("... after merge: %d paths.", new_count)
 
-                                # Find the previous dominator for all those
-                                # Determine their common ancestor
-                                ancestor_key = self._determine_ancestor(g)
-                                initial_path = saved_paths[ancestor_key]
-                                merged_path = self._merge_path_list(se, initial_path, g)
+                        merged_anything |= new_count != old_count
 
-                                if any([ loop_ctr >= self._loop_unrolling_limit + 1 for loop_ctr in merged_path.info['loop_ctrs'].itervalues() ]):
-                                    l.debug("%s is overlooping", merged_path)
-                                    path_group.deadended.append(merged_path)
-                                else:
-                                    l.debug('Put %s into active stash', p)
-                                    path_group.active.append(merged_path)
+                        if len(path_group.merge_tmp) > 1:
+                            l.warning("More than 1 path after Veritesting merge.")
+                            path_group.move('merge_tmp', 'active')
+                        elif any(
+                            loop_ctr >= self._loop_unrolling_limit + 1 for loop_ctr in
+                            path_group.one_merge_tmp.info['loop_ctrs'].itervalues()
+                        ):
+                            l.debug("... merged path is overlooping")
+                            path_group.move('merge_tmp', 'deadended')
+                        else:
+                            l.debug('... merged path going to active stash')
+                            path_group.move('merge_tmp', 'active')
 
-                                merged_anything = True
-
-        if any([ len(path_group.stashes[stash_name]) for stash_name in self.all_stashes]):
+        if any(len(path_group.stashes[stash_name]) for stash_name in self.all_stashes):
             # Remove all stashes other than errored or deadended
-            path_group.stashes = { name: stash for name, stash in path_group.stashes.items()
-                                   if name in self.all_stashes }
+            path_group.stashes = {
+                name: stash for name, stash in path_group.stashes.items()
+                if name in self.all_stashes
+            }
 
             for stash in path_group.stashes:
-                path_group.apply(lambda p: self._unfuck(p), stash=stash)
+                path_group.apply(self._unfuck, stash=stash)
 
         return path_group
 
@@ -647,342 +651,12 @@ class Veritesting(Analysis):
 
         return p
 
-    def _merge_path_list(self, se, base_path, path_list):
-        merge_info = [ ]
-        for path_to_merge in path_list:
-            inputs, outputs = self._io_interface(se, list(path_to_merge.actions), list(base_path.actions))
-            merge_info.append((path_to_merge, inputs, outputs))
-        l.info('Merging %d paths: [ %s ].',
-               len(merge_info),
-               ", ".join([str(p) for p, _, _ in merge_info])
-               )
-        merged_path = self._merge_paths(base_path, merge_info)
-        l.info('... merged.')
-
-        return merged_path
-
-    def _merge_paths(self, base_path, merge_info_list):
-
-        def find_real_ref(ref, ref_list):
-            """
-            Returns the last element r in ref_list that satisfies r == ref
-            """
-            for r in reversed(ref_list):
-                if r == ref:
-                    return r
-            return None
-
-        # Perform merging
-        all_outputs = [ ]
-        # Merge all outputs together into all_outputs
-        # The order must be kept since actions should be applied one by one in order
-        # Complexity of the current implementation sucks...
-        # TODO: Optimize the complexity of the following loop
-        for _, _, outputs in merge_info_list:
-            for ref in reversed(outputs):
-                if ref not in all_outputs:
-                    all_outputs.append(ref)
-
-        all_outputs = reversed(all_outputs)
-        merged_path = base_path.copy()  # We make a copy first
-        # merged_path.actions = [ ]
-        merged_path.trim_history()
-        merged_path.history._events = ()
-        # merged_path.events = [ ]
-        merged_state = merged_path.state
-        merged_path.info['actionqueue_list'].append(self._new_actionqueue((merged_path.addr, self._get_last_actionqueue(merged_path).id)))
-
-        for ref in all_outputs:
-            last_ip = None
-
-            all_values = [ ]
-            all_guards = [ ]
-
-            for _, merge_info in enumerate(merge_info_list):
-                final_path, _, outputs = merge_info
-
-                # First we should build the value
-                if ref in outputs:
-                    # Find the real ref
-                    real_ref = find_real_ref(ref, outputs)
-
-                    # Read the final value
-                    if real_ref.type == 'mem':
-                        v = real_ref.value
-
-                    elif real_ref.type == 'reg':
-                        v = real_ref.value
-
-                    elif real_ref.type.startswith('file'):
-                        v = real_ref.value
-
-                    else:
-                        raise VeritestingError('FINISH ME')
-
-                    if real_ref.type == 'reg' and real_ref.offset == self.project.arch.ip_offset:
-                        # Sanity check!
-                        if last_ip is None:
-                            last_ip = v
-                        else:
-                            if merged_state.se.is_true(last_ip != v, exact=False):
-                                raise VeritestingError("We don't want to merge IP - something is seriously wrong")
-
-                    # Then we build one more layer of our ITETree
-                    guards = final_path.info['guards']
-                    guard = merged_state.se.And(*guards) if guards else merged_state.se.true
-
-                    all_values.append(v)
-                    all_guards.append(guard)
-
-            max_value_size = max([ v.size() for v in all_values ])
-
-            # Optimization: if all values are of the same size, we can remove one to reduce the number of ITEs
-            # FIXME: this optimization doesn't make sense at all.
-            #sizes_of_value = set([ v.size() for v in all_values ])
-            #if len(sizes_of_value) == 1 and len(all_values) == len(merge_info_list):
-            #    all_values = all_values[ 1 : ]
-            #    all_guards = all_guards[ 1 : ]
-
-            # Write the output to merged_state
-
-            merged_actions = [ ]
-            if real_ref.type == 'mem':
-                for actual_addr in real_ref.actual_addrs:
-                    # Create the merged_action, and memory.store_cases will fill it up
-                    merged_action = SimActionData(merged_state, 'mem', 'write',
-                                                  addr=merged_state.se.BVV(actual_addr, self.project.arch.bits),
-                                                  size=max_value_size)
-                    merged_state.memory.store_cases(actual_addr, all_values, all_guards, endness='Iend_BE', action=merged_action)
-
-                    merged_actions.append(merged_action)
-
-            elif real_ref.type == 'reg':
-                if real_ref.offset != self.project.arch.ip_offset:
-                    # Create the merged_action, and memory.store_cases will fill it up
-                    merged_action = SimActionData(merged_state, 'reg', 'write', addr=real_ref.offset, size=max_value_size)
-                    merged_state.registers.store_cases(real_ref.offset, all_values, all_guards, endness='Iend_BE', action=merged_action)
-                else:
-                    # Create the merged_action, and memory.store_cases will fill it up
-                    merged_action = SimActionData(merged_state, 'reg', 'write', addr=real_ref.offset, size=max_value_size)
-                    merged_state.registers.store(real_ref.offset, last_ip, action=merged_action)
-                merged_actions.append(merged_action)
-
-            elif real_ref.type.startswith('file'):
-                # No matter it's a read or a write, we should always write it at the desired place
-                # However, we don't have to create the SimAction here
-                for actual_addr in real_ref.actual_addrs:
-                    # FIXME: We assume no new files were opened
-                    file_id = real_ref.type[ real_ref.type.index('_') + 1 : ]
-                    file_id = merged_state.posix.filename_to_fd(file_id[ : file_id.index('_') ])
-                    merged_action = SimActionData(merged_state, real_ref.type, real_ref.action, addr=actual_addr, size=max_value_size)
-                    merged_state.posix.files[file_id].content.store_cases(actual_addr, all_values, all_guards, endness='Iend_BE', action=merged_action)
-
-                    merged_actions.append(merged_action)
-
-            else:
-                 l.error('Unsupported Ref type %s in path merging', real_ref.type)
-
-            if merged_actions:
-                for merged_action in merged_actions:
-                    merged_path.history._events += (merged_action,)
-                    self._get_last_actionqueue(merged_path).actions.append(merged_action)
-
-        # Merge *all* actions
-        """
-        for i, merge_info in enumerate(merge_info_list):
-            final_path, _, _ = merge_info
-
-            guards = final_path.info['guards']
-            guard = merged_state.se.And(*guards) if guards else None
-
-            for action in final_path.actions:
-                if action.type == 'tmp':
-                    continue
-                # Encode the constraint into action.condition
-                action = action.copy()
-                if guard is not None:
-                    if action.condition is None:
-                        action.condition = action._make_object(guard)
-                    else:
-                        action.condition.ast = merged_state.se.And(action.condition.ast, guard)
-                if 'actions' not in merged_path.info:
-                    merged_path.info['actions'] = [ ]
-
-                merged_path.info['actions'].append(action)
-        """
-
-        # Fix trace of the merged path
-        merged_path.history.addr = -1
-        merged_path.history._runstr = 'Veritesting'
-
-        # Add extra constraints from original paths to the merged path
-        # It's really important to not lose them. Yan has a lot to say about it.
-        all_constraints = [ ]
-        for final_path, _, _ in merge_info_list:
-            if final_path.info['guards']:
-                se = final_path.state.se
-                guards = final_path.info['guards']
-
-                # There are also some extra constraints that are encoded in SimActionConstraint objects
-                # We don't want to lose them for sure.
-                #
-                # constraints = [ ]
-                #for a in [ b for b in final_path.actions if b.type == 'constraint' ]:
-                #    if not final_path.state.se.is_true(a.constraint.ast):
-                #        print "CONSTRAINT: ", a.constraint.ast, "CONDITION: ", a.condition
-                #        __import__('ipdb').set_trace()
-                constraints = [ (a.constraint if a.condition is None
-                                     else se.And(a.constraint, a.condition))
-                                    for a in final_path.actions if a.type == 'constraint'
-                                ]
-                all_constraints.append(se.And(*(guards + constraints)))
-        if all_constraints:
-            merged_state.add_constraints(merged_state.se.Or(*all_constraints))
-
-        # Fixing the callstack of the merged path
-        merged_path.callstack = merge_info_list[0][0].callstack
-
-        # Fix the loop_ctrs
-        new_loop_ctrs = defaultdict(int)
-        for final_path, _, _ in merge_info_list:
-            for loop_head_addr, looping_times in final_path.info['loop_ctrs'].iteritems():
-                if looping_times > new_loop_ctrs[loop_head_addr]:
-                    new_loop_ctrs[loop_head_addr] = looping_times
-        merged_path.info['loop_ctrs'] = new_loop_ctrs
-
-        #
-        # Clean the stage
-        #
-
-        if 'guards' in merged_path.info:
-            del merged_path.info['guards']
-
-        # Clear the Path._run, otherwise Path.successors will not generate a new run
-        merged_path._run = None
-
-        return merged_path
-
-    def _unpack_action_obj(self, action_obj):
+    @staticmethod
+    def _unpack_action_obj(action_obj):
         return action_obj.ast
 
-    def _io_interface(self, se, actions, base_actions):
-        """
-        Get inputs and outputs by parsing the action list.
-
-        :param se:
-        :param actions:
-        :param base_actions:
-        :returns:
-        """
-
-        outputs = [ ]
-
-        # TODO: More optimization could be done. For example, we should grab actions out of ActionQueue lists, instead
-        # TODO: of comparing them one by one
-
-        start_pos = 0
-        for i in xrange(min(len(actions), len(base_actions))):
-            a = actions[i]
-            b = base_actions[i]
-
-            if a.type == b.type:
-                if a.type == 'constraint':
-                    # We don't care about constraint actions
-                    pass
-                elif a.type == 'exit':
-                    if a.exit_type == b.exit_type and hash(a.target.ast) == hash(b.target.ast) :
-                        pass
-                    else:
-                        break
-                else:
-                    if (
-                        (a.addr is None and b.addr is None) or
-                        (hash(a.addr.ast) == hash(b.addr.ast))
-                    ) and (
-                        (hash(a.size.ast) == hash(b.size.ast))
-                    ):
-                        pass
-                    else:
-                        break
-            else:
-                break
-
-            start_pos = i + 1
-
-        written_reg_offsets = set()
-        written_mem_addrs = set()
-        for a in reversed(actions[start_pos : ]):
-            if a.type == 'reg':
-                size = self._unpack_action_obj(a.size)
-                value = self._unpack_action_obj(a.actual_value) if a.actual_value is not None else None
-                offset = self._unpack_action_obj(a.addr)
-                actual_offsets = a.actual_addrs if a.actual_addrs else [ offset ]
-                # Neither offset nor size can be symbolic
-                ref = Ref('reg', offset, actual_offsets, size, value, a)
-
-                #if a.action == 'read':
-                #    for actual_offset in actual_offsets:
-                #        if actual_offset not in written_reg_offsets:
-                #            inputs.append(ref)
-
-                if a.action == 'write':
-                    # FIXME: Consider different sizes
-                    if all([ o in written_reg_offsets for o in actual_offsets ]):
-                        continue
-
-                    outputs.append(ref)
-                    for actual_offset in actual_offsets:
-                        written_reg_offsets.add(actual_offset)
-
-            elif a.type == 'mem':
-                addr = self._unpack_action_obj(a.addr)
-                actual_addrs = a.actual_addrs if a.actual_addrs else [ addr ]
-                size = self._unpack_action_obj(a.size)
-                value = self._unpack_action_obj(a.actual_value) if a.actual_value is not None else None
-                ref = Ref('mem', addr, actual_addrs, size, value, a)
-
-                #if a.action == 'read':
-                #    for actual_addr in actual_addrs:
-                #        if actual_addr not in written_mem_addrs:
-                #            inputs.append(ref)
-                #            break
-
-                if a.action == 'write':
-                    # FIXME: Consider different sizes
-                    if all([ o in written_mem_addrs for o in actual_addrs ]):
-                        continue
-
-                    outputs.append(ref)
-                    for actual_addr in actual_addrs:
-                        written_mem_addrs.add(actual_addr)
-
-            elif a.type == 'exit':
-                target = self._unpack_action_obj(a.target)
-
-                ref = Ref('reg', self.project.arch.ip_offset, [ self.project.arch.ip_offset ], target.size(), target, a)
-                outputs.append(ref)
-
-            elif a.type.startswith('file'):
-                addr = self._unpack_action_obj(a.addr)
-                actual_addrs = a.actual_addrs if a.actual_addrs else [ addr ]
-                size = self._unpack_action_obj(a.size)
-                value = self._unpack_action_obj(a.actual_value) if a.actual_value is not None else \
-                    self._unpack_action_obj(a.data)
-                ref = Ref(a.type, addr, actual_addrs, size, value, a)
-
-                outputs.append(ref)
-                # TODO: Write it to a dict
-
-            elif a.type != 'tmp':
-                # l.warning('Unsupported action type %s in _io_interface', a.type)
-                pass
-
-        inputs = [ ] #list(reversed(inputs))
-        outputs = list(reversed(outputs))
-
-        return inputs, outputs
-
-    def _post_dominate(self, reversed_graph, n1, n2):
+    @staticmethod
+    def _post_dominate(reversed_graph, n1, n2):
         """
         Checks whether `n1` post-dominates `n2` in the *original* (not reversed) graph.
 
@@ -1033,12 +707,14 @@ class Veritesting(Analysis):
     def _new_actionqueue(self, parent_key=None):
         return ActionQueue(self.actionqueue_ctr.next(), [ ], parent_key=parent_key)
 
-    def _get_last_actionqueue(self, path):
+    @staticmethod
+    def _get_last_actionqueue(path):
         if not path.info['actionqueue_list']:
             return None
         return path.info['actionqueue_list'][-1]
 
-    def _determine_ancestor(self, path_list):
+    @staticmethod
+    def _determine_ancestor(path_list):
         # Scan through their ActionQueueList, and return the last common ancestor key
         min_actionqueue_list_size = min(len(p.info['actionqueue_list']) for p in path_list)
         ancestor_key = None
@@ -1056,6 +732,6 @@ class Veritesting(Analysis):
 
 register_analysis(Veritesting, 'Veritesting')
 
-from simuvex import SimValueError, SimSolverModeError, SimError, SimActionData
+from simuvex import SimValueError, SimSolverModeError, SimError
 from simuvex.s_options import BYPASS_VERITESTING_EXCEPTIONS
 from claripy import ClaripyError
