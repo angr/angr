@@ -262,6 +262,78 @@ class Unicorn(SimStatePlugin):
         # this is a record of the ASTs for which we've added concretization constraints
         self._concretized_asts = set() if concretized_asts is None else concretized_asts
 
+    def copy(self):
+        u = Unicorn(
+            syscall_hooks=dict(self.syscall_hooks),
+            cache_key=self.cache_key,
+            #unicount=self._unicount,
+            symbolic_var_counts = dict(self.symbolic_var_counts),
+            symbolic_inst_counts = dict(self.symbolic_inst_counts),
+            concretized_asts = set(self._concretized_asts),
+            always_concretize = set(self.always_concretize),
+            never_concretize = set(self.never_concretize),
+            concretization_threshold_memory = self.concretization_threshold_memory,
+            concretization_threshold_registers = self.concretization_threshold_registers,
+            concretization_threshold_instruction = self.concretization_threshold_instruction,
+            cooldown_nonunicorn_blocks=self.cooldown_nonunicorn_blocks,
+            cooldown_symbolic_registers=self.cooldown_symbolic_registers,
+            max_steps=self.max_steps,
+        )
+        u.countdown_nonunicorn_blocks = self.countdown_nonunicorn_blocks
+        u.countdown_symbolic_registers = self.countdown_symbolic_registers
+        return u
+
+    def merge(self, others, merge_conditions):
+        self.cooldown_nonunicorn_blocks = max(
+            self.cooldown_nonunicorn_blocks,
+            max(o.cooldown_nonunicorn_blocks for o in others)
+        )
+        self.cooldown_symbolic_registers = max(
+            self.cooldown_symbolic_registers,
+            max(o.cooldown_symbolic_registers for o in others)
+        )
+        self.countdown_nonunicorn_blocks = max(
+            self.countdown_nonunicorn_blocks,
+            max(o.countdown_nonunicorn_blocks for o in others)
+        )
+        self.countdown_symbolic_registers = max(
+            self.countdown_symbolic_registers,
+            max(o.countdown_symbolic_registers for o in others)
+        )
+
+        # get a fresh unicount, just in case
+        self._unicount = next(_unicounter)
+
+        # keep these guys, since merging them sounds like a pain
+        #self.symbolic_var_counts
+        #self.symbolic_inst_counts
+
+        # these are threshold for the number of times that we tolerate being kept out of unicorn
+        # before we start concretizing
+        self.concretization_threshold_memory = min(
+            self.concretization_threshold_memory,
+            min(o.concretization_threshold_memory for o in others)
+        )
+        self.concretization_threshold_registers = min(
+            self.concretization_threshold_registers,
+            min(o.concretization_threshold_registers for o in others)
+        )
+        self.concretization_threshold_instruction = min(
+            self.concretization_threshold_instruction,
+            min(o.concretization_threshold_instruction for o in others)
+        )
+
+        # these are sets of names of variables that should either always or never
+        # be concretized
+        self.always_concretize.union(*[o.always_concretize for o in others])
+        self.never_concretize.union(*[o.never_concretize for o in others])
+
+        # intersect these so that we know to add future constraints properly
+        self._concretized_asts.intersection(*[o._concretized_asts for o in others])
+
+        # I guess always lie to the static analysis?
+        return False
+
     def __getstate__(self):
         d = dict(self.__dict__)
         del d['_uc_state']
@@ -867,27 +939,6 @@ class Unicorn(SimStatePlugin):
                 vex_offset += 8
                 tag_word >>= 2
                 vex_tag_offset -= 1
-
-    def copy(self):
-        u = Unicorn(
-            syscall_hooks=dict(self.syscall_hooks),
-            cache_key=self.cache_key,
-            #unicount=self._unicount,
-            symbolic_var_counts = dict(self.symbolic_var_counts),
-            symbolic_inst_counts = dict(self.symbolic_inst_counts),
-            concretized_asts = set(self._concretized_asts),
-            always_concretize = set(self.always_concretize),
-            never_concretize = set(self.never_concretize),
-            concretization_threshold_memory = self.concretization_threshold_memory,
-            concretization_threshold_registers = self.concretization_threshold_registers,
-            concretization_threshold_instruction = self.concretization_threshold_instruction,
-            cooldown_nonunicorn_blocks=self.cooldown_nonunicorn_blocks,
-            cooldown_symbolic_registers=self.cooldown_symbolic_registers,
-            max_steps=self.max_steps,
-        )
-        u.countdown_nonunicorn_blocks = self.countdown_nonunicorn_blocks
-        u.countdown_symbolic_registers = self.countdown_symbolic_registers
-        return u
 
     def _check_registers(self):
         ''' check if this state might be used in unicorn (has no concrete register)'''
