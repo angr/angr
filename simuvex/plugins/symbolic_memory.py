@@ -527,11 +527,14 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         symbolic_what = self.state.se.symbolic(what)
         l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
 
-        all_memory = self.load(start, max_search, endness="Iend_BE")
+        chunk_start = 0
+        chunk_size = max(0x100, seek_size + 0x80)
+        chunk = self.load(start, chunk_size, endness="Iend_BE")
 
         cases = [ ]
         match_indices = [ ]
         offsets_matched = [ ] # Only used in static mode
+
         for i in itertools.count(step=step):
             l.debug("... checking offset %d", i)
             if i > max_search - seek_size:
@@ -540,8 +543,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if remaining_symbolic is not None and remaining_symbolic == 0:
                 l.debug("... hit max symbolic")
                 break
+            if i - chunk_start > chunk_size - seek_size:
+                l.debug("loading new chunk")
+                chunk_start += chunk_size - seek_size + 1
+                chunk = self.load(start+chunk_start, chunk_size, endness="Iend_BE")
 
-            b = all_memory[max_search*8 - i*8 - 1 : max_search*8 - i*8 - seek_size*8]
+            chunk_off = i-chunk_start
+            b = chunk[chunk_size*8 - chunk_off*8 - 1 : chunk_size*8 - chunk_off*8 - seek_size*8]
             cases.append([b == what, start + i])
             match_indices.append(i)
 
