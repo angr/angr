@@ -1,26 +1,25 @@
+# pylint: disable=no-name-in-module,import-error
 import os
 import subprocess
 from setuptools import setup
 from distutils.errors import LibError
 from distutils.command.build import build as _build
 
-def _build_unicorn():
-    try:
-        import unicorn #pylint:disable=unused-import,unused-variable
-    except ImportError:
-        if subprocess.call(['./install-unicorn.sh']) != 0:
-            raise LibError('Unable to install unicorn')
-
 def _build_sim_unicorn():
+    try:
+        import unicorn
+    except ImportError:
+        raise LibError("You must install unicorn before building simuvex")
+
+    uc_path = os.path.join(os.path.dirname(unicorn.__file__), '../../..')
     env = os.environ.copy()
-    env['UNICORN_PATH'] = '../unicorn'
+    env['UNICORN_PATH'] = uc_path
     if subprocess.call(['make'], cwd='simuvex_c', env=env) != 0:
         raise LibError('Unable to build sim_unicorn')
 
 class build(_build):
     def run(self, *args):
         try:
-            self.execute(_build_unicorn, (), msg='Building libunicorn')
             self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
             data_files.append(('lib', (os.path.join('simuvex_c', 'sim_unicorn.so'),),))
         except LibError:
@@ -31,7 +30,6 @@ from setuptools.command.develop import develop as _develop
 class develop(_develop):
     def run(self, *args):
         try:
-            self.execute(_build_unicorn, (), msg='Building libunicorn')
             self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
             data_files.append(('lib', (os.path.join('simuvex_c', 'sim_unicorn.so'),),))
         except LibError:
@@ -58,6 +56,7 @@ setup(
         'claripy',
         'cooldict',
         'ana',
+        'unicorn'
     ],
     data_files=data_files,
     cmdclass=cmdclass,

@@ -11,7 +11,7 @@ endif
 
 CC := gcc
 CFLAGS := -I ${UNICORN_PATH}/include -I ${UNICORN_PATH}/include/unicorn -I ${QEMU_PATH} -I ${QEMU_PATH}/include `pkg-config --cflags glib-2.0`
-LIBS := -lglib-2.0
+LIBS := -lglib-2.0 -lunicorn
 OBJS := log.o arch/x86.o arch/mips.o
 
 all: ${LIB_SIM_UNICORN}
@@ -25,8 +25,7 @@ arch/x86.o: arch/x86.c
 arch/mips.o: arch/mips.c
 	${CC} -fPIC ${CFLAGS} -I ${QEMU_PATH}/target-mips -I ${QEMU_PATH}/mips-softmmu -o $@ -c $<
 
-${LIB_SIM_UNICORN}: sim_unicorn.cpp ${UNICORN_PATH}/libunicorn.a ${OBJS}
-${LIB_SIM_UNICORN}: sim_unicorn.cpp ${UNICORN_PATH}/libunicorn.a ${OBJS}
+${LIB_SIM_UNICORN}: sim_unicorn.cpp ${OBJS}
 	g++ -g -std=c++11 -shared -fPIC ${CFLAGS} -o $@ $^ ${LIBS}
 
 clean:
