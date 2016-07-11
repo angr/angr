@@ -32,7 +32,9 @@ class strcmp(Func):
 
         return None
 
-    def pre_test(self, func, runner):
+    @staticmethod
+    def _strcmp_pretest(func, runner):
+
         # todo we don't test which order it returns the signs in
         bufa = "asdf\x00"
         bufb = "asdf\x00"
@@ -78,7 +80,11 @@ class strcmp(Func):
             return False
         outval3 = s.se.any_int(s.regs.eax)
 
-        if outval1 == 0 and outval2 != 0 and outval3 != 0:
-            return True
+        return outval1, outval2, outval3
 
-        return False
+    def pre_test(self, func, runner):
+        r = self._strcmp_pretest(func, runner)
+        if not isinstance(r, bool):
+            v1, v2, v3 = r
+            return v1 == 0 and v2 != 0 and v3 != 0
+        return r
