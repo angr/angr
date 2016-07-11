@@ -1,5 +1,4 @@
 import logging
-from itertools import count
 from collections import defaultdict
 
 import networkx
@@ -147,12 +146,6 @@ class CallTracingFilter(object):
         l.debug('Accepting target 0x%x, jumpkind %s', addr, jumpkind)
         return ACCEPT
 
-class ActionQueue(object):
-    def __init__(self, id, actions, parent_key=None): #pylint:disable=redefined-builtin
-        self.id = id
-        self.actions = actions
-        self.parent_key = parent_key
-
 
 class Veritesting(Analysis):
     # A cache for CFG we generated before
@@ -191,8 +184,6 @@ class Veritesting(Analysis):
         self._cfg, self._loop_graph = self._make_cfg()
         self._loop_backedges = self._cfg._loop_back_edges
         self._loop_heads = set([ dst.addr for _, dst in self._loop_backedges ])
-
-        self.actionqueue_ctr = count()
 
         l.info("Static symbolic execution starts at 0x%x", self._input_path.addr)
         l.debug(
@@ -313,7 +304,6 @@ class Veritesting(Analysis):
         # Initialize the beginning path
         initial_path = path
         initial_path.info['loop_ctrs'] = defaultdict(int)
-        initial_path.info['actionqueue_list'] = [ self._new_actionqueue() ]
 
         path_group = PathGroup(self.project,
                                active_paths=[ initial_path ],
@@ -324,7 +314,6 @@ class Veritesting(Analysis):
             path_group.stashes[stash] = [ ]
         # immediate_dominators = cfg.immediate_dominators(cfg.get_any_node(ip_int))
 
-        saved_paths = { }
         while path_group.active:
             # Step one step forward
             l.debug('Steps %s with %d active paths: [ %s ]',
@@ -343,7 +332,7 @@ class Veritesting(Analysis):
             )
 
             path_group.step(
-                successor_func=lambda p: self.generate_successors(p, path_group, saved_paths),
+                successor_func=lambda p: self.generate_successors(p, path_group),
                 check_func=self.is_path_errored
             )
             if self._terminator is not None and self._terminator(path_group):
@@ -483,17 +472,12 @@ class Veritesting(Analysis):
 
     @staticmethod
     def _unfuck(p):
-        del p.info['actionqueue_list']
         del p.info['loop_ctrs']
 
         if 'guards' in p.info:
             del p.info['guards']
         if 'loop_ctrs' in p.info:
             del p.info['loop_ctrs']
-        if 'actions' in p.info:
-            #p.actions = p.actions + p.info['actions']
-            #p.last_actions = p.last_actions + p.info['actions']
-            del p.info['actions']
         else:
             pass
 
@@ -552,32 +536,6 @@ class Veritesting(Analysis):
 
         return list([ (n.addr, n.looping_times) for n in nodes ])
 
-    def _new_actionqueue(self, parent_key=None):
-        return ActionQueue(self.actionqueue_ctr.next(), [ ], parent_key=parent_key)
-
-    @staticmethod
-    def _get_last_actionqueue(path):
-        if not path.info['actionqueue_list']:
-            return None
-        return path.info['actionqueue_list'][-1]
-
-    @staticmethod
-    def _determine_ancestor(path_list):
-        # Scan through their ActionQueueList, and return the last common ancestor key
-        min_actionqueue_list_size = min(len(p.info['actionqueue_list']) for p in path_list)
-        ancestor_key = None
-        for i in xrange(0, min_actionqueue_list_size):
-            all_keys_set = set()
-            for p in path_list:
-                all_keys_set.add(p.info['actionqueue_list'][i].parent_key)
-
-            if len(all_keys_set) > 1:
-                break
-
-            ancestor_key = list(all_keys_set)[0]
-
-        return ancestor_key
-
     def is_path_errored(self, path):
         if path.errored:
             return True
@@ -617,7 +575,7 @@ class Veritesting(Analysis):
 
         return False
 
-    def generate_successors(self, path, path_group, saved_paths):
+    def generate_successors(self, path, path_group):
         ip = path.addr
 
         l.debug("Pushing 0x%x one step forward...", ip)
@@ -649,23 +607,6 @@ class Veritesting(Analysis):
             last_guard = successing_path.guards[-1]
             if not successing_path.state.se.is_true(last_guard, exact=False):
                 successing_path.info['guards'].append(last_guard)
-
-        # Fill the ActionQueue list
-        if len(successors) == 1:
-            # Expand the last ActionQueue
-            if not successors[0].info['actionqueue_list']:
-                successors[0].info['actionqueue_list'].append(self._new_actionqueue())
-            self._get_last_actionqueue(successors[0]).actions.extend(successors[0].last_actions)
-
-        elif len(successors) > 1:
-            # Save this current path, since we might need it in the future
-            path_key = (path.addr, self._get_last_actionqueue(path).id)
-            saved_paths[path_key] = path
-
-            # Generate a new ActionQueue for each successor
-            for successing_path in successors:
-                successing_path.info['actionqueue_list'].append(self._new_actionqueue(parent_key=path_key))
-                self._get_last_actionqueue(successing_path).actions.extend(successing_path.last_actions)
 
         l.debug("... new successors: %s", successors)
         return successors
