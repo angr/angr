@@ -473,14 +473,6 @@ class Veritesting(Analysis):
     @staticmethod
     def _unfuck(p):
         del p.info['loop_ctrs']
-
-        if 'guards' in p.info:
-            del p.info['guards']
-        if 'loop_ctrs' in p.info:
-            del p.info['loop_ctrs']
-        else:
-            pass
-
         return p
 
     @staticmethod
@@ -599,14 +591,6 @@ class Veritesting(Analysis):
             for s in path.next_run.unconstrained_successors:
                 u_path = Path(self.project, s, path=path)
                 path_group.stashes['unconstrained'].append(u_path)
-
-        # Record their guards :-)
-        for successing_path in successors:
-            if 'guards' not in successing_path.info:
-                successing_path.info['guards'] = [ ]
-            last_guard = successing_path.guards[-1]
-            if not successing_path.state.se.is_true(last_guard, exact=False):
-                successing_path.info['guards'].append(last_guard)
 
         l.debug("... new successors: %s", successors)
         return successors
