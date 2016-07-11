@@ -697,7 +697,9 @@ class Tracer(object):
             if stdout_file is not None:
                 stdout_f.close()
 
-        trace = open(lname).read()
+        with open(lname, 'rb') as f:
+            trace = f.read()
+
         addrs = [int(v.split('[')[1].split(']')[0], 16)
                  for v in trace.split('\n')
                  if v.startswith('Trace')]
