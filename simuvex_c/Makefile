@@ -10,7 +10,7 @@ ifeq ($(UNAME), Linux)
 endif
 
 CC := gcc
-CFLAGS := -I ${UNICORN_PATH}/include -I ${UNICORN_PATH}/include/unicorn -I ${QEMU_PATH} -I ${QEMU_PATH}/include `pkg-config --cflags glib-2.0`
+CFLAGS := -I ${UNICORN_PATH}/include -I ${UNICORN_PATH}/include/unicorn -I ${QEMU_PATH} -I ${QEMU_PATH}/include -L ${UNICORN_PATH} `pkg-config --cflags glib-2.0`
 LIBS := -lglib-2.0 -lunicorn
 OBJS := log.o arch/x86.o arch/mips.o
 

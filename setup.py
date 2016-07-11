@@ -9,7 +9,7 @@ def _build_sim_unicorn():
     try:
         import unicorn
     except ImportError:
-        raise LibError("You must install unicorn before building simuvex")
+        raise Exception("You must install unicorn before building simuvex")
 
     uc_path = os.path.join(os.path.dirname(unicorn.__file__), '../../..')
     env = os.environ.copy()
