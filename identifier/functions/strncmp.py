@@ -11,35 +11,35 @@ def rand_str(length, byte_list=None):
     return "".join(random.choice(byte_list) for _ in xrange(length))
 
 
-class strcmp(Func):
+class strncmp(Func):
     non_null = [chr(i) for i in range(1, 256)]
 
     def __init__(self):
-        super(strcmp, self).__init__()
+        super(strncmp, self).__init__()
 
     def get_name(self):
-        return "strcmp"
+        return "strncmp"
 
     def num_args(self):
-        return 2
+        return 3
 
     def args(self):
-        return ["buf1", "buf2"]
+        return ["buf1", "buf2", "len"]
 
     def gen_input_output_pair(self):
         l = 5
-        s = rand_str(l, strcmp.non_null)
+        s = rand_str(l, strncmp.non_null)
 
         return None
 
     @staticmethod
-    def _strcmp_pretest(func, runner):
+    def pre_test(func, runner):
 
         # todo we don't test which order it returns the signs in
         bufa = "asdf\x00"
         bufb = "asdf\x00"
-        test_input = [bufa, bufb]
-        test_output = [bufa, bufb]
+        test_input = [bufa, bufb, 5]
+        test_output = [bufa, bufb, 5]
         max_steps = 10
         return_val = None
         test = TestData(test_input, test_output, return_val, max_steps)
@@ -50,19 +50,19 @@ class strcmp(Func):
         # should return true for strcmp, false for memcpy
         bufa = "asdfa\x00sfdadfsa"
         bufb = "asdfa\x00sadfsadf"
-        test_input = [bufa, bufb]
-        test_output = [bufa, bufb]
+        test_input = [bufa, bufb, 10]
+        test_output = [bufa, bufb, 10]
         test = TestData(test_input, test_output, return_val, max_steps)
         s = runner.get_out_state(func, test)
         if s is None:
             return False
         outval1 = s.se.any_int(s.regs.eax)
 
-        # should fail
+        # should fail 
         bufa = "asdfc\x00as"
         bufb = "asdfb\x0011232"
-        test_input = [bufa, bufb]
-        test_output = [bufa, bufb]
+        test_input = [bufa, bufb, 10]
+        test_output = [bufa, bufb, 10]
         test = TestData(test_input, test_output, return_val, max_steps)
         s = runner.get_out_state(func, test)
         if s is None:
@@ -72,17 +72,17 @@ class strcmp(Func):
         # should prevent us from misidentifying strcasecmp
         bufa = "ASDFC\x00"
         bufb = "asdfc\x00"
-        test_input = [bufa, bufb]
-        test_output = [bufa, bufb]
+        test_input = [bufa, bufb, 5]
+        test_output = [bufa, bufb, 5]
         test = TestData(test_input, test_output, return_val, max_steps)
         s = runner.get_out_state(func, test)
         if s is None:
             return False
         outval3 = s.se.any_int(s.regs.eax)
 
-        # should distinguish between strcmp and strncmp
-        bufa = "abc555"
-        bufb = "abc666"
+        # should distinguish strncmp and strcmp
+        bufa = "abc5555"
+        bufb = "abc6666"
         test_input = [bufa, bufb, 3]
         test_output = [bufa, bufb, 3]
         test = TestData(test_input, test_output, return_val, max_steps)
@@ -91,11 +91,16 @@ class strcmp(Func):
             return False
         outval4 = s.se.any_int(s.regs.eax)
 
-        return outval1, outval2, outval3, outval4
 
-    def pre_test(self, func, runner):
-        r = self._strcmp_pretest(func, runner)
-        if not isinstance(r, bool):
-            v1, v2, v3, v4 = r
-            return v1 == 0 and v2 != 0 and v3 != 0 and v4 != 0
-        return r
+        # should distinguish strncmp and strcmp
+        bufa = "abc5555"
+        bufb = "abc6666"
+        test_input = [bufa, bufb, 6]
+        test_output = [bufa, bufb, 6]
+        test = TestData(test_input, test_output, return_val, max_steps)
+        s = runner.get_out_state(func, test)
+        if s is None:
+            return False
+        outval5 = s.se.any_int(s.regs.eax)
+
+        return outval1 == 0 and outval2 != 0 and outval3 != 0 and outval4 == 0 and outval5 != 0

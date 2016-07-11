@@ -20,6 +20,6 @@ class strcasecmp(strcmp):
     def pre_test(self, func, runner):
         r = self._strcmp_pretest(func, runner)
         if not isinstance(r, bool):
-            v1, v2, v3 = r
-            return v1 == 0 and v2 != 0 and v3 == 0
+            v1, v2, v3, v4 = r
+            return v1 == 0 and v2 != 0 and v3 == 0 and v4 != 0
         return r
