@@ -39,4 +39,15 @@ class memcpy(Func):
         return test
 
     def pre_test(self, func, runner):
-        return True
+
+        result_buf = "A" * 6
+        in_buf = "a\x00bbbc"
+
+        test_input = [result_buf, in_buf, 6]
+        test_output = [in_buf, in_buf, None]
+        max_steps = 20
+        return_val = None
+        test = TestData(test_input, test_output, return_val, max_steps)
+        result = runner.test(func, test)
+
+        return result
