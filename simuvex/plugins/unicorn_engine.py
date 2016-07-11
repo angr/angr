@@ -180,13 +180,23 @@ class Unicorn(SimStatePlugin):
 
     UC_CONFIG = {} # config cache for each arch
 
-    def __init__(self,
-                 syscall_hooks=None,
-                 cache_key=None,
-                 unicount=None,
-                 cooldown_symbolic_registers=10,
-                 cooldown_nonunicorn_blocks=10,
-                 max_steps=1000000):
+    def __init__(
+        self,
+        syscall_hooks=None,
+        cache_key=None,
+        unicount=None,
+        symbolic_var_counts=None,
+        symbolic_inst_counts=None,
+        concretized_asts=None,
+        always_concretize=None,
+        never_concretize=None,
+        concretization_threshold_memory=None,
+        concretization_threshold_registers=None,
+        concretization_threshold_instruction=None,
+        cooldown_symbolic_registers=10,
+        cooldown_nonunicorn_blocks=10,
+        max_steps=1000000,
+    ):
         """
         Initializes the Unicorn plugin for SimuVEX. This plugin handles communication with
         UnicornEngine.
@@ -227,6 +237,30 @@ class Unicorn(SimStatePlugin):
 
         # this is the counter for the unicorn count
         self._unicount = next(_unicounter) if unicount is None else unicount
+
+        #
+        # Selective concretization stuff
+        #
+
+        # this is the number of times specific symbolic variables have kicked us out of unicorn
+        self.symbolic_var_counts = { } if symbolic_var_counts is None else symbolic_var_counts
+
+        # this is the number of times we've been kept out of unicorn at given instructions
+        self.symbolic_inst_counts = { } if symbolic_inst_counts is None else symbolic_inst_counts
+
+        # these are threshold for the number of times that we tolerate being kept out of unicorn
+        # before we start concretizing
+        self.concretization_threshold_memory = concretization_threshold_memory
+        self.concretization_threshold_registers = concretization_threshold_registers
+        self.concretization_threshold_instruction = concretization_threshold_instruction
+
+        # these are sets of names of variables that should either always or never
+        # be concretized
+        self.always_concretize = set() if always_concretize is None else always_concretize
+        self.never_concretize = set() if never_concretize is None else never_concretize
+
+        # this is a record of the ASTs for which we've added concretization constraints
+        self._concretized_asts = set() if concretized_asts is None else concretized_asts
 
     def __getstate__(self):
         d = dict(self.__dict__)
@@ -371,20 +405,67 @@ class Unicorn(SimStatePlugin):
         self.jumpkind = 'Ijk_Sys_syscall'
         _UC_NATIVE.stop(self._uc_state, STOP.STOP_SYSCALL)
 
-    def _symbolic_passthrough(self, d):
-        if d.symbolic and options.UNICORN_AGGRESSIVE_CONCRETIZATION in self.state.options:
-            cd = self.state.se.eval_to_ast(d, 1)[0]
+    def _concretize(self, d):
+        cd = self.state.se.eval_to_ast(d, 1)[0]
+        if hash(d) not in self._concretized_asts:
             constraint = (d == cd).annotate(AggressiveConcretizationAnnotation(self.state.regs.ip))
             self.state.add_constraints(constraint)
-            return cd
+            self._concretized_asts.add(hash(d))
+        return cd
+
+    def _symbolic_passthrough(self, d, from_where):
+        if len(d.variables & self.never_concretize) > 0:
+            return d
+        elif d.variables.issubset(self.always_concretize):
+            return self._concretize(d)
+        elif d.symbolic and options.UNICORN_AGGRESSIVE_CONCRETIZATION in self.state.options:
+            return self._concretize(d)
+        elif d.symbolic and options.UNICORN_THRESHOLD_CONCRETIZATION in self.state.options:
+            if self.concretization_threshold_instruction is not None:
+                addr = self.state.se.any_int(self.state.ip)
+                count = self.symbolic_inst_counts.get(addr, 0)
+                l.debug("... inst count for %s: %d", addr, count)
+                self.symbolic_inst_counts[addr] = count + 1
+                if count > self.concretization_threshold_instruction:
+                    return self._concretize(d)
+
+            keep_symbolic = False
+            threshold = (
+                self.concretization_threshold_memory if from_where == 'mem' else
+                self.concretization_threshold_registers
+            )
+
+            if threshold is None:
+                return d
+
+            for v in d.variables:
+                old_count = self.symbolic_var_counts.get(v, 0)
+                l.debug("... %s: %d", v, old_count)
+                self.symbolic_var_counts[v] = old_count + 1
+                keep_symbolic |= old_count < threshold
+
+            return d if keep_symbolic else self._concretize(d)
         else:
             return d
 
-    def _process_value(self, d):
-        d = self._symbolic_passthrough(d)
+    def _process_value(self, d, from_where):
+        """
+        Pre-process an AST for insertion into unicorn.
+
+        :param d: the AST
+        :param from_where: the ID of the memory region it comes from ('mem' or 'reg')
+        :returns: the value to be inserted into Unicorn, or None
+        """
+        s = d.symbolic
+        if s:
+            l.debug("Processing AST with variables %s through %s", d.variables, from_where)
+        d = self._symbolic_passthrough(d, from_where)
         if d.symbolic or len(d.annotations):
+            l.debug("... denied")
             return None
         else:
+            if s:
+                l.debug("... concretized")
             return d
 
     def _hook_mem_unmapped(self, uc, access, address, size, value, user_data): #pylint:disable=unused-argument
@@ -453,7 +534,7 @@ class Unicorn(SimStatePlugin):
             next_pos = offsets[i+1]
             chunk = the_bytes[pos]
             size = min((chunk.base + len(chunk) / 8) - (start + pos), next_pos - pos)
-            d = self._process_value(chunk.bytes_at(start + pos, size))
+            d = self._process_value(chunk.bytes_at(start + pos, size), 'mem')
             # if not self.state.se.unique(d):
 
             if d is None:
@@ -555,12 +636,12 @@ class Unicorn(SimStatePlugin):
             gs = self.state.se.any_int(self.state.regs.gs)
             self.write_msr(fs, 0xC0000100)
             self.write_msr(gs, 0xC0000101)
-            flags = self._process_value(ccall._get_flags(self.state)[0])
+            flags = self._process_value(ccall._get_flags(self.state)[0], 'reg')
             if flags is None:
                 raise SimValueError('symbolic eflags')
             uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.any_int(flags))
         elif self.state.arch.qemu_name == 'i386':
-            flags = self._process_value(ccall._get_flags(self.state)[0])
+            flags = self._process_value(ccall._get_flags(self.state)[0], 'reg')
             if flags is None:
                 raise SimValueError('symbolic eflags')
             uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.any_int(flags))
@@ -571,7 +652,7 @@ class Unicorn(SimStatePlugin):
         for r, c in self._uc_regs.iteritems():
             if r in self.reg_blacklist:
                 continue
-            v = self._process_value(getattr(self.state.regs, r))
+            v = self._process_value(getattr(self.state.regs, r), 'reg')
             if v is None:
                     raise SimValueError('setting a symbolic register')
             # l.debug('setting $%s = %#x', r, self.state.se.any_int(v))
@@ -598,7 +679,7 @@ class Unicorn(SimStatePlugin):
                 if tag == 0:
                     tag_word |= 3       # unicorn doesn't care about any value other than 3 for setting
                 else:
-                    val = self._process_value(self.state.registers.load(vex_offset, size=8))
+                    val = self._process_value(self.state.registers.load(vex_offset, size=8), 'reg')
                     if val is None:
                         raise SimValueError('setting a symbolic fp register')
                     val = self.state.se.any_int(val)
@@ -792,6 +873,14 @@ class Unicorn(SimStatePlugin):
             syscall_hooks=dict(self.syscall_hooks),
             cache_key=self.cache_key,
             #unicount=self._unicount,
+            symbolic_var_counts = dict(self.symbolic_var_counts),
+            symbolic_inst_counts = dict(self.symbolic_inst_counts),
+            concretized_asts = set(self._concretized_asts),
+            always_concretize = set(self.always_concretize),
+            never_concretize = set(self.never_concretize),
+            concretization_threshold_memory = self.concretization_threshold_memory,
+            concretization_threshold_registers = self.concretization_threshold_registers,
+            concretization_threshold_instruction = self.concretization_threshold_instruction,
             cooldown_nonunicorn_blocks=self.cooldown_nonunicorn_blocks,
             cooldown_symbolic_registers=self.cooldown_symbolic_registers,
             max_steps=self.max_steps,
@@ -803,13 +892,13 @@ class Unicorn(SimStatePlugin):
     def _check_registers(self):
         ''' check if this state might be used in unicorn (has no concrete register)'''
         for r in self.state.arch.uc_regs.iterkeys():
-            v = self._process_value(getattr(self.state.regs, r))
+            v = self._process_value(getattr(self.state.regs, r), 'reg')
             if v is None:
                 #l.info('detected symbolic register %s', r)
                 return False
 
         if self.state.arch.vex_conditional_helpers:
-            flags = self._process_value(ccall._get_flags(self.state)[0])
+            flags = self._process_value(ccall._get_flags(self.state)[0], 'reg')
             if flags is None:
                 #l.info("detected symbolic rflags/eflags")
                 return False
