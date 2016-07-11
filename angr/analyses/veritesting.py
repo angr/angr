@@ -22,7 +22,7 @@ class CallTracingFilter(object):
         SimProcedures['cgc']['receive'],
         SimProcedures['cgc']['transmit'],
         SimProcedures['libc.so.6']['read'],
-        }
+    }
 
     cfg_cache = { }
 
@@ -221,60 +221,12 @@ class Veritesting(Analysis):
             return False, PathGroup(self.project, stashes={'deviated', p})
 
         l.info(
-            'Returning new paths: %s (successful: %s, deadended: %s, errored: %s, deviated: %s)',
-            new_path_group,
-            new_path_group.successful,
-            new_path_group.deadended,
-            new_path_group.errored,
-            new_path_group.deviated
+            'Returning new paths: (successful: %s, deadended: %s, errored: %s, deviated: %s)',
+            len(new_path_group.successful), len(new_path_group.deadended),
+            len(new_path_group.errored), len(new_path_group.deviated)
         )
 
         return True, new_path_group
-
-    def _make_cfg(self):
-        """
-        Builds a CFG from the current function.
-        """
-
-        path = self._input_path
-        state = path.state
-        ip_int = path.addr
-
-        cfg_key = (ip_int, path.jumpkind)
-        if cfg_key in self.cfg_cache:
-            cfg, cfg_graph_with_loops = self.cfg_cache[cfg_key]
-        else:
-            if self._enable_function_inlining:
-                call_tracing_filter = CallTracingFilter(self.project, depth=0)
-                filter = call_tracing_filter.filter #pylint:disable=redefined-builtin
-            else:
-                filter = None
-
-            # To better handle syscalls, we make a copy of all registers if they are not symbolic
-            cfg_initial_state = self.project.factory.blank_state(mode='fastpath')
-
-            # FIXME: This is very hackish
-            # FIXME: And now only Linux-like syscalls are supported
-            if self.project.arch.name == 'X86':
-                if not state.se.symbolic(state.regs.eax):
-                    cfg_initial_state.regs.eax = state.regs.eax
-            elif self.project.arch.name == 'AMD64':
-                if not state.se.symbolic(state.regs.rax):
-                    cfg_initial_state.regs.rax = state.regs.rax
-
-            cfg = self.project.analyses.CFGAccurate(
-                starts=((ip_int, path.jumpkind),),
-                context_sensitivity_level=0,
-                call_depth=0,
-                call_tracing_filter=filter,
-                initial_state=cfg_initial_state
-            )
-            cfg.normalize()
-            cfg_graph_with_loops = networkx.DiGraph(cfg.graph)
-            cfg.unroll_loops(self._loop_unrolling_limit)
-            self.cfg_cache[cfg_key] = (cfg, cfg_graph_with_loops)
-
-        return cfg, cfg_graph_with_loops
 
     def _execute_and_merge(self, path):
         """
@@ -305,10 +257,13 @@ class Veritesting(Analysis):
         initial_path = path
         initial_path.info['loop_ctrs'] = defaultdict(int)
 
-        path_group = PathGroup(self.project,
-                               active_paths=[ initial_path ],
-                               immutable=False,
-                               resilience=o.BYPASS_VERITESTING_EXCEPTIONS in initial_path.state.options)
+        path_group = PathGroup(
+            self.project,
+            active_paths=[ initial_path ],
+            immutable=False,
+            resilience=o.BYPASS_VERITESTING_EXCEPTIONS in initial_path.state.options
+        )
+
         # Initialize all stashes
         for stash in self.all_stashes:
             path_group.stashes[stash] = [ ]
@@ -347,21 +302,24 @@ class Veritesting(Analysis):
             )
 
             # Stash all paths that we do not care about
-            path_group.stash(filter_func=
-                             lambda p: (p.state.scratch.jumpkind not in
-                                            ('Ijk_Boring', 'Ijk_Call', 'Ijk_Ret', 'Ijk_NoHook')
-                                        and not p.state.scratch.jumpkind.startswith('Ijk_Sys')
-                             ),
-                             to_stash="deadended"
-                             )
+            path_group.stash(
+                filter_func= lambda p: (
+                    p.state.scratch.jumpkind not in
+                    ('Ijk_Boring', 'Ijk_Call', 'Ijk_Ret', 'Ijk_NoHook')
+                    and not p.state.scratch.jumpkind.startswith('Ijk_Sys')
+                ),
+                to_stash="deadended"
+            )
+
             if path_group.deadended:
                 l.debug('Now we have some deadended paths: %s', path_group.deadended)
 
             # Stash all possible paths that we should merge later
             for merge_point_addr, merge_point_looping_times in merge_points:
-                path_group.stash_addr(merge_point_addr,
-                                 to_stash="_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
-                                 )
+                path_group.stash_addr(
+                    merge_point_addr,
+                    to_stash="_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
+                )
 
             # Try to merge a set of previously stashed paths, and then unstash them
             if not path_group.active:
@@ -447,86 +405,9 @@ class Veritesting(Analysis):
 
         return path_group
 
-    def is_path_overbound(self, path):
-        """
-        Filter out all paths that run out of boundaries or loop too many times.
-        """
-
-        ip = path.addr
-
-        if ip in self._boundaries:
-            l.debug("... terminating Veritesting due to overbound")
-            return True
-
-        if (
-            ip in self._loop_heads # This is the beginning of the loop
-            or path.jumpkind == 'Ijk_Call' # We also wanna catch recursive function calls
-        ):
-            path.info['loop_ctrs'][ip] += 1
-            if path.info['loop_ctrs'][ip] >= self._loop_unrolling_limit + 1:
-                l.debug('... terminating Veritesting due to overlooping')
-                return True
-
-        l.debug('... accepted')
-        return False
-
-    @staticmethod
-    def _unfuck(p):
-        del p.info['loop_ctrs']
-        return p
-
-    @staticmethod
-    def _unpack_action_obj(action_obj):
-        return action_obj.ast
-
-    @staticmethod
-    def _post_dominate(reversed_graph, n1, n2):
-        """
-        Checks whether `n1` post-dominates `n2` in the *original* (not reversed) graph.
-
-        :param reversed_graph:  The reversed networkx.DiGraph instance.
-        :param n1:              Node 1.
-        :param n2:              Node 2.
-        :returns:               True/False.
-        """
-
-        ds = networkx.dominating_set(reversed_graph, n1)
-        return n2 in ds
-
-    def _get_all_merge_points(self, cfg, graph_with_loops):
-        """
-        Return all possible merge points in this CFG.
-
-        :param cfg: The control flow graph, which must be acyclic.
-        :returns:   A list of merge points.
-        """
-
-        graph = networkx.DiGraph(cfg.graph)
-        reversed_cyclic_graph = networkx.reverse(graph_with_loops, copy=False)
-
-        # Remove all "FakeRet" edges
-        fakeret_edges = [ (src, dst) for src, dst, data in graph.edges_iter(data=True)
-                          if data['jumpkind'] == 'Ijk_FakeRet' ]
-        graph.remove_edges_from(fakeret_edges)
-
-        # Remove all "FakeRet" edges from cyclic_graph as well
-        fakeret_edges = [(src, dst) for src, dst, data in reversed_cyclic_graph.edges_iter(data=True)
-                         if data['jumpkind'] == 'Ijk_FakeRet']
-        reversed_cyclic_graph.remove_edges_from(fakeret_edges)
-
-        # Perform a topological sort
-        sorted_nodes = networkx.topological_sort(graph)
-
-        nodes = [ n for n in sorted_nodes if graph.in_degree(n) > 1 and n.looping_times == 0 ]
-
-        # Reorder nodes based on post-dominance relations
-        nodes = sorted(nodes,
-                       cmp=lambda n1, n2: 1 if self._post_dominate(reversed_cyclic_graph, n1, n2)
-                       else (-1 if self._post_dominate(reversed_cyclic_graph, n2, n1)
-                        else 0)
-                       )
-
-        return list([ (n.addr, n.looping_times) for n in nodes ])
+    #
+    # Path management
+    #
 
     def is_path_errored(self, path):
         if path.errored:
@@ -594,6 +475,135 @@ class Veritesting(Analysis):
 
         l.debug("... new successors: %s", successors)
         return successors
+
+    def is_path_overbound(self, path):
+        """
+        Filter out all paths that run out of boundaries or loop too many times.
+        """
+
+        ip = path.addr
+
+        if ip in self._boundaries:
+            l.debug("... terminating Veritesting due to overbound")
+            return True
+
+        if (
+            ip in self._loop_heads # This is the beginning of the loop
+            or path.jumpkind == 'Ijk_Call' # We also wanna catch recursive function calls
+        ):
+            path.info['loop_ctrs'][ip] += 1
+            if path.info['loop_ctrs'][ip] >= self._loop_unrolling_limit + 1:
+                l.debug('... terminating Veritesting due to overlooping')
+                return True
+
+        l.debug('... accepted')
+        return False
+
+    @staticmethod
+    def _unfuck(p):
+        del p.info['loop_ctrs']
+        return p
+
+    #
+    # Merge point determination
+    #
+
+    def _make_cfg(self):
+        """
+        Builds a CFG from the current function.
+        """
+
+        path = self._input_path
+        state = path.state
+        ip_int = path.addr
+
+        cfg_key = (ip_int, path.jumpkind)
+        if cfg_key in self.cfg_cache:
+            cfg, cfg_graph_with_loops = self.cfg_cache[cfg_key]
+        else:
+            if self._enable_function_inlining:
+                call_tracing_filter = CallTracingFilter(self.project, depth=0)
+                filter = call_tracing_filter.filter #pylint:disable=redefined-builtin
+            else:
+                filter = None
+
+            # To better handle syscalls, we make a copy of all registers if they are not symbolic
+            cfg_initial_state = self.project.factory.blank_state(mode='fastpath')
+
+            # FIXME: This is very hackish
+            # FIXME: And now only Linux-like syscalls are supported
+            if self.project.arch.name == 'X86':
+                if not state.se.symbolic(state.regs.eax):
+                    cfg_initial_state.regs.eax = state.regs.eax
+            elif self.project.arch.name == 'AMD64':
+                if not state.se.symbolic(state.regs.rax):
+                    cfg_initial_state.regs.rax = state.regs.rax
+
+            cfg = self.project.analyses.CFGAccurate(
+                starts=((ip_int, path.jumpkind),),
+                context_sensitivity_level=0,
+                call_depth=0,
+                call_tracing_filter=filter,
+                initial_state=cfg_initial_state
+            )
+            cfg.normalize()
+            cfg_graph_with_loops = networkx.DiGraph(cfg.graph)
+            cfg.unroll_loops(self._loop_unrolling_limit)
+            self.cfg_cache[cfg_key] = (cfg, cfg_graph_with_loops)
+
+        return cfg, cfg_graph_with_loops
+
+    @staticmethod
+    def _post_dominate(reversed_graph, n1, n2):
+        """
+        Checks whether `n1` post-dominates `n2` in the *original* (not reversed) graph.
+
+        :param reversed_graph:  The reversed networkx.DiGraph instance.
+        :param n1:              Node 1.
+        :param n2:              Node 2.
+        :returns:               True/False.
+        """
+
+        ds = networkx.dominating_set(reversed_graph, n1)
+        return n2 in ds
+
+    def _get_all_merge_points(self, cfg, graph_with_loops):
+        """
+        Return all possible merge points in this CFG.
+
+        :param cfg: The control flow graph, which must be acyclic.
+        :returns:   A list of merge points.
+        """
+
+        graph = networkx.DiGraph(cfg.graph)
+        reversed_cyclic_graph = networkx.reverse(graph_with_loops, copy=False)
+
+        # Remove all "FakeRet" edges
+        fakeret_edges = [
+            (src, dst) for src, dst, data in graph.edges_iter(data=True)
+            if data['jumpkind'] == 'Ijk_FakeRet'
+        ]
+        graph.remove_edges_from(fakeret_edges)
+
+        # Remove all "FakeRet" edges from cyclic_graph as well
+        fakeret_edges = [
+            (src, dst) for src, dst, data in reversed_cyclic_graph.edges_iter(data=True)
+            if data['jumpkind'] == 'Ijk_FakeRet'
+        ]
+        reversed_cyclic_graph.remove_edges_from(fakeret_edges)
+
+        # Perform a topological sort
+        sorted_nodes = networkx.topological_sort(graph)
+
+        nodes = [ n for n in sorted_nodes if graph.in_degree(n) > 1 and n.looping_times == 0 ]
+
+        # Reorder nodes based on post-dominance relations
+        nodes = sorted(nodes, cmp=lambda n1, n2: (
+            1 if self._post_dominate(reversed_cyclic_graph, n1, n2)
+            else (-1 if self._post_dominate(reversed_cyclic_graph, n2, n1) else 0)
+        ))
+
+        return [ (n.addr, n.looping_times) for n in nodes ]
 
 register_analysis(Veritesting, 'Veritesting')
 
