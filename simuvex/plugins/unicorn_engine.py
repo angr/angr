@@ -691,15 +691,11 @@ class Unicorn(SimStatePlugin):
                 _VexArchInfo(**archinfo),
             )
 
-            offset_to_largest = defaultdict(int)
-            for offset, size in self.state.arch.registers.values():
-                if offset_to_largest[offset] < size:
-                    offset_to_largest[offset] = size
-
+            highest_reg_offset, reg_size = max(self.state.arch.registers.values())
             symbolic_offsets = set()
-            for offset, size in offset_to_largest.items():
-                if self.state.registers.load(offset, size).symbolic:
-                    symbolic_offsets.add(offset)
+            for i in xrange(highest_reg_offset + reg_size):
+                if self.state.registers.load(i, 1).symbolic:
+                    symbolic_offsets.add(i)
 
             sym_regs_array = (ctypes.c_uint64 * len(symbolic_offsets))(*map(ctypes.c_uint64, symbolic_offsets))
             _UC_NATIVE.symbolic_register_data(self._uc_state, len(symbolic_offsets), sym_regs_array)
