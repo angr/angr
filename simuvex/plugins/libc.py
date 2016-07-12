@@ -125,7 +125,7 @@ class SimStateLibc(SimStatePlugin):
         else:
             return False
 
-    def merge(self, others, merge_conditions):
+    def merge(self, others, merge_conditions, common_ancestor=None):
         return self._combine(others)
 
     def widen(self, others):

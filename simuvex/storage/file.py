@@ -181,7 +181,7 @@ class SimFile(SimStatePlugin):
             buff.append(self.content.load(i, 1))
         return self.state.se.Concat(*buff)
 
-    def merge(self, others, merge_conditions):
+    def merge(self, others, merge_conditions, common_ancestor=None):
         """
         Merges the SimFile object with `others`.
         """
@@ -213,7 +213,9 @@ class SimFile(SimStatePlugin):
         #if len(set(o.mode for o in all_files)) > 1:
         #   raise SimMergeError("merging modes is not yet supported (TODO)")
 
-        return self.content.merge([ o.content for o in others ], merge_conditions)
+        return self.content.merge(
+            [ o.content for o in others ], merge_conditions, common_ancestor=common_ancestor
+        )
 
 class SimDialogue(SimFile):
     """

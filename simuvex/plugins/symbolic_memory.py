@@ -97,13 +97,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return changed_bytes
 
-    def merge(self, others, merge_conditions):
+    def merge(self, others, merge_conditions, common_ancestor=None):
         """
         Merge this SimMemory with the other SimMemory
-
-        :param others: A list of SimMemory objects to be merged with
-        :param merge_conditions:
-        :return: whether merging occurred
         """
 
         changed_bytes = self._changes_to_merge(others)

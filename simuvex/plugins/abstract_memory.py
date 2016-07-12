@@ -140,11 +140,13 @@ class MemoryRegion(object):
                 merging_occurred |= self.alocs[aloc_id].merge(aloc)
         return merging_occurred
 
-    def merge(self, others, merge_conditions):
+    def merge(self, others, merge_conditions, common_ancestor=None):
         merging_occurred = False
         for other_region in others:
             merging_occurred |= self._merge_alocs(other_region)
-            merging_occurred |= self.memory.merge([other_region.memory], merge_conditions)
+            merging_occurred |= self.memory.merge(
+                [other_region.memory], merge_conditions, common_ancestor=common_ancestor
+            )
         return merging_occurred
 
     def widen(self, others):
@@ -571,7 +573,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         am._stack_size = self._stack_size
         return am
 
-    def merge(self, others, merge_conditions):
+    def merge(self, others, merge_conditions, common_ancestor=None):
         """
         Merge this guy with another SimAbstractMemory instance
         """
@@ -580,7 +582,9 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         for o in others:
             for region_id, region in o._regions.items():
                 if region_id in self._regions:
-                    merging_occurred |= self._regions[region_id].merge([region], merge_conditions)
+                    merging_occurred |= self._regions[region_id].merge(
+                        [region], merge_conditions, common_ancestor=common_ancestor
+                    )
                 else:
                     merging_occurred = True
                     self._regions[region_id] = region

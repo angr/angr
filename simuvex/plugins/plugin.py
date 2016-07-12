@@ -21,12 +21,13 @@ class SimStatePlugin(object):
     def copy(self):
         raise Exception("copy() not implement for %s", self.__class__.__name__)
 
-    def merge(self, others, merge_conditions): #pylint:disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None): #pylint:disable=unused-argument
         """
         Should merge the state plugin with the provided others.
 
         :param others: the other state plugin
         :param merge_conditions: a symbolic condition for each of the plugins
+        :param common_ancestor: a common ancestor of this plugin and the others being merged
         :returns: a merged plugin
         :rtype: SimStatePlugin
         """

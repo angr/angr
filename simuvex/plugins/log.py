@@ -54,7 +54,7 @@ class SimStateLog(SimStatePlugin):
         self.events = [ SimEvent(self.state, 'merge', event_lists=all_events) ]
         return False
 
-    def merge(self, others, merge_conditions):
+    def merge(self, others, merge_conditions, common_ancestor=None):
         return self._combine(others)
 
     def widen(self, others):

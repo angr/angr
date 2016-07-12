@@ -360,7 +360,7 @@ class Unicorn(SimStatePlugin):
         u.transmit_addr = self.transmit_addr
         return u
 
-    def merge(self, others, merge_conditions):
+    def merge(self, others, merge_conditions, common_ancestor=None):
         self.cooldown_nonunicorn_blocks = max(
             self.cooldown_nonunicorn_blocks,
             max(o.cooldown_nonunicorn_blocks for o in others)

@@ -381,10 +381,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         :param states: the states to merge
         :param merge_conditions: a tuple of the conditions under which each state holds
+        :param common_ancestor: a state that represents the common history between the states being merged
         :return: (merged state, merge flag, a bool indicating if any merging occured)
         """
 
         merge_conditions = kwargs.pop('merge_conditions', None)
+        common_ancestor = kwargs.pop('common_ancestor', None)
         if len(kwargs) != 0:
             raise ValueError("invalid arguments: %s" % kwargs.keys())
 
@@ -429,7 +431,13 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 for t,tp in zip(others, their_plugins)
             ]
 
-            plugin_state_merged = our_filled_plugin.merge(their_filled_plugins, merge_conditions)
+            plugin_state_merged = our_filled_plugin.merge(
+                their_filled_plugins, merge_conditions, common_ancestor=(
+                    common_ancestor.plugins[p] if
+                    (common_ancestor is not None and p in common_ancestor.plugins) else
+                    None
+                )
+            )
             if plugin_state_merged:
                 l.debug('Merging occured in %s', p)
                 merging_occurred = True
