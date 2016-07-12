@@ -645,19 +645,6 @@ class SimCGC(SimOS):
         self._load_syscalls(SimCGC.SYSCALL_TABLE, "cgc")
 
     def state_blank(self, fs=None, **kwargs):
-
-        # Set CGC-specific options
-        # In this way those options can still be removed by "remove_options" argument
-        all_options = set()
-        if 'options' in kwargs:
-            all_options |= kwargs['options']
-        if 'add_options' in kwargs:
-            all_options |= kwargs['add_options']
-        if o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in all_options:
-            # s.options.add(o.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
-            kwargs['add_options'] = kwargs['add_options'] if 'add_options' in kwargs else set()
-            kwargs['add_options'].add(o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
-
         s = super(SimCGC, self).state_blank(**kwargs)  # pylint:disable=invalid-name
 
         # Special stack base for CGC binaries to work with Shellphish CRS
@@ -682,6 +669,11 @@ class SimCGC(SimOS):
     def state_entry(self, **kwargs):
         if isinstance(self.proj.loader.main_bin, BackedCGC):
             kwargs['permissions_backer'] = (True, self.proj.loader.main_bin.permissions_map)
+
+        if 'add_options' in kwargs:
+            kwargs['add_options'].add(o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
+        else:
+            kwargs['add_options'] = {o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY}
 
         state = super(SimCGC, self).state_entry(**kwargs)
 
