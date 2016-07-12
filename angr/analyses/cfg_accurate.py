@@ -1085,14 +1085,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             if self._is_call_jumpkind(suc_jumpkind):
                 extra_info['is_call_jump'] = True
 
-        if successors:
-            # Special case: Add a fakeret successor for Ijk_Sys_*
-            if successors[0].scratch.jumpkind.startswith('Ijk_Sys'):
-                # This is a syscall!
-                copied = successors[0].copy()
-                copied.scratch.jumpkind = 'Ijk_FakeRet'
-                successors.append(copied)
-
         return successors, extra_info
 
     def _post_handle_entry_debug(self, entry, successors):
