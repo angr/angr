@@ -514,7 +514,7 @@ public:
 				if (!this->check_expr(e->Iex.ITE.iftrue)) return false;
 				break;
 			case Iex_CCall:
-				for (i = 0; i < 20; i++)
+				for (i = 0; e->Iex.CCall.args[i] != NULL; i++)
 				{
 					if (!this->check_expr(e->Iex.CCall.args[i])) return false;
 				}
@@ -539,6 +539,7 @@ public:
 			if (this->symbolic_registers.find(offset + i) != this->symbolic_registers.end())
 				return false;
 		}
+    return true;
 	}
 
 	// check if we can safely handle this IRStmt
@@ -592,7 +593,7 @@ public:
       case Ist_Dirty: {
 				if (!this->check_expr(s->Ist.Dirty.details->guard)) return false;
 				if (!this->check_expr(s->Ist.Dirty.details->mAddr)) return false;
-				for (int i = 0; i < 20; i++)
+				for (int i = 0; s->Ist.Dirty.details->args[i] != NULL; i++)
 				{
 					if (!this->check_expr(s->Ist.Dirty.details->args[i])) return false;
 				}
@@ -792,6 +793,7 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 
 	if (!state->check_block(address, size)) {
     state->stop(STOP_SYMBOLIC_REG);
+    LOG_W("finishing early");
     return;
   }
 
