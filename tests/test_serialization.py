@@ -34,6 +34,22 @@ def internaltest_cfg(p):
 
     return cfg
 
+def internaltest_cfgfast(p):
+    state = tempfile.TemporaryFile()
+
+    cfg = p.analyses.CFGFast()
+
+    # generate capstone blocks
+    main_function = cfg.functions.function(name='main')
+    for b in main_function.blocks:
+        c = b.capstone  # pylint:disable=unused-variable
+
+    pickle.dump(cfg, state, -1)
+
+    state.seek(0)
+    cfg2 = pickle.load(state)
+    nose.tools.assert_equals(set(cfg.nodes()), set(cfg2.nodes()))
+
 def internaltest_project(p):
     state = tempfile.TemporaryFile()
     pickle.dump(p, state, -1)
@@ -55,6 +71,8 @@ def test_serialization():
                 internaltest_project(p)
 
     p = angr.Project(os.path.join(internaltest_location, 'i386/fauxware'), load_options={'auto_load_libs': False})
+    internaltest_cfgfast(p)
+
     cfg = internaltest_cfg(p)
     internaltest_vfg(p, cfg)
 

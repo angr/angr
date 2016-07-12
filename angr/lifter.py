@@ -409,7 +409,7 @@ class Block(object):
 
     def __getstate__(self):
         self._bytes = self.bytes
-        return dict((k, getattr(self, k)) for k in self.__slots__)
+        return dict((k, getattr(self, k)) for k in self.__slots__ if k not in ('_capstone', ))
 
     def __setstate__(self, data):
         for k, v in data.iteritems():
