@@ -24,7 +24,7 @@ class CacheManager(object):
 
         ds = None
         try:
-            ds = pickle.dumps((self.tracer.bb_cnt - 1, self.tracer.cgc_flag_data, state))
+            ds = pickle.dumps((self.tracer.bb_cnt - 1, self.tracer.cgc_flag_bytes, state), pickle.HIGHEST_PROTOCOL)
         except RuntimeError as e: # maximum recursion depth can be reached here
             l.error("unable to cache state, '%s' during pickling", e.message)
 
