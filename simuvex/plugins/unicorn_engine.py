@@ -6,7 +6,6 @@ import ctypes
 import logging
 import threading
 import itertools
-from collections import defaultdict
 l = logging.getLogger('simuvex.plugins.unicorn')
 
 try:
