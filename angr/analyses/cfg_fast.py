@@ -1573,7 +1573,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             sort = self._seg_list.occupied_by_sort(ptr)
                             if sort == 'code':
                                 continue
-                            # TODO: check other sorts
+                            elif sort == 'pointer-array':
+                                continue
+                            # TODO: other types
                         if ptr not in self._memory_data:
                             self._memory_data[ptr] = MemoryData(ptr, 0, 'unknown', None, None, None,
                                                                 pointer_addr=data_addr + j
@@ -1582,6 +1584,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             else:
                 memory_data.size = memory_data.max_size
+
+            self._seg_list.occupy(data_addr, memory_data.size, memory_data.sort)
 
         return new_data_found
 
