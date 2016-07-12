@@ -74,6 +74,10 @@ class Tracer(object):
         self.preconstrain_flag = preconstrain_flag
         self.simprocedures = {} if simprocedures is None else simprocedures
         self._hooks = {} if hooks is None else hooks
+
+        for h in self._hooks:
+            l.debug("Hooking %#x -> %s", h, self._hooks[h].__name__)
+
         if isinstance(seed, (int, long)):
             seed = str(seed)
         self.seed = seed
@@ -796,6 +800,14 @@ class Tracer(object):
                     symbol,
                     self.simprocedures[symbol])
 
+    @staticmethod
+    def _set_simproc_limits(state):
+        state.libc.max_str_len = 1000000
+        state.libc.max_strtol_len = 10
+        state.libc.max_memcpy_size = 0x100000
+        state.libc.max_symbolic_bytes = 100
+        state.libc.max_buffer_size = 0x100000
+
     def _set_hooks(self, project):
         for addr, proc in self._hooks.items():
             project.hook(addr, proc)
@@ -871,6 +883,7 @@ class Tracer(object):
             options.add(so.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
             options.add(so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
             options.add(so.REPLACEMENT_SOLVER)
+            options.add(so.UNICORN_THRESHOLD_CONCRETIZATION)
 
             # try to enable unicorn, continue if it doesn't exist
             try:
@@ -886,6 +899,8 @@ class Tracer(object):
                 fs=fs,
                 add_options=self.add_options,
                 remove_options=self.remove_options)
+
+            entry_state.unicorn.concretization_threshold_intrusion = 10000
         else:
             # hookup the new files
             for name in fs:
@@ -907,6 +922,9 @@ class Tracer(object):
 
         if not self.pov:
             entry_state.cgc.input_size = len(self.input)
+
+        if len(self._hooks):
+            self._set_simproc_limits(entry_state)
 
         # preconstrain flag page
         self._preconstrain_flag_page(entry_state, self.cgc_flag_data)
