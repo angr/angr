@@ -2182,12 +2182,22 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         block = self.project.factory.block(a.addr, max_size=0x10 - (a.addr % 0x10))
                     except AngrTranslationError:
                         continue
-                    if len(block.capstone.insns) == 1 and block.capstone.insns[0].insn_name() == "nop":
+                    insns = block.capstone.insns
+                    if insns[0].insn_name() == 'nop':
+                        # see where those nop instructions terminate
+                        nop_length = 0
+                        for insn in insns:
+                            if insn.insn_name() == 'nop':
+                                nop_length += insn.size
+                            else:
+                                break
+                        if nop_length <= 0:
+                            continue
                         # leading nop for alignment.
-                        next_node_addr = a.addr + block.size
+                        next_node_addr = a.addr + nop_length
                         if not (next_node_addr in self._nodes or next_node_addr in nodes_to_append):
                             # create a new CFGNode that starts there
-                            next_node = CFGNode(next_node_addr, a.size - block.size, self,
+                            next_node = CFGNode(next_node_addr, a.size - nop_length, self,
                                                 function_address=next_node_addr
                                                 )
                             # create edges accordingly
