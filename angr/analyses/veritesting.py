@@ -101,7 +101,7 @@ class CallTracingFilter(object):
             cfg = self.project.analyses.CFGAccurate(starts=((addr, jumpkind),),
                                                initial_state=call_target_state,
                                                context_sensitivity_level=0,
-                                               call_depth=0,
+                                               call_depth=1,
                                                call_tracing_filter=tracing_filter.filter
                                                )
             self.cfg_cache[cfg_key] = (cfg, tracing_filter)
@@ -542,7 +542,7 @@ class Veritesting(Analysis):
             cfg = self.project.analyses.CFGAccurate(
                 starts=((ip_int, path.jumpkind),),
                 context_sensitivity_level=0,
-                call_depth=0,
+                call_depth=1,
                 call_tracing_filter=filter,
                 initial_state=cfg_initial_state
             )
