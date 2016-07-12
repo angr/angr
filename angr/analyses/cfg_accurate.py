@@ -2158,7 +2158,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                 if old_proc.IS_SYSCALL:
                     new_stub = simuvex.procedures.SimProcedures["syscalls"]["stub"]
-                    ret_to = current_entry.addr
+                    ret_to = current_entry.state.regs.ip_at_syscall
                 else:
                     new_stub = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"]
                     ret_to = None
