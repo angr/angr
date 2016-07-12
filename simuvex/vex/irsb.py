@@ -162,7 +162,8 @@ class SimIRSB(SimRun):
                 exit_state.scratch.jumpkind = "Ijk_Ret"
                 exit_state.regs.ip = exit_state.scratch.target
 
-            elif o.DO_RET_EMULATION in exit_state.options and exit_state.scratch.jumpkind == "Ijk_Call":
+            elif o.DO_RET_EMULATION in exit_state.options and \
+                    (exit_state.scratch.jumpkind == "Ijk_Call" or exit_state.scratch.jumpkind.startswith('Ijk_Sys')):
                 l.debug("%s adding postcall exit.", self)
 
                 ret_state = exit_state.copy()
