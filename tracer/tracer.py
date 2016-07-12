@@ -510,7 +510,7 @@ class Tracer(object):
         # the caller is responsible for removing preconstraints
         return all_paths[0], None
 
-    def remove_preconstraints(self, path, to_composite_solver=True):
+    def remove_preconstraints(self, path, to_composite_solver=True, simplify=True):
 
         if not (self.preconstrain_input or self.preconstrain_flag):
             return
@@ -530,9 +530,11 @@ class Tracer(object):
         path.state.add_constraints(*new_constraints)
         l.debug("downsizing unpreconstrained state")
         path.state.downsize()
-        l.debug("simplifying solver")
-        path.state.se.simplify()
-        l.debug("simplification done")
+        if simplify:
+            l.debug("simplifying solver")
+            path.state.se.simplify()
+            l.debug("simplification done")
+
         path.state.se._solver.result = None
 
     def reconstrain(self, path):
