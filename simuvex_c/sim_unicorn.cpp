@@ -201,6 +201,9 @@ public:
 			case STOP_SYMBOLIC_MEM:
 				msg = "read symbolic data";
 				break;
+      case STOP_SYMBOLIC_REG:
+        msg = "going to try to read symbolic reg";
+        break;
 			case STOP_ERROR:
 				msg = "something wrong";
 				break;
@@ -278,13 +281,14 @@ public:
 	void commit() {
 		// we might miss some dirty bits, this happens if hitting the memory
 		// write before mapping
-		for (auto it = mem_writes.begin(); it != mem_writes.end(); it++)
+		for (auto it = mem_writes.begin(); it != mem_writes.end(); it++) {
 			if (it->clean == -1) {
 				taint_t *bitmap = page_lookup(it->address);
 				memset(&bitmap[it->address & 0xFFFUL], TAINT_DIRTY, sizeof(taint_t) * it->size);
 				it->clean = (1 << it->size) - 1;
 				LOG_D("commit: lazy initialize mem_write [%#lx, %#lx]", it->address, it->address + it->size);
 			}
+    }
 		mem_writes.clear();
 		cur_steps++;
 	}
