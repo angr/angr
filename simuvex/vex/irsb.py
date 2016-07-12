@@ -155,7 +155,10 @@ class SimIRSB(SimRun):
             self.successors.append(exit_state)
 
         for exit_state in all_successors:
-            if o.CALLLESS in self.state.options and exit_state.scratch.jumpkind == "Ijk_Call":
+            exit_jumpkind = exit_state.scratch.jumpkind
+            if exit_jumpkind is None: exit_jumpkind = ""
+
+            if o.CALLLESS in self.state.options and exit_jumpkind == "Ijk_Call":
                 exit_state.registers.store(exit_state.arch.ret_offset,
                                            exit_state.se.Unconstrained('fake_ret_value', exit_state.arch.bits))
                 exit_state.scratch.target = exit_state.se.BVV(self.addr + self.irsb.size, exit_state.arch.bits)
@@ -163,7 +166,7 @@ class SimIRSB(SimRun):
                 exit_state.regs.ip = exit_state.scratch.target
 
             elif o.DO_RET_EMULATION in exit_state.options and \
-                    (exit_state.scratch.jumpkind == "Ijk_Call" or exit_state.scratch.jumpkind.startswith('Ijk_Sys')):
+                    (exit_jumpkind == "Ijk_Call" or exit_jumpkind.startswith('Ijk_Sys')):
                 l.debug("%s adding postcall exit.", self)
 
                 ret_state = exit_state.copy()
