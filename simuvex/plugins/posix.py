@@ -367,7 +367,7 @@ class SimStateSystem(SimStatePlugin):
 
         return merging_occurred
 
-    def dumps(self, fd):
+    def dumps(self, fd, **kwargs):
         """
         Returns the concrete content for a file descriptor.
 
@@ -375,7 +375,7 @@ class SimStateSystem(SimStatePlugin):
         :return:    The concrete content.
         :rtype:     str
         """
-        return self.state.se.any_str(self.get_file(fd).all_bytes())
+        return self.state.se.any_str(self.get_file(fd).all_bytes(), **kwargs)
 
     def dump(self, fd, filename):
         """
