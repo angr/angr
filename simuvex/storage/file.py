@@ -194,18 +194,21 @@ class SimFile(SimStatePlugin):
             l.warning("Cheap HACK to support multiple file positions in a merge.")
             # self.pos = max(o.pos for o in all_files)
             # max cannot be used as file positions might be symbolic.
-            max_pos = None
-            for o in all_files:
-                if max_pos is not None:
-                    comp = self.state.se.simplify(max_pos >= o.pos)
-                    if self.state.se.symbolic(comp):
-                        import ipdb; ipdb.set_trace()
-                        raise SimMergeError("merging file positions with symbolic max position is not ye supported (TODO)")
+            #max_pos = None
+            #for o in all_files:
+            #   if max_pos is not None:
+            #       comp = self.state.se.simplify(max_pos >= o.pos)
+            #       #if self.state.se.symbolic(comp):
+            #       #   #import ipdb; ipdb.set_trace()
+            #       #   raise SimMergeError("merging file positions with symbolic max position is not ye supported (TODO)")
 
-                    max_pos = o.pos if self.state.se.is_false(comp) else max_pos
-                else:
-                    max_pos = o.pos
-            self.pos = max_pos
+            #       max_pos = o.pos if self.state.se.is_false(comp) else max_pos
+            #   else:
+            #       max_pos = o.pos
+            self.pos = max(
+                self.state.se.max(self.pos),
+                max(o.state.se.max(o.pos) for o in others)
+            )
 
         #if len(set(o.name for o in all_files)) > 1:
         #   raise SimMergeError("merging file names is not yet supported (TODO)")
