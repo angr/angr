@@ -653,10 +653,6 @@ class SimCGC(SimOS):
             all_options |= kwargs['options']
         if 'add_options' in kwargs:
             all_options |= kwargs['add_options']
-        if o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in all_options:
-            # s.options.add(o.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
-            kwargs['add_options'] = kwargs['add_options'] if 'add_options' in kwargs else set()
-            kwargs['add_options'].add(o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
 
         s = super(SimCGC, self).state_blank(**kwargs)  # pylint:disable=invalid-name
 
@@ -682,6 +678,11 @@ class SimCGC(SimOS):
     def state_entry(self, **kwargs):
         if isinstance(self.proj.loader.main_bin, BackedCGC):
             kwargs['permissions_backer'] = (True, self.proj.loader.main_bin.permissions_map)
+
+        if 'add_options' in kwargs:
+            kwargs['add_options'].add(o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
+        else:
+            kwargs['add_options'] = {o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY}
 
         state = super(SimCGC, self).state_entry(**kwargs)
 
