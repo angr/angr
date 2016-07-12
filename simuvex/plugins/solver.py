@@ -194,7 +194,7 @@ class SimSolver(SimStatePlugin):
         if o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverVSA()
         elif o.REPLACEMENT_SOLVER in self.state.options:
-            self._stored_solver = claripy.SolverReplacement()
+            self._stored_solver = claripy.SolverReplacement(auto_replace=False)
         elif o.CACHELESS_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverCacheless()
         elif o.COMPOSITE_SOLVER in self.state.options:
