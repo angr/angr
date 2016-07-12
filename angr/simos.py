@@ -645,15 +645,6 @@ class SimCGC(SimOS):
         self._load_syscalls(SimCGC.SYSCALL_TABLE, "cgc")
 
     def state_blank(self, fs=None, **kwargs):
-
-        # Set CGC-specific options
-        # In this way those options can still be removed by "remove_options" argument
-        all_options = set()
-        if 'options' in kwargs:
-            all_options |= kwargs['options']
-        if 'add_options' in kwargs:
-            all_options |= kwargs['add_options']
-
         s = super(SimCGC, self).state_blank(**kwargs)  # pylint:disable=invalid-name
 
         # Special stack base for CGC binaries to work with Shellphish CRS
