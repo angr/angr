@@ -2177,7 +2177,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         nodes_to_append = {}
         # pylint:disable=too-many-nested-blocks
         for a in sorted_nodes:
-            if a.addr % 0x10 != 0 and a.addr in self.functions and (a.size > 0x10 - (a.addr % 0x10)):
+            if a.addr in self.functions:
                 all_in_edges = self.graph.in_edges(a, data=True)
                 if not any([data['jumpkind'] == 'Ijk_Call' for _, _, data in all_in_edges]):
                     # no one is calling it
