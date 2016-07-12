@@ -1458,6 +1458,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Make sure data_addr is within a valid memory range
         if not self._addr_belongs_to_segment(data_addr):
+
+            # data might be at the end of some section or segment...
+            # let's take a look
+            for segment in self.project.loader.main_bin.segments:
+                if self.project.loader.main_bin.rebase_addr + segment.vaddr + segment.memsize == data_addr:
+                    # yeah!
+                    data = MemoryData(data_addr, 0, 'segment-boundary', irsb, irsb_addr, stmt)
+                    self._memory_data[data_addr] = data
+                    break
+
             return
 
         data = MemoryData(data_addr, 0, 'unknown', irsb, irsb_addr, stmt)
@@ -1523,6 +1533,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             i += 1
 
             memory_data = self._memory_data[data_addr]
+
+            if memory_data.sort in ('segment-boundary', ):
+                continue
 
             # let's see what sort of data it is
             data_type, data_size = self._guess_data_type(memory_data.irsb, memory_data.irsb_addr, memory_data.stmt_idx,
