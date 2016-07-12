@@ -143,7 +143,7 @@ class Tracer(object):
         self.crash_addr = None
 
         # CGC flag data
-        self.cgc_flag_data = claripy.BVS('cgc-flag-data', 0x1000 * 8)
+        self.cgc_flag_bytes = [claripy.BVS("cgc-flag-byte-%d" % i, 8) for i in xrange(0x1000)]
 
         # content of the magic flag page as reported by QEMU
         # we need this to keep symbolic traces following the same path
@@ -237,11 +237,16 @@ class Tracer(object):
                 # handle hooked functions
                 # we use current._project since it seems to be different than self._p
                 elif current._project.is_hooked(self.previous_addr) and self.previous_addr in self._hooks:
+                    l.debug("ending hook for %s", current._project.hooked_by(self.previous_addr))
+                    l.debug("previous addr %#x", self.previous_addr)
+                    l.debug("bb_cnt %d", self.bb_cnt)
                     # we need step to the return
-                    while current.addr != self.trace[self.bb_cnt] and self.bb_cnt < len(self.trace):
+                    current_addr = current.addr
+                    while current_addr != self.trace[self.bb_cnt] and self.bb_cnt < len(self.trace):
                         self.bb_cnt += 1
                     # step 1 more for the normal step that would happen
                     self.bb_cnt += 1
+                    l.debug("bb_cnt after the correction %d", self.bb_cnt)
                     if self.bb_cnt >= len(self.trace):
                         return self.path_group
 
@@ -527,6 +532,9 @@ class Tracer(object):
 
         new_constraints = filter(lambda x: x.cache_key not in precon_cache_keys, path.state.se.constraints)
 
+        if path.state.has_plugin("zen_plugin"):
+            new_constraints = path.state.get_plugin("zen_plugin").filter_constraints(new_constraints)
+
         if to_composite_solver:
             path.state.options.discard(so.REPLACEMENT_SOLVER)
             path.state.options.add(so.COMPOSITE_SOLVER)
@@ -717,7 +725,8 @@ class Tracer(object):
                     16)
 
         if self.os == "cgc":
-            self._magic_content = open(mname).read()
+            with open(mname) as f:
+                self._magic_content = f.read()
 
             a_mesg = "magic content read from QEMU improper size, should be a page in length"
             assert len(self._magic_content) == 0x1000, a_mesg
@@ -747,14 +756,13 @@ class Tracer(object):
             stdin_dialogue = entry_state.posix.get_file(0)
             for write in self.pov_file.writes:
                 for b in write:
-                    v = stdin_dialogue.read_from(1)
-                    c = v == entry_state.se.BVV(b)
-                    self.variable_map[list(v.variables)[0]] = c
                     b_bvv = entry_state.se.BVV(b)
-                    if so.REPLACEMENT_SOLVER in entry_state.options:
-                        entry_state.se._solver.add_replacement(v, b_bvv)
+                    v = stdin_dialogue.read_from(1)
+                    c = v == b_bvv
+                    self.variable_map[list(v.variables)[0]] = c
                     self.preconstraints.append(c)
-                    entry_state.add_constraints(c)
+                    if so.REPLACEMENT_SOLVER in entry_state.options:
+                        entry_state.se._solver.add_replacement(v, b_bvv, invalidate_cache=False)
 
             stdin_dialogue.seek(0)
 
@@ -763,31 +771,35 @@ class Tracer(object):
 
             for b in self.input:
                 v = stdin.read_from(1)
-                c = v == entry_state.se.BVV(b)
+                b_bvv = entry_state.se.BVV(b)
+                c = v == b_bvv
                 # add the constraint for reconstraining later
                 self.variable_map[list(v.variables)[0]] = c
-                b_bvv = entry_state.se.BVV(b)
-                if so.REPLACEMENT_SOLVER in entry_state.options:
-                    entry_state.se._solver.add_replacement(v, b_bvv)
                 self.preconstraints.append(c)
-                entry_state.add_constraints(c)
+                if so.REPLACEMENT_SOLVER in entry_state.options:
+                    entry_state.se._solver.add_replacement(v, b_bvv, invalidate_cache=False)
 
             stdin.seek(0)
 
         if repair_entry_state_opts:
             entry_state.options |= {so.TRACK_ACTION_HISTORY}
 
-    def _preconstrain_flag_page(self, entry_state, flag_page_var):
+    def _preconstrain_flag_page(self, entry_state, flag_bytes):
         '''
         preconstrain the data in the flag page
         '''
         if not self.preconstrain_flag:
             return
 
-        c = entry_state.se.BVV(self._magic_content) == flag_page_var
-        entry_state.add_constraints(c)
-        self.variable_map[list(flag_page_var.variables)[0]] = c
-        self.preconstraints.append(c)
+        self._magic_content = self._magic_content
+        for b in range(0x1000):
+            v = flag_bytes[b]
+            b_bvv = entry_state.se.BVV(self._magic_content[b])
+            c = v == b_bvv
+            self.variable_map[list(flag_bytes[b].variables)[0]] = c
+            self.preconstraints.append(c)
+            if so.REPLACEMENT_SOLVER in entry_state.options:
+                entry_state.se._solver.add_replacement(v, b_bvv, invalidate_cache=False)
 
     def _set_cgc_simprocedures(self):
         for symbol in self.simprocedures:
@@ -823,7 +835,7 @@ class Tracer(object):
             pg = None
             # if we're restoring from a cache, we preconstrain
             if cache_tuple is not None:
-                bb_cnt, self.cgc_flag_data, state = cache_tuple
+                bb_cnt, self.cgc_flag_bytes, state = cache_tuple
                 pg = self._cgc_prepare_paths(state)
                 self._preconstrain_state(state)
                 self.bb_cnt = bb_cnt
@@ -889,7 +901,7 @@ class Tracer(object):
             try:
                 options.add(so.UNICORN)
                 self.unicorn_enabled = True
-                l.info("unicorn tracing enabled")
+                l.debug("unicorn tracing enabled")
             except AttributeError:
                 pass
 
@@ -900,7 +912,9 @@ class Tracer(object):
                 add_options=self.add_options,
                 remove_options=self.remove_options)
 
-            entry_state.unicorn.concretization_threshold_intrusion = 10000
+            csr = entry_state.unicorn.cooldown_symbolic_registers
+            entry_state.unicorn.concretization_threshold_registers = 25000 / csr
+            entry_state.unicorn.concretization_threshold_memory = 25000 / csr
         else:
             # hookup the new files
             for name in fs:
@@ -927,8 +941,8 @@ class Tracer(object):
             self._set_simproc_limits(entry_state)
 
         # preconstrain flag page
-        self._preconstrain_flag_page(entry_state, self.cgc_flag_data)
-        entry_state.memory.store(0x4347c000, self.cgc_flag_data)
+        self._preconstrain_flag_page(entry_state, self.cgc_flag_bytes)
+        entry_state.memory.store(0x4347c000, claripy.Concat(*self.cgc_flag_bytes))
 
         pg = project.factory.path_group(
             entry_state,
