@@ -23,7 +23,7 @@ class Runner(object):
     """
 
     def __init__(self, binary, input=None, pov_file=None, record_trace=False, record_stdout=False, record_magic=False,
-                 seed=None, memory_limit=None):
+                 seed=None, memory_limit=None, bitflip=False):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -42,6 +42,7 @@ class Runner(object):
         self.memory = None
         self.seed = seed
         self.memory_limit = self._memory_limit_to_int(memory_limit) if memory_limit is not None else None
+        self.bitflip = bitflip
 
         if self.pov_file is None and self.input is None:
             raise ValueError("must specify input or pov_file")
@@ -233,6 +234,8 @@ class Runner(object):
             args += ["-enable_double_empty_exiting"]
 
         args += [self.binary]
+        if self.bitflip:
+            args = [args[0]] + "-bitflip" + args[1:]
 
         with open('/dev/null', 'wb') as devnull:
             stdout_f = devnull
