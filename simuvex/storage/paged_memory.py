@@ -378,8 +378,8 @@ class SimPagedMemory(object):
         sofar = set()
         sofar.update(self._memory_backer.keys())
 
-        for p in self._pages.values():
-            sofar.update(p.keys())
+        for i, p in self._pages.items():
+            sofar.update([k + i * self._page_size for k in p.keys()])
 
         return sofar
 
