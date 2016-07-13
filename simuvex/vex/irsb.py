@@ -210,11 +210,16 @@ class SimIRSB(SimRun):
 
             # we'll pass in the imark to the statements
             if type(stmt) == pyvex.IRStmt.IMark:
-                self.state._inspect('instruction', BP_AFTER)
-
-                l.debug("IMark: 0x%x", stmt.addr)
                 self.last_imark = IMark(stmt)
                 self.state.scratch.ins_addr = stmt.addr + stmt.delta
+
+                for subaddr in xrange(stmt.addr, stmt.addr + stmt.len):
+                    if subaddr in self.state.scratch.dirty_addrs:
+                        raise SimReliftException(self.state)
+                self.state._inspect('instruction', BP_AFTER)
+
+                l.debug("IMark: %#x", stmt.addr)
+                self.state.scratch.num_insns += 1
                 if o.INSTRUCTION_SCOPE_CONSTRAINTS in self.state.options:
                     if 'solver_engine' in self.state.plugins:
                         self.state.release_plugin('solver_engine')
@@ -281,5 +286,5 @@ from .expressions import translate_expr
 from . import size_bits
 from .. import s_options as o
 from ..plugins.inspect import BP_AFTER, BP_BEFORE
-from ..s_errors import SimError, SimIRSBError, SimSolverError, SimMemoryAddressError
+from ..s_errors import SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException
 from ..s_action import SimActionExit, SimActionObject

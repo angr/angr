@@ -739,7 +739,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         for a,sv in zip(req.actual_addresses, req.stored_values):
             # here, we ensure the uuids are generated for every expression written to memory
             sv.make_uuid()
-            mo = SimMemoryObject(sv, a, length=len(sv)/8)
+            size = len(sv)/8
+            self.state.scratch.dirty_addrs.update(range(a, a+size))
+            mo = SimMemoryObject(sv, a, length=size)
             self.mem.store_memory_object(mo)
 
         l.debug("... done")
