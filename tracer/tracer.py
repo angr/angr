@@ -153,7 +153,7 @@ class Tracer(object):
         # will set crash_mode correctly
         self.trace = self.dynamic_trace()
 
-        l.debug("trace consists of %d basic blocks", len(self.trace))
+        l.info("trace consists of %d basic blocks", len(self.trace))
 
         self.preconstraints = []
 
