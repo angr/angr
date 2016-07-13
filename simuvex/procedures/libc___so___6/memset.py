@@ -60,7 +60,7 @@ class memset(simuvex.SimProcedure):
             if char._model_concrete.value == 0:
                 write_bytes = self.state.se.BVV(0, max_size * 8)
             else:
-                rb = memset._repeat_bytes(char._model_concrete.value, max_size * 8)
+                rb = memset._repeat_bytes(char._model_concrete.value, max_size)
                 write_bytes = self.state.se.BVV(rb, max_size * 8)
             self.state.memory.store(dst_addr, write_bytes)
 
