@@ -696,7 +696,7 @@ class Unicorn(SimStatePlugin):
             # does not refer to constructing the set of symbolic register
             # offsets, but rather to not having to lift each block etc.)
             symbolic_regs = False
-            for r, c in self._uc_regs.iteritems():
+            for r in self._uc_regs:
                 if r in self.reg_blacklist:
                     continue
                 v = self._process_value(getattr(self.state.regs, r), 'reg')
