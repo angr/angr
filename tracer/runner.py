@@ -235,7 +235,7 @@ class Runner(object):
 
         args += [self.binary]
         if self.bitflip:
-            args = [args[0]] + "-bitflip" + args[1:]
+            args = [args[0]] + ["-bitflip"] + args[1:]
 
         with open('/dev/null', 'wb') as devnull:
             stdout_f = devnull
