@@ -124,7 +124,7 @@ class Runner(object):
         """
 
         if self.os == "cgc":
-            self.tracer_qemu = "shellphish-qemu-cgc-tracer"
+            self.tracer_qemu = "shellphish-qemu-cgc-%s" % ("tracer" if self._record_trace else "base")
 
         self.tracer_qemu_path = shellphish_qemu.qemu_path(self.tracer_qemu)
 
@@ -202,10 +202,13 @@ class Runner(object):
         mname = tempfile.mktemp(dir="/dev/shm/", prefix="tracer-magic-")
         if self._record_magic:
             args += ["-magicdump", mname]
+
         if self._record_trace:
-            args += ["-d", "exec", "-D", logname, self.binary]
+            args += ["-d", "exec", "-D", logname]
         else:
-            args += [self.binary]
+            args += ["-enable_double_empty_exiting"]
+
+        args += [self.binary]
 
         with open('/dev/null', 'wb') as devnull:
             stdout_f = devnull
