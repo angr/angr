@@ -81,6 +81,7 @@ public:
 	std::vector<uint64_t> bbl_addrs;
 	uint64_t cur_steps, max_steps;
 	uc_hook h_read, h_write, h_block, h_prot, h_unmap;
+  bool stopped;
 	stop_t stop_reason;
 
 	bool ignore_next_block;
@@ -97,6 +98,7 @@ public:
 		hooked = false;
 		h_read = h_write = h_block = h_prot = 0;
 		max_steps = cur_steps = 0;
+    stopped = true;
 		stop_reason = STOP_NOSTART;
 		ignore_next_block = false;
 		ignore_next_selfmod = false;
@@ -176,6 +178,7 @@ public:
 	}
 
 	uc_err start(uint64_t pc, uint64_t step = 1) {
+    stopped = false;
 		stop_reason = STOP_NOSTART;
 		max_steps = step;
 		cur_steps = -1;
@@ -190,6 +193,7 @@ public:
 	}
 
 	void stop(stop_t reason) {
+    stopped = true;
 		const char *msg = NULL;
 		switch (reason) {
 			case STOP_NORMAL:
@@ -788,16 +792,13 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 		return;
 	}
 	State *state = (State *)user_data;
-  // TODO: is this right?
 	state->commit();
-
-	if (!state->check_block(address, size)) {
-    state->stop(STOP_SYMBOLIC_REG);
-    LOG_W("finishing early");
-    return;
-  }
-
 	state->step(address);
+
+	if (!state->stopped && !state->check_block(address, size)) {
+    state->stop(STOP_SYMBOLIC_REG);
+    LOG_W("finishing early at address %#lx", address);
+  }
 }
 
 static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
