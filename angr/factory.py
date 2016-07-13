@@ -1,6 +1,6 @@
 from simuvex import SimIRSB, SimProcedures, SimUnicorn, SimState, BP_BEFORE, BP_AFTER
 from simuvex import s_options as o, s_cc
-from simuvex.s_errors import SimSegfaultError
+from simuvex.s_errors import SimSegfaultError, SimReliftException
 from .surveyors.caller import Callable
 
 import logging
@@ -76,18 +76,30 @@ class AngrObjectFactory(object):
         if opt_level is None:
             opt_level = 1 if o.OPTIMIZE_IR in state.options else 0
 
-        bb = self.block(addr,
-                        arch=state.arch,
-                        opt_level=opt_level,
-                        thumb=thumb,
-                        backup_state=state,
-                        **block_opts)
+        while True:
+            bb = self.block(addr,
+                            arch=state.arch,
+                            opt_level=opt_level,
+                            thumb=thumb,
+                            backup_state=state,
+                            **block_opts)
 
-        return SimIRSB(state,
-                       bb.vex,
-                       addr=addr,
-                       whitelist=stmt_whitelist,
-                       last_stmt=last_stmt)
+            try:
+                return SimIRSB(state,
+                               bb.vex,
+                               addr=addr,
+                               whitelist=stmt_whitelist,
+                               last_stmt=last_stmt)
+            except SimReliftException as e:
+                state = e.state
+                if 'insn_bytes' in block_opts:
+                    raise AngrValueError("You cannot pass self-modifying code as insn_bytes!!!")
+                new_ip = state.scratch.ins_addr
+                if 'max_size' in block_opts:
+                    block_opts['max_size'] -= new_ip - addr
+                if 'num_inst' in block_opts:
+                    block_opts['num_inst'] -= state.scratch.num_insns
+                addr = new_ip
 
     def sim_run(self, state, addr=None, jumpkind=None, extra_stop_points=None, **block_opts):
         """
