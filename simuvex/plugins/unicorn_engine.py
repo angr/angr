@@ -733,7 +733,7 @@ class Unicorn(SimStatePlugin):
         if self.state.arch.name in ('X86', 'AMD64'):
             # sync the fp clerical data
             c3210 = self.state.se.any_int(self.state.regs.fc3210)
-            top = self.state.se.any_int(self.state.regs.ftop[1:0])
+            top = self.state.se.any_int(self.state.regs.ftop[2:0])
             rm = self.state.se.any_int(self.state.regs.fpround[1:0])
             control = 0x037F | (rm << 10)
             status = (top << 11) | c3210
