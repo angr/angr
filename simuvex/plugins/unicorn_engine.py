@@ -690,14 +690,37 @@ class Unicorn(SimStatePlugin):
                 _VexArchInfo(**archinfo),
             )
 
-            highest_reg_offset, reg_size = max(self.state.arch.registers.values())
-            symbolic_offsets = set()
-            for i in xrange(highest_reg_offset + reg_size):
-                if self.state.registers.load(i, 1).symbolic:
-                    symbolic_offsets.add(i)
+            # TODO: refactor
+            # first, check to see if *any* registers are symbolic, so that we
+            # can optimize the case where there aren't any. (N.B.: "optimize"
+            # does not refer to constructing the set of symbolic register
+            # offsets, but rather to not having to lift each block etc.)
+            symbolic_regs = False
+            for r, c in self._uc_regs.iteritems():
+                if r in self.reg_blacklist:
+                    continue
+                v = self._process_value(getattr(self.state.regs, r), 'reg')
+                if v.symbolic:
+                    symbolic_regs = True
+                    break
+            else:
+                if self.state.arch.name in ('X86', 'AMD64'):
+                    vex_offset = self.state.arch.registers['fpu_regs'][0]
+                    if self.state.registers.load(vex_offset, 64).symbolic:
+                        symbolic_regs = True
 
-            sym_regs_array = (ctypes.c_uint64 * len(symbolic_offsets))(*map(ctypes.c_uint64, symbolic_offsets))
-            _UC_NATIVE.symbolic_register_data(self._uc_state, len(symbolic_offsets), sym_regs_array)
+            symbolic_regs = True
+            if symbolic_regs:
+                highest_reg_offset, reg_size = max(self.state.arch.registers.values())
+                symbolic_offsets = set()
+                for i in xrange(highest_reg_offset + reg_size):
+                    if self.state.registers.load(i, 1).symbolic:
+                        symbolic_offsets.add(i)
+
+                sym_regs_array = (ctypes.c_uint64 * len(symbolic_offsets))(*map(ctypes.c_uint64, symbolic_offsets))
+                _UC_NATIVE.symbolic_register_data(self._uc_state, len(symbolic_offsets), sym_regs_array)
+            else:
+                _UC_NATIVE.symbolic_register_data(self._uc_state, 0, None)
 
         addr = self.state.se.any_int(self.state.ip)
         l.info('started emulation at %#x (%d steps)', addr, self.max_steps if step is None else step)
