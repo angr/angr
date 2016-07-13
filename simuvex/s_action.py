@@ -29,8 +29,10 @@ class SimAction(SimEvent):
         if self.sim_procedure is not None:
             location = "%s()" % self.sim_procedure
         else:
-            location = "0x%x:%d" % (self.bbl_addr, self.stmt_idx)
-
+            if self.stmt_idx is not None:
+                location = "0x%x:%d" % (self.bbl_addr, self.stmt_idx)
+            else:
+                location = "0x%x" % self.bbl_addr
         return "<%s %s %s>" % (self.__class__.__name__, location, self._desc())
 
     def _desc(self):
