@@ -7,6 +7,7 @@
 #include <map>
 #include <vector>
 #include <unordered_set>
+#include <unordered_map>
 
 extern "C" {
 #include <libvex.h>
@@ -40,9 +41,19 @@ typedef enum stop {
 	STOP_SEGFAULT,
 } stop_t;
 
+typedef struct block_entry {
+  bool try_unicorn;
+  std::unordered_set<uint64_t> used_registers;
+} block_entry_t;
+
 typedef taint_t PageBitmap[PAGE_SIZE];
 typedef std::map<uint64_t, std::pair<char *, uint64_t>> PageCache;
-std::map<uint64_t, PageCache*> global_cache;
+typedef std::unordered_map<uint64_t, block_entry_t> BlockCache;
+typedef struct caches {
+  PageCache *page_cache;
+  BlockCache *block_cache;
+} caches_t;
+std::map<uint64_t, caches_t> global_cache;
 
 typedef std::unordered_set<uint64_t> RegisterSet;
 
@@ -68,6 +79,7 @@ class State {
 private:
 	uc_engine *uc;
 	PageCache *page_cache;
+	BlockCache *block_cache;
 	bool hooked;
 
 	void (*uc_reg_update)(uc_engine *uc, void *buf, int save);
@@ -107,9 +119,11 @@ public:
 		auto it = global_cache.find(cache_key);
 		if (it == global_cache.end()) {
 				page_cache = new PageCache();
-				global_cache[cache_key] = page_cache;
+        block_cache = new BlockCache();
+				global_cache[cache_key] = {page_cache, block_cache};
 		} else {
-				page_cache = it->second;
+				page_cache = it->second.page_cache;
+        block_cache = it->second.block_cache;
 		}
 
 		switch (*(uc_arch *)uc) { // tricky:)
@@ -461,7 +475,7 @@ public:
 	//
 
 	// check if we can safely handle this IRExpr
-	inline bool check_expr(IRExpr *e)
+	inline bool check_expr(RegisterSet *safe, RegisterSet *danger, IRExpr *e)
 	{
     int i, expr_size;
 		if (e == NULL) return true;
@@ -487,40 +501,40 @@ public:
 				}
 
 				expr_size = sizeofIRType(e->Iex.Get.ty);
-				if (!this->check_register_read(e->Iex.Get.offset, expr_size)) return false;
+				this->check_register_read(safe, danger, e->Iex.Get.offset, expr_size);
 				break;
 			case Iex_Qop:
-				if (!this->check_expr(e->Iex.Qop.details->arg1)) return false;
-				if (!this->check_expr(e->Iex.Qop.details->arg2)) return false;
-				if (!this->check_expr(e->Iex.Qop.details->arg3)) return false;
-				if (!this->check_expr(e->Iex.Qop.details->arg4)) return false;
+				if (!this->check_expr(safe, danger, e->Iex.Qop.details->arg1)) return false;
+				if (!this->check_expr(safe, danger, e->Iex.Qop.details->arg2)) return false;
+				if (!this->check_expr(safe, danger, e->Iex.Qop.details->arg3)) return false;
+				if (!this->check_expr(safe, danger, e->Iex.Qop.details->arg4)) return false;
 				break;
 			case Iex_Triop:
-				if (!this->check_expr(e->Iex.Triop.details->arg1)) return false;
-				if (!this->check_expr(e->Iex.Triop.details->arg2)) return false;
-				if (!this->check_expr(e->Iex.Triop.details->arg3)) return false;
+				if (!this->check_expr(safe, danger, e->Iex.Triop.details->arg1)) return false;
+				if (!this->check_expr(safe, danger, e->Iex.Triop.details->arg2)) return false;
+				if (!this->check_expr(safe, danger, e->Iex.Triop.details->arg3)) return false;
 				break;
 			case Iex_Binop:
-				if (!this->check_expr(e->Iex.Binop.arg1)) return false;
-				if (!this->check_expr(e->Iex.Binop.arg2)) return false;
+				if (!this->check_expr(safe, danger, e->Iex.Binop.arg1)) return false;
+				if (!this->check_expr(safe, danger, e->Iex.Binop.arg2)) return false;
 				break;
 			case Iex_Unop:
-				if (!this->check_expr(e->Iex.Unop.arg)) return false;
+				if (!this->check_expr(safe, danger, e->Iex.Unop.arg)) return false;
 				break;
 			case Iex_Load:
-				if (!this->check_expr(e->Iex.Load.addr)) return false;
+				if (!this->check_expr(safe, danger, e->Iex.Load.addr)) return false;
 				break;
 			case Iex_Const:
 				break;
 			case Iex_ITE:
-				if (!this->check_expr(e->Iex.ITE.cond)) return false;
-				if (!this->check_expr(e->Iex.ITE.iffalse)) return false;
-				if (!this->check_expr(e->Iex.ITE.iftrue)) return false;
+				if (!this->check_expr(safe, danger, e->Iex.ITE.cond)) return false;
+				if (!this->check_expr(safe, danger, e->Iex.ITE.iffalse)) return false;
+				if (!this->check_expr(safe, danger, e->Iex.ITE.iftrue)) return false;
 				break;
 			case Iex_CCall:
 				for (i = 0; e->Iex.CCall.args[i] != NULL; i++)
 				{
-					if (!this->check_expr(e->Iex.CCall.args[i])) return false;
+					if (!this->check_expr(safe, danger, e->Iex.CCall.args[i])) return false;
 				}
 				break;
 		}
@@ -529,30 +543,30 @@ public:
 	}
 
 	// mark the register as safe
-	inline void mark_register_safe(uint64_t offset, int size)
+	inline void mark_register_safe(RegisterSet *safe, uint64_t offset, int size)
 	{
 		for (int i = 0; i < size; i++)
-			this->symbolic_registers.erase(offset+i);
+			safe->insert(offset + i);
 	}
 
 	// check register access
-	inline bool check_register_read(uint64_t offset, int size)
+	inline void check_register_read(RegisterSet *safe, RegisterSet *danger, uint64_t offset, int size)
 	{
 		for (int i = 0; i < size; i++)
 		{
-			if (this->symbolic_registers.find(offset + i) != this->symbolic_registers.end())
-				return false;
+      if (safe->count(offset + i) == 0) {
+        danger->insert(offset + i);
+      }
 		}
-    return true;
 	}
 
 	// check if we can safely handle this IRStmt
-	inline bool check_stmt(IRTypeEnv *tyenv, IRStmt *s)
+	inline bool check_stmt(RegisterSet *safe, RegisterSet *danger, IRTypeEnv *tyenv, IRStmt *s)
 	{
 		switch (s->tag)
 		{
       case Ist_Put: {
-				if (!this->check_expr(s->Ist.Put.data)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.Put.data)) return false;
 				IRType expr_type = typeOfIRExpr(tyenv, s->Ist.Put.data);
 				if (expr_type == Ity_I1)
 				{
@@ -561,7 +575,7 @@ public:
 				}
 
 				int expr_size = sizeofIRType(expr_type);
-				this->mark_register_safe(s->Ist.Put.offset, expr_size);
+				this->mark_register_safe(safe, s->Ist.Put.offset, expr_size);
 				break;
       }
 			case Ist_PutI:
@@ -577,44 +591,44 @@ public:
 				return false;
 				break;
 			case Ist_WrTmp:
-				if (!this->check_expr(s->Ist.WrTmp.data)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.WrTmp.data)) return false;
 				break;
 			case Ist_Store:
-				if (!this->check_expr(s->Ist.Store.addr)) return false;
-				if (!this->check_expr(s->Ist.Store.data)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.Store.addr)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.Store.data)) return false;
 				break;
 			case Ist_CAS:
-				if (!this->check_expr(s->Ist.CAS.details->addr)) return false;
-				if (!this->check_expr(s->Ist.CAS.details->dataLo)) return false;
-				if (!this->check_expr(s->Ist.CAS.details->dataHi)) return false;
-				if (!this->check_expr(s->Ist.CAS.details->expdLo)) return false;
-				if (!this->check_expr(s->Ist.CAS.details->expdHi)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.CAS.details->addr)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.CAS.details->dataLo)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.CAS.details->dataHi)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.CAS.details->expdLo)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.CAS.details->expdHi)) return false;
 				break;
 			case Ist_LLSC:
-				if (!this->check_expr(s->Ist.LLSC.addr)) return false;
-				if (!this->check_expr(s->Ist.LLSC.storedata)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.LLSC.addr)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.LLSC.storedata)) return false;
 				break;
       case Ist_Dirty: {
-				if (!this->check_expr(s->Ist.Dirty.details->guard)) return false;
-				if (!this->check_expr(s->Ist.Dirty.details->mAddr)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.Dirty.details->guard)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.Dirty.details->mAddr)) return false;
 				for (int i = 0; s->Ist.Dirty.details->args[i] != NULL; i++)
 				{
-					if (!this->check_expr(s->Ist.Dirty.details->args[i])) return false;
+					if (!this->check_expr(safe, danger, s->Ist.Dirty.details->args[i])) return false;
 				}
 				break;
       }
 			case Ist_Exit:
-				if (!this->check_expr(s->Ist.Exit.guard)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.Exit.guard)) return false;
 				break;
 			case Ist_LoadG:
-				if (!this->check_expr(s->Ist.LoadG.details->addr)) return false;
-				if (!this->check_expr(s->Ist.LoadG.details->alt)) return false;
-				if (!this->check_expr(s->Ist.LoadG.details->guard)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.LoadG.details->addr)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.LoadG.details->alt)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.LoadG.details->guard)) return false;
 				break;
 			case Ist_StoreG:
-				if (!this->check_expr(s->Ist.StoreG.details->addr)) return false;
-				if (!this->check_expr(s->Ist.StoreG.details->data)) return false;
-				if (!this->check_expr(s->Ist.StoreG.details->guard)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.StoreG.details->addr)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.StoreG.details->data)) return false;
+				if (!this->check_expr(safe, danger, s->Ist.StoreG.details->guard)) return false;
 				break;
 			case Ist_NoOp:
 			case Ist_IMark:
@@ -643,23 +657,47 @@ public:
       return true;
     }
 
-    std::unique_ptr<uint8_t[]> instructions(new uint8_t[size]);
-		uc_mem_read(this->uc, address, instructions.get(), size);
-		IRSB *the_block = vex_block_bytes(this->vex_guest, this->vex_archinfo, instructions.get(), address, size, 0);
-
-    if (the_block == NULL) {
-      // TODO: how to handle?
-      return false;
-    }
-
-		for (int i = 0; i < the_block->stmts_used; i++) {
-			if (!this->check_stmt(the_block->tyenv, the_block->stmts[i])) {
+    // check if it's in the cache already
+    RegisterSet *offset_read_cache;
+    auto search = this->block_cache->find(address);
+    if (search != this->block_cache->end()) {
+      if (!search->second.try_unicorn) {
         return false;
       }
-		}
+      offset_read_cache = &search->second.used_registers;
+    } else {
+      // wtf i hate c++...
+      auto& entry = this->block_cache->emplace(std::make_pair(address, block_entry_t())).first->second;
+      entry.try_unicorn = true;
+      offset_read_cache = &entry.used_registers;
+      RegisterSet safe_regs;
 
-		if (!this->check_expr(the_block->next)) {
-      return false;
+      std::unique_ptr<uint8_t[]> instructions(new uint8_t[size]);
+      uc_mem_read(this->uc, address, instructions.get(), size);
+      IRSB *the_block = vex_block_bytes(this->vex_guest, this->vex_archinfo, instructions.get(), address, size, 0);
+
+      if (the_block == NULL) {
+        // TODO: how to handle?
+        return false;
+      }
+
+      for (int i = 0; i < the_block->stmts_used; i++) {
+        if (!this->check_stmt(&safe_regs, offset_read_cache, the_block->tyenv, the_block->stmts[i])) {
+          entry.try_unicorn = false;
+          return false;
+        }
+      }
+
+      if (!this->check_expr(&safe_regs, offset_read_cache, the_block->next)) {
+        entry.try_unicorn = false;
+        return false;
+      }
+    }
+
+    for (uint64_t off : this->symbolic_registers) {
+      if (offset_read_cache->count(off) > 0) {
+        return false;
+      }
     }
 
 		return true;
