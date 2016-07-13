@@ -835,7 +835,7 @@ class Tracer(object):
             pg = None
             # if we're restoring from a cache, we preconstrain
             if cache_tuple is not None:
-                bb_cnt, self.cgc_flag_bytes, state = cache_tuple
+                bb_cnt, self.cgc_flag_bytes, state, claripy.ast.base.var_counter = cache_tuple
                 pg = self._cgc_prepare_paths(state)
                 self._preconstrain_state(state)
                 self.bb_cnt = bb_cnt
