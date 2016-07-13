@@ -23,7 +23,7 @@ class Runner(object):
     """
 
     def __init__(self, binary, input=None, pov_file=None, record_trace=False, record_stdout=False, record_magic=False,
-                 seed=None):
+                 seed=None, memory_limit="8G"):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -41,6 +41,7 @@ class Runner(object):
         self._state = None
         self.memory = None
         self.seed = seed
+        self.memory_limit = self._memory_limit_to_int(memory_limit)
 
         if self.pov_file is None and self.input is None:
             raise ValueError("must specify input or pov_file")
@@ -73,6 +74,8 @@ class Runner(object):
         self.stdout = None
         self.magic = None
 
+        self._set_memory_limit(self.memory_limit)
+
         if record_stdout:
             tmp = tempfile.mktemp(prefix="stdout_" + os.path.basename(binary))
             # will set crash_mode correctly
@@ -86,6 +89,26 @@ class Runner(object):
 
 
 ### SETUP
+
+    @staticmethod
+    def _memory_limit_to_int(ms):
+
+        if not isinstance(ms, str):
+            raise ValueError("memory_limit must be a string such as \"8G\"")
+
+        if ms.endswith('k'):
+            return int(ms[:-1]) * 1024
+        elif ms.endswith('M'):
+            return int(ms[:-1]) * 1024 * 1024
+        elif ms.endswith('G'):
+            return int(ms[:-1]) * 1024 * 1024 * 1024
+
+        raise ValueError("unrecognized size, should be 'k', 'M', or 'G'")
+
+    @staticmethod
+    def _set_memory_limit(ml):
+
+        resource.setrlimit(resource.RLIMIT_AS, (ml, ml))
 
     def _setup(self):
         """
