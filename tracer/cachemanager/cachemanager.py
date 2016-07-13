@@ -1,4 +1,5 @@
 import pickle
+import claripy
 import logging
 from ..simprocedures import receive
 
@@ -24,7 +25,7 @@ class CacheManager(object):
 
         ds = None
         try:
-            ds = pickle.dumps((self.tracer.bb_cnt - 1, self.tracer.cgc_flag_bytes, state), pickle.HIGHEST_PROTOCOL)
+            ds = pickle.dumps((self.tracer.bb_cnt - 1, self.tracer.cgc_flag_bytes, state, claripy.ast.base.var_counter), pickle.HIGHEST_PROTOCOL)
         except RuntimeError as e: # maximum recursion depth can be reached here
             l.error("unable to cache state, '%s' during pickling", e.message)
 
