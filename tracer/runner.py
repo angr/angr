@@ -23,7 +23,7 @@ class Runner(object):
     """
 
     def __init__(self, binary, input=None, pov_file=None, record_trace=False, record_stdout=False, record_magic=False,
-                 seed=None, memory_limit="8G"):
+                 seed=None, memory_limit=None):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -41,7 +41,7 @@ class Runner(object):
         self._state = None
         self.memory = None
         self.seed = seed
-        self.memory_limit = self._memory_limit_to_int(memory_limit)
+        self.memory_limit = self._memory_limit_to_int(memory_limit) if memory_limit is not None else None
 
         if self.pov_file is None and self.input is None:
             raise ValueError("must specify input or pov_file")
@@ -74,7 +74,8 @@ class Runner(object):
         self.stdout = None
         self.magic = None
 
-        self._set_memory_limit(self.memory_limit)
+        if self.memory_limit:
+            self._set_memory_limit(self.memory_limit)
 
         if record_stdout:
             tmp = tempfile.mktemp(prefix="stdout_" + os.path.basename(binary))
