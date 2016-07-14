@@ -76,6 +76,8 @@ class AngrObjectFactory(object):
         if opt_level is None:
             opt_level = 1 if o.OPTIMIZE_IR in state.options else 0
 
+        force_bbl_addr = block_opts.pop('force_bbl_addr', None)
+
         while True:
             bb = self.block(addr,
                             arch=state.arch,
@@ -89,9 +91,11 @@ class AngrObjectFactory(object):
                                bb.vex,
                                addr=addr,
                                whitelist=stmt_whitelist,
-                               last_stmt=last_stmt)
+                               last_stmt=last_stmt,
+                               force_bbl_addr=force_bbl_addr)
             except SimReliftException as e:
                 state = e.state
+                force_bbl_addr = state.scratch.bbl_addr
                 if 'insn_bytes' in block_opts:
                     raise AngrValueError("You cannot pass self-modifying code as insn_bytes!!!")
                 new_ip = state.scratch.ins_addr
