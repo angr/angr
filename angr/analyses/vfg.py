@@ -234,7 +234,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                  avoid_runs=None,
                  remove_options=None,
                  timeout=None,
-                 start_at_function=True
+                 start_at_function=True,
+                 ara=None,
                  ):
         """
         :param project: The project object.
@@ -268,6 +269,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         self._start_at_function = start_at_function
 
         self._initial_state = initial_state
+
+        self._ara = ara
 
         self._nodes = {}            # all the vfg nodes, keyed on simrun keys
         self._normal_states = { }   # Last available state for each program point without widening
