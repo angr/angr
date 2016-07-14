@@ -183,7 +183,7 @@ if __name__ == "__main__":
         if f in globals():
             func = globals()[f]
             if hasattr(func, '__call__'):
-                for test_func, arch in func():
-                    test_func(arch)
+                for test_func, arch_ in func():
+                    test_func(arch_)
             else:
                 print '"%s" does not exist, or is not a callable' % f

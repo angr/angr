@@ -10,7 +10,7 @@ class CFGUtils(object):
     """
 
     @staticmethod
-    def find_merge_points(function_addr, function_endpoints, graph):
+    def find_merge_points(function_addr, function_endpoints, graph):  # pylint:disable=unused-argument
         """
         Given a local transition graph of a function, find all merge points inside, and then perform a
         quasi-topological sort of those merge points.

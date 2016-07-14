@@ -18,7 +18,7 @@ l = logging.getLogger(name="angr.analyses.vfg")
 
 # The maximum tracing times of a basic block before we widen the results
 MAX_ANALYSIS_TIMES_WITHOUT_MERGING = 5
-MAX_ANALYSIS_TIMES = 30
+MAX_ANALYSIS_TIMES = 80
 
 class VFGJob(EntryWrapper):
     """
@@ -901,7 +901,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             func_addr = top_task.function_address
 
             pending_ret_key = None
-            for k in self._pending_returns.keys():  # type: SimRunKey
+            for k in self._pending_returns.iterkeys():  # type: SimRunKey
                 if k.func_addr == func_addr:
                     pending_ret_key = k
                     break
