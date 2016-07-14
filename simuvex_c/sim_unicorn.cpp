@@ -835,7 +835,7 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 
 	if (!state->stopped && !state->check_block(address, size)) {
     state->stop(STOP_SYMBOLIC_REG);
-    LOG_W("finishing early at address %#lx", address);
+    LOG_I("finishing early at address %#lx", address);
   }
 }
 
