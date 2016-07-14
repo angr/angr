@@ -709,7 +709,6 @@ class Unicorn(SimStatePlugin):
                     if self.state.registers.load(vex_offset, 64).symbolic:
                         symbolic_regs = True
 
-            symbolic_regs = True
             if symbolic_regs:
                 highest_reg_offset, reg_size = max(self.state.arch.registers.values())
                 symbolic_offsets = set()
