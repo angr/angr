@@ -149,7 +149,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                     graph as the base graph, and CFGAccurate will traverse nodes and
                                                     edges and extract useful information.
         """
-        ForwardAnalysis.__init__(self, order_entries=True)
+        ForwardAnalysis.__init__(self, order_entries=True if base_graph is not None else False)
         CFGBase.__init__(self, context_sensitivity_level, normalize=normalize)
         self._symbolic_function_initial_state = {}
         self._function_input_states = None
@@ -1423,10 +1423,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if not pw:
             return [ ]
 
-        # remove all exising entries that has the same simrun key
-        if next((en for en in self.entries if en.simrun_key == pw.simrun_key), None):
-            # TODO: this is very hackish. Reimplement this logic later
-            self._entries = [ entry_info for entry_info in self._entries if entry_info.entry.simrun_key != pw.simrun_key ]
+        if self._base_graph is not None:
+            # remove all exising entries that has the same simrun key
+            if next((en for en in self.entries if en.simrun_key == pw.simrun_key), None):
+                # TODO: this is very hackish. Reimplement this logic later
+                self._entries = [ entry_info for entry_info in self._entries if entry_info.entry.simrun_key != pw.simrun_key ]
 
         return [ pw ]
 
