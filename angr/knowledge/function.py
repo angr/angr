@@ -727,6 +727,10 @@ class Function(object):
                     graph.remove_edge(p, n)
                 graph.remove_node(n)
 
+                if n in self._local_blocks:
+                    self._local_blocks.remove(n)
+                    self._local_blocks.add(new_node)
+
                 for p, _, data in original_predecessors:
                     if p not in other_nodes:
                         graph.add_edge(p, new_node, data)
