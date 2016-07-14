@@ -1039,14 +1039,15 @@ class Unicorn(SimStatePlugin):
         self.countdown_nonunicorn_blocks -= 1
         self.countdown_symbolic_registers -= 1
 
-        if self.countdown_symbolic_registers > 0:
-            l.debug("not enough passed register checks (%d)", self.countdown_symbolic_registers)
-            return False
-        elif not self._check_registers():
-            l.debug("failed register check")
-            self.countdown_symbolic_registers = self.cooldown_symbolic_registers
-            return False
-        elif self.countdown_nonunicorn_blocks > 0:
+        if options.UNICORN_SYM_REGS_SUPPORT not in self.state.options:
+            if self.countdown_symbolic_registers > 0:
+                l.debug("not enough passed register checks (%d)", self.countdown_symbolic_registers)
+                return False
+            elif not self._check_registers():
+                l.debug("failed register check")
+                self.countdown_symbolic_registers = self.cooldown_symbolic_registers
+                return False
+        if self.countdown_nonunicorn_blocks > 0:
             l.debug("not enough runs since last unicorn (%d)", self.countdown_nonunicorn_blocks)
             return False
 
