@@ -44,6 +44,9 @@ class SimRunKey(object):
                self.addr == other.addr and self.callsite_tuples == other.callsite_tuples and \
                self.jump_type == other.jump_type
 
+    def __ne__(self, other):
+        return not self == other
+
     @staticmethod
     def new(addr, callstack_suffix, jumpkind):
         if jumpkind.startswith('Ijk_Sys') or jumpkind == 'syscall':
