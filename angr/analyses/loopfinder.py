@@ -24,6 +24,10 @@ class Loop(object):
                     self.has_calls = True
                     break
 
+    def __repr__(self):
+        s = "<Loop @ %#x, %d blocks>" % (self.entry.addr, len(self.body_nodes))
+        return s
+
 class LoopFinder(Analysis):
     """
     Extracts all the loops from all the functions in a binary.
