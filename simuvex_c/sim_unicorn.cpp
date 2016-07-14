@@ -74,6 +74,10 @@ public:
 	uint64_t cur_steps, max_steps;
 	uc_hook h_read, h_write, h_block, h_prot, h_unmap;
 	stop_t stop_reason;
+	bool ignore_next_block;
+	bool ignore_next_selfmod;
+	uint64_t cur_address;
+	int32_t cur_size;
 
 	State(uc_engine *_uc, uint64_t cache_key):uc(_uc)
 	{
@@ -81,6 +85,8 @@ public:
 		h_read = h_write = h_block = h_prot = 0;
 		max_steps = cur_steps = 0;
 		stop_reason = STOP_NOSTART;
+		ignore_next_block = false;
+		ignore_next_selfmod = false;
 
 		auto it = global_cache.find(cache_key);
 		if (it == global_cache.end()) {
@@ -206,9 +212,11 @@ public:
 		if (cur_steps == -1) cur_steps = 0;
 	}
 
-	void step(uint64_t current_address) {
+	void step(uint64_t current_address, int32_t size) {
 		uc_reg_update(uc, tmp_reg, 1); // save current registers
 		bbl_addrs.push_back(current_address);
+		cur_address = current_address;
+		cur_size = size;
 
 		if (cur_steps >= max_steps) {
 			stop(STOP_NORMAL);
@@ -478,6 +486,16 @@ static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, in
 	State *state = (State *)user_data;
 	taint_t *bitmap = state->page_lookup(address);
 
+	if (state->ignore_next_selfmod) {
+		// ...the self-modification gets repeated for internal qemu reasons
+		state->ignore_next_selfmod = false;
+	} else if ((address >= state->cur_address && address < state->cur_address + state->cur_size) ||
+		// CODE IS SELF-MODIFYING: qemu will restart this basic block at this address.
+		// discard the next block hook
+		(state->cur_address >= address && state->cur_address < address + size)) {
+		state->ignore_next_block = true;
+	}
+
 	int start = address & 0xFFF;
 	int end = (address + size - 1) & 0xFFF;
 	int clean;
@@ -528,10 +546,15 @@ static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, in
 }
 
 static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user_data) {
-	LOG_I("block [%#lx, %#lx]", address, address + size);
 	State *state = (State *)user_data;
+	if (state->ignore_next_block) {
+		state->ignore_next_block = false;
+		state->ignore_next_selfmod = true;
+		return;
+	}
+	LOG_I("block [%#lx, %#lx]", address, address + size);
 	state->commit();
-	state->step(address);
+	state->step(address, size);
 }
 
 static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
