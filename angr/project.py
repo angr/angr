@@ -71,7 +71,7 @@ class Project(object):
         :param load_options:                a dict of keyword arguments to the CLE loader. See CLE's docs.
         :param translation_cache:           If True, cache translated basic blocks rather than re-translating them.
         :param support_selfmodifying_code:  Whether we support self-modifying code. When enabled, Project.sim_block()
-                                            will try to read code from the given state, not only from the initial memory
+                                            will try to read code from the current state instead of the original memory
                                             regions.
         :type  support_selfmodifying_code:  bool
 

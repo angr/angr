@@ -119,21 +119,14 @@ class Lifter(object):
         else:
             self._cache_miss_count += 1
 
-        # TODO: FIXME: figure out what to do if we're about to exhaust the memory
-        # (we can probably figure out how many instructions we have left by talking to IDA)
-
         if insn_bytes is not None:
             buff, size = insn_bytes, len(insn_bytes)
-            max_size = min(max_size, size)
             passed_max_size = True
         else:
-            try:
-                buff, size = self._load_bytes(addr, max_size, state=backup_state)
-            except KeyError:
-                buff, size = "", 0
+            buff, size = self._load_bytes(addr, max_size, state=backup_state)
 
-            if not buff or size == 0:
-                raise AngrMemoryError("No bytes in memory for block starting at 0x%x." % addr)
+        if not buff or size == 0:
+            raise AngrMemoryError("No bytes in memory for block starting at %#x." % addr)
 
         # deal with thumb mode in ARM, sending an odd address and an offset
         # into the string
@@ -143,7 +136,7 @@ class Lifter(object):
             byte_offset = 1
             addr += 1
 
-        l.debug("Creating pyvex.IRSB of arch %s at 0x%x", self._project.arch.name, addr)
+        l.debug("Creating pyvex.IRSB of arch %s at %#x", self._project.arch.name, addr)
 
         arch = arch or self._project.arch
 
@@ -162,13 +155,13 @@ class Lifter(object):
                                   traceflags=traceflags)
             elif passed_max_size and passed_num_inst:
                 irsb = pyvex.IRSB(buff, addr, arch,
-                                  num_bytes=min(size, max_size),
+                                  num_bytes=size,
                                   num_inst=num_inst,
                                   bytes_offset=byte_offset,
                                   traceflags=traceflags)
             else:
                 irsb = pyvex.IRSB(buff, addr, arch,
-                                  num_bytes=min(size, max_size),
+                                  num_bytes=size,
                                   bytes_offset=byte_offset,
                                   traceflags=traceflags)
         except pyvex.PyVEXError:
@@ -199,12 +192,17 @@ class Lifter(object):
         return b
 
     def _load_bytes(self, addr, max_size, state=None):
-        if state:
+        buff, size = "", 0
+        if self._project._support_selfmodifying_code and state:
             buff, size = self._bytes_from_state(state, addr, max_size)
         else:
-            buff, size = self._project.loader.memory.read_bytes_c(addr)
-        size = min(max_size, size)
+            try:
+                buff, size = self._project.loader.memory.read_bytes_c(addr)
+            except KeyError:
+                if state:
+                    buff, size = self._bytes_from_state(state, addr, max_size)
 
+        size = min(max_size, size)
         return buff, size
 
     @staticmethod
@@ -213,7 +211,7 @@ class Lifter(object):
 
         for i in range(addr, addr + max_size):
             if i in backup_state.memory:
-                val = backup_state.memory.load(i, 1)
+                val = backup_state.memory.load(i, 1, inspect=False)
                 try:
                     val = backup_state.se.exactly_n_int(val, 1)[0]
                     val = chr(val)
@@ -403,6 +401,10 @@ class Block(object):
         if self.addr is None:
             l.warning('Lifted basic block with no IMarks!')
             self.addr = 0
+
+        if self.size is not None:
+            if type(byte_string) is str:
+                self._bytes = byte_string[:self.size]
 
     def __repr__(self):
         return '<Block for %#x, %d bytes>' % (self.addr, self.size)

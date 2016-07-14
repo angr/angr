@@ -251,6 +251,10 @@ class Path(object):
     def extra_length(self):
         return self.history.extra_length
 
+    @extra_length.setter
+    def extra_length(self, val):
+        self.history.extra_length = val
+
     @property
     def weighted_length(self):
         return self.history.length + self.history.extra_length
