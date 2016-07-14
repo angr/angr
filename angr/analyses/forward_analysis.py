@@ -111,6 +111,11 @@ class ForwardAnalysis(object):
     def graph(self):
         return self._graph
 
+    @property
+    def entries(self):
+        for entry_info in self._entries:
+            yield entry_info.entry
+
     #
     # Public methods
     #
