@@ -11,7 +11,7 @@ from .s_run import SimRun
 class SimUnicorn(SimRun):
     ''' concrete exection in unicorn engine '''
 
-    def __init__(self, state, step=None, stop_points=None, **kwargs):
+    def __init__(self, state, step=None, stop_points=None, force_bbl_addr=None, **kwargs):
         '''
         :param state: current state
         :param step: how many basic blocks we want to execute. now we only
@@ -20,7 +20,7 @@ class SimUnicorn(SimRun):
         SimRun.__init__(self, state, **kwargs) # use inline to avoid copying states
 
         self.addr = state.se.any_int(state.ip)
-        self.state.scratch.bbl_addr = self.addr
+        self.state.scratch.bbl_addr = self.addr if force_bbl_addr is None else force_bbl_addr
 
         if stop_points is not None and self.addr in stop_points:
             raise SimUnicornError("trying to start unicorn execution on a stop point")

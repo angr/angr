@@ -34,7 +34,7 @@ class SimIRSB(SimRun):
     :ivar last_stmt:        The statement to stop execution at.
     """
 
-    def __init__(self, state, irsb, irsb_id=None, whitelist=None, last_stmt=None, **kwargs):
+    def __init__(self, state, irsb, irsb_id=None, whitelist=None, last_stmt=None, force_bbl_addr=None, **kwargs):
         SimRun.__init__(self, state, **kwargs)
 
         if irsb.size == 0:
@@ -43,7 +43,7 @@ class SimIRSB(SimRun):
         self.irsb = irsb
         self.first_imark = IMark(next(i for i in self.irsb.statements if type(i) is pyvex.IRStmt.IMark))
         self.last_imark = self.first_imark
-        self.state.scratch.bbl_addr = self.addr
+        self.state.scratch.bbl_addr = self.addr if force_bbl_addr is None else force_bbl_addr
         self.state.scratch.executed_block_count = 1
         self.state.sim_procedure = None
         self.id = "%x" % self.first_imark.addr if irsb_id is None else irsb_id

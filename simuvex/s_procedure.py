@@ -23,7 +23,7 @@ class SimProcedure(SimRun):
     local_vars = ()
 
     def __init__(self, state, ret_to=None, stmt_from=None, convention=None, arguments=None, sim_kwargs=None,
-                 run_func_name='run', syscall_name=None, **kwargs):
+                 run_func_name='run', syscall_name=None, force_bbl_addr=None, **kwargs):
         self.kwargs = { } if sim_kwargs is None else sim_kwargs
         SimRun.__init__(self, state, **kwargs)
 
@@ -32,7 +32,7 @@ class SimProcedure(SimRun):
         old_sim_procedure = self.state.scratch.sim_procedure
 
         # Update state.scratch
-        self.state.scratch.bbl_addr = self.addr
+        self.state.scratch.bbl_addr = self.addr if force_bbl_addr is None else force_bbl_addr
         self.state.scratch.sim_procedure = self.__class__.__name__
         self.state.scratch.executed_block_count = 1
 
