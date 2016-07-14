@@ -62,5 +62,5 @@ class CodeLocation(object):
         return hash((self.simrun_addr, self.stmt_idx, self.sim_procedure))
 
     def _store_kwargs(self, **kwargs):
-        for k, v in kwargs:
+        for k, v in kwargs.iteritems():
             self.info[k] = v
