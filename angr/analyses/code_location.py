@@ -31,13 +31,22 @@ class CodeLocation(object):
 
         else:
             if self.stmt_idx is None:
-                return "<%#x(-)%s>" % (self.simrun_addr, ("_%#x" % self.ins_addr) if self.ins_addr else "")
+                s = "<%#x(-)%s" % (self.simrun_addr, (" %#x" % self.ins_addr) if self.ins_addr else "")
             else:
-                return "<%#x(%d)%s>" % (
+                s = "<%#x(%d)%s" % (
                     self.simrun_addr,
                     self.stmt_idx,
-                    ("_%#x" % self.ins_addr) if self.ins_addr else ""
+                    (" %#x" % self.ins_addr) if self.ins_addr else ""
                 )
+
+            ss = [ ]
+            if self.info:
+                for k, v in self.info.iteritems():
+                    ss.append("%s=%s" % (k, v))
+                s += " with %s" % ", ".join(ss)
+            s += ">"
+
+            return s
 
     def __eq__(self, other):
         """
@@ -53,5 +62,5 @@ class CodeLocation(object):
         return hash((self.simrun_addr, self.stmt_idx, self.sim_procedure))
 
     def _store_kwargs(self, **kwargs):
-        for k, v in kwargs:
+        for k, v in kwargs.iteritems():
             self.info[k] = v

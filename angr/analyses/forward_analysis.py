@@ -111,6 +111,11 @@ class ForwardAnalysis(object):
     def graph(self):
         return self._graph
 
+    @property
+    def entries(self):
+        for entry_info in self._entries:
+            yield entry_info.entry
+
     #
     # Public methods
     #
@@ -246,6 +251,8 @@ class ForwardAnalysis(object):
                 except AngrJobMergingFailureNotice:
                     # merging failed
                     entry_info = EntryInfo(key, entry)
+                    # update the entries map
+                    self._entries_map[key] = entry_info
             else:
                 entry_info = EntryInfo(key, entry)
                 self._entries_map[key] = entry_info

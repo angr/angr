@@ -17,6 +17,7 @@ from ..path import make_path
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase
 from .forward_analysis import ForwardAnalysis
+from .cfg_utils import CFGUtils
 
 l = logging.getLogger(name="angr.analyses.cfg_accurate")
 
@@ -49,6 +50,10 @@ class CFGJob(EntryWrapper):
     @property
     def is_syscall(self):
         return self.jumpkind is not None and self.jumpkind.startswith('Ijk_Sys')
+
+    @property
+    def state(self):
+        return self.path.state
 
     def __hash__(self):
         return hash(self.simrun_key)
@@ -91,7 +96,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     This class represents a control-flow graph.
     """
 
-    def __init__(self, context_sensitivity_level=1,
+    def __init__(self,
+                 context_sensitivity_level=1,
                  start=None,
                  avoid_runs=None,
                  enable_function_hints=False,
@@ -104,17 +110,22 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                  enable_symbolic_back_traversal=False,
                  additional_edges=None,
                  no_construct=False,
-                 normalize=False
+                 normalize=False,
+                 max_iterations=1,
+                 address_whitelist=None,
+                 base_graph=None,
                  ):
         """
         All parameters are optional.
 
-        :param context_sensitivity_level:           The level of context-sensitivity of this CFG (see documentation for further details)
-                                                    It ranges from 0 to infinity. Default 1.
+        :param context_sensitivity_level:           The level of context-sensitivity of this CFG (see documentation for
+                                                    further details). It ranges from 0 to infinity. Default 1.
         :param avoid_runs:                          A list of runs to avoid.
-        :param enable_function_hints:               Whether to use function hints (constants that might be used as exit targets) or not.
+        :param enable_function_hints:               Whether to use function hints (constants that might be used as exit
+                                                    targets) or not.
         :param call_depth:                          How deep in the call stack to trace.
-        :param call_tracing_filter:                 Filter to apply on a given path and jumpkind to determine if it should be skipped when call_depth is reached
+        :param call_tracing_filter:                 Filter to apply on a given path and jumpkind to determine if it
+                                                    should be skipped when call_depth is reached.
         :param initial_state:                       An initial state to use to begin analysis.
         :param starts:                              A list of addresses at which to begin analysis
         :param keep_state:                          Whether to keep the SimStates for each CFGNode.
@@ -122,9 +133,23 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param enable_symbolic_back_traversal:      Whether to enable an intensive technique for resolving indirect jumps
         :param additional_edges:                    A dict mapping addresses of basic blocks to addresses of
                                                     successors to manually include and analyze forward from.
-        :param no_construct:                        Skip the construction procedure. Only used in unit-testing.
+        :param bool no_construct:                   Skip the construction procedure. Only used in unit-testing.
+        :param bool normalize:                      If the CFG as well as all Function graphs should be normalized or
+                                                    not.
+        :param int max_iterations:                  The maximum number of iterations that each basic block should be
+                                                    "executed". 1 by default. Larger numbers of iterations are usually
+                                                    required for complex analyses like loop analysis.
+        :param iterable address_whitelist:          A list of allowed addresses. Any basic blocks outside of this
+                                                    collection of addresses will be ignored.
+        :param networkx.DiGraph base_graph:         A basic control flow graph to follow. Each node inside this graph
+                                                    must have the following properties: `addr` and `size`. CFG recovery
+                                                    will strictly follow nodes and edges shown in the graph, and discard
+                                                    any contorl flow that does not follow an existing edge in the base
+                                                    graph. For example, you can pass in a Function local transition
+                                                    graph as the base graph, and CFGAccurate will traverse nodes and
+                                                    edges and extract useful information.
         """
-        ForwardAnalysis.__init__(self)
+        ForwardAnalysis.__init__(self, order_entries=True if base_graph is not None else False)
         CFGBase.__init__(self, context_sensitivity_level, normalize=normalize)
         self._symbolic_function_initial_state = {}
         self._function_input_states = None
@@ -156,6 +181,15 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._quasi_topological_order = {}
         # A copy of all entry points in this CFG. Integers
         self._entry_points = []
+
+        self._max_iterations = max_iterations
+        self._address_whitelist = set(address_whitelist) if address_whitelist is not None else None
+        self._base_graph = base_graph
+        self._node_addr_visiting_order = [ ]
+
+        if self._base_graph:
+            sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self._base_graph)
+            self._node_addr_visiting_order = [ n.addr for n in sorted_nodes ]
 
         self._sanitize_parameters()
 
@@ -614,6 +648,26 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return entry.simrun_key
 
+    def _entry_sorting_key(self, entry):
+        """
+        Get the sorting key of a CFGJob instance.
+
+        :param CFGJob entry: the CFGJob object.
+        :return: An integer that determines the order of this job in the queue.
+        :rtype: int
+        """
+
+        if self._base_graph is None:
+            # we don't do sorting if there is no base_graph
+            return 0
+
+        MAX_ENTRIES = 1000000
+
+        if entry.addr not in self._node_addr_visiting_order:
+            return MAX_ENTRIES
+
+        return self._node_addr_visiting_order.index(entry.addr)
+
     def _pre_analysis(self):
         """
         Initialization work. Executed prior to the analysis.
@@ -866,13 +920,16 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Should we skip tracing this SimRun?
         should_skip = False
-        if self._traced_addrs[entry.call_stack_suffix][addr] > 1:
+        if self._traced_addrs[entry.call_stack_suffix][addr] > self._max_iterations:
             should_skip = True
         elif self._is_call_jumpkind(entry.jumpkind) and \
              self._call_depth is not None and \
              len(entry.call_stack) > self._call_depth and \
              (self._call_tracing_filter is None or self._call_tracing_filter(entry.path.state, entry.jumpkind)):
             should_skip = True
+
+        # SimInspect breakpoints support
+        entry.state._inspect('cfg_handle_entry', simuvex.BP_BEFORE)
 
         # Get a SimRun out of current SimExit
         simrun, error_occurred, _ = self._get_simrun(addr, entry.path, current_function_addr=entry.func_addr)
@@ -1052,6 +1109,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if l.level == logging.DEBUG:
             # Only in DEBUG mode do we process and output all those shit
             self._post_handle_entry_debug(entry, successors)
+
+        # SimInspect breakpoints support
+        entry.state._inspect('cfg_handle_entry', simuvex.BP_AFTER)
 
     def _post_process_successors(self, simrun, successors):
         """
@@ -1237,6 +1297,23 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # time being.
             target_addr |= 1
 
+        # see if the target successor is in our whitelist
+        if self._address_whitelist is not None:
+            if target_addr not in self._address_whitelist:
+                l.debug("Successor %#x is not in the address whitelist. Skip.", target_addr)
+                return [ ]
+
+        # see if this edge is in the base graph
+        if self._base_graph is not None:
+            # TODO: make it more efficient. the current implementation is half-assed and extremely slow
+            for src_, dst_ in self._base_graph.edges_iter():
+                if src_.addr == addr and dst_.addr == target_addr:
+                    break
+            else:
+                # not found
+                l.debug("Edge (%#x -> %#x) is not found in the base graph. Skip.", addr, target_addr)
+                return [ ]
+
         # Fix target_addr for syscalls
         if suc_jumpkind.startswith("Ijk_Sys"):
             _, target_addr, _, _ = self.project._simos.syscall_info(new_state)
@@ -1349,10 +1426,16 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if entry.extra_info['is_call_jump'] and entry.extra_info['call_target'] in self._non_returning_functions:
             entry.extra_info['skip_fakeret'] = True
 
-        if pw:
-            return [ pw ]
-        else:
+        if not pw:
             return [ ]
+
+        if self._base_graph is not None:
+            # remove all exising entries that has the same simrun key
+            if next((en for en in self.entries if en.simrun_key == pw.simrun_key), None):
+                # TODO: this is very hackish. Reimplement this logic later
+                self._entries = [ entry_info for entry_info in self._entries if entry_info.entry.simrun_key != pw.simrun_key ]
+
+        return [ pw ]
 
     # SimAction handling
 
@@ -2134,6 +2217,15 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         error_occurred = False
         state = current_entry.state
         saved_state = current_entry.state  # We don't have to make a copy here
+
+        # respect the basic block size from base graph
+        simrun_size = None
+        if self._base_graph is not None:
+            for n in self._base_graph.nodes_iter():
+                if n.addr == addr:
+                    simrun_size = n.size
+                    break
+
         try:
             if not self._keep_state and \
                     self.project.is_hooked(addr) and \
@@ -2180,7 +2272,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             else:
                 jumpkind = state.scratch.jumpkind
                 jumpkind = 'Ijk_Boring' if jumpkind is None else jumpkind
-                sim_run = self.project.factory.sim_run(current_entry.state, jumpkind=jumpkind)
+                sim_run = self.project.factory.sim_run(current_entry.state, jumpkind=jumpkind, max_size=simrun_size)
 
         except (simuvex.SimFastPathError, simuvex.SimSolverModeError) as ex:
 

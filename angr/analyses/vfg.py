@@ -12,12 +12,13 @@ from ..entry_wrapper import SimRunKey, FunctionKey, EntryWrapper
 from ..analysis import Analysis, register_analysis
 from ..errors import AngrVFGError, AngrError, AngrVFGRestartAnalysisNotice, AngrJobMergingFailureNotice
 from .forward_analysis import ForwardAnalysis, AngrSkipEntryNotice
+from .cfg_utils import CFGUtils
 
 l = logging.getLogger(name="angr.analyses.vfg")
 
 # The maximum tracing times of a basic block before we widen the results
 MAX_ANALYSIS_TIMES_WITHOUT_MERGING = 5
-MAX_ANALYSIS_TIMES = 10
+MAX_ANALYSIS_TIMES = 80
 
 class VFGJob(EntryWrapper):
     """
@@ -224,7 +225,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
     # TODO: right now the graph traversal method is not optimal. A new solution is needed to minimize the iteration we
     # TODO: access each node in the graph
 
-    def __init__(self, cfg=None,
+    def __init__(self,
+                 cfg=None,
                  context_sensitivity_level=2,
                  function_start=None,
                  interfunction_level=0,
@@ -232,7 +234,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                  avoid_runs=None,
                  remove_options=None,
                  timeout=None,
-                 start_at_function=True
+                 start_at_function=True,
+                 ara=None,
                  ):
         """
         :param project: The project object.
@@ -267,6 +270,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         self._initial_state = initial_state
 
+        self._ara = ara
+
         self._nodes = {}            # all the vfg nodes, keyed on simrun keys
         self._normal_states = { }   # Last available state for each program point without widening
         self._widened_states = { }  # States on which widening has occurred
@@ -298,6 +303,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         self._task_stack = [ ]
 
+        self._tracing_times = defaultdict(int)
+
         # counters for debugging
         self._execution_counter = defaultdict(int)
 
@@ -314,6 +321,15 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
     @property
     def _top_task(self):
+        """
+        Get the first task in the stack.
+
+        :return: The top task in the stack, or None if the stack is empty.
+        :rtype: AnalysisTask
+        """
+
+        if not self._task_stack:
+            return None
         return self._task_stack[-1]
 
     @property
@@ -340,7 +356,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 return n
 
     def irsb_from_node(self, node):
-        return self.project.factory.sim_run(node.state, addr=node.addr)
+        return self.project.factory.sim_run(node.state, addr=node.addr, num_inst=len(node.instruction_addrs))
 
     def get_paths(self, begin, end):
         """
@@ -455,8 +471,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             )).index(job.func_addr)
 
         if job.addr not in self._merge_points(job.func_addr):
-            # put it in the front
-            block_in_function_pos = 0
+            # put it in the front, but still obeying their order
+            # TODO: this order should be solely based on their sorting order.
+            block_in_function_pos = job.addr - job.func_addr
 
         else:
             block_in_function_pos = self._merge_points(job.func_addr).index(job.addr)
@@ -491,8 +508,15 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         l.debug("Handling VFGJob %s", job)
 
+        if not self._top_task:
+            l.debug("No more tasks available. Skip the entry.")
+            raise AngrSkipEntryNotice()
+
         assert isinstance(self._top_task, FunctionAnalysis)
-        assert job in self._top_task.jobs
+
+        if job not in self._top_task.jobs:
+            l.debug("The job is not recorded. SKip the entry.")
+            raise AngrSkipEntryNotice()
 
         # increment the execution counter
         self._execution_counter[job.addr] += 1
@@ -512,12 +536,21 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         input_state = current_path.state
         simrun_key = SimRunKey.new(addr, job.call_stack_suffix, job.jumpkind)
 
+        if self._tracing_times[simrun_key] > MAX_ANALYSIS_TIMES:
+            raise AngrSkipEntryNotice()
+
+        self._tracing_times[simrun_key] += 1
+
         if simrun_key not in self._nodes:
-            job.vfg_node = VFGNode(addr, simrun_key, state=input_state)
-            self._nodes[simrun_key] = job.vfg_node
+            vfg_node = VFGNode(addr, simrun_key, state=input_state)
+            self._nodes[simrun_key] = vfg_node
 
         else:
-            job.vfg_node = self._nodes[simrun_key]
+            vfg_node = self._nodes[simrun_key]
+
+        job.vfg_node = vfg_node
+        # log the current state
+        vfg_node.state = input_state
 
         current_path.state = input_state
 
@@ -710,6 +743,18 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             if new_simrun_key in self._pending_returns:
                 del self._pending_returns[new_simrun_key]
 
+        # Check if we have reached a fixpoint
+        if new_simrun_key in self._nodes:
+            last_state = self._nodes[new_simrun_key].state
+
+            _, _, merged = last_state.merge(successor)
+
+            if merged:
+                l.debug("%s didn't reach a fix-point", new_simrun_key)
+            else:
+                l.debug("%s reaches a fix-point.", new_simrun_key)
+                return [ ]
+
         new_jobs = self._create_new_jobs(job, successor, new_simrun_key, new_call_stack, new_bbl_stack)
 
         return new_jobs
@@ -771,6 +816,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # pop all tasks if they are finished
         task = self._top_task
 
+        if task is None:
+            # the task stack is empty
+            return
+
         if isinstance(task, CallAnalysis):
             # the call never returns
             l.debug('%s never returns.', task)
@@ -818,8 +867,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 self.project.hooked_by(addr) is simuvex.s_procedure.SimProcedureContinuation:
             raise AngrJobMergingFailureNotice()
 
-        # it must be a merge point
-        assert entries[0].path.addr in self._merge_points(self._current_function_address)
+        if entries[0].path.addr not in self._merge_points(self._current_function_address):
+            # if it's not a valid merge point, we don't merge it right now
+            raise AngrJobMergingFailureNotice()
 
         # update jobs
         for entry in entries:
@@ -834,7 +884,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         path = self.project.factory.path(merged_state)
 
         new_job = VFGJob(entries[0].addr, path, self._context_sensitivity_level, jumpkind=entries[0].jumpkind,
-                         simrun_key=entries[0].simrun_key
+                         simrun_key=entries[0].simrun_key, call_stack=entries[0].call_stack
                          )
 
         self._top_task.jobs.append(new_job)
@@ -846,7 +896,20 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         if self._pending_returns:
             # We don't have any paths remaining. Let's pop a previously-missing return to
             # process
-            pending_ret_key = self._pending_returns.keys()[0]
+
+            top_task = self._top_task  # type: FunctionAnalysis
+            func_addr = top_task.function_address
+
+            pending_ret_key = None
+            for k in self._pending_returns.iterkeys():  # type: SimRunKey
+                if k.func_addr == func_addr:
+                    pending_ret_key = k
+                    break
+
+            if pending_ret_key is None:
+                # TODO: rewind the stack, and pop the correct pending job out of the queue
+                raise NotImplementedError('Task stack rewinding is not implemented yet.')
+
             state, call_stack, bbl_stack = self._pending_returns.pop(pending_ret_key)
             addr = pending_ret_key.addr
 
@@ -867,6 +930,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                          bbl_stack=bbl_stack
                          )
             self._insert_entry(job)
+
+            top_task.jobs.append(job)
+
             l.debug("Tracing a missing return %#08x, %s", addr, repr(pending_ret_key))
 
     def _post_analysis(self):
@@ -1202,8 +1268,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             jumpkind = current_path.state.scratch.jumpkind
 
         try:
-            # TODO: respect the block size from the CFG, especially when we have a normalized CFG available
-            sim_run = self.project.factory.sim_run(current_path.state, jumpkind=jumpkind)
+            node = self._cfg.get_any_node(current_path.addr)
+            num_inst = None if node is None else len(node.instruction_addrs)
+            sim_run = self.project.factory.sim_run(current_path.state, jumpkind=jumpkind, num_inst=num_inst)
         except simuvex.SimIRSBError as ex:
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
@@ -1604,88 +1671,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return networkx.all_simple_paths(self.graph, n_begin, n_end)
 
-    def _find_merge_points(self, function_addr, function_endpoints, graph):  # pylint:disable=unused-argument,no-self-use
-        """
-        Given a local transition graph of a function, find all merge points inside, and then perform a
-        quasi-topological sort of those merge points.
-
-        A merge point might be one of the following cases:
-        - two or more paths come together, and ends at the same address.
-        - end of the current function
-
-        :param int function_addr: Address of the function.
-        :param list function_endpoints: Endpoints of the function. They typically come from Function.endpoints.
-        :param networkx.DiGraph graph: A local transition graph of a function. Normally it comes from Function.graph.
-        :return: A list of ordered addresses of merge points.
-        :rtype: list
-        """
-
-        merge_points = set()
-
-        in_degree_to_nodes = defaultdict(set)
-
-        for node in graph.nodes_iter():
-            in_degree = graph.in_degree(node)
-            in_degree_to_nodes[in_degree].add(node)
-            if in_degree > 1:
-                merge_points.add(node.addr)
-
-        # Revised version of a topological sort
-        # we define a partial order between two merge points as follows:
-        # - if A -> B and not B -> A, then we have A < B
-        # - if A -> B and B -> A, and in a BFS, A is visited before B, then we have A < B
-        # - if A -> B and B -> A, and none of them were visited before, and addr(A) < addr(B), then we have A < B
-
-        graph_copy = networkx.DiGraph(graph)
-
-        # store nodes that are visited and whose in-degree is not 0
-        waiting_queue = [ ]
-
-        ordered_merge_points = [ ]
-
-        while graph_copy.number_of_nodes():
-            if not in_degree_to_nodes[0]:
-                # there is a loop somewhere
-
-                # get a node out of the waiting queue
-                n = waiting_queue[0]
-                waiting_queue = waiting_queue[1:]
-
-                # remove all edges that has `n` as the destination, and update the in-degree set
-                for edge in graph_copy.in_edges(n):
-                    src, _ = edge
-                    graph_copy.remove_edge(src, n)
-
-            else:
-                # get an zero-in-degree node
-                n = in_degree_to_nodes[0].pop()
-
-            if n.addr in merge_points:
-                # we only order merge points
-                ordered_merge_points.append(n.addr)
-
-            if n in waiting_queue:
-                waiting_queue.remove(n)
-
-            if n not in graph_copy:
-                continue
-
-            for edge in graph_copy.out_edges(n):
-                _, dst = edge
-                if n is not dst:
-                    in_degree = graph_copy.in_degree(dst)
-                    in_degree_to_nodes[in_degree].remove(dst)
-                    in_degree_to_nodes[in_degree - 1].add(dst)
-
-                graph_copy.remove_edge(n, dst)
-
-                if dst not in waiting_queue:
-                    waiting_queue.append(dst)
-
-            graph_copy.remove_node(n)
-
-        return ordered_merge_points
-
     def _merge_points(self, function_address):
         """
         Return the ordered merge points for a specific function.
@@ -1700,7 +1685,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         new_function = self.kb.functions[function_address]
 
         if function_address not in self._function_merge_points:
-            ordered_merge_points = self._find_merge_points(function_address, new_function.endpoints,
+            ordered_merge_points = CFGUtils.find_merge_points(function_address, new_function.endpoints,
                                                            new_function.graph)
             self._function_merge_points[function_address] = ordered_merge_points
 
