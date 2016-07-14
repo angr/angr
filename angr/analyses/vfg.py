@@ -12,6 +12,7 @@ from ..entry_wrapper import SimRunKey, FunctionKey, EntryWrapper
 from ..analysis import Analysis, register_analysis
 from ..errors import AngrVFGError, AngrError, AngrVFGRestartAnalysisNotice, AngrJobMergingFailureNotice
 from .forward_analysis import ForwardAnalysis, AngrSkipEntryNotice
+from .cfg_utils import CFGUtils
 
 l = logging.getLogger(name="angr.analyses.vfg")
 
@@ -224,7 +225,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
     # TODO: right now the graph traversal method is not optimal. A new solution is needed to minimize the iteration we
     # TODO: access each node in the graph
 
-    def __init__(self, cfg=None,
+    def __init__(self,
+                 cfg=None,
                  context_sensitivity_level=2,
                  function_start=None,
                  interfunction_level=0,
@@ -1666,88 +1668,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return networkx.all_simple_paths(self.graph, n_begin, n_end)
 
-    def _find_merge_points(self, function_addr, function_endpoints, graph):  # pylint:disable=unused-argument,no-self-use
-        """
-        Given a local transition graph of a function, find all merge points inside, and then perform a
-        quasi-topological sort of those merge points.
-
-        A merge point might be one of the following cases:
-        - two or more paths come together, and ends at the same address.
-        - end of the current function
-
-        :param int function_addr: Address of the function.
-        :param list function_endpoints: Endpoints of the function. They typically come from Function.endpoints.
-        :param networkx.DiGraph graph: A local transition graph of a function. Normally it comes from Function.graph.
-        :return: A list of ordered addresses of merge points.
-        :rtype: list
-        """
-
-        merge_points = set()
-
-        in_degree_to_nodes = defaultdict(set)
-
-        for node in graph.nodes_iter():
-            in_degree = graph.in_degree(node)
-            in_degree_to_nodes[in_degree].add(node)
-            if in_degree > 1:
-                merge_points.add(node.addr)
-
-        # Revised version of a topological sort
-        # we define a partial order between two merge points as follows:
-        # - if A -> B and not B -> A, then we have A < B
-        # - if A -> B and B -> A, and in a BFS, A is visited before B, then we have A < B
-        # - if A -> B and B -> A, and none of them were visited before, and addr(A) < addr(B), then we have A < B
-
-        graph_copy = networkx.DiGraph(graph)
-
-        # store nodes that are visited and whose in-degree is not 0
-        waiting_queue = [ ]
-
-        ordered_merge_points = [ ]
-
-        while graph_copy.number_of_nodes():
-            if not in_degree_to_nodes[0]:
-                # there is a loop somewhere
-
-                # get a node out of the waiting queue
-                n = waiting_queue[0]
-                waiting_queue = waiting_queue[1:]
-
-                # remove all edges that has `n` as the destination, and update the in-degree set
-                for edge in graph_copy.in_edges(n):
-                    src, _ = edge
-                    graph_copy.remove_edge(src, n)
-
-            else:
-                # get an zero-in-degree node
-                n = in_degree_to_nodes[0].pop()
-
-            if n.addr in merge_points:
-                # we only order merge points
-                ordered_merge_points.append(n.addr)
-
-            if n in waiting_queue:
-                waiting_queue.remove(n)
-
-            if n not in graph_copy:
-                continue
-
-            for edge in graph_copy.out_edges(n):
-                _, dst = edge
-                if n is not dst:
-                    in_degree = graph_copy.in_degree(dst)
-                    in_degree_to_nodes[in_degree].remove(dst)
-                    in_degree_to_nodes[in_degree - 1].add(dst)
-
-                graph_copy.remove_edge(n, dst)
-
-                if dst not in waiting_queue:
-                    waiting_queue.append(dst)
-
-            graph_copy.remove_node(n)
-
-        return ordered_merge_points
-
     def _merge_points(self, function_address):
         """
         Return the ordered merge points for a specific function.
@@ -1762,7 +1682,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         new_function = self.kb.functions[function_address]
 
         if function_address not in self._function_merge_points:
-            ordered_merge_points = self._find_merge_points(function_address, new_function.endpoints,
+            ordered_merge_points = CFGUtils.find_merge_points(function_address, new_function.endpoints,
                                                            new_function.graph)
             self._function_merge_points[function_address] = ordered_merge_points
 
