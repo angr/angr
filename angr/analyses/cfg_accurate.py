@@ -928,6 +928,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
              (self._call_tracing_filter is None or self._call_tracing_filter(entry.path.state, entry.jumpkind)):
             should_skip = True
 
+        # SimInspect breakpoints support
+        entry.state._inspect('cfg_handle_entry', simuvex.BP_BEFORE)
+
         # Get a SimRun out of current SimExit
         simrun, error_occurred, _ = self._get_simrun(addr, entry.path, current_function_addr=entry.func_addr)
         if simrun is None or should_skip:
@@ -1106,6 +1109,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if l.level == logging.DEBUG:
             # Only in DEBUG mode do we process and output all those shit
             self._post_handle_entry_debug(entry, successors)
+
+        # SimInspect breakpoints support
+        entry.state._inspect('cfg_handle_entry', simuvex.BP_AFTER)
 
     def _post_process_successors(self, simrun, successors):
         """
