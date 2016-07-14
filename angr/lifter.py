@@ -402,6 +402,10 @@ class Block(object):
             l.warning('Lifted basic block with no IMarks!')
             self.addr = 0
 
+        if self.size is not None:
+            if type(byte_string) is str:
+                self._bytes = byte_string[:self.size]
+
     def __repr__(self):
         return '<Block for %#x, %d bytes>' % (self.addr, self.size)
 
