@@ -19,7 +19,8 @@ event_types = {
     'exit',
     'symbolic_variable',
     'call',
-    'syscall'
+    'syscall',
+    'cfg_handle_entry',
 }
 
 inspect_attributes = {
@@ -227,7 +228,9 @@ class SimInspector(SimStatePlugin):
         :return:            The created breakpoint.
         """
         if event_type not in event_types:
-            raise ValueError("Invalid event type %s passed in. Should be one of: %s" % (event_type, event_types))
+            raise ValueError("Invalid event type %s passed in. Should be one of: %s" % (event_type,
+                                                                                        ", ".join(event_types))
+                             )
         self._breakpoints[event_type].append(bp)
 
     def remove_breakpoint(self, event_type, bp):
