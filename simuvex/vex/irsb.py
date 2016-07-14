@@ -34,7 +34,7 @@ class SimIRSB(SimRun):
     :ivar last_stmt:        The statement to stop execution at.
     """
 
-    def __init__(self, state, irsb, irsb_id=None, whitelist=None, last_stmt=None, **kwargs):
+    def __init__(self, state, irsb, irsb_id=None, whitelist=None, last_stmt=None, force_bbl_addr=None, **kwargs):
         SimRun.__init__(self, state, **kwargs)
 
         if irsb.size == 0:
@@ -43,7 +43,7 @@ class SimIRSB(SimRun):
         self.irsb = irsb
         self.first_imark = IMark(next(i for i in self.irsb.statements if type(i) is pyvex.IRStmt.IMark))
         self.last_imark = self.first_imark
-        self.state.scratch.bbl_addr = self.addr
+        self.state.scratch.bbl_addr = self.addr if force_bbl_addr is None else force_bbl_addr
         self.state.scratch.executed_block_count = 1
         self.state.sim_procedure = None
         self.id = "%x" % self.first_imark.addr if irsb_id is None else irsb_id
@@ -210,11 +210,16 @@ class SimIRSB(SimRun):
 
             # we'll pass in the imark to the statements
             if type(stmt) == pyvex.IRStmt.IMark:
-                self.state._inspect('instruction', BP_AFTER)
-
-                l.debug("IMark: 0x%x", stmt.addr)
                 self.last_imark = IMark(stmt)
                 self.state.scratch.ins_addr = stmt.addr + stmt.delta
+
+                for subaddr in xrange(stmt.addr, stmt.addr + stmt.len):
+                    if subaddr in self.state.scratch.dirty_addrs:
+                        raise SimReliftException(self.state)
+                self.state._inspect('instruction', BP_AFTER)
+
+                l.debug("IMark: %#x", stmt.addr)
+                self.state.scratch.num_insns += 1
                 if o.INSTRUCTION_SCOPE_CONSTRAINTS in self.state.options:
                     if 'solver_engine' in self.state.plugins:
                         self.state.release_plugin('solver_engine')
@@ -281,5 +286,5 @@ from .expressions import translate_expr
 from . import size_bits
 from .. import s_options as o
 from ..plugins.inspect import BP_AFTER, BP_BEFORE
-from ..s_errors import SimError, SimIRSBError, SimSolverError, SimMemoryAddressError
+from ..s_errors import SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException
 from ..s_action import SimActionExit, SimActionObject

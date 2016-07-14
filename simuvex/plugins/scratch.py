@@ -35,6 +35,10 @@ class SimStateScratch(SimStatePlugin):
         self.used_variables = SimVariableSet()
         self.ignored_variables = None
 
+        # dirtied addresses, for dealing with self-modifying code
+        self.dirty_addrs = set()
+        self.num_insns = 0
+
         if scratch is not None:
             self.temps.update(scratch.temps)
             self.jumpkind = scratch.jumpkind

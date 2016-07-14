@@ -146,6 +146,11 @@ class SimFastPathError(SimIRSBError):
 class UnsupportedSyscallError(SimProcedureError, SimUnsupportedError):
     pass
 
+class SimReliftException(SimIRSBError):
+    def __init__(self, state):
+        super(SimReliftException, self).__init__()
+        self.state = state
+
 #
 # SimSlicer errors
 #
