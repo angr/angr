@@ -199,6 +199,12 @@ class CongruencyCheck(Analysis):
 			self._report_incongruency("Single path in pg.left and pg.right required.")
 			return False
 
+		if "UNICORN" in self.pg.one_right.state.options and depth is not None:
+			self.pg.one_right.state.unicorn.max_steps = depth
+
+		if "UNICORN" in self.pg.one_left.state.options and depth is not None:
+			self.pg.one_left.state.unicorn.max_steps = depth
+
 		l.debug("Performing initial path comparison.")
 		if not self.compare_paths(self.pg.left[0], self.pg.right[0]):
 			self._report_incongruency("Initial path comparison check failed.")
