@@ -824,14 +824,14 @@ static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, in
 static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user_data) {
 	LOG_I("block [%#lx, %#lx]", address, address + size);
 
+	State *state = (State *)user_data;
 	if (state->ignore_next_block) {
 		state->ignore_next_block = false;
 		state->ignore_next_selfmod = true;
 		return;
 	}
-	State *state = (State *)user_data;
 	state->commit();
-	state->step(address);
+	state->step(address, size);
 
 	if (!state->stopped && !state->check_block(address, size)) {
     state->stop(STOP_SYMBOLIC_REG);

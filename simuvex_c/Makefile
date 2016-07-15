@@ -14,7 +14,7 @@ endif
 CC := gcc
 CFLAGS := -I ${UNICORN_PATH}/include -I ${UNICORN_PATH}/include/unicorn -I ${QEMU_PATH} \
 	  -I ${QEMU_PATH}/include -I ${VEX_PATH}/pub -I ${PYVEX_PATH} `pkg-config --cflags glib-2.0` \
-          -O3
+          -O3 -L ${UNICORN_PATH}
 LFLAGS := -L ${UNICORN_PATH}
 LIBS := -lglib-2.0 -lunicorn
 OBJS := log.o arch/x86.o arch/mips.o
