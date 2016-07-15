@@ -185,6 +185,7 @@ def _load_native():
         _setup_prototype(h, 'enable_symbolic_reg_tracking', None, state_t, VexArch, _VexArchInfo)
         _setup_prototype(h, 'disable_symbolic_reg_tracking', None, state_t)
         _setup_prototype(h, 'symbolic_register_data', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
+        _setup_prototype(h, 'get_symbolic_registers', ctypes.c_uint64, state_t, ctypes.POINTER(ctypes.c_uint64))
 
         l.info('native plugin is enabled')
 
