@@ -132,7 +132,7 @@ def test_fauxware_aggressive():
 
     nose.tools.assert_equal(len(pg.deadended), 1)
 
-def run_similarity(binpath, depth):
+def run_similarity(binpath, depth, prehook=None):
     b = angr.Project(os.path.join(test_location, binpath))
     cc = b.analyses.CongruencyCheck(throw=True)
     cc.set_state_options(
@@ -141,8 +141,8 @@ def run_similarity(binpath, depth):
         right_add_options={so.INITIALIZE_ZERO_REGISTERS},
         right_remove_options={so.LAZY_SOLVES, so.TRACK_MEMORY_MAPPING, so.COMPOSITE_SOLVER}
     )
-    if depth == 29:
-        cc.pg.left[0].state.unicorn.max_steps = 500
+    if prehook:
+        cc.pg = prehook(cc.pg)
     cc.run(depth=depth)
 
 def test_similarity_01cf6c01():
@@ -171,6 +171,12 @@ def test_similarity_ee545a01():
     run_similarity("binaries-private/cgc_qualifier_event/cgc/ee545a01_01", 200)
 def test_similarity_f5adc401():
     run_similarity("binaries-private/cgc_qualifier_event/cgc/f5adc401_01", 100)
+def test_similarity_fauxware():
+    def cooldown(pg):
+        # gotta skip the initializers because of cpuid and RDTSC
+        pg.one_left.state.unicorn.countdown_nonunicorn_blocks = 39
+        return pg
+    run_similarity("binaries/tests/i386/fauxware", 1000, prehook=cooldown)
 #("binaries-private/cgc_qualifier_event/cgc/5c921501_01", 70),
 
 def test_fp():
