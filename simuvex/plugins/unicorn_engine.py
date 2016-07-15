@@ -959,10 +959,22 @@ class Unicorn(SimStatePlugin):
             num_regs = _UC_NATIVE.get_symbolic_registers(self._uc_state, symbolic_list)
 
             # we take the approach of saving off the symbolic regs and then writing them back
-            symbolic_ranges = [ (t[0][1], t[-1][1] - t[0][1] + 1) for t in [
-                tuple(g) for _,g in itertools.groupby(enumerate(sorted(symbolic_list[:num_regs])), lambda (i,x): i-x)
-            ] ]
-            saved_registers = [ (o, self.state.registers.load(o, s)) for o,s in symbolic_ranges ]
+            saved_registers = [ ]
+            cur_group = None
+            last = None
+            for i in sorted(symbolic_list[:num_regs]):
+                if cur_group is None:
+                    cur_group = i
+                elif i != last + 1 or cur_group/self.state.arch.bytes != i/self.state.arch.bytes:
+                    saved_registers.append((
+                        cur_group, self.state.registers.load(cur_group, last-cur_group+1)
+                    ))
+                    cur_group = i
+                last = i
+            if cur_group is not None:
+                saved_registers.append((
+                    cur_group, self.state.registers.load(cur_group, last-cur_group+1)
+                ))
 
         # now we sync registers out of unicorn
         for r, c in self._uc_regs.iteritems():
