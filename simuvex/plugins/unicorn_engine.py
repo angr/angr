@@ -218,6 +218,7 @@ class Unicorn(SimStatePlugin):
         concretized_asts=None,
         always_concretize=None,
         never_concretize=None,
+        concretize_at=None,
         concretization_threshold_memory=None,
         concretization_threshold_registers=None,
         concretization_threshold_instruction=None,
@@ -286,6 +287,7 @@ class Unicorn(SimStatePlugin):
         # be concretized
         self.always_concretize = set() if always_concretize is None else always_concretize
         self.never_concretize = set() if never_concretize is None else never_concretize
+        self.concretize_at = set() if concretize_at is None else concretize_at
 
         # this is a record of the ASTs for which we've added concretization constraints
         self._concretized_asts = set() if concretized_asts is None else concretized_asts
@@ -300,6 +302,7 @@ class Unicorn(SimStatePlugin):
             concretized_asts = set(self._concretized_asts),
             always_concretize = set(self.always_concretize),
             never_concretize = set(self.never_concretize),
+            concretize_at = set(self.concretize_at),
             concretization_threshold_memory = self.concretization_threshold_memory,
             concretization_threshold_registers = self.concretization_threshold_registers,
             concretization_threshold_instruction = self.concretization_threshold_instruction,
@@ -355,6 +358,7 @@ class Unicorn(SimStatePlugin):
         # be concretized
         self.always_concretize.union(*[o.always_concretize for o in others])
         self.never_concretize.union(*[o.never_concretize for o in others])
+        self.concretize_at.union(*[o.concretize_at for o in others])
 
         # intersect these so that we know to add future constraints properly
         self._concretized_asts.intersection(*[o._concretized_asts for o in others])
@@ -513,40 +517,43 @@ class Unicorn(SimStatePlugin):
             self._concretized_asts.add(hash(d))
         return cd
 
-    def _symbolic_passthrough(self, d, from_where):
-        if len(d.variables & self.never_concretize) > 0:
+    def _symbolic_passthrough(self, d):
+        if not d.symbolic:
+            return d
+        elif options.UNICORN_AGGRESSIVE_CONCRETIZATION in self.state.options:
+            return self._concretize(d)
+        elif len(d.variables & self.never_concretize) > 0:
             return d
         elif d.variables.issubset(self.always_concretize):
             return self._concretize(d)
-        elif d.symbolic and options.UNICORN_AGGRESSIVE_CONCRETIZATION in self.state.options:
+        elif self.state.se.any_int(self.state.ip) in self.concretize_at:
             return self._concretize(d)
-        elif d.symbolic and options.UNICORN_THRESHOLD_CONCRETIZATION in self.state.options:
+        else:
+            return d
+
+    def _report_symbolic_blocker(self, d, from_where):
+        if options.UNICORN_THRESHOLD_CONCRETIZATION in self.state.options:
             if self.concretization_threshold_instruction is not None:
                 addr = self.state.se.any_int(self.state.ip)
                 count = self.symbolic_inst_counts.get(addr, 0)
                 l.debug("... inst count for %s: %d", addr, count)
                 self.symbolic_inst_counts[addr] = count + 1
-                if count > self.concretization_threshold_instruction:
-                    return self._concretize(d)
+                if count >= self.concretization_threshold_instruction:
+                    self.concretize_at.add(addr)
 
-            keep_symbolic = False
             threshold = (
                 self.concretization_threshold_memory if from_where == 'mem' else
                 self.concretization_threshold_registers
             )
-
             if threshold is None:
-                return d
+                return
 
             for v in d.variables:
                 old_count = self.symbolic_var_counts.get(v, 0)
                 l.debug("... %s: %d", v, old_count)
                 self.symbolic_var_counts[v] = old_count + 1
-                keep_symbolic |= old_count < threshold
-
-            return d if keep_symbolic else self._concretize(d)
-        else:
-            return d
+                if old_count >= threshold:
+                    self.always_concretize.add(v)
 
     def _process_value(self, d, from_where):
         """
@@ -556,20 +563,26 @@ class Unicorn(SimStatePlugin):
         :param from_where: the ID of the memory region it comes from ('mem' or 'reg')
         :returns: the value to be inserted into Unicorn, or None
         """
-        s = d.symbolic
-        if s:
-            l.debug("Processing AST with variables %s through %s", d.variables, from_where)
-        d = self._symbolic_passthrough(d, from_where)
-        if d.symbolic or len(d.annotations):
+        if len(d.annotations):
+            l.debug("Blocking annotated AST.")
+            return None
+        elif not d.symbolic:
+            return d
+        else:
+            l.debug("Processing AST with variables %s.", d.variables)
+
+        dd = self._symbolic_passthrough(d)
+
+        if not dd.symbolic:
+            if d.symbolic:
+                l.debug("... concretized")
+            return dd
+        elif from_where == 'reg' and options.UNICORN_SYM_REGS_SUPPORT in self.state.options:
+            l.debug("... allowing symbolic register")
+            return dd
+        else:
             l.debug("... denied")
             return None
-        else:
-            if s:
-                l.debug("... concretized")
-            return d
-
-    def _valid_reg_value(self, v):
-        return v is not None or options.UNICORN_SYM_REGS_SUPPORT in self.state.options
 
     def _hook_mem_unmapped(self, uc, access, address, size, value, user_data): #pylint:disable=unused-argument
         """
@@ -695,26 +708,18 @@ class Unicorn(SimStatePlugin):
             # can optimize the case where there aren't any. (N.B.: "optimize"
             # does not refer to constructing the set of symbolic register
             # offsets, but rather to not having to lift each block etc.)
-            symbolic_regs = False
-            for r in self._uc_regs:
-                if r in self.reg_blacklist:
-                    continue
-                v = self._process_value(getattr(self.state.regs, r), 'reg')
-                if v.symbolic:
-                    symbolic_regs = True
-                    break
-            else:
-                if self.state.arch.name in ('X86', 'AMD64'):
-                    vex_offset = self.state.arch.registers['fpu_regs'][0]
-                    if self.state.registers.load(vex_offset, 64).symbolic:
-                        symbolic_regs = True
-
-            if symbolic_regs:
+            if self._check_registers():
                 highest_reg_offset, reg_size = max(self.state.arch.registers.values())
                 symbolic_offsets = set()
                 for i in xrange(highest_reg_offset + reg_size):
-                    if self.state.registers.load(i, 1).symbolic:
+                    if self._symbolic_passthrough(self.state.registers.load(i, 1)).symbolic:
                         symbolic_offsets.add(i)
+
+                # for register flagged systems, we should save off all CC regs together
+                if self.state.arch.name == 'X86' and symbolic_offsets & set(range(40, 56)):
+                    symbolic_offsets.update(range(40, 56))
+                elif self.state.arch.name == 'AMD64' and symbolic_offsets & set(range(144, 176)):
+                    symbolic_offsets.update(range(144, 176))
 
                 sym_regs_array = (ctypes.c_uint64 * len(symbolic_offsets))(*map(ctypes.c_uint64, symbolic_offsets))
                 _UC_NATIVE.symbolic_register_data(self._uc_state, len(symbolic_offsets), sym_regs_array)
@@ -752,7 +757,7 @@ class Unicorn(SimStatePlugin):
 
         if self.stop_reason in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT, STOP.STOP_SYSCALL):
             self.countdown_nonunicorn_blocks = 0
-        if self.stop_reason == STOP.STOP_SYMBOLIC_MEM:
+        if self.stop_reason == STOP.STOP_SYMBOLIC_REG:
             self.countdown_symbolic_registers = self.cooldown_symbolic_registers
 
         # get the address list out of the state
@@ -785,13 +790,13 @@ class Unicorn(SimStatePlugin):
             gs = self.state.se.any_int(self.state.regs.gs)
             self.write_msr(fs, 0xC0000100)
             self.write_msr(gs, 0xC0000101)
-            flags = self._process_value(ccall._get_flags(self.state)[0])
-            if not self._valid_reg_value(flags):
+            flags = self._process_value(ccall._get_flags(self.state)[0], 'reg')
+            if flags is None:
                 raise SimValueError('symbolic eflags')
             uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.any_int(flags))
         elif self.state.arch.qemu_name == 'i386':
-            flags = self._process_value(ccall._get_flags(self.state)[0])
-            if not self._valid_reg_value(flags):
+            flags = self._process_value(ccall._get_flags(self.state)[0], 'reg')
+            if flags is None:
                 raise SimValueError('symbolic eflags')
             uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.any_int(flags))
             fs = self.state.se.any_int(self.state.regs.fs) << 16
@@ -801,8 +806,8 @@ class Unicorn(SimStatePlugin):
         for r, c in self._uc_regs.iteritems():
             if r in self.reg_blacklist:
                 continue
-            v = self._process_value(getattr(self.state.regs, r))
-            if not self._valid_reg_value(v):
+            v = self._process_value(getattr(self.state.regs, r), 'reg')
+            if v is None:
                     raise SimValueError('setting a symbolic register')
             # l.debug('setting $%s = %#x', r, self.state.se.any_int(v))
             uc.reg_write(c, self.state.se.any_int(v))
@@ -828,8 +833,8 @@ class Unicorn(SimStatePlugin):
                 if tag == 0:
                     tag_word |= 3       # unicorn doesn't care about any value other than 3 for setting
                 else:
-                    val = self._process_value(self.state.registers.load(vex_offset, size=8))
-                    if not self._valid_reg_value(val):
+                    val = self._process_value(self.state.registers.load(vex_offset, size=8), 'reg')
+                    if val is None:
                         raise SimValueError('setting a symbolic fp register')
                     val = self.state.se.any_int(val)
 
@@ -946,6 +951,20 @@ class Unicorn(SimStatePlugin):
 
     def get_regs(self):
         ''' loading registers from unicorn '''
+
+        # first, get the ignore list (in case of symbolic registers)
+        if options.UNICORN_SYM_REGS_SUPPORT in self.state.options:
+            highest_reg_offset, reg_size = max(self.state.arch.registers.values())
+            symbolic_list = (ctypes.c_uint64*(highest_reg_offset + reg_size))()
+            num_regs = _UC_NATIVE.get_symbolic_registers(self._uc_state, symbolic_list)
+
+            # we take the approach of saving off the symbolic regs and then writing them back
+            symbolic_ranges = [ (t[0][1], t[-1][1] - t[0][1] + 1) for t in [
+                tuple(g) for _,g in itertools.groupby(enumerate(sorted(symbolic_list[:num_regs])), lambda (i,x): i-x)
+            ] ]
+            saved_registers = [ (o, self.state.registers.load(o, s)) for o,s in symbolic_ranges ]
+
+        # now we sync registers out of unicorn
         for r, c in self._uc_regs.iteritems():
             if r in self.reg_blacklist:
                 continue
@@ -1016,6 +1035,11 @@ class Unicorn(SimStatePlugin):
                 vex_offset += 8
                 tag_word >>= 2
                 vex_tag_offset -= 1
+
+        # now, we restore the symbolic registers
+        if options.UNICORN_SYM_REGS_SUPPORT in self.state.options:
+            for o,r in saved_registers:
+                self.state.registers.store(o, r)
 
     def _check_registers(self):
         ''' check if this state might be used in unicorn (has no concrete register)'''
