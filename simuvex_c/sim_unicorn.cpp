@@ -952,6 +952,18 @@ void symbolic_register_data(State *state, uint64_t count, uint64_t *offsets)
 }
 
 extern "C"
+uint64_t get_symbolic_registers(State *state, uint64_t *output)
+{
+	int i = 0;
+	for (auto r : state->symbolic_registers)
+	{
+		output[i] = r;
+		i++;
+	}
+	return i;
+}
+
+extern "C"
 void enable_symbolic_reg_tracking(State *state, VexArch guest, VexArchInfo archinfo) {
   state->vex_guest = guest;
   state->vex_archinfo = archinfo;
