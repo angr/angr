@@ -232,8 +232,9 @@ class SimOS(object):
             state.memory.mem._preapproved_stack = IRange(stack_end - stack_size, stack_end)
 
         if o.INITIALIZE_ZERO_REGISTERS in state.options:
-            for r in self.arch.registers:
-                setattr(state.regs, r, 0)
+            highest_reg_offset, reg_size = max(state.arch.registers.values())
+            for i in range(0, highest_reg_offset + reg_size, state.arch.bytes):
+                state.registers.store(i, state.se.BVV(0, state.arch.bits))
 
         state.regs.sp = stack_end
 
