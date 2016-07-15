@@ -662,11 +662,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def __setstate__(self, s):
         self._graph = s['graph']
         self.indirect_jumps = s['indirect_jumps']
+        self._nodes_by_addr = s['_nodes_by_addr']
 
     def __getstate__(self):
         s = {
             "graph": self.graph,
             "indirect_jumps": self.indirect_jumps,
+            '_nodes_by_addr': self._nodes_by_addr,
         }
         return s
 
