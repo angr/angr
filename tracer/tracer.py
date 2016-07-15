@@ -404,6 +404,7 @@ class Tracer(object):
 
     @staticmethod
     def to_indices(variables):
+        variables = [v for v in variables if v.startswith("file_/dev/stdin")]
         indices = map(lambda y: int(y.split("_")[3], 16), variables)
         return sorted(indices)
 
