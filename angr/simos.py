@@ -670,11 +670,7 @@ class SimCGC(SimOS):
     def state_entry(self, **kwargs):
         if isinstance(self.proj.loader.main_bin, BackedCGC):
             kwargs['permissions_backer'] = (True, self.proj.loader.main_bin.permissions_map)
-
-        if 'add_options' in kwargs:
-            kwargs['add_options'].add(o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
-        else:
-            kwargs['add_options'] = {o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY}
+        kwargs['add_options'] = {o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY} | kwargs.get('add_options', set())
 
         state = super(SimCGC, self).state_entry(**kwargs)
 
