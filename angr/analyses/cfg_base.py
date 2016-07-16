@@ -44,7 +44,7 @@ class CFGBase(Analysis):
     """
     The base class for control flow graphs.
     """
-    def __init__(self, context_sensitivity_level, normalize=False, binary=None, force_segment=False):
+    def __init__(self, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None):
 
         self._context_sensitivity_level=context_sensitivity_level
 
@@ -54,6 +54,7 @@ class CFGBase(Analysis):
 
         self._binary = binary if binary is not None else self.project.loader.main_bin
         self._force_segment = force_segment
+        self._iropt_level = iropt_level
 
         # Initialization
         self._graph = None
@@ -241,7 +242,7 @@ class CFGBase(Analysis):
                 'You should save the input state when generating the CFG if you want to retrieve the SimIRSB later.')
 
         # Recreate the SimIRSB
-        return self.project.factory.sim_run(cfg_node.input_state)
+        return self.project.factory.sim_run(cfg_node.input_state, max_size=cfg_node.size, opt_level=self._iropt_level)
 
     def irsb_from_node(self, cfg_node):
         """

@@ -114,6 +114,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                  max_iterations=1,
                  address_whitelist=None,
                  base_graph=None,
+                 iropt_level=None,
                  ):
         """
         All parameters are optional.
@@ -148,9 +149,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                     graph. For example, you can pass in a Function local transition
                                                     graph as the base graph, and CFGAccurate will traverse nodes and
                                                     edges and extract useful information.
+        :param int iropt_level:                     The optimization level of VEX IR (0, 1, 2). The default level will
+                                                    be used if `iropt_level` is None.
         """
         ForwardAnalysis.__init__(self, order_entries=True if base_graph is not None else False)
-        CFGBase.__init__(self, context_sensitivity_level, normalize=normalize)
+        CFGBase.__init__(self, context_sensitivity_level, normalize=normalize, iropt_level=iropt_level)
         self._symbolic_function_initial_state = {}
         self._function_input_states = None
         self._loop_back_edges_set = set()
@@ -177,7 +180,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._advanced_backward_slicing = enable_advanced_backward_slicing
         self._enable_symbolic_back_traversal = enable_symbolic_back_traversal
         self._additional_edges = additional_edges if additional_edges else {}
+
         # Stores the index for each CFGNode in this CFG after a quasi-topological sort (currently a DFS)
+        # TODO: remove it since it's no longer used
         self._quasi_topological_order = {}
         # A copy of all entry points in this CFG. Integers
         self._entry_points = []
@@ -2272,7 +2277,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             else:
                 jumpkind = state.scratch.jumpkind
                 jumpkind = 'Ijk_Boring' if jumpkind is None else jumpkind
-                sim_run = self.project.factory.sim_run(current_entry.state, jumpkind=jumpkind, max_size=simrun_size)
+                sim_run = self.project.factory.sim_run(current_entry.state, jumpkind=jumpkind, max_size=simrun_size,
+                                                       opt_level=self._iropt_level
+                                                       )
 
         except (simuvex.SimFastPathError, simuvex.SimSolverModeError) as ex:
 
