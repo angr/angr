@@ -101,9 +101,10 @@ class CFGUtils(object):
                     for suc in successors:
                         if src is not suc:
                             in_degree = graph_copy.in_degree(suc)
-                            graph_copy.add_edge(src, suc)
-                            in_degree_to_nodes[in_degree].remove(suc)
-                            in_degree_to_nodes[in_degree + 1].add(suc)
+                            if suc not in graph_copy[src]:
+                                graph_copy.add_edge(src, suc)
+                                in_degree_to_nodes[in_degree].remove(suc)
+                                in_degree_to_nodes[in_degree + 1].add(suc)
 
                 # remove all edges that has `n` as the destination
                 for src, _ in in_edges:
