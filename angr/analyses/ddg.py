@@ -3,8 +3,8 @@ from collections import defaultdict
 
 import networkx
 
-from simuvex import SimRegisterVariable, SimMemoryVariable
-from simuvex import SimSolverModeError
+from simuvex import SimRegisterVariable, SimMemoryVariable, SimTemporaryVariable, SimConstantVariable
+from simuvex import SimSolverModeError, SimUnsatError
 
 from ..errors import AngrDDGError
 from ..analysis import Analysis, register_analysis
@@ -12,18 +12,48 @@ from .code_location import CodeLocation
 
 l = logging.getLogger("angr.analyses.ddg")
 
-class NodeWrapper(object):
+
+class ProgramVariable(object):
+    """
+    Describes a variable in the program at a specific location.
+
+    :ivar SimVariable variable: The variable.
+    :ivar CodeLocation location: Location of the variable.
+    """
+    def __init__(self, variable, location):
+        self.variable = variable
+        self.location = location
+
+    def __hash__(self):
+        return hash((self.variable, self.location))
+
+    def __eq__(self, other):
+        if not isinstance(other, ProgramVariable):
+            return False
+
+        return self.variable == other.variable and self.location == other.location
+
+    def __repr__(self):
+        s = "<%s @ %s>" % (self.variable, self.location)
+        return s
+
+
+class DDGJob(object):
     def __init__(self, cfg_node, call_depth):
         self.cfg_node = cfg_node
         self.call_depth = call_depth
 
+    def __repr__(self):
+        return "<DDGJob %s, call_depth %d>" % (self.cfg_node, self.call_depth)
+
+
 class DDG(Analysis):
     """
-    This is a fast data dependence graph directly gerenated from our CFG analysis result. The only reason for its
-    existance is the speed. There is zero guarantee for being sound or accurate. You are supposed to use it only when
+    This is a fast data dependence graph directly generated from our CFG analysis result. The only reason for its
+    existence is the speed. There is zero guarantee for being sound or accurate. You are supposed to use it only when
     you want to track the simplest data dependence, and you do not care about soundness or accuracy.
 
-    For a better data dependence graph, please consider to perform a better static analysis first (like Value-set
+    For a better data dependence graph, please consider performing a better static analysis first (like Value-set
     Analysis), and then construct a dependence graph on top of the analysis result (for example, the VFG in angr).
 
     Also note that since we are using states from CFG, any improvement in analysis performed on CFG (like a points-to
@@ -46,7 +76,10 @@ class DDG(Analysis):
         self._start = self.project.entry if start is None else start
         self._call_depth = call_depth
 
-        self._graph = networkx.DiGraph()
+        self._stmt_graph = networkx.DiGraph()
+        self._data_graph = networkx.DiGraph()
+        self._simplified_data_graph = None
+
         self._symbolic_mem_ops = set()
 
         self.keep_data = keep_data
@@ -64,9 +97,34 @@ class DDG(Analysis):
     @property
     def graph(self):
         """
-        :returns: A networkx DiGraph instance representing the data dependence graph.
+        :returns: A networkx DiGraph instance representing the dependence relations between statements.
+        :rtype: networkx.DiGraph
         """
-        return self._graph
+
+        return self._stmt_graph
+
+    @property
+    def data_graph(self):
+        """
+        Get the data dependence graph.
+
+        :return: A networkx DiGraph instance representing data dependence.
+        :rtype: networkx.DiGraph
+        """
+
+        return self._data_graph
+
+    @property
+    def simplified_data_graph(self):
+        """
+
+        :return:
+        """
+
+        if self._simplified_data_graph is None:
+            self._simplified_data_graph = self._simplify_data_graph(self.data_graph)
+
+        return self._simplified_data_graph
 
     #
     # Public methods
@@ -77,18 +135,15 @@ class DDG(Analysis):
         Pretty printing.
         """
         # TODO: make it prettier
-        for k,v in self.graph.iteritems():
-            for st, tup in v.iteritems():
-                print "(0x%x, %d) <- (0x%x, %d)" % (k, st,
-                                                            list(tup)[0][0],
-                                                            list(tup)[0][1])
+        for src, dst, data in self.graph.edges_iter(data=True):
+            print "%s <-- %s, %s" % (src, dst, data)
 
     def dbg_repr(self):
         """
         Representation for debugging.
         """
         # TODO:
-        return str(self._graph)
+        return str(self.graph)
 
     def __contains__(self, code_location):
         """
@@ -108,7 +163,7 @@ class DDG(Analysis):
         :returns:               A list of all predecessors.
         """
 
-        return self._graph.predecessors(code_location)
+        return self.graph.predecessors(code_location)
 
     def function_dependency_graph(self, func):
         """
@@ -126,7 +181,6 @@ class DDG(Analysis):
 
         # Not found
         return None
-
 
     #
     # Private methods
@@ -154,16 +208,15 @@ class DDG(Analysis):
             Well, they cannot be tracked under fastpath mode (which is the mode we are generating the CTF) anyways.
         """
 
-        # TODO: Here we are assuming that there is only one node whose address is the entry point. Otherwise it should
-        # TODO: be fixed.
-        initial_node = self._cfg.get_any_node(self._start)
-
-        # Initialize the worklist
-        nw = NodeWrapper(initial_node, 0)
-        worklist = [ ]
+        worklist = []
         worklist_set = set()
 
-        self._worklist_append(nw, worklist, worklist_set)
+        # initial nodes are those nodes in CFG that has no in-degrees
+        for n in self._cfg.graph.nodes_iter():
+            if self._cfg.graph.in_degree(n) == 0:
+                # Put it into the worklist
+                job = DDGJob(n, 0)
+                self._worklist_append(job, worklist, worklist_set)
 
         # A dict storing defs set
         # variable -> locations
@@ -171,8 +224,8 @@ class DDG(Analysis):
 
         while worklist:
             # Pop out a node
-            node_wrapper = worklist[0]
-            node, call_depth = node_wrapper.cfg_node, node_wrapper.call_depth
+            ddg_job = worklist[0]
+            node, call_depth = ddg_job.cfg_node, ddg_job.call_depth
             worklist = worklist[ 1 : ]
             worklist_set.remove(node)
 
@@ -234,9 +287,9 @@ class DDG(Analysis):
 
                 if changed:
                     if (self._call_depth is None) or \
-                        (self._call_depth is not None and new_call_depth >= 0 and new_call_depth <= self._call_depth):
+                            (self._call_depth is not None and 0 <= new_call_depth <= self._call_depth):
                         # Put all reachable successors back to our worklist again
-                        nw = NodeWrapper(successing_node, new_call_depth)
+                        nw = DDGJob(successing_node, new_call_depth)
                         self._worklist_append(nw, worklist, worklist_set)
 
     def _track(self, state, live_defs):
@@ -255,147 +308,177 @@ class DDG(Analysis):
         action_list = list(state.log.actions)
 
         # Since all temporary variables are local, we simply track them in a local dict
-        temps = {}
+        temp_defs = { }
+
+        temp_variables = { }
 
         # All dependence edges are added to the graph either at the end of this method, or when they are going to be
-        # overwritten by a new edge. This is because we sometimes have to modify a  previous edge (e.g. add new labels
+        # overwritten by a new edge. This is because we sometimes have to modify a previous edge (e.g. add new labels
         # to the edge)
         temps_to_edges = defaultdict(list)
         regs_to_edges = defaultdict(list)
 
-        def _annotate_edges_in_dict(dict_, key, **new_labels):
-            """
-
-            :param dict_:       The dict, can be either `temps_to_edges` or `regs_to_edges`.
-            :param key:         The key used in finding elements in the dict.
-            :param new_labels:  New labels to be added to those edges.
-            """
-
-            for edge_tuple in dict_[key]:
-                # unpack it
-                _, _, labels = edge_tuple
-                for k, v in new_labels.iteritems():
-                    if k in labels:
-                        labels[k] = labels[k] + (v,)
-                    else:
-                        # Construct a tuple
-                        labels[k] = (v,)
-
-        def _dump_edge_from_dict(dict_, key, del_key=True):
-            """
-            Pick an edge from the dict based on the key specified, add it to our graph, and remove the key from dict.
-
-            :param dict_:   The dict, can be either `temps_to_edges` or `regs_to_edges`.
-            :param key:     The key used in finding elements in the dict.
-            """
-            for edge_tuple in dict_[key]:
-                # unpack it
-                prev_code_loc, current_code_loc, labels = edge_tuple
-                # Add the new edge
-                self._add_edge(prev_code_loc, current_code_loc, **labels)
-
-            # Clear it
-            if del_key:
-                del dict_[key]
+        last_statement_id = None
+        data_read = None  # data read out in the same statement. we keep a copy of the data here so we can link it to
+                          # the tmp_write action right afterwards
 
         for a in action_list:
 
+            if last_statement_id is None or last_statement_id != a.stmt_idx:
+                data_read = [ ]
+                last_statement_id = a.stmt_idx
+
             if a.bbl_addr is None:
-                current_code_loc = CodeLocation(None, None, sim_procedure=a.sim_procedure)
+                current_code_location = CodeLocation(None, None, sim_procedure=a.sim_procedure)
             else:
-                current_code_loc = CodeLocation(a.bbl_addr, a.stmt_idx)
+                current_code_location = CodeLocation(a.bbl_addr, a.stmt_idx, ins_addr=a.ins_addr)
 
             if a.type == "mem":
                 if a.actual_addrs is None:
                     # For now, mem reads don't necessarily have actual_addrs set properly
                     try:
                         addr_list = { state.se.any_int(a.addr.ast) }
-                    except SimSolverModeError:
+                    except (SimSolverModeError, SimUnsatError):
                         # it's symbolic... just continue
-                        continue
+                        addr_list = { 0x60000000 }  # TODO: this is a random address that I pick. Fix it.
                 else:
                     addr_list = set(a.actual_addrs)
 
                 for addr in addr_list:
                     variable = SimMemoryVariable(addr, a.data.ast.size())  # TODO: Properly unpack the SAO
+                    pv = ProgramVariable(variable, current_code_location)
 
                     if a.action == "read":
                         # Create an edge between def site and use site
 
                         prevdefs = self._def_lookup(live_defs, variable)
 
+                        # TODO: prevdefs should only contain location, not labels
                         for prev_code_loc, labels in prevdefs.iteritems():
-                            self._read_edge = True
-                            self._add_edge(prev_code_loc, current_code_loc, **labels)
+                            self._stmt_graph_add_edge(prev_code_loc, current_code_location, **labels)
+
+                        data_read.append(pv)
 
                     if a.action == "write":
                         # Kill the existing live def
-                        self._kill(live_defs, variable, current_code_loc)
+                        self._kill(live_defs, variable, current_code_location)
 
-                    # For each of its register dependency and data dependency, we revise the corresponding edge
-                    for reg_off in a.addr.reg_deps:
-                        _annotate_edges_in_dict(regs_to_edges, reg_off, subtype='mem_addr')
+                    # For each of its register dependency and data dependency, we annotate the corresponding edge
+                    for reg_offset in a.addr.reg_deps:
+                        self._stmt_graph_annotate_edges(regs_to_edges[reg_offset], subtype='mem_addr')
+                        reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
+                        prev_defs = self._def_lookup(live_defs, reg_variable)
+                        for loc, _ in prev_defs:
+                            v = ProgramVariable(reg_variable, loc)
+                            self._data_graph_add_edge(v, pv, type='mem_addr')
+
                     for tmp in a.addr.tmp_deps:
-                        _annotate_edges_in_dict(temps_to_edges, tmp, subtype='mem_addr')
+                        self._stmt_graph_annotate_edges(temps_to_edges[tmp], subtype='mem_addr')
+                        if tmp in temp_variables:
+                            self._data_graph_add_edge(temp_variables[tmp], pv, type='mem_addr')
 
-                    for reg_off in a.data.reg_deps:
-                        _annotate_edges_in_dict(regs_to_edges, reg_off, subtype='mem_data')
+                    for reg_offset in a.data.reg_deps:
+                        self._stmt_graph_annotate_edges(regs_to_edges[reg_offset], subtype='mem_data')
+                        reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
+                        prev_defs = self._def_lookup(live_defs, reg_variable)
+                        for loc, _ in prev_defs:
+                            v = ProgramVariable(reg_variable, loc)
+                            self._data_graph_add_edge(v, pv, type='mem_data')
+
                     for tmp in a.data.tmp_deps:
-                        _annotate_edges_in_dict(temps_to_edges, tmp, subtype='mem_data')
+                        self._stmt_graph_annotate_edges(temps_to_edges[tmp], subtype='mem_data')
+                        if tmp in temp_variables:
+                            self._data_graph_add_edge(temp_variables[tmp], pv, type='mem_data')
 
             elif a.type == 'reg':
-                # For now, we assume a.offset is not symbolic
                 # TODO: Support symbolic register offsets
 
-                variable = SimRegisterVariable(a.offset, a.data.ast.size())
+                reg_offset = a.offset
+                variable = SimRegisterVariable(reg_offset, a.data.ast.size())
 
                 if a.action == 'read':
                     # What do we want to do?
                     prevdefs = self._def_lookup(live_defs, variable)
 
-                    if a.offset in regs_to_edges:
-                        _dump_edge_from_dict(regs_to_edges, a.offset)
-
+                    # add edges to the statement dependence graph
                     for prev_code_loc, labels in prevdefs.iteritems():
-                        edge_tuple = (prev_code_loc, current_code_loc, labels)
-                        regs_to_edges[a.offset].append(edge_tuple)
+                        self._stmt_graph_add_edge(prev_code_loc, current_code_location, **labels)
+                        # record the edge
+                        edge_tuple = (prev_code_loc, current_code_location)
+                        regs_to_edges[reg_offset].append(edge_tuple)
+
+                        data_read.append(ProgramVariable(variable, prev_code_loc))
+
+                    if not prevdefs:
+                        # the register was never defined before - it must be passed in as an argument
+                        data_read.append(ProgramVariable(variable, current_code_location))
 
                 else:
                     # write
-                    self._kill(live_defs, variable, current_code_loc)
+                    self._kill(live_defs, variable, current_code_location)
+
+                    if reg_offset in regs_to_edges:
+                        # clear the existing edges definition
+                        del regs_to_edges[reg_offset]
+
+                    # add a node on the data dependence graph
+                    pv = ProgramVariable(variable, current_code_location)
+                    self._data_graph_add_node(pv)
+
+                    if not a.reg_deps and not a.tmp_deps:
+                        # moving a constant into the register
+                        const_pv = ProgramVariable(SimConstantVariable(), current_code_location)
+                        self._data_graph_add_edge(const_pv, pv)
+
+                for tmp in a.tmp_deps:
+                    if tmp in temp_variables:
+                        self._data_graph_add_edge(temp_variables[tmp], pv)
 
             elif a.type == 'tmp':
                 # tmp is definitely not symbolic
+                tmp = a.tmp
+                pv = ProgramVariable(SimTemporaryVariable(tmp), current_code_location)
+
                 if a.action == 'read':
-                    prev_code_loc = temps[a.tmp]
-                    edge_tuple = (prev_code_loc, current_code_loc, {'type': 'tmp', 'data': a.tmp})
+                    prev_code_loc = temp_defs[tmp]
 
-                    if a.tmp in temps_to_edges:
-                        _dump_edge_from_dict(temps_to_edges, a.tmp)
-
+                    self._stmt_graph_add_edge(prev_code_loc, current_code_location, type='tmp', data=a.tmp)
+                    # record the edge
+                    edge_tuple = (prev_code_loc, current_code_location)
                     temps_to_edges[a.tmp].append(edge_tuple)
 
                 else:
                     # write
-                    temps[a.tmp] = current_code_loc
+                    temp_defs[tmp] = current_code_location
+                    temp_variables[tmp] = pv
+
+                    # clear existing edges
+                    if tmp in temps_to_edges:
+                        del temps_to_edges[tmp]
+
+                    for tmp_dep in a.tmp_deps:
+                        if tmp_dep in temp_variables:
+                            self._data_graph_add_edge(temp_variables[tmp_dep], pv)
+
+                    for data in data_read:
+                        self._data_graph_add_edge(data, pv)
 
             elif a.type == 'exit':
                 # exits should only depend on tmps
-
                 for tmp in a.tmp_deps:
-                    prev_code_loc = temps[tmp]
-                    edge_tuple = (prev_code_loc, current_code_loc, {'type': 'exit', 'data': tmp})
+                    prev_code_loc = temp_defs[tmp]
 
-                    if tmp in temps_to_edges:
-                        _dump_edge_from_dict(temps_to_edges, tmp)
+                    # add the edge to the graph
+                    self._stmt_graph_add_edge(prev_code_loc, current_code_location, type='exit', data='tmp')
 
+                    # log the edge
+                    edge_tuple = (prev_code_loc, current_code_location)
                     temps_to_edges[tmp].append(edge_tuple)
 
-        # In the end, dump all other edges in those two dicts
-        for reg_offset in regs_to_edges:
-            _dump_edge_from_dict(regs_to_edges, reg_offset, del_key=False)
-        for tmp in temps_to_edges:
-            _dump_edge_from_dict(temps_to_edges, tmp, del_key=False)
+        #import pprint
+        #pprint.pprint(self._data_graph.edges())
+        #pprint.pprint(self.simplified_data_graph.edges())
+        # import ipdb; ipdb.set_trace()
 
         return live_defs
 
@@ -441,7 +524,7 @@ class DDG(Analysis):
                     }
         return prevdefs
 
-    def _kill(self, live_defs, variable, code_loc):
+    def _kill(self, live_defs, variable, code_loc):  # pylint:disable=no-self-use
         """
         Kill previous defs. addr_list is a list of normalized addresses.
         """
@@ -453,17 +536,131 @@ class DDG(Analysis):
         live_defs[variable] = {code_loc}
         #l.debug("XX CodeLoc %s kills variable %s", code_loc, variable)
 
-    def _add_edge(self, s_a, s_b, **edge_labels):
+    def _get_register_size(self, reg_offset):
         """
-         Add an edge in the graph from `s_a` to statement `s_b`, where `s_a` and `s_b` are tuples of statements of the
-         form (irsb_addr, stmt_idx).
+        Get the size of a register.
+
+        :param int reg_offset: Offset of the register.
+        :return: Size in bytes.
+        :rtype: int
         """
+
+        # TODO: support registers that are not aligned
+        if reg_offset in self.project.arch.register_names:
+            reg_name = self.project.arch.register_names[reg_offset]
+            reg_size = self.project.arch.registers[reg_name][1]
+            return reg_size
+
+        l.warning("_get_register_size(): unsupported register offset %d. Assum size 1. "
+                  "More register name mappings should be implemented in archinfo.", reg_offset)
+        return 1
+
+    def _data_graph_add_node(self, node):
+        """
+        Add a noe in the data dependence graph.
+
+        :param ProgramVariable node: The node to add.
+        :return: None
+        """
+
+        self._data_graph.add_node(node)
+
+        self._simplified_data_graph = None
+
+    def _data_graph_add_edge(self, src, dst, **edge_labels):
+        """
+        Add an edge in the data dependence graph.
+
+        :param ProgramVariable src: Source node.
+        :param ProgramVariable dst: Destination node.
+        :param edge_labels: All labels associated with the edge.
+        :return: None
+        """
+
+        if src in self._data_graph and dst in self._data_graph[src]:
+            return
+
+        self._data_graph.add_edge(src, dst, **edge_labels)
+
+        self._simplified_data_graph = None
+
+    def _stmt_graph_add_edge(self, src, dst, **edge_labels):
+        """
+        Add an edge in the statement dependence graph from a program location `src` to another program location `dst`.
+
+        :param CodeLocation src: Source node.
+        :param CodeLocation dst: Destination node.
+        :param edge_labels: All labels associated with the edge.
+        :returns: None
+        """
+
         # Is that edge already in the graph ?
         # If at least one is new, then we are not redoing the same path again
-        if (s_a, s_b) not in self.graph.edges():
-            self.graph.add_edge(s_a, s_b, **edge_labels)
-            self._new = True
-            l.info("New edge: %s --> %s", s_a, s_b)
+        if src in self._stmt_graph and dst in self._stmt_graph[src]:
+            return
+
+        self._stmt_graph.add_edge(src, dst, **edge_labels)
+
+    def _stmt_graph_annotate_edges(self, edges_to_annotate, **new_labels):
+        """
+        Add new annotations to edges in the statement dependence graph.
+
+        :param list edges_to_annotate:      A list of edges to annotate.
+        :param new_labels:  New labels to be added to those edges.
+        :returns: None
+        """
+
+        graph = self.graph
+
+        for src, dst in edges_to_annotate:
+
+            if src not in graph:
+                continue
+            if dst not in graph[src]:
+                continue
+
+            data = graph[src][dst]
+
+            for k, v in new_labels.iteritems():
+                if k in data:
+                    data[k] = data[k] + (v,)
+                else:
+                    # Construct a tuple
+                    data[k] = (v,)
+
+    def _simplify_data_graph(self, data_graph):  # pylint:disable=no-self-use
+        """
+        Simplify a data graph by removing all temp variable nodes on the graph.
+
+        :param networkx.DiGraph data_graph: The data dependence graph to simplify.
+        :return: The simplified graph.
+        :rtype: networkx.DiGraph
+        """
+
+        graph = networkx.DiGraph(data_graph)
+
+        all_nodes = [ n for n in graph.nodes_iter() if isinstance(n.variable, SimTemporaryVariable) ]
+
+        for tmp_node in all_nodes:
+            # remove each tmp node by linking their successors and predecessors directly
+            in_edges = graph.in_edges(tmp_node, data=True)
+            out_edges = graph.out_edges(tmp_node, data=True)
+
+            for pred, _, _ in in_edges:
+                graph.remove_edge(pred, tmp_node)
+            for _, suc, _ in out_edges:
+                graph.remove_edge(tmp_node, suc)
+
+            for pred, _, data_in in in_edges:
+                for _, suc, data_out in out_edges:
+                    if pred is not tmp_node and suc is not tmp_node:
+                        data = data_in.copy()
+                        data.update(data_out)
+                        graph.add_edge(pred, suc, **data)
+
+            graph.remove_node(tmp_node)
+
+        return graph
 
     def _worklist_append(self, node_wrapper, worklist, worklist_set):
         """
@@ -503,19 +700,19 @@ class DDG(Analysis):
                     if data['jumpkind'] == 'Ijk_Call':
                         if self._call_depth is None or call_depth < self._call_depth:
                             inserted.add(dst)
-                            new_nw = NodeWrapper(dst, call_depth + 1)
+                            new_nw = DDGJob(dst, call_depth + 1)
                             worklist.append(new_nw)
                             worklist_set.add(dst)
                             stack.append(new_nw)
                     elif data['jumpkind'] == 'Ijk_Ret':
                         if call_depth > 0:
                             inserted.add(dst)
-                            new_nw = NodeWrapper(dst, call_depth - 1)
+                            new_nw = DDGJob(dst, call_depth - 1)
                             worklist.append(new_nw)
                             worklist_set.add(dst)
                             stack.append(new_nw)
                     else:
-                        new_nw = NodeWrapper(dst, call_depth)
+                        new_nw = DDGJob(dst, call_depth)
                         inserted.add(dst)
                         worklist_set.add(dst)
                         worklist.append(new_nw)
@@ -534,7 +731,7 @@ class DDG(Analysis):
         # Group all dependencies first
 
         simrun_addr_to_func = { }
-        for func_addr, func in self._cfg.function_manager.functions.iteritems():
+        for _, func in self._cfg.function_manager.functions.iteritems():
             for block in func.blocks:
                 simrun_addr_to_func[block] = func
 

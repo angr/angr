@@ -43,7 +43,7 @@ def run_sscanf(threads):
 
 def test_sscanf():
     yield run_sscanf, None
-    yield run_sscanf, 8
+    # yield run_sscanf, 8
 
 if __name__ == "__main__":
     run_sscanf(4)

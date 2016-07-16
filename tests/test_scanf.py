@@ -94,7 +94,7 @@ def run_scanf(threads):
 
 def test_scanf():
     yield run_scanf, None
-    yield run_scanf, 8
+    # yield run_scanf, 8
 
 if __name__ == "__main__":
     run_scanf(1)

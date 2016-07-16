@@ -67,7 +67,7 @@ def perform_one(binary_path):
         (memaddr_src, cl1, {'data': 14, 'type': 'tmp', 'subtype': ('mem_addr', )}), in_edges
     )
 
-def test_ddg_0():
+def disabled_ddg_0():
     binary_path = test_location + "/x86_64/datadep_test"
     perform_one(binary_path)
 
