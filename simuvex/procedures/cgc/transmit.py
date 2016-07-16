@@ -24,6 +24,14 @@ class transmit(simuvex.SimProcedure):
             if self.state.se.max_int(buf + count) > 0xc0000000 or \
                     self.state.se.min_int(buf + count) < self.state.se.min_int(buf):
                 return 2
+
+            try:
+                readable = self.state.se.any_int(self.state.memory.permissions(self.state.se.any_int(buf))) & 1 != 0
+            except simuvex.SimMemoryError:
+                readable = False
+            if not readable:
+                return 2
+
             if self.state.se.solution(count != 0, True):
                 data = self.state.memory.load(buf, count)
                 self.state.posix.write(fd, data, count)

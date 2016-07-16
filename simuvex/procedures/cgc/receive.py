@@ -31,6 +31,12 @@ class receive(simuvex.SimProcedure):
             if self.state.se.max_int(buf + count) > 0xc0000000 or \
                     self.state.se.min_int(buf + count) < self.state.se.min_int(buf):
                 return 2
+            try:
+                writable = self.state.se.any_int(self.state.memory.permissions(self.state.se.any_int(buf))) & 2 != 0
+            except simuvex.SimMemoryError:
+                writable = False
+            if not writable:
+                return 2
 
             read_length = self.state.posix.read(fd, buf, count)
 
