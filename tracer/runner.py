@@ -23,7 +23,7 @@ class Runner(object):
     """
 
     def __init__(self, binary, input=None, pov_file=None, record_trace=False, record_stdout=False, record_magic=False,
-                 seed=None, memory_limit=None, bitflip=False):
+                 seed=None, memory_limit="8G", bitflip=False):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -41,7 +41,7 @@ class Runner(object):
         self._state = None
         self.memory = None
         self.seed = seed
-        self.memory_limit = self._memory_limit_to_int(memory_limit) if memory_limit is not None else None
+        self.memory_limit = memory_limit
         self.bitflip = bitflip
 
         if self.pov_file is None and self.input is None:
@@ -75,9 +75,6 @@ class Runner(object):
         self.stdout = None
         self.magic = None
 
-        if self.memory_limit:
-            self._set_memory_limit(self.memory_limit)
-
         if record_stdout:
             tmp = tempfile.mktemp(prefix="stdout_" + os.path.basename(binary))
             # will set crash_mode correctly
@@ -91,26 +88,6 @@ class Runner(object):
 
 
 ### SETUP
-
-    @staticmethod
-    def _memory_limit_to_int(ms):
-
-        if not isinstance(ms, str):
-            raise ValueError("memory_limit must be a string such as \"8G\"")
-
-        if ms.endswith('k'):
-            return int(ms[:-1]) * 1024
-        elif ms.endswith('M'):
-            return int(ms[:-1]) * 1024 * 1024
-        elif ms.endswith('G'):
-            return int(ms[:-1]) * 1024 * 1024 * 1024
-
-        raise ValueError("unrecognized size, should be 'k', 'M', or 'G'")
-
-    @staticmethod
-    def _set_memory_limit(ml):
-
-        resource.setrlimit(resource.RLIMIT_AS, (ml, ml))
 
     def _setup(self):
         """
@@ -167,10 +144,7 @@ class Runner(object):
     # at the end, it restores everything
     @contextlib.contextmanager
     def _setup_env(self):
-        # TODO switch back to /dev/shm, when this is fixed:
-        # https://trello.com/c/zTruwWry/247-dev-shm-size-issues
-        # prefix = "/dev/shm/"
-        prefix = "/tmp/tracer_"
+        prefix = "/dev/shm/"
         curdir = os.getcwd()
         tmpdir = tempfile.mkdtemp(prefix=prefix)
         # allow cores to be dumped
@@ -233,6 +207,8 @@ class Runner(object):
         else:
             args += ["-enable_double_empty_exiting"]
 
+        args += ["-m", self.memory_limit]
+
         args += [self.binary]
         if self.bitflip:
             args = [args[0]] + ["-bitflip"] + args[1:]
@@ -245,6 +221,7 @@ class Runner(object):
             # we assume qemu with always exit and won't block
             if self.pov_file is None:
                 l.debug("tracing as raw input")
+                l.debug(" ".join(args))
                 p = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=stdout_f, stderr=devnull)
                 _, _ = p.communicate(self.input)
             else:
