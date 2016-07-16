@@ -16,4 +16,7 @@ class FixedOutTransmit(transmit):
                 l.debug("fixed transmit's call fd")
                 fd = self.state.se.BVV(1, self.state.arch.bits)
 
+        if self.state.has_plugin("zen_plugin"):
+            self.state.get_plugin("zen_plugin").analyze_transmit(self.state, buf)
+
         return super(FixedOutTransmit, self).run(fd, buf, count, tx_bytes)
