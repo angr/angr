@@ -1,4 +1,4 @@
-from .base import SimIRExpr
+from .base import SimIRExpr, _nonset
 from .. import size_bytes, size_bits
 from ... import s_options as o
 from ...s_action import SimActionData
@@ -38,3 +38,21 @@ class SimIRExpr_Load(SimIRExpr):
             addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
             r = SimActionData(self.state, self.state.memory.id, SimActionData.READ, addr=addr_ao, size=size_bits(self._expr.type), data=self.expr)
             self.actions.append(r)
+
+    def reg_deps(self):
+
+        # only return data dependencies
+        if len(self.actions) == 0 or o.ACTION_DEPS not in self.state.options:
+            return _nonset
+        else:
+            return frozenset.union(
+                *[r.data.reg_deps for r in self.actions if type(r) == SimActionData and r.type == 'mem'])
+
+    def tmp_deps(self):
+
+        # only return data dependences
+        if len(self.actions) == 0 or o.ACTION_DEPS not in self.state.options:
+            return _nonset
+        else:
+            return frozenset.union(
+                *[r.data.tmp_deps for r in self.actions if type(r) == SimActionData and r.type == 'mem'])
