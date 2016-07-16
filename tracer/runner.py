@@ -144,7 +144,7 @@ class Runner(object):
     # at the end, it restores everything
     @contextlib.contextmanager
     def _setup_env(self):
-        prefix = "/dev/shm/"
+        prefix = "/tmp/tracer_"
         curdir = os.getcwd()
         tmpdir = tempfile.mkdtemp(prefix=prefix)
         # allow cores to be dumped
