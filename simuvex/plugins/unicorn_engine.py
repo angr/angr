@@ -711,12 +711,14 @@ class Unicorn(SimStatePlugin):
             # can optimize the case where there aren't any. (N.B.: "optimize"
             # does not refer to constructing the set of symbolic register
             # offsets, but rather to not having to lift each block etc.)
-            if self._check_registers(report=False):
-                highest_reg_offset, reg_size = max(self.state.arch.registers.values())
+            if not self._check_registers(report=False):
                 symbolic_offsets = set()
-                for i in xrange(highest_reg_offset + reg_size):
-                    if self._symbolic_passthrough(self.state.registers.load(i, 1)).symbolic:
-                        symbolic_offsets.add(i)
+                highest_reg_offset, reg_size = max(self.state.arch.registers.values())
+                the_bytes, _ = self.state.registers.mem.load_bytes(0, highest_reg_offset+reg_size)
+                for a,v in the_bytes.iteritems():
+                    vv = self._symbolic_passthrough(v.object)
+                    if vv.symbolic:
+                        symbolic_offsets.update(b for b,vb in enumerate(vv.chop(8), a) if vb.symbolic)
 
                 # for register flagged systems, we should save off all CC regs together
                 if self.state.arch.name == 'X86' and symbolic_offsets & set(range(40, 56)):
@@ -1069,7 +1071,7 @@ class Unicorn(SimStatePlugin):
         for r in self.state.arch.uc_regs.iterkeys():
             v = getattr(self.state.regs, r)
             processed_v = self._process_value(v, 'reg')
-            if processed_v is None:
+            if processed_v is None or processed_v.symbolic:
                 #l.info('detected symbolic register %s', r)
                 if report:
                     self._report_symbolic_blocker(v, 'reg')
@@ -1078,7 +1080,7 @@ class Unicorn(SimStatePlugin):
         if self.state.arch.vex_conditional_helpers:
             flags = ccall._get_flags(self.state)[0]
             processed_flags = self._process_value(flags, 'reg')
-            if processed_flags is None:
+            if processed_flags is None or processed_flags.symbolic:
                 #l.info("detected symbolic rflags/eflags")
                 if report:
                     self._report_symbolic_blocker(flags, 'reg')
