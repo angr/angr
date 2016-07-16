@@ -94,7 +94,7 @@ def run_fauxware(arch, threads):
 def test_fauxware():
     for arch in addresses_fauxware:
         yield run_fauxware, arch, None
-        yield run_fauxware, arch, 2
+        # yield run_fauxware, arch, 2
 
 def test_find_to_middle():
 

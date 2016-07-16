@@ -40,7 +40,7 @@ def run_strtol(threads):
 
 def test_strtol():
     yield run_strtol, None
-    yield run_strtol, 8
+    # yield run_strtol, 8
 
 if __name__ == "__main__":
     run_strtol(4)
