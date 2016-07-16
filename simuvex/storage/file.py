@@ -119,13 +119,9 @@ class SimFile(SimStatePlugin):
             s_options.CONCRETIZE_SYMBOLIC_FILE_READ_SIZES in self.state.options and
             (self.state.se.symbolic(orig_length) or self.state.se.symbolic(max_length))
         ):
-            real_length = self.state.se.max_int(
-                orig_length,
-                extra_constraints=(
-                    orig_length <= max_length
-                ,) if orig_length is not max_length else ( )
-            )
-            self.state.add_constraints(orig_length == real_length)
+            orig_max = self.state.se.max_int(orig_length)
+            self.state.add_constraints(orig_length == orig_max)
+            real_length = min(orig_max, self.state.se.max_int(max_length))
 
         if self.size is not None:
             length_constraint = self.pos + real_length <= self.size
