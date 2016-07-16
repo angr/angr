@@ -547,7 +547,7 @@ class DDG(Analysis):
 
         # TODO: support registers that are not aligned
         if reg_offset in self.project.arch.register_names:
-            reg_name = self.project.arch.register_name
+            reg_name = self.project.arch.register_names[reg_offset]
             reg_size = self.project.arch.registers[reg_name][1]
             return reg_size
 
