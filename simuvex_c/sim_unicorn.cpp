@@ -165,6 +165,13 @@ public:
 		stop_reason = STOP_NOSTART;
 		max_steps = step;
 		cur_steps = -1;
+
+		// error if pc is 0
+		if (pc == 0) {
+		  stop_reason == STOP_ZEROPAGE;
+		  return UC_ERR_MAP;
+		}
+
 		return uc_emu_start(uc, pc, 0, 0, 0);
 	}
 
