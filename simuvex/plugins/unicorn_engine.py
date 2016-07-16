@@ -225,8 +225,8 @@ class Unicorn(SimStatePlugin):
         concretization_threshold_memory=None,
         concretization_threshold_registers=None,
         concretization_threshold_instruction=None,
-        cooldown_symbolic_registers=10,
-        cooldown_nonunicorn_blocks=10,
+        cooldown_symbolic_registers=100,
+        cooldown_nonunicorn_blocks=100,
         max_steps=1000000,
     ):
         """
