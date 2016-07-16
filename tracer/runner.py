@@ -23,12 +23,13 @@ class Runner(object):
     """
 
     def __init__(self, binary, input=None, pov_file=None, record_trace=False, record_stdout=False, record_magic=False,
-                 seed=None, memory_limit="8G", bitflip=False):
+                 seed=None, memory_limit="8G", bitflip=False, report_bad_args=False):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
         :param pov_file: CGC PoV describing the input to trace
         :param record_trace: whether or not to record the basic block trace
+        :param report_bad_arg: enable CGC QEMU's report bad args option
         """
 
         self.binary = binary
@@ -43,6 +44,7 @@ class Runner(object):
         self.seed = seed
         self.memory_limit = memory_limit
         self.bitflip = bitflip
+        self.report_bad_args = report_bad_args
 
         if self.pov_file is None and self.input is None:
             raise ValueError("must specify input or pov_file")
@@ -206,6 +208,9 @@ class Runner(object):
             args += ["-d", "exec", "-D", logname]
         else:
             args += ["-enable_double_empty_exiting"]
+
+        if self.report_bad_args:
+            args += ["-report_bad_args"]
 
         args += ["-m", self.memory_limit]
 
