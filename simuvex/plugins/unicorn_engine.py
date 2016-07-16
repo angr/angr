@@ -186,6 +186,8 @@ def _load_native():
         _setup_prototype(h, 'disable_symbolic_reg_tracking', None, state_t)
         _setup_prototype(h, 'symbolic_register_data', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'get_symbolic_registers', ctypes.c_uint64, state_t, ctypes.POINTER(ctypes.c_uint64))
+        _setup_prototype(h, 'stopping_register', ctypes.c_uint64, state_t)
+        _setup_prototype(h, 'stopping_memory', ctypes.c_uint64, state_t)
 
         l.info('native plugin is enabled')
 
@@ -709,7 +711,7 @@ class Unicorn(SimStatePlugin):
             # can optimize the case where there aren't any. (N.B.: "optimize"
             # does not refer to constructing the set of symbolic register
             # offsets, but rather to not having to lift each block etc.)
-            if self._check_registers():
+            if self._check_registers(report=False):
                 highest_reg_offset, reg_size = max(self.state.arch.registers.values())
                 symbolic_offsets = set()
                 for i in xrange(highest_reg_offset + reg_size):
@@ -736,6 +738,14 @@ class Unicorn(SimStatePlugin):
         self.get_regs()
         self.steps = _UC_NATIVE.step(self._uc_state)
         self.stop_reason = _UC_NATIVE.stop_reason(self._uc_state)
+
+        # figure out why we stopped
+        if self.stop_reason == STOP.STOP_SYMBOLIC_REG:
+            stopping_register = _UC_NATIVE.stopping_register(self._uc_state)
+            self._report_symbolic_blocker(self.state.registers.load(stopping_register, 1), 'reg')
+        elif self.stop_reason == STOP.STOP_SYMBOLIC_MEM:
+            stopping_memory = _UC_NATIVE.stopping_memory(self._uc_state)
+            self._report_symbolic_blocker(self.state.memory.load(stopping_memory, 1), 'mem')
 
         addr = self.state.se.any_int(self.state.ip)
         l.info('finished emulation at %#x after %d steps: %s', addr, self.steps, STOP.name_stop(self.stop_reason))
@@ -1054,18 +1064,24 @@ class Unicorn(SimStatePlugin):
             for o,r in saved_registers:
                 self.state.registers.store(o, r)
 
-    def _check_registers(self):
+    def _check_registers(self, report=True):
         ''' check if this state might be used in unicorn (has no concrete register)'''
         for r in self.state.arch.uc_regs.iterkeys():
-            v = self._process_value(getattr(self.state.regs, r), 'reg')
-            if v is None:
+            v = getattr(self.state.regs, r)
+            processed_v = self._process_value(v, 'reg')
+            if processed_v is None:
                 #l.info('detected symbolic register %s', r)
+                if report:
+                    self._report_symbolic_blocker(v, 'reg')
                 return False
 
         if self.state.arch.vex_conditional_helpers:
-            flags = self._process_value(ccall._get_flags(self.state)[0], 'reg')
-            if flags is None:
+            flags = ccall._get_flags(self.state)[0]
+            processed_flags = self._process_value(flags, 'reg')
+            if processed_flags is None:
                 #l.info("detected symbolic rflags/eflags")
+                if report:
+                    self._report_symbolic_blocker(flags, 'reg')
                 return False
 
         #l.debug('passed quick check')

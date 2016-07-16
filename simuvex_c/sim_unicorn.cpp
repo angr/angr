@@ -96,6 +96,8 @@ public:
 	uc_hook h_read, h_write, h_block, h_prot, h_unmap;
   bool stopped;
 	stop_t stop_reason;
+	uint64_t stopping_register;
+	uint64_t stopping_memory;
 
 	bool ignore_next_block;
 	bool ignore_next_selfmod;
@@ -699,6 +701,7 @@ public:
 
     for (uint64_t off : this->symbolic_registers) {
       if (used_registers->count(off) > 0) {
+      	stopping_register = off;
         return false;
       }
     }
@@ -726,6 +729,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 		if (bitmap) {
 			for (int i = start; i <= end; i++)  {
 				if (bitmap[i] & TAINT_SYMBOLIC) {
+					state->stopping_memory = (address & ~0xFFF) + i;
 					state->stop(STOP_SYMBOLIC_MEM);
 					return ;
 				}
@@ -736,6 +740,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 		if (bitmap) {
 			for (int i = start; i <= 0xFFF; i++) {
 				if (bitmap[i] & TAINT_SYMBOLIC) {
+					state->stopping_memory = (address & ~0xFFF) + i;
 					state->stop(STOP_SYMBOLIC_MEM);
 					return ;
 				}
@@ -746,6 +751,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 		if (bitmap) {
 			for (int i = 0; i <= end; i++) {
 				if (bitmap[i] & TAINT_SYMBOLIC) {
+					state->stopping_memory = ((address + size - 1) & ~0xFFF) + i;
 					state->stop(STOP_SYMBOLIC_MEM);
 					return ;
 				}
@@ -931,11 +937,6 @@ uint64_t step(State *state) {
 }
 
 extern "C"
-stop_t stop_reason(State *state) {
-	return state->stop_reason;
-}
-
-extern "C"
 void set_stops(State *state, uint64_t count, uint64_t *stops)
 {
 	state->set_stops(count, stops);
@@ -947,6 +948,29 @@ void activate(State *state, uint64_t address, uint64_t length, uint8_t *taint) {
 	for (uint64_t offset = 0; offset < length; offset += 0x1000)
 		state->page_activate(address + offset, taint, offset);
 }
+
+//
+// Stop analysis
+//
+
+extern "C"
+stop_t stop_reason(State *state) {
+	return state->stop_reason;
+}
+
+extern "C"
+uint64_t stopping_register(State *state) {
+	return state->stopping_register;
+}
+
+extern "C"
+uint64_t stopping_memory(State *state) {
+	return state->stopping_memory;
+}
+
+//
+// Symbolic register tracking
+//
 
 extern "C"
 void symbolic_register_data(State *state, uint64_t count, uint64_t *offsets)
