@@ -664,6 +664,8 @@ class SimCGC(SimOS):
         # Create the CGC plugin
         s.get_plugin('cgc')
 
+        # set up the address for concrete transmits
+        s.unicorn.transmit_addr = self.syscall_table[2][0]
 
         return s
 
