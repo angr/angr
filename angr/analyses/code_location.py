@@ -31,12 +31,15 @@ class CodeLocation(object):
 
         else:
             if self.stmt_idx is None:
-                s = "<%#x(-)%s" % (self.simrun_addr, (" %#x" % self.ins_addr) if self.ins_addr else "")
+                s = "<%s%#x(-)" % (
+                    ("%#x " % self.ins_addr) if self.ins_addr else "",
+                    self.simrun_addr,
+                )
             else:
-                s = "<%#x(%d)%s" % (
+                s = "<%s%#x(%d)" % (
+                    ("%#x " % self.ins_addr) if self.ins_addr else "",
                     self.simrun_addr,
                     self.stmt_idx,
-                    (" %#x" % self.ins_addr) if self.ins_addr else ""
                 )
 
             ss = [ ]
