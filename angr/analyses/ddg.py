@@ -135,18 +135,15 @@ class DDG(Analysis):
         Pretty printing.
         """
         # TODO: make it prettier
-        for k,v in self.graph.iteritems():
-            for st, tup in v.iteritems():
-                print "(0x%x, %d) <- (0x%x, %d)" % (k, st,
-                                                            list(tup)[0][0],
-                                                            list(tup)[0][1])
+        for src, dst, data in self.graph.edges_iter(data=True):
+            print "%s <-- %s, %s" % (src, dst, data)
 
     def dbg_repr(self):
         """
         Representation for debugging.
         """
         # TODO:
-        return str(self._graph)
+        return str(self.graph)
 
     def __contains__(self, code_location):
         """
@@ -358,7 +355,6 @@ class DDG(Analysis):
 
                         # TODO: prevdefs should only contain location, not labels
                         for prev_code_loc, labels in prevdefs.iteritems():
-                            self._read_edge = True
                             self._stmt_graph_add_edge(prev_code_loc, current_code_location, **labels)
 
                         data_read.append(pv)
@@ -528,7 +524,7 @@ class DDG(Analysis):
                     }
         return prevdefs
 
-    def _kill(self, live_defs, variable, code_loc):
+    def _kill(self, live_defs, variable, code_loc):  # pylint:disable=no-self-use
         """
         Kill previous defs. addr_list is a list of normalized addresses.
         """
@@ -604,7 +600,6 @@ class DDG(Analysis):
             return
 
         self._stmt_graph.add_edge(src, dst, **edge_labels)
-        self._new = True
 
     def _stmt_graph_annotate_edges(self, edges_to_annotate, **new_labels):
         """
@@ -633,7 +628,7 @@ class DDG(Analysis):
                     # Construct a tuple
                     data[k] = (v,)
 
-    def _simplify_data_graph(self, data_graph):
+    def _simplify_data_graph(self, data_graph):  # pylint:disable=no-self-use
         """
         Simplify a data graph by removing all temp variable nodes on the graph.
 
@@ -736,7 +731,7 @@ class DDG(Analysis):
         # Group all dependencies first
 
         simrun_addr_to_func = { }
-        for func_addr, func in self._cfg.function_manager.functions.iteritems():
+        for _, func in self._cfg.function_manager.functions.iteritems():
             for block in func.blocks:
                 simrun_addr_to_func[block] = func
 
