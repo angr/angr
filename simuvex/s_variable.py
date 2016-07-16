@@ -5,6 +5,26 @@ class SimVariable(object):
     def __init__(self):
         pass
 
+class SimConstantVariable(SimVariable):
+    def __init__(self, value=None):
+        super(SimConstantVariable, self).__init__()
+        self.value = value
+
+    def __repr__(self):
+        s = "<const %s>" % self.value
+
+        return s
+
+    def __eq__(self, other):
+        if not isinstance(other, SimConstantVariable):
+            return False
+
+        if self.value is None or other.value is None:
+            # they may or may not represent the same constant. return not equal to be safe
+            return False
+
+        return self.value == other.value
+
 class SimTemporaryVariable(SimVariable):
     def __init__(self, tmp_id):
         SimVariable.__init__(self)
@@ -34,7 +54,7 @@ class SimRegisterVariable(SimVariable):
         self.size = size
 
     def __repr__(self):
-        s = "<%s %d>" % (self.reg, self.size)
+        s = "<Reg %s %d>" % (self.reg, self.size)
 
         return s
 
@@ -67,9 +87,9 @@ class SimMemoryVariable(SimVariable):
             size = '%s' % self.size
 
         if type(self.addr) in (int, long):
-            s = "<0x%x %s>" % (self.addr, size)
+            s = "<Mem %#x %s>" % (self.addr, size)
         else:
-            s = "<%s %s>" % (self.addr, size)
+            s = "<Mem %s %s>" % (self.addr, size)
 
         return s
 
