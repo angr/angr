@@ -1830,7 +1830,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # add a node from this entry to the Unresolv
                 # ableTarget node
                 src_node = self._nodes[jump.addr]
-                dst_node = CFGNode(self._unresolvable_target_addr, 0, self, simprocedure_name='UnresolvableTarget')
+                dst_node = CFGNode(self._unresolvable_target_addr, 0, self,
+                                   function_address=self._unresolvable_target_addr,
+                                   simprocedure_name='UnresolvableTarget'
+                                   )
                 self._graph_add_edge(dst_node, src_node, jump.jumpkind, jump.stmt_idx)
                 # mark it as a jumpout site for that function
                 self._function_add_transition_edge(self._unresolvable_target_addr, src_node, jump.func_addr,
