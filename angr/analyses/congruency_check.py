@@ -306,6 +306,7 @@ class CongruencyCheck(Analysis):
 			if sl.arch.name == "X86":
 				reg_diff -= set(range(40, 52)) #ignore cc psuedoregisters
 				reg_diff -= set(range(320, 324)) #some other VEX weirdness
+				reg_diff -= set(range(340, 344)) #ip_at_syscall
 			elif sl.arch.name == "AMD64":
 				reg_diff -= set(range(144, 168)) #ignore cc psuedoregisters
 
