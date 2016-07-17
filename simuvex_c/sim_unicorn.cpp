@@ -273,7 +273,7 @@ public:
 		if (cur_steps == -1) cur_steps = 0;
 	}
 
-	void step(uint64_t current_address, int32_t size) {
+	void step(uint64_t current_address, int32_t size, bool check_stop_points=true) {
 		uc_reg_update(uc, tmp_reg, 1); // save current registers
 		bbl_addrs.push_back(current_address);
 		cur_address = current_address;
@@ -281,7 +281,7 @@ public:
 
 		if (cur_steps >= max_steps) {
 			stop(STOP_NORMAL);
-		} else if (stop_points.count(current_address) == 1) {
+		} else if (check_stop_points && stop_points.count(current_address) == 1) {
 			stop(STOP_STOPPOINT);
 		}
 	}
@@ -937,11 +937,24 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 					return;
 				}
 
+				state->step(state->transmit_bbl_addr, 0, false);
+				state->commit();
+				if (state->stopped)
+				{
+					//printf("... stopped after step()\n");
+					free(dup_buf);
+					return;
+				}
+
+				uc_err err = uc_mem_write(uc, tx_bytes, &count, 4);
 				if (tx_bytes != 0) state->handle_write(tx_bytes, 4);
 				state->transmit_records.push_back({dup_buf, count});
 				int result = 0;
 				uc_reg_write(uc, UC_X86_REG_EAX, &result);
-				state->bbl_addrs.push_back(state->transmit_bbl_addr);
+				state->symbolic_registers.erase(8);
+				state->symbolic_registers.erase(9);
+				state->symbolic_registers.erase(10);
+				state->symbolic_registers.erase(11);
 				state->interrupt_handled = true;
 				return;
 			}
