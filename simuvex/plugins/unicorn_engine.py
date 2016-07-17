@@ -185,6 +185,7 @@ def _load_native():
         _setup_prototype(h, 'sync', ctypes.POINTER(MEM_PATCH), state_t)
         _setup_prototype(h, 'bbl_addrs', ctypes.POINTER(ctypes.c_uint64), state_t)
         _setup_prototype(h, 'bbl_addr_count', ctypes.c_uint64, state_t)
+        _setup_prototype(h, 'syscall_count', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'destroy', None, ctypes.POINTER(MEM_PATCH))
         _setup_prototype(h, 'step', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'stop_reason', stop_t, state_t)
@@ -838,6 +839,7 @@ class Unicorn(SimStatePlugin):
         # get the address list out of the state
         bbl_addrs = _UC_NATIVE.bbl_addrs(self._uc_state)
         self.state.scratch.bbl_addr_list = bbl_addrs[:self.steps]
+        self.state.scratch.executed_syscall_count = _UC_NATIVE.syscall_count(self._uc_state)
 
     def destroy(self):
         #l.debug("Unhooking.")

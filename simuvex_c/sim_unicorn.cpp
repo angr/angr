@@ -99,6 +99,7 @@ private:
 
 public:
 	std::vector<uint64_t> bbl_addrs;
+	uint64_t syscall_count;
 	std::vector<transmit_record_t> transmit_records;
 	uint64_t cur_steps, max_steps;
 	uc_hook h_read, h_write, h_block, h_prot, h_unmap, h_intr;
@@ -133,6 +134,7 @@ public:
 		interrupt_handled = false;
 		transmit_sysno == -1;
     vex_guest = VexArch_INVALID;
+    syscall_count = 0;
 
 		auto it = global_cache.find(cache_key);
 		if (it == global_cache.end()) {
@@ -956,6 +958,7 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 				state->symbolic_registers.erase(10);
 				state->symbolic_registers.erase(11);
 				state->interrupt_handled = true;
+				state->syscall_count++;
 				return;
 			}
 		}
@@ -1005,6 +1008,11 @@ uint64_t *bbl_addrs(State *state) {
 extern "C"
 uint64_t bbl_addr_count(State *state) {
 	return state->bbl_addrs.size();
+}
+
+extern "C"
+uint64_t syscall_count(State *state) {
+	return state->syscall_count;
 }
 
 extern "C"
