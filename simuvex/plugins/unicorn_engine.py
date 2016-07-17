@@ -238,9 +238,9 @@ class Unicorn(SimStatePlugin):
         concretization_threshold_memory=None,
         concretization_threshold_registers=None,
         concretization_threshold_instruction=None,
-        cooldown_symbolic_registers=10,
-        cooldown_symbolic_memory=10,
-        cooldown_nonunicorn_blocks=10,
+        cooldown_symbolic_registers=100,
+        cooldown_symbolic_memory=100,
+        cooldown_nonunicorn_blocks=100,
         max_steps=1000000,
     ):
         """
@@ -807,9 +807,10 @@ class Unicorn(SimStatePlugin):
         _UC_NATIVE.destroy(head)    # free the linked list
 
         # adjust the countdowns
-        if self.steps >= 128:
-            self.cooldown_symbolic_registers = 16
-            self.cooldown_symbolic_memory = 16
+        #if self.steps >= 128:
+        #   self.cooldown_symbolic_registers = 16
+        #   self.cooldown_symbolic_memory = 16
+
         # process the concrete transmits
         i = 0
         while True:
@@ -823,14 +824,16 @@ class Unicorn(SimStatePlugin):
 
         if self.stop_reason in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT, STOP.STOP_SYSCALL):
             self.countdown_nonunicorn_blocks = 0
-        if self.stop_reason == STOP.STOP_SYMBOLIC_REG:
-            if self.steps < 128:
-                self.cooldown_symbolic_registers = min(self.cooldown_symbolic_registers * 2, 256)
+        elif self.stop_reason == STOP.STOP_SYMBOLIC_REG:
+            #if self.steps < 128:
+            #   self.cooldown_symbolic_registers = min(self.cooldown_symbolic_registers * 2, 256)
             self.countdown_symbolic_registers = self.cooldown_symbolic_registers
-        if self.stop_reason == STOP.STOP_SYMBOLIC_MEM:
-            if self.steps < 128:
-                self.cooldown_symbolic_memory = min(self.cooldown_symbolic_memory * 2, 256)
+        elif self.stop_reason == STOP.STOP_SYMBOLIC_MEM:
+            #if self.steps < 128:
+            #   self.cooldown_symbolic_memory = min(self.cooldown_symbolic_memory * 2, 256)
             self.countdown_symbolic_memory = self.cooldown_symbolic_memory
+        else:
+            self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
 
         # get the address list out of the state
         bbl_addrs = _UC_NATIVE.bbl_addrs(self._uc_state)
