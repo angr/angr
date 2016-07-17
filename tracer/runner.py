@@ -13,6 +13,7 @@ import shellphish_qemu
 
 from .tracerpov import TracerPoV
 from .tracer import TracerEnvironmentError, TracerInstallError
+from .tinycore import TinyCore
 
 l = logging.getLogger("tracer.Runner")
 
@@ -23,13 +24,14 @@ class Runner(object):
     """
 
     def __init__(self, binary, input=None, pov_file=None, record_trace=False, record_stdout=False, record_magic=False,
-                 seed=None, memory_limit="8G", bitflip=False, report_bad_args=False):
+                 seed=None, memory_limit="8G", bitflip=False, report_bad_args=False, use_tiny_core=False):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
         :param pov_file: CGC PoV describing the input to trace
         :param record_trace: whether or not to record the basic block trace
         :param report_bad_arg: enable CGC QEMU's report bad args option
+        :param use_tiny_core: Use minimal core loading
         """
 
         self.binary = binary
@@ -45,6 +47,7 @@ class Runner(object):
         self.memory_limit = memory_limit
         self.bitflip = bitflip
         self.report_bad_args = report_bad_args
+        self.use_tiny_core = use_tiny_core
 
         if self.pov_file is None and self.input is None:
             raise ValueError("must specify input or pov_file")
@@ -90,6 +93,21 @@ class Runner(object):
 
 
 ### SETUP
+
+    @staticmethod
+    def _memory_limit_to_int(ms):
+
+        if not isinstance(ms, str):
+            raise ValueError("memory_limit must be a string such as \"8G\"")
+
+        if ms.endswith('k'):
+            return int(ms[:-1]) * 1024
+        elif ms.endswith('M'):
+            return int(ms[:-1]) * 1024 * 1024
+        elif ms.endswith('G'):
+            return int(ms[:-1]) * 1024 * 1024 * 1024
+
+        raise ValueError("unrecognized size, should be 'k', 'M', or 'G'")
 
     def _setup(self):
         """
@@ -188,7 +206,10 @@ class Runner(object):
                 core_file = core_files[0]
                 a_mesg = "Empty core file generated"
                 assert os.path.getsize(core_file) > 0, a_mesg
-                self._load_core_values(core_file)
+                if self.use_tiny_core:
+                    self._load_tiny_core(core_file)
+                else:
+                    self._load_core_values(core_file)
 
     def _run_trace(self, stdout_file=None):
         """
@@ -274,3 +295,8 @@ class Runner(object):
         self.reg_vals = {reg:val for (reg, val) in p.loader.main_bin.initial_register_values()}
         self._state = p.factory.entry_state()
         self.memory = self._state.memory
+
+    def _load_tiny_core(self, core_file):
+        tc = TinyCore(core_file)
+        self.reg_vals = tc.registers
+        self.memory = None
