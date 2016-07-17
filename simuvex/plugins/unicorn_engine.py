@@ -8,6 +8,8 @@ import threading
 import itertools
 l = logging.getLogger('simuvex.plugins.unicorn')
 
+l.setLevel('INFO')
+
 try:
     import unicorn
 except ImportError:
@@ -225,8 +227,9 @@ class Unicorn(SimStatePlugin):
         concretization_threshold_memory=None,
         concretization_threshold_registers=None,
         concretization_threshold_instruction=None,
-        cooldown_symbolic_registers=100,
-        cooldown_nonunicorn_blocks=100,
+        cooldown_symbolic_registers=10,
+        cooldown_symbolic_memory=10,
+        cooldown_nonunicorn_blocks=10,
         max_steps=1000000,
     ):
         """
@@ -250,8 +253,10 @@ class Unicorn(SimStatePlugin):
         # the val is copied from cooldown to countdown on check fail
         self.cooldown_nonunicorn_blocks = cooldown_nonunicorn_blocks
         self.cooldown_symbolic_registers = cooldown_symbolic_registers
+        self.cooldown_symbolic_memory = cooldown_symbolic_memory
         self.countdown_nonunicorn_blocks = 0
         self.countdown_symbolic_registers = 0
+        self.countdown_symbolic_memory = 0
 
         # the default step limit
         self.max_steps = max_steps
@@ -311,10 +316,12 @@ class Unicorn(SimStatePlugin):
             concretization_threshold_instruction = self.concretization_threshold_instruction,
             cooldown_nonunicorn_blocks=self.cooldown_nonunicorn_blocks,
             cooldown_symbolic_registers=self.cooldown_symbolic_registers,
+            cooldown_symbolic_memory=self.cooldown_symbolic_memory,
             max_steps=self.max_steps,
         )
         u.countdown_nonunicorn_blocks = self.countdown_nonunicorn_blocks
         u.countdown_symbolic_registers = self.countdown_symbolic_registers
+        u.countdown_symbolic_memory = self.countdown_symbolic_memory
         return u
 
     def merge(self, others, merge_conditions):
@@ -326,6 +333,10 @@ class Unicorn(SimStatePlugin):
             self.cooldown_symbolic_registers,
             max(o.cooldown_symbolic_registers for o in others)
         )
+        self.cooldown_symbolic_memory = max(
+            self.cooldown_symbolic_memory,
+            max(o.cooldown_symbolic_memory for o in others)
+        )
         self.countdown_nonunicorn_blocks = max(
             self.countdown_nonunicorn_blocks,
             max(o.countdown_nonunicorn_blocks for o in others)
@@ -333,6 +344,10 @@ class Unicorn(SimStatePlugin):
         self.countdown_symbolic_registers = max(
             self.countdown_symbolic_registers,
             max(o.countdown_symbolic_registers for o in others)
+        )
+        self.countdown_symbolic_memory = max(
+            self.countdown_symbolic_memory,
+            max(o.countdown_symbolic_memory for o in others)
         )
 
         # get a fresh unicount, just in case
@@ -768,10 +783,21 @@ class Unicorn(SimStatePlugin):
 
         _UC_NATIVE.destroy(head)    # free the linked list
 
+        # adjust the countdowns
+        if self.steps >= 128:
+            self.cooldown_symbolic_registers = 16
+            self.cooldown_symbolic_memory = 16
+
         if self.stop_reason in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT, STOP.STOP_SYSCALL):
             self.countdown_nonunicorn_blocks = 0
         if self.stop_reason == STOP.STOP_SYMBOLIC_REG:
+            if self.steps < 128:
+                self.cooldown_symbolic_registers = min(self.cooldown_symbolic_registers * 2, 256)
             self.countdown_symbolic_registers = self.cooldown_symbolic_registers
+        if self.stop_reason == STOP.STOP_SYMBOLIC_MEM:
+            if self.steps < 128:
+                self.cooldown_symbolic_memory = min(self.cooldown_symbolic_memory * 2, 256)
+            self.countdown_symbolic_memory = self.cooldown_symbolic_memory
 
         # get the address list out of the state
         bbl_addrs = _UC_NATIVE.bbl_addrs(self._uc_state)
@@ -1092,16 +1118,20 @@ class Unicorn(SimStatePlugin):
     def check(self):
         self.countdown_nonunicorn_blocks -= 1
         self.countdown_symbolic_registers -= 1
+        self.countdown_symbolic_memory -= 1
 
         if self.countdown_symbolic_registers > 0:
-            l.info("not enough passed register checks (%d)", self.countdown_symbolic_registers)
+            l.info("not enough blocks since symbolic registers (%d more)", self.countdown_symbolic_registers)
+            return False
+        if self.countdown_symbolic_memory > 0:
+            l.info("not enough blocks since symbolic memory (%d more)", self.countdown_symbolic_memory)
+            return False
+        if self.countdown_nonunicorn_blocks > 0:
+            l.info("not enough runs since last unicorn (%d)", self.countdown_nonunicorn_blocks)
             return False
         elif options.UNICORN_SYM_REGS_SUPPORT not in self.state.options and not self._check_registers():
             l.info("failed register check")
             self.countdown_symbolic_registers = self.cooldown_symbolic_registers
-            return False
-        if self.countdown_nonunicorn_blocks > 0:
-            l.info("not enough runs since last unicorn (%d)", self.countdown_nonunicorn_blocks)
             return False
 
         return True
