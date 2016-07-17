@@ -882,12 +882,23 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 
 static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 	State *state = (State *)user_data;
+	state->interrupt_handled = false;
+
 	if (state->arch == UC_ARCH_X86 && intno == 0x80) {
 		// this is the ultimate hack for cgc -- it must be enabled by explitly setting the transmit sysno from python
 		// basically an implementation of the cgc transmit syscall
+
+		for (auto sr : state->symbolic_registers)
+		{
+			// eax,ecx,edx,ebx,esi
+			if ((sr >= 8 && sr <= 23) || (sr >= 32 && sr <= 35)) return;
+		}
+
 		uint32_t sysno;
 		uc_reg_read(uc, UC_X86_REG_EAX, &sysno);
+		//printf("SYSCALL: %d\n", sysno);
 		if (sysno == state->transmit_sysno) {
+			//printf(".. TRANSMIT!\n");
 			uint32_t fd, buf, count, tx_bytes;
 
 			uc_reg_read(uc, UC_X86_REG_EBX, &fd);
@@ -895,25 +906,40 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 			if (fd == 2) {
 				// chris' directive: totally discard all writes to stderr
 				state->interrupt_handled = true;
+				//printf("... stderr\n");
 				return;
 			} else if (fd == 0 || fd == 1) {
 				uc_reg_read(uc, UC_X86_REG_ECX, &buf);
 				uc_reg_read(uc, UC_X86_REG_EDX, &count);
 				uc_reg_read(uc, UC_X86_REG_ESI, &tx_bytes);
 
+				// ensure that the memory we're sending is not tainted
 				void *dup_buf = malloc(count);
-				uint32_t result;
-				if (uc_mem_read(uc, buf, dup_buf, count) != UC_ERR_OK) {
-					result = 2;		// EFAULT
+				uint32_t tmp_tx;
+				if (uc_mem_read(uc, buf, dup_buf, count) != UC_ERR_OK)
+				{
+					//printf("... fault on buf\n");
 					free(dup_buf);
-				} else if (tx_bytes != 0 && uc_mem_write(uc, tx_bytes, &count, sizeof(uint32_t)) != UC_ERR_OK) {
-					result = 2;		// EFAULT
-					free(dup_buf);
-				} else {
-					state->transmit_records.push_back({dup_buf, count});
-					result = 0;
+					return;
 				}
 
+				if (tx_bytes != 0 && uc_mem_read(uc, tx_bytes, &tmp_tx, 4) != UC_ERR_OK)
+				{
+					//printf("... fault on tx\n");
+					free(dup_buf);
+					return;
+				}
+
+				if (state->find_tainted(buf, count) != -1)
+				{
+					//printf("... symbolic data\n");
+					free(dup_buf);
+					return;
+				}
+
+				if (tx_bytes != 0) state->handle_write(tx_bytes, 4);
+				state->transmit_records.push_back({dup_buf, count});
+				int result = 0;
 				uc_reg_write(uc, UC_X86_REG_EAX, &result);
 				state->bbl_addrs.push_back(state->transmit_bbl_addr);
 				state->interrupt_handled = true;
@@ -921,7 +947,6 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 			}
 		}
 	}
-	state->interrupt_handled = false;
 }
 
 static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
