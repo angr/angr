@@ -729,6 +729,45 @@ public:
 		return true;
 	}
 
+	// Finds tainted data in the provided range and returns the address.
+	// Returns -1 if no tainted data is present.
+	uint64_t find_tainted(uint64_t address, int size)
+	{
+		taint_t *bitmap = page_lookup(address);
+
+		int start = address & 0xFFF;
+		int end = (address + size - 1) & 0xFFF;
+
+		if (end >= start) {
+			if (bitmap) {
+				for (int i = start; i <= end; i++)  {
+					if (bitmap[i] & TAINT_SYMBOLIC) {
+						return (address & ~0xFFF) + i;
+					}
+				}
+			}
+		} else {
+			// cross page boundary
+			if (bitmap) {
+				for (int i = start; i <= 0xFFF; i++) {
+					if (bitmap[i] & TAINT_SYMBOLIC) {
+						return (address & ~0xFFF) + i;
+					}
+				}
+			}
+
+			bitmap = page_lookup(address + size - 1);
+			if (bitmap) {
+				for (int i = 0; i <= end; i++) {
+					if (bitmap[i] & TAINT_SYMBOLIC) {
+						return ((address + size - 1) & ~0xFFF) + i;
+					}
+				}
+			}
+		}
+
+		return -1;
+	}
 };
 
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
@@ -736,45 +775,13 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 	// LOG_D("mem_read [%#lx, %#lx] = %#lx", address, address + size);
 	LOG_D("mem_read [%#lx, %#lx]", address, address + size);
 	State *state = (State *)user_data;
-	taint_t *bitmap = state->page_lookup(address);
 
-	int start = address & 0xFFF;
-	int end = (address + size - 1) & 0xFFF;
-
-	if (end >= start) {
-		if (bitmap) {
-			for (int i = start; i <= end; i++)  {
-				if (bitmap[i] & TAINT_SYMBOLIC) {
-					state->stopping_memory = (address & ~0xFFF) + i;
-					state->stop(STOP_SYMBOLIC_MEM);
-					return ;
-				}
-			}
-		}
-	} else {
-		// cross page boundary
-		if (bitmap) {
-			for (int i = start; i <= 0xFFF; i++) {
-				if (bitmap[i] & TAINT_SYMBOLIC) {
-					state->stopping_memory = (address & ~0xFFF) + i;
-					state->stop(STOP_SYMBOLIC_MEM);
-					return ;
-				}
-			}
-		}
-
-		bitmap = state->page_lookup(address + size - 1);
-		if (bitmap) {
-			for (int i = 0; i <= end; i++) {
-				if (bitmap[i] & TAINT_SYMBOLIC) {
-					state->stopping_memory = ((address + size - 1) & ~0xFFF) + i;
-					state->stop(STOP_SYMBOLIC_MEM);
-					return ;
-				}
-			}
-		}
+	auto tainted = state->find_tainted(address, size);
+	if (tainted != -1)
+	{
+		state->stopping_memory = tainted;
+		state->stop(STOP_SYMBOLIC_MEM);
 	}
-
 }
 
 /*
