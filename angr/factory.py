@@ -1,4 +1,4 @@
-from simuvex import SimIRSB, SimProcedures, SimUnicorn, SimState, BP_BEFORE, BP_AFTER
+from simuvex import SimIRSB, SimProcedures, SimUnicorn, SimState, BP_BEFORE, BP_AFTER, SimUnicornError
 from simuvex import s_options as o, s_cc
 from simuvex.s_errors import SimSegfaultError, SimReliftException
 from .surveyors.caller import Callable
@@ -163,8 +163,10 @@ class AngrObjectFactory(object):
             if extra_stop_points is not None:
                 stops.extend(extra_stop_points)
 
-            r = SimUnicorn(state, stop_points=stops)
-            if not r.success:
+            try:
+                r = SimUnicorn(state, stop_points=stops)
+            except SimUnicornError:
+                print "Falling back on thingy"
                 r = self.sim_block(state, **block_opts)
 
         else:
