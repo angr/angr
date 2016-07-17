@@ -32,9 +32,10 @@ class strncmp(Func):
 
         return None
 
-    @staticmethod
-    def pre_test(func, runner):
+    def can_call_other_funcs(self):
+        return False
 
+    def pre_test(self, func, runner):
         # todo we don't test which order it returns the signs in
         bufa = "asdf\x00"
         bufb = "asdf\x00"

@@ -3,6 +3,10 @@ import random
 import string
 import claripy
 
+import logging
+l = logging.getLogger("identifier.functions.printf")
+
+
 class printf(Func):
     non_null = [chr(i) for i in range(1, 256)]
 
@@ -107,7 +111,7 @@ class printf(Func):
                         break
 
         if self.format_spec_char is None:
-            print "format spec is none :("
+            l.warning("format spec is none :(")
             return False
 
         return True

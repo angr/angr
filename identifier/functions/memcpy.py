@@ -2,8 +2,11 @@ from ..func import Func, TestData
 import random
 import itertools
 import struct
+from simuvex.s_type import SimTypeFunction, SimTypeInt
+
 
 from ..errors import FunctionNotInitialized
+from ..custom_callable import Callable
 
 def rand_str(length, byte_list=None):
     if byte_list is None:
@@ -16,8 +19,11 @@ class memcpy(Func):
 
     def __init__(self):
         super(memcpy, self).__init__()
+        self.memmove_safe = False
 
     def get_name(self):
+        if self.memmove_safe:
+            return "memmove"
         return "memcpy"
 
     def num_args(self):
@@ -25,6 +31,9 @@ class memcpy(Func):
 
     def args(self):
         return ["dst", "src", "len"]
+
+    def can_call_other_funcs(self):
+        return False
 
     def gen_input_output_pair(self):
         # TODO we don't check the return val
@@ -49,5 +58,35 @@ class memcpy(Func):
         return_val = None
         test = TestData(test_input, test_output, return_val, max_steps)
         result = runner.test(func, test)
+        if not result:
+            return False
 
-        return result
+        s = runner.get_base_call_state(func, test)
+        s.memory.store(0x2000, "ABC\x00\x00\x00\x00\x00")
+        inttype = SimTypeInt(runner.project.arch.bits, False)
+        func_ty = SimTypeFunction([inttype] * 3, inttype)
+        cc = runner.project.factory.cc(func_ty=func_ty)
+        call = Callable(runner.project, func.startpoint.addr, concrete_only=True,
+                        cc=cc, base_state=s, max_steps=20)
+        _ = call(*[0x2003, 0x2000, 5])
+        result_state = call.result_state
+        if result_state.se.any_str(result_state.memory.load(0x2000, 8)) == "ABCABC\x00\x00":
+            self.memmove_safe = True
+        else:
+            self.memmove_safe = False
+
+        s = runner.get_base_call_state(func, test)
+        s.memory.store(0x2000, "\x00\x00\x00\x00\x00CBA")
+        inttype = SimTypeInt(runner.project.arch.bits, False)
+        func_ty = SimTypeFunction([inttype] * 3, inttype)
+        cc = runner.project.factory.cc(func_ty=func_ty)
+        call = Callable(runner.project, func.startpoint.addr, concrete_only=True,
+                        cc=cc, base_state=s, max_steps=20)
+        _ = call(*[0x2000, 0x2003, 5])
+        result_state = call.result_state
+        if result_state.se.any_str(result_state.memory.load(0x2000, 8)) == "\x00\x00CBACBA":
+            self.memmove_safe = True
+        else:
+            self.memmove_safe = False
+
+        return True

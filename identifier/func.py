@@ -32,6 +32,9 @@ class Func(object):
     def var_args(self):
         return False
 
+    def can_call_other_funcs(self):
+        return True
+
     def pre_test(self, func, runner):
         """
         custom tests run before, return False if it for sure is not the function
@@ -40,4 +43,5 @@ class Func(object):
         :arg runner: a runner to run the tests with
         :return: True if we should continue testing
         """
+
         return True

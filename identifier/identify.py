@@ -6,6 +6,9 @@ from functions import Functions
 from errors import IdentifierException
 from runner import Runner
 import simuvex
+import os
+
+from networkx import NetworkXError
 
 import logging
 l = logging.getLogger("identifier.identify")
@@ -31,7 +34,7 @@ class Identifier(object):
 
     _special_case_funcs = ["free"]
 
-    def __init__(self, project, cfg=None):
+    def __init__(self, project, cfg=None, require_predecessors=True):
         self.project = project
         if cfg is not None:
             self._cfg = cfg
@@ -57,11 +60,30 @@ class Identifier(object):
 
         self.map_callsites()
 
+        if self._too_large():
+            l.warning("Too large")
+            return
+
+        self.base_symbolic_state = rop_utils.make_symbolic_state(self.project, self._reg_list)
+        self.base_symbolic_state.regs.bp = self.base_symbolic_state.se.BVS("sreg_" + "ebp" + "-", self.project.arch.bits)
+
         for f in self._cfg.functions.values():
             if f.is_syscall:
                 continue
             if self.project.is_hooked(f.addr):
                 continue
+
+            # skip if no predecessors
+            try:
+                if require_predecessors and len(self._cfg.functions.callgraph.predecessors(f.addr)) == 0:
+                    continue
+                elif require_predecessors:
+                    print f.name, "has_predecessors"
+            except NetworkXError:
+                if require_predecessors:
+                    continue
+
+            # find the actual vars
             try:
                 func_info = self.find_stack_vars_x86(f)
             except IdentifierException as e:
@@ -69,11 +91,23 @@ class Identifier(object):
                 func_info = None
             self.func_info[f] = func_info
 
+    def _too_large(self):
+        if len(self._cfg.functions) > 400:
+            return True
+        return False
+
     def run(self):
+        if self._too_large():
+            l.warning("Too large")
+            return
+
         for f in self._cfg.functions.values():
             if f.is_syscall:
                 continue
-            match = self.identify_func(f)
+            try:
+                match = self.identify_func(f)
+            except simuvex.SimSegfaultError:
+                match = None
             if match is not None:
                 match_func = match
                 match_name = match_func.get_name()
@@ -82,7 +116,8 @@ class Identifier(object):
                 else:
                     l.debug("Found match for function %#x, %s", f.addr, match_name)
                 self.matches[f] = match_name, match_func
-                yield f.addr, match_name
+                if match_name != "malloc" and match_name != "free":
+                    yield f.addr, match_name
             else:
                 if f.name is not None:
                     l.debug("No match for function %s at %#x", f.name, f.addr)
@@ -108,10 +143,31 @@ class Identifier(object):
                     l.warning('Encountered IdentifierException trying to analyze %#x, reason: %s',
                             f.addr, e.message)
                     continue
+                except simuvex.SimSegfaultError:
+                    continue
 
                 if result:
                     self.matches[f] = func.get_name(), func
-                    yield f.addr, match_name
+                    yield f.addr, func.get_name()
+
+        # fixup malloc/free
+        to_remove = []
+        for f, (match_name, match_func) in self.matches.items():
+            if match_name == "malloc" or match_name == "free":
+                is_good = True
+                try:
+                    for f2 in self._cfg.functions.callgraph.successors(f.addr):
+                        f2 = self._cfg.functions[f2]
+                        if f2 in self.matches and self.matches[f2][0] == match_name:
+                            is_good = False
+                except NetworkXError:
+                    is_good = True
+                if is_good:
+                    yield f.addr, match_func.get_name()
+                else:
+                    to_remove.append(f)
+        for f in to_remove:
+            del self.matches[f]
 
     def get_func_info(self, func):
         if isinstance(func, (int, long)):
@@ -126,22 +182,32 @@ class Identifier(object):
             state.add_constraints(before_state.registers.load(r) == 0)
 
     def identify_func(self, function):
+        l.debug("function at %#x", function.addr)
         if function.is_syscall:
             return None
-        try:
-            func_info = self.find_stack_vars_x86(function)
-            self.func_info[function] = func_info
 
-        except IdentifierException as e:
-            l.warning("Identifier Exception: %s", e.message)
+        func_info = self.get_func_info(function)
+        if func_info is None:
+            l.debug("func_info is none")
             return None
+
+        l.debug("num args %d", len(func_info.stack_args))
+
+        try:
+            calls_other_funcs = len(self._cfg.functions.callgraph.successors(function.addr)) > 0
+        except NetworkXError:
+            calls_other_funcs = False
+
         for name, f in Functions.iteritems():
             # generate an object of the class
             f = f()
             # test it
             if f.num_args() != len(func_info.stack_args) or f.var_args() != func_info.var_args:
                 continue
-            #print "testing:", name
+            if calls_other_funcs and not f.can_call_other_funcs():
+                continue
+
+            l.debug("testing: %s", name)
             if not self.check_tests(function, f):
                 continue
             # match!
@@ -323,6 +389,14 @@ class Identifier(object):
         return state
 
     def find_stack_vars_x86(self, func):
+        if func.name is not None:
+            l.debug("finding stack vars %s", func.name)
+        else:
+            l.debug("finding stack vars %#x", func.addr)
+
+        if len(list(func.blocks)) > 500:
+            raise IdentifierException("too many blocks")
+
         # could also figure out if args are buffers etc
         # doesn't handle dynamically allocated stack, etc
         if isinstance(func, (int, long)):
@@ -331,8 +405,7 @@ class Identifier(object):
         if func.startpoint is None:
             raise IdentifierException("Startpoint is None")
 
-        initial_state = rop_utils.make_symbolic_state(self.project, self._reg_list)
-        initial_state.regs.bp = initial_state.se.BVS("sreg_" + "ebp" + "-", self.project.arch.bits)
+        initial_state = self.base_symbolic_state.copy()
 
         reg_dict = dict()
         for r in self._reg_list + [self._bp_reg]:
@@ -377,10 +450,13 @@ class Identifier(object):
         # find the end of the preamble
         num_preamble_inst = None
         succ = None
-        for i in xrange(1, self.project.factory.block(func.startpoint.addr).instructions):
+        for i in xrange(0, self.project.factory.block(func.startpoint.addr).instructions):
             test_p = self.project.factory.path(initial_state)
-            test_p.step(num_inst=i)
-            succ = (test_p.successors + test_p.unconstrained_successors)[0]
+            if i == 0:
+                succ = test_p
+            else:
+                test_p.step(num_inst=i)
+                succ = (test_p.successors + test_p.unconstrained_successors)[0]
             test_sp = succ.state.se.any_int(succ.state.regs.sp)
             if test_sp == goal_sp:
                 num_preamble_inst = i
@@ -388,7 +464,10 @@ class Identifier(object):
 
         # hacky check for mov ebp esp
         # happens when this is after the pushes...
-        end_addr = func.startpoint.addr + self.project.factory.block(func.startpoint.addr, num_inst=num_preamble_inst).size
+        if num_preamble_inst == 0:
+            end_addr = func.startpoint.addr
+        else:
+            end_addr = func.startpoint.addr + self.project.factory.block(func.startpoint.addr, num_inst=num_preamble_inst).size
         if self.project.factory.block(end_addr, num_inst=1).bytes == '\x89\xe5':
             num_preamble_inst += 1
             test_p = self.project.factory.path(initial_state)
@@ -423,9 +502,13 @@ class Identifier(object):
         # find the ends of the function
         ends = set()
         all_end_addrs = set()
-        preamble_block = self.project.factory.block(func.startpoint.addr, num_inst=num_preamble_inst)
-        preamble_addrs = set(preamble_block.instruction_addrs)
-        end_preamble = func.startpoint.addr + preamble_block.vex.size
+        if num_preamble_inst == 0:
+            end_preamble = func.startpoint.addr
+            preamble_addrs = set()
+        else:
+            preamble_block = self.project.factory.block(func.startpoint.addr, num_inst=num_preamble_inst)
+            preamble_addrs = set(preamble_block.instruction_addrs)
+            end_preamble = func.startpoint.addr + preamble_block.vex.size
         for block in func.endpoints:
             addr = block.addr
             if addr in preamble_addrs:

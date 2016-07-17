@@ -6,6 +6,7 @@ from angr.errors import AngrCallableMultistateError, AngrCallableError
 import claripy
 from tracer.simprocedures import FixedOutTransmit, FixedInReceive
 
+import random
 import logging
 l = logging.getLogger("identifier.runner")
 
@@ -15,7 +16,7 @@ class Runner(object):
         self.project = project
         self.cfg = cfg
 
-    def setup_state(self, function, test_data, initial_state=None):
+    def setup_state(self, function, test_data, initial_state=None, concrete_rand=False):
         # FIXME fdwait should do something concrete...
         # FixedInReceive and FixedOutReceive always are applied
         simuvex.SimProcedures['cgc']['transmit'] = FixedOutTransmit
@@ -28,16 +29,15 @@ class Runner(object):
         options = set()
         options.add(so.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
         options.add(so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
-        options.add(so.REPLACEMENT_SOLVER)
+        options.add(so.TRACK_MEMORY_MAPPING)
+        options.add(so.AVOID_MULTIVALUED_READS)
+        options.add(so.AVOID_MULTIVALUED_WRITES)
 
         # try to enable unicorn, continue if it doesn't exist
-        try:
-            options.add(so.UNICORN)
-            l.info("unicorn tracing enabled")
-        except AttributeError:
-            pass
+        options.add(so.UNICORN)
+        l.info("unicorn tracing enabled")
 
-        remove_options = so.simplification | set(so.LAZY_SOLVES)
+        remove_options = so.simplification | set(so.LAZY_SOLVES) | simuvex.o.resilience_options | set(so.SUPPORT_FLOATING_POINT)
         add_options = options
         if initial_state is None:
             entry_state = self.project.factory.entry_state(
@@ -57,12 +57,12 @@ class Runner(object):
 
         if initial_state is None:
             # map the CGC flag page
-            #cgc_flag_data = claripy.BVS('cgc-flag-data', 0x1000 * 8)
+            fake_flag_data = entry_state.se.BVV("A" * 0x1000)
+            entry_state.memory.store(0x4347c000, fake_flag_data)
+            # map the place where I put arguments
+            entry_state.memory.mem.map_region(0x2000, 0x10000, 7)
 
-            # PROT_READ region
-            #entry_state.memory.map_region(0x4347c000, 0x1000, 1)
-            cgc_flag_data = entry_state.se.BVV("A" * 0x1000)
-            entry_state.memory.store(0x4347c000, cgc_flag_data)
+        entry_state.options.add(so.STRICT_PAGE_ACCESS)
 
         # make sure unicorn will run
         for k in dir(entry_state.regs):
@@ -78,6 +78,7 @@ class Runner(object):
         entry_state.unicorn.cooldown_symbolic_registers = 0
         entry_state.unicorn.cooldown_symbolic_memory = 0
         entry_state.unicorn.cooldown_nonunicorn_blocks = 1
+        entry_state.unicorn.max_steps = 10000
 
         # syscall hook
         entry_state.inspect.b(
@@ -85,6 +86,16 @@ class Runner(object):
             simuvex.BP_BEFORE,
             action=self.syscall_hook
         )
+
+        if concrete_rand:
+            entry_state.inspect.b(
+                'syscall',
+                simuvex.BP_AFTER,
+                action=self.syscall_hook_concrete_rand
+            )
+
+        # solver timeout
+        entry_state.se._solver.timeout = 500
 
         return entry_state
 
@@ -105,14 +116,28 @@ class Runner(object):
                 state.add_constraints(claripy.BoolV(False))
         if syscall_name == "random":
             count = state.se.any_int(state.regs.ecx)
-            if count > 0x10000:
+            if count > 0x1000:
                 state.regs.ecx = 0
                 state.add_constraints(claripy.BoolV(False))
 
-    def get_base_call_state(self, function, test_data, initial_state=None):
-        curr_buf_loc = 0x1000
+    @staticmethod
+    def syscall_hook_concrete_rand(state):
+        # FIXME maybe we need to fix transmit/receive to handle huge vals properly
+        # kill path that try to read/write large amounts
+        syscall_name = state.inspect.syscall_name
+        if syscall_name == "random":
+            count = state.se.any_int(state.regs.ecx)
+            if count > 100:
+                return
+            buf = state.se.any_int(state.regs.ebx)
+            for i in range(count):
+                a = random.randint(0, 255)
+                state.memory.store(buf+i, state.se.BVV(a, 8))
+
+    def get_base_call_state(self, function, test_data, initial_state=None, concrete_rand=False):
+        curr_buf_loc = 0x2000
         mapped_input = []
-        s = self.setup_state(function, test_data, initial_state)
+        s = self.setup_state(function, test_data, initial_state, concrete_rand=concrete_rand)
 
         for i in test_data.input_args:
             if isinstance(i, str) or isinstance(i, claripy.ast.BV):
@@ -131,10 +156,10 @@ class Runner(object):
                         cc=cc, base_state=s, max_steps=test_data.max_steps)
         return call.get_base_state(*mapped_input)
 
-    def test(self, function, test_data):
-        curr_buf_loc = 0x1000
+    def test(self, function, test_data, concrete_rand=False):
+        curr_buf_loc = 0x2000
         mapped_input = []
-        s = self.setup_state(function, test_data)
+        s = self.setup_state(function, test_data, concrete_rand=concrete_rand)
 
         for i in test_data.input_args:
             if isinstance(i, str):
@@ -211,17 +236,16 @@ class Runner(object):
                 return False
             stdout = result_state.se.any_str(stdout)
 
-        stdout = stdout[:len(test_data.expected_stdout)]
         if stdout != test_data.expected_stdout:
             l.info("mismatch stdout")
             return False
 
         return True
 
-    def get_out_state(self, function, test_data, initial_state=None):
-        curr_buf_loc = 0x1000
+    def get_out_state(self, function, test_data, initial_state=None, concrete_rand=False):
+        curr_buf_loc = 0x2000
         mapped_input = []
-        s = self.setup_state(function, test_data, initial_state)
+        s = self.setup_state(function, test_data, initial_state, concrete_rand=concrete_rand)
 
         for i in test_data.input_args:
             if isinstance(i, str):

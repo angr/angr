@@ -17,7 +17,7 @@ class strlen(Func):
         return "strlen"
 
     def gen_input_output_pair(self):
-        length = random.randint(0, 100)
+        length = random.randint(2, 100)
         s = self.rand_str(length, strlen.non_null) + "\x00" + self.rand_str(length)
         test_input = [s]
         test_output = [s]

@@ -27,6 +27,9 @@ class memcmp(Func):
     def gen_input_output_pair(self):
         return None
 
+    def can_call_other_funcs(self):
+        return False
+
     def pre_test(self, func, runner):
         # todo we don't test which order it returns the signs in
         l = random.randint(1, 20)

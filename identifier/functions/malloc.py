@@ -23,7 +23,7 @@ class malloc(Func):
         return_val = None
         max_steps = 10
         test = TestData(test_input, test_output, return_val, max_steps)
-        state = runner.get_out_state(func, test)
+        state = runner.get_out_state(func, test, concrete_rand=True)
         if state is not None and state.se.any_int(state.regs.eax) != 0:
             return False
 
@@ -33,16 +33,16 @@ class malloc(Func):
         test_output = [None]
         return_val = None
 
-        max_steps = 10
+        max_steps = 40
         test = TestData(test_input, test_output, return_val, max_steps)
         returned_locs = []
-        state = runner.get_out_state(func, test)
+        state = runner.get_out_state(func, test, concrete_rand=True)
         if state is None:
             return False
         returned_locs.append(state.se.any_int(state.regs.eax))
 
         for i in range(6):
-            state = runner.get_out_state(func, test, initial_state=state)
+            state = runner.get_out_state(func, test, initial_state=state, concrete_rand=True)
             if state is None:
                 return False
             returned_locs.append(state.se.any_int(state.regs.eax))
@@ -72,13 +72,13 @@ class malloc(Func):
         max_steps = 10
         test = TestData(test_input, test_output, return_val, max_steps)
         returned_locs2 = []
-        state = runner.get_out_state(func, test)
+        state = runner.get_out_state(func, test, concrete_rand=True)
         if state is None:
             return False
         returned_locs2.append(state.se.any_int(state.regs.eax))
 
         for i in range(10):
-            state = runner.get_out_state(func, test, initial_state=state)
+            state = runner.get_out_state(func, test, initial_state=state, concrete_rand=True)
             if state is None:
                 return False
             returned_locs2.append(state.se.any_int(state.regs.eax))

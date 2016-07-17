@@ -30,6 +30,9 @@ class atoi(Func):
     def gen_input_output_pair(self):
         num = random.randint(-(2**31), 2**31-1)
 
+        if not self.allows_negative:
+            num = abs(num)
+
         s = str(num)
         test_input = [s]
         test_output = [s]
@@ -59,7 +62,7 @@ class atoi(Func):
         test = TestData(test_input, test_output, return_val, max_steps)
         self.skips_whitespace = runner.test(func, test)
 
-        num = -random.randint(2000,8000)
+        num = -random.randint(2000, 8000)
         s = str(num)
         test_input = [s]
         test_output = [s]

@@ -32,12 +32,33 @@ class strcmp(Func):
 
         return None
 
+    def can_call_other_funcs(self):
+        return False
+
+    def pre_test(self, func, runner):
+        r = self._strcmp_pretest(func, runner)
+        if not isinstance(r, bool):
+            v1, v2, v3, v4 = r
+            return v1 == 0 and v2 != 0 and v3 != 0 and v4 != 0
+        return r
+
     @staticmethod
     def _strcmp_pretest(func, runner):
 
         # todo we don't test which order it returns the signs in
         bufa = "asdf\x00"
         bufb = "asdf\x00"
+        test_input = [bufa, bufb]
+        test_output = [bufa, bufb]
+        max_steps = 10
+        return_val = None
+        test = TestData(test_input, test_output, return_val, max_steps)
+        s = runner.get_out_state(func, test)
+        if s is None or s.se.any_int(s.regs.eax) != 0:
+            return False
+
+        bufa = "asde\x00"
+        bufb = "asde\x00"
         test_input = [bufa, bufb]
         test_output = [bufa, bufb]
         max_steps = 10
@@ -92,10 +113,3 @@ class strcmp(Func):
         outval4 = s.se.any_int(s.regs.eax)
 
         return outval1, outval2, outval3, outval4
-
-    def pre_test(self, func, runner):
-        r = self._strcmp_pretest(func, runner)
-        if not isinstance(r, bool):
-            v1, v2, v3, v4 = r
-            return v1 == 0 and v2 != 0 and v3 != 0 and v4 != 0
-        return r

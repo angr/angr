@@ -18,6 +18,8 @@ for proc_file_name in os.listdir(path):
     if not proc_file_name.endswith('.py'):
         continue
     proc_module_name = proc_file_name[:-3]
+    if proc_file_name.startswith("skip"):
+        continue
     if proc_module_name in skip_procs:
         continue
 

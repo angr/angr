@@ -26,6 +26,9 @@ class memset(Func):
     def args(self):
         return ["buf", "char", "size"]
 
+    def can_call_other_funcs(self):
+        return False
+
     def gen_input_output_pair(self):
         # TODO we don't check the return val
         set_len = random.randint(1, 40)

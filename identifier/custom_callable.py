@@ -16,7 +16,7 @@ class Callable(object):
     Otherwise, you can get the resulting path group (immutable) at callable.result_path_group.
     """
 
-    def __init__(self, project, addr, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None,
+    def __init__(self, project, addr, concrete_only=False, perform_merge=False, base_state=None, toc=None, cc=None,
                  max_steps=None):
         """
         :param project:         The project to operate on
@@ -104,3 +104,5 @@ class Callable(object):
         if self._perform_merge:
             caller_end = caller_end_unmerged.merge()
             self.result_state = caller_end.active[0].state
+        else:
+            self.result_state = self.result_path_group.active[0].state

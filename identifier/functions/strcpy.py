@@ -26,6 +26,9 @@ class strcpy(Func):
     def args(self):
         return ["dst", "src"]
 
+    def can_call_other_funcs(self):
+        return False
+
     def gen_input_output_pair(self):
         # TODO we don't check the return val, some cases I saw char * strcpy, some size_t strcpy
         strlen = random.randint(1, 80)

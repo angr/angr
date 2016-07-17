@@ -26,6 +26,9 @@ class strncpy(Func):
     def args(self):
         return ["dst", "src", "len"]
 
+    def can_call_other_funcs(self):
+        return False
+
     def gen_input_output_pair(self):
         # TODO we don't check the return val, some cases I saw char * strcpy, some size_t strcpy
         strlen = random.randint(1, 80)
@@ -41,4 +44,11 @@ class strncpy(Func):
         return test
 
     def pre_test(self, func, runner):
-        return True
+
+        test_input = ["A"*7, "abc\x00ccc"]
+        test_output = ["abc\x00AAA", "abc\x00ccc"]
+        max_steps = 20
+        return_val = None
+        test = TestData(test_input, test_output, return_val, max_steps)
+
+        return runner.test(func, test)
