@@ -1,11 +1,11 @@
 import simuvex
 
 ######################################
-# Path terminator
+# Unresolvable Target
 ######################################
 
 
-class PathTerminator(simuvex.SimProcedure):
+class UnresolvableTarget(simuvex.SimProcedure):
     NO_RET = True
 
     def run(self):
