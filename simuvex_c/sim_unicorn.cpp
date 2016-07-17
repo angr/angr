@@ -70,11 +70,18 @@ typedef struct mem_update {
 	struct mem_update *next;
 } mem_update_t;
 
+typedef struct transmit_record {
+	void *data;
+	uint32_t count;
+} transmit_record_t;
+
+// These prototypes may be found in <unicorn/unicorn.h> by searching for "Callback"
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user_data);
+static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data);
 
 class State {
 private:
@@ -92,8 +99,9 @@ private:
 
 public:
 	std::vector<uint64_t> bbl_addrs;
+	std::vector<transmit_record_t> transmit_records;
 	uint64_t cur_steps, max_steps;
-	uc_hook h_read, h_write, h_block, h_prot, h_unmap;
+	uc_hook h_read, h_write, h_block, h_prot, h_unmap, h_intr;
   bool stopped;
 	stop_t stop_reason;
 	uint64_t stopping_register;
@@ -103,6 +111,11 @@ public:
 	bool ignore_next_selfmod;
 	uint64_t cur_address;
 	int32_t cur_size;
+
+	uc_arch arch;
+	bool interrupt_handled;
+	uint32_t transmit_sysno;
+	uint32_t transmit_bbl_addr;
 
   VexArch vex_guest;
   VexArchInfo vex_archinfo;
@@ -117,6 +130,8 @@ public:
 		stop_reason = STOP_NOSTART;
 		ignore_next_block = false;
 		ignore_next_selfmod = false;
+		interrupt_handled = false;
+		transmit_sysno == -1;
     vex_guest = VexArch_INVALID;
 
 		auto it = global_cache.find(cache_key);
@@ -129,7 +144,8 @@ public:
         block_cache = it->second.block_cache;
 		}
 
-		switch (*(uc_arch *)uc) { // tricky:)
+		arch = *((uc_arch*)uc);	// unicorn hides all its internals...
+		switch (arch) {
 				case UC_ARCH_X86:
 						*(void **)&uc_reg_update = (void *)x86_reg_update;
 						break;
@@ -146,9 +162,6 @@ public:
 	 * HOOK_MEM_WRITE is called before checking if the address is valid. so we might
 	 * see uninitialized pages. Using HOOK_MEM_PROT is too late for tracking taint.
 	 * so we don't have to use HOOK_MEM_PROT to track dirty pages.
-	 *
-	 * syscall is not hooked here, because we always stop in  any syscall, and we
-	 * prefer to deal with different archs in python.
 	 */
 	void hook() {
 		if (hooked) {
@@ -166,6 +179,8 @@ public:
 
 		err = uc_hook_add(uc, &h_unmap, UC_HOOK_MEM_UNMAPPED, (void *)hook_mem_unmapped, this, 1, 0);
 
+		err = uc_hook_add(uc, &h_intr, UC_HOOK_INTR, (void *)hook_intr, this, 1, 0);
+
 		hooked = true;
 	}
 
@@ -179,6 +194,7 @@ public:
 		err = uc_hook_del(uc, h_block);
 		err = uc_hook_del(uc, h_prot);
 		err = uc_hook_del(uc, h_unmap);
+		err = uc_hook_del(uc, h_intr);
 
 		hooked = false;
 		h_read = h_write = h_block = h_prot = h_unmap = 0;
@@ -852,6 +868,50 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
   }
 }
 
+static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
+	State *state = (State *)user_data;
+	if (state->arch == UC_ARCH_X86 && intno == 0x80) {
+		// this is the ultimate hack for cgc -- it must be enabled by explitly setting the transmit sysno from python
+		// basically an implementation of the cgc transmit syscall
+		uint32_t sysno;
+		uc_reg_read(uc, UC_X86_REG_EAX, &sysno);
+		if (sysno == state->transmit_sysno) {
+			uint32_t fd, buf, count, tx_bytes;
+
+			uc_reg_read(uc, UC_X86_REG_EBX, &fd);
+
+			if (fd == 2) {
+				// chris' directive: totally discard all writes to stderr
+				state->interrupt_handled = true;
+				return;
+			} else if (fd == 0 || fd == 1) {
+				uc_reg_read(uc, UC_X86_REG_ECX, &buf);
+				uc_reg_read(uc, UC_X86_REG_EDX, &count);
+				uc_reg_read(uc, UC_X86_REG_ESI, &tx_bytes);
+
+				void *dup_buf = malloc(count);
+				uint32_t result;
+				if (uc_mem_read(uc, buf, dup_buf, count) != UC_ERR_OK) {
+					result = 2;		// EFAULT
+					free(dup_buf);
+				} else if (tx_bytes != 0 && uc_mem_write(uc, tx_bytes, &count, sizeof(uint32_t)) != UC_ERR_OK) {
+					result = 2;		// EFAULT
+					free(dup_buf);
+				} else {
+					state->transmit_records.push_back({dup_buf, count});
+					result = 0;
+				}
+
+				uc_reg_write(uc, UC_X86_REG_EAX, &result);
+				state->bbl_addrs.push_back(state->transmit_bbl_addr);
+				state->interrupt_handled = true;
+				return;
+			}
+		}
+	}
+	state->interrupt_handled = false;
+}
+
 static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
 	State *state = (State *)user_data;
 	uint64_t start = address & ~0xFFFUL;
@@ -1004,6 +1064,38 @@ extern "C"
 void disable_symbolic_reg_tracking(State *state) {
   state->vex_guest = VexArch_INVALID;
 }
+
+//
+// Concrete transmits
+//
+
+extern "C"
+bool is_interrupt_handled(State *state) {
+	return state->interrupt_handled;
+}
+
+extern "C"
+void set_transmit_sysno(State *state, uint32_t sysno, uint64_t bbl_addr) {
+	state->transmit_sysno = sysno;
+	state->transmit_bbl_addr = bbl_addr;
+}
+
+extern "C"
+transmit_record_t *process_transmit(State *state, uint32_t num) {
+	if (num >= state->transmit_records.size()) {
+		for (auto record_iter = state->transmit_records.begin();
+				record_iter != state->transmit_records.end();
+				record_iter++) {
+			free(record_iter->data);
+		}
+		state->transmit_records.clear();
+		return NULL;
+	} else {
+		transmit_record_t *out = &state->transmit_records[num];
+		return out;
+	}
+}
+
 
 /*
  * Page cache

@@ -29,6 +29,14 @@ MEM_PATCH._fields_ = [
         ('next', ctypes.POINTER(MEM_PATCH))
     ]
 
+class TRANSMIT_RECORD(ctypes.Structure): # transmit_record_t
+    pass
+
+TRANSMIT_RECORD._fields_ = [
+        ('data', ctypes.c_void_p),
+        ('count', ctypes.c_uint32)
+    ]
+
 class STOP(object): # stop_t
     STOP_NORMAL         = 0
     STOP_STOPPOINT      = 1
@@ -190,6 +198,9 @@ def _load_native():
         _setup_prototype(h, 'get_symbolic_registers', ctypes.c_uint64, state_t, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'stopping_register', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'stopping_memory', ctypes.c_uint64, state_t)
+        _setup_prototype(h, 'is_interrupt_handled', ctypes.c_bool, state_t)
+        _setup_prototype(h, 'set_transmit_sysno', None, state_t, ctypes.c_uint32, ctypes.c_uint64)
+        _setup_prototype(h, 'process_transmit', ctypes.POINTER(TRANSMIT_RECORD), state_t, ctypes.c_uint32)
 
         l.info('native plugin is enabled')
 
@@ -300,6 +311,9 @@ class Unicorn(SimStatePlugin):
         # this is a record of the ASTs for which we've added concretization constraints
         self._concretized_asts = set() if concretized_asts is None else concretized_asts
 
+        # the address to use for concrete transmits
+        self.transmit_addr = None
+
     def copy(self):
         u = Unicorn(
             syscall_hooks=dict(self.syscall_hooks),
@@ -322,6 +336,7 @@ class Unicorn(SimStatePlugin):
         u.countdown_nonunicorn_blocks = self.countdown_nonunicorn_blocks
         u.countdown_symbolic_registers = self.countdown_symbolic_registers
         u.countdown_symbolic_memory = self.countdown_symbolic_memory
+        u.transmit_addr = self.transmit_addr
         return u
 
     def merge(self, others, merge_conditions):
@@ -489,6 +504,9 @@ class Unicorn(SimStatePlugin):
             _UC_NATIVE.stop(self._uc_state, STOP.STOP_ERROR)
 
     def _hook_intr_x86(self, uc, intno, user_data):
+        if _UC_NATIVE.is_interrupt_handled(self._uc_state):
+            return
+
         if intno == 0x80:
             if self.state.arch.bits == 32:
                 self._hook_syscall_i386(uc, user_data)
@@ -704,6 +722,11 @@ class Unicorn(SimStatePlugin):
         self.set_regs()
         # tricky: using unicorn handle form unicorn.Uc object
         self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key)
+        if self.state.has_plugin('cgc'):
+            if self.transmit_addr is None:
+                l.error("You haven't set the address for concrete transmits!!!!!!!!!!!")
+                self.transmit_addr = 0
+            _UC_NATIVE.set_transmit_sysno(self._uc_state, 2, self.transmit_addr)
 
     def start(self, step=None):
         self.jumpkind = 'Ijk_Boring'
@@ -787,6 +810,16 @@ class Unicorn(SimStatePlugin):
         if self.steps >= 128:
             self.cooldown_symbolic_registers = 16
             self.cooldown_symbolic_memory = 16
+        # process the concrete transmits
+        i = 0
+        while True:
+            record = _UC_NATIVE.process_transmit(self._uc_state, i)
+            if not bool(record):
+                break
+
+            string = ctypes.string_at(record.contents.data, record.contents.count)
+            self.state.posix.write(1, string, record.contents.count)
+            i += 1
 
         if self.stop_reason in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT, STOP.STOP_SYSCALL):
             self.countdown_nonunicorn_blocks = 0
