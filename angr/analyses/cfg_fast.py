@@ -1263,18 +1263,18 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
                 # Add it to our set. Will process it later if user allows.
-                self._indirect_jumps_to_resolve.add(CFGEntry(addr, current_function_addr, jumpkind))
-
                 # Create an IndirectJump instance
                 if addr not in self.indirect_jumps:
                     tmp_statements = irsb.statements if stmt_idx == 'default' else irsb.statements[ : stmt_idx]
                     ins_addr = next(iter(stmt.addr for stmt in reversed(tmp_statements)
                                          if isinstance(stmt, pyvex.IRStmt.IMark)), None
                                     )
-                    ij = IndirectJump(addr, ins_addr, [ ])
+                    ij = IndirectJump(addr, ins_addr, current_function_addr, jumpkind, stmt_idx, resolved_targets=[ ])
                     self.indirect_jumps[addr] = ij
                 else:
                     ij = self.indirect_jumps[addr]
+
+                self._indirect_jumps_to_resolve.add(ij)
 
                 if irsb:
                     # Test it on the initial state. Does it jump to a valid location?
@@ -1317,10 +1317,23 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 else:
                     l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
                     # Add it to our set. Will process it later if user allows.
-                    self._indirect_jumps_to_resolve.add(CFGEntry(addr, current_function_addr, jumpkind))
+
+                    if addr not in self.indirect_jumps:
+                        tmp_statements = irsb.statements if stmt_idx == 'default' else irsb.statements[: stmt_idx]
+                        ins_addr = next(iter(stmt.addr for stmt in reversed(tmp_statements)
+                                             if isinstance(stmt, pyvex.IRStmt.IMark)), None
+                                        )
+                        ij = IndirectJump(addr, ins_addr, current_function_addr, jumpkind, stmt_idx,
+                                          resolved_targets=[])
+                        self.indirect_jumps[addr] = ij
+                    else:
+                        ij = self.indirect_jumps[addr]
+
+                    self._indirect_jumps_to_resolve.add(ij)
 
                     self._create_entry_call(addr, irsb, cfg_node, stmt_idx, current_function_addr, None, jumpkind,
-                                            is_syscall=is_syscall)
+                                            is_syscall=is_syscall
+                                            )
 
         elif jumpkind == "Ijk_Ret":
             if current_function_addr != -1:
@@ -1779,28 +1792,29 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         all_targets = set()
-        resolved = set()
+        jumps_resolved = {}
         # print "We have %d indirect jumps" % len(self._indirect_jumps)
 
-        for entry in self._indirect_jumps_to_resolve:
-
-            resolved.add(entry)
+        for jump in self._indirect_jumps_to_resolve:  # type: IndirectJump
+            jumps_resolved[jump] = False
 
             # is it a jump table? try with the fast approach
-            resolvable, targets = self._resolve_jump_table_fast(entry.addr, entry.jumpkind)
+            resolvable, targets = self._resolve_jump_table_fast(jump.addr, jump.jumpkind)
             if resolvable:
+                jumps_resolved[jump] = True
                 # Remove all targets that don't make sense
                 targets = [ t for t in targets if any(iter((a <= t < b) for a, b in self._exec_mem_regions)) ]
 
-                if entry.addr in self.indirect_jumps:
-                    ij = self.indirect_jumps[entry.addr]
+                if jump.addr in self.indirect_jumps:
+                    ij = self.indirect_jumps[jump.addr]
 
                     ij.jumptable = True
+                    ij.resolved = True
 
                     # Fill the IndirectJump object
                     ij.resolved_targets |= set(targets)
 
-                all_targets |= set([ (t, entry.func_addr, entry.addr) for t in targets ])
+                all_targets |= set([ (t, jump.func_addr, jump.addr) for t in targets ])
                 continue
 
             # is it a slightly more complex jump table? try the slow approach
@@ -1809,8 +1823,23 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             #    all_targets |= set(targets)
             #    continue
 
-        for t in resolved:
-            self._indirect_jumps_to_resolve.remove(t)
+        for jump, resolved in jumps_resolved.iteritems():
+            self._indirect_jumps_to_resolve.remove(jump)
+
+            if not resolved:
+                # add a node from this entry to the Unresolv
+                # ableTarget node
+                src_node = self._nodes[jump.addr]
+                dst_node = CFGNode(self._unresolvable_target_addr, 0, self, simprocedure_name='UnresolvableTarget')
+                self._graph_add_edge(dst_node, src_node, jump.jumpkind, jump.stmt_idx)
+                # mark it as a jumpout site for that function
+                self._function_add_transition_edge(self._unresolvable_target_addr, src_node, jump.func_addr,
+                                                   to_outside=True,
+                                                   to_function_addr=self._unresolvable_target_addr
+                                                   )
+                # tell KnowledgeBase that it's not resolved
+                # TODO: self.kb._unresolved_indirect_jumps is not processed during normalization. Fix it.
+                self.kb._unresolved_indirect_jumps.add(jump.addr)
 
         return all_targets
 
@@ -2427,7 +2456,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             node = addr
         self.kb.functions._add_node(function_addr, node)
 
-    def _function_add_transition_edge(self, addr, src_node, function_addr):
+    def _function_add_transition_edge(self, addr, src_node, function_addr, to_outside=False, to_function_addr=None):
         """
         Add a transition edge to the function transiton map.
 
@@ -2450,7 +2479,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self.kb.functions._add_node(function_addr, target)
             else:
                 src_node = self._to_snippet(src_node)
-                self.kb.functions._add_transition_to(function_addr, src_node, target)
+                if not to_outside:
+                    self.kb.functions._add_transition_to(function_addr, src_node, target)
+                else:
+                    self.kb.functions._add_outside_transition_to(function_addr, src_node, target,
+                                                                 to_function_addr=to_function_addr
+                                                                 )
             return True
         except (AngrMemoryError, AngrTranslationError):
             return False
