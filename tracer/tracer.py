@@ -203,7 +203,7 @@ class Tracer(object):
             try:
                 if current.state.scratch.executed_block_count > 1:
                     # executed unicorn fix bb_cnt
-                    self.bb_cnt += current.state.scratch.executed_block_count - 1
+                    self.bb_cnt += current.state.scratch.executed_block_count - 1 - current.state.scratch.executed_syscall_count
             except AttributeError:
                 pass
 
