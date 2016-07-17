@@ -18,10 +18,13 @@ l = logging.getLogger(name="angr.cfg_base")
 
 
 class IndirectJump(object):
-    def __init__(self, addr, ins_addr, resolved_targets=None, jumptable=False, jumptable_addr=None,
-                 jumptable_entries=None):
+    def __init__(self, addr, ins_addr, func_addr, jumpkind, stmt_idx, resolved_targets=None, jumptable=False,
+                 jumptable_addr=None, jumptable_entries=None):
         self.addr = addr
         self.ins_addr = ins_addr
+        self.func_addr = func_addr
+        self.jumpkind = jumpkind
+        self.stmt_idx = stmt_idx
         self.resolved_targets = set() if resolved_targets is None else set(resolved_targets)
         self.jumptable = jumptable
         self.jumptable_addr = jumptable_addr
@@ -84,6 +87,10 @@ class CFGBase(Analysis):
         # Get all executable memory regions
         self._exec_mem_regions = self._executable_memory_regions(self._binary, self._force_segment)
         self._exec_mem_region_size = sum([(end - start) for start, end in self._exec_mem_regions])
+
+        # initialize an UnresolvableTarget SimProcedure
+        ut_addr = self.project.hook_symbol('UnresolvableTarget', simuvex.SimProcedures['stubs']['UnresolvableTarget'])
+        self._unresolvable_target_addr = ut_addr
 
     def __contains__(self, cfg_node):
         return cfg_node in self._graph
@@ -1134,7 +1141,7 @@ class CFGBase(Analysis):
         traversed = set()
 
         while stack:
-            n = stack[0]
+            n = stack[0]  # type: CFGNode
             stack = stack[1:]
 
             if n in traversed:
