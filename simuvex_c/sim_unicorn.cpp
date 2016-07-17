@@ -768,6 +768,58 @@ public:
 
 		return -1;
 	}
+
+	void handle_write(uint64_t address, int size)
+	{
+		taint_t *bitmap = page_lookup(address);
+		int start = address & 0xFFF;
+		int end = (address + size - 1) & 0xFFF;
+		int clean;
+
+		if (end >= start)  {
+			if (bitmap) {
+				clean = 0;
+				for (int i = start; i <= end; i++) {
+					if (bitmap[i] != TAINT_DIRTY) {
+						clean |= (1 << i); // this bit should not be marked as taint if we undo this action
+						bitmap[i] = TAINT_DIRTY; // this will automatically remove TAINT_SYMBOLIC flag
+					}
+				}
+			} else {
+				clean = -1;
+			}
+			log_write(address, size, clean);
+		} else {
+			if (bitmap) {
+				clean = 0;
+				for (int i = start; i <= 0xFFF; i++) {
+					if (bitmap[i] == TAINT_DIRTY) {
+						clean |= (1 << i);
+						bitmap[i] = TAINT_DIRTY;
+					}
+				}
+			} else {
+				clean = -1;
+			}
+			if (!log_write(address, 0x1000 - start, clean))
+				// uc is already stopped if any error happens
+				return ;
+
+			bitmap = page_lookup(address + size - 1);
+			if (bitmap) {
+				clean = 0;
+				for (int i = 0; i <=  end; i++)  {
+					if (bitmap[i] == TAINT_DIRTY) {
+						clean |= (1 << i);
+						bitmap[i] = TAINT_DIRTY;
+					}
+				}
+			} else {
+				clean = -1;
+			}
+			log_write(address - start + 0x1000, end + 1, clean);
+		}
+	}
 };
 
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
@@ -796,7 +848,6 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
 	LOG_D("mem_write [%#lx, %#lx]", address, address + size);
 	State *state = (State *)user_data;
-	taint_t *bitmap = state->page_lookup(address);
 
 	if (state->ignore_next_selfmod) {
 		// ...the self-modification gets repeated for internal qemu reasons
@@ -808,53 +859,7 @@ static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, in
 		state->ignore_next_block = true;
 	}
 
-	int start = address & 0xFFF;
-	int end = (address + size - 1) & 0xFFF;
-	int clean;
-
-	if (end >= start)  {
-		if (bitmap) {
-			clean = 0;
-			for (int i = start; i <= end; i++) {
-				if (bitmap[i] != TAINT_DIRTY) {
-					clean |= (1 << i); // this bit should not be marked as taint if we undo this action
-					bitmap[i] = TAINT_DIRTY; // this will automatically remove TAINT_SYMBOLIC flag
-				}
-			}
-		} else {
-			clean = -1;
-		}
-		state->log_write(address, size, clean);
-	} else {
-		if (bitmap) {
-			clean = 0;
-			for (int i = start; i <= 0xFFF; i++) {
-				if (bitmap[i] == TAINT_DIRTY) {
-					clean |= (1 << i);
-					bitmap[i] = TAINT_DIRTY;
-				}
-			}
-		} else {
-			clean = -1;
-		}
-		if (!state->log_write(address, 0x1000 - start, clean))
-			// uc is already stopped if any error happens
-			return ;
-
-		bitmap = state->page_lookup(address + size - 1);
-		if (bitmap) {
-			clean = 0;
-			for (int i = 0; i <=  end; i++)  {
-				if (bitmap[i] == TAINT_DIRTY) {
-					clean |= (1 << i);
-					bitmap[i] = TAINT_DIRTY;
-				}
-			}
-		} else {
-			clean = -1;
-		}
-		state->log_write(address - start + 0x1000, end + 1, clean);
-	}
+	state->handle_write(address, size);
 }
 
 static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user_data) {
