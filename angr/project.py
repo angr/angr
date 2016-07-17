@@ -341,6 +341,8 @@ class Project(object):
         :param obj:         The thing with which to satisfy the dependency. May be a SimProcedure class or a python
                             function (as an appropriate argument to hook()), or a python integer/long.
         :param kwargs:      Any additional keyword arguments will be passed to the SimProcedure's run() method.
+        :returns:           The pseudo address of this new symbol.
+        :rtype:             int
         """
         if kwargs is None: kwargs = {}
         ident = 'symbol hook: ' + symbol_name
@@ -358,11 +360,12 @@ class Project(object):
             self.hook(pseudo_addr, obj, kwargs=kwargs)
         else:
             # This is pretty intensely sketchy
+            pseudo_addr = obj
             pseudo_vaddr = obj - self._extern_obj.rebase_addr
 
         self.loader.provide_symbol(self._extern_obj, symbol_name, pseudo_vaddr)
 
-        return pseudo_vaddr
+        return pseudo_addr
     #
     # Pickling
     #
