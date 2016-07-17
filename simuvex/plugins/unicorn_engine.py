@@ -1156,6 +1156,9 @@ class Unicorn(SimStatePlugin):
         self.countdown_symbolic_registers -= 1
         self.countdown_symbolic_memory -= 1
 
+        if self.state.regs.ip.symbolic:
+            l.info("symbolic IP!")
+            return False
         if self.countdown_symbolic_registers > 0:
             l.info("not enough blocks since symbolic registers (%d more)", self.countdown_symbolic_registers)
             return False
