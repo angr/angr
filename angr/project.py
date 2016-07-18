@@ -303,6 +303,40 @@ class Project(object):
         """
         return addr in self._sim_procedures
 
+    def is_symbol_hooked(self, symbol_name):
+        """
+        Check if a symbol is already hooked.
+
+        :param str symbol_name: Name of the symbol.
+        :return: True if the symbol can be resolved and is hooked, False otherwise.
+        :rtype: bool
+        """
+
+        ident = self._symbol_name_to_ident(symbol_name)
+
+        # TODO: this method does not follow the SimOS.prepare_function_symbol() path. We should fix it later.
+
+        if not self._extern_obj.contains_identifier(ident):
+            return False
+
+        return True
+
+    def hooked_symbol_addr(self, symbol_name):
+        """
+        Check if a symbol is hooked or not, and if it is hooked, return the address of the symbol.
+
+        :param str symbol_name: Name of the symbol.
+        :return: Address of the symbol if it is hooked, None otherwise.
+        :rtype: int or None
+        """
+
+        if not self.is_symbol_hooked(symbol_name):
+            return None
+
+        ident = self._symbol_name_to_ident(symbol_name)
+
+        return self._extern_obj.get_pseudo_addr_for_symbol(ident)
+
     def unhook(self, addr):
         """
         Remove a hook.
@@ -345,9 +379,8 @@ class Project(object):
         :rtype:             int
         """
         if kwargs is None: kwargs = {}
-        ident = 'symbol hook: ' + symbol_name
-        if 'resolves' in kwargs:
-            ident += '.' + kwargs['resolves']
+        ident = self._symbol_name_to_ident(symbol_name, kwargs)
+
 
         if not isinstance(obj, (int, long)):
             pseudo_addr = self._simos.prepare_function_symbol(ident)
@@ -366,6 +399,27 @@ class Project(object):
         self.loader.provide_symbol(self._extern_obj, symbol_name, pseudo_vaddr)
 
         return pseudo_addr
+
+    #
+    # Private methods related to hooking
+    #
+
+    @staticmethod
+    def _symbol_name_to_ident(symbol_name, kwargs=None):
+        """
+        Convert a symbol name to an identifier that are used by hooking.
+
+        :param str symbol_name: Name of the symbol.
+        :param dict kwargs: Any additional keyword arguments.
+        :return: An identifier.
+        :rtype: str
+        """
+        ident = 'symbol hook: ' + symbol_name
+        if kwargs and 'resolves' in kwargs:
+            ident += '.' + kwargs['resolves']
+
+        return ident
+
     #
     # Pickling
     #
