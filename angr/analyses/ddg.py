@@ -640,10 +640,10 @@ class DDG(Analysis):
 
         :param networkx.DiGraph data_graph: The data dependence graph to simplify.
         :return: The simplified graph.
-        :rtype: networkx.DiGraph
+        :rtype: networkx.MultiDiGraph
         """
 
-        graph = networkx.DiGraph(data_graph)
+        graph = networkx.MultiDiGraph(data_graph)
 
         all_nodes = [ n for n in graph.nodes_iter() if isinstance(n.variable, SimTemporaryVariable) ]
 
