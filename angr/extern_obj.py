@@ -29,3 +29,12 @@ class AngrExternObject(Backend):
             self._lookup_table[ident] = self._next_addr
             self._next_addr += size + ((self._granularity - size) % self._granularity)
         return self._lookup_table[ident] + self.rebase_addr
+
+    def contains_identifier(self, ident):
+        return ident in self._lookup_table
+
+    def get_pseudo_addr_for_symbol(self, ident):
+        if ident not in self._lookup_table:
+            return None
+
+        return self._lookup_table[ident] + self.rebase_addr

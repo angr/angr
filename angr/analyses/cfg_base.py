@@ -89,7 +89,13 @@ class CFGBase(Analysis):
         self._exec_mem_region_size = sum([(end - start) for start, end in self._exec_mem_regions])
 
         # initialize an UnresolvableTarget SimProcedure
-        ut_addr = self.project.hook_symbol('UnresolvableTarget', simuvex.SimProcedures['stubs']['UnresolvableTarget'])
+        # but we do not want to hook the same symbol multiple times
+        if not self.project.is_symbol_hooked('UnresolvableTarget'):
+            ut_addr = self.project.hook_symbol('UnresolvableTarget',
+                                               simuvex.SimProcedures['stubs']['UnresolvableTarget']
+                                               )
+        else:
+            ut_addr = self.project.hooked_symbol_addr('UnresolvableTarget')
         self._unresolvable_target_addr = ut_addr
 
     def __contains__(self, cfg_node):
