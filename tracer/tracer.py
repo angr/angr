@@ -46,7 +46,7 @@ class Tracer(object):
     def __init__(self, binary, input=None, pov_file=None, simprocedures=None,
                  hooks=None, seed=None, preconstrain_input=True,
                  preconstrain_flag=True, resiliency=True, chroot=None,
-                 add_options=None, remove_options=None, trim_history=True):
+                 add_options=None, remove_options=None):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -65,7 +65,6 @@ class Tracer(object):
         :param add_options: add options to the state which used to do tracing
         :param remove_options: remove options from the state which is used to
             do tracing
-        :param trim_history: Trim the history of a path.
         """
 
         self.binary = binary
@@ -85,7 +84,6 @@ class Tracer(object):
         self.resiliency = resiliency
         self.chroot = chroot
         self.add_options = set() if add_options is None else add_options
-        self.trim_history = trim_history
         self.constrained_addrs = []
 
         cm = LocalCacheManager() if GlobalCacheManager is None else GlobalCacheManager
@@ -295,10 +293,6 @@ class Tracer(object):
                 target_to_jumpkind = bl.vex.constant_jump_targets_and_jumpkinds
                 if target_to_jumpkind[self.trace[self.bb_cnt]] == "Ijk_Boring":
                     bbl_max_bytes = 800
-
-            # if we're not in crash mode we don't care about the history
-            if self.trim_history and not self.crash_mode:
-                current.trim_history()
 
             self.prev_path_group = self.path_group
             self.path_group = self.path_group.step(max_size=bbl_max_bytes)
