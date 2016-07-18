@@ -533,6 +533,12 @@ class DDG(Analysis):
         # Case 2: a is a subset of the original address
         # Case 3: a is a superset of the original address
 
+        # the previous definition is killed. mark it in data graph.
+        if variable in live_defs:
+            for loc in live_defs[variable]:
+                pv = ProgramVariable(variable, loc)
+                self._data_graph_add_edge(pv, ProgramVariable(variable, code_loc), type='kill')
+
         live_defs[variable] = {code_loc}
         #l.debug("XX CodeLoc %s kills variable %s", code_loc, variable)
 
