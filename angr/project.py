@@ -400,7 +400,12 @@ class Project(object):
 
         return pseudo_addr
 
-    def _symbol_name_to_ident(self, symbol_name, kwargs=None):
+    #
+    # Private methods related to hooking
+    #
+
+    @staticmethod
+    def _symbol_name_to_ident(symbol_name, kwargs=None):
         """
         Convert a symbol name to an identifier that are used by hooking.
 
