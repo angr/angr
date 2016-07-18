@@ -12,6 +12,9 @@ from ..storage.memory_object import SimMemoryObject
 
 DEFAULT_MAX_SEARCH = 8
 
+def _multiwrite_filter(mem, ast):
+    return any("multiwrite" in var for var in mem.state.se.variables(ast))
+
 class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     _CONCRETIZATION_STRATEGIES = [ 'symbolic', 'symbolic_approx', 'any', 'any_approx', 'max', 'max_approx',
                                    'symbolic_nonzero', 'symbolic_nonzero_approx', 'norepeats' ]
@@ -242,10 +245,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 concretization_strategies.SimConcretizationStrategyAny(),
             )
 
-    @staticmethod
-    def _multiwrite_filter(mem, ast):
-        return any("multiwrite" in var for var in mem.state.se.variables(ast))
-
     def _create_default_write_strategies(self):
         self.write_strategies = [ ]
         if options.APPROXIMATE_MEMORY_INDICES in self.state.options:
@@ -269,7 +268,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             # we try to find a range of values, but only for things named "multiwrite"
             self.write_strategies.append(concretization_strategies.SimConcretizationStrategyRange(
                 128,
-                filter=self._multiwrite_filter
+                filter=_multiwrite_filter
             ))
 
         # finally, we just grab the maximum solution
