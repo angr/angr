@@ -1,3 +1,5 @@
+import string
+
 import simuvex
 import simuvex.s_options as so
 from simuvex.s_type import SimTypeFunction, SimTypeInt
@@ -10,22 +12,19 @@ import random
 import logging
 l = logging.getLogger("identifier.runner")
 
+import os
+flag_loc = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../example_flag_page'))
+with open(flag_loc, "rb") as f:
+    FLAG_DATA = f.read()
+assert len(FLAG_DATA) == 0x1000
 
 class Runner(object):
     def __init__(self, project, cfg):
         self.project = project
         self.cfg = cfg
+        self.base_state = self._get_recv_state()
 
-    def setup_state(self, function, test_data, initial_state=None, concrete_rand=False):
-        # FIXME fdwait should do something concrete...
-        # FixedInReceive and FixedOutReceive always are applied
-        simuvex.SimProcedures['cgc']['transmit'] = FixedOutTransmit
-        simuvex.SimProcedures['cgc']['receive'] = FixedInReceive
-
-        fs = {'/dev/stdin': simuvex.storage.file.SimFile(
-            "/dev/stdin", "r",
-            size=len(test_data.preloaded_stdin))}
-
+    def _get_recv_state(self):
         options = set()
         options.add(so.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
         options.add(so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
@@ -39,28 +38,62 @@ class Runner(object):
 
         remove_options = so.simplification | set(so.LAZY_SOLVES) | simuvex.o.resilience_options | set(so.SUPPORT_FLOATING_POINT)
         add_options = options
+        entry_state = self.project.factory.entry_state(
+                add_options=add_options,
+                remove_options=remove_options)
+
+        # map the CGC flag page
+        fake_flag_data = entry_state.se.BVV(FLAG_DATA)
+        entry_state.memory.store(0x4347c000, fake_flag_data)
+        # map the place where I put arguments
+        entry_state.memory.mem.map_region(0x2000, 0x10000, 7)
+
+        entry_state.unicorn._register_check_count = 100
+        entry_state.unicorn._runs_since_symbolic_data = 100
+        entry_state.unicorn._runs_since_unicorn = 100
+
+        # cooldowns
+        entry_state.unicorn.cooldown_symbolic_registers = 0
+        entry_state.unicorn.cooldown_symbolic_memory = 0
+        entry_state.unicorn.cooldown_nonunicorn_blocks = 1
+        entry_state.unicorn.max_steps = 10000
+
+        pg = self.project.factory.path_group(entry_state)
+        num_steps = 0
+        while pg.one_active.addr not in self.project._sim_procedures or \
+                "receive" not in str(self.project._sim_procedures[pg.one_active.addr]):
+            pg.step()
+            num_steps += 1
+            if num_steps > 100:
+                break
+        out_state = pg.one_active.state
+        out_state.scratch.clear()
+        out_state.scratch.jumpkind = "Ijk_Boring"
+        return out_state
+
+    def setup_state(self, function, test_data, initial_state=None, concrete_rand=False):
+        # FIXME fdwait should do something concrete...
+        # FixedInReceive and FixedOutReceive always are applied
+        simuvex.SimProcedures['cgc']['transmit'] = FixedOutTransmit
+        simuvex.SimProcedures['cgc']['receive'] = FixedInReceive
+
+        fs = {'/dev/stdin': simuvex.storage.file.SimFile(
+            "/dev/stdin", "r",
+            size=len(test_data.preloaded_stdin))}
+
         if initial_state is None:
-            entry_state = self.project.factory.entry_state(
-                    fs=fs,
-                    add_options=add_options,
-                    remove_options=remove_options)
+            temp_state = self.project.factory.entry_state(fs=fs)
+            entry_state = self.base_state.copy()
+            entry_state.register_plugin("posix",temp_state.posix)
+            temp_state.release_plugin("posix")
             entry_state.ip = function.startpoint.addr
         else:
             entry_state = initial_state.copy()
-            entry_state.options -= remove_options
-            entry_state.options |= add_options
 
         # set stdin
         entry_state.cgc.input_size = len(test_data.preloaded_stdin)
         if len(test_data.preloaded_stdin) > 0:
             entry_state.posix.files[0].content.store(0, test_data.preloaded_stdin)
-
-        if initial_state is None:
-            # map the CGC flag page
-            fake_flag_data = entry_state.se.BVV("A" * 0x1000)
-            entry_state.memory.store(0x4347c000, fake_flag_data)
-            # map the place where I put arguments
-            entry_state.memory.mem.map_region(0x2000, 0x10000, 7)
 
         entry_state.options.add(so.STRICT_PAGE_ACCESS)
 

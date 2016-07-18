@@ -4,6 +4,20 @@ import string
 
 digs = string.digits + string.letters
 
+class TwoOrThree(object):
+    def __eq__(self, other):
+        if other == 2:
+            return True
+        if other == 3:
+            return True
+        return False
+
+    def __ne__(self, other):
+        if other == 2:
+            return False
+        if other == 3:
+            return False
+        return True
 
 class int2str(Func):
     def __init__(self):
@@ -28,7 +42,7 @@ class int2str(Func):
             return "uint2str"
 
     def gen_input_output_pair(self):
-        num = random.randint(-(2 ** 31), 2 ** 31 - 1)
+        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
         if not self.is_signed:
             num = abs(num)
         s = str(num)
@@ -40,7 +54,7 @@ class int2str(Func):
         return test
 
     def pre_test(self, func, runner):
-        num = random.randint(-(2 ** 31), 2 ** 31 - 1)
+        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
         num = abs(num)
         s = str(num)
         test_input = ["A"*15, 15, num]
@@ -51,7 +65,7 @@ class int2str(Func):
         if not runner.test(func, test):
             return False
 
-        num = random.randint(-(2 ** 31), 2 ** 31 - 1)
+        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
         num = -abs(num)
         s = str(num)
         test_input = ["A"*15, 15, num]
@@ -79,10 +93,10 @@ class int2str_v2(Func):
         return "".join(random.choice(byte_list) for _ in xrange(length))
 
     def num_args(self):
-        return 2
+        return TwoOrThree()
 
     def args(self):
-        return ["val", "buf"]
+        return ["val", "buf", "max"]
 
     def get_name(self):
         if self.is_signed:
@@ -91,34 +105,34 @@ class int2str_v2(Func):
             return "uint2str_v2"
 
     def gen_input_output_pair(self):
-        num = random.randint(-(2 ** 31), 2 ** 31 - 1)
+        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
         if not self.is_signed:
             num = abs(num)
         s = str(num)
-        test_input = [num, "A"*15]
-        test_output = [None, s]
+        test_input = [num, "A"*15, 12]
+        test_output = [None, s, None]
         return_val = None
         max_steps = 10
         test = TestData(test_input, test_output, return_val, max_steps)
         return test
 
     def pre_test(self, func, runner):
-        num = random.randint(-(2 ** 31), 2 ** 31 - 1)
+        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
         num = abs(num)
         s = str(num)
-        test_input = [num, "A"*15]
-        test_output = [None, s]
+        test_input = [num, "A"*15, 12]
+        test_output = [None, s, None]
         return_val = None
         max_steps = 10
         test = TestData(test_input, test_output, return_val, max_steps)
         if not runner.test(func, test):
             return False
 
-        num = random.randint(-(2 ** 31), 2 ** 31 - 1)
+        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
         num = -abs(num)
         s = str(num)
-        test_input = [num, "A"*15]
-        test_output = [None, s]
+        test_input = [num, "A"*15, 12]
+        test_output = [None, s, None]
         return_val = None
         max_steps = 10
         test = TestData(test_input, test_output, return_val, max_steps)
@@ -141,10 +155,10 @@ class int2str_v3(Func):
         return "".join(random.choice(byte_list) for _ in xrange(length))
 
     def num_args(self):
-        return 2
+        return TwoOrThree()
 
     def args(self):
-        return ["buf", "val"]
+        return ["buf", "val", "max"]
 
     def get_name(self):
         if self.is_signed:
@@ -153,34 +167,34 @@ class int2str_v3(Func):
             return "uint2str_v3"
 
     def gen_input_output_pair(self):
-        num = random.randint(-(2 ** 31), 2 ** 31 - 1)
+        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
         if not self.is_signed:
             num = abs(num)
         s = str(num)
-        test_input = ["A"*15, num]
-        test_output = [s, None]
+        test_input = ["A"*15, num, 12]
+        test_output = [s, None, None]
         return_val = None
         max_steps = 10
         test = TestData(test_input, test_output, return_val, max_steps)
         return test
 
     def pre_test(self, func, runner):
-        num = random.randint(-(2 ** 31), 2 ** 31 - 1)
+        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
         num = abs(num)
         s = str(num)
-        test_input = ["A"*15, num]
-        test_output = [s, None]
+        test_input = ["A"*15, num, 12]
+        test_output = [s, None, None]
         return_val = None
         max_steps = 10
         test = TestData(test_input, test_output, return_val, max_steps)
         if not runner.test(func, test):
             return False
 
-        num = random.randint(-(2 ** 31), 2 ** 31 - 1)
+        num = random.randint(-(2 ** 26), 2 ** 26 - 1)
         num = -abs(num)
         s = str(num)
-        test_input = [num, "A"*15]
-        test_output = [s, None]
+        test_input = [num, "A"*15, 12]
+        test_output = [s, None, None]
         return_val = None
         max_steps = 10
         test = TestData(test_input, test_output, return_val, max_steps)

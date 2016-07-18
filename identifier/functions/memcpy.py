@@ -85,7 +85,7 @@ class memcpy(Func):
         _ = call(*[0x2000, 0x2003, 5])
         result_state = call.result_state
         if result_state.se.any_str(result_state.memory.load(0x2000, 8)) == "\x00\x00CBACBA":
-            self.memmove_safe = True
+            self.memmove_safe = True and self.memmove_safe
         else:
             self.memmove_safe = False
 

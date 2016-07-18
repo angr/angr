@@ -12,7 +12,7 @@ from networkx import NetworkXError
 
 import logging
 l = logging.getLogger("identifier.identify")
-l.setLevel("DEBUG")
+#l.setLevel("DEBUG")
 
 NUM_TESTS = 5
 
@@ -28,6 +28,7 @@ class FuncInfo(object):
         self.var_args = None
         self.bp_based = None
         self.bp_sp_diff = None
+        self.accesses_ret = None
 
 
 class Identifier(object):
@@ -77,8 +78,6 @@ class Identifier(object):
             try:
                 if require_predecessors and len(self._cfg.functions.callgraph.predecessors(f.addr)) == 0:
                     continue
-                elif require_predecessors:
-                    print f.name, "has_predecessors"
             except NetworkXError:
                 if require_predecessors:
                     continue
@@ -86,10 +85,9 @@ class Identifier(object):
             # find the actual vars
             try:
                 func_info = self.find_stack_vars_x86(f)
+                self.func_info[f] = func_info
             except IdentifierException as e:
-                l.warning("Identifier Exception: %s", e.message)
-                func_info = None
-            self.func_info[f] = func_info
+                l.debug("Identifier Exception: %s", e.message)
 
     def _too_large(self):
         if len(self._cfg.functions) > 400:
@@ -104,10 +102,7 @@ class Identifier(object):
         for f in self._cfg.functions.values():
             if f.is_syscall:
                 continue
-            try:
-                match = self.identify_func(f)
-            except simuvex.SimSegfaultError:
-                match = None
+            match = self.identify_func(f)
             if match is not None:
                 match_func = match
                 match_name = match_func.get_name()
@@ -136,7 +131,8 @@ class Identifier(object):
                     continue
                 if len(self.func_info[f].stack_args) != func.num_args():
                     continue
-
+                if self._non_normal_args(self.func_info[f].stack_args):
+                    continue
                 try:
                     result = func.try_match(f, self, self._runner)
                 except IdentifierException as e:
@@ -154,20 +150,32 @@ class Identifier(object):
         to_remove = []
         for f, (match_name, match_func) in self.matches.items():
             if match_name == "malloc" or match_name == "free":
-                is_good = True
-                try:
-                    for f2 in self._cfg.functions.callgraph.successors(f.addr):
-                        f2 = self._cfg.functions[f2]
-                        if f2 in self.matches and self.matches[f2][0] == match_name:
-                            is_good = False
-                except NetworkXError:
-                    is_good = True
-                if is_good:
+                if not self.can_call_same_name(f.addr, match_name):
                     yield f.addr, match_func.get_name()
                 else:
                     to_remove.append(f)
         for f in to_remove:
             del self.matches[f]
+
+    def can_call_same_name(self, addr, name):
+        if addr not in self._cfg.functions.callgraph.nodes():
+            return False
+        seen = set()
+        to_process = [addr]
+        while to_process:
+            curr = to_process.pop()
+            if curr in seen:
+                continue
+            seen.add(curr)
+            succ = list(self._cfg.functions.callgraph.successors(curr))
+            for s in succ:
+                if s in self._cfg.functions:
+                    f = self._cfg.functions[s]
+                    if f in self.matches:
+                        if self.matches[f][0] == name:
+                            return True
+            to_process.extend(succ)
+        return False
 
     def get_func_info(self, func):
         if isinstance(func, (int, long)):
@@ -216,13 +224,16 @@ class Identifier(object):
         return None
 
     def check_tests(self, cfg_func, match_func):
-        if not match_func.pre_test(cfg_func, self._runner):
-            return False
-        for i in xrange(NUM_TESTS):
-            test_data = match_func.gen_input_output_pair()
-            if test_data is not None and not self._runner.test(cfg_func, test_data):
+        try:
+            if not match_func.pre_test(cfg_func, self._runner):
                 return False
-        return True
+            for i in xrange(NUM_TESTS):
+                test_data = match_func.gen_input_output_pair()
+                if test_data is not None and not self._runner.test(cfg_func, test_data):
+                    return False
+            return True
+        except simuvex.SimSegfaultError:
+            return False
 
     def map_callsites(self):
         callsites = dict()
@@ -388,7 +399,14 @@ class Identifier(object):
         state.regs.bp = input_state.regs.bp
         return state
 
+    def _prefilter_floats(self, func):
+        bl = self.project.factory.block(func.addr).vex
+        if any(c.type.startswith("Ity_F") for c in bl.all_constants):
+            raise IdentifierException("floating const")
+
     def find_stack_vars_x86(self, func):
+        self._prefilter_floats(func)
+
         if func.name is not None:
             l.debug("finding stack vars %s", func.name)
         else:
@@ -468,7 +486,7 @@ class Identifier(object):
             end_addr = func.startpoint.addr
         else:
             end_addr = func.startpoint.addr + self.project.factory.block(func.startpoint.addr, num_inst=num_preamble_inst).size
-        if self.project.factory.block(end_addr, num_inst=1).bytes == '\x89\xe5':
+        if self._sets_ebp_from_esp(initial_state, end_addr):
             num_preamble_inst += 1
             test_p = self.project.factory.path(initial_state)
             test_p.step(num_inst=num_preamble_inst)
@@ -543,6 +561,8 @@ class Identifier(object):
         buffers = set()
         possible_stack_vars = []
         for addr in all_addrs - all_end_addrs - preamble_addrs:
+            if self._is_bt(addr):
+                continue
             main_state.ip = addr
             test_p = self.project.factory.path(main_state)
             test_p.step(num_inst=1)
@@ -622,6 +642,9 @@ class Identifier(object):
             if any(a[1] == "load" for a in stack_var_accesses[v]):
                 buffers.add(v)
 
+        if any(v > 0x10000 or v < -0x10000 for v in stack_vars):
+            raise IdentifierException("stack seems seems incorrect")
+
         # return it all in a function info object
         func_info = FuncInfo()
         func_info.stack_vars = stack_vars
@@ -636,4 +659,44 @@ class Identifier(object):
         if func_info.bp_based:
             func_info.bp_sp_diff = bp_sp_diff
 
+        self._filter_stack_args(func_info)
+
         return func_info
+
+    def _sets_ebp_from_esp(self, state, addr):
+        state = state.copy()
+        state.regs.ip = addr
+        state.regs.sp = state.se.BVS("sym_sp", 32, explicit_name=True)
+        p = self.project.factory.path(state)
+        p.step()
+        succ = (p.successors + p.unconstrained_successors)[0]
+
+        if len(succ.state.se.any_n_int((state.regs.sp - succ.state.regs.bp), 2)) == 1:
+            return True
+        return False
+
+    def _is_bt(self, addr):
+        # vex does really weird stuff with bit test instructions
+        bl = self.project.factory.block(addr, num_inst=1)
+        if bl.bytes.startswith("\x0f\xa3"):
+            return True
+        return False
+
+    @staticmethod
+    def _filter_stack_args(func_info):
+        if -4 in func_info.stack_args:
+            func_info.accesses_ret = True
+            func_info.stack_args = [x for x in func_info.stack_args if x != -4]
+            del func_info.stack_arg_accesses[-4]
+        else:
+            func_info.accesses_ret = False
+
+        if any(arg < 0 for arg in func_info.stack_args):
+            raise IdentifierException("negative arg")
+
+    @staticmethod
+    def _non_normal_args(stack_args):
+        for i, arg in enumerate(stack_args):
+            if arg != i*4:
+                return True
+            return False

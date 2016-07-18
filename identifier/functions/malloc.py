@@ -16,7 +16,7 @@ class malloc(Func):
         return None
 
     def pre_test(self, func, runner):
-        # we should not get a nonzero output from the function with a value this large
+        # we should not get a real output from the function with a value this large
         num = 0xffff0000
         test_input = [num]
         test_output = [None]
@@ -24,7 +24,7 @@ class malloc(Func):
         max_steps = 10
         test = TestData(test_input, test_output, return_val, max_steps)
         state = runner.get_out_state(func, test, concrete_rand=True)
-        if state is not None and state.se.any_int(state.regs.eax) != 0:
+        if state is not None and 0x10 < state.se.any_int(state.regs.eax) < 0xfffffff0:
             return False
 
         # we should be able to get different outputs if we call malloc multiple times
