@@ -22,7 +22,7 @@ class Runner(object):
     def __init__(self, project, cfg):
         self.project = project
         self.cfg = cfg
-        self.base_state = self._get_recv_state()
+        self.base_state = None
 
     def _get_recv_state(self):
         options = set()
@@ -62,9 +62,12 @@ class Runner(object):
         num_steps = 0
         while pg.one_active.addr not in self.project._sim_procedures or \
                 "receive" not in str(self.project._sim_procedures[pg.one_active.addr]):
+            if len(pg.active) > 1:
+                pp = pg.one_active
+                pg = self.project.factory.path_group(pp)
             pg.step()
             num_steps += 1
-            if num_steps > 100:
+            if num_steps > 50:
                 break
         out_state = pg.one_active.state
         out_state.scratch.clear()
@@ -83,6 +86,8 @@ class Runner(object):
 
         if initial_state is None:
             temp_state = self.project.factory.entry_state(fs=fs)
+            if self.base_state is None:
+                self.base_state = self._get_recv_state()
             entry_state = self.base_state.copy()
             entry_state.register_plugin("posix",temp_state.posix)
             temp_state.release_plugin("posix")

@@ -29,6 +29,7 @@ class FuncInfo(object):
         self.bp_based = None
         self.bp_sp_diff = None
         self.accesses_ret = None
+        self.preamble_sp_change = None
 
 
 class Identifier(object):
@@ -392,7 +393,7 @@ class Identifier(object):
         state = input_state.copy()
         # overwrite all registers
         for reg in reg_list:
-            state.registers.store(reg, state.se.BVS("sreg_" + reg + "-", project.arch.bits))
+            state.registers.store(reg, state.se.BVS("sreg_" + reg + "-", project.arch.bits, explicit_name=True))
         # restore sp
         state.regs.sp = input_state.regs.sp
         # restore bp
@@ -503,6 +504,11 @@ class Identifier(object):
         else:
             bp_based = False
 
+        preamble_sp_change = succ.state.regs.sp - initial_path.state.regs.sp
+        if preamble_sp_change.symbolic:
+            raise IdentifierException("preamble sp change")
+        preamble_sp_change = initial_path.state.se.any_int(preamble_sp_change)
+
         main_state = self._make_regs_symbolic(succ.state, self._reg_list, self.project)
         if bp_based:
             main_state = self._make_regs_symbolic(main_state, [self._bp_reg], self.project)
@@ -561,24 +567,31 @@ class Identifier(object):
         buffers = set()
         possible_stack_vars = []
         for addr in all_addrs - all_end_addrs - preamble_addrs:
-            if self._is_bt(addr):
+            bl = self.project.factory.block(addr, num_inst=1)
+            if self._is_bt(bl):
+                continue
+            if self._is_jump_or_call(bl):
+                continue
+            if self._no_sp_or_bp(bl):
                 continue
             main_state.ip = addr
             test_p = self.project.factory.path(main_state)
             test_p.step(num_inst=1)
             succ = (test_p.successors + test_p.unconstrained_successors)[0]
 
-            # skip callsites
-            if succ.jumpkind == "Ijk_Call":
-                continue
+            written_regs = set()
             # we can get stack variables via memory actions
             for a in succ.last_actions:
                 if a.type == "mem":
                     if "sym_sp" in a.addr.ast.variables or (bp_based and "sym_bp" in a.addr.ast.variables):
                         possible_stack_vars.append((addr, a.addr.ast, a.action))
+                if a.type == "reg" and a.action == "write":
+                    reg_name = self.get_reg_name(self.project.arch, a.offset)
+                    if reg_name in self._reg_list:
+                        written_regs.add(reg_name)
 
             # stack variables can also be if a stack addr is loaded into a register, eg lea
-            for r in self._reg_list:
+            for r in written_regs:
                 if r == self._bp_reg and bp_based:
                     continue
                 ast = succ.state.registers.load(r)
@@ -588,15 +601,17 @@ class Identifier(object):
         for addr, ast, action in possible_stack_vars:
             if "sym_sp" in ast.variables:
                 # constrain all to be zero so we detect the base address of buffers
-                if succ.state.se.symbolic(succ.state.se.simplify(ast - sp)):
+                simplified = succ.state.se.simplify(ast - sp)
+                if succ.state.se.symbolic(simplified):
+                    self.constrain_all_zero(test_p.state, succ.state, self._reg_list)
                     is_buffer = True
                 else:
                     is_buffer = False
-                self.constrain_all_zero(test_p.state, succ.state, self._reg_list)
-                sp_off = succ.state.se.any_int(ast - sp)
+                sp_off = succ.state.se.any_int(simplified)
                 if sp_off > 2 ** (self.project.arch.bits - 1):
                     sp_off = 2 ** self.project.arch.bits - sp_off
-                # todo what to do if not bp based
+
+                # get the offsets
                 if bp_based:
                     bp_off = sp_off - bp_sp_diff
                 else:
@@ -608,12 +623,13 @@ class Identifier(object):
                 if is_buffer:
                     buffers.add(bp_off)
             else:
-                if succ.state.se.symbolic(succ.state.se.simplify(ast - bp)):
+                simplified = succ.state.se.simplify(ast - bp)
+                if succ.state.se.symbolic(simplified):
+                    self.constrain_all_zero(test_p.state, succ.state, self._reg_list)
                     is_buffer = True
                 else:
                     is_buffer = False
-                self.constrain_all_zero(test_p.state, succ.state, self._reg_list)
-                bp_off = succ.state.se.any_int(ast - bp)
+                bp_off = succ.state.se.any_int(simplified)
                 if bp_off > 2 ** (self.project.arch.bits - 1):
                     bp_off = -(2 ** self.project.arch.bits - bp_off)
                 stack_var_accesses[bp_off].add((addr, action))
@@ -627,6 +643,7 @@ class Identifier(object):
             if v > 0:
                 stack_args.append(v - self.project.arch.bytes * 2)
                 stack_arg_accesses[v - self.project.arch.bytes * 2] = stack_var_accesses[v]
+                del stack_var_accesses[v]
         stack_args = sorted(stack_args)
         stack_vars = sorted(stack_vars)
 
@@ -647,6 +664,7 @@ class Identifier(object):
 
         # return it all in a function info object
         func_info = FuncInfo()
+        func_info.preamble_sp_change = preamble_sp_change
         func_info.stack_vars = stack_vars
         func_info.stack_var_accesses = stack_var_accesses
         func_info.frame_size = frame_size
@@ -675,12 +693,53 @@ class Identifier(object):
             return True
         return False
 
-    def _is_bt(self, addr):
+    @staticmethod
+    def _is_bt(bl):
         # vex does really weird stuff with bit test instructions
-        bl = self.project.factory.block(addr, num_inst=1)
         if bl.bytes.startswith("\x0f\xa3"):
             return True
         return False
+
+    @staticmethod
+    def _is_jump_or_call(bl):
+        if bl.vex.jumpkind != "Ijk_Boring":
+            return True
+        if len(bl.vex.constant_jump_targets) != 1:
+            return True
+        if next(iter(bl.vex.constant_jump_targets)) != bl.addr + bl.size:
+            return True
+
+        return False
+
+    @staticmethod
+    def get_reg_name(arch, reg_offset):
+        """
+        :param reg_offset: Tries to find the name of a register given the offset in the registers.
+        :return: The register name
+        """
+        if reg_offset is None:
+            return None
+
+        original_offset = reg_offset
+        while reg_offset >= 0 and reg_offset >= original_offset - (arch.bits/8):
+            if reg_offset in arch.register_names:
+                return arch.register_names[reg_offset]
+            else:
+                reg_offset -= 1
+        return None
+
+    def _no_sp_or_bp(self, bl):
+        for s in bl.vex.statements:
+            for e in [s] + s.expressions:
+                if e.tag == "Iex_Get":
+                    reg = self.get_reg_name(self.project.arch, e.offset)
+                    if reg == "ebp" or reg == "esp":
+                        return False
+                elif e.tag == "Ist_Put":
+                    reg = self.get_reg_name(self.project.arch, e.offset)
+                    if reg == "ebp" or reg == "esp":
+                        return False
+        return True
 
     @staticmethod
     def _filter_stack_args(func_info):
