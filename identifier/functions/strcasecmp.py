@@ -17,6 +17,12 @@ class strcasecmp(strcmp):
     def get_name(self):
         return "strcasecmp"
 
+    def num_args(self):
+        return 2
+
+    def can_call_other_funcs(self):
+        return True
+
     def pre_test(self, func, runner):
         r = self._strcmp_pretest(func, runner)
         if not isinstance(r, bool):

@@ -8,21 +8,6 @@ bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..
 import logging
 logging.getLogger("identifier").setLevel("DEBUG")
 
-# smoketest
-def test_palindrome():
-    """
-    Test identification of functions in palindrome.
-    """
-
-    p = angr.Project(os.path.join(bin_location, "cgc_scored_event_1/cgc/0b32aa01_01"))
-    idfer = identifier.Identifier(p)
-
-    seen = dict()
-    for addr, symbol in idfer.run():
-        seen[addr] = symbol
-
-    nose.tools.assert_equals(seen[134513765], "receive_n4")
-
 def test_comparison_identification():
     """
     Test identification of common comparison functions
@@ -31,7 +16,7 @@ def test_comparison_identification():
     true_symbols = {0x804a3d0: 'strncmp', 0x804a0f0: 'strcmp', 0x8048e60: 'memcmp', 0x8049f40: 'strcasecmp'}
 
     p = angr.Project(os.path.join(bin_location, "tests/i386/identifiable"))
-    idfer = identifier.Identifier(p)
+    idfer = identifier.Identifier(p, require_predecessors=False)
 
     seen = dict()
     for addr, symbol in idfer.run():
