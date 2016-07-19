@@ -172,11 +172,11 @@ class CongruencyCheck(Analysis):
 					self.pg.stashes[normal_stash][0] = new_normal
 					return False
 				else:
-					l.debug("Divergence unaccounted for by unicorn.")
+					l.warning("Divergence unaccounted for by unicorn.")
 					return True
 			else:
 				# no idea
-				l.debug("Divergence unaccounted for.")
+				l.warning("Divergence unaccounted for.")
 				return True
 		finally:
 			self._throw = ot
@@ -198,6 +198,12 @@ class CongruencyCheck(Analysis):
 		if len(self.pg.right) != 1 or len(self.pg.left) != 1:
 			self._report_incongruency("Single path in pg.left and pg.right required.")
 			return False
+
+		if "UNICORN" in self.pg.one_right.state.options and depth is not None:
+			self.pg.one_right.state.unicorn.max_steps = depth
+
+		if "UNICORN" in self.pg.one_left.state.options and depth is not None:
+			self.pg.one_left.state.unicorn.max_steps = depth
 
 		l.debug("Performing initial path comparison.")
 		if not self.compare_paths(self.pg.left[0], self.pg.right[0]):
@@ -300,6 +306,7 @@ class CongruencyCheck(Analysis):
 			if sl.arch.name == "X86":
 				reg_diff -= set(range(40, 52)) #ignore cc psuedoregisters
 				reg_diff -= set(range(320, 324)) #some other VEX weirdness
+				reg_diff -= set(range(340, 344)) #ip_at_syscall
 			elif sl.arch.name == "AMD64":
 				reg_diff -= set(range(144, 168)) #ignore cc psuedoregisters
 
@@ -324,7 +331,7 @@ class CongruencyCheck(Analysis):
 		if sl.arch.name in ("AMD64", "X86", "ARM", "AARCH64"):
 			n_flags = simuvex.vex.ccall._get_flags(sr)[0].canonicalize(var_map=n_map, counter=n_counter)[-1]
 			u_flags = simuvex.vex.ccall._get_flags(sl)[0].canonicalize(var_map=u_map, counter=u_counter)[-1]
-			if n_flags is not u_flags:
+			if n_flags is not u_flags and sl.se.simplify(n_flags) is not sr.se.simplify(u_flags):
 				self._report_incongruency("Different flags!")
 				return False
 

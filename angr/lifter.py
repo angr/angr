@@ -1,6 +1,5 @@
 import sys
 import logging
-import capstone
 from cachetools import LRUCache
 
 import pyvex
@@ -368,10 +367,11 @@ class Lifter(object):
 class Block(object):
     # TODO: Automatically lift the bytes to VEX IRSB if _vex is None
 
+    BLOCK_MAX_SIZE = 4096
+
     __slots__ = ['_bytes', '_vex', '_thumb', '_arch', '_capstone', 'addr', 'size', 'instructions', 'instruction_addrs']
 
     def __init__(self, byte_string, arch=None, addr=None, size=None, vex=None, thumb=None):
-        self._bytes = byte_string
         self._vex = vex
         self._thumb = thumb
         self._arch = arch
@@ -402,9 +402,18 @@ class Block(object):
             l.warning('Lifted basic block with no IMarks!')
             self.addr = 0
 
-        if self.size is not None:
-            if type(byte_string) is str:
+        if type(byte_string) is str:
+            if self.size is not None:
                 self._bytes = byte_string[:self.size]
+            else:
+                self._bytes = byte_string
+        else:
+            # Convert bytestring to a str
+            if self.size is not None:
+                self._bytes = str(pyvex.ffi.buffer(byte_string, self.size))
+            else:
+                l.warning("Block size is unknown. Truncate it to BLOCK_MAX_SIZE")
+                self._bytes = str(pyvex.ffi.buffer(byte_string), Block.BLOCK_MAX_SIZE)
 
     def __repr__(self):
         return '<Block for %#x, %d bytes>' % (self.addr, self.size)
@@ -437,10 +446,7 @@ class Block(object):
 
     @property
     def bytes(self):
-        bytestring = self._bytes
-        if not isinstance(bytestring, str):
-            bytestring = str(pyvex.ffi.buffer(bytestring, self.size))
-        return bytestring
+        return self._bytes
 
     @property
     def capstone(self):

@@ -232,8 +232,9 @@ class SimOS(object):
             state.memory.mem._preapproved_stack = IRange(stack_end - stack_size, stack_end)
 
         if o.INITIALIZE_ZERO_REGISTERS in state.options:
-            for r in self.arch.registers:
-                setattr(state.regs, r, 0)
+            highest_reg_offset, reg_size = max(state.arch.registers.values())
+            for i in range(0, highest_reg_offset + reg_size, state.arch.bytes):
+                state.registers.store(i, state.se.BVV(0, state.arch.bits))
 
         state.regs.sp = stack_end
 
@@ -663,17 +664,15 @@ class SimCGC(SimOS):
         # Create the CGC plugin
         s.get_plugin('cgc')
 
+        # set up the address for concrete transmits
+        s.unicorn.transmit_addr = self.syscall_table[2][0]
 
         return s
 
     def state_entry(self, **kwargs):
         if isinstance(self.proj.loader.main_bin, BackedCGC):
             kwargs['permissions_backer'] = (True, self.proj.loader.main_bin.permissions_map)
-
-        if 'add_options' in kwargs:
-            kwargs['add_options'].add(o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
-        else:
-            kwargs['add_options'] = {o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY}
+        kwargs['add_options'] = {o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY} | kwargs.get('add_options', set())
 
         state = super(SimCGC, self).state_entry(**kwargs)
 

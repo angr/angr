@@ -66,7 +66,7 @@ def test_stops():
     s_symbolic = p.factory.entry_state(args=['a', 'a'], add_options=so.unicorn)
     pg_symbolic = p.factory.path_group(s_symbolic).run()
     p_symbolic = pg_symbolic.one_deadended
-    nose.tools.assert_equal(p_symbolic.trace.hardcopy, ['<SimUnicorn 0x8048340-0x8048320 with 2 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>', '<SimUnicorn 0x8048520-0x8048575 with 15 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>', '<SimUnicorn 0x80484b6-0x80484e3 with 3 steps (STOP_SYMBOLIC)>', '<SimIRSB 0x8048457>', '<SimIRSB 0x804848c>', '<SimIRSB 0x80484e8>', '<SimIRSB 0x804850c>', '<SimProcedure __libc_start_main>'])
+    nose.tools.assert_equal(p_symbolic.trace.hardcopy, ['<SimUnicorn 0x8048340-0x8048320 with 2 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>', '<SimUnicorn 0x8048520-0x8048575 with 15 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>', '<SimUnicorn 0x80484b6-0x80484e3 with 3 steps (STOP_SYMBOLIC_MEM)>', '<SimIRSB 0x8048457>', '<SimIRSB 0x804848c>', '<SimIRSB 0x80484e8>', '<SimIRSB 0x804850c>', '<SimProcedure __libc_start_main>'])
 
     s_symbolic_angr = p.factory.entry_state(args=['a', 'a'])
     pg_symbolic_angr = p.factory.path_group(s_symbolic_angr).run()
@@ -132,7 +132,7 @@ def test_fauxware_aggressive():
 
     nose.tools.assert_equal(len(pg.deadended), 1)
 
-def run_similarity(binpath, depth):
+def run_similarity(binpath, depth, prehook=None):
     b = angr.Project(os.path.join(test_location, binpath))
     cc = b.analyses.CongruencyCheck(throw=True)
     cc.set_state_options(
@@ -141,8 +141,8 @@ def run_similarity(binpath, depth):
         right_add_options={so.INITIALIZE_ZERO_REGISTERS},
         right_remove_options={so.LAZY_SOLVES, so.TRACK_MEMORY_MAPPING, so.COMPOSITE_SOLVER}
     )
-    if depth == 29:
-        cc.pg.left[0].state.unicorn.max_steps = 500
+    if prehook:
+        cc.pg = prehook(cc.pg)
     cc.run(depth=depth)
 
 def test_similarity_01cf6c01():
@@ -171,6 +171,12 @@ def test_similarity_ee545a01():
     run_similarity("binaries-private/cgc_qualifier_event/cgc/ee545a01_01", 200)
 def test_similarity_f5adc401():
     run_similarity("binaries-private/cgc_qualifier_event/cgc/f5adc401_01", 100)
+def test_similarity_fauxware():
+    def cooldown(pg):
+        # gotta skip the initializers because of cpuid and RDTSC
+        pg.one_left.state.unicorn.countdown_nonunicorn_blocks = 39
+        return pg
+    run_similarity("binaries/tests/i386/fauxware", 1000, prehook=cooldown)
 #("binaries-private/cgc_qualifier_event/cgc/5c921501_01", 70),
 
 def test_fp():
@@ -238,6 +244,21 @@ def test_unicorn_pickle():
         'Username: \nPassword: \nGo away!',
         'Username: \nPassword: \nWelcome to the admin console, trusted user!\n'
     )))
+
+def test_concrete_transmits():
+    p = angr.Project(os.path.join(test_location, 'binaries-private/shellphish/PIZZA_00001'))
+    inp = "320a310a0100000005000000330a330a340a".decode('hex')
+
+    s_unicorn = p.factory.entry_state(add_options=so.unicorn | {so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH})
+    pg_unicorn = p.factory.path_group(s_unicorn)
+    stdin = s_unicorn.posix.get_file(0)
+    stdin.write(inp, len(inp))
+    stdin.seek(0)
+    stdin.size = len(inp)
+
+    pg_unicorn.step(n=10)
+
+    nose.tools.assert_equal(pg_unicorn.one_active.state.posix.dumps(1), '1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\nRandomness added\n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n  Index: \n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n')
 
 if __name__ == '__main__':
     #import logging
