@@ -28,7 +28,7 @@ class Loggers(object):
     @staticmethod
     def _emit_wrap(*args, **kwargs):
         record = args[1]
-        color = hash(record.name) % 8 + 30
+        color = hash(record.name) % 7 + 31
         try:
             record.name = ("\x1b[%dm" % color) + record.name + "\x1b[0m"
         except Exception:
