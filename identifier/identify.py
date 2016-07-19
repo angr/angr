@@ -36,13 +36,16 @@ class Identifier(object):
 
     _special_case_funcs = ["free"]
 
-    def __init__(self, project, cfg=None, require_predecessors=True):
+    def __init__(self, project, cfg=None, require_predecessors=True, only_find=None):
         self.project = project
         if cfg is not None:
             self._cfg = cfg
         else:
             self._cfg = project.analyses.CFGFast(resolve_indirect_jumps=True)
         self._runner = Runner(project, self._cfg)
+
+        # only find if in this set
+        self.only_find = only_find
 
         # reg list
         a = self.project.arch
@@ -95,7 +98,10 @@ class Identifier(object):
             return True
         return False
 
-    def run(self):
+    def run(self, only_find=None):
+        if only_find is not None:
+            self.only_find = only_find
+
         if self._too_large():
             l.warning("Too large")
             return
@@ -208,6 +214,10 @@ class Identifier(object):
             calls_other_funcs = False
 
         for name, f in Functions.iteritems():
+            # check if we should be finding it
+            if self.only_find is not None and name not in self.only_find:
+                continue
+
             # generate an object of the class
             f = f()
             # test it
