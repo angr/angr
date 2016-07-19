@@ -3,9 +3,16 @@
 
 #include <cstring>
 
+#include <memory>
 #include <map>
 #include <vector>
 #include <unordered_set>
+#include <unordered_map>
+
+extern "C" {
+#include <libvex.h>
+#include <pyvex_static.h>
+}
 
 #define PAGE_SIZE 0x1000
 #define PAGE_SHIFT 12
@@ -24,7 +31,8 @@ typedef enum taint: uint8_t {
 typedef enum stop {
 	STOP_NORMAL=0,
 	STOP_STOPPOINT,
-	STOP_SYMBOLIC,
+	STOP_SYMBOLIC_MEM,
+	STOP_SYMBOLIC_REG,
 	STOP_ERROR,
 	STOP_SYSCALL,
 	STOP_EXECNONE,
@@ -33,10 +41,22 @@ typedef enum stop {
 	STOP_SEGFAULT,
 } stop_t;
 
+typedef struct block_entry {
+  bool try_unicorn;
+  std::unordered_set<uint64_t> used_registers;
+  std::unordered_set<uint64_t> clobbered_registers;
+} block_entry_t;
+
 typedef taint_t PageBitmap[PAGE_SIZE];
 typedef std::map<uint64_t, std::pair<char *, uint64_t>> PageCache;
-std::map<uint64_t, PageCache*> global_cache;
+typedef std::unordered_map<uint64_t, block_entry_t> BlockCache;
+typedef struct caches {
+  PageCache *page_cache;
+  BlockCache *block_cache;
+} caches_t;
+std::map<uint64_t, caches_t> global_cache;
 
+typedef std::unordered_set<uint64_t> RegisterSet;
 
 typedef struct mem_access {
 	uint64_t address;
@@ -50,16 +70,24 @@ typedef struct mem_update {
 	struct mem_update *next;
 } mem_update_t;
 
+typedef struct transmit_record {
+	void *data;
+	uint32_t count;
+} transmit_record_t;
+
+// These prototypes may be found in <unicorn/unicorn.h> by searching for "Callback"
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user_data);
+static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data);
 
 class State {
 private:
 	uc_engine *uc;
 	PageCache *page_cache;
+	BlockCache *block_cache;
 	bool hooked;
 
 	void (*uc_reg_update)(uc_engine *uc, void *buf, int save);
@@ -71,32 +99,55 @@ private:
 
 public:
 	std::vector<uint64_t> bbl_addrs;
+	uint64_t syscall_count;
+	std::vector<transmit_record_t> transmit_records;
 	uint64_t cur_steps, max_steps;
-	uc_hook h_read, h_write, h_block, h_prot, h_unmap;
+	uc_hook h_read, h_write, h_block, h_prot, h_unmap, h_intr;
+  bool stopped;
 	stop_t stop_reason;
+	uint64_t stopping_register;
+	uint64_t stopping_memory;
+
 	bool ignore_next_block;
 	bool ignore_next_selfmod;
 	uint64_t cur_address;
 	int32_t cur_size;
+
+	uc_arch arch;
+	bool interrupt_handled;
+	uint32_t transmit_sysno;
+	uint32_t transmit_bbl_addr;
+
+  VexArch vex_guest;
+  VexArchInfo vex_archinfo;
+	RegisterSet symbolic_registers; // tracking of symbolic registers
 
 	State(uc_engine *_uc, uint64_t cache_key):uc(_uc)
 	{
 		hooked = false;
 		h_read = h_write = h_block = h_prot = 0;
 		max_steps = cur_steps = 0;
+    stopped = true;
 		stop_reason = STOP_NOSTART;
 		ignore_next_block = false;
 		ignore_next_selfmod = false;
+		interrupt_handled = false;
+		transmit_sysno == -1;
+    vex_guest = VexArch_INVALID;
+    syscall_count = 0;
 
 		auto it = global_cache.find(cache_key);
 		if (it == global_cache.end()) {
 				page_cache = new PageCache();
-				global_cache[cache_key] = page_cache;
+        block_cache = new BlockCache();
+				global_cache[cache_key] = {page_cache, block_cache};
 		} else {
-				page_cache = it->second;
+				page_cache = it->second.page_cache;
+        block_cache = it->second.block_cache;
 		}
 
-		switch (*(uc_arch *)uc) { // tricky:)
+		arch = *((uc_arch*)uc);	// unicorn hides all its internals...
+		switch (arch) {
 				case UC_ARCH_X86:
 						*(void **)&uc_reg_update = (void *)x86_reg_update;
 						break;
@@ -113,9 +164,6 @@ public:
 	 * HOOK_MEM_WRITE is called before checking if the address is valid. so we might
 	 * see uninitialized pages. Using HOOK_MEM_PROT is too late for tracking taint.
 	 * so we don't have to use HOOK_MEM_PROT to track dirty pages.
-	 *
-	 * syscall is not hooked here, because we always stop in  any syscall, and we
-	 * prefer to deal with different archs in python.
 	 */
 	void hook() {
 		if (hooked) {
@@ -133,6 +181,8 @@ public:
 
 		err = uc_hook_add(uc, &h_unmap, UC_HOOK_MEM_UNMAPPED, (void *)hook_mem_unmapped, this, 1, 0);
 
+		err = uc_hook_add(uc, &h_intr, UC_HOOK_INTR, (void *)hook_intr, this, 1, 0);
+
 		hooked = true;
 	}
 
@@ -146,6 +196,7 @@ public:
 		err = uc_hook_del(uc, h_block);
 		err = uc_hook_del(uc, h_prot);
 		err = uc_hook_del(uc, h_unmap);
+		err = uc_hook_del(uc, h_intr);
 
 		hooked = false;
 		h_read = h_write = h_block = h_prot = h_unmap = 0;
@@ -162,6 +213,7 @@ public:
 	}
 
 	uc_err start(uint64_t pc, uint64_t step = 1) {
+    stopped = false;
 		stop_reason = STOP_NOSTART;
 		max_steps = step;
 		cur_steps = -1;
@@ -176,6 +228,7 @@ public:
 	}
 
 	void stop(stop_t reason) {
+    stopped = true;
 		const char *msg = NULL;
 		switch (reason) {
 			case STOP_NORMAL:
@@ -184,9 +237,12 @@ public:
 			case STOP_STOPPOINT:
 				msg = "hit a stop point";
 				break;
-			case STOP_SYMBOLIC:
+			case STOP_SYMBOLIC_MEM:
 				msg = "read symbolic data";
 				break;
+      case STOP_SYMBOLIC_REG:
+        msg = "going to try to read symbolic reg";
+        break;
 			case STOP_ERROR:
 				msg = "something wrong";
 				break;
@@ -219,7 +275,7 @@ public:
 		if (cur_steps == -1) cur_steps = 0;
 	}
 
-	void step(uint64_t current_address, int32_t size) {
+	void step(uint64_t current_address, int32_t size, bool check_stop_points=true) {
 		uc_reg_update(uc, tmp_reg, 1); // save current registers
 		bbl_addrs.push_back(current_address);
 		cur_address = current_address;
@@ -227,7 +283,7 @@ public:
 
 		if (cur_steps >= max_steps) {
 			stop(STOP_NORMAL);
-		} else if (stop_points.count(current_address) == 1) {
+		} else if (check_stop_points && stop_points.count(current_address) == 1) {
 			stop(STOP_STOPPOINT);
 		}
 	}
@@ -264,13 +320,14 @@ public:
 	void commit() {
 		// we might miss some dirty bits, this happens if hitting the memory
 		// write before mapping
-		for (auto it = mem_writes.begin(); it != mem_writes.end(); it++)
+		for (auto it = mem_writes.begin(); it != mem_writes.end(); it++) {
 			if (it->clean == -1) {
 				taint_t *bitmap = page_lookup(it->address);
 				memset(&bitmap[it->address & 0xFFFUL], TAINT_DIRTY, sizeof(taint_t) * it->size);
 				it->clean = (1 << it->size) - 1;
 				LOG_D("commit: lazy initialize mem_write [%#lx, %#lx]", it->address, it->address + it->size);
 			}
+    }
 		mem_writes.clear();
 		cur_steps++;
 	}
@@ -434,6 +491,337 @@ public:
 		return page_cache->find(address) != page_cache->end();
 	}
 
+	//
+	// Feasibility checks for unicorn
+	//
+
+	// check if we can clobberedly handle this IRExpr
+	inline bool check_expr(RegisterSet *clobbered, RegisterSet *danger, IRExpr *e)
+	{
+    int i, expr_size;
+		if (e == NULL) return true;
+		switch (e->tag)
+		{
+			case Iex_Binder:
+				break;
+			case Iex_VECRET:
+				break;
+			case Iex_BBPTR:
+				break;
+			case Iex_GetI:
+				// we can't handle this for the same reasons as PutI (see below)
+				return false;
+				break;
+			case Iex_RdTmp:
+				break;
+      case Iex_Get:
+				if (e->Iex.Get.ty == Ity_I1)
+				{
+					LOG_W("seeing a 1-bit get from a register");
+					return false;
+				}
+
+				expr_size = sizeofIRType(e->Iex.Get.ty);
+				this->check_register_read(clobbered, danger, e->Iex.Get.offset, expr_size);
+				break;
+			case Iex_Qop:
+				if (!this->check_expr(clobbered, danger, e->Iex.Qop.details->arg1)) return false;
+				if (!this->check_expr(clobbered, danger, e->Iex.Qop.details->arg2)) return false;
+				if (!this->check_expr(clobbered, danger, e->Iex.Qop.details->arg3)) return false;
+				if (!this->check_expr(clobbered, danger, e->Iex.Qop.details->arg4)) return false;
+				break;
+			case Iex_Triop:
+				if (!this->check_expr(clobbered, danger, e->Iex.Triop.details->arg1)) return false;
+				if (!this->check_expr(clobbered, danger, e->Iex.Triop.details->arg2)) return false;
+				if (!this->check_expr(clobbered, danger, e->Iex.Triop.details->arg3)) return false;
+				break;
+			case Iex_Binop:
+				if (!this->check_expr(clobbered, danger, e->Iex.Binop.arg1)) return false;
+				if (!this->check_expr(clobbered, danger, e->Iex.Binop.arg2)) return false;
+				break;
+			case Iex_Unop:
+				if (!this->check_expr(clobbered, danger, e->Iex.Unop.arg)) return false;
+				break;
+			case Iex_Load:
+				if (!this->check_expr(clobbered, danger, e->Iex.Load.addr)) return false;
+				break;
+			case Iex_Const:
+				break;
+			case Iex_ITE:
+				if (!this->check_expr(clobbered, danger, e->Iex.ITE.cond)) return false;
+				if (!this->check_expr(clobbered, danger, e->Iex.ITE.iffalse)) return false;
+				if (!this->check_expr(clobbered, danger, e->Iex.ITE.iftrue)) return false;
+				break;
+			case Iex_CCall:
+				for (i = 0; e->Iex.CCall.args[i] != NULL; i++)
+				{
+					if (!this->check_expr(clobbered, danger, e->Iex.CCall.args[i])) return false;
+				}
+				break;
+		}
+
+		return true;
+	}
+
+	// mark the register as clobbered
+	inline void mark_register_clobbered(RegisterSet *clobbered, uint64_t offset, int size)
+	{
+		for (int i = 0; i < size; i++)
+			clobbered->insert(offset + i);
+	}
+
+	// check register access
+	inline void check_register_read(RegisterSet *clobbered, RegisterSet *danger, uint64_t offset, int size)
+	{
+		for (int i = 0; i < size; i++)
+		{
+      if (clobbered->count(offset + i) == 0) {
+        danger->insert(offset + i);
+      }
+		}
+	}
+
+	// check if we can clobberedly handle this IRStmt
+	inline bool check_stmt(RegisterSet *clobbered, RegisterSet *danger, IRTypeEnv *tyenv, IRStmt *s)
+	{
+		switch (s->tag)
+		{
+      case Ist_Put: {
+				if (!this->check_expr(clobbered, danger, s->Ist.Put.data)) return false;
+				IRType expr_type = typeOfIRExpr(tyenv, s->Ist.Put.data);
+				if (expr_type == Ity_I1)
+				{
+					LOG_W("seeing a 1-bit write to a register");
+					return false;
+				}
+
+				int expr_size = sizeofIRType(expr_type);
+				this->mark_register_clobbered(clobbered, s->Ist.Put.offset, expr_size);
+				break;
+      }
+			case Ist_PutI:
+				// we cannot handle the PutI because:
+				// 1. in the case of symbolic registers, we need to have a good
+				//    handle on what registers need to be synced back to angr.
+				// 2. this requires us to track all the writes
+				// 3. a PutI represents an indirect write into the registerfile,
+				//    and we can't figure out where it's writing to ahead of time
+				// 4. unicorn provides no way to hook register writes (and that'd
+				//    probably be prohibitively slow anyways)
+				// 5. so we're screwed
+				return false;
+				break;
+			case Ist_WrTmp:
+				if (!this->check_expr(clobbered, danger, s->Ist.WrTmp.data)) return false;
+				break;
+			case Ist_Store:
+				if (!this->check_expr(clobbered, danger, s->Ist.Store.addr)) return false;
+				if (!this->check_expr(clobbered, danger, s->Ist.Store.data)) return false;
+				break;
+			case Ist_CAS:
+				if (!this->check_expr(clobbered, danger, s->Ist.CAS.details->addr)) return false;
+				if (!this->check_expr(clobbered, danger, s->Ist.CAS.details->dataLo)) return false;
+				if (!this->check_expr(clobbered, danger, s->Ist.CAS.details->dataHi)) return false;
+				if (!this->check_expr(clobbered, danger, s->Ist.CAS.details->expdLo)) return false;
+				if (!this->check_expr(clobbered, danger, s->Ist.CAS.details->expdHi)) return false;
+				break;
+			case Ist_LLSC:
+				if (!this->check_expr(clobbered, danger, s->Ist.LLSC.addr)) return false;
+				if (!this->check_expr(clobbered, danger, s->Ist.LLSC.storedata)) return false;
+				break;
+      case Ist_Dirty: {
+				if (!this->check_expr(clobbered, danger, s->Ist.Dirty.details->guard)) return false;
+				if (!this->check_expr(clobbered, danger, s->Ist.Dirty.details->mAddr)) return false;
+				for (int i = 0; s->Ist.Dirty.details->args[i] != NULL; i++)
+				{
+					if (!this->check_expr(clobbered, danger, s->Ist.Dirty.details->args[i])) return false;
+				}
+				break;
+      }
+			case Ist_Exit:
+				if (!this->check_expr(clobbered, danger, s->Ist.Exit.guard)) return false;
+				break;
+			case Ist_LoadG:
+				if (!this->check_expr(clobbered, danger, s->Ist.LoadG.details->addr)) return false;
+				if (!this->check_expr(clobbered, danger, s->Ist.LoadG.details->alt)) return false;
+				if (!this->check_expr(clobbered, danger, s->Ist.LoadG.details->guard)) return false;
+				break;
+			case Ist_StoreG:
+				if (!this->check_expr(clobbered, danger, s->Ist.StoreG.details->addr)) return false;
+				if (!this->check_expr(clobbered, danger, s->Ist.StoreG.details->data)) return false;
+				if (!this->check_expr(clobbered, danger, s->Ist.StoreG.details->guard)) return false;
+				break;
+			case Ist_NoOp:
+			case Ist_IMark:
+			case Ist_AbiHint:
+			case Ist_MBE:
+				// no-ops for our purposes
+				break;
+			default:
+				LOG_W("Encountered unknown VEX statement -- can't determine clobberedty.")
+				return false;
+		}
+
+		return true;
+	}
+
+	// check if the block is feasible
+	bool check_block(uint64_t address, int32_t size)
+	{
+    // assume we're good if we're not checking symbolic registers
+    if (this->vex_guest == VexArch_INVALID) {
+      return true;
+    }
+
+		// if there are no symbolic registers we're ok
+		if (this->symbolic_registers.size() == 0) {
+      return true;
+    }
+
+    // check if it's in the cache already
+    RegisterSet *clobbered_registers;
+    RegisterSet *used_registers;
+    auto search = this->block_cache->find(address);
+    if (search != this->block_cache->end()) {
+      if (!search->second.try_unicorn) {
+        return false;
+      }
+      clobbered_registers = &search->second.clobbered_registers;
+      used_registers = &search->second.used_registers;
+    } else {
+      // wtf i hate c++...
+      auto& entry = this->block_cache->emplace(std::make_pair(address, block_entry_t())).first->second;
+      entry.try_unicorn = true;
+      clobbered_registers = &entry.clobbered_registers;
+      used_registers = &entry.used_registers;
+
+      std::unique_ptr<uint8_t[]> instructions(new uint8_t[size]);
+      uc_mem_read(this->uc, address, instructions.get(), size);
+      IRSB *the_block = vex_block_bytes(this->vex_guest, this->vex_archinfo, instructions.get(), address, size, 0);
+
+      if (the_block == NULL) {
+        // TODO: how to handle?
+        return false;
+      }
+
+      for (int i = 0; i < the_block->stmts_used; i++) {
+        if (!this->check_stmt(clobbered_registers, used_registers, the_block->tyenv, the_block->stmts[i])) {
+          entry.try_unicorn = false;
+          return false;
+        }
+      }
+
+      if (!this->check_expr(clobbered_registers, used_registers, the_block->next)) {
+        entry.try_unicorn = false;
+        return false;
+      }
+    }
+
+    for (uint64_t off : this->symbolic_registers) {
+      if (used_registers->count(off) > 0) {
+      	stopping_register = off;
+        return false;
+      }
+    }
+
+		for (uint64_t off : *clobbered_registers) {
+			this->symbolic_registers.erase(off);
+		}
+
+		return true;
+	}
+
+	// Finds tainted data in the provided range and returns the address.
+	// Returns -1 if no tainted data is present.
+	uint64_t find_tainted(uint64_t address, int size)
+	{
+		taint_t *bitmap = page_lookup(address);
+
+		int start = address & 0xFFF;
+		int end = (address + size - 1) & 0xFFF;
+
+		if (end >= start) {
+			if (bitmap) {
+				for (int i = start; i <= end; i++)  {
+					if (bitmap[i] & TAINT_SYMBOLIC) {
+						return (address & ~0xFFF) + i;
+					}
+				}
+			}
+		} else {
+			// cross page boundary
+			if (bitmap) {
+				for (int i = start; i <= 0xFFF; i++) {
+					if (bitmap[i] & TAINT_SYMBOLIC) {
+						return (address & ~0xFFF) + i;
+					}
+				}
+			}
+
+			bitmap = page_lookup(address + size - 1);
+			if (bitmap) {
+				for (int i = 0; i <= end; i++) {
+					if (bitmap[i] & TAINT_SYMBOLIC) {
+						return ((address + size - 1) & ~0xFFF) + i;
+					}
+				}
+			}
+		}
+
+		return -1;
+	}
+
+	void handle_write(uint64_t address, int size)
+	{
+		taint_t *bitmap = page_lookup(address);
+		int start = address & 0xFFF;
+		int end = (address + size - 1) & 0xFFF;
+		int clean;
+
+		if (end >= start)  {
+			if (bitmap) {
+				clean = 0;
+				for (int i = start; i <= end; i++) {
+					if (bitmap[i] != TAINT_DIRTY) {
+						clean |= (1 << i); // this bit should not be marked as taint if we undo this action
+						bitmap[i] = TAINT_DIRTY; // this will automatically remove TAINT_SYMBOLIC flag
+					}
+				}
+			} else {
+				clean = -1;
+			}
+			log_write(address, size, clean);
+		} else {
+			if (bitmap) {
+				clean = 0;
+				for (int i = start; i <= 0xFFF; i++) {
+					if (bitmap[i] == TAINT_DIRTY) {
+						clean |= (1 << i);
+						bitmap[i] = TAINT_DIRTY;
+					}
+				}
+			} else {
+				clean = -1;
+			}
+			if (!log_write(address, 0x1000 - start, clean))
+				// uc is already stopped if any error happens
+				return ;
+
+			bitmap = page_lookup(address + size - 1);
+			if (bitmap) {
+				clean = 0;
+				for (int i = 0; i <=  end; i++)  {
+					if (bitmap[i] == TAINT_DIRTY) {
+						clean |= (1 << i);
+						bitmap[i] = TAINT_DIRTY;
+					}
+				}
+			} else {
+				clean = -1;
+			}
+			log_write(address - start + 0x1000, end + 1, clean);
+		}
+	}
 };
 
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
@@ -441,42 +829,13 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 	// LOG_D("mem_read [%#lx, %#lx] = %#lx", address, address + size);
 	LOG_D("mem_read [%#lx, %#lx]", address, address + size);
 	State *state = (State *)user_data;
-	taint_t *bitmap = state->page_lookup(address);
 
-	int start = address & 0xFFF;
-	int end = (address + size - 1) & 0xFFF;
-
-	if (end >= start) {
-		if (bitmap) {
-			for (int i = start; i <= end; i++)  {
-				if (bitmap[i] & TAINT_SYMBOLIC) {
-					state->stop(STOP_SYMBOLIC);
-					return ;
-				}
-			}
-		}
-	} else {
-		// cross page boundary
-		if (bitmap) {
-			for (int i = start; i <= 0xFFF; i++) {
-				if (bitmap[i] & TAINT_SYMBOLIC) {
-					state->stop(STOP_SYMBOLIC);
-					return ;
-				}
-			}
-		}
-
-		bitmap = state->page_lookup(address + size - 1);
-		if (bitmap) {
-			for (int i = 0; i <= end; i++) {
-				if (bitmap[i] & TAINT_SYMBOLIC) {
-					state->stop(STOP_SYMBOLIC);
-					return ;
-				}
-			}
-		}
+	auto tainted = state->find_tainted(address, size);
+	if (tainted != -1)
+	{
+		state->stopping_memory = tainted;
+		state->stop(STOP_SYMBOLIC_MEM);
 	}
-
 }
 
 /*
@@ -491,7 +850,6 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
 	LOG_D("mem_write [%#lx, %#lx]", address, address + size);
 	State *state = (State *)user_data;
-	taint_t *bitmap = state->page_lookup(address);
 
 	if (state->ignore_next_selfmod) {
 		// ...the self-modification gets repeated for internal qemu reasons
@@ -503,65 +861,108 @@ static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, in
 		state->ignore_next_block = true;
 	}
 
-	int start = address & 0xFFF;
-	int end = (address + size - 1) & 0xFFF;
-	int clean;
-
-	if (end >= start)  {
-		if (bitmap) {
-			clean = 0;
-			for (int i = start; i <= end; i++) {
-				if (bitmap[i] != TAINT_DIRTY) {
-					clean |= (1 << i); // this bit should not be marked as taint if we undo this action
-					bitmap[i] = TAINT_DIRTY; // this will automatically remove TAINT_SYMBOLIC flag
-				}
-			}
-		} else {
-			clean = -1;
-		}
-		state->log_write(address, size, clean);
-	} else {
-		if (bitmap) {
-			clean = 0;
-			for (int i = start; i <= 0xFFF; i++) {
-				if (bitmap[i] == TAINT_DIRTY) {
-					clean |= (1 << i);
-					bitmap[i] = TAINT_DIRTY;
-				}
-			}
-		} else {
-			clean = -1;
-		}
-		if (!state->log_write(address, 0x1000 - start, clean))
-			// uc is already stopped if any error happens
-			return ;
-
-		bitmap = state->page_lookup(address + size - 1);
-		if (bitmap) {
-			clean = 0;
-			for (int i = 0; i <=  end; i++)  {
-				if (bitmap[i] == TAINT_DIRTY) {
-					clean |= (1 << i);
-					bitmap[i] = TAINT_DIRTY;
-				}
-			}
-		} else {
-			clean = -1;
-		}
-		state->log_write(address - start + 0x1000, end + 1, clean);
-	}
+	state->handle_write(address, size);
 }
 
 static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user_data) {
+	LOG_I("block [%#lx, %#lx]", address, address + size);
+
 	State *state = (State *)user_data;
 	if (state->ignore_next_block) {
 		state->ignore_next_block = false;
 		state->ignore_next_selfmod = true;
 		return;
 	}
-	LOG_I("block [%#lx, %#lx]", address, address + size);
 	state->commit();
 	state->step(address, size);
+
+	if (!state->stopped && !state->check_block(address, size)) {
+    state->stop(STOP_SYMBOLIC_REG);
+    LOG_I("finishing early at address %#lx", address);
+  }
+}
+
+static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
+	State *state = (State *)user_data;
+	state->interrupt_handled = false;
+
+	if (state->arch == UC_ARCH_X86 && intno == 0x80) {
+		// this is the ultimate hack for cgc -- it must be enabled by explitly setting the transmit sysno from python
+		// basically an implementation of the cgc transmit syscall
+
+		for (auto sr : state->symbolic_registers)
+		{
+			// eax,ecx,edx,ebx,esi
+			if ((sr >= 8 && sr <= 23) || (sr >= 32 && sr <= 35)) return;
+		}
+
+		uint32_t sysno;
+		uc_reg_read(uc, UC_X86_REG_EAX, &sysno);
+		//printf("SYSCALL: %d\n", sysno);
+		if (sysno == state->transmit_sysno) {
+			//printf(".. TRANSMIT!\n");
+			uint32_t fd, buf, count, tx_bytes;
+
+			uc_reg_read(uc, UC_X86_REG_EBX, &fd);
+
+			if (fd == 2) {
+				// chris' directive: totally discard all writes to stderr
+				state->interrupt_handled = true;
+				//printf("... stderr\n");
+				return;
+			} else if (fd == 0 || fd == 1) {
+				uc_reg_read(uc, UC_X86_REG_ECX, &buf);
+				uc_reg_read(uc, UC_X86_REG_EDX, &count);
+				uc_reg_read(uc, UC_X86_REG_ESI, &tx_bytes);
+
+				// ensure that the memory we're sending is not tainted
+				void *dup_buf = malloc(count);
+				uint32_t tmp_tx;
+				if (uc_mem_read(uc, buf, dup_buf, count) != UC_ERR_OK)
+				{
+					//printf("... fault on buf\n");
+					free(dup_buf);
+					return;
+				}
+
+				if (tx_bytes != 0 && uc_mem_read(uc, tx_bytes, &tmp_tx, 4) != UC_ERR_OK)
+				{
+					//printf("... fault on tx\n");
+					free(dup_buf);
+					return;
+				}
+
+				if (state->find_tainted(buf, count) != -1)
+				{
+					//printf("... symbolic data\n");
+					free(dup_buf);
+					return;
+				}
+
+				state->step(state->transmit_bbl_addr, 0, false);
+				state->commit();
+				if (state->stopped)
+				{
+					//printf("... stopped after step()\n");
+					free(dup_buf);
+					return;
+				}
+
+				uc_err err = uc_mem_write(uc, tx_bytes, &count, 4);
+				if (tx_bytes != 0) state->handle_write(tx_bytes, 4);
+				state->transmit_records.push_back({dup_buf, count});
+				int result = 0;
+				uc_reg_write(uc, UC_X86_REG_EAX, &result);
+				state->symbolic_registers.erase(8);
+				state->symbolic_registers.erase(9);
+				state->symbolic_registers.erase(10);
+				state->symbolic_registers.erase(11);
+				state->interrupt_handled = true;
+				state->syscall_count++;
+				return;
+			}
+		}
+	}
 }
 
 static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
@@ -610,6 +1011,11 @@ uint64_t bbl_addr_count(State *state) {
 }
 
 extern "C"
+uint64_t syscall_count(State *state) {
+	return state->syscall_count;
+}
+
+extern "C"
 void hook(State *state) {
 	state->hook();
 }
@@ -649,11 +1055,6 @@ uint64_t step(State *state) {
 }
 
 extern "C"
-stop_t stop_reason(State *state) {
-	return state->stop_reason;
-}
-
-extern "C"
 void set_stops(State *state, uint64_t count, uint64_t *stops)
 {
 	state->set_stops(count, stops);
@@ -665,6 +1066,94 @@ void activate(State *state, uint64_t address, uint64_t length, uint8_t *taint) {
 	for (uint64_t offset = 0; offset < length; offset += 0x1000)
 		state->page_activate(address + offset, taint, offset);
 }
+
+//
+// Stop analysis
+//
+
+extern "C"
+stop_t stop_reason(State *state) {
+	return state->stop_reason;
+}
+
+extern "C"
+uint64_t stopping_register(State *state) {
+	return state->stopping_register;
+}
+
+extern "C"
+uint64_t stopping_memory(State *state) {
+	return state->stopping_memory;
+}
+
+//
+// Symbolic register tracking
+//
+
+extern "C"
+void symbolic_register_data(State *state, uint64_t count, uint64_t *offsets)
+{
+  state->symbolic_registers.clear();
+	for (int i = 0; i < count; i++)
+	{
+		state->symbolic_registers.insert(offsets[i]);
+	}
+}
+
+extern "C"
+uint64_t get_symbolic_registers(State *state, uint64_t *output)
+{
+	int i = 0;
+	for (auto r : state->symbolic_registers)
+	{
+		output[i] = r;
+		i++;
+	}
+	return i;
+}
+
+extern "C"
+void enable_symbolic_reg_tracking(State *state, VexArch guest, VexArchInfo archinfo) {
+  state->vex_guest = guest;
+  state->vex_archinfo = archinfo;
+}
+
+extern "C"
+void disable_symbolic_reg_tracking(State *state) {
+  state->vex_guest = VexArch_INVALID;
+}
+
+//
+// Concrete transmits
+//
+
+extern "C"
+bool is_interrupt_handled(State *state) {
+	return state->interrupt_handled;
+}
+
+extern "C"
+void set_transmit_sysno(State *state, uint32_t sysno, uint64_t bbl_addr) {
+	state->transmit_sysno = sysno;
+	state->transmit_bbl_addr = bbl_addr;
+}
+
+extern "C"
+transmit_record_t *process_transmit(State *state, uint32_t num) {
+	if (num >= state->transmit_records.size()) {
+		for (auto record_iter = state->transmit_records.begin();
+				record_iter != state->transmit_records.end();
+				record_iter++) {
+			free(record_iter->data);
+		}
+		state->transmit_records.clear();
+		return NULL;
+	} else {
+		transmit_record_t *out = &state->transmit_records[num];
+		return out;
+	}
+}
+
 
 /*
  * Page cache

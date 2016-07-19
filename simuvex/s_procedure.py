@@ -113,6 +113,9 @@ class SimProcedure(SimRun):
         if self.IS_SYSCALL:
             self.state._inspect('syscall', BP_BEFORE, syscall_name=syscall_name)
 
+        if self.IS_SYSCALL:
+            self.state.scratch.executed_syscall_count = 1
+
         r = run_func(*args, **kwargs)
 
         if self.IS_SYSCALL:

@@ -1,5 +1,6 @@
 import os
 import sys
+import copy
 import struct
 import ctypes
 import logging
@@ -7,11 +8,14 @@ import threading
 import itertools
 l = logging.getLogger('simuvex.plugins.unicorn')
 
+l.setLevel('INFO')
+
 try:
     import unicorn
 except ImportError:
     l.warning("Unicorn is not installed. Support disabled.")
 
+import pyvex
 import claripy
 from .plugin import SimStatePlugin
 from ..s_errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError
@@ -25,16 +29,25 @@ MEM_PATCH._fields_ = [
         ('next', ctypes.POINTER(MEM_PATCH))
     ]
 
+class TRANSMIT_RECORD(ctypes.Structure): # transmit_record_t
+    pass
+
+TRANSMIT_RECORD._fields_ = [
+        ('data', ctypes.c_void_p),
+        ('count', ctypes.c_uint32)
+    ]
+
 class STOP(object): # stop_t
-    STOP_NORMAL     = 0
-    STOP_STOPPOINT  = 1
-    STOP_SYMBOLIC   = 2
-    STOP_ERROR      = 3
-    STOP_SYSCALL    = 4
-    STOP_EXECNONE   = 5
-    STOP_ZEROPAGE   = 6
-    STOP_NOSTART    = 7
-    STOP_SEGFAULT   = 8
+    STOP_NORMAL         = 0
+    STOP_STOPPOINT      = 1
+    STOP_SYMBOLIC_MEM   = 2
+    STOP_SYMBOLIC_REG   = 3
+    STOP_ERROR          = 4
+    STOP_SYSCALL        = 5
+    STOP_EXECNONE       = 6
+    STOP_ZEROPAGE       = 7
+    STOP_NOSTART        = 8
+    STOP_SEGFAULT       = 9
 
     @staticmethod
     def name_stop(num):
@@ -113,6 +126,27 @@ class Uniwrapper(unicorn.Uc):
 _unicorn_tls = threading.local()
 _unicorn_tls.uc = None
 
+class _VexCacheInfo(ctypes.Structure):
+    _fields_ = [
+        ("num_levels", ctypes.c_uint),
+        ("num_caches", ctypes.c_uint),
+        ("caches", ctypes.c_void_p),
+        ("icaches_maintain_coherence", ctypes.c_bool),
+    ]
+
+class _VexArchInfo(ctypes.Structure):
+    _fields_ = [
+        ("hwcaps", ctypes.c_uint),
+        ("endness", ctypes.c_int),
+        ("hwcache_info", _VexCacheInfo),
+        ("ppc_icache_line_szB", ctypes.c_int),
+        ("ppc_dcbz_szB", ctypes.c_uint),
+        ("ppc_dcbzl_szB", ctypes.c_uint),
+        ("arm64_dMinLine_lg2_szB", ctypes.c_uint),
+        ("arm64_iMinLine_lg2_szB", ctypes.c_uint),
+        ("x86_cr0", ctypes.c_uint),
+    ]
+
 def _load_native():
     if sys.platform == 'darwin':
         libfile = 'sim_unicorn.dylib'
@@ -132,6 +166,7 @@ def _load_native():
             l.warning('failed loading sim_unicorn, unicorn support disabled')
             raise ImportError("Could not find sim_unicorn shared object.")
 
+        VexArch = ctypes.c_int
         uc_err = ctypes.c_int
         state_t = ctypes.c_void_p
         stop_t = ctypes.c_int
@@ -150,6 +185,7 @@ def _load_native():
         _setup_prototype(h, 'sync', ctypes.POINTER(MEM_PATCH), state_t)
         _setup_prototype(h, 'bbl_addrs', ctypes.POINTER(ctypes.c_uint64), state_t)
         _setup_prototype(h, 'bbl_addr_count', ctypes.c_uint64, state_t)
+        _setup_prototype(h, 'syscall_count', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'destroy', None, ctypes.POINTER(MEM_PATCH))
         _setup_prototype(h, 'step', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'stop_reason', stop_t, state_t)
@@ -157,6 +193,15 @@ def _load_native():
         _setup_prototype(h, 'set_stops', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'logSetLogLevel', None, ctypes.c_uint64)
         _setup_prototype(h, 'cache_page', ctypes.c_bool, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p, ctypes.c_uint64)
+        _setup_prototype(h, 'enable_symbolic_reg_tracking', None, state_t, VexArch, _VexArchInfo)
+        _setup_prototype(h, 'disable_symbolic_reg_tracking', None, state_t)
+        _setup_prototype(h, 'symbolic_register_data', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
+        _setup_prototype(h, 'get_symbolic_registers', ctypes.c_uint64, state_t, ctypes.POINTER(ctypes.c_uint64))
+        _setup_prototype(h, 'stopping_register', ctypes.c_uint64, state_t)
+        _setup_prototype(h, 'stopping_memory', ctypes.c_uint64, state_t)
+        _setup_prototype(h, 'is_interrupt_handled', ctypes.c_bool, state_t)
+        _setup_prototype(h, 'set_transmit_sysno', None, state_t, ctypes.c_uint32, ctypes.c_uint64)
+        _setup_prototype(h, 'process_transmit', ctypes.POINTER(TRANSMIT_RECORD), state_t, ctypes.c_uint32)
 
         l.info('native plugin is enabled')
 
@@ -190,11 +235,13 @@ class Unicorn(SimStatePlugin):
         concretized_asts=None,
         always_concretize=None,
         never_concretize=None,
+        concretize_at=None,
         concretization_threshold_memory=None,
         concretization_threshold_registers=None,
         concretization_threshold_instruction=None,
-        cooldown_symbolic_registers=10,
-        cooldown_nonunicorn_blocks=10,
+        cooldown_symbolic_registers=100,
+        cooldown_symbolic_memory=100,
+        cooldown_nonunicorn_blocks=100,
         max_steps=1000000,
     ):
         """
@@ -218,8 +265,10 @@ class Unicorn(SimStatePlugin):
         # the val is copied from cooldown to countdown on check fail
         self.cooldown_nonunicorn_blocks = cooldown_nonunicorn_blocks
         self.cooldown_symbolic_registers = cooldown_symbolic_registers
+        self.cooldown_symbolic_memory = cooldown_symbolic_memory
         self.countdown_nonunicorn_blocks = 0
         self.countdown_symbolic_registers = 0
+        self.countdown_symbolic_memory = 0
 
         # the default step limit
         self.max_steps = max_steps
@@ -258,9 +307,13 @@ class Unicorn(SimStatePlugin):
         # be concretized
         self.always_concretize = set() if always_concretize is None else always_concretize
         self.never_concretize = set() if never_concretize is None else never_concretize
+        self.concretize_at = set() if concretize_at is None else concretize_at
 
         # this is a record of the ASTs for which we've added concretization constraints
         self._concretized_asts = set() if concretized_asts is None else concretized_asts
+
+        # the address to use for concrete transmits
+        self.transmit_addr = None
 
     def copy(self):
         u = Unicorn(
@@ -272,15 +325,19 @@ class Unicorn(SimStatePlugin):
             concretized_asts = set(self._concretized_asts),
             always_concretize = set(self.always_concretize),
             never_concretize = set(self.never_concretize),
+            concretize_at = set(self.concretize_at),
             concretization_threshold_memory = self.concretization_threshold_memory,
             concretization_threshold_registers = self.concretization_threshold_registers,
             concretization_threshold_instruction = self.concretization_threshold_instruction,
             cooldown_nonunicorn_blocks=self.cooldown_nonunicorn_blocks,
             cooldown_symbolic_registers=self.cooldown_symbolic_registers,
+            cooldown_symbolic_memory=self.cooldown_symbolic_memory,
             max_steps=self.max_steps,
         )
         u.countdown_nonunicorn_blocks = self.countdown_nonunicorn_blocks
         u.countdown_symbolic_registers = self.countdown_symbolic_registers
+        u.countdown_symbolic_memory = self.countdown_symbolic_memory
+        u.transmit_addr = self.transmit_addr
         return u
 
     def merge(self, others, merge_conditions):
@@ -292,6 +349,10 @@ class Unicorn(SimStatePlugin):
             self.cooldown_symbolic_registers,
             max(o.cooldown_symbolic_registers for o in others)
         )
+        self.cooldown_symbolic_memory = max(
+            self.cooldown_symbolic_memory,
+            max(o.cooldown_symbolic_memory for o in others)
+        )
         self.countdown_nonunicorn_blocks = max(
             self.countdown_nonunicorn_blocks,
             max(o.countdown_nonunicorn_blocks for o in others)
@@ -299,6 +360,10 @@ class Unicorn(SimStatePlugin):
         self.countdown_symbolic_registers = max(
             self.countdown_symbolic_registers,
             max(o.countdown_symbolic_registers for o in others)
+        )
+        self.countdown_symbolic_memory = max(
+            self.countdown_symbolic_memory,
+            max(o.countdown_symbolic_memory for o in others)
         )
 
         # get a fresh unicount, just in case
@@ -327,6 +392,7 @@ class Unicorn(SimStatePlugin):
         # be concretized
         self.always_concretize.union(*[o.always_concretize for o in others])
         self.never_concretize.union(*[o.never_concretize for o in others])
+        self.concretize_at.union(*[o.concretize_at for o in others])
 
         # intersect these so that we know to add future constraints properly
         self._concretized_asts.intersection(*[o._concretized_asts for o in others])
@@ -439,6 +505,9 @@ class Unicorn(SimStatePlugin):
             _UC_NATIVE.stop(self._uc_state, STOP.STOP_ERROR)
 
     def _hook_intr_x86(self, uc, intno, user_data):
+        if _UC_NATIVE.is_interrupt_handled(self._uc_state):
+            return
+
         if intno == 0x80:
             if self.state.arch.bits == 32:
                 self._hook_syscall_i386(uc, user_data)
@@ -485,40 +554,43 @@ class Unicorn(SimStatePlugin):
             self._concretized_asts.add(hash(d))
         return cd
 
-    def _symbolic_passthrough(self, d, from_where):
-        if len(d.variables & self.never_concretize) > 0:
+    def _symbolic_passthrough(self, d):
+        if not d.symbolic:
+            return d
+        elif options.UNICORN_AGGRESSIVE_CONCRETIZATION in self.state.options:
+            return self._concretize(d)
+        elif len(d.variables & self.never_concretize) > 0:
             return d
         elif d.variables.issubset(self.always_concretize):
             return self._concretize(d)
-        elif d.symbolic and options.UNICORN_AGGRESSIVE_CONCRETIZATION in self.state.options:
+        elif self.state.se.any_int(self.state.ip) in self.concretize_at:
             return self._concretize(d)
-        elif d.symbolic and options.UNICORN_THRESHOLD_CONCRETIZATION in self.state.options:
+        else:
+            return d
+
+    def _report_symbolic_blocker(self, d, from_where):
+        if options.UNICORN_THRESHOLD_CONCRETIZATION in self.state.options:
             if self.concretization_threshold_instruction is not None:
                 addr = self.state.se.any_int(self.state.ip)
                 count = self.symbolic_inst_counts.get(addr, 0)
                 l.debug("... inst count for %s: %d", addr, count)
                 self.symbolic_inst_counts[addr] = count + 1
-                if count > self.concretization_threshold_instruction:
-                    return self._concretize(d)
+                if count >= self.concretization_threshold_instruction:
+                    self.concretize_at.add(addr)
 
-            keep_symbolic = False
             threshold = (
                 self.concretization_threshold_memory if from_where == 'mem' else
                 self.concretization_threshold_registers
             )
-
             if threshold is None:
-                return d
+                return
 
             for v in d.variables:
                 old_count = self.symbolic_var_counts.get(v, 0)
                 l.debug("... %s: %d", v, old_count)
                 self.symbolic_var_counts[v] = old_count + 1
-                keep_symbolic |= old_count < threshold
-
-            return d if keep_symbolic else self._concretize(d)
-        else:
-            return d
+                if old_count >= threshold:
+                    self.always_concretize.add(v)
 
     def _process_value(self, d, from_where):
         """
@@ -528,17 +600,26 @@ class Unicorn(SimStatePlugin):
         :param from_where: the ID of the memory region it comes from ('mem' or 'reg')
         :returns: the value to be inserted into Unicorn, or None
         """
-        s = d.symbolic
-        if s:
-            l.debug("Processing AST with variables %s through %s", d.variables, from_where)
-        d = self._symbolic_passthrough(d, from_where)
-        if d.symbolic or len(d.annotations):
+        if len(d.annotations):
+            l.debug("Blocking annotated AST.")
+            return None
+        elif not d.symbolic:
+            return d
+        else:
+            l.debug("Processing AST with variables %s.", d.variables)
+
+        dd = self._symbolic_passthrough(d)
+
+        if not dd.symbolic:
+            if d.symbolic:
+                l.debug("... concretized")
+            return dd
+        elif from_where == 'reg' and options.UNICORN_SYM_REGS_SUPPORT in self.state.options:
+            l.debug("... allowing symbolic register")
+            return dd
+        else:
             l.debug("... denied")
             return None
-        else:
-            if s:
-                l.debug("... concretized")
-            return d
 
     def _hook_mem_unmapped(self, uc, access, address, size, value, user_data): #pylint:disable=unused-argument
         """
@@ -642,10 +723,52 @@ class Unicorn(SimStatePlugin):
         self.set_regs()
         # tricky: using unicorn handle form unicorn.Uc object
         self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key)
+        if self.state.has_plugin('cgc'):
+            if self.transmit_addr is None:
+                l.error("You haven't set the address for concrete transmits!!!!!!!!!!!")
+                self.transmit_addr = 0
+            _UC_NATIVE.set_transmit_sysno(self._uc_state, 2, self.transmit_addr)
 
     def start(self, step=None):
         self.jumpkind = 'Ijk_Boring'
         self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
+
+        # should this be in setup?
+        if options.UNICORN_SYM_REGS_SUPPORT in self.state.options and \
+           options.UNICORN_AGGRESSIVE_CONCRETIZATION not in self.state.options:
+            archinfo = copy.deepcopy(self.state.arch.vex_archinfo)
+            archinfo['hwcache_info']['caches'] = 0
+            archinfo['hwcache_info'] = _VexCacheInfo(**archinfo['hwcache_info'])
+            _UC_NATIVE.enable_symbolic_reg_tracking(
+                self._uc_state,
+                getattr(pyvex.pvc, self.state.arch.vex_arch),
+                _VexArchInfo(**archinfo),
+            )
+
+            # TODO: refactor
+            # first, check to see if *any* registers are symbolic, so that we
+            # can optimize the case where there aren't any. (N.B.: "optimize"
+            # does not refer to constructing the set of symbolic register
+            # offsets, but rather to not having to lift each block etc.)
+            if not self._check_registers(report=False):
+                symbolic_offsets = set()
+                highest_reg_offset, reg_size = max(self.state.arch.registers.values())
+                the_bytes, _ = self.state.registers.mem.load_bytes(0, highest_reg_offset+reg_size)
+                for a,v in the_bytes.iteritems():
+                    vv = self._symbolic_passthrough(v.object)
+                    if vv.symbolic:
+                        symbolic_offsets.update(b for b,vb in enumerate(vv.chop(8), a) if vb.symbolic)
+
+                # for register flagged systems, we should save off all CC regs together
+                if self.state.arch.name == 'X86' and symbolic_offsets & set(range(40, 56)):
+                    symbolic_offsets.update(range(40, 56))
+                elif self.state.arch.name == 'AMD64' and symbolic_offsets & set(range(144, 176)):
+                    symbolic_offsets.update(range(144, 176))
+
+                sym_regs_array = (ctypes.c_uint64 * len(symbolic_offsets))(*map(ctypes.c_uint64, symbolic_offsets))
+                _UC_NATIVE.symbolic_register_data(self._uc_state, len(symbolic_offsets), sym_regs_array)
+            else:
+                _UC_NATIVE.symbolic_register_data(self._uc_state, 0, None)
 
         addr = self.state.se.any_int(self.state.ip)
         l.info('started emulation at %#x (%d steps)', addr, self.max_steps if step is None else step)
@@ -657,8 +780,19 @@ class Unicorn(SimStatePlugin):
         self.steps = _UC_NATIVE.step(self._uc_state)
         self.stop_reason = _UC_NATIVE.stop_reason(self._uc_state)
 
+        # figure out why we stopped
+        if self.stop_reason == STOP.STOP_SYMBOLIC_REG:
+            stopping_register = _UC_NATIVE.stopping_register(self._uc_state)
+            self._report_symbolic_blocker(self.state.registers.load(stopping_register, 1), 'reg')
+        elif self.stop_reason == STOP.STOP_SYMBOLIC_MEM:
+            stopping_memory = _UC_NATIVE.stopping_memory(self._uc_state)
+            self._report_symbolic_blocker(self.state.memory.load(stopping_memory, 1), 'mem')
+
         addr = self.state.se.any_int(self.state.ip)
         l.info('finished emulation at %#x after %d steps: %s', addr, self.steps, STOP.name_stop(self.stop_reason))
+
+        # should this be in destroy?
+        _UC_NATIVE.disable_symbolic_reg_tracking(self._uc_state)
 
         # syncronize memory contents - head is a linked list of memory updates
         head = _UC_NATIVE.sync(self._uc_state)
@@ -673,14 +807,39 @@ class Unicorn(SimStatePlugin):
 
         _UC_NATIVE.destroy(head)    # free the linked list
 
+        # adjust the countdowns
+        #if self.steps >= 128:
+        #   self.cooldown_symbolic_registers = 16
+        #   self.cooldown_symbolic_memory = 16
+
+        # process the concrete transmits
+        i = 0
+        while True:
+            record = _UC_NATIVE.process_transmit(self._uc_state, i)
+            if not bool(record):
+                break
+
+            string = ctypes.string_at(record.contents.data, record.contents.count)
+            self.state.posix.write(1, string, record.contents.count)
+            i += 1
+
         if self.stop_reason in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT, STOP.STOP_SYSCALL):
             self.countdown_nonunicorn_blocks = 0
-        if self.stop_reason == STOP.STOP_SYMBOLIC:
+        elif self.stop_reason == STOP.STOP_SYMBOLIC_REG:
+            #if self.steps < 128:
+            #   self.cooldown_symbolic_registers = min(self.cooldown_symbolic_registers * 2, 256)
             self.countdown_symbolic_registers = self.cooldown_symbolic_registers
+        elif self.stop_reason == STOP.STOP_SYMBOLIC_MEM:
+            #if self.steps < 128:
+            #   self.cooldown_symbolic_memory = min(self.cooldown_symbolic_memory * 2, 256)
+            self.countdown_symbolic_memory = self.cooldown_symbolic_memory
+        else:
+            self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
 
         # get the address list out of the state
         bbl_addrs = _UC_NATIVE.bbl_addrs(self._uc_state)
         self.state.scratch.bbl_addr_list = bbl_addrs[:self.steps]
+        self.state.scratch.executed_syscall_count = _UC_NATIVE.syscall_count(self._uc_state)
 
     def destroy(self):
         #l.debug("Unhooking.")
@@ -693,7 +852,7 @@ class Unicorn(SimStatePlugin):
 
         # there's something we're not properly resetting for syscalls, so
         # we'll clear the state when they happen
-        if self.stop_reason not in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT, STOP.STOP_SYMBOLIC):
+        if self.stop_reason not in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT, STOP.STOP_SYMBOLIC_MEM, STOP.STOP_SYMBOLIC_REG):
             self.delete_uc()
 
         #l.debug("Resetting the unicorn state.")
@@ -869,6 +1028,32 @@ class Unicorn(SimStatePlugin):
 
     def get_regs(self):
         ''' loading registers from unicorn '''
+
+        # first, get the ignore list (in case of symbolic registers)
+        if options.UNICORN_SYM_REGS_SUPPORT in self.state.options:
+            highest_reg_offset, reg_size = max(self.state.arch.registers.values())
+            symbolic_list = (ctypes.c_uint64*(highest_reg_offset + reg_size))()
+            num_regs = _UC_NATIVE.get_symbolic_registers(self._uc_state, symbolic_list)
+
+            # we take the approach of saving off the symbolic regs and then writing them back
+            saved_registers = [ ]
+            cur_group = None
+            last = None
+            for i in sorted(symbolic_list[:num_regs]):
+                if cur_group is None:
+                    cur_group = i
+                elif i != last + 1 or cur_group/self.state.arch.bytes != i/self.state.arch.bytes:
+                    saved_registers.append((
+                        cur_group, self.state.registers.load(cur_group, last-cur_group+1)
+                    ))
+                    cur_group = i
+                last = i
+            if cur_group is not None:
+                saved_registers.append((
+                    cur_group, self.state.registers.load(cur_group, last-cur_group+1)
+                ))
+
+        # now we sync registers out of unicorn
         for r, c in self._uc_regs.iteritems():
             if r in self.reg_blacklist:
                 continue
@@ -940,18 +1125,29 @@ class Unicorn(SimStatePlugin):
                 tag_word >>= 2
                 vex_tag_offset -= 1
 
-    def _check_registers(self):
+        # now, we restore the symbolic registers
+        if options.UNICORN_SYM_REGS_SUPPORT in self.state.options:
+            for o,r in saved_registers:
+                self.state.registers.store(o, r)
+
+    def _check_registers(self, report=True):
         ''' check if this state might be used in unicorn (has no concrete register)'''
         for r in self.state.arch.uc_regs.iterkeys():
-            v = self._process_value(getattr(self.state.regs, r), 'reg')
-            if v is None:
+            v = getattr(self.state.regs, r)
+            processed_v = self._process_value(v, 'reg')
+            if processed_v is None or processed_v.symbolic:
                 #l.info('detected symbolic register %s', r)
+                if report:
+                    self._report_symbolic_blocker(v, 'reg')
                 return False
 
         if self.state.arch.vex_conditional_helpers:
-            flags = self._process_value(ccall._get_flags(self.state)[0], 'reg')
-            if flags is None:
+            flags = ccall._get_flags(self.state)[0]
+            processed_flags = self._process_value(flags, 'reg')
+            if processed_flags is None or processed_flags.symbolic:
                 #l.info("detected symbolic rflags/eflags")
+                if report:
+                    self._report_symbolic_blocker(flags, 'reg')
                 return False
 
         #l.debug('passed quick check')
@@ -960,16 +1156,23 @@ class Unicorn(SimStatePlugin):
     def check(self):
         self.countdown_nonunicorn_blocks -= 1
         self.countdown_symbolic_registers -= 1
+        self.countdown_symbolic_memory -= 1
 
+        if self.state.regs.ip.symbolic:
+            l.info("symbolic IP!")
+            return False
         if self.countdown_symbolic_registers > 0:
-            l.debug("not enough passed register checks (%d)", self.countdown_symbolic_registers)
+            l.info("not enough blocks since symbolic registers (%d more)", self.countdown_symbolic_registers)
             return False
-        elif not self._check_registers():
-            l.debug("failed register check")
+        if self.countdown_symbolic_memory > 0:
+            l.info("not enough blocks since symbolic memory (%d more)", self.countdown_symbolic_memory)
+            return False
+        if self.countdown_nonunicorn_blocks > 0:
+            l.info("not enough runs since last unicorn (%d)", self.countdown_nonunicorn_blocks)
+            return False
+        elif options.UNICORN_SYM_REGS_SUPPORT not in self.state.options and not self._check_registers():
+            l.info("failed register check")
             self.countdown_symbolic_registers = self.cooldown_symbolic_registers
-            return False
-        elif self.countdown_nonunicorn_blocks > 0:
-            l.debug("not enough runs since last unicorn (%d)", self.countdown_nonunicorn_blocks)
             return False
 
         return True

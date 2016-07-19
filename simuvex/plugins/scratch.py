@@ -24,6 +24,7 @@ class SimStateScratch(SimStatePlugin):
         self.source = None
         self.exit_stmt_idx = None
         self.executed_block_count = 0 # the number of blocks that was executed here
+        self.executed_syscall_count = 0 # the number of system calls that was executed here
         self.executed_instruction_count = -1 # the number of instructions that was executed
         self.avoidable = True
 
@@ -47,6 +48,7 @@ class SimStateScratch(SimStatePlugin):
             self.source = scratch.source
             self.exit_stmt_idx = scratch.exit_stmt_idx
             self.executed_block_count = scratch.executed_block_count
+            self.executed_syscall_count = scratch.executed_syscall_count
             self.executed_instruction_count = scratch.executed_instruction_count
 
             if scratch.input_variables is not None:

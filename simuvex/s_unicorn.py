@@ -36,22 +36,17 @@ class SimUnicorn(SimRun):
             self.state.unicorn.destroy()
 
         self.stop_reason = self.state.unicorn.stop_reason
-        self.success = self.state.unicorn.steps > 0
         try:
             self.end_addr = self.state.scratch.bbl_addr_list[-1]
         except IndexError:
             self.end_addr = self.addr
 
-        if self.state.unicorn.error is not None:
-            # error from hook
-            self.success = False
-            raise SimUnicornError(self.state.unicorn.error)
-
         if self.state.unicorn.errno:
             # error from unicorn
-            self.success = False
             err = str(unicorn.UcError(self.state.unicorn.errno))
             raise SimUnicornError(err)
+        elif self.state.unicorn.steps == 0:
+            raise SimUnicornError("Didn't take any steps in Unicorn (error: %s)" % self.state.unicorn.error)
 
         self.state.scratch.executed_block_count += self.state.unicorn.steps
 

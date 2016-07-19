@@ -387,6 +387,9 @@ class SimPagedMemory(object):
         return len(self.keys())
 
     def changed_bytes(self, other):
+        return self.__changed_bytes(other)
+
+    def __changed_bytes(self, other):
         """
         Gets the set of changed bytes between `self` and `other`.
 

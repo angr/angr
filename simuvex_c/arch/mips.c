@@ -6,7 +6,7 @@
 #include "../log.h"
 
 static void regcpy(void *dest, void *src) {
-	memcpy(dest, src, (size_t)&(((CPUMIPSState *)0)->tlb_table));
+	memcpy(dest, src, offsetof(CPUMIPSState, tlb_table));
 }
 
 extern void mips_reg_update(uc_engine *uc, uint8_t *buf, int save) {
