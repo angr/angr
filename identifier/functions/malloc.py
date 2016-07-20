@@ -1,6 +1,7 @@
 from ..func import Func, TestData
 import random
 import string
+from simuvex import SimMemoryError
 
 class malloc(Func):
     def __init__(self):
@@ -61,7 +62,10 @@ class malloc(Func):
             return False
 
         # they all should be writable/readable
-        if any(state.se.any_int(state.memory.permissions(a)) & 3 != 3 for a in returned_locs):
+        try:
+            if any(state.se.any_int(state.memory.permissions(a)) & 3 != 3 for a in returned_locs):
+                return False
+        except SimMemoryError:
             return False
 
         # we should get different values if we try with a different size

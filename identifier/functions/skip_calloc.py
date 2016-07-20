@@ -1,4 +1,5 @@
 from ..func import Func, TestData
+from simuvex import SimMemoryError
 
 class calloc(Func):
     def __init__(self):
@@ -62,7 +63,10 @@ class calloc(Func):
             return False
 
         # they all should be writable/readable
-        if any(state.se.any_int(state.memory.permissions(a)) & 3 != 3 for a in returned_locs):
+        try:
+            if any(state.se.any_int(state.memory.permissions(a)) & 3 != 3 for a in returned_locs):
+                return False
+        except SimMemoryError:
             return False
 
         return True

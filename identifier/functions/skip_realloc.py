@@ -1,6 +1,7 @@
 from ..func import Func, TestData
 import random
 from ..errors import IdentifierException
+from simuvex import SimMemoryError
 
 import logging
 l = logging.getLogger("identifier.functions.free")
@@ -67,7 +68,10 @@ class realloc(Func):
             return False
 
         # they all should be writable/readable
-        if any(state.se.any_int(state.memory.permissions(a)) & 3 != 3 for a in returned_locs):
+        try:
+            if any(state.se.any_int(state.memory.permissions(a)) & 3 != 3 for a in returned_locs):
+                return False
+        except SimMemoryError:
             return False
 
         # we should get different values if we try with a different size
