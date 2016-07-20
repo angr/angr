@@ -166,7 +166,6 @@ class AngrObjectFactory(object):
             try:
                 r = SimUnicorn(state, stop_points=stops)
             except SimUnicornError:
-                print "Falling back on thingy"
                 r = self.sim_block(state, **block_opts)
 
         else:
