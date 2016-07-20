@@ -1,5 +1,6 @@
 import string
 
+import angr
 import simuvex
 import simuvex.s_options as so
 from simuvex.s_type import SimTypeFunction, SimTypeInt
@@ -25,54 +26,61 @@ class Runner(object):
         self.base_state = None
 
     def _get_recv_state(self):
-        options = set()
-        options.add(so.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
-        options.add(so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
-        options.add(so.TRACK_MEMORY_MAPPING)
-        options.add(so.AVOID_MULTIVALUED_READS)
-        options.add(so.AVOID_MULTIVALUED_WRITES)
+        try:
+            options = set()
+            options.add(so.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
+            options.add(so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
+            options.add(so.TRACK_MEMORY_MAPPING)
+            options.add(so.AVOID_MULTIVALUED_READS)
+            options.add(so.AVOID_MULTIVALUED_WRITES)
 
-        # try to enable unicorn, continue if it doesn't exist
-        options.add(so.UNICORN)
-        l.info("unicorn tracing enabled")
+            # try to enable unicorn, continue if it doesn't exist
+            options.add(so.UNICORN)
+            l.info("unicorn tracing enabled")
 
-        remove_options = so.simplification | set(so.LAZY_SOLVES) | simuvex.o.resilience_options | set(so.SUPPORT_FLOATING_POINT)
-        add_options = options
-        entry_state = self.project.factory.entry_state(
-                add_options=add_options,
-                remove_options=remove_options)
+            remove_options = so.simplification | set(so.LAZY_SOLVES) | simuvex.o.resilience_options | set(so.SUPPORT_FLOATING_POINT)
+            add_options = options
+            entry_state = self.project.factory.entry_state(
+                    add_options=add_options,
+                    remove_options=remove_options)
 
-        # map the CGC flag page
-        fake_flag_data = entry_state.se.BVV(FLAG_DATA)
-        entry_state.memory.store(0x4347c000, fake_flag_data)
-        # map the place where I put arguments
-        entry_state.memory.mem.map_region(0x2000, 0x10000, 7)
+            # map the CGC flag page
+            fake_flag_data = entry_state.se.BVV(FLAG_DATA)
+            entry_state.memory.store(0x4347c000, fake_flag_data)
+            # map the place where I put arguments
+            entry_state.memory.mem.map_region(0x2000, 0x10000, 7)
 
-        entry_state.unicorn._register_check_count = 100
-        entry_state.unicorn._runs_since_symbolic_data = 100
-        entry_state.unicorn._runs_since_unicorn = 100
+            entry_state.unicorn._register_check_count = 100
+            entry_state.unicorn._runs_since_symbolic_data = 100
+            entry_state.unicorn._runs_since_unicorn = 100
 
-        # cooldowns
-        entry_state.unicorn.cooldown_symbolic_registers = 0
-        entry_state.unicorn.cooldown_symbolic_memory = 0
-        entry_state.unicorn.cooldown_nonunicorn_blocks = 1
-        entry_state.unicorn.max_steps = 10000
+            # cooldowns
+            entry_state.unicorn.cooldown_symbolic_registers = 0
+            entry_state.unicorn.cooldown_symbolic_memory = 0
+            entry_state.unicorn.cooldown_nonunicorn_blocks = 1
+            entry_state.unicorn.max_steps = 10000
 
-        pg = self.project.factory.path_group(entry_state)
-        num_steps = 0
-        while pg.one_active.addr not in self.project._sim_procedures or \
-                "receive" not in str(self.project._sim_procedures[pg.one_active.addr]):
-            if len(pg.active) > 1:
-                pp = pg.one_active
-                pg = self.project.factory.path_group(pp)
-            pg.step()
-            num_steps += 1
-            if num_steps > 50:
-                break
-        out_state = pg.one_active.state
-        out_state.scratch.clear()
-        out_state.scratch.jumpkind = "Ijk_Boring"
-        return out_state
+            pg = self.project.factory.path_group(entry_state)
+            num_steps = 0
+            while pg.one_active.addr not in self.project._sim_procedures or \
+                    "receive" not in str(self.project._sim_procedures[pg.one_active.addr]):
+                if len(pg.active) > 1:
+                    pp = pg.one_active
+                    pg = self.project.factory.path_group(pp)
+                pg.step()
+                num_steps += 1
+                if num_steps > 50:
+                    break
+            out_state = pg.one_active.state
+            out_state.scratch.clear()
+            out_state.scratch.jumpkind = "Ijk_Boring"
+            return out_state
+        except simuvex.SimError as e:
+            l.warning("SimError in get recv state %s", e.message)
+            return self.project.factory.entry_state()
+        except angr.AngrError as e:
+            l.warning("AngrError in get recv state %s", e.message)
+            return self.project.factory.entry_state()
 
     def setup_state(self, function, test_data, initial_state=None, concrete_rand=False):
         # FIXME fdwait should do something concrete...

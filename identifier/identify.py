@@ -6,6 +6,7 @@ from functions import Functions
 from errors import IdentifierException
 from runner import Runner
 import simuvex
+import angr
 import os
 
 from networkx import NetworkXError
@@ -148,6 +149,12 @@ class Identifier(object):
                     continue
                 except simuvex.SimSegfaultError:
                     continue
+                except simuvex.SimError as e:
+                    l.warning("SimError %s", e.message)
+                    continue
+                except angr.AngrError as e:
+                    l.warning("AngrError %s", e.message)
+                    continue
 
                 if result:
                     self.matches[f] = func.get_name(), func
@@ -244,6 +251,12 @@ class Identifier(object):
                     return False
             return True
         except simuvex.SimSegfaultError:
+            return False
+        except simuvex.SimError as e:
+            l.warning("SimError %s", e.message)
+            return False
+        except angr.AngrError as e:
+            l.warning("AngrError %s", e.message)
             return False
 
     def map_callsites(self):
