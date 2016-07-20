@@ -8,7 +8,6 @@ import threading
 import itertools
 l = logging.getLogger('simuvex.plugins.unicorn')
 
-l.setLevel('INFO')
 
 try:
     import unicorn
