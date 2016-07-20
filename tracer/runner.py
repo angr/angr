@@ -24,7 +24,7 @@ class Runner(object):
     """
 
     def __init__(self, binary, input=None, pov_file=None, record_trace=False, record_stdout=False, record_magic=False,
-                 seed=None, memory_limit="8G", bitflip=False, report_bad_args=False, use_tiny_core=False):
+                 seed=None, memory_limit="8G", bitflip=False, report_bad_args=False, use_tiny_core=False, qemu=None):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -66,6 +66,7 @@ class Runner(object):
 
         self.tracer_qemu = None
         self.tracer_qemu_path = None
+        self.forced_qemu = qemu
 
         self._setup()
 
@@ -138,6 +139,8 @@ class Runner(object):
         # try to find the install base
         self.base = shellphish_qemu.qemu_base()
         self._check_qemu_install()
+        if self.forced_qemu != None:
+            self.tracer_qemu_path = self.forced_qemu
         return True
 
     def _check_qemu_install(self):
