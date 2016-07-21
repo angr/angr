@@ -62,8 +62,8 @@ class Runner(object):
 
             pg = self.project.factory.path_group(entry_state)
             num_steps = 0
-            while len(pg.active) > 0 and pg.one_active.addr not in self.project._sim_procedures or \
-                    "receive" not in str(self.project._sim_procedures[pg.one_active.addr]):
+            while len(pg.active) > 0 and (pg.one_active.addr not in self.project._sim_procedures or
+                    "receive" not in str(self.project._sim_procedures[pg.one_active.addr])):
                 if len(pg.active) > 1:
                     pp = pg.one_active
                     pg = self.project.factory.path_group(pp)
