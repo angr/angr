@@ -62,7 +62,7 @@ class Runner(object):
 
             pg = self.project.factory.path_group(entry_state)
             num_steps = 0
-            while pg.one_active.addr not in self.project._sim_procedures or \
+            while len(pg.active) > 0 and pg.one_active.addr not in self.project._sim_procedures or \
                     "receive" not in str(self.project._sim_procedures[pg.one_active.addr]):
                 if len(pg.active) > 1:
                     pp = pg.one_active
@@ -71,7 +71,12 @@ class Runner(object):
                 num_steps += 1
                 if num_steps > 50:
                     break
-            out_state = pg.one_active.state
+            if len(pg.active) > 0:
+                out_state = pg.one_active.state
+            elif len(pg.deadended) > 0:
+                out_state = pg.deadended[0].state
+            else:
+                return self.project.factory.entry_state()
             out_state.scratch.clear()
             out_state.scratch.jumpkind = "Ijk_Boring"
             return out_state
