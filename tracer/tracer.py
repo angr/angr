@@ -402,6 +402,9 @@ class Tracer(object):
         if add_constraints:
             addr = state.inspect.address_concretization_expr
             result = state.inspect.address_concretization_result
+            if result is None:
+                l.warning("addr concretization result is None")
+                return
             self._address_concretization.append((addr, result))
 
     @staticmethod
@@ -549,6 +552,7 @@ class Tracer(object):
             l.debug("simplifying solver")
             path.state.se.simplify()
             l.debug("simplification done")
+
 
         path.state.se._solver.result = None
 

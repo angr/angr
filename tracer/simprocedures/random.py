@@ -10,6 +10,8 @@ l = logging.getLogger("tracer.simprocedures.FixedRandom")
 class FixedRandom(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
+    IS_SYSCALL = True
+
     def run(self, buf, count, rnd_bytes):
         # return code
         r = self.state.se.ite_cases((
