@@ -44,8 +44,14 @@ class SimUnicorn(SimRun):
         if self.state.unicorn.errno:
             # error from unicorn
             err = str(unicorn.UcError(self.state.unicorn.errno))
+            self.initial_state.unicorn.countdown_symbolic_memory = self.state.unicorn.countdown_symbolic_memory
+            self.initial_state.unicorn.countdown_symbolic_registers = self.state.unicorn.countdown_symbolic_registers
+            self.initial_state.unicorn.countdown_nonunicorn_blocks = self.state.unicorn.countdown_nonunicorn_blocks
             raise SimUnicornError(err)
         elif self.state.unicorn.steps == 0:
+            self.initial_state.unicorn.countdown_symbolic_memory = self.state.unicorn.countdown_symbolic_memory
+            self.initial_state.unicorn.countdown_symbolic_registers = self.state.unicorn.countdown_symbolic_registers
+            self.initial_state.unicorn.countdown_nonunicorn_blocks = self.state.unicorn.countdown_nonunicorn_blocks
             raise SimUnicornError("Didn't take any steps in Unicorn (error: %s)" % self.state.unicorn.error)
 
         self.state.scratch.executed_block_count += self.state.unicorn.steps
