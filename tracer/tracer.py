@@ -913,7 +913,7 @@ class Tracer(object):
             except AttributeError:
                 pass
 
-            self.remove_options |= so.simplification | set(so.LAZY_SOLVES)
+            self.remove_options |= so.simplification | set(so.LAZY_SOLVES) | set(so.SUPPORT_FLOATING_POINT)
             self.add_options |= options
             entry_state = project.factory.entry_state(
                 fs=fs,
