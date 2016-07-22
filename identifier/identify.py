@@ -13,7 +13,7 @@ from networkx import NetworkXError
 
 import logging
 l = logging.getLogger("identifier.identify")
-#l.setLevel("DEBUG")
+
 
 NUM_TESTS = 5
 
@@ -71,6 +71,7 @@ class Identifier(object):
             return
 
         self.base_symbolic_state = rop_utils.make_symbolic_state(self.project, self._reg_list)
+        self.base_symbolic_state.options.discard(simuvex.o.SUPPORT_FLOATING_POINT)
         self.base_symbolic_state.regs.bp = self.base_symbolic_state.se.BVS("sreg_" + "ebp" + "-", self.project.arch.bits)
 
         for f in self._cfg.functions.values():
