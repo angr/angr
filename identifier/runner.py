@@ -216,7 +216,7 @@ class Runner(object):
             if isinstance(i, str):
                 s.memory.store(curr_buf_loc, i + "\x00")
                 mapped_input.append(curr_buf_loc)
-                curr_buf_loc += min(len(i), 0x1000)
+                curr_buf_loc += max(len(i), 0x1000)
             else:
                 if not isinstance(i, (int, long)):
                     raise Exception("Expected int/long got %s", type(i))
@@ -300,7 +300,7 @@ class Runner(object):
 
         for i in test_data.input_args:
             if isinstance(i, str):
-                s.memory.store(curr_buf_loc, i)
+                s.memory.store(curr_buf_loc, i + "\x00")
                 mapped_input.append(curr_buf_loc)
                 curr_buf_loc += max(len(i), 0x1000)
             else:
