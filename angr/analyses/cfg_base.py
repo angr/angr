@@ -124,7 +124,8 @@ class CFGBase(Analysis):
 
             # Call normalize() on each function
             for f in self.kb.functions.values():
-                f.normalize()
+                if not self.project.is_hooked(f.addr):
+                    f.normalize()
 
     # pylint: disable=no-self-use
     def copy(self):
