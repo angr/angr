@@ -2310,7 +2310,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if a.addr <= b.addr and \
                     (a.addr + a.size > b.addr):
                 # They are overlapping
-                if b.addr in self.kb.functions and (b.addr - a.addr < 0x10) and b.addr % 0x10 == 0:
+                if b.addr in self.kb.functions and (b.addr - a.addr < 0x10):
                     # b is the beginning of a function
                     # a should be shrinked
 
