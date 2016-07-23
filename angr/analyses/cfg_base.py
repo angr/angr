@@ -526,6 +526,33 @@ class CFGBase(Analysis):
 
         return None
 
+    def _addr_next_section(self, addr):
+        """
+        Return the next section object after the given address.
+
+        :param int addr: The address to test
+        :return: The next section that goes after the given address, or None if there is no section after the address,
+                 or if section information is not available.
+        :rtype: cle.Section
+        """
+
+        obj = self.project.loader.addr_belongs_to_object(addr)
+
+        if obj is None:
+            return None
+
+        if isinstance(obj, AngrExternObject):
+            # the address is from a section allocated by angr.
+            return None
+
+        for section in obj.sections:
+            start = section.vaddr + obj.rebase_addr
+
+            if addr < start:
+                return section
+
+        return None
+
     def _addr_belongs_to_segment(self, addr):
         """
         Return the section object that the address belongs to.
