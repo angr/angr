@@ -940,7 +940,7 @@ class CFGBase(Analysis):
         # rational functions before its irrational counterparts (e.g. due to failed jump table resolution)
 
         min_stage_2_progress = 50.0
-        max_stage_2_progress = 99.9
+        max_stage_2_progress = 90.0
         nodes_count = len(function_nodes)
         for i, fn in enumerate(sorted(function_nodes, key=lambda n: n.addr)):
 
@@ -949,6 +949,32 @@ class CFGBase(Analysis):
                 self._update_progress(progress)
 
             self._graph_bfs_custom(self.graph, [ fn ], self._graph_traversal_handler, blockaddr_to_function,
+                                   tmp_functions
+                                   )
+
+        # Don't forget those small function chunks that are not called by anything.
+        # There might be references to them from data, or simply references that we cannot find via static analysis
+
+        secondary_function_nodes = set()
+        # add all function chunks ("functions" that are not called from anywhere)
+        for func_addr in tmp_functions:
+            node = self.get_any_node(func_addr)
+            if node is None:
+                continue
+            if node.addr not in blockaddr_to_function:
+                secondary_function_nodes.add(node)
+
+        min_stage_3_progress = 90.0
+        max_stage_3_progress = 99.9
+
+        nodes_count = len(secondary_function_nodes)
+        for i, fn in enumerate(sorted(secondary_function_nodes, key=lambda n: n.addr)):
+
+            if self._show_progressbar or self._progress_callback:
+                progress = min_stage_3_progress + (max_stage_3_progress - min_stage_3_progress) * (i * 1.0 / nodes_count)
+                self._update_progress(progress)
+
+            self._graph_bfs_custom(self.graph, [fn], self._graph_traversal_handler, blockaddr_to_function,
                                    tmp_functions
                                    )
 
