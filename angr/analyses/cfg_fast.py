@@ -225,9 +225,25 @@ class SegmentList(object):
                         if segment.start > previous_segment.start:
                             new_segments.append(Segment(previous_segment.start, segment.start, previous_segment.sort))
                         sort = previous_segment.sort if direction == "forward" else segment.sort
-                        new_segments.append(Segment(segment.start, segment.end, sort))
-                        if segment.start + segment.size < previous_segment.end:
+                        if segment.end > previous_segment.end:
+                            new_segments.append(Segment(segment.start, previous_segment.end, sort))
+                            new_segments.append(Segment(previous_segment.end, segment.end, segment.sort))
+                        elif segment.end < previous_segment.end:
+                            new_segments.append(Segment(segment.start, segment.end, sort))
                             new_segments.append(Segment(segment.end, previous_segment.end, previous_segment.sort))
+                        else:
+                            new_segments.append(Segment(segment.start, segment.end, sort))
+
+                    # merge segments in new_segments array if they are of the same sort
+                    i = 0
+                    while len(new_segments) > 1 and i < len(new_segments) - 1:
+                        s0 = new_segments[i]
+                        s1 = new_segments[i + 1]
+                        if s0.sort == s1.sort:
+                            new_segments = new_segments[ : i] + [ Segment(s0.start, s1.end, s0.sort) ] + new_segments[i + 2 : ]
+                        else:
+                            i += 1
+
                     # Put new segments into self._list
                     old_size = sum([ seg.size for seg in self._list[previous_segment_pos : segment_pos + 1] ])
                     new_size = sum([ seg.size for seg in new_segments ])
