@@ -10,17 +10,17 @@ class allocate(simuvex.SimProcedure):
     IS_SYSCALL = True
 
     def run(self, length, is_x, addr): #pylint:disable=unused-argument
+        if self.state.se.symbolic(length):
+            l.warning("Concretizing symbolic length passed to allocate to max_int")
+
+        length = self.state.se.max_int(length)
+
         # return code (see allocate() docs)
         r = self.state.se.ite_cases((
                 (length == 0, self.state.cgc.EINVAL),
                 (length > self.state.cgc.max_allocation, self.state.cgc.EINVAL),
                 (self.state.cgc.addr_invalid(addr), self.state.cgc.EFAULT),
             ), self.state.se.BVV(0, self.state.arch.bits))
-
-        if self.state.se.symbolic(length):
-            l.warning("Concretizing symbolic length passed to allocate to max_int")
-
-        length = self.state.se.max_int(length)
 
         aligned_length = ((length + 0xfff) / 0x1000) * 0x1000
 
