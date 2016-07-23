@@ -124,7 +124,8 @@ class CFGBase(Analysis):
 
             # Call normalize() on each function
             for f in self.kb.functions.values():
-                f.normalize()
+                if not self.project.is_hooked(f.addr):
+                    f.normalize()
 
     # pylint: disable=no-self-use
     def copy(self):
@@ -525,6 +526,33 @@ class CFGBase(Analysis):
 
         return None
 
+    def _addr_next_section(self, addr):
+        """
+        Return the next section object after the given address.
+
+        :param int addr: The address to test
+        :return: The next section that goes after the given address, or None if there is no section after the address,
+                 or if section information is not available.
+        :rtype: cle.Section
+        """
+
+        obj = self.project.loader.addr_belongs_to_object(addr)
+
+        if obj is None:
+            return None
+
+        if isinstance(obj, AngrExternObject):
+            # the address is from a section allocated by angr.
+            return None
+
+        for section in obj.sections:
+            start = section.vaddr + obj.rebase_addr
+
+            if addr < start:
+                return section
+
+        return None
+
     def _addr_belongs_to_segment(self, addr):
         """
         Return the section object that the address belongs to.
@@ -912,7 +940,7 @@ class CFGBase(Analysis):
         # rational functions before its irrational counterparts (e.g. due to failed jump table resolution)
 
         min_stage_2_progress = 50.0
-        max_stage_2_progress = 99.9
+        max_stage_2_progress = 90.0
         nodes_count = len(function_nodes)
         for i, fn in enumerate(sorted(function_nodes, key=lambda n: n.addr)):
 
@@ -921,6 +949,32 @@ class CFGBase(Analysis):
                 self._update_progress(progress)
 
             self._graph_bfs_custom(self.graph, [ fn ], self._graph_traversal_handler, blockaddr_to_function,
+                                   tmp_functions
+                                   )
+
+        # Don't forget those small function chunks that are not called by anything.
+        # There might be references to them from data, or simply references that we cannot find via static analysis
+
+        secondary_function_nodes = set()
+        # add all function chunks ("functions" that are not called from anywhere)
+        for func_addr in tmp_functions:
+            node = self.get_any_node(func_addr)
+            if node is None:
+                continue
+            if node.addr not in blockaddr_to_function:
+                secondary_function_nodes.add(node)
+
+        min_stage_3_progress = 90.0
+        max_stage_3_progress = 99.9
+
+        nodes_count = len(secondary_function_nodes)
+        for i, fn in enumerate(sorted(secondary_function_nodes, key=lambda n: n.addr)):
+
+            if self._show_progressbar or self._progress_callback:
+                progress = min_stage_3_progress + (max_stage_3_progress - min_stage_3_progress) * (i * 1.0 / nodes_count)
+                self._update_progress(progress)
+
+            self._graph_bfs_custom(self.graph, [fn], self._graph_traversal_handler, blockaddr_to_function,
                                    tmp_functions
                                    )
 

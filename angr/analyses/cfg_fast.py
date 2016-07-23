@@ -225,9 +225,25 @@ class SegmentList(object):
                         if segment.start > previous_segment.start:
                             new_segments.append(Segment(previous_segment.start, segment.start, previous_segment.sort))
                         sort = previous_segment.sort if direction == "forward" else segment.sort
-                        new_segments.append(Segment(segment.start, segment.end, sort))
-                        if segment.start + segment.size < previous_segment.end:
+                        if segment.end > previous_segment.end:
+                            new_segments.append(Segment(segment.start, previous_segment.end, sort))
+                            new_segments.append(Segment(previous_segment.end, segment.end, segment.sort))
+                        elif segment.end < previous_segment.end:
+                            new_segments.append(Segment(segment.start, segment.end, sort))
                             new_segments.append(Segment(segment.end, previous_segment.end, previous_segment.sort))
+                        else:
+                            new_segments.append(Segment(segment.start, segment.end, sort))
+
+                    # merge segments in new_segments array if they are of the same sort
+                    i = 0
+                    while len(new_segments) > 1 and i < len(new_segments) - 1:
+                        s0 = new_segments[i]
+                        s1 = new_segments[i + 1]
+                        if s0.sort == s1.sort:
+                            new_segments = new_segments[ : i] + [ Segment(s0.start, s1.end, s0.sort) ] + new_segments[i + 2 : ]
+                        else:
+                            i += 1
+
                     # Put new segments into self._list
                     old_size = sum([ seg.size for seg in self._list[previous_segment_pos : segment_pos + 1] ])
                     new_size = sum([ seg.size for seg in new_segments ])
@@ -1417,10 +1433,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # helper methods
 
-        def _process(irsb_, stmt_, data_):
+        def _process(irsb_, stmt_, data_, next_insn_addr):
             if type(data_) is pyvex.expr.Const:  # pylint: disable=unidiomatic-typecheck
                 val = data_.con.value
-                self._add_data_reference(irsb_, irsb_addr, stmt_, val)
+                if val != next_insn_addr:
+                    self._add_data_reference(irsb_, irsb_addr, stmt_, val)
 
         # first pass to see if there are any cross-statement optimizations. if so, we relift the basic block with
         # optimization level 0 to preserve as much constant references as possible
@@ -1434,33 +1451,41 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # make sure opt_level is 0
             irsb = self.project.factory.block(addr=irsb_addr, max_size=irsb.size, opt_level=0).vex
 
-        # second pass. for each statement, collect all constants that are referenced or used.
+        # second pass. get all instruction addresses
+        instr_addrs = [ (i.addr + i.delta) for i in irsb.statements if isinstance(i, pyvex.IRStmt.IMark) ]
+
+        # third pass. for each statement, collect all constants that are referenced or used.
+        next_instr_addr = None
         for stmt in irsb.statements:
-            if type(stmt) is pyvex.IRStmt.WrTmp:  # pylint: disable=unidiomatic-typecheck
+            if type(stmt) is pyvex.IRStmt.IMark:  # pylint: disable=unidiomatic-typecheck
+                instr_addrs = instr_addrs[1 : ]
+                next_instr_addr = instr_addrs[0] if instr_addrs else None
+
+            elif type(stmt) is pyvex.IRStmt.WrTmp:  # pylint: disable=unidiomatic-typecheck
                 if type(stmt.data) is pyvex.IRExpr.Load:  # pylint: disable=unidiomatic-typecheck
                     # load
                     # e.g. t7 = LDle:I64(0x0000000000600ff8)
-                    _process(irsb, stmt, stmt.data.addr)
+                    _process(irsb, stmt, stmt.data.addr, next_instr_addr)
 
                 elif type(stmt.data) in (pyvex.IRExpr.Binop, ):  # pylint: disable=unidiomatic-typecheck
                     # binary operation
                     for arg in stmt.data.args:
-                        _process(irsb, stmt, arg)
+                        _process(irsb, stmt, arg, next_instr_addr)
 
                 elif type(stmt.data) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
-                    _process(irsb, stmt, stmt.data)
+                    _process(irsb, stmt, stmt.data, next_instr_addr)
 
             elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck
                 # put
                 # e.g. PUT(rdi) = 0x0000000000400714
                 if stmt.offset not in (self._initial_state.arch.ip_offset, ):
-                    _process(irsb, stmt, stmt.data)
+                    _process(irsb, stmt, stmt.data, next_instr_addr)
 
             elif type(stmt) is pyvex.IRStmt.Store:  # pylint: disable=unidiomatic-typecheck
                 # store addr
-                _process(irsb, stmt, stmt.addr)
+                _process(irsb, stmt, stmt.addr, next_instr_addr)
                 # store data
-                _process(irsb, stmt, stmt.data)
+                _process(irsb, stmt, stmt.data, next_instr_addr)
 
     def _add_data_reference(self, irsb, irsb_addr, stmt, data_addr):  # pylint: disable=unused-argument
         """
@@ -1514,9 +1539,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 obj = self.project.loader.addr_belongs_to_object(data_addr)
                 sec = self._addr_belongs_to_section(data_addr)
+                next_sec_addr = None
                 if sec is not None:
                     last_addr = sec.vaddr + sec.memsize + obj.rebase_addr
                 else:
+                    # it does not belong to any section. what's the next adjacent section? any memory data does not go
+                    # beyong section boundaries
+                    next_sec = self._addr_next_section(data_addr)
+                    if next_sec is not None:
+                        next_sec_addr = next_sec.vaddr + obj.rebase_addr
+
                     seg = self._addr_belongs_to_segment(data_addr)
                     if seg is not None:
                         last_addr = seg.vaddr + seg.memsize + obj.rebase_addr
@@ -1533,6 +1565,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     boundary = next_data_addr
                 else:
                     boundary = min(last_addr, next_data_addr)
+
+                if next_sec_addr is not None:
+                    boundary = min(boundary, next_sec_addr)
 
                 if boundary is not None:
                     data.max_size = boundary - data_addr
@@ -2275,7 +2310,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if a.addr <= b.addr and \
                     (a.addr + a.size > b.addr):
                 # They are overlapping
-                if b.addr in self.kb.functions and (b.addr - a.addr < 0x10) and b.addr % 0x10 == 0:
+                if b.addr in self.kb.functions and (b.addr - a.addr < 0x10):
                     # b is the beginning of a function
                     # a should be shrinked
 

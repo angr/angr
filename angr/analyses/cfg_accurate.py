@@ -1031,7 +1031,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         successors, entry.extra_info = self._post_process_successors(simrun, successors)
 
         if self._keep_state:
-            entry.cfg_node.final_states = successors[::]
+            all_successors = successors + simrun.unconstrained_successors
+            entry.cfg_node.final_states = all_successors[::]
 
         # Try to resolve indirect jumps
         successors = self._resolve_indirect_jumps(simrun,
