@@ -1539,9 +1539,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 obj = self.project.loader.addr_belongs_to_object(data_addr)
                 sec = self._addr_belongs_to_section(data_addr)
+                next_sec_addr = None
                 if sec is not None:
                     last_addr = sec.vaddr + sec.memsize + obj.rebase_addr
                 else:
+                    # it does not belong to any section. what's the next adjacent section? any memory data does not go
+                    # beyong section boundaries
+                    next_sec = self._addr_next_section(data_addr)
+                    if next_sec is not None:
+                        next_sec_addr = next_sec.vaddr + obj.rebase_addr
+
                     seg = self._addr_belongs_to_segment(data_addr)
                     if seg is not None:
                         last_addr = seg.vaddr + seg.memsize + obj.rebase_addr
@@ -1558,6 +1565,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     boundary = next_data_addr
                 else:
                     boundary = min(last_addr, next_data_addr)
+
+                if next_sec_addr is not None:
+                    boundary = min(boundary, next_sec_addr)
 
                 if boundary is not None:
                     data.max_size = boundary - data_addr
