@@ -258,6 +258,21 @@ def test_segment_list_5():
     nose.tools.assert_equal(seg_list._list[0].start, 2)
     nose.tools.assert_equal(seg_list._list[0].end, 10)
 
+def test_segment_list_6():
+    seg_list = SegmentList()
+
+    seg_list.occupy(10, 20, "code")
+    seg_list.occupy(9, 2, "data")
+
+    nose.tools.assert_equal(len(seg_list), 2)
+    nose.tools.assert_equal(seg_list._list[0].start, 9)
+    nose.tools.assert_equal(seg_list._list[0].end, 11)
+    nose.tools.assert_equal(seg_list._list[0].sort, 'data')
+
+    nose.tools.assert_equal(seg_list._list[1].start, 11)
+    nose.tools.assert_equal(seg_list._list[1].end, 30)
+    nose.tools.assert_equal(seg_list._list[1].sort, 'code')
+
 def main():
 
     g = globals()
