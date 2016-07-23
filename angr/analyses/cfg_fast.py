@@ -1433,10 +1433,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # helper methods
 
-        def _process(irsb_, stmt_, data_):
+        def _process(irsb_, stmt_, data_, next_insn_addr):
             if type(data_) is pyvex.expr.Const:  # pylint: disable=unidiomatic-typecheck
                 val = data_.con.value
-                self._add_data_reference(irsb_, irsb_addr, stmt_, val)
+                if val != next_insn_addr:
+                    self._add_data_reference(irsb_, irsb_addr, stmt_, val)
 
         # first pass to see if there are any cross-statement optimizations. if so, we relift the basic block with
         # optimization level 0 to preserve as much constant references as possible
@@ -1450,33 +1451,41 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # make sure opt_level is 0
             irsb = self.project.factory.block(addr=irsb_addr, max_size=irsb.size, opt_level=0).vex
 
-        # second pass. for each statement, collect all constants that are referenced or used.
+        # second pass. get all instruction addresses
+        instr_addrs = [ (i.addr + i.delta) for i in irsb.statements if isinstance(i, pyvex.IRStmt.IMark) ]
+
+        # third pass. for each statement, collect all constants that are referenced or used.
+        next_instr_addr = None
         for stmt in irsb.statements:
-            if type(stmt) is pyvex.IRStmt.WrTmp:  # pylint: disable=unidiomatic-typecheck
+            if type(stmt) is pyvex.IRStmt.IMark:  # pylint: disable=unidiomatic-typecheck
+                instr_addrs = instr_addrs[1 : ]
+                next_instr_addr = instr_addrs[0] if instr_addrs else None
+
+            elif type(stmt) is pyvex.IRStmt.WrTmp:  # pylint: disable=unidiomatic-typecheck
                 if type(stmt.data) is pyvex.IRExpr.Load:  # pylint: disable=unidiomatic-typecheck
                     # load
                     # e.g. t7 = LDle:I64(0x0000000000600ff8)
-                    _process(irsb, stmt, stmt.data.addr)
+                    _process(irsb, stmt, stmt.data.addr, next_instr_addr)
 
                 elif type(stmt.data) in (pyvex.IRExpr.Binop, ):  # pylint: disable=unidiomatic-typecheck
                     # binary operation
                     for arg in stmt.data.args:
-                        _process(irsb, stmt, arg)
+                        _process(irsb, stmt, arg, next_instr_addr)
 
                 elif type(stmt.data) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
-                    _process(irsb, stmt, stmt.data)
+                    _process(irsb, stmt, stmt.data, next_instr_addr)
 
             elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck
                 # put
                 # e.g. PUT(rdi) = 0x0000000000400714
                 if stmt.offset not in (self._initial_state.arch.ip_offset, ):
-                    _process(irsb, stmt, stmt.data)
+                    _process(irsb, stmt, stmt.data, next_instr_addr)
 
             elif type(stmt) is pyvex.IRStmt.Store:  # pylint: disable=unidiomatic-typecheck
                 # store addr
-                _process(irsb, stmt, stmt.addr)
+                _process(irsb, stmt, stmt.addr, next_instr_addr)
                 # store data
-                _process(irsb, stmt, stmt.data)
+                _process(irsb, stmt, stmt.data, next_instr_addr)
 
     def _add_data_reference(self, irsb, irsb_addr, stmt, data_addr):  # pylint: disable=unused-argument
         """
