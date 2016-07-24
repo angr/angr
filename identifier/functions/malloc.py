@@ -68,6 +68,20 @@ class malloc(Func):
         except SimMemoryError:
             return False
 
+        # we should be able to call malloc 0xf00 afterwards
+        num = 0xf00
+        test_input = [num]
+        test_output = [None]
+        return_val = None
+
+        max_steps = 40
+        test = TestData(test_input, test_output, return_val, max_steps)
+        returned_locs = []
+        state = runner.get_out_state(func, test, initial_state=state, concrete_rand=True)
+        res = state.se.any_int(state.regs.eax)
+        if state is None or res < 0x10 or res > 0xfffffff0:
+            return False
+
         # we should get different values if we try with a different size
         num = 0x320
         test_input = [num]
