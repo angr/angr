@@ -207,20 +207,31 @@ class Runner(object):
                         cc=cc, base_state=s, max_steps=test_data.max_steps)
         return call.get_base_state(*mapped_input)
 
-    def test(self, function, test_data, concrete_rand=False):
+    def test(self, function, test_data, concrete_rand=False, custom_offs=None):
         curr_buf_loc = 0x2000
         mapped_input = []
         s = self.setup_state(function, test_data, concrete_rand=concrete_rand)
 
-        for i in test_data.input_args:
-            if isinstance(i, str):
-                s.memory.store(curr_buf_loc, i + "\x00")
-                mapped_input.append(curr_buf_loc)
-                curr_buf_loc += max(len(i), 0x1000)
-            else:
-                if not isinstance(i, (int, long)):
-                    raise Exception("Expected int/long got %s", type(i))
-                mapped_input.append(i)
+        if custom_offs is None:
+            for i in test_data.input_args:
+                if isinstance(i, str):
+                    s.memory.store(curr_buf_loc, i + "\x00")
+                    mapped_input.append(curr_buf_loc)
+                    curr_buf_loc += max(len(i), 0x1000)
+                else:
+                    if not isinstance(i, (int, long)):
+                        raise Exception("Expected int/long got %s", type(i))
+                    mapped_input.append(i)
+        else:
+            for i, off in zip(test_data.input_args, custom_offs):
+                if isinstance(i, str):
+                    s.memory.store(curr_buf_loc, i + "\x00")
+                    mapped_input.append(curr_buf_loc+off)
+                    curr_buf_loc += max(len(i), 0x1000)
+                else:
+                    if not isinstance(i, (int, long)):
+                        raise Exception("Expected int/long got %s", type(i))
+                    mapped_input.append(i)
 
         inttype = SimTypeInt(self.project.arch.bits, False)
         func_ty = SimTypeFunction([inttype] * len(mapped_input), inttype)
@@ -293,20 +304,32 @@ class Runner(object):
 
         return True
 
-    def get_out_state(self, function, test_data, initial_state=None, concrete_rand=False):
+    def get_out_state(self, function, test_data, initial_state=None, concrete_rand=False, custom_offs=None):
         curr_buf_loc = 0x2000
         mapped_input = []
         s = self.setup_state(function, test_data, initial_state, concrete_rand=concrete_rand)
 
-        for i in test_data.input_args:
-            if isinstance(i, str):
-                s.memory.store(curr_buf_loc, i + "\x00")
-                mapped_input.append(curr_buf_loc)
-                curr_buf_loc += max(len(i), 0x1000)
-            else:
-                if not isinstance(i, (int, long)):
-                    raise Exception("Expected int/long got %s", type(i))
-                mapped_input.append(i)
+        if custom_offs is None:
+            for i in test_data.input_args:
+                if isinstance(i, str):
+                    s.memory.store(curr_buf_loc, i + "\x00")
+                    mapped_input.append(curr_buf_loc)
+                    curr_buf_loc += max(len(i), 0x1000)
+                else:
+                    if not isinstance(i, (int, long)):
+                        raise Exception("Expected int/long got %s", type(i))
+                    mapped_input.append(i)
+
+        else:
+            for i, off in zip(test_data.input_args, custom_offs):
+                if isinstance(i, str):
+                    s.memory.store(curr_buf_loc, i + "\x00")
+                    mapped_input.append(curr_buf_loc+off)
+                    curr_buf_loc += max(len(i), 0x1000)
+                else:
+                    if not isinstance(i, (int, long)):
+                        raise Exception("Expected int/long got %s", type(i))
+                    mapped_input.append(i)
 
         inttype = SimTypeInt(self.project.arch.bits, False)
         func_ty = SimTypeFunction([inttype] * len(mapped_input), inttype)

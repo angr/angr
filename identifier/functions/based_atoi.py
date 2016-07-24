@@ -92,8 +92,6 @@ class based_atoi(Func):
         test = TestData(test_input, [None, None, None], 1234, max_steps=max_steps)
         state = runner.get_out_state(func, test, concrete_rand=True)
         if state is None:
-            if func.addr == 0x80483E0:
-                import ipdb; ipdb.set_trace()
             return False
         out_val = state.se.any_int(state.regs.eax)
         self.base = None
@@ -102,8 +100,6 @@ class based_atoi(Func):
                 self.base = i
                 break
         if self.base is None:
-            if func.addr == 0x80483E0:
-                import ipdb; ipdb.set_trace()
             return False
 
         num = random.randint(-(2 ** 26), 2 ** 26 - 1)
@@ -116,8 +112,6 @@ class based_atoi(Func):
         max_steps = 10
         test = TestData(test_input, test_output, return_val, max_steps)
         if not runner.test(func, test):
-            if func.addr == 0x80483E0:
-                import ipdb; ipdb.set_trace()
             return False
 
         num = -random.randint(2000, 8000)

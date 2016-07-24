@@ -25,7 +25,7 @@ class printf(Func):
         return 1
 
     def args(self):
-        return "str"
+        return ["str"]
 
     def get_name(self):
         return "printf"
