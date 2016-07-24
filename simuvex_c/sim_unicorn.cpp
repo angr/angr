@@ -906,9 +906,7 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 			uc_reg_read(uc, UC_X86_REG_EBX, &fd);
 
 			if (fd == 2) {
-				// chris' directive: totally discard all writes to stderr
-				state->interrupt_handled = true;
-				//printf("... stderr\n");
+				// we won't try to handle fd 2 prints here, they are uncommon.
 				return;
 			} else if (fd == 0 || fd == 1) {
 				uc_reg_read(uc, UC_X86_REG_ECX, &buf);
