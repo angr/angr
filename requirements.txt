@@ -2,4 +2,5 @@ cle
 angr
 simuvex
 shellphish-qemu
+shellphish-afl
 topsecret
