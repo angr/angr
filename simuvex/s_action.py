@@ -164,6 +164,10 @@ class SimActionOperation(SimAction):
     def all_objects(self):
         return [ ex for ex in self.exprs if isinstance(ex, SimActionObject) ]
 
+    def _copy_objects(self, c):
+        c.op = self.op
+        c.exprs = self.exprs[::]
+
     def _desc(self):
         return "operation/%s" % (self.op)
 
