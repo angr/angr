@@ -306,8 +306,9 @@ class DDG(Analysis):
                     if (self._call_depth is None) or \
                             (self._call_depth is not None and 0 <= new_call_depth <= self._call_depth):
                         # Put all reachable successors back to our worklist again
-                        nw = DDGJob(successing_node, new_call_depth)
-                        self._worklist_append(nw, worklist, worklist_set)
+                        for successing_node in successing_nodes:
+                            nw = DDGJob(successing_node, new_call_depth)
+                            self._worklist_append(nw, worklist, worklist_set)
 
     def _track(self, state, live_defs, statements):
         """
@@ -342,8 +343,8 @@ class DDG(Analysis):
         data_generated = None
 
         # tracks stack pointer and base pointer
-        sp = state.se.any_int(state.regs.sp) if not state.regs.sp.symbolic else None
-        bp = state.se.any_int(state.regs.bp) if not state.regs.bp.symbolic else None
+        #sp = state.se.any_int(state.regs.sp) if not state.regs.sp.symbolic else None
+        #bp = state.se.any_int(state.regs.bp) if not state.regs.bp.symbolic else None
 
         for a in action_list:
 
