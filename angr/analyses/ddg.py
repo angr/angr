@@ -3,7 +3,8 @@ from collections import defaultdict
 
 import networkx
 
-from simuvex import SimRegisterVariable, SimMemoryVariable, SimTemporaryVariable, SimConstantVariable
+import pyvex
+from simuvex import SimRegisterVariable, SimMemoryVariable, SimTemporaryVariable, SimConstantVariable, SimStackVariable
 from simuvex import SimSolverModeError, SimUnsatError
 
 from ..errors import AngrDDGError
@@ -255,35 +256,51 @@ class DDG(Analysis):
                     l.debug('Do not trace into %s due to the call depth limit', state.ip)
                     continue
 
-                new_defs = self._track(state, live_defs)
+                new_defs = self._track(state, live_defs, node.irsb.statements if node.irsb is not None else None)
 
-                # TODO: Match the jumpkind
-                # TODO: Support cases where IP is undecidable
-                corresponding_successors = [n for n in successing_nodes if
-                                            not state.ip.symbolic and n.addr == state.se.any_int(state.ip)]
-                if not corresponding_successors:
-                    continue
-                successing_node = corresponding_successors[0]
-
-                if successing_node in live_defs_per_node:
-                    defs_for_next_node = live_defs_per_node[successing_node]
-                else:
-                    defs_for_next_node = {}
-                    live_defs_per_node[successing_node] = defs_for_next_node
+                #corresponding_successors = [n for n in successing_nodes if
+                #                            not state.ip.symbolic and n.addr == state.se.any_int(state.ip)]
+                #if not corresponding_successors:
+                #    continue
 
                 changed = False
-                for var, code_loc_set in new_defs.iteritems():
-                    if var not in defs_for_next_node:
-                        l.debug('%s New var %s', state.ip, var)
-                        defs_for_next_node[var] = code_loc_set
-                        changed = True
 
+                for successing_node in successing_nodes:
+
+                    if (state.scratch.jumpkind == 'Ijk_Call' or state.scratch.jumpkind.startswith('Ijk_Sys')) and \
+                            (state.ip.symbolic or successing_node.addr != state.se.any_int(state.ip)):
+                        # this might be the block after the call, and we are not tracing into the call
+                        # TODO: make definition killing architecture independent and calling convention independent
+                        filtered_defs = {}
+                        for variable, locs in new_defs.iteritems():
+                            if isinstance(variable, SimRegisterVariable):
+                                if variable.reg in (self.project.arch.registers['eax'][0],
+                                                    self.project.arch.registers['ecx'][0],
+                                                    self.project.arch.registers['edx'][0]):
+                                    continue
+
+                            filtered_defs[variable] = locs
+
+                        new_defs = filtered_defs
+
+                    if successing_node in live_defs_per_node:
+                        defs_for_next_node = live_defs_per_node[successing_node]
                     else:
-                        for code_loc in code_loc_set:
-                            if code_loc not in defs_for_next_node[var]:
-                                l.debug('%s New code location %s', state.ip, code_loc)
-                                defs_for_next_node[var].add(code_loc)
-                                changed = True
+                        defs_for_next_node = {}
+                        live_defs_per_node[successing_node] = defs_for_next_node
+
+                    for var, code_loc_set in new_defs.iteritems():
+                        if var not in defs_for_next_node:
+                            l.debug('%s New var %s', state.ip, var)
+                            defs_for_next_node[var] = code_loc_set
+                            changed = True
+
+                        else:
+                            for code_loc in code_loc_set:
+                                if code_loc not in defs_for_next_node[var]:
+                                    l.debug('%s New code location %s', state.ip, code_loc)
+                                    defs_for_next_node[var].add(code_loc)
+                                    changed = True
 
                 if changed:
                     if (self._call_depth is None) or \
@@ -292,13 +309,14 @@ class DDG(Analysis):
                         nw = DDGJob(successing_node, new_call_depth)
                         self._worklist_append(nw, worklist, worklist_set)
 
-    def _track(self, state, live_defs):
+    def _track(self, state, live_defs, statements):
         """
         Given all live definitions prior to this program point, track the changes, and return a new list of live
         definitions. We scan through the action list of the new state to track the changes.
 
         :param state:       The input state at that program point.
         :param live_defs:   A list of all live definitions prior to reaching this program point.
+        :param list statements: A list of VEX statements.
         :returns:           A list of new live definitions.
         """
 
@@ -309,8 +327,8 @@ class DDG(Analysis):
 
         # Since all temporary variables are local, we simply track them in a local dict
         temp_defs = { }
-
         temp_variables = { }
+        temp_register_symbols = { }
 
         # All dependence edges are added to the graph either at the end of this method, or when they are going to be
         # overwritten by a new edge. This is because we sometimes have to modify a previous edge (e.g. add new labels
@@ -319,13 +337,19 @@ class DDG(Analysis):
         regs_to_edges = defaultdict(list)
 
         last_statement_id = None
-        data_read = None  # data read out in the same statement. we keep a copy of the data here so we can link it to
-                          # the tmp_write action right afterwards
+        pv_read = None  # program variables read out in the same statement. we keep a copy of those variables here so
+                        # we can link it to the tmp_write action right afterwards
+        data_generated = None
+
+        # tracks stack pointer and base pointer
+        sp = state.se.any_int(state.regs.sp) if not state.regs.sp.symbolic else None
+        bp = state.se.any_int(state.regs.bp) if not state.regs.bp.symbolic else None
 
         for a in action_list:
 
             if last_statement_id is None or last_statement_id != a.stmt_idx:
-                data_read = [ ]
+                pv_read = [ ]
+                data_generated = None
                 last_statement_id = a.stmt_idx
 
             if a.bbl_addr is None:
@@ -345,8 +369,19 @@ class DDG(Analysis):
                     addr_list = set(a.actual_addrs)
 
                 for addr in addr_list:
-                    variable = SimMemoryVariable(addr, a.data.ast.size())  # TODO: Properly unpack the SAO
-                    pv = ProgramVariable(variable, current_code_location)
+
+                    variable = None
+                    if len(addr_list) == 1 and len(a.addr.tmp_deps) == 1:
+                        addr_tmp = list(a.addr.tmp_deps)[0]
+                        if addr_tmp in temp_register_symbols:
+                            # it must be a stack variable
+                            sort, offset = temp_register_symbols[addr_tmp]
+                            variable = SimStackVariable(offset, a.data.ast.size() / 8, base=sort, base_addr=addr - offset)
+
+                    if variable is None:
+                        variable = SimMemoryVariable(addr, a.data.ast.size() / 8)  # TODO: Properly unpack the SAO
+
+                    pvs = [ ]
 
                     if a.action == "read":
                         # Create an edge between def site and use site
@@ -357,38 +392,47 @@ class DDG(Analysis):
                         for prev_code_loc, labels in prevdefs.iteritems():
                             self._stmt_graph_add_edge(prev_code_loc, current_code_location, **labels)
 
-                        data_read.append(pv)
+                            pvs.append(ProgramVariable(variable, prev_code_loc))
+
+                        if not pvs:
+                            pvs.append(ProgramVariable(variable, current_code_location))
+
+                        for pv in pvs:
+                            pv_read.append(pv)
 
                     if a.action == "write":
                         # Kill the existing live def
                         self._kill(live_defs, variable, current_code_location)
 
-                    # For each of its register dependency and data dependency, we annotate the corresponding edge
-                    for reg_offset in a.addr.reg_deps:
-                        self._stmt_graph_annotate_edges(regs_to_edges[reg_offset], subtype='mem_addr')
-                        reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
-                        prev_defs = self._def_lookup(live_defs, reg_variable)
-                        for loc, _ in prev_defs:
-                            v = ProgramVariable(reg_variable, loc)
-                            self._data_graph_add_edge(v, pv, type='mem_addr')
+                        pvs.append(ProgramVariable(variable, current_code_location))
 
-                    for tmp in a.addr.tmp_deps:
-                        self._stmt_graph_annotate_edges(temps_to_edges[tmp], subtype='mem_addr')
-                        if tmp in temp_variables:
-                            self._data_graph_add_edge(temp_variables[tmp], pv, type='mem_addr')
+                    for pv in pvs:
+                        # For each of its register dependency and data dependency, we annotate the corresponding edge
+                        for reg_offset in a.addr.reg_deps:
+                            self._stmt_graph_annotate_edges(regs_to_edges[reg_offset], subtype='mem_addr')
+                            reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
+                            prev_defs = self._def_lookup(live_defs, reg_variable)
+                            for loc, _ in prev_defs:
+                                v = ProgramVariable(reg_variable, loc)
+                                self._data_graph_add_edge(v, pv, type='mem_addr')
 
-                    for reg_offset in a.data.reg_deps:
-                        self._stmt_graph_annotate_edges(regs_to_edges[reg_offset], subtype='mem_data')
-                        reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
-                        prev_defs = self._def_lookup(live_defs, reg_variable)
-                        for loc, _ in prev_defs:
-                            v = ProgramVariable(reg_variable, loc)
-                            self._data_graph_add_edge(v, pv, type='mem_data')
+                        for tmp in a.addr.tmp_deps:
+                            self._stmt_graph_annotate_edges(temps_to_edges[tmp], subtype='mem_addr')
+                            if tmp in temp_variables:
+                                self._data_graph_add_edge(temp_variables[tmp], pv, type='mem_addr')
 
-                    for tmp in a.data.tmp_deps:
-                        self._stmt_graph_annotate_edges(temps_to_edges[tmp], subtype='mem_data')
-                        if tmp in temp_variables:
-                            self._data_graph_add_edge(temp_variables[tmp], pv, type='mem_data')
+                        for reg_offset in a.data.reg_deps:
+                            self._stmt_graph_annotate_edges(regs_to_edges[reg_offset], subtype='mem_data')
+                            reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
+                            prev_defs = self._def_lookup(live_defs, reg_variable)
+                            for loc, _ in prev_defs:
+                                v = ProgramVariable(reg_variable, loc)
+                                self._data_graph_add_edge(v, pv, type='mem_data')
+
+                        for tmp in a.data.tmp_deps:
+                            self._stmt_graph_annotate_edges(temps_to_edges[tmp], subtype='mem_data')
+                            if tmp in temp_variables:
+                                self._data_graph_add_edge(temp_variables[tmp], pv, type='mem_data')
 
             elif a.type == 'reg':
                 # TODO: Support symbolic register offsets
@@ -407,11 +451,16 @@ class DDG(Analysis):
                         edge_tuple = (prev_code_loc, current_code_location)
                         regs_to_edges[reg_offset].append(edge_tuple)
 
-                        data_read.append(ProgramVariable(variable, prev_code_loc))
+                        pv_read.append(ProgramVariable(variable, prev_code_loc))
 
                     if not prevdefs:
                         # the register was never defined before - it must be passed in as an argument
-                        data_read.append(ProgramVariable(variable, current_code_location))
+                        pv_read.append(ProgramVariable(variable, current_code_location))
+
+                    if reg_offset == self.project.arch.sp_offset:
+                        data_generated = ('sp', 0)
+                    elif reg_offset == self.project.arch.bp_offset:
+                        data_generated = ('bp', 0)
 
                 else:
                     # write
@@ -427,12 +476,18 @@ class DDG(Analysis):
 
                     if not a.reg_deps and not a.tmp_deps:
                         # moving a constant into the register
-                        const_pv = ProgramVariable(SimConstantVariable(), current_code_location)
+                        # try to parse out the constant from statement
+                        const_variable = SimConstantVariable()
+                        if statements is not None:
+                            stmt = statements[a.stmt_idx]
+                            if isinstance(stmt.data, pyvex.IRExpr.Const):
+                                const_variable = SimConstantVariable(value=stmt.data.con.value)
+                        const_pv = ProgramVariable(const_variable, current_code_location)
                         self._data_graph_add_edge(const_pv, pv)
 
-                for tmp in a.tmp_deps:
-                    if tmp in temp_variables:
-                        self._data_graph_add_edge(temp_variables[tmp], pv)
+                    for tmp in a.tmp_deps:
+                        if tmp in temp_variables:
+                            self._data_graph_add_edge(temp_variables[tmp], pv)
 
             elif a.type == 'tmp':
                 # tmp is definitely not symbolic
@@ -447,6 +502,9 @@ class DDG(Analysis):
                     edge_tuple = (prev_code_loc, current_code_location)
                     temps_to_edges[a.tmp].append(edge_tuple)
 
+                    if tmp in temp_register_symbols:
+                        data_generated = temp_register_symbols[tmp]
+
                 else:
                     # write
                     temp_defs[tmp] = current_code_location
@@ -460,8 +518,22 @@ class DDG(Analysis):
                         if tmp_dep in temp_variables:
                             self._data_graph_add_edge(temp_variables[tmp_dep], pv)
 
-                    for data in data_read:
+                    if data_generated:
+                        temp_register_symbols[tmp] = data_generated
+
+                    for data in pv_read:
                         self._data_graph_add_edge(data, pv)
+
+                    if not a.tmp_deps and not pv_read:
+                        # read in a constant
+                        # try to parse out the constant from statement
+                        const_variable = SimConstantVariable()
+                        if statements is not None:
+                            stmt = statements[a.stmt_idx]
+                            if isinstance(stmt.data, pyvex.IRExpr.Const):
+                                const_variable = SimConstantVariable(value=stmt.data.con.value)
+                        const_pv = ProgramVariable(const_variable, current_code_location)
+                        self._data_graph_add_edge(const_pv, pv)
 
             elif a.type == 'exit':
                 # exits should only depend on tmps
@@ -474,6 +546,32 @@ class DDG(Analysis):
                     # log the edge
                     edge_tuple = (prev_code_loc, current_code_location)
                     temps_to_edges[tmp].append(edge_tuple)
+
+            elif a.type == 'operation':
+
+                if 'Sub32' in a.op or 'Sub64' in a.op:
+                    # subtract
+                    expr_0, expr_1 = a.exprs
+
+                    if expr_0.tmp_deps and (not expr_1.tmp_deps and not expr_1.reg_deps):
+                        # tmp - const
+                        tmp = list(expr_0.tmp_deps)[0]
+                        if tmp in temp_register_symbols:
+                            sort, offset = temp_register_symbols[tmp]
+                            offset -= expr_1.ast.args[0]
+                            data_generated = (sort, offset)
+
+                elif 'Add32' in a.op or 'Add64' in a.op:
+                    # add
+                    expr_0, expr_1 = a.exprs
+
+                    if expr_0.tmp_deps and (not expr_1.tmp_deps and not expr_1.reg_deps):
+                        # tmp + const
+                        tmp = list(expr_0.tmp_deps)[0]
+                        if tmp in temp_register_symbols:
+                            sort, offset = temp_register_symbols[tmp]
+                            offset += expr_1.ast.args[0]
+                            data_generated = (sort, offset)
 
         #import pprint
         #pprint.pprint(self._data_graph.edges())
