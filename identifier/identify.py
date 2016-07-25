@@ -225,6 +225,8 @@ class Identifier(object):
             # check if we should be finding it
             if self.only_find is not None and name not in self.only_find:
                 continue
+            if name in Identifier._special_case_funcs:
+                continue
 
             # generate an object of the class
             f = f()
