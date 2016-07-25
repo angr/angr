@@ -1030,8 +1030,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # Post-process successors
         successors, entry.extra_info = self._post_process_successors(simrun, successors)
 
+        all_successors = successors + simrun.unconstrained_successors
+
         if self._keep_state:
-            all_successors = successors + simrun.unconstrained_successors
             entry.cfg_node.final_states = all_successors[::]
 
         # Try to resolve indirect jumps
@@ -1045,6 +1046,27 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Ad additional edges supplied by the user
         successors = self._add_additional_edges(simrun, entry.cfg_node, successors)
+
+        # if base graph is used, add successors implied from the graph
+        if self._base_graph:
+            basegraph_successor_addrs = set()
+            for src_, dst_ in self._base_graph.edges_iter():
+                if src_.addr == addr:
+                    basegraph_successor_addrs.add(dst_.addr)
+            successor_addrs = set([s.se.any_int(s.ip) for s in successors])
+            extra_successor_addrs = basegraph_successor_addrs - successor_addrs
+
+            if all_successors:  # make sure we have a base state to use
+                base_state = all_successors[0]  # TODO: for calls, we want to use the fake_ret state
+
+                for s_addr in extra_successor_addrs:
+                    # an extra target
+                    successor_state = base_state.copy()
+                    successor_state.ip = s_addr
+                    successors.append(successor_state)
+            else:
+                if extra_successor_addrs:
+                    l.error('CFGAccurate terminates at %#x although base graph provided more exits.', addr)
 
         if len(successors) == 0:
             # There is no way out :-(
