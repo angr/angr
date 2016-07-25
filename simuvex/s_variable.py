@@ -25,6 +25,10 @@ class SimConstantVariable(SimVariable):
 
         return self.value == other.value
 
+    def __hash__(self):
+        return hash(('const', self.value))
+
+
 class SimTemporaryVariable(SimVariable):
     def __init__(self, tmp_id):
         SimVariable.__init__(self)
