@@ -1,7 +1,11 @@
+
+from pyvex.expr import RdTmp, Get
+
 from .base import SimIRExpr
 from ... import s_options as o
 from ...s_errors import UnsupportedIROpError, SimOperationError
 from ..irop import translate
+from ...s_action import SimActionOperation, SimActionObject
 
 class SimIRExpr_Op(SimIRExpr):
     def _execute(self):
@@ -9,6 +13,19 @@ class SimIRExpr_Op(SimIRExpr):
 
         try:
             self.expr = translate(self.state, self._expr.op, [ e.expr for e in exprs ])
+
+            if o.TRACK_OP_ACTIONS in self.state.options:
+                action_objects = [ ]
+                for arg, ex in zip(self._expr.args, exprs):
+                    if isinstance(arg, RdTmp):
+                        action_objects.append(SimActionObject(ex.expr, tmp_deps=frozenset({arg.tmp})))
+                    elif isinstance(arg, Get):
+                        action_objects.append(SimActionObject(ex.expr, reg_deps=frozenset({arg.offset})))
+                    else:
+                        action_objects.append(SimActionObject(ex.expr))
+                r = SimActionOperation(self.state, self._expr.op, action_objects)
+                self.actions.append(r)
+
         except UnsupportedIROpError as e:
             if o.BYPASS_UNSUPPORTED_IROP in self.state.options:
                 self.state.log.add_event('resilience', resilience_type='irop', op=self._expr.op, message='unsupported IROp')
