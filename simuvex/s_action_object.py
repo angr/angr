@@ -53,6 +53,7 @@ def ast_stripping_decorator(f):
         return f(*new_args, **new_kwargs)
     return ast_stripper
 
+
 class SimActionObject(object):
     """
     A SimActionObject tracks an AST and its dependencies.

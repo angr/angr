@@ -25,6 +25,10 @@ class SimConstantVariable(SimVariable):
 
         return self.value == other.value
 
+    def __hash__(self):
+        return hash(('const', self.value))
+
+
 class SimTemporaryVariable(SimVariable):
     def __init__(self, tmp_id):
         SimVariable.__init__(self)
@@ -114,6 +118,48 @@ class SimMemoryVariable(SimVariable):
 
         else:
             return False
+
+
+class SimStackVariable(SimMemoryVariable):
+    def __init__(self, offset, size, base='sp', base_addr=None):
+
+        if offset > 0x1000000 and isinstance(offset, (int, long)):
+            # I don't think any positive stack offset will be greater than that...
+            # convert it to a negative number
+            mask = (1 << offset.bit_length()) - 1
+            offset = - ((0 - offset) & mask)
+
+        if base_addr is not None:
+            addr = offset + base_addr
+        else:
+            # TODO: this is not optimal
+            addr = offset
+
+        super(SimStackVariable, self).__init__(addr, size)
+
+        self.base = base
+        self.offset = offset
+
+    def __repr__(self):
+        if type(self.size) in (int, long):
+            size = '%d' % self.size
+        else:
+            size = '%s' % self.size
+
+        if type(self.offset) in (int, long):
+            if self.offset < 0:
+                offset = "%#x" % self.offset
+            elif self.offset > 0:
+                offset = "+%#x" % self.offset
+            else:
+                offset = ""
+
+            s = "<Stack %s%s, %s bytes>" % (self.base, offset, size)
+        else:
+            s = "<Stack %s%s, %s bytes>" % (self.base, self.addr, size)
+
+        return s
+
 
 class SimVariableSet(collections.MutableSet):
     """

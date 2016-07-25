@@ -6,6 +6,8 @@ l = logging.getLogger('simuvex.s_action')
 _noneset = frozenset()
 
 from .s_event import SimEvent
+
+
 class SimAction(SimEvent):
     """
     A SimAction represents a semantic action that an analyzed program performs.
@@ -87,6 +89,7 @@ class SimAction(SimEvent):
         """
         pass
 
+
 class SimActionExit(SimAction):
     """
     An Exit action represents a (possibly conditional) jump.
@@ -119,6 +122,7 @@ class SimActionExit(SimAction):
         c.target = self._copy_object(self.target)
         c.condition = self._copy_object(self.condition)
 
+
 class SimActionConstraint(SimAction):
     """
     A constraint action represents an extra constraint added during execution of a path.
@@ -144,6 +148,30 @@ class SimActionConstraint(SimAction):
             s += ' (cond)'
         return s
 
+
+class SimActionOperation(SimAction):
+    """
+    An action representing an operation between variables and/or constants.
+    """
+
+    def __init__(self, state, op, exprs):
+        super(SimActionOperation, self).__init__(state, 'operation')
+
+        self.op = op
+        self.exprs = exprs
+
+    @property
+    def all_objects(self):
+        return [ ex for ex in self.exprs if isinstance(ex, SimActionObject) ]
+
+    def _copy_objects(self, c):
+        c.op = self.op
+        c.exprs = self.exprs[::]
+
+    def _desc(self):
+        return "operation/%s" % (self.op)
+
+
 class SimActionData(SimAction):
     """
     A Data action represents a read or a write from memory, registers or a file.
@@ -152,8 +180,10 @@ class SimActionData(SimAction):
 
     READ = 'read'
     WRITE = 'write'
+    OPERATE = 'operate'
 
-    def __init__(self, state, region_type, action, tmp=None, addr=None, size=None, data=None, condition=None, fallback=None, fd=None):
+    def __init__(self, state, region_type, action, tmp=None, addr=None, size=None, data=None, condition=None,
+                 fallback=None, fd=None):
         super(SimActionData, self).__init__(state, region_type)
         self.action = action
 
