@@ -423,13 +423,16 @@ class FunctionReturn(object):
 
 
 class MemoryData(object):
-    def __init__(self, address, size, sort, irsb, irsb_addr, stmt_idx, pointer_addr=None, max_size=None):
+    def __init__(self, address, size, sort, irsb, irsb_addr, stmt, stmt_idx, pointer_addr=None, max_size=None,
+                 insn_addr=None):
         self.address = address
         self.size = size
         self.sort = sort
         self.irsb = irsb
         self.irsb_addr = irsb_addr
+        self.stmt = stmt
         self.stmt_idx = stmt_idx
+        self.insn_addr = insn_addr
 
         self.max_size = max_size
         self.pointer_addr = pointer_addr
@@ -437,7 +440,10 @@ class MemoryData(object):
         self.refs = [ ]
 
     def __repr__(self):
-        return "\\%#x, %d bytes, %s/" % (self.address, self.size, self.sort)
+        return "\\%#x, %s, %s/" % (self.address,
+                                   "%d bytes" if self.size is not None else "size unknown",
+                                   self.sort
+                                   )
 
 
 class MemoryDataReference(object):
@@ -1034,7 +1040,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         continue
 
                     if addr not in self.memory_data:
-                        self.memory_data[addr] = MemoryData(addr, 0, 'unknown', None, None, None)
+                        self.memory_data[addr] = MemoryData(addr, 0, 'unknown', None, None, None, None)
 
         r = True
         while r:
@@ -1433,11 +1439,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # helper methods
 
-        def _process(irsb_, stmt_, data_, next_insn_addr):
+        def _process(irsb_, stmt_, stmt_idx_, data_, insn_addr, next_insn_addr):
             if type(data_) is pyvex.expr.Const:  # pylint: disable=unidiomatic-typecheck
                 val = data_.con.value
                 if val != next_insn_addr:
-                    self._add_data_reference(irsb_, irsb_addr, stmt_, val)
+                    self._add_data_reference(irsb_, irsb_addr, stmt_, stmt_idx_, insn_addr, val)
 
         # first pass to see if there are any cross-statement optimizations. if so, we relift the basic block with
         # optimization level 0 to preserve as much constant references as possible
@@ -1455,9 +1461,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         instr_addrs = [ (i.addr + i.delta) for i in irsb.statements if isinstance(i, pyvex.IRStmt.IMark) ]
 
         # third pass. for each statement, collect all constants that are referenced or used.
+        instr_addr = None
         next_instr_addr = None
-        for stmt in irsb.statements:
+        for stmt_idx, stmt in enumerate(irsb.statements):
             if type(stmt) is pyvex.IRStmt.IMark:  # pylint: disable=unidiomatic-typecheck
+                instr_addr = instr_addrs[0]
                 instr_addrs = instr_addrs[1 : ]
                 next_instr_addr = instr_addrs[0] if instr_addrs else None
 
@@ -1465,29 +1473,29 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if type(stmt.data) is pyvex.IRExpr.Load:  # pylint: disable=unidiomatic-typecheck
                     # load
                     # e.g. t7 = LDle:I64(0x0000000000600ff8)
-                    _process(irsb, stmt, stmt.data.addr, next_instr_addr)
+                    _process(irsb, stmt, stmt_idx, stmt.data.addr, instr_addr, next_instr_addr)
 
                 elif type(stmt.data) in (pyvex.IRExpr.Binop, ):  # pylint: disable=unidiomatic-typecheck
                     # binary operation
                     for arg in stmt.data.args:
-                        _process(irsb, stmt, arg, next_instr_addr)
+                        _process(irsb, stmt, stmt_idx, arg, instr_addr, next_instr_addr)
 
                 elif type(stmt.data) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
-                    _process(irsb, stmt, stmt.data, next_instr_addr)
+                    _process(irsb, stmt, stmt_idx, stmt.data, instr_addr, next_instr_addr)
 
             elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck
                 # put
                 # e.g. PUT(rdi) = 0x0000000000400714
                 if stmt.offset not in (self._initial_state.arch.ip_offset, ):
-                    _process(irsb, stmt, stmt.data, next_instr_addr)
+                    _process(irsb, stmt, stmt_idx, stmt.data, instr_addr, next_instr_addr)
 
             elif type(stmt) is pyvex.IRStmt.Store:  # pylint: disable=unidiomatic-typecheck
                 # store addr
-                _process(irsb, stmt, stmt.addr, next_instr_addr)
+                _process(irsb, stmt, stmt_idx, stmt.addr, instr_addr, next_instr_addr)
                 # store data
-                _process(irsb, stmt, stmt.data, next_instr_addr)
+                _process(irsb, stmt, stmt_idx, stmt.data, instr_addr, next_instr_addr)
 
-    def _add_data_reference(self, irsb, irsb_addr, stmt, data_addr):  # pylint: disable=unused-argument
+    def _add_data_reference(self, irsb, irsb_addr, stmt, stmt_idx, insn_addr, data_addr):  # pylint: disable=unused-argument
         """
 
         :param irsb:
@@ -1504,13 +1512,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             for segment in self.project.loader.main_bin.segments:
                 if self.project.loader.main_bin.rebase_addr + segment.vaddr + segment.memsize == data_addr:
                     # yeah!
-                    data = MemoryData(data_addr, 0, 'segment-boundary', irsb, irsb_addr, stmt)
+                    data = MemoryData(data_addr, 0, 'segment-boundary', irsb, irsb_addr, stmt, stmt_idx,
+                                      insn_addr=insn_addr
+                                      )
                     self._memory_data[data_addr] = data
                     break
 
             return
 
-        data = MemoryData(data_addr, 0, 'unknown', irsb, irsb_addr, stmt)
+        data = MemoryData(data_addr, 0, 'unknown', irsb, irsb_addr, stmt, stmt_idx, insn_addr=insn_addr)
 
         self._memory_data[data_addr] = data
 
@@ -1599,7 +1609,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if memory_data.size > 0 and memory_data.size < memory_data.max_size:
                     # Create another memory_data object to fill the gap
                     new_addr = data_addr + memory_data.size
-                    new_md = MemoryData(new_addr, None, None, None, None, None,
+                    new_md = MemoryData(new_addr, None, None, None, None, None, None,
                                         max_size=memory_data.max_size - memory_data.size)
                     self._memory_data[new_addr] = new_md
                     keys.insert(i, new_addr)
@@ -1640,7 +1650,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                 continue
                             # TODO: other types
                         if ptr not in self._memory_data:
-                            self._memory_data[ptr] = MemoryData(ptr, 0, 'unknown', None, None, None,
+                            self._memory_data[ptr] = MemoryData(ptr, 0, 'unknown', None, None, None, None,
                                                                 pointer_addr=data_addr + j
                                                                 )
                             new_data_found = True
