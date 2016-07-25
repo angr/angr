@@ -119,6 +119,9 @@ TRACK_REGISTER_ACTIONS = "TRACK_REGISTER_ACTIONS"
 TRACK_TMP_ACTIONS = "TRACK_TMP_ACTIONS"
 TRACK_JMP_ACTIONS = "TRACK_JMP_ACTIONS"
 TRACK_CONSTRAINT_ACTIONS = "TRACK_CONSTRAINT_ACTIONS"
+# note that TRACK_OP_ACTIONS is not enabled in symbolic mode by default, since Yan is worried about its performance
+# impact. someone should measure it and make a final decision.
+TRACK_OP_ACTIONS = "TRACK_OP_ACTIONS"
 
 # track the history of actions through a path (multiple states). This action affects things on the angr level
 TRACK_ACTION_HISTORY = "TRACK_ACTION_HISTORY"
@@ -259,4 +262,4 @@ modes = { }
 modes['symbolic'] = common_options | symbolic | refs #| approximation | { VALIDATE_APPROXIMATIONS }
 modes['symbolic_approximating'] = common_options | symbolic | refs | approximation
 modes['static'] = common_options_without_simplification | refs | { BEST_EFFORT_MEMORY_STORING, UNINITIALIZED_ACCESS_AWARENESS, SYMBOLIC_INITIAL_VALUES, DO_CCALLS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, ABSTRACT_SOLVER, USE_SIMPLIFIED_CCALLS, REVERSE_MEMORY_NAME_MAP }
-modes['fastpath'] = ((modes['symbolic'] | { BEST_EFFORT_MEMORY_STORING, AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, IGNORE_EXIT_GUARDS, SYMBOLIC_INITIAL_VALUES, DO_RET_EMULATION } | resilience_options) - simplification - approximation) - { SYMBOLIC, DO_CCALLS }
+modes['fastpath'] = ((modes['symbolic'] | { TRACK_OP_ACTIONS, BEST_EFFORT_MEMORY_STORING, AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, IGNORE_EXIT_GUARDS, SYMBOLIC_INITIAL_VALUES, DO_RET_EMULATION, NO_SYMBOLIC_JUMP_RESOLUTION } | resilience_options) - simplification - approximation) - { SYMBOLIC, DO_CCALLS }
