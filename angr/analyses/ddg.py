@@ -363,7 +363,9 @@ class DDG(Analysis):
                     # For now, mem reads don't necessarily have actual_addrs set properly
                     try:
                         addr_list = { state.se.any_int(a.addr.ast) }
-                    except (SimSolverModeError, SimUnsatError):
+                    except (SimSolverModeError, SimUnsatError, ZeroDivisionError):
+                        # FIXME: ZeroDivisionError should have been caught by claripy and simuvex.
+                        # FIXME: see claripy issue #75. this is just a temporary workaround.
                         # it's symbolic... just continue
                         addr_list = { 0x60000000 }  # TODO: this is a random address that I pick. Fix it.
                 else:
