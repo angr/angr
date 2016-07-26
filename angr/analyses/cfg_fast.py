@@ -438,6 +438,8 @@ class MemoryData(object):
         self.pointer_addr = pointer_addr
 
         self.refs = [ ]
+        if irsb_addr and stmt_idx:
+            self.refs.append((irsb_addr, stmt_idx, insn_addr))
 
     def __repr__(self):
         return "\\%#x, %s, %s/" % (self.address,
@@ -445,6 +447,27 @@ class MemoryData(object):
                                    self.sort
                                    )
 
+    def copy(self):
+        s = MemoryData(self.address, self.size, self.sort, self.irsb, self.irsb_addr, self.stmt, self.stmt_idx,
+                       pointer_addr=self.pointer_addr, max_size=self.max_size, insn_addr=self.insn_addr
+                       )
+        s.refs = self.refs[::]
+
+        return s
+
+    def add_ref(self, irsb_addr, stmt_idx, insn_addr):
+        """
+        Add a reference from code to this memory data.
+
+        :param int irsb_addr: Address of the basic block.
+        :param int stmt_idx: ID of the statement referencing this data entry.
+        :param int insn_addr: Address of the instruction referencing this data entry.
+        :return: None
+        """
+
+        ref = (irsb_addr, stmt_idx, insn_addr)
+        if ref not in self.refs:
+            self.refs.append(ref)
 
 class MemoryDataReference(object):
     def __init__(self, ref_ins_addr):
@@ -1512,17 +1535,22 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             for segment in self.project.loader.main_bin.segments:
                 if self.project.loader.main_bin.rebase_addr + segment.vaddr + segment.memsize == data_addr:
                     # yeah!
-                    data = MemoryData(data_addr, 0, 'segment-boundary', irsb, irsb_addr, stmt, stmt_idx,
-                                      insn_addr=insn_addr
-                                      )
-                    self._memory_data[data_addr] = data
+                    if data_addr not in self._memory_data:
+                        data = MemoryData(data_addr, 0, 'segment-boundary', irsb, irsb_addr, stmt, stmt_idx,
+                                          insn_addr=insn_addr
+                                          )
+                        self._memory_data[data_addr] = data
+                    else:
+                        self._memory_data[data_addr].add_ref(irsb_addr, stmt_idx, insn_addr)
                     break
 
             return
 
-        data = MemoryData(data_addr, 0, 'unknown', irsb, irsb_addr, stmt, stmt_idx, insn_addr=insn_addr)
-
-        self._memory_data[data_addr] = data
+        if data_addr not in self._memory_data:
+            data = MemoryData(data_addr, 0, 'unknown', irsb, irsb_addr, stmt, stmt_idx, insn_addr=insn_addr)
+            self._memory_data[data_addr] = data
+        else:
+            self._memory_data[data_addr].add_ref(irsb_addr, stmt_idx, insn_addr)
 
     def _tidy_data_references(self):
         """
