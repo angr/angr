@@ -441,7 +441,7 @@ class MemoryData(object):
 
     def __repr__(self):
         return "\\%#x, %s, %s/" % (self.address,
-                                   "%d bytes" if self.size is not None else "size unknown",
+                                   "%d bytes" % self.size if self.size is not None else "size unknown",
                                    self.sort
                                    )
 
