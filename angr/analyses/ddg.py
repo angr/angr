@@ -183,13 +183,14 @@ class DDG(Analysis):
         # Not found
         return None
 
-    def data_sub_graph(self, pv, simplified=True, killing_edges=False):
+    def data_sub_graph(self, pv, simplified=True, killing_edges=False, excluding_types=None):
         """
         Get a subgraph from the data graph or the simplified data graph that starts from node pv.
 
         :param ProgramVariable pv: The starting point of the subgraph.
         :param bool simplified: When True, the simplified data graph is used, otherwise the data graph is used.
         :param bool killing_edges: Are killing edges included or not.
+        :param iterable excluding_types: Excluding edges whose types are among those excluded types.
         :return: A subgraph.
         :rtype: networkx.MultiDiGraph
         """
@@ -216,6 +217,11 @@ class DDG(Analysis):
             if not killing_edges:
                 # remove killing edges
                 out_edges = [ (a, b, data) for a, b, data in out_edges if 'type' not in data or data['type'] != 'kill']
+
+            if excluding_types:
+                out_edges = [ (a, b, data) for a, b, data in out_edges if
+                              'type' not in data or data['type'] not in excluding_types
+                              ]
 
             for src, dst, data in out_edges:
                 result.add_edge(src, dst, **data)
