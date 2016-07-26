@@ -183,6 +183,48 @@ class DDG(Analysis):
         # Not found
         return None
 
+    def data_sub_graph(self, pv, simplified=True, killing_edges=False):
+        """
+        Get a subgraph from the data graph or the simplified data graph that starts from node pv.
+
+        :param ProgramVariable pv: The starting point of the subgraph.
+        :param bool simplified: When True, the simplified data graph is used, otherwise the data graph is used.
+        :param bool killing_edges: Are killing edges included or not.
+        :return: A subgraph.
+        :rtype: networkx.MultiDiGraph
+        """
+
+        result = networkx.MultiDiGraph()
+        result.add_node(pv)
+
+        base_graph = self.simplified_data_graph if simplified else self.data_graph
+        if pv not in base_graph:
+            return result
+
+        # traverse all edges and add them to the result graph if needed
+        queue = [ pv ]
+        traversed = set()
+        while queue:
+            elem = queue[0]
+            queue = queue[1:]
+            if elem in traversed:
+                continue
+            traversed.add(elem)
+
+            out_edges = base_graph.out_edges(elem, data=True)
+
+            if not killing_edges:
+                # remove killing edges
+                out_edges = [ (a, b, data) for a, b, data in out_edges if 'type' not in data or data['type'] != 'kill']
+
+            for src, dst, data in out_edges:
+                result.add_edge(src, dst, **data)
+
+                if dst not in traversed:
+                    queue.append(dst)
+
+        return result
+
     #
     # Private methods
     #
