@@ -1778,7 +1778,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return "unicode", (len(unicode_str) + 1) * 2
 
         # Is it a null-terminated printable string?
-        max_string_len = 2048
+        max_string_len = min(max_size, 4096)
         s = self._ffi.string(self._ffi.cast("char*", block), max_string_len)
         if len(s):
             if all([ c in self.PRINTABLES for c in s ]):
