@@ -47,6 +47,8 @@ class malloc(Func):
             if state is None:
                 return False
             returned_locs.append(state.se.any_int(state.regs.eax))
+            if any(a < 0x3000 for a in returned_locs):
+                return False
             pass
 
         # if we got the same value 2x it didnt work
@@ -100,6 +102,8 @@ class malloc(Func):
             if state is None:
                 return False
             returned_locs2.append(state.se.any_int(state.regs.eax))
+            if any(a < 0x3000 for a in returned_locs2):
+                return False
             pass
 
         if returned_locs == returned_locs2:
