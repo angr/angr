@@ -20,7 +20,8 @@ class Blade(object):
         :param angr.analyses.CFGBase cfg: the CFG instance. It will be made mandatory later.
         :param bool ignore_sp:          Whether the stack pointer should be ignored in dependency tracking. Any
                                         dependency from/to stack pointers will be ignored if this options is True.
-        :param ignore_bp:               Whether the base pointer should be ignored or not.
+        :param bool ignore_bp:          Whether the base pointer should be ignored or not.
+        :param int  max_level:          The maximum number of blocks that we trace back for.
         :return: None
         """
 
