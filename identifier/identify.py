@@ -242,6 +242,11 @@ class Identifier(object):
             # match!
             return f
 
+        if len(func_info.stack_args) == 2 and func_info.var_args:
+            match = Functions["fdprintf"]()
+            l.warning("%#x assuming fd printf for var_args func with 2 args although we don't really know", function.addr)
+            return match
+
         return None
 
     def check_tests(self, cfg_func, match_func):
