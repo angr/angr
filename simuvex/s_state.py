@@ -322,7 +322,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
                                 'to Fish and he will fix it if he\'s free.')
                         continue
 
-                    new_expr = original_expr.intersection(constrained_si)
+                    new_expr = constrained_si
                     self.registers.replace_all(original_expr, new_expr)
                     for _, region in self.memory.regions.items():
                         region.memory.replace_all(original_expr, new_expr)
