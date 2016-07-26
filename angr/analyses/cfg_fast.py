@@ -1979,6 +1979,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         simuvex.o.UNINITIALIZED_ACCESS_AWARENESS,
                     }
             )
+            # any read from an uninitialized segment should be unconstrained
+            # TODO: support other sections other than '.bss'.
+            # TODO: this is very hackish. fix it after the chaos.
+            for section in self.project.loader.main_bin.sections:
+                if section.name == '.bss':
+                    section_start = self.project.loader.main_bin.rebase_addr + section.vaddr
+                    bits = self.project.arch.bits
+                    for i in xrange(0, section.memsize, bits / 8):
+                        start_state.memory.store(section_start + i, start_state.se.Unconstrained('unconstrained', bits))
+
             start_state.regs.bp = start_state.arch.initial_sp + 0x2000
 
             start_path = self.project.factory.path(start_state)
