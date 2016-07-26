@@ -242,7 +242,7 @@ class Identifier(object):
             # match!
             return f
 
-        if len(func_info.stack_args) == 2 and func_info.var_args:
+        if len(func_info.stack_args) == 2 and func_info.var_args and len(function.graph.nodes()) < 5:
             match = Functions["fdprintf"]()
             l.warning("%#x assuming fd printf for var_args func with 2 args although we don't really know", function.addr)
             return match
