@@ -826,23 +826,33 @@ class CFGBase(Analysis):
 
         graph = self.graph
 
-        end_addresses = defaultdict(set)
+        end_addresses = { }
+        end_addresses_more_than_two = defaultdict(set)
 
         for n in graph.nodes():
             if n.is_simprocedure:
                 continue
             end_addr = n.addr + n.size
-            end_addresses[(end_addr, n.callstack_key)].add(n)
+            key = (end_addr, n.callstack_key)
+            if key in end_addresses:
+                # two blocks ending at the same address are found
+                if key not in end_addresses_more_than_two:
+                    # copy the original item
+                    end_addresses_more_than_two[key].add(end_addresses[key])
+                # add the new item
+                end_addresses_more_than_two[key].add(n)
+            else:
+                end_addresses[key] = n
 
-        while any([len(x) > 1 for x in end_addresses.itervalues()]):
-            tpl_to_find = (None, None)
-            for tpl, x in end_addresses.iteritems():
+        while end_addresses_more_than_two:
+            key_to_find = (None, None)
+            for tpl, x in end_addresses_more_than_two.iteritems():
                 if len(x) > 1:
-                    tpl_to_find = tpl
+                    key_to_find = tpl
                     break
 
-            end_addr, callstack_key = tpl_to_find
-            all_nodes = end_addresses[tpl_to_find]
+            end_addr, callstack_key = key_to_find
+            all_nodes = end_addresses_more_than_two[key_to_find]
 
             all_nodes = sorted(all_nodes, key=lambda node: node.size)
             smallest_node = all_nodes[0]
@@ -859,11 +869,9 @@ class CFGBase(Analysis):
 
                 # Does it already exist?
                 new_node = None
-                tpl = (new_end_addr, n.callstack_key)
-                if tpl in end_addresses:
-                    nodes = [i for i in end_addresses[tpl] if i.addr == n.addr]
-                    if len(nodes) > 0:
-                        new_node = nodes[0]
+                key = (new_end_addr, n.callstack_key)
+                if key in end_addresses:
+                    new_node = end_addresses[key]
 
                 if new_node is None:
                     # Create a new one
@@ -878,7 +886,11 @@ class CFGBase(Analysis):
                     new_node.instruction_addrs = [ins_addr for ins_addr in n.instruction_addrs
                                                   if ins_addr < n.addr + new_size]
                     # Put the new node into end_addresses list
-                    end_addresses[tpl].add(new_node)
+                    if key in end_addresses:
+                        end_addresses_more_than_two[key].add(end_addresses[key])
+                        end_addresses_more_than_two[key].add(new_node)
+                    else:
+                        end_addresses[key] = new_node
 
                 # Modify the CFG
                 original_predecessors = list(graph.in_edges_iter([n], data=True))
@@ -920,7 +932,9 @@ class CFGBase(Analysis):
                     # We gotta create a new one
                     l.error('normalize(): Please report it to Fish.')
 
-            end_addresses[tpl_to_find] = { smallest_node }
+            del end_addresses_more_than_two[key_to_find]
+            # make sure the smallest node is stored in end_addresses
+            end_addresses[key_to_find] = smallest_node
 
         self._normalized = True
 
