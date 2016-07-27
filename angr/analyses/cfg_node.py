@@ -21,7 +21,8 @@ class CFGNode(object):
                  function_address=None,
                  final_states=None,
                  simrun_key=None,
-                 irsb=None):
+                 irsb=None,
+                 instruction_addrs=None):
         """
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -53,8 +54,11 @@ class CFGNode(object):
         # you are using `return_target` to do some serious stuff.
         self.return_target = None
 
-        self.instruction_addrs = [ ]
-        if not self.is_simprocedure:
+        self.instruction_addrs = instruction_addrs
+
+        if not instruction_addrs and not self.is_simprocedure:
+            # We have to collect instruction addresses by ourselves
+
             # Try to grab all instruction addresses out!
             if simrun is not None:
                 # This is a SimIRSB

@@ -2331,8 +2331,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         next_node_addr = a.addr + nop_length
                         if not (next_node_addr in self._nodes or next_node_addr in nodes_to_append):
                             # create a new CFGNode that starts there
-                            next_node = CFGNode(next_node_addr, a.size - nop_length, self,
-                                                function_address=next_node_addr
+                            next_node_size = a.size - nop_length
+                            next_node = CFGNode(next_node_addr, next_node_size, self,
+                                                function_address=next_node_addr,
+                                                instruction_addrs=[i for i in a.instruction_addrs
+                                                                   if next_node_addr <= i
+                                                                    < next_node_addr + next_node_size
+                                                                   ]
                                                 )
                             # create edges accordingly
                             all_out_edges = self.graph.out_edges(a, data=True)
@@ -2410,7 +2415,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         # Generate the new node
-        new_node = CFGNode(node.addr, new_size, self, function_address=node.function_address)
+        new_node = CFGNode(node.addr, new_size, self,
+                           function_address=node.function_address,
+                           instruction_addrs=[i for i in node.instruction_addrs
+                                              if node.addr <= i < node.addr + new_size
+                                              ]
+                           )
 
         old_edges = self.graph.in_edges(node, data=True)
 
