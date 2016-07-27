@@ -878,10 +878,11 @@ class CFGBase(Analysis):
                     sorted_smallest_nodes[k] = sorted(sorted_smallest_nodes[k], key=lambda node: node.addr)
 
                 for callstack_key, lst in sorted_smallest_nodes.iteritems():
-                    for i, node in enumerate(sorted_smallest_nodes[callstack_key]):
-                        if i == len(sorted_smallest_nodes[callstack_key]) - 1:
+                    lst_len = len(lst)
+                    for i, node in enumerate(lst):
+                        if i == lst_len - 1:
                             break
-                        next_node = sorted_smallest_nodes[callstack_key][i + 1]
+                        next_node = lst[i + 1]
                         if node.addr <= next_node.addr < node.addr + node.size:
                             # umm, those nodes are overlapping, but they must have different end addresses
                             # misuse end_addresses_to_nodes
@@ -953,7 +954,9 @@ class CFGBase(Analysis):
             # Update nodes dict
             self._nodes[n.simrun_key] = new_node
             if n in self._nodes_by_addr[n.addr]:
-                self._nodes_by_addr[n.addr] = filter(lambda x: x is not n, self._nodes_by_addr[n.addr])
+                self._nodes_by_addr[n.addr] = filter(lambda x,the_node=n: x is not the_node,
+                                                     self._nodes_by_addr[n.addr]
+                                                     )
                 self._nodes_by_addr[n.addr].append(new_node)
 
             for p, _, data in original_predecessors:
