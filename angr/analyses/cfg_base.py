@@ -98,6 +98,10 @@ class CFGBase(Analysis):
             ut_addr = self.project.hooked_symbol_addr('UnresolvableTarget')
         self._unresolvable_target_addr = ut_addr
 
+        # TODO: A segment tree to speed up CFG node lookups
+        self._node_lookup_index = None
+        self._node_lookup_index_warned = False
+
     def __contains__(self, cfg_node):
         return cfg_node in self._graph
 
@@ -133,6 +137,15 @@ class CFGBase(Analysis):
 
     def output(self):
         raise NotImplementedError()
+
+    def generate_index(self):
+        """
+        Generate an index of all nodes in the graph in order to speed up get_any_node() with anyaddr=True.
+
+        :return: None
+        """
+
+        raise NotImplementedError("I'm too lazy to implement it right now")
 
     # TODO: Mark as deprecated
     def get_bbl_dict(self):
@@ -216,29 +229,44 @@ class CFGBase(Analysis):
         """
         Get an arbitrary CFGNode (without considering their contexts) from our graph.
 
-        :param addr: Address of the beginning of the basic block. Set anyaddr to True to support arbitrary address.
-        :param is_syscall: Whether you want to get the syscall node or any other node. This is due to the fact that
-                        syscall SimProcedures have the same address as the targer it returns to.
-                        None means get either, True means get a syscall node, False means get something that isn't
-                        a syscall node.
-        :param anyaddr: If anyaddr is True, then addr doesn't have to be the beginning address of a basic block.
-                        `anyaddr=True` makes more sense after the CFG is normalized.
+        :param int addr:        Address of the beginning of the basic block. Set anyaddr to True to support arbitrary
+                                address.
+        :param bool is_syscall: Whether you want to get the syscall node or any other node. This is due to the fact that
+                                syscall SimProcedures have the same address as the targer it returns to.
+                                None means get either, True means get a syscall node, False means get something that isn't
+                                a syscall node.
+        :param bool anyaddr:    If anyaddr is True, then addr doesn't have to be the beginning address of a basic
+                                block. By default the entire graph.nodes() will be iterated, and the first node
+                                containing the specific address is returned, which is slow. If you need to do many such
+                                queries, you may first call `generate_index()` to create some indices that may speed up the
+                                query.
         :return: A CFGNode if there is any that satisfies given conditions, or None otherwise
         """
 
-        # TODO: Loop though self._nodes instead of self.graph.nodes()
-        # TODO: Of course, I should first fix the issue that .normalize() doesn't update self._nodes
-
+        # fastpath: directly look in the nodes list
         if not anyaddr and self._nodes_by_addr and \
                 addr in self._nodes_by_addr and self._nodes_by_addr[addr]:
             return self._nodes_by_addr[addr][0]
+
+        # slower path
+        #if self._node_lookup_index is not None:
+        #    pass
+
+        # the slowest path
+        # try to show a warning first
+        # TODO: re-enable it once the segment tree is implemented
+        #if self._node_lookup_index_warned == False:
+        #    l.warning('Calling get_any_node() with anyaddr=True is slow on large programs. '
+        #              'For better performance, you may first call generate_index() to generate some indices that may '
+        #              'speed the node lookup.')
+        #    self._node_lookup_index_warned = True
 
         for n in self.graph.nodes_iter():
             cond = n.looping_times == 0
             if anyaddr and n.size is not None:
                 cond = cond and (addr >= n.addr and addr < n.addr + n.size)
             else:
-                cond = cond  and (addr == n.addr)
+                cond = cond and (addr == n.addr)
             if cond:
                 if is_syscall is None:
                     return n
@@ -294,6 +322,16 @@ class CFGBase(Analysis):
                     results.append(cfg_node)
 
         return results
+
+    def nodes_iter(self):
+        """
+        An iterator of all nodes in the graph.
+
+        :return: The iterator.
+        :rtype: iterator
+        """
+
+        return self._graph.nodes_iter()
 
     def get_all_irsbs(self, addr):
         """
