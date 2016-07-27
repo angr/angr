@@ -2389,7 +2389,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     block = self.project.factory.fresh_block(a.addr, b.addr - a.addr)
                 except AngrTranslationError:
                     continue
-                if all([ insn.insn_name() == 'nop' for insn in block.capstone.insns ]):
+                if block.capstone.insns and all([ insn.insn_name() == 'nop' for insn in block.capstone.insns ]):
                     # It's a big nop - no function starts with nop
 
                     # add b to indices
