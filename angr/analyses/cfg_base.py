@@ -1139,8 +1139,11 @@ class CFGBase(Analysis):
             # of the current function
             max_unresolved_jump_addr = 0
             for block_addr in function.block_addrs:
-                if block_addr in self.indirect_jumps and not self.indirect_jumps[block_addr].resolved_targets:
+                if block_addr in self.indirect_jumps and \
+                        self.indirect_jumps[block_addr].jumpkind == 'Ijk_Boring' and \
+                        not self.indirect_jumps[block_addr].resolved_targets:
                     # it's not resolved
+                    # we should also make sure it's a jump, not a call
                     has_unresolved_jumps = True
                     max_unresolved_jump_addr = max(max_unresolved_jump_addr, block_addr)
 
