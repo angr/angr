@@ -881,6 +881,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # make a copy of those prologue addresses, so that we can pop from the list
             self._remaining_function_prologue_addrs = self._function_prologue_addrs[::]
 
+            # make function_prologue_addrs a set for faster lookups
+            self._function_prologue_addrs = set(self._function_prologue_addrs)
+
     def _pre_entry_handling(self, entry):
 
         # Do not calculate progress if the user doesn't care about the progress at all
