@@ -2345,7 +2345,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             continue
                         # leading nop for alignment.
                         next_node_addr = a.addr + nop_length
-                        if not (next_node_addr in self._nodes or next_node_addr in nodes_to_append):
+                        if nop_length < a.size and \
+                                not (next_node_addr in self._nodes or next_node_addr in nodes_to_append):
                             # create a new CFGNode that starts there
                             next_node_size = a.size - nop_length
                             next_node = CFGNode(next_node_addr, next_node_size, self,
@@ -2903,8 +2904,25 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             else:
 
+                # if possible, check the distance between `addr` and the end of this section
+                distance = None
+                obj = self.project.loader.addr_belongs_to_object(addr)
+                if obj:
+                    # is there a section?
+                    has_executable_section = len([ sec for sec in obj.sections if sec.is_executable ]) > 0
+                    section = self._addr_belongs_to_section(addr)
+                    if has_executable_section and section is None:
+                        # the basic block should not exist here...
+                        return None, None, None, None
+                    if section is not None:
+                        if not section.is_executable:
+                            # the section is not executable...
+                            return None, None, None, None
+                        distance = obj.rebase_addr + section.vaddr + section.memsize - addr
+                    # TODO: handle segment information as well
+
                 # Let's try to create the pyvex IRSB directly, since it's much faster
-                irsb = self.project.factory.block(addr).vex
+                irsb = self.project.factory.block(addr, max_size=distance).vex
 
                 if irsb.size == 0 and self.project.arch.name in ('ARMHF', 'ARMEL'):
                     # maybe the current mode is wrong?
