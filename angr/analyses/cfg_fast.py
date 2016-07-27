@@ -2353,6 +2353,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if nodes_to_append:
             sorted_nodes = sorted(sorted_nodes + nodes_to_append.values(), key=lambda n: n.addr if n is not None else 0)
 
+        removed_nodes = set()
+
         for i in xrange(len(sorted_nodes) - 1):
 
             a, b = sorted_nodes[i], sorted_nodes[i + 1]
@@ -2360,30 +2362,76 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if a is None or b is None:
                 continue
 
+            if a in removed_nodes or b in removed_nodes:
+                continue
+
             if a.addr <= b.addr and \
                     (a.addr + a.size > b.addr):
                 # They are overlapping
 
-                # add b to indices
-                self._nodes[b.addr] = b
-                self._nodes_by_addr[b.addr].append(b)
+                try:
+                    block = self.project.factory.fresh_block(a.addr, b.addr - a.addr)
+                except AngrTranslationError:
+                    continue
+                if len(block.capstone.insns) == 1 and block.capstone.insns[0].insn_name() == "nop":
+                    # It's a big nop - no function starts with nop
 
-                if a.addr not in self.kb.functions and b.addr in self.kb.functions and (b.addr - a.addr < 0x10):
-                    # b is the beginning of a function
-                    # a should be shrinked
+                    # add b to indices
+                    self._nodes[b.addr] = b
+                    self._nodes_by_addr[b.addr].append(b)
 
-                    self._shrink_node(a, b.addr - a.addr)
+                    # shrink a
+                    self._shrink_node(a, b.addr - a.addr, remove_function=True)
+                    continue
 
-                else:
-                    try:
-                        block = self.project.factory.fresh_block(a.addr, b.addr - a.addr)
-                    except AngrTranslationError:
+                all_functions = self.kb.functions
+
+                # now things are a little harder
+                # if there is no incoming edge to b, we should replace b with a
+                # this is mostly because we misidentified the function beginning. In fact a is the function beginning,
+                # but somehow we thought b is the beginning
+                if a.addr + a.size == b.addr + b.size:
+                    in_edges = len([ _ for _, _, data in self.graph.in_edges(b, data=True) ])
+                    if in_edges == 0:
+                        # we use node a to replace node b
+                        # link all successors of b to a
+                        for _, dst, data in self.graph.out_edges(b, data=True):
+                            self.graph.add_edge(a, dst, **data)
+
+                        if b.addr in self._nodes:
+                            del self._nodes[b.addr]
+                        if b.addr in self._nodes_by_addr and b in self._nodes_by_addr[b.addr]:
+                            self._nodes_by_addr[b.addr].remove(b)
+
+                        self.graph.remove_node(b)
+
+                        if b.addr in all_functions:
+                            del all_functions[b.addr]
+
+                        # skip b
+                        removed_nodes.add(b)
+
                         continue
-                    if len(block.capstone.insns) == 1 and block.capstone.insns[0].insn_name() == "nop":
-                        # It's a big nop
-                        self._shrink_node(a, b.addr - a.addr, remove_function=True)
-                    else:
-                        self._shrink_node(a, b.addr - a.addr, remove_function=False)
+
+                # next case - we might be totally misdecoding b
+                if b.instruction_addrs[0] not in a.instruction_addrs:
+                    # use a, forget about b
+                    if b.addr in self._nodes:
+                        del self._nodes[b.addr]
+                    if b.addr in self._nodes_by_addr and b in self._nodes_by_addr:
+                        self._nodes_by_addr[b.addr].remove(b)
+
+                    self.graph.remove_node(b)
+
+                    if b.addr in all_functions:
+                        del all_functions[b.addr]
+
+                    removed_nodes.add(b)
+
+                    continue
+
+                # alright, for other cases, we just shrink a to make room for b
+                self._shrink_node(a, b.addr - a.addr)
 
     def _remove_node(self, node):
         """
