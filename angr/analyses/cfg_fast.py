@@ -437,9 +437,9 @@ class MemoryData(object):
         self.max_size = max_size
         self.pointer_addr = pointer_addr
 
-        self.refs = [ ]
+        self.refs = set()
         if irsb_addr and stmt_idx:
-            self.refs.append((irsb_addr, stmt_idx, insn_addr))
+            self.refs.add((irsb_addr, stmt_idx, insn_addr))
 
     def __repr__(self):
         return "\\%#x, %s, %s/" % (self.address,
@@ -451,7 +451,7 @@ class MemoryData(object):
         s = MemoryData(self.address, self.size, self.sort, self.irsb, self.irsb_addr, self.stmt, self.stmt_idx,
                        pointer_addr=self.pointer_addr, max_size=self.max_size, insn_addr=self.insn_addr
                        )
-        s.refs = self.refs[::]
+        s.refs = self.refs.copy()
 
         return s
 
@@ -467,7 +467,7 @@ class MemoryData(object):
 
         ref = (irsb_addr, stmt_idx, insn_addr)
         if ref not in self.refs:
-            self.refs.append(ref)
+            self.refs.add(ref)
 
 class MemoryDataReference(object):
     def __init__(self, ref_ins_addr):
@@ -554,6 +554,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  force_complete_scan=True,
                  indirect_jump_target_limit=100000,
                  collect_data_references=False,
+                 extra_cross_references=False,
                  normalize=False,
                  function_starts=None,
                  extra_memory_regions=None,
@@ -576,6 +577,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                             code blocks.
         :param bool collect_data_references: If CFGFast should collect data references from individual basic blocks or
                                              not.
+        :param bool extra_cross_references:  True if we should collect data references for all places in the program
+                                             that access each memory data entry, which requires more memory, and is
+                                             noticeably slower. Setting it to False means each memory data entry has at
+                                             most one reference (which is the initial one).
         :param bool normalize:          Normalize the CFG as well as all function graphs after CFG recovery.
         :param list function_starts:    A list of extra function starting points. CFGFast will try to resume scanning
                                         from each address in the list.
@@ -618,6 +623,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._extra_function_starts = function_starts
 
         self._extra_memory_regions = extra_memory_regions
+
+        self._extra_cross_references = extra_cross_references
 
         self._arch_options = arch_options if arch_options is not None else CFGArchOptions(self.project.arch,
                                                                                           **extra_arch_options
@@ -1548,7 +1555,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                           )
                         self._memory_data[data_addr] = data
                     else:
-                        self._memory_data[data_addr].add_ref(irsb_addr, stmt_idx, insn_addr)
+                        if self._extra_cross_references:
+                            self._memory_data[data_addr].add_ref(irsb_addr, stmt_idx, insn_addr)
                     break
 
             return
@@ -1557,7 +1565,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             data = MemoryData(data_addr, 0, 'unknown', irsb, irsb_addr, stmt, stmt_idx, insn_addr=insn_addr)
             self._memory_data[data_addr] = data
         else:
-            self._memory_data[data_addr].add_ref(irsb_addr, stmt_idx, insn_addr)
+            if self._extra_cross_references:
+                self._memory_data[data_addr].add_ref(irsb_addr, stmt_idx, insn_addr)
 
     def _tidy_data_references(self):
         """
