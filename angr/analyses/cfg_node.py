@@ -54,7 +54,7 @@ class CFGNode(object):
         # you are using `return_target` to do some serious stuff.
         self.return_target = None
 
-        self.instruction_addrs = instruction_addrs
+        self.instruction_addrs = instruction_addrs if instruction_addrs is not None else [ ]
 
         if not instruction_addrs and not self.is_simprocedure:
             # We have to collect instruction addresses by ourselves
