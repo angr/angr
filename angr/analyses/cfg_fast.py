@@ -646,6 +646,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._function_addresses_from_symbols = self._func_addrs_from_symbols()
 
         self._function_prologue_addrs = None
+        self._remaining_function_prologue_addrs = None
 
         #
         # Variables used during analysis
@@ -877,6 +878,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self._function_prologue_addrs = sorted(
                 set([addr + rebase_addr for addr in self._func_addrs_from_prologues()])
             )
+            # make a copy of those prologue addresses, so that we can pop from the list
+            self._remaining_function_prologue_addrs = self._function_prologue_addrs[::]
 
     def _pre_entry_handling(self, entry):
 
@@ -966,10 +969,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             del self._pending_entries[0]
             return
 
-        if self._use_function_prologues and self._function_prologue_addrs:
-            while self._function_prologue_addrs:
-                prolog_addr = self._function_prologue_addrs[0]
-                self._function_prologue_addrs = self._function_prologue_addrs[1:]
+        if self._use_function_prologues and self._remaining_function_prologue_addrs:
+            while self._remaining_function_prologue_addrs:
+                prolog_addr = self._remaining_function_prologue_addrs[0]
+                self._remaining_function_prologue_addrs = self._remaining_function_prologue_addrs[1:]
                 if self._seg_list.is_occupied(prolog_addr):
                     continue
 
@@ -1080,6 +1083,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         Get all possible function addresses that are specified by the symbols in the binary
 
         :return: A set of addresses that are probably functions
+        :rtype: set
         """
 
         symbols_by_addr = self._binary.symbols_by_addr
@@ -2331,8 +2335,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         next_node_addr = a.addr + nop_length
                         if not (next_node_addr in self._nodes or next_node_addr in nodes_to_append):
                             # create a new CFGNode that starts there
-                            next_node = CFGNode(next_node_addr, a.size - nop_length, self,
-                                                function_address=next_node_addr
+                            next_node_size = a.size - nop_length
+                            next_node = CFGNode(next_node_addr, next_node_size, self,
+                                                function_address=next_node_addr,
+                                                instruction_addrs=[i for i in a.instruction_addrs
+                                                                   if next_node_addr <= i
+                                                                    < next_node_addr + next_node_size
+                                                                   ]
                                                 )
                             # create edges accordingly
                             all_out_edges = self.graph.out_edges(a, data=True)
@@ -2348,6 +2357,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if nodes_to_append:
             sorted_nodes = sorted(sorted_nodes + nodes_to_append.values(), key=lambda n: n.addr if n is not None else 0)
 
+        removed_nodes = set()
+
         for i in xrange(len(sorted_nodes) - 1):
 
             a, b = sorted_nodes[i], sorted_nodes[i + 1]
@@ -2355,26 +2366,77 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if a is None or b is None:
                 continue
 
+            if a in removed_nodes or b in removed_nodes:
+                continue
+
             if a.addr <= b.addr and \
                     (a.addr + a.size > b.addr):
                 # They are overlapping
-                if b.addr in self.kb.functions and (b.addr - a.addr < 0x10):
-                    # b is the beginning of a function
-                    # a should be shrinked
 
+                try:
+                    block = self.project.factory.fresh_block(a.addr, b.addr - a.addr)
+                except AngrTranslationError:
+                    continue
+                if all([ insn.insn_name() == 'nop' for insn in block.capstone.insns ]):
+                    # It's a big nop - no function starts with nop
+
+                    # add b to indices
                     self._nodes[b.addr] = b
                     self._nodes_by_addr[b.addr].append(b)
 
-                    self._shrink_node(a, b.addr - a.addr)
+                    # shrink a
+                    self._shrink_node(a, b.addr - a.addr, remove_function=True)
+                    continue
 
-                else:
-                    try:
-                        block = self.project.factory.fresh_block(a.addr, b.addr - a.addr)
-                    except AngrTranslationError:
+                all_functions = self.kb.functions
+
+                # now things are a little harder
+                # if there is no incoming edge to b, we should replace b with a
+                # this is mostly because we misidentified the function beginning. In fact a is the function beginning,
+                # but somehow we thought b is the beginning
+                if a.addr + a.size == b.addr + b.size:
+                    in_edges = len([ _ for _, _, data in self.graph.in_edges(b, data=True) ])
+                    if in_edges == 0:
+                        # we use node a to replace node b
+                        # link all successors of b to a
+                        for _, dst, data in self.graph.out_edges(b, data=True):
+                            self.graph.add_edge(a, dst, **data)
+
+                        if b.addr in self._nodes:
+                            del self._nodes[b.addr]
+                        if b.addr in self._nodes_by_addr and b in self._nodes_by_addr[b.addr]:
+                            self._nodes_by_addr[b.addr].remove(b)
+
+                        self.graph.remove_node(b)
+
+                        if b.addr in all_functions:
+                            del all_functions[b.addr]
+
+                        # skip b
+                        removed_nodes.add(b)
+
                         continue
-                    if len(block.capstone.insns) == 1 and block.capstone.insns[0].insn_name() == "nop":
-                        # It's a big nop
-                        self._shrink_node(a, b.addr - a.addr)
+
+                # next case - if b is from function prologue detection, we might be totally misdecoding b
+                if b.addr in self._function_prologue_addrs and \
+                    b.addr not in self._function_addresses_from_symbols and \
+                        b.instruction_addrs[0] not in a.instruction_addrs:
+                    # use a, forget about b
+                    if b.addr in self._nodes:
+                        del self._nodes[b.addr]
+                    if b.addr in self._nodes_by_addr and b in self._nodes_by_addr:
+                        self._nodes_by_addr[b.addr].remove(b)
+
+                    self.graph.remove_node(b)
+
+                    if b.addr in all_functions:
+                        del all_functions[b.addr]
+
+                    removed_nodes.add(b)
+
+                    continue
+
+                # for other cases, we'll let them be for now
 
     def _remove_node(self, node):
         """
@@ -2395,17 +2457,23 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if node.addr in self.kb.functions.callgraph:
             self.kb.functions.callgraph.remove_node(node.addr)
 
-    def _shrink_node(self, node, new_size):
+    def _shrink_node(self, node, new_size, remove_function=True):
         """
         Shrink the size of a node in CFG.
 
         :param CFGNode node: The CFGNode to shrink
         :param int new_size: The new size of the basic block
+        :param bool remove_function: If there is a function starting at `node`, should we remove that function or not.
         :return: None
         """
 
         # Generate the new node
-        new_node = CFGNode(node.addr, new_size, self, function_address=node.function_address)
+        new_node = CFGNode(node.addr, new_size, self,
+                           function_address=node.function_address,
+                           instruction_addrs=[i for i in node.instruction_addrs
+                                              if node.addr <= i < node.addr + new_size
+                                              ]
+                           )
 
         old_edges = self.graph.in_edges(node, data=True)
 
@@ -2417,15 +2485,24 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             successor = self._nodes[successor_node_addr]
             self.graph.add_edge(new_node, successor, jumpkind='Ijk_Boring')
 
+        # remove the old node from indices
+        if node.addr in self._nodes and self._nodes[node.addr] is node:
+            del self._nodes[node.addr]
+        if node.addr in self._nodes_by_addr and node in self._nodes_by_addr[node.addr]:
+            self._nodes_by_addr[node.addr].remove(node)
+
+        # add the new node to indices
         self._nodes[new_node.addr] = new_node
+        self._nodes_by_addr[new_node.addr].append(new_node)
 
-        # the function starting at this point is probably totally incorrect
-        # hopefull future call to `make_functions()` will correct everything
-        if node.addr in self.kb.functions:
-            del self.kb.functions[node.addr]
+        if remove_function:
+            # the function starting at this point is probably totally incorrect
+            # hopefull future call to `make_functions()` will correct everything
+            if node.addr in self.kb.functions:
+                del self.kb.functions[node.addr]
 
-        if node.addr in self.kb.functions.callgraph:
-            self.kb.functions.callgraph.remove_node(node.addr)
+            if node.addr in self.kb.functions.callgraph:
+                self.kb.functions.callgraph.remove_node(node.addr)
 
     def _analyze_all_function_features(self):
         """
@@ -2914,7 +2991,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         n._seg_list = self._seg_list.copy()
 
-        n._function_addresses_from_symbols = self._function_addresses_from_symbols
+        n._function_addresses_from_symbols = self._function_addresses_from_symbols.copy()
 
         n._graph = self._graph
 

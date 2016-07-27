@@ -830,7 +830,10 @@ class CFGBase(Analysis):
                 if new_node is None:
                     # Create a new one
                     new_node = CFGNode(n.addr, new_size, self, callstack_key=callstack_key,
-                                       function_address=n.function_address, simrun_key=n.simrun_key
+                                       function_address=n.function_address, simrun_key=n.simrun_key,
+                                       instruction_addrs=[i for i in n.instruction_addrs
+                                                          if n.addr <= i <= n.addr + new_size
+                                                          ]
                                        )
 
                     # Copy instruction addresses
