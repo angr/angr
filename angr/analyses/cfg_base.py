@@ -826,117 +826,154 @@ class CFGBase(Analysis):
 
         graph = self.graph
 
-        end_addresses = { }
-        end_addresses_more_than_two = defaultdict(set)
+        smallest_nodes = { }  # indexed by end address of the node
+        end_addresses_to_nodes = defaultdict(set)
 
         for n in graph.nodes():
             if n.is_simprocedure:
                 continue
             end_addr = n.addr + n.size
             key = (end_addr, n.callstack_key)
-            if key in end_addresses:
-                # two blocks ending at the same address are found
-                if key not in end_addresses_more_than_two:
-                    # copy the original item
-                    end_addresses_more_than_two[key].add(end_addresses[key])
-                # add the new item
-                end_addresses_more_than_two[key].add(n)
-            else:
-                end_addresses[key] = n
+            # add the new item
+            end_addresses_to_nodes[key].add(n)
 
-        while end_addresses_more_than_two:
+        for key in end_addresses_to_nodes.keys():
+            if len(end_addresses_to_nodes[key]) == 1:
+                smallest_nodes[key] = next(iter(end_addresses_to_nodes[key]))
+                del end_addresses_to_nodes[key]
+
+        while end_addresses_to_nodes:
             key_to_find = (None, None)
-            for tpl, x in end_addresses_more_than_two.iteritems():
+            for tpl, x in end_addresses_to_nodes.iteritems():
                 if len(x) > 1:
                     key_to_find = tpl
                     break
 
             end_addr, callstack_key = key_to_find
-            all_nodes = end_addresses_more_than_two[key_to_find]
+            all_nodes = end_addresses_to_nodes[key_to_find]
 
-            all_nodes = sorted(all_nodes, key=lambda node: node.size)
-            smallest_node = all_nodes[0]
+            all_nodes = sorted(all_nodes, key=lambda node: node.addr, reverse=True)
+            smallest_node = all_nodes[0] # take the one that has the highest address
             other_nodes = all_nodes[1:]
 
-            # Break other nodes
-            for n in other_nodes:
-                new_size = smallest_node.addr - n.addr
-                if new_size == 0:
-                    # This node has the same size as the smallest one. Don't touch it.
-                    continue
+            self._normalize_core(graph, callstack_key, smallest_node, other_nodes, smallest_nodes,
+                                 end_addresses_to_nodes
+                                 )
 
-                new_end_addr = n.addr + new_size
-
-                # Does it already exist?
-                new_node = None
-                key = (new_end_addr, n.callstack_key)
-                if key in end_addresses:
-                    new_node = end_addresses[key]
-
-                if new_node is None:
-                    # Create a new one
-                    new_node = CFGNode(n.addr, new_size, self, callstack_key=callstack_key,
-                                       function_address=n.function_address, simrun_key=n.simrun_key,
-                                       instruction_addrs=[i for i in n.instruction_addrs
-                                                          if n.addr <= i <= n.addr + new_size
-                                                          ]
-                                       )
-
-                    # Copy instruction addresses
-                    new_node.instruction_addrs = [ins_addr for ins_addr in n.instruction_addrs
-                                                  if ins_addr < n.addr + new_size]
-                    # Put the new node into end_addresses list
-                    if key in end_addresses:
-                        end_addresses_more_than_two[key].add(end_addresses[key])
-                        end_addresses_more_than_two[key].add(new_node)
-                    else:
-                        end_addresses[key] = new_node
-
-                # Modify the CFG
-                original_predecessors = list(graph.in_edges_iter([n], data=True))
-                original_successors = list(graph.out_edges_iter([n], data=True))
-
-                for _, d, data in original_successors:
-                    if d not in graph[smallest_node]:
-                        if d is n:
-                            graph.add_edge(smallest_node, new_node, **data)
-                        else:
-                            graph.add_edge(smallest_node, d, **data)
-
-                for p, _, _ in original_predecessors:
-                    graph.remove_edge(p, n)
-                graph.remove_node(n)
-
-                # Update nodes dict
-                self._nodes[n.simrun_key] = new_node
-                if n in self._nodes_by_addr[n.addr]:
-                    self._nodes_by_addr[n.addr] = filter(lambda x: x is not n, self._nodes_by_addr[n.addr])
-                    self._nodes_by_addr[n.addr].append(new_node)
-
-                for p, _, data in original_predecessors:
-                    # Consider the following case: two basic blocks ending at the same position, where A is larger, and
-                    # B is smaller. Suppose there is an edge going from the end of A to A itself, and apparently there
-                    # is another edge from B to A as well. After splitting A into A' and B, we DO NOT want to add A back
-                    # in, otherwise there will be an edge from A to A`, while A should totally be got rid of in the new
-                    # graph.
-                    if p not in other_nodes:
-                        graph.add_edge(p, new_node, data)
-
-                # We should find the correct successor
-                new_successors = [i for i in all_nodes
-                                  if i.addr == smallest_node.addr]
-                if new_successors:
-                    new_successor = new_successors[0]
-                    graph.add_edge(new_node, new_successor, jumpkind='Ijk_Boring')
-                else:
-                    # We gotta create a new one
-                    l.error('normalize(): Please report it to Fish.')
-
-            del end_addresses_more_than_two[key_to_find]
+            del end_addresses_to_nodes[key_to_find]
             # make sure the smallest node is stored in end_addresses
-            end_addresses[key_to_find] = smallest_node
+            smallest_nodes[key_to_find] = smallest_node
+
+            # corner case
+            # sometimes two overlapping blocks may not be ending at the instruction. this might happen when one of the
+            # blocks (the bigger one) hits the instruction count limit or bytes limit before reaching the end address
+            # of the smaller block. in this case we manually pick up those blocks.
+            if not end_addresses_to_nodes:
+                # find if there are still overlapping blocks
+                sorted_smallest_nodes = defaultdict(list)  # callstack_key is the key of this dict
+                for k, node in smallest_nodes.iteritems():
+                    _, callstack_key = k
+                    sorted_smallest_nodes[callstack_key].append(node)
+                for k in sorted_smallest_nodes.iterkeys():
+                    sorted_smallest_nodes[k] = sorted(sorted_smallest_nodes[k], key=lambda node: node.addr)
+
+                for callstack_key, lst in sorted_smallest_nodes.iteritems():
+                    for i, node in enumerate(sorted_smallest_nodes[callstack_key]):
+                        if i == len(sorted_smallest_nodes[callstack_key]) - 1:
+                            break
+                        next_node = sorted_smallest_nodes[callstack_key][i + 1]
+                        if node.addr <= next_node.addr < node.addr + node.size:
+                            # umm, those nodes are overlapping, but they must have different end addresses
+                            # misuse end_addresses_to_nodes
+                            end_addresses_to_nodes[(node.addr + node.size, callstack_key)].add(node)
+                            end_addresses_to_nodes[(node.addr + node.size, callstack_key)].add(next_node)
+
+                            del smallest_nodes[(node.addr + node.size, callstack_key)]
+                            del smallest_nodes[(next_node.addr + next_node.size, callstack_key)]
 
         self._normalized = True
+
+    def _normalize_core(self, graph, callstack_key, smallest_node, other_nodes, smallest_nodes, end_addresses_to_nodes):
+
+        # Break other nodes
+        for n in other_nodes:
+            new_size = smallest_node.addr - n.addr
+            if new_size == 0:
+                # This node has the same size as the smallest one. Don't touch it.
+                continue
+
+            new_end_addr = n.addr + new_size
+
+            # Does it already exist?
+            new_node = None
+            key = (new_end_addr, n.callstack_key)
+            # the logic below is a little convoluted. we check if key exists in either end_address_to_nodes or
+            # smallest_nodes, since we don't always add the new node back to end_addresses_to_nodes dict - we only do so
+            # when there are more than one node with that key.
+            if key in end_addresses_to_nodes:
+                new_node = next((i for i in end_addresses_to_nodes[key] if i.addr == n.addr), None)
+            if new_node is None:
+                if key in smallest_nodes and smallest_nodes[key].addr == n.addr:
+                    new_node = smallest_nodes[key]
+
+            if new_node is None:
+                # Create a new one
+                new_node = CFGNode(n.addr, new_size, self, callstack_key=callstack_key,
+                                   function_address=n.function_address, simrun_key=n.simrun_key,
+                                   instruction_addrs=[i for i in n.instruction_addrs
+                                                      if n.addr <= i <= n.addr + new_size
+                                                      ]
+                                   )
+
+                # Copy instruction addresses
+                new_node.instruction_addrs = [ins_addr for ins_addr in n.instruction_addrs
+                                              if ins_addr < n.addr + new_size]
+                # Put the new node into end_addresses list
+                if key in smallest_nodes:
+                    end_addresses_to_nodes[key].add(smallest_nodes[key])
+                    end_addresses_to_nodes[key].add(new_node)
+                else:
+                    smallest_nodes[key] = new_node
+
+            # Modify the CFG
+            original_predecessors = list(graph.in_edges_iter([n], data=True))
+            original_successors = list(graph.out_edges_iter([n], data=True))
+
+            for _, d, data in original_successors:
+                if d not in graph[smallest_node]:
+                    if d is n:
+                        graph.add_edge(smallest_node, new_node, **data)
+                    else:
+                        graph.add_edge(smallest_node, d, **data)
+
+            for p, _, _ in original_predecessors:
+                graph.remove_edge(p, n)
+            graph.remove_node(n)
+
+            # Update nodes dict
+            self._nodes[n.simrun_key] = new_node
+            if n in self._nodes_by_addr[n.addr]:
+                self._nodes_by_addr[n.addr] = filter(lambda x: x is not n, self._nodes_by_addr[n.addr])
+                self._nodes_by_addr[n.addr].append(new_node)
+
+            for p, _, data in original_predecessors:
+                # Consider the following case: two basic blocks ending at the same position, where A is larger, and
+                # B is smaller. Suppose there is an edge going from the end of A to A itself, and apparently there
+                # is another edge from B to A as well. After splitting A into A' and B, we DO NOT want to add A back
+                # in, otherwise there will be an edge from A to A`, while A should totally be got rid of in the new
+                # graph.
+                if p not in other_nodes:
+                    graph.add_edge(p, new_node, data)
+
+            # We should find the correct successor
+            new_successors = [i for i in [smallest_node] + other_nodes
+                              if i.addr == smallest_node.addr]
+            if new_successors:
+                new_successor = new_successors[0]
+                graph.add_edge(new_node, new_successor, jumpkind='Ijk_Boring')
+            else:
+                # We gotta create a new one
+                l.error('normalize(): Please report it to Fish.')
 
     #
     # Function identification and such
