@@ -646,6 +646,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._function_addresses_from_symbols = self._func_addrs_from_symbols()
 
         self._function_prologue_addrs = None
+        self._remaining_function_prologue_addrs = None
 
         #
         # Variables used during analysis
@@ -877,6 +878,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self._function_prologue_addrs = sorted(
                 set([addr + rebase_addr for addr in self._func_addrs_from_prologues()])
             )
+            # make a copy of those prologue addresses, so that we can pop from the list
+            self._remaining_function_prologue_addrs = self._function_prologue_addrs[::]
 
     def _pre_entry_handling(self, entry):
 
@@ -966,10 +969,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             del self._pending_entries[0]
             return
 
-        if self._use_function_prologues and self._function_prologue_addrs:
-            while self._function_prologue_addrs:
-                prolog_addr = self._function_prologue_addrs[0]
-                self._function_prologue_addrs = self._function_prologue_addrs[1:]
+        if self._use_function_prologues and self._remaining_function_prologue_addrs:
+            while self._remaining_function_prologue_addrs:
+                prolog_addr = self._remaining_function_prologue_addrs[0]
+                self._remaining_function_prologue_addrs = self._remaining_function_prologue_addrs[1:]
                 if self._seg_list.is_occupied(prolog_addr):
                     continue
 
@@ -1080,6 +1083,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         Get all possible function addresses that are specified by the symbols in the binary
 
         :return: A set of addresses that are probably functions
+        :rtype: set
         """
 
         symbols_by_addr = self._binary.symbols_by_addr
@@ -2373,7 +2377,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     block = self.project.factory.fresh_block(a.addr, b.addr - a.addr)
                 except AngrTranslationError:
                     continue
-                if len(block.capstone.insns) == 1 and block.capstone.insns[0].insn_name() == "nop":
+                if all([ insn.insn_name() == 'nop' for insn in block.capstone.insns ]):
                     # It's a big nop - no function starts with nop
 
                     # add b to indices
@@ -2413,8 +2417,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                         continue
 
-                # next case - we might be totally misdecoding b
-                if b.instruction_addrs[0] not in a.instruction_addrs:
+                # next case - if b is from function prologue detection, we might be totally misdecoding b
+                if b.addr in self._function_prologue_addrs and \
+                    b.addr not in self._function_addresses_from_symbols and \
+                        b.instruction_addrs[0] not in a.instruction_addrs:
                     # use a, forget about b
                     if b.addr in self._nodes:
                         del self._nodes[b.addr]
@@ -2430,8 +2436,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                     continue
 
-                # alright, for other cases, we just shrink a to make room for b
-                self._shrink_node(a, b.addr - a.addr)
+                # for other cases, we'll let them be for now
 
     def _remove_node(self, node):
         """
@@ -2986,7 +2991,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         n._seg_list = self._seg_list.copy()
 
-        n._function_addresses_from_symbols = self._function_addresses_from_symbols
+        n._function_addresses_from_symbols = self._function_addresses_from_symbols.copy()
 
         n._graph = self._graph
 
