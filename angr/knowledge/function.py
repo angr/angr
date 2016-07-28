@@ -96,6 +96,7 @@ class Function(object):
         self._block_sizes = {}  # map addresses to block sizes
         self._block_cache = {}  # a cache of real, hard data Block objects
         self._local_blocks = set() # a set of all blocks inside the function
+        self._local_block_addrs = set() # a set of addresses of all blocks inside the function
 
         self.info = { }  # storing special information, like $gp values for MIPS32
 
@@ -123,6 +124,17 @@ class Function(object):
 
         for block in self._local_blocks:
             yield block.addr
+
+    @property
+    def block_addrs_set(self):
+        """
+        Return a set of block addresses for a better performance of inclusion tests.
+
+        :return: A set of block addresses.
+        :rtype: set
+        """
+
+        return self._local_block_addrs
 
     def _get_block(self, addr):
         if addr in self._block_cache:
@@ -486,6 +498,7 @@ class Function(object):
                     self.startpoint = node
             if is_local:
                 self._local_blocks.add(node)
+                self._local_block_addrs.add(node.addr)
             # add BlockNodes to the addr_to_block_node cache if not already there
             if isinstance(node, BlockNode):
                 if node.addr not in self._addr_to_block_node:
@@ -794,7 +807,9 @@ class Function(object):
 
                 if n in self._local_blocks:
                     self._local_blocks.remove(n)
+                    self._local_block_addrs.remove(n.addr)
                     self._local_blocks.add(new_node)
+                    self._local_block_addrs.add(n.addr)
 
                 for p, _, data in original_predecessors:
                     if p not in other_nodes:
