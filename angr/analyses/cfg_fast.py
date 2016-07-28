@@ -20,6 +20,7 @@ from .cfg_node import CFGNode
 from .cfg_base import CFGBase, IndirectJump
 from .forward_analysis import ForwardAnalysis
 from .cfg_arch_options import CFGArchOptions
+from ..lifter import VEX_IRSB_MAX_SIZE
 
 l = logging.getLogger("angr.analyses.cfg_fast")
 
@@ -2951,6 +2952,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             # the section is not executable...
                             return None, None, None, None
                         distance = obj.rebase_addr + section.vaddr + section.memsize - addr
+                        distance = min(distance, VEX_IRSB_MAX_SIZE)
                     # TODO: handle segment information as well
 
                 # Let's try to create the pyvex IRSB directly, since it's much faster
