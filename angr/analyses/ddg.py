@@ -21,9 +21,10 @@ class ProgramVariable(object):
     :ivar SimVariable variable: The variable.
     :ivar CodeLocation location: Location of the variable.
     """
-    def __init__(self, variable, location):
+    def __init__(self, variable, location, initial=False):
         self.variable = variable
         self.location = location
+        self.initial = initial
 
     def __hash__(self):
         return hash((self.variable, self.location))
@@ -446,7 +447,9 @@ class DDG(Analysis):
                             pvs.append(ProgramVariable(variable, prev_code_loc))
 
                         if not pvs:
-                            pvs.append(ProgramVariable(variable, current_code_location))
+                            pvs.append(ProgramVariable(variable, current_code_location, initial=True))
+                            # make sure to put it into the killing set
+                            self._kill(live_defs, variable, current_code_location)
 
                         for pv in pvs:
                             pv_read.append(pv)
@@ -506,7 +509,9 @@ class DDG(Analysis):
 
                     if not prevdefs:
                         # the register was never defined before - it must be passed in as an argument
-                        pv_read.append(ProgramVariable(variable, current_code_location))
+                        pv_read.append(ProgramVariable(variable, current_code_location, initial=True))
+                        # make sure to put it into the killing set
+                        self._kill(live_defs, variable, current_code_location)
 
                     if reg_offset == self.project.arch.sp_offset:
                         data_generated = ('sp', 0)
