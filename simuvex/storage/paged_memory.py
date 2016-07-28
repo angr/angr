@@ -385,10 +385,7 @@ class SimPagedMemory(object):
 
         for i, p in self._pages.iteritems():
             if i * self._page_size <= addr < (i + 1) * self._page_size:
-                if addr - (i * self._page_size) in p.keys():
-                    return True
-                else:
-                    return False
+                return addr - (i * self._page_size) in p.keys()
         return False
 
     def keys(self):
