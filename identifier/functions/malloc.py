@@ -80,8 +80,12 @@ class malloc(Func):
         test = TestData(test_input, test_output, return_val, max_steps)
         returned_locs = []
         state = runner.get_out_state(func, test, initial_state=state, concrete_rand=True)
+
+        if state is None:
+            return False
+
         res = state.se.any_int(state.regs.eax)
-        if state is None or res < 0x10 or res > 0xfffffff0:
+        if res < 0x10 or res > 0xfffffff0:
             return False
 
         # we should get different values if we try with a different size
