@@ -1949,6 +1949,38 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype: tuple
         """
 
+        bss_regions = [ ]
+
+        def bss_memory_read_hook(state):
+            if not bss_regions:
+                return
+
+            read_addr = state.inspect.mem_read_address
+            read_length = state.inspect.mem_read_length
+
+            if not isinstance(read_addr, (int, long)) and read_addr.symbolic:
+                # don't touch it
+                return
+
+            concrete_read_addr = state.se.any_int(read_addr)
+            concrete_read_length = state.se.any_int(read_length)
+
+            for start, size in bss_regions:
+                if start <= concrete_read_addr < start + size:
+                    # this is a read from the .bss section
+                    break
+            else:
+                return
+
+            if not state.memory.was_written_to(concrete_read_addr):
+                # it was never written to before. we overwrite it with unconstrained bytes
+                bits = self.project.arch.bits
+                for i in xrange(0, concrete_read_length, bits / 8):
+                    state.memory.store(concrete_read_addr + i, state.se.Unconstrained('unconstrained', bits))
+
+            # job done :-)
+
+
         if jumpkind != "Ijk_Boring":
             # Currently we only support boring ones
             return False, None
@@ -2028,10 +2060,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # TODO: this is very hackish. fix it after the chaos.
             for section in self.project.loader.main_bin.sections:
                 if section.name == '.bss':
-                    section_start = self.project.loader.main_bin.rebase_addr + section.vaddr
-                    bits = self.project.arch.bits
-                    for i in xrange(0, section.memsize, bits / 8):
-                        start_state.memory.store(section_start + i, start_state.se.Unconstrained('unconstrained', bits))
+                    bss_regions.append((self.project.loader.main_bin.rebase_addr + section.vaddr, section.memsize))
+                    bss_memory_read_bp = simuvex.BP(when=simuvex.BP_BEFORE, enabled=True, action=bss_memory_read_hook)
+                    start_state.inspect.add_breakpoint('mem_read', bss_memory_read_bp)
+                    break
 
             start_state.regs.bp = start_state.arch.initial_sp + 0x2000
 

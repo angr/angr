@@ -1138,7 +1138,7 @@ class CFGBase(Analysis):
             # the functions to merge with must be locating between the unresolved basic block address and the endpoint
             # of the current function
             max_unresolved_jump_addr = 0
-            for block_addr in function.block_addrs:
+            for block_addr in function.block_addrs_set:
                 if block_addr in self.indirect_jumps and \
                         self.indirect_jumps[block_addr].jumpkind == 'Ijk_Boring' and \
                         not self.indirect_jumps[block_addr].resolved_targets:
@@ -1339,7 +1339,7 @@ class CFGBase(Analysis):
         src_addr = src.addr
         src_function = self._addr_to_function(src_addr, blockaddr_to_function, known_functions)
 
-        if src_addr not in src_function.block_addrs:
+        if src_addr not in src_function.block_addrs_set:
             n = self.get_any_node(src_addr)
             if n is None: node = src_addr
             else: node = self._to_snippet(n)
