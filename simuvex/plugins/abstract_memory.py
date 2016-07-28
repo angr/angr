@@ -157,6 +157,9 @@ class MemoryRegion(object):
     def __contains__(self, addr):
         return addr in self.memory
 
+    def was_written_to(self, addr):
+        return self.memory.was_written_to(addr)
+
     def dbg_print(self, indent=0):
         """
         Print out debugging information
@@ -607,6 +610,20 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             address_wrapper = self._normalize_address(region, addr.min)
 
             return address_wrapper.address in self.regions[address_wrapper.region]
+
+        return False
+
+    def was_written_to(self, dst):
+
+        if type(dst) in (int, long):
+            dst = self.state.se.BVV(dst, self.state.arch.bits)
+
+        addrs = self._normalize_address_type(dst)
+
+        for region, addr in addrs:
+            address_wrapper = self._normalize_address(region, addr.min)
+
+            return self.regions[address_wrapper.region].was_written_to(address_wrapper.address)
 
         return False
 

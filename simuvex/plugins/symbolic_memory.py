@@ -612,6 +612,16 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             addr = self.state.se.any_int(dst)
         return addr in self.mem
 
+    def was_written_to(self, dst):
+        if isinstance(dst, (int, long)):
+            addr = dst
+        elif self.state.se.symbolic(dst):
+            l.warning("Currently unable to do SimMemory.was_written_to on symbolic variables.")
+            return False
+        else:
+            addr = self.state.se.any_int(dst)
+        return self.mem.contains_no_backer(addr)
+
     #
     # Writes
     #
