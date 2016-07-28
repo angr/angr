@@ -374,6 +374,23 @@ class SimPagedMemory(object):
         except KeyError:
             return False
 
+    def contains_no_backer(self, addr):
+        """
+        Tests if the address is contained in any page of paged memory, without considering memory backers.
+
+        :param int addr: The address to test.
+        :return: True if the address is included in one of the pages, False otherwise.
+        :rtype: bool
+        """
+
+        for i, p in self._pages.iteritems():
+            if i * self._page_size <= addr < (i + 1) * self._page_size:
+                if addr - (i * self._page_size) in p.keys():
+                    return True
+                else:
+                    return False
+        return False
+
     def keys(self):
         sofar = set()
         sofar.update(self._memory_backer.keys())
