@@ -2525,7 +2525,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Generate the new node
         new_node = CFGNode(node.addr, new_size, self,
-                           function_address=node.function_address,
+                           function_address=None if remove_function else node.function_address,
                            instruction_addrs=[i for i in node.instruction_addrs
                                               if node.addr <= i < node.addr + new_size
                                               ]

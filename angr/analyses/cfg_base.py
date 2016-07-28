@@ -1061,9 +1061,10 @@ class CFGBase(Analysis):
                 secondary_function_nodes.add(node)
 
         missing_cfg_nodes = set(self.graph.nodes()) - traversed_cfg_nodes
+        missing_cfg_nodes = { node for node in missing_cfg_nodes if node.function_address is not None }
         if missing_cfg_nodes:
             l.debug('%d CFGNodes are missing in the first traversal.', len(missing_cfg_nodes))
-            secondary_function_nodes |= missing_cfg_nodes
+            secondary_function_nodes |=  missing_cfg_nodes
 
         min_stage_3_progress = 90.0
         max_stage_3_progress = 99.9
