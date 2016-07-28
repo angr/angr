@@ -2467,10 +2467,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if b.addr in self._function_prologue_addrs and \
                     b.addr not in self._function_addresses_from_symbols and \
                         b.instruction_addrs[0] not in a.instruction_addrs:
-                    # use a, forget about b
+                    # use a, truncate b
+
+                    new_b_addr = a.addr + a.size  # b starts right after a terminates
+                    new_b_size = b.addr + b.size - new_b_addr  # this may not be the size we want, since b might be
+                                                               # misdecoded
+
+                    # totally remove b
                     if b.addr in self._nodes:
                         del self._nodes[b.addr]
-                    if b.addr in self._nodes_by_addr and b in self._nodes_by_addr:
+                    if b.addr in self._nodes_by_addr and b in self._nodes_by_addr[b.addr]:
                         self._nodes_by_addr[b.addr].remove(b)
 
                     self.graph.remove_node(b)
@@ -2479,6 +2485,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         del all_functions[b.addr]
 
                     removed_nodes.add(b)
+
+                    if new_b_size > 0:
+                        # there are still some parts left in node b - we don't want to lose it
+                        self._scan_block(new_b_addr, a.function_address, None, None, None)
 
                     continue
 
