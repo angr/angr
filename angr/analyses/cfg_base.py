@@ -1010,6 +1010,7 @@ class CFGBase(Analysis):
         self.kb.functions.clear()
 
         blockaddr_to_function = { }
+        traversed_cfg_nodes = set()
 
         function_nodes = set()
 
@@ -1044,7 +1045,7 @@ class CFGBase(Analysis):
                 self._update_progress(progress)
 
             self._graph_bfs_custom(self.graph, [ fn ], self._graph_traversal_handler, blockaddr_to_function,
-                                   tmp_functions
+                                   tmp_functions, traversed_cfg_nodes
                                    )
 
         # Don't forget those small function chunks that are not called by anything.
@@ -1058,6 +1059,11 @@ class CFGBase(Analysis):
                 continue
             if node.addr not in blockaddr_to_function:
                 secondary_function_nodes.add(node)
+
+        missing_cfg_nodes = set(self.graph.nodes()) - traversed_cfg_nodes
+        if missing_cfg_nodes:
+            l.debug('%d CFGNodes are missing in the first traversal.', len(missing_cfg_nodes))
+            secondary_function_nodes |= missing_cfg_nodes
 
         min_stage_3_progress = 90.0
         max_stage_3_progress = 99.9
@@ -1281,7 +1287,7 @@ class CFGBase(Analysis):
 
         return f
 
-    def _graph_bfs_custom(self, g, starts, callback, blockaddr_to_function, known_functions):
+    def _graph_bfs_custom(self, g, starts, callback, blockaddr_to_function, known_functions, traversed_cfg_nodes=None):
         """
         A customized control flow graph BFS implementation with the following rules:
         - Call edges are not followed.
@@ -1292,6 +1298,7 @@ class CFGBase(Analysis):
         :param func callback: Callback function for each edge and node.
         :param dict blockaddr_to_function: A mapping between block addresses to Function instances.
         :param angr.knowledge.FunctionManager known_functions: Already recovered functions.
+        :param set traversed_cfg_nodes: A set of CFGNodes that are traversed before.
         :return: None
         """
 
@@ -1322,6 +1329,9 @@ class CFGBase(Analysis):
                     if not (jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys')):
                         # Only follow none call edges
                         stack.extend([m for m in g.successors(n) if m not in traversed])
+
+        if traversed_cfg_nodes is not None:
+            traversed_cfg_nodes |= traversed
 
     def _graph_traversal_handler(self, src, dst, data, blockaddr_to_function, known_functions):
         """
