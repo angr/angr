@@ -125,19 +125,23 @@ class LiveDefinitions(object):
                 return new_defs_added
 
             size = min(variable.size / 8, size_threshold)
-            for offset in xrange(variable.reg, variable.reg + size):
+            offset = variable.reg
+            while offset < variable.reg + size:
                 if location not in self._register_map[offset]:
                     new_defs_added = True
                 self._register_map[offset].add(location)
+                offset += 1
 
             self._defs[variable].add(location)
 
         elif isinstance(variable, SimMemoryVariable):
             size = min(variable.size / 8, size_threshold)
-            for offset in xrange(variable.addr, variable.addr + size):
+            offset = variable.addr
+            while offset < variable.addr + size:
                 if location not in self._memory_map[offset]:
                     new_defs_added = True
                 self._memory_map[offset].add(location)
+                offset += 1
 
             self._defs[variable].add(location)
 
@@ -180,15 +184,19 @@ class LiveDefinitions(object):
                 return None
 
             size = min(variable.size / 8, size_threshold)
-            for offset in xrange(variable.reg, variable.reg + size):
+            offset = variable.reg
+            while offset < variable.reg + size:
                 self._register_map[offset] = { location }
+                offset += 1
 
             self._defs[variable] = { location }
 
         elif isinstance(variable, SimMemoryVariable):
             size = min(variable.size / 8, size_threshold)
-            for offset in xrange(variable.addr, variable.addr + size):
+            offset = variable.addr
+            while offset < variable.addr + size:
                 self._memory_map[offset] = { location }
+                offset += 1
 
             self._defs[variable] = { location }
 
@@ -215,16 +223,19 @@ class LiveDefinitions(object):
                 return live_def_locs
 
             size = min(variable.size / 8, size_threshold)
-            for offset in xrange(variable.reg, variable.reg + size):
-                # it's probably OK to use xrange here since most people are running angr on 64-bit machines...
+            offset = variable.reg
+            while offset < variable.reg + size:
                 if offset in self._register_map:
                     live_def_locs |= self._register_map[offset]
+                offset += 1
 
         elif isinstance(variable, SimMemoryVariable):
             size = min(variable.size / 8, size_threshold)
-            for offset in xrange(variable.addr, variable.addr + size):
+            offset = variable.addr
+            while offset < variable.addr + size:
                 if offset in self._memory_map:
                     live_def_locs |= self._memory_map[offset]
+                offset += 1
 
         else:
             # umm unsupported variable type
@@ -829,12 +840,13 @@ class DDG(Analysis):
 
         return live_defs
 
-    def _def_lookup(self, live_defs, variable):
+    def _def_lookup(self, live_defs, variable):  # pylint:disable=no-self-use
         """
         This is a backward lookup in the previous defs. Note that, as we are using VSA, it is possible that `variable`
         is affected by several definitions.
 
-        :param addr_list:   A list of normalized addresses.
+        :param LiveDefinitions live_defs: The collection of live definitions.
+        :param SimVariable: The variable to lookup for definitions.
         :returns:           A dict {stmt:labels} where label is the number of individual addresses of `addr_list` (or
                             the actual set of addresses depending on the keep_addrs flag) that are definted by stmt.
         """
