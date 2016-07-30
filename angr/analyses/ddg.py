@@ -670,7 +670,7 @@ class DDG(Analysis):
                             self._stmt_graph_annotate_edges(regs_to_edges[reg_offset], subtype='mem_addr')
                             reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
                             prev_defs = self._def_lookup(live_defs, reg_variable)
-                            for loc, _ in prev_defs:
+                            for loc, _ in prev_defs.iteritems():
                                 v = ProgramVariable(reg_variable, loc)
                                 self._data_graph_add_edge(v, pv, type='mem_addr')
 
@@ -683,7 +683,7 @@ class DDG(Analysis):
                             self._stmt_graph_annotate_edges(regs_to_edges[reg_offset], subtype='mem_data')
                             reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
                             prev_defs = self._def_lookup(live_defs, reg_variable)
-                            for loc, _ in prev_defs:
+                            for loc, _ in prev_defs.iteritems():
                                 v = ProgramVariable(reg_variable, loc)
                                 self._data_graph_add_edge(v, pv, type='mem_data')
 
