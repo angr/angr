@@ -9,7 +9,6 @@ import resource
 import tempfile
 import subprocess
 import contextlib
-import shellphish_afl
 import shellphish_qemu
 
 from .tracerpov import TracerPoV
@@ -18,6 +17,13 @@ from .tinycore import TinyCore
 
 l = logging.getLogger("tracer.Runner")
 
+multicb_available = True
+
+try:
+    import shellphish_afl
+except ImportError:
+    l.warning("Unable to import shellphish_afl, multicb tracing will be disabled")
+    multicb_available = False
 
 class Runner(object):
     """
@@ -39,8 +45,11 @@ class Runner(object):
             self.is_multicb = False
             self.binaries = [binary]
         elif isinstance(binary, (list, tuple)):
+            if not multicb_available:
+                raise ValueError("Multicb tracing is disabled")
             self.is_multicb = True
             self.binaries = binary
+
         else:
             raise ValueError("Expected list or string for binary, got {} instead".format(type(binary)))
 
