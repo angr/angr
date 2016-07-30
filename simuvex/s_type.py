@@ -452,9 +452,9 @@ class SimTypeString(SimTypeArray):
         else:
             out = state.memory.load(addr, self.length)
         if not concrete:
-            return out
+            return out if out is not None else claripy.BVV(0, 0)
         else:
-            return state.se.any_str(out)
+            return state.se.any_str(out) if out is not None else ''
 
     _can_refine_int = True
 
