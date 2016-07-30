@@ -49,6 +49,210 @@ class DDGJob(object):
         return "<DDGJob %s, call_depth %d>" % (self.cfg_node, self.call_depth)
 
 
+class LiveDefinitions(object):
+    """
+    A collection of live definitions with some handy interfaces for definition killing and lookups.
+    """
+    def __init__(self):
+        """
+        Constructor.
+        """
+
+        # byte-to-byte mappings
+        # TODO: make it copy-on-write in order to save memory.
+        # TODO: options are either cooldict.COWDict or a modified version of simuvex.SimPagedMemory
+        self._memory_map = defaultdict(set)
+        self._register_map = defaultdict(set)
+        self._defs = defaultdict(set)
+
+    #
+    # Overridend methods
+    #
+
+    def __contains__(self, variable):
+        return variable in self._defs
+
+    #
+    # Public methods
+    #
+
+    def branch(self):
+        """
+        Create a branch of the current live definition collection.
+
+        :return: A new LiveDefinition instance.
+        :rtype: LiveDefinitions
+        """
+
+        ld = LiveDefinitions()
+        ld._memory_map = self._memory_map.copy()
+        ld._register_map = self._register_map.copy()
+        ld._defs = self._defs.copy()
+
+        return ld
+
+    def copy(self):
+        """
+        Make a hard copy of `self`.
+
+        :return: A new LiveDefinition instance.
+        :rtype: LiveDefinitions
+        """
+
+        ld = LiveDefinitions()
+        ld._memory_map = self._memory_map.copy()
+        ld._register_map = self._register_map.copy()
+        ld._defs = self._defs.copy()
+
+        return ld
+
+    def add_def(self, variable, location, size_threshold=32):
+        """
+        Add a new definition of variable.
+
+        :param SimVariable variable: The variable being defined.
+        :param CodeLocation location: Location of the varaible being defined.
+        :param int size_threshold: The maximum bytes to consider for the variable.
+        :return: True if the definition was new, False otherwise
+        :rtype: bool
+        """
+
+        new_defs_added = False
+
+        if isinstance(variable, SimRegisterVariable):
+            if variable.reg is None:
+                l.warning('add_def: Got a None for a SimRegisterVariable. Consider fixing.')
+                return new_defs_added
+
+            size = min(variable.size / 8, size_threshold)
+            for offset in xrange(variable.reg, variable.reg + size):
+                if location not in self._register_map[offset]:
+                    new_defs_added = True
+                self._register_map[offset].add(location)
+
+            self._defs[variable].add(location)
+
+        elif isinstance(variable, SimMemoryVariable):
+            size = min(variable.size / 8, size_threshold)
+            for offset in xrange(variable.addr, variable.addr + size):
+                if location not in self._memory_map[offset]:
+                    new_defs_added = True
+                self._memory_map[offset].add(location)
+
+            self._defs[variable].add(location)
+
+        else:
+            l.error('Unsupported variable type "%s".', type(variable))
+
+        return new_defs_added
+
+    def add_defs(self, variable, locations, size_threshold=32):
+        """
+        Add a collection of new definitions of a variable.
+
+        :param SimVariable variable: The variable being defined.
+        :param iterable locations: A collection of locations where the variable was defined.
+        :param int size_threshold: The maximum bytes to consider for the variable.
+        :return: True if any of the definition was new, False otherwise
+        :rtype: bool
+        """
+
+        new_defs_added = False
+
+        for loc in locations:
+            new_defs_added |= self.add_def(variable, loc, size_threshold=size_threshold)
+
+        return new_defs_added
+
+    def kill_def(self, variable, location, size_threshold=32):
+        """
+        Add a new definition for variable and kill all previous definitions.
+
+        :param SimVariable variable: The variable to kill.
+        :param CodeLocation location: The location where this variable is defined.
+        :param int size_threshold: The maximum bytes to consider for the variable.
+        :return: None
+        """
+
+        if isinstance(variable, SimRegisterVariable):
+            if variable.reg is None:
+                l.warning('kill_def: Got a None for a SimRegisterVariable. Consider fixing.')
+                return None
+
+            size = min(variable.size / 8, size_threshold)
+            for offset in xrange(variable.reg, variable.reg + size):
+                self._register_map[offset] = { location }
+
+            self._defs[variable] = { location }
+
+        elif isinstance(variable, SimMemoryVariable):
+            size = min(variable.size / 8, size_threshold)
+            for offset in xrange(variable.addr, variable.addr + size):
+                self._memory_map[offset] = { location }
+
+            self._defs[variable] = { location }
+
+        else:
+            l.error('Unsupported variable type "%s".', type(variable))
+
+    def lookup_defs(self, variable, size_threshold=32):
+        """
+        Find all definitions of the varaible
+
+        :param SimVariable variable: The variable to lookup for.
+        :param int size_threshold: The maximum bytes to consider for the variable. For example, if the variable is 100
+                                   byte long, only the first `size_threshold` bytes are considered.
+        :return: A set of code locations where the variable is defined.
+        :rtype: set
+        """
+
+        live_def_locs = set()
+
+        if isinstance(variable, SimRegisterVariable):
+
+            if variable.reg is None:
+                l.warning('lookup_defs: Got a None for a SimRegisterVariable. Consider fixing.')
+                return live_def_locs
+
+            size = min(variable.size / 8, size_threshold)
+            for offset in xrange(variable.reg, variable.reg + size):
+                # it's probably OK to use xrange here since most people are running angr on 64-bit machines...
+                if offset in self._register_map:
+                    live_def_locs |= self._register_map[offset]
+
+        elif isinstance(variable, SimMemoryVariable):
+            size = min(variable.size / 8, size_threshold)
+            for offset in xrange(variable.addr, variable.addr + size):
+                if offset in self._memory_map:
+                    live_def_locs |= self._memory_map[offset]
+
+        else:
+            # umm unsupported variable type
+            l.error('Unsupported variable type "%s".', type(variable))
+
+        return live_def_locs
+
+    def iteritems(self):
+        """
+        An iterator that returns all live definitions.
+
+        :return: The iterator.
+        :rtype: iter
+        """
+
+        return self._defs.iteritems()
+
+    def itervariables(self):
+        """
+        An iterator that returns all live variables.
+
+        :return: The iterator.
+        :rtype: iter
+        """
+
+        return self._defs.iterkeys()
+
+
 class DDG(Analysis):
     """
     This is a fast data dependence graph directly generated from our CFG analysis result. The only reason for its
@@ -61,7 +265,7 @@ class DDG(Analysis):
     Also note that since we are using states from CFG, any improvement in analysis performed on CFG (like a points-to
     analysis) will directly benefit the DDG.
     """
-    def __init__(self, cfg, start=None, keep_data=False, call_depth=None):
+    def __init__(self, cfg, start=None, call_depth=None):
         """
         :param cfg:         Control flow graph. Please make sure each node has an associated `state` with it. You may
                             want to generate your CFG with `keep_state=True`.
@@ -83,8 +287,6 @@ class DDG(Analysis):
         self._simplified_data_graph = None
 
         self._symbolic_mem_ops = set()
-
-        self.keep_data = keep_data
 
         # Data dependency graph per function
         self._function_data_dependencies = None
@@ -269,7 +471,7 @@ class DDG(Analysis):
                 self._worklist_append(job, worklist, worklist_set)
 
         # A dict storing defs set
-        # variable -> locations
+        # DDGJob -> LiveDefinition
         live_defs_per_node = {}
 
         while worklist:
@@ -286,7 +488,7 @@ class DDG(Analysis):
             if node in live_defs_per_node:
                 live_defs = live_defs_per_node[node]
             else:
-                live_defs = {}
+                live_defs = LiveDefinitions()
                 live_defs_per_node[node] = live_defs
 
             successing_nodes = self._cfg.graph.successors(node)
@@ -320,7 +522,7 @@ class DDG(Analysis):
                             (state.ip.symbolic or successing_node.addr != state.se.any_int(state.ip)):
                         # this might be the block after the call, and we are not tracing into the call
                         # TODO: make definition killing architecture independent and calling convention independent
-                        filtered_defs = {}
+                        filtered_defs = LiveDefinitions()
                         for variable, locs in new_defs.iteritems():
                             if isinstance(variable, SimRegisterVariable):
                                 if variable.reg in (self.project.arch.registers['eax'][0],
@@ -328,28 +530,19 @@ class DDG(Analysis):
                                                     self.project.arch.registers['edx'][0]):
                                     continue
 
-                            filtered_defs[variable] = locs
+                            filtered_defs.add_defs(variable, locs)
 
                         new_defs = filtered_defs
 
                     if successing_node in live_defs_per_node:
                         defs_for_next_node = live_defs_per_node[successing_node]
                     else:
-                        defs_for_next_node = {}
+                        defs_for_next_node = LiveDefinitions()
                         live_defs_per_node[successing_node] = defs_for_next_node
 
                     for var, code_loc_set in new_defs.iteritems():
-                        if var not in defs_for_next_node:
-                            l.debug('%s New var %s', state.ip, var)
-                            defs_for_next_node[var] = code_loc_set
-                            changed = True
-
-                        else:
-                            for code_loc in code_loc_set:
-                                if code_loc not in defs_for_next_node[var]:
-                                    l.debug('%s New code location %s', state.ip, code_loc)
-                                    defs_for_next_node[var].add(code_loc)
-                                    changed = True
+                        l.debug("Adding %d new defitions for variable %s.", len(code_loc_set), var)
+                        changed |= defs_for_next_node.add_defs(var, code_loc_set)
 
                 if changed:
                     if (self._call_depth is None) or \
@@ -648,34 +841,20 @@ class DDG(Analysis):
 
         prevdefs = {}
 
-        if variable in live_defs:
-            code_loc_set = live_defs[variable]
-            for code_loc in code_loc_set:
-                # Label edges with cardinality or actual sets of addresses
-                if isinstance(variable, SimMemoryVariable):
-                    type_ = 'mem'
-                elif isinstance(variable, SimRegisterVariable):
-                    type_ = 'reg'
-                else:
-                    raise AngrDDGError('Unknown variable type %s' % type(variable))
+        for code_loc in live_defs.lookup_defs(variable):
+            # Label edges with cardinality or actual sets of addresses
+            if isinstance(variable, SimMemoryVariable):
+                type_ = 'mem'
+            elif isinstance(variable, SimRegisterVariable):
+                type_ = 'reg'
+            else:
+                raise AngrDDGError('Unknown variable type %s' % type(variable))
 
-                if self.keep_data is True:
-                    data = variable
+            prevdefs[code_loc] = {
+                'type': type_,
+                'data': variable
+            }
 
-                    prevdefs[code_loc] = {
-                        'type': type_,
-                        'data': data
-                    }
-
-                else:
-                    if code_loc in prevdefs:
-                        count = prevdefs[code_loc]['count'] + 1
-                    else:
-                        count = 0
-                    prevdefs[code_loc] = {
-                        'type': type_,
-                        'count': count
-                    }
         return prevdefs
 
     def _kill(self, live_defs, variable, code_loc):  # pylint:disable=no-self-use
@@ -688,13 +867,13 @@ class DDG(Analysis):
         # Case 3: a is a superset of the original address
 
         # the previous definition is killed. mark it in data graph.
+
         if variable in live_defs:
-            for loc in live_defs[variable]:
+            for loc in live_defs.lookup_defs(variable):
                 pv = ProgramVariable(variable, loc)
                 self._data_graph_add_edge(pv, ProgramVariable(variable, code_loc), type='kill')
 
-        live_defs[variable] = {code_loc}
-        #l.debug("XX CodeLoc %s kills variable %s", code_loc, variable)
+        live_defs.kill_def(variable, code_loc)
 
     def _get_register_size(self, reg_offset):
         """
