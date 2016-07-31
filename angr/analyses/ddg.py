@@ -823,7 +823,7 @@ class DDG(Analysis):
                             offset -= expr_1.ast.args[0]
                             data_generated = (sort, offset)
 
-                elif a.op.endswith('Add32') or a.op.endwith('Add64'):
+                elif a.op.endswith('Add32') or a.op.endswith('Add64'):
                     # add
                     expr_0, expr_1 = a.exprs
 
