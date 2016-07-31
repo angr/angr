@@ -444,7 +444,7 @@ class Identifier(object):
         else:
             l.debug("finding stack vars %#x", func.addr)
 
-        if len(list(func.blocks)) > 500:
+        if len(func.graph.nodes()) > 500:
             raise IdentifierException("too many blocks")
 
         # could also figure out if args are buffers etc
@@ -583,7 +583,7 @@ class Identifier(object):
             bp_sp_diff = main_state.se.any_int(main_state.regs.bp - main_state.regs.sp)
 
         all_addrs = set()
-        for bl in func.blocks:
+        for bl in func.graph.nodes():
             all_addrs.update(set(self.project.factory.block(bl.addr).instruction_addrs))
 
         sp = main_state.se.BVS("sym_sp", self.project.arch.bits, explicit_name=True)
@@ -617,17 +617,18 @@ class Identifier(object):
                     if "sym_sp" in a.addr.ast.variables or (bp_based and "sym_bp" in a.addr.ast.variables):
                         possible_stack_vars.append((addr, a.addr.ast, a.action))
                 if a.type == "reg" and a.action == "write":
+                    # stack variables can also be if a stack addr is loaded into a register, eg lea
                     reg_name = self.get_reg_name(self.project.arch, a.offset)
-                    if reg_name in self._reg_list:
-                        written_regs.add(reg_name)
-
-            # stack variables can also be if a stack addr is loaded into a register, eg lea
-            for r in written_regs:
-                if r == self._bp_reg and bp_based:
-                    continue
-                ast = succ.state.registers.load(r)
-                if "sym_sp" in ast.variables or (bp_based and "sym_bp" in ast.variables):
-                    possible_stack_vars.append((addr, ast, "load"))
+                    # ignore bp if bp_based
+                    if reg_name == self._bp_reg and bp_based:
+                        continue
+                    # ignore weird regs
+                    if reg_name not in self._reg_list:
+                        continue
+                    # check if it was a stack var
+                    if "sym_sp" in a.data.ast.variables or (bp_based and "sym_bp" in a.data.ast.variables):
+                        possible_stack_vars.append((addr, a.data.ast, "load"))
+                    written_regs.add(reg_name)
 
         for addr, ast, action in possible_stack_vars:
             if "sym_sp" in ast.variables:
@@ -720,6 +721,11 @@ class Identifier(object):
         p.step()
         succ = (p.successors + p.unconstrained_successors)[0]
 
+        diff = state.regs.sp - succ.state.regs.bp
+        if not diff.symbolic:
+            return True
+        if len(diff.variables) > 1 or any("ebp" in v for v in diff.variables):
+            return False
         if len(succ.state.se.any_n_int((state.regs.sp - succ.state.regs.bp), 2)) == 1:
             return True
         return False
