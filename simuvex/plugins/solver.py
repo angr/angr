@@ -33,7 +33,11 @@ def timed_function(f):
 
             try:
                 if s.scratch.sim_procedure is None and s.scratch.bbl_addr is not None:
-                    location = "bbl 0x%x, stmt %d (inst 0x%x)" % (s.scratch.bbl_addr, s.scratch.stmt_idx, s.scratch.ins_addr)
+                    location = "bbl %#x, stmt %s (inst %s)" % (
+                        s.scratch.bbl_addr,
+                        s.scratch.stmt_idx,
+                        ('%s' % s.scratch.ins_addr if s.scratch.ins_addr is None else '%#x' % s.scratch.ins_addr)
+                    )
                 elif s.scratch.sim_procedure is not None:
                     location = "sim_procedure %s" % s.scratch.sim_procedure
                 else:
