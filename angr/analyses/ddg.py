@@ -1,4 +1,5 @@
 import logging
+import re
 from collections import defaultdict
 
 import networkx
@@ -808,8 +809,9 @@ class DDG(Analysis):
                     temps_to_edges[tmp].append(edge_tuple)
 
             elif a.type == 'operation':
+                # FIXME: we should support a more complete range of operations
 
-                if 'Sub32' in a.op or 'Sub64' in a.op:
+                if a.op.endswith('Sub32') or a.op.endswith('Sub64'):
                     # subtract
                     expr_0, expr_1 = a.exprs
 
@@ -821,7 +823,7 @@ class DDG(Analysis):
                             offset -= expr_1.ast.args[0]
                             data_generated = (sort, offset)
 
-                elif 'Add32' in a.op or 'Add64' in a.op:
+                elif a.op.endswith('Add32') or a.op.endwith('Add64'):
                     # add
                     expr_0, expr_1 = a.exprs
 
