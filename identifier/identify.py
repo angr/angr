@@ -437,6 +437,13 @@ class Identifier(object):
             raise IdentifierException("floating const")
 
     def find_stack_vars_x86(self, func):
+
+        # could also figure out if args are buffers etc
+        # doesn't handle dynamically allocated stack, etc
+
+        if isinstance(func, (int, long)):
+            func = self._cfg.functions[func]
+
         self._prefilter_floats(func)
 
         if func.name is not None:
