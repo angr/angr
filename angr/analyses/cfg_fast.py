@@ -2397,7 +2397,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             nodes_to_append[next_node_addr] = next_node
 
                             # make sure there is a function begins there
-                            self.functions._add_node(next_node_addr, next_node_addr)
+                            try:
+                                self.functions._add_node(next_node_addr, next_node_addr, size=next_node_size)
+                            except (AngrTranslationError, AngrMemoryError):
+                                continue
 
         # append all new nodes to sorted nodes
         if nodes_to_append:
