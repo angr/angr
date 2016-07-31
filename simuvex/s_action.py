@@ -191,7 +191,18 @@ class SimActionData(SimAction):
         self._tmp_dep = _noneset if tmp is None or action != SimActionData.READ else frozenset((tmp,))
 
         self.tmp = tmp
-        self.offset = addr if isinstance(addr, (int, long)) and region_type == 'reg' else None
+        self.offset = None
+        if region_type == 'reg':
+            if isinstance(addr, (int, long)):
+                self.offset = addr
+            else:
+                if addr.symbolic:
+                    # FIXME: we should fix it by allowing .offset taking ASTs instead of concretizing it right away
+                    l.warning('Concretizing a symbolic register offset in SimActionData.')
+                    self.offset = state.se.any_int(addr)
+                else:
+                    # it's not symbolic
+                    self.offset = state.se.exactly_int(addr)
         self.addr = self._make_object(addr)
         self.size = self._make_object(size)
         self.data = self._make_object(data)
