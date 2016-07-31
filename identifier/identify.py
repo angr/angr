@@ -444,13 +444,8 @@ class Identifier(object):
         else:
             l.debug("finding stack vars %#x", func.addr)
 
-        if len(func.graph.nodes()) > 500:
+        if len(func.block_addrs_set) > 500:
             raise IdentifierException("too many blocks")
-
-        # could also figure out if args are buffers etc
-        # doesn't handle dynamically allocated stack, etc
-        if isinstance(func, (int, long)):
-            func = self._cfg.functions[func]
 
         if func.startpoint is None:
             raise IdentifierException("Startpoint is None")
@@ -583,8 +578,8 @@ class Identifier(object):
             bp_sp_diff = main_state.se.any_int(main_state.regs.bp - main_state.regs.sp)
 
         all_addrs = set()
-        for bl in func.graph.nodes():
-            all_addrs.update(set(self.project.factory.block(bl.addr).instruction_addrs))
+        for bl_addr in func.block_addrs:
+            all_addrs.update(set(self._cfg.get_any_node(bl_addr).instruction_addrs))
 
         sp = main_state.se.BVS("sym_sp", self.project.arch.bits, explicit_name=True)
         main_state.regs.sp = sp
