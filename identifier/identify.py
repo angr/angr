@@ -432,7 +432,12 @@ class Identifier(object):
         return state
 
     def _prefilter_floats(self, func):
-        bl = self.project.factory.block(func.addr).vex
+
+        # calling _get_block() from `func` respects the size of the basic block
+        # in extreme cases (like at the end of a section where VEX cannot disassemble the instruction beyond the
+        # section boundary), directly calling project.factory.block() on func.addr may lead to an AngrTranslationError.
+        bl = func._get_block(func.addr).vex
+
         if any(c.type.startswith("Ity_F") for c in bl.all_constants):
             raise IdentifierException("floating const")
 
