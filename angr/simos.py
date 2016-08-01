@@ -102,10 +102,11 @@ class SimOS(object):
         syscall_num = cc.syscall_num(state)
 
         possible = state.se.any_n_int(syscall_num, 2)
+        syscall_table_keys = self.syscall_table.keys()
 
-        if len(possible) > 1:
+        if len(possible) > 1 and len(syscall_table_keys) > 0:
             # Symbolic syscalls are not supported - we will create a 'unknown syscall" stub for it
-            n = max(self.syscall_table.keys())
+            n = max(syscall_table_keys)
         elif not possible:
             # The state is not satisfiable
             raise AngrUnsupportedSyscallError("The program state is not satisfiable")
