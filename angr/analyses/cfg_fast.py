@@ -2408,14 +2408,18 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         removed_nodes = set()
 
-        for i in xrange(len(sorted_nodes) - 1):
+        a = None  # it always hold the very recent non-removed node
 
-            a, b = sorted_nodes[i], sorted_nodes[i + 1]
+        for i in xrange(len(sorted_nodes)):
 
-            if a is None or b is None:
+            if a is None:
+                a = sorted_nodes[0]
                 continue
 
-            if a in removed_nodes or b in removed_nodes:
+            b = sorted_nodes[i]
+
+            if b in removed_nodes:
+                # skip all removed nodes
                 continue
 
             if a.addr <= b.addr and \
@@ -2425,6 +2429,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 try:
                     block = self.project.factory.fresh_block(a.addr, b.addr - a.addr)
                 except AngrTranslationError:
+                    a = b
                     continue
                 if block.capstone.insns and all([ insn.insn_name() == 'nop' for insn in block.capstone.insns ]):
                     # It's a big nop - no function starts with nop
@@ -2435,6 +2440,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                     # shrink a
                     self._shrink_node(a, b.addr - a.addr, remove_function=True)
+
+                    a = b
                     continue
 
                 all_functions = self.kb.functions
@@ -2466,10 +2473,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                         continue
 
-                # next case - if b is from function prologue detection, we might be totally misdecoding b
-                if b.addr in self._function_prologue_addrs and \
-                    b.addr not in self._function_addresses_from_symbols and \
-                        b.instruction_addrs[0] not in a.instruction_addrs:
+                # next case - if b is directly from function prologue detection, or a basic block that is a successor of
+                # a wrongly identified basic block, we might be totally misdecoding b
+                if b.instruction_addrs[0] not in a.instruction_addrs:
                     # use a, truncate b
 
                     new_b_addr = a.addr + a.size  # b starts right after a terminates
@@ -2496,6 +2502,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     continue
 
                 # for other cases, we'll let them be for now
+
+            a = b # update a
 
     def _remove_node(self, node):
         """
