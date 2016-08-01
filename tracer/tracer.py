@@ -308,7 +308,8 @@ class Tracer(object):
             # this might still break for huge basic blocks with back loops
             # but it seems unlikely
             try:
-                bl = self._p.factory.block(self.trace[self.bb_cnt-1])
+                bl = self._p.factory.block(self.trace[self.bb_cnt-1],
+                        backup_state=current.state)
                 back_targets = set(bl.vex.constant_jump_targets) & set(bl.instruction_addrs)
                 if self.bb_cnt < len(self.trace) and self.trace[self.bb_cnt] in back_targets:
                     target_to_jumpkind = bl.vex.constant_jump_targets_and_jumpkinds
