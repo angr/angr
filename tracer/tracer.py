@@ -289,7 +289,8 @@ class Tracer(object):
             # detect back loops
             # this might still break for huge basic blocks with back loops
             # but it seems unlikely
-            bl = self._p.factory.block(self.trace[self.bb_cnt-1])
+            bl = self._p.factory.block(self.trace[self.bb_cnt-1],
+                    backup_state=current.state)
             back_targets = set(bl.vex.constant_jump_targets) & set(bl.instruction_addrs)
             if self.bb_cnt < len(self.trace) and self.trace[self.bb_cnt] in back_targets:
                 target_to_jumpkind = bl.vex.constant_jump_targets_and_jumpkinds
@@ -485,7 +486,8 @@ class Tracer(object):
                         self.previous.state.add_constraints(var == concrete_vals[0])
 
                 # then we step again up to the crashing instruction
-                p_block = self._p.factory.block(self.previous.addr)
+                p_block = self._p.factory.block(self.previous.addr,
+                        backup_state=self.previous.state)
                 inst_cnt = len(p_block.instruction_addrs)
                 insts = 0 if inst_cnt == 0 else inst_cnt - 1
                 succs = self.previous.step(num_inst=insts)
