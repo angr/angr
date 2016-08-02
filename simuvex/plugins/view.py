@@ -38,6 +38,9 @@ class SimRegNameView(SimStatePlugin):
     def widen(self, others):
         return False
 
+    def get(self, reg_name):
+        return self.__getattr__(reg_name)
+
 class SimMemView(SimStatePlugin):
     def __init__(self, ty=None, addr=None, state=None):
         super(SimMemView, self).__init__()
