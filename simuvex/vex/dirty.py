@@ -269,7 +269,7 @@ def x86g_dirtyhelper_loadF80le(state, addr):
     exponent = tbyte[78:64]
     mantissa = tbyte[62:0]
 
-    normalized_exponent = exponent - 16383 + 1023
+    normalized_exponent = exponent[10:0] - 16383 + 1023
     zero_exponent = state.se.BVV(0, 11)
     inf_exponent = state.se.BVV(-1, 11)
     final_exponent = claripy.If(exponent == 0, zero_exponent, claripy.If(exponent == -1, inf_exponent, normalized_exponent))
@@ -288,7 +288,7 @@ def x86g_dirtyhelper_storeF80le(state, addr, qword):
     exponent = qword[62:52]
     mantissa = qword[51:0]
 
-    normalized_exponent = exponent - 1023 + 16383
+    normalized_exponent = exponent.zero_extend(4) - 1023 + 16383
     zero_exponent = state.se.BVV(0, 15)
     inf_exponent = state.se.BVV(-1, 15)
     final_exponent = claripy.If(exponent == 0, zero_exponent, claripy.If(exponent == -1, inf_exponent, normalized_exponent))
