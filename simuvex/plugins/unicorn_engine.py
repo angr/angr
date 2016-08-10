@@ -1154,6 +1154,9 @@ class Unicorn(SimStatePlugin):
         return True
 
     def check(self):
+        if unicorn is None:
+            return False
+
         self.countdown_nonunicorn_blocks -= 1
         self.countdown_symbolic_registers -= 1
         self.countdown_symbolic_memory -= 1
