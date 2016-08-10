@@ -13,6 +13,7 @@ try:
     import unicorn
 except ImportError:
     l.warning("Unicorn is not installed. Support disabled.")
+    unicorn = None
 
 import pyvex
 import claripy
@@ -69,7 +70,7 @@ class AggressiveConcretizationAnnotation(claripy.SimplificationAvoidanceAnnotati
 
 _unicounter = itertools.count()
 
-class Uniwrapper(unicorn.Uc):
+class Uniwrapper(unicorn.Uc if unicorn is not None else object):
     def __init__(self, arch, cache_key):
         l.debug("Creating unicorn state!")
         self.arch = arch

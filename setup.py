@@ -9,7 +9,7 @@ def _build_sim_unicorn():
     try:
         import unicorn
     except ImportError:
-        raise Exception("You must install unicorn before building simuvex")
+        raise LibError("You must install unicorn before building simuvex")
 
     uc_path = os.path.join(os.path.dirname(unicorn.__file__), '../../..')
     env = os.environ.copy()
@@ -23,7 +23,7 @@ class build(_build):
             self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
             data_files.append(('lib', (os.path.join('simuvex_c', 'sim_unicorn.so'),),))
         except LibError:
-            pass
+            print 'Failed to build unicorn engine support'
         _build.run(self, *args)
 
 from setuptools.command.develop import develop as _develop
@@ -47,7 +47,7 @@ setup(
     version='4.6.6.28',
     description=' A symbolic execution engine for the VEX IR',
     url='https://github.com/angr/simuvex',
-    packages=['simuvex', 'simuvex.plugins', 'simuvex.storage', 'simuvex.vex', 'simuvex.vex.statements', 'simuvex.vex.expressions', 'simuvex.procedures', 'simuvex.procedures.cgc', 'simuvex.procedures.ld-linux-x86-64___so___2', 'simuvex.procedures.testing', 'simuvex.procedures.stubs', 'simuvex.procedures.syscalls', 'simuvex.procedures.ld-uClibc___so___0', 'simuvex.procedures.libc___so___6'],
+    packages=['simuvex', 'simuvex.plugins', 'simuvex.storage', 'simuvex.vex', 'simuvex.vex.statements', 'simuvex.vex.expressions', 'simuvex.procedures', 'simuvex.procedures.cgc', 'simuvex.procedures.ld-linux-x86-64___so___2', 'simuvex.procedures.testing', 'simuvex.procedures.stubs', 'simuvex.procedures.syscalls', 'simuvex.procedures.ld-uClibc___so___0', 'simuvex.procedures.libc___so___6', 'simuvex.concretization_strategies'],
     install_requires=[
         'bintrees',
         'dpkt-fix',
@@ -55,8 +55,7 @@ setup(
         'archinfo',
         'claripy',
         'cooldict',
-        'ana',
-        'unicorn'
+        'ana'
     ],
     data_files=data_files,
     cmdclass=cmdclass,
