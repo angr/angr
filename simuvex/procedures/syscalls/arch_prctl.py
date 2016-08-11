@@ -24,7 +24,7 @@ class arch_prctl(simuvex.SimProcedure):
         #ARCH_GET_FS
         elif code == 0x1003:
             fs = self.regs.fs
-            self.state.memory.store(addr,gs)
+            self.state.memory.store(addr,fs)
         #ARCH_GET_GS
         elif code == 0x1004:
             gs = self.regs.gs
