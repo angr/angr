@@ -336,6 +336,7 @@ class SimLinux(SimOS):
             14: ('sigprocmask', 'sigprocmask'),
             39: ('getpid', 'getpid'),
             60: ('exit', 'exit'),
+            158: ('arch_prctl','arch_prctl'),
             186: ('gettid', 'gettid'),
             231: ('exit_group', 'exit'),  # really exit_group, but close enough
             234: ('tgkill', 'tgkill'),
