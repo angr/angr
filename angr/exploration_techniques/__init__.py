@@ -73,7 +73,8 @@ class ExplorationTechnique(object):
             addrs = set(condition)
             def condition_function(p):
                 if p.addr in addrs:
-                    return True
+                    # returning {p.addr} instead of True to properly handle find/avoid conflicts
+                    return {p.addr}
 
                 try:
                     # If the address is not in the set (which could mean it is

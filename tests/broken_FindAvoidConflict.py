@@ -1,0 +1,36 @@
+import angr
+
+import os
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+
+# While exploring, if the 'find' and 'avoid' addresses occur in the same run
+# the path is added to find_stash even if the avoid address occurs first.
+# This is not an entirely trivial issue since a run can span several basic
+# blocks. In the following example, main contains an if-then-else statement.
+# We want to reach the end of main while avoiding the else branch. It is not
+# rejected by angr because there is no control flow instruction at the assembly
+# level between the start of the else branch and the target address.
+def test_FindAvoidConflict():
+    proj = angr.Project(test_location+'/i386/ite_FindAvoidConflict-O3')
+    initial_state = proj.factory.blank_state()
+    path = proj.factory.path(initial_state)
+    pathgroup = proj.factory.path_group(path)
+
+    targetAddr = 0x8048390
+    avoidAddr = 0x804838B
+
+    while (len(pathgroup.active) > 0):
+        pathgroup.explore(find=targetAddr, avoid=avoidAddr)
+
+    for path in pathgroup.found:
+        for addr in path.addr_trace:
+            try:
+                instAddrs = set(proj.factory.block(addr).instruction_addrs)
+            except AngrError:
+                instAddrs = {}
+            assert (avoidAddr not in instAddrs)
+
+
+
+if __name__ == '__main__':
+    test_FindAvoidConflict()
