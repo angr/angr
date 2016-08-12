@@ -10,6 +10,9 @@ class AngrMemoryError(AngrError):
 class AngrTranslationError(AngrError):
     pass
 
+class AngrLifterError(AngrError):
+    pass
+
 class AngrExitError(AngrError):
     pass
 

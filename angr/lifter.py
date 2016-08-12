@@ -26,9 +26,9 @@ class Lifter(object):
 
     LRUCACHE_SIZE = 10000
 
-    def __init__(self, project, cache=False):
+    def __init__(self, project=None, cache=False):
         self._project = project
-        self._thumbable = isinstance(project.arch, ArchARM)
+        self._thumbable = isinstance(project.arch, ArchARM) if project is not None else False
         self._cache_enabled = cache
         self._block_cache = LRUCache(maxsize=self.LRUCACHE_SIZE)
 
@@ -51,9 +51,21 @@ class Lifter(object):
         :rtype: Block
         """
 
-        if self._thumbable and addr % 2 == 1:
+        arch = arch
+        thumbable = False  # just to stop pycharm from complaining
+        if arch is not None:
+            # custom arch - recalculate the thumbable flag
+            thumbable = isinstance(arch, ArchARM)
+        elif self._project is not None:
+            arch = self._project.arch
+            thumbable = self._thumbable
+
+        if arch is None:
+            raise AngrLifterError('"arch" must be specified.')
+
+        if thumbable and addr % 2 == 1:
             thumb = True
-        elif not self._thumbable and thumb:
+        elif not thumbable and thumb:
             l.warning("Why did you pass in thumb=True on a non-ARM architecture")
             thumb = False
 
@@ -67,9 +79,10 @@ class Lifter(object):
                     return self._block_cache[cache_key]
 
         if insn_bytes is None:
+            if self._project is None:
+                raise AngrLifterError("Lifter does not have an associated angr Project. "
+                                      "You must specify \"insn_bytes\".")
             insn_bytes, size = self._load_bytes(addr, size, None)
-
-        arch = arch or self._project.arch
 
         b = Block(insn_bytes, arch=arch, addr=addr, size=size, thumb=thumb)
 
@@ -102,9 +115,21 @@ class Lifter(object):
         num_inst = VEX_IRSB_MAX_INST if num_inst is None else num_inst
         opt_level = VEX_DEFAULT_OPT_LEVEL if opt_level is None else opt_level
 
-        if self._thumbable and addr % 2 == 1:
+        arch = arch
+        thumbable = False  # just to stop pycharm from complaining
+        if arch is not None:
+            # custom arch - recalculate the thumbable flag
+            thumbable = isinstance(arch, ArchARM)
+        elif self._project is not None:
+            arch = self._project.arch
+            thumbable = self._thumbable
+
+        if arch is None:
+            raise AngrLifterError('"arch" must be specified.')
+
+        if thumbable and addr % 2 == 1:
             thumb = True
-        elif not self._thumbable and thumb:
+        elif not thumbable and thumb:
             l.warning("Why did you pass in thumb=True on a non-ARM architecture")
             thumb = False
 
@@ -122,6 +147,9 @@ class Lifter(object):
             buff, size = insn_bytes, len(insn_bytes)
             passed_max_size = True
         else:
+            if self._project is None:
+                raise AngrLifterError("Lifter does not have an associated angr Project. "
+                                      "You must specify \"insn_bytes\".")
             buff, size = self._load_bytes(addr, max_size, state=backup_state)
 
         if not buff or size == 0:
@@ -135,9 +163,7 @@ class Lifter(object):
             byte_offset = 1
             addr += 1
 
-        l.debug("Creating pyvex.IRSB of arch %s at %#x", self._project.arch.name, addr)
-
-        arch = arch or self._project.arch
+        l.debug("Creating pyvex.IRSB of arch %s at %#x", arch.name, addr)
 
         pyvex.set_iropt_level(opt_level)
         try:
@@ -172,7 +198,7 @@ class Lifter(object):
             e_type, value, traceback = sys.exc_info()
             raise AngrTranslationError, ("Translation error", e_type, value), traceback
 
-        if insn_bytes is None:
+        if insn_bytes is None and self._project is not None:
             for stmt in irsb.statements:
                 if stmt.tag != 'Ist_IMark' or stmt.addr == real_addr:
                     continue
@@ -184,7 +210,7 @@ class Lifter(object):
                                       traceflags=traceflags)
                     break
 
-        irsb = self._post_process(irsb)
+        irsb = self._post_process(irsb, arch)
         b = Block(buff, arch=arch, addr=addr, size=irsb.size, vex=irsb, thumb=thumb)
         if self._cache_enabled:
             self._block_cache[cache_key] = b
@@ -226,7 +252,7 @@ class Lifter(object):
 
         return buff, size
 
-    def _post_process(self, block):
+    def _post_process(self, block, arch):
         """
         Do some post-processing work here.
 
@@ -236,13 +262,13 @@ class Lifter(object):
 
         block.statements = [x for x in block.statements if x.tag != 'Ist_NoOp']
 
-        funcname = "_post_process_%s" % self._project.arch.name
+        funcname = "_post_process_%s" % arch.name
         if hasattr(self, funcname):
-            block = getattr(self, funcname)(block)
+            block = getattr(self, funcname)(block, arch)
 
         return block
 
-    def _post_process_ARM(self, block):
+    def _post_process_ARM(self, block, arch):
 
         # Jumpkind
         if block.jumpkind == "Ijk_Boring":
@@ -258,7 +284,7 @@ class Lifter(object):
             inst_ctr = 1
             for i, stmt in reversed(list(enumerate(stmts))):
                 if isinstance(stmt, pyvex.IRStmt.Put):
-                    if stmt.offset == self._project.arch.registers['lr'][0]:
+                    if stmt.offset == arch.registers['lr'][0]:
                         lr_store_id = i
                         break
                 if isinstance(stmt, pyvex.IRStmt.IMark):
@@ -273,7 +299,7 @@ class Lifter(object):
     _post_process_ARMHF = _post_process_ARM
 
     @staticmethod
-    def _post_process_MIPS32(block):
+    def _post_process_MIPS32(block, arch):
 
         # Handle unconditional branches
         # `beq $zero, $zero, xxxx`
@@ -505,5 +531,5 @@ class CapstoneInsn(object):
         return '<CapstoneInsn "%s" for %#x>' % (self.mnemonic, self.address)
 
 
-from .errors import AngrMemoryError, AngrTranslationError
+from .errors import AngrMemoryError, AngrTranslationError, AngrLifterError
 from .knowledge.codenode import BlockNode
