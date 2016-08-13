@@ -13,8 +13,10 @@ class Explorer(ExplorationTechnique):
     If an angr CFG is passed in as the "cfg" parameter and "find" is either a number or a list or a set, then
     any paths which cannot possibly reach a success state without going through a failure state will be
     preemptively avoided.
+
+    If either the "find" or "avoid" parameter is a function returning a boolean, and a path triggers both conditions, it will be added to the find stash, unless "avoid_priority" is set to True.
     """
-    def __init__(self, find=None, avoid=None, find_stash='found', avoid_stash='avoid', cfg=None, num_find=1):
+    def __init__(self, find=None, avoid=None, find_stash='found', avoid_stash='avoid', cfg=None, num_find=1, avoid_priority=False):
         super(Explorer, self).__init__()
         self.find = self._condition_to_lambda(find)
         self.avoid = self._condition_to_lambda(avoid)
@@ -23,6 +25,7 @@ class Explorer(ExplorationTechnique):
         self.cfg = cfg
         self.ok_blocks = set()
         self.num_find = num_find
+        self.avoid_priority = avoid_priority
 
         if cfg is not None:
             if isinstance(avoid, (int, long)):
@@ -52,13 +55,29 @@ class Explorer(ExplorationTechnique):
         if not self.avoid_stash in pg.stashes: pg.stashes[self.avoid_stash] = []
 
     def filter(self, path):
-        r = self.find(path)
-        if r:
+        rFind = self.find(path)
+        if rFind:
             if not path.reachable:
                 return 'unsat'
-            if type(r) is set:
-                while path.addr not in r:
+            rAvoid = self.avoid(path)
+            if rAvoid:
+                # if there is a conflict
+                if self.avoid_priority & ((type(rFind) is not set) | (type(rAvoid) is not set)):
+                    # with avoid_priority and one of the conditions is not a set
+                    return self.avoid_stash
+            if (type(rAvoid) is not set):
+                # rAvoid is False or self.avoid_priority is False
+                # Setting rAvoid to {} simplifies the rest of the code
+                rAvoid = {}
+            if type(rFind) is set:
+                while path.addr not in rFind:
+                    if path.addr in rAvoid:
+                        return self.avoid_stash
                     path = path.step(num_inst=1)[0]
+                if self.avoid_priority & (path.addr in rAvoid):
+                    # Only occurs if the intersection of rAvoid and rFind is not empty
+                    # Why would anyone want that?
+                    return self.avoid_stash
             return (self.find_stash, path)
         if self.avoid(path): return self.avoid_stash
         if self.cfg is not None and self.cfg.get_any_node(path.addr) is not None:
