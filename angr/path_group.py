@@ -818,7 +818,7 @@ class PathGroup(ana.Storable):
 
         :param stash:       Operate on this stash
         :param n:           Step at most this many times
-        :param step_func    If provided, should be a function that takes a PathGroup and returns a new PathGroup. Will
+        :param step_func:   If provided, should be a function that takes a PathGroup and returns a new PathGroup. Will
                             be called with the current PathGroup at every step.
         :return:            The resulting PathGroup.
         :rtype:             PathGroup
