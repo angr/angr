@@ -5,6 +5,9 @@ import re
 
 import claripy
 
+import logging
+l = logging.getLogger('simuvex.s_type')
+
 try:
     import pycparser
 except ImportError:
@@ -195,6 +198,7 @@ class SimTypeInt(SimTypeReg):
     """
 
     _fields = SimTypeReg._fields + ('signed',)
+    _base_name = 'int'
 
     def __init__(self, signed=True, label=None):
         """
@@ -205,10 +209,10 @@ class SimTypeInt(SimTypeReg):
         self.signed = signed
 
     def __repr__(self):
-        if self.signed:
-            name = 'int'
-        else:
-            name = 'unsigned int'
+        name = self._base_name
+        if not self.signed:
+            name = 'unsigned ' + name
+
         try:
             return name + ' (%d bits)' % self.size
         except ValueError:
@@ -219,9 +223,9 @@ class SimTypeInt(SimTypeReg):
         if self._arch is None:
             raise ValueError("Can't tell my size without an arch!")
         try:
-            return self._arch.sizeof['int']
+            return self._arch.sizeof[self._base_name]
         except KeyError:
-            raise ValueError("Arch %s doesn't have its int type defined!" % self._arch.name)
+            raise ValueError("Arch %s doesn't have its %s type defined!" % (self._arch.name, self._base_name))
 
     def extract(self, state, addr, concrete=False):
         out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
@@ -233,25 +237,16 @@ class SimTypeInt(SimTypeReg):
         return n
 
 
-class SimTypeLong(SimTypeInt):
-    @property
-    def size(self):
-        if self._arch is None:
-            raise ValueError("Can't tell my size without an arch!")
-        try:
-            return self._arch.sizeof['long']
-        except KeyError:
-            raise ValueError("Arch %s doesn't have its int type defined!" % self._arch.name)
+class SimTypeShort(SimTypeInt):
+    _base_name = 'short'
 
-    def __repr__(self):
-        if self.signed:
-            name = 'long'
-        else:
-            name = 'unsigned long'
-        try:
-            return name + ' (%d bits)' % self.size
-        except ValueError:
-            return name
+
+class SimTypeLong(SimTypeInt):
+    _base_name = 'long'
+
+
+class SimTypeLongLong(SimTypeInt):
+    _base_name = 'long long'
 
 
 class SimTypeChar(SimTypeReg):
@@ -484,7 +479,7 @@ class SimTypeFunction(SimType):
         """
         :param label:   The type label
         :param args:    A tuple of types representing the arguments to the function
-        :param returns: The return type of the function
+        :param returns: The return type of the function, or none for void
         """
         super(SimTypeFunction, self).__init__(label=label)
         self.args = args
@@ -645,6 +640,28 @@ class SimStructValue(object):
         fields = ('.{} = {}'.format(name, self._values[name]) for name in self._struct.fields)
         return '{{\n  {}\n}}'.format(',\n  '.join(fields))
 
+class SimUnion(SimType):
+    """
+    why
+    """
+    def __init__(self, members, label=None):
+        """
+        :param members:     The members of the struct, as a mapping name -> type
+        """
+        super(SimUnion, self).__init__(label)
+        self.members = members
+
+    @property
+    def size(self):
+        return max(ty.size for ty in self.members.itervalues())
+
+    def __repr__(self):
+        return 'union {\n\t%s\n}' % '\n\t'.join('%s %s;' % (name, repr(ty)) for name, ty in self.members.iteritems())
+
+    def _with_arch(self, arch):
+        out = SimUnion({name: ty.with_arch(arch) for name, ty in self.members.iteritems()}, self.label)
+        out._arch = arch
+        return out
 
 ALL_TYPES = {
     'char': SimTypeChar(),
@@ -679,11 +696,29 @@ ALL_TYPES = {
 
 _C_TYPE_TO_SIMTYPE = {
     ('int',): SimTypeInt(True),
+    ('signed', 'int'): SimTypeInt(True),
     ('unsigned', 'int'): SimTypeInt(False),
     ('long',): SimTypeLong(True),
+    ('signed', 'long'): SimTypeLong(True),
     ('unsigned', 'long'): SimTypeLong(False),
+    ('long', 'int'): SimTypeLong(True),
+    ('signed', 'long', 'int'): SimTypeLong(True),
+    ('unsigned', 'long', 'int'): SimTypeLong(False),
+    ('short',): SimTypeShort(True),
+    ('signed', 'short'): SimTypeShort(True),
+    ('unsigned', 'short'): SimTypeShort(False),
+    ('short', 'int'): SimTypeShort(True),
+    ('signed', 'short', 'int'): SimTypeShort(True),
+    ('unsigned', 'short', 'int'): SimTypeShort(False),
+    ('long', 'long'): SimTypeLongLong(True),
+    ('signed', 'long', 'long'): SimTypeLongLong(True),
+    ('unsigned', 'long', 'long'): SimTypeLongLong(False),
+    ('long', 'long', 'int'): SimTypeLongLong(True),
+    ('signed', 'long', 'long', 'int'): SimTypeLongLong(True),
+    ('unsigned', 'long', 'long', 'int'): SimTypeLongLong(False),
     ('char',): SimTypeChar(),
-    ('unsigned', 'char',): SimTypeChar(),
+    ('signed', 'char'): SimTypeChar(),
+    ('unsigned', 'char'): SimTypeChar(),
     ('int8_t',): SimTypeNum(8, True),
     ('uint8_t',): SimTypeNum(8, False),
     ('int16_t',): SimTypeNum(16, True),
@@ -697,7 +732,8 @@ _C_TYPE_TO_SIMTYPE = {
     ('ssize_t',): SimTypeLength(True),
     ('uintptr_t',) : SimTypeLong(False),
     ('float',): SimTypeFloat(),
-    ('double',): SimTypeDouble()
+    ('double',): SimTypeDouble(),
+    ('void',): None
 }
 
 def define_struct(defn):
@@ -765,7 +801,11 @@ def _decl_to_type(decl, extra_types=None):
 
     elif isinstance(decl, pycparser.c_ast.ArrayDecl):
         elem_type = _decl_to_type(decl.type, extra_types)
-        size = int(decl.dim.value)
+        try:
+            size = parse_const(decl.dim)
+        except ValueError as e:
+            l.warning("Got error parsing array dimension, defaulting to zero: %s", e)
+            size = 0
         return SimTypeFixedSizeArray(elem_type, size)
 
     elif isinstance(decl, pycparser.c_ast.Struct):
@@ -782,6 +822,10 @@ def _decl_to_type(decl, extra_types=None):
                 struct.fields[field.name] = _decl_to_type(field.type, extra_types)
         return struct
 
+    elif isinstance(decl, pycparser.c_ast.Union):
+        members = {child[1].name: _decl_to_type(child[1].type, extra_types) for child in decl.children()}
+        return SimUnion(members)
+
     elif isinstance(decl, pycparser.c_ast.IdentifierType):
         key = tuple(decl.names)
         if key in extra_types:
@@ -792,6 +836,22 @@ def _decl_to_type(decl, extra_types=None):
             raise TypeError("Unknown type '%s'" % ' '.join(key))
 
     raise ValueError("Unknown type!")
+
+def parse_const(c):
+    if type(c) is pycparser.c_ast.Constant:
+        return int(c.value)
+    elif type(c) is pycparser.c_ast.BinaryOp:
+        if c.op == '+':
+            return parse_const(c.children()[0][1]) + parse_const(c.children()[1][1])
+        if c.op == '-':
+            return parse_const(c.children()[0][1]) - parse_const(c.children()[1][1])
+        if c.op == '*':
+            return parse_const(c.children()[0][1]) * parse_const(c.children()[1][1])
+        if c.op == '/':
+            return parse_const(c.children()[0][1]) // parse_const(c.children()[1][1])
+        raise ValueError('Binary op %s' % c.op)
+    else:
+        raise ValueError(c)
 
 try:
     define_struct("""
