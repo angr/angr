@@ -2501,7 +2501,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     self._nodes_by_addr[b.addr].append(b)
 
                     # shrink a
-                    self._shrink_node(a, b.addr - a.addr, remove_function=True)
+                    self._shrink_node(a, b.addr - a.addr, remove_function=False)
 
                     a = b
                     continue
@@ -2624,14 +2624,20 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._nodes[new_node.addr] = new_node
         self._nodes_by_addr[new_node.addr].append(new_node)
 
-        if remove_function:
-            # the function starting at this point is probably totally incorrect
-            # hopefull future call to `make_functions()` will correct everything
-            if node.addr in self.kb.functions:
-                del self.kb.functions[node.addr]
+        # the function starting at this point is probably totally incorrect
+        # hopefull future call to `make_functions()` will correct everything
+        if node.addr in self.kb.functions:
+            del self.kb.functions[node.addr]
 
-            if node.addr in self.kb.functions.callgraph:
-                self.kb.functions.callgraph.remove_node(node.addr)
+            if not remove_function:
+                # add functions back
+                self._function_add_node(node.addr, node.addr)
+                successor_node = self.get_any_node(successor_node_addr)
+                if successor_node and successor_node.function_address == node.addr:
+                    self._function_add_node(successor_node_addr, successor_node_addr)
+
+        #if node.addr in self.kb.functions.callgraph:
+        #    self.kb.functions.callgraph.remove_node(node.addr)
 
     def _analyze_all_function_features(self):
         """
