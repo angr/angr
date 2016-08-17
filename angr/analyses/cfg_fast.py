@@ -1493,17 +1493,30 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # helper methods
 
-        def _process(irsb_, stmt_, stmt_idx_, data_, insn_addr, next_insn_addr):
+        def _process(irsb_, stmt_, stmt_idx_, data_, insn_addr, next_insn_addr, data_size=None, data_type=None):
             if type(data_) is pyvex.expr.Const:  # pylint: disable=unidiomatic-typecheck
                 val = data_.con.value
-                if val != next_insn_addr:
-                    self._add_data_reference(irsb_, irsb_addr, stmt_, stmt_idx_, insn_addr, val)
+            elif type(data_) in (int, long):
+                val = data_
+            else:
+                return
+
+            if val != next_insn_addr:
+                self._add_data_reference(irsb_, irsb_addr, stmt_, stmt_idx_, insn_addr, val,
+                                         data_size=data_size, data_type=data_type
+                                         )
 
         # first pass to see if there are any cross-statement optimizations. if so, we relift the basic block with
         # optimization level 0 to preserve as much constant references as possible
         empty_insn = False
+        all_statements = len(irsb.statements)
         for i, stmt in enumerate(irsb.statements[:-1]):
-            if isinstance(stmt, pyvex.IRStmt.IMark) and isinstance(irsb.statements[i + 1], pyvex.IRStmt.IMark):
+            if isinstance(stmt, pyvex.IRStmt.IMark) and (
+                    isinstance(irsb.statements[i + 1], pyvex.IRStmt.IMark) or
+                    (i + 2 < all_statements and isinstance(irsb.statements[i + 2], pyvex.IRStmt.IMark))
+            ):
+                # this is a very bad check...
+                # the correct way to do it is to disable cross-instruction optimization in VEX
                 empty_insn = True
                 break
 
@@ -1527,15 +1540,31 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if type(stmt.data) is pyvex.IRExpr.Load:  # pylint: disable=unidiomatic-typecheck
                     # load
                     # e.g. t7 = LDle:I64(0x0000000000600ff8)
-                    _process(irsb, stmt, stmt_idx, stmt.data.addr, instr_addr, next_instr_addr)
+                    size = stmt.data.result_size / 8 # convert to bytes
+                    _process(irsb, stmt, stmt_idx, stmt.data.addr, instr_addr, next_instr_addr,
+                             data_size=size, data_type='integer'
+                             )
 
                 elif type(stmt.data) in (pyvex.IRExpr.Binop, ):  # pylint: disable=unidiomatic-typecheck
-                    # binary operation
-                    for arg in stmt.data.args:
-                        _process(irsb, stmt, stmt_idx, arg, instr_addr, next_instr_addr)
+
+                    # rip-related addressing
+                    if stmt.data.op in ('Iop_Add32', 'Iop_Add64') and \
+                            all(type(arg) is pyvex.expr.Const for arg in stmt.data.args):
+                        # perform the addition
+                        loc = stmt.data.args[0].con.value + stmt.data.args[1].con.value
+                        _process(irsb, stmt, stmt_idx, loc, instr_addr, next_instr_addr)
+
+                    else:
+                        # binary operation
+                        for arg in stmt.data.args:
+                            _process(irsb, stmt, stmt_idx, arg, instr_addr, next_instr_addr)
 
                 elif type(stmt.data) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
                     _process(irsb, stmt, stmt_idx, stmt.data, instr_addr, next_instr_addr)
+
+                elif type(stmt.data) is pyvex.IRExpr.ITE:
+                    for child_expr in stmt.data.child_expressions:
+                        _process(irsb, stmt, stmt_idx, child_expr, instr_addr, next_instr_addr)
 
             elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck
                 # put
@@ -1549,7 +1578,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # store data
                 _process(irsb, stmt, stmt_idx, stmt.data, instr_addr, next_instr_addr)
 
-    def _add_data_reference(self, irsb, irsb_addr, stmt, stmt_idx, insn_addr, data_addr):  # pylint: disable=unused-argument
+            elif type(stmt) is pyvex.IRStmt.Dirty:
+
+                _process(irsb, stmt, stmt_idx, stmt.mAddr, instr_addr, next_instr_addr,
+                         data_size=stmt.mSize,
+                         data_type='fp'
+                         )
+
+    def _add_data_reference(self, irsb, irsb_addr, stmt, stmt_idx, insn_addr, data_addr,  # pylint: disable=unused-argument
+                            data_size=None, data_type=None):
         """
 
         :param irsb:
@@ -1579,7 +1616,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return
 
         if data_addr not in self._memory_data:
-            data = MemoryData(data_addr, 0, 'unknown', irsb, irsb_addr, stmt, stmt_idx, insn_addr=insn_addr)
+            if data_type is not None and data_size is not None:
+                data = MemoryData(data_addr, data_size, data_type, irsb, irsb_addr, stmt, stmt_idx,
+                                  insn_addr=insn_addr, max_size=data_size
+                                  )
+            else:
+                data = MemoryData(data_addr, 0, 'unknown', irsb, irsb_addr, stmt, stmt_idx, insn_addr=insn_addr)
             self._memory_data[data_addr] = data
         else:
             if self._extra_cross_references:
@@ -1659,9 +1701,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 continue
 
             # let's see what sort of data it is
-            data_type, data_size = self._guess_data_type(memory_data.irsb, memory_data.irsb_addr, memory_data.stmt_idx,
-                                                         data_addr, memory_data.max_size
-                                                         )
+            if memory_data.sort in ('unknown', None) or \
+                    (memory_data.sort == 'integer' and memory_data.size == self.project.arch.bits / 8):
+                data_type, data_size = self._guess_data_type(memory_data.irsb, memory_data.irsb_addr, memory_data.stmt_idx,
+                                                             data_addr, memory_data.max_size
+                                                             )
+            else:
+                data_type, data_size = memory_data.sort, memory_data.size
 
             if data_type is not None:
                 memory_data.size = data_size
