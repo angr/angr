@@ -1020,6 +1020,10 @@ class CFGBase(Analysis):
             if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
                 function_nodes.add(dst)
 
+        entry_node = self.get_any_node(self._binary.entry)
+        if entry_node is not None:
+            function_nodes.add(entry_node)
+
         # aggressively remove and merge functions
         # For any function, if there is a call to it, it won't be removed
         removed_functions = self._process_irrational_functions(tmp_functions,
