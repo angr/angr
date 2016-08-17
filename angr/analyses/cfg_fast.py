@@ -2382,11 +2382,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     except AngrTranslationError:
                         continue
                     insns = block.capstone.insns
-                    if insns[0].insn_name() == 'nop':
+                    if self._is_noop_insn(insns[0]):
                         # see where those nop instructions terminate
                         nop_length = 0
                         for insn in insns:
-                            if insn.insn_name() == 'nop':
+                            if self._is_noop_insn(insn):
                                 nop_length += insn.size
                             else:
                                 break
@@ -2447,7 +2447,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 except AngrTranslationError:
                     a = b
                     continue
-                if block.capstone.insns and all([ insn.insn_name() == 'nop' for insn in block.capstone.insns ]):
+                if block.capstone.insns and all([ self._is_noop_insn(insn) for insn in block.capstone.insns ]):
                     # It's a big nop - no function starts with nop
 
                     # add b to indices
@@ -2945,6 +2945,30 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     #
     # Other methods
     #
+
+    @staticmethod
+    def _is_noop_insn(insn):
+        """
+        Check if the instruction does nothing.
+
+        :param insn: The capstone insn object.
+        :return: True if the instruction does no-op, False otherwise.
+        """
+
+        if insn.insn_name() == 'nop':
+            # nops
+            return True
+        if insn.insn_name() == 'lea':
+            # lea reg, [reg + 0]
+            op0, op1 = insn.operands
+            if op0.type == 1 and op1.type == 3:
+                # reg and mem
+                if op0.reg == op1.mem.base and op1.mem.index == 0 and op1.mem.disp == 0:
+                    return True
+
+        # add more types of no-op instructions here :-)
+
+        return False
 
     def _generate_cfgnode(self, addr, current_function_addr):
         """
