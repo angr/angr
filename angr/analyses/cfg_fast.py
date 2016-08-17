@@ -995,10 +995,18 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             jump_targets = list(set(self._process_indirect_jumps()))
 
             for addr, func_addr, source_addr in jump_targets:
-                r = self._function_add_transition_edge(addr, self._nodes[source_addr], func_addr)
+                to_outside = addr in self.functions
+
+                if not to_outside:
+                    src_section = self._addr_belongs_to_section(source_addr)
+                    dst_section = self._addr_belongs_to_section(addr)
+                    to_outside = src_section != dst_section
+
+                r = self._function_add_transition_edge(addr, self._nodes[source_addr], func_addr, to_outside=to_outside)
                 if r:
                     # TODO: get a better estimate of the function address
-                    self._insert_entry(CFGEntry(addr, func_addr, "Ijk_Boring", last_addr=source_addr,
+                    target_func_addr = func_addr if not to_outside else addr
+                    self._insert_entry(CFGEntry(addr, target_func_addr, "Ijk_Boring", last_addr=source_addr,
                                                   src_node=self._nodes[source_addr],
                                                   src_stmt_idx=None,
                                                   )
@@ -1316,7 +1324,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                   )
                     return []
 
-                ce = CFGEntry(target_addr, current_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
+                # if the target address is at another section, it has to be jumping to a new function
+                source_section = self._addr_belongs_to_section(addr)
+                target_section = self._addr_belongs_to_section(target_addr)
+                if source_section != target_section:
+                    target_func_addr = target_addr
+                else:
+                    target_func_addr = current_function_addr
+
+                ce = CFGEntry(target_addr, target_func_addr, jumpkind, last_addr=addr, src_node=cfg_node,
                               src_ins_addr=ins_addr, src_stmt_idx=stmt_idx)
                 entries.append(ce)
 

@@ -1419,6 +1419,13 @@ class CFGBase(Analysis):
             if n is None: dst_node = dst_addr
             else: dst_node = self._to_snippet(n)
 
+            # pre-check: if source and destination do not belong to the same section, it must be jumping to another
+            # function
+            src_section = self._addr_belongs_to_section(src_addr)
+            dst_section = self._addr_belongs_to_section(dst_addr)
+            if src_section != dst_section:
+                _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+
             # is it a jump to another function?
             if dst_addr in known_functions or (
                 dst_addr in blockaddr_to_function and blockaddr_to_function[dst_addr] is not src_function
