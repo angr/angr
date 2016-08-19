@@ -268,7 +268,8 @@ class Lifter(object):
 
         return block
 
-    def _post_process_ARM(self, block, arch):
+    @staticmethod
+    def _post_process_ARM(block, arch):
 
         # Jumpkind
         if block.jumpkind == "Ijk_Boring":
@@ -299,7 +300,7 @@ class Lifter(object):
     _post_process_ARMHF = _post_process_ARM
 
     @staticmethod
-    def _post_process_MIPS32(block, arch):
+    def _post_process_MIPS32(block, arch):  #pylint:disable=unused-argument
 
         # Handle unconditional branches
         # `beq $zero, $zero, xxxx`
@@ -428,7 +429,7 @@ class Block(object):
             l.warning('Lifted basic block with no IMarks!')
             self.addr = 0
 
-        if type(byte_string) is str:
+        if type(byte_string) is str:  # pylint:disable=unidiomatic-typecheck
             if self.size is not None:
                 self._bytes = byte_string[:self.size]
             else:
