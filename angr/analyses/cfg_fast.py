@@ -3,6 +3,7 @@ import string
 import math
 import re
 import struct
+import itertools
 from collections import defaultdict
 
 import cffi
@@ -995,10 +996,18 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             jump_targets = list(set(self._process_indirect_jumps()))
 
             for addr, func_addr, source_addr in jump_targets:
-                r = self._function_add_transition_edge(addr, self._nodes[source_addr], func_addr)
+                to_outside = addr in self.functions
+
+                if not to_outside:
+                    src_section = self._addr_belongs_to_section(source_addr)
+                    dst_section = self._addr_belongs_to_section(addr)
+                    to_outside = src_section != dst_section
+
+                r = self._function_add_transition_edge(addr, self._nodes[source_addr], func_addr, to_outside=to_outside)
                 if r:
                     # TODO: get a better estimate of the function address
-                    self._insert_entry(CFGEntry(addr, func_addr, "Ijk_Boring", last_addr=source_addr,
+                    target_func_addr = func_addr if not to_outside else addr
+                    self._insert_entry(CFGEntry(addr, target_func_addr, "Ijk_Boring", last_addr=source_addr,
                                                   src_node=self._nodes[source_addr],
                                                   src_stmt_idx=None,
                                                   )
@@ -1062,6 +1071,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self.normalize()
 
         self.make_functions()
+        # optional: remove functions that must be alignments
+        self.remove_function_alignments()
+
+        # make return edges
+        self._make_return_edges()
 
         if self.project.loader.main_bin.sections:
             # this binary has sections
@@ -1316,7 +1330,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                   )
                     return []
 
-                ce = CFGEntry(target_addr, current_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
+                # if the target address is at another section, it has to be jumping to a new function
+                source_section = self._addr_belongs_to_section(addr)
+                target_section = self._addr_belongs_to_section(target_addr)
+                if source_section != target_section:
+                    target_func_addr = target_addr
+                else:
+                    target_func_addr = current_function_addr
+
+                ce = CFGEntry(target_addr, target_func_addr, jumpkind, last_addr=addr, src_node=cfg_node,
                               src_ins_addr=ins_addr, src_stmt_idx=stmt_idx)
                 entries.append(ce)
 
@@ -1477,17 +1499,30 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # helper methods
 
-        def _process(irsb_, stmt_, stmt_idx_, data_, insn_addr, next_insn_addr):
+        def _process(irsb_, stmt_, stmt_idx_, data_, insn_addr, next_insn_addr, data_size=None, data_type=None):
             if type(data_) is pyvex.expr.Const:  # pylint: disable=unidiomatic-typecheck
                 val = data_.con.value
-                if val != next_insn_addr:
-                    self._add_data_reference(irsb_, irsb_addr, stmt_, stmt_idx_, insn_addr, val)
+            elif type(data_) in (int, long):
+                val = data_
+            else:
+                return
+
+            if val != next_insn_addr:
+                self._add_data_reference(irsb_, irsb_addr, stmt_, stmt_idx_, insn_addr, val,
+                                         data_size=data_size, data_type=data_type
+                                         )
 
         # first pass to see if there are any cross-statement optimizations. if so, we relift the basic block with
         # optimization level 0 to preserve as much constant references as possible
         empty_insn = False
+        all_statements = len(irsb.statements)
         for i, stmt in enumerate(irsb.statements[:-1]):
-            if isinstance(stmt, pyvex.IRStmt.IMark) and isinstance(irsb.statements[i + 1], pyvex.IRStmt.IMark):
+            if isinstance(stmt, pyvex.IRStmt.IMark) and (
+                    isinstance(irsb.statements[i + 1], pyvex.IRStmt.IMark) or
+                    (i + 2 < all_statements and isinstance(irsb.statements[i + 2], pyvex.IRStmt.IMark))
+            ):
+                # this is a very bad check...
+                # the correct way to do it is to disable cross-instruction optimization in VEX
                 empty_insn = True
                 break
 
@@ -1511,15 +1546,31 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if type(stmt.data) is pyvex.IRExpr.Load:  # pylint: disable=unidiomatic-typecheck
                     # load
                     # e.g. t7 = LDle:I64(0x0000000000600ff8)
-                    _process(irsb, stmt, stmt_idx, stmt.data.addr, instr_addr, next_instr_addr)
+                    size = stmt.data.result_size / 8 # convert to bytes
+                    _process(irsb, stmt, stmt_idx, stmt.data.addr, instr_addr, next_instr_addr,
+                             data_size=size, data_type='integer'
+                             )
 
                 elif type(stmt.data) in (pyvex.IRExpr.Binop, ):  # pylint: disable=unidiomatic-typecheck
-                    # binary operation
-                    for arg in stmt.data.args:
-                        _process(irsb, stmt, stmt_idx, arg, instr_addr, next_instr_addr)
+
+                    # rip-related addressing
+                    if stmt.data.op in ('Iop_Add32', 'Iop_Add64') and \
+                            all(type(arg) is pyvex.expr.Const for arg in stmt.data.args):
+                        # perform the addition
+                        loc = stmt.data.args[0].con.value + stmt.data.args[1].con.value
+                        _process(irsb, stmt, stmt_idx, loc, instr_addr, next_instr_addr)
+
+                    else:
+                        # binary operation
+                        for arg in stmt.data.args:
+                            _process(irsb, stmt, stmt_idx, arg, instr_addr, next_instr_addr)
 
                 elif type(stmt.data) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
                     _process(irsb, stmt, stmt_idx, stmt.data, instr_addr, next_instr_addr)
+
+                elif type(stmt.data) is pyvex.IRExpr.ITE:
+                    for child_expr in stmt.data.child_expressions:
+                        _process(irsb, stmt, stmt_idx, child_expr, instr_addr, next_instr_addr)
 
             elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck
                 # put
@@ -1533,7 +1584,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # store data
                 _process(irsb, stmt, stmt_idx, stmt.data, instr_addr, next_instr_addr)
 
-    def _add_data_reference(self, irsb, irsb_addr, stmt, stmt_idx, insn_addr, data_addr):  # pylint: disable=unused-argument
+            elif type(stmt) is pyvex.IRStmt.Dirty:
+
+                _process(irsb, stmt, stmt_idx, stmt.mAddr, instr_addr, next_instr_addr,
+                         data_size=stmt.mSize,
+                         data_type='fp'
+                         )
+
+    def _add_data_reference(self, irsb, irsb_addr, stmt, stmt_idx, insn_addr, data_addr,  # pylint: disable=unused-argument
+                            data_size=None, data_type=None):
         """
 
         :param irsb:
@@ -1563,7 +1622,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return
 
         if data_addr not in self._memory_data:
-            data = MemoryData(data_addr, 0, 'unknown', irsb, irsb_addr, stmt, stmt_idx, insn_addr=insn_addr)
+            if data_type is not None and data_size is not None:
+                data = MemoryData(data_addr, data_size, data_type, irsb, irsb_addr, stmt, stmt_idx,
+                                  insn_addr=insn_addr, max_size=data_size
+                                  )
+            else:
+                data = MemoryData(data_addr, 0, 'unknown', irsb, irsb_addr, stmt, stmt_idx, insn_addr=insn_addr)
             self._memory_data[data_addr] = data
         else:
             if self._extra_cross_references:
@@ -1643,9 +1707,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 continue
 
             # let's see what sort of data it is
-            data_type, data_size = self._guess_data_type(memory_data.irsb, memory_data.irsb_addr, memory_data.stmt_idx,
-                                                         data_addr, memory_data.max_size
-                                                         )
+            if memory_data.sort in ('unknown', None) or \
+                    (memory_data.sort == 'integer' and memory_data.size == self.project.arch.bits / 8):
+                data_type, data_size = self._guess_data_type(memory_data.irsb, memory_data.irsb_addr, memory_data.stmt_idx,
+                                                             data_addr, memory_data.max_size
+                                                             )
+            else:
+                data_type, data_size = memory_data.sort, memory_data.size
 
             if data_type is not None:
                 memory_data.size = data_size
@@ -2366,11 +2434,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     except AngrTranslationError:
                         continue
                     insns = block.capstone.insns
-                    if insns[0].insn_name() == 'nop':
+                    if self._is_noop_insn(insns[0]):
                         # see where those nop instructions terminate
                         nop_length = 0
                         for insn in insns:
-                            if insn.insn_name() == 'nop':
+                            if self._is_noop_insn(insn):
                                 nop_length += insn.size
                             else:
                                 break
@@ -2431,7 +2499,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 except AngrTranslationError:
                     a = b
                     continue
-                if block.capstone.insns and all([ insn.insn_name() == 'nop' for insn in block.capstone.insns ]):
+                if block.capstone.insns and all([ self._is_noop_insn(insn) for insn in block.capstone.insns ]):
                     # It's a big nop - no function starts with nop
 
                     # add b to indices
@@ -2439,7 +2507,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     self._nodes_by_addr[b.addr].append(b)
 
                     # shrink a
-                    self._shrink_node(a, b.addr - a.addr, remove_function=True)
+                    self._shrink_node(a, b.addr - a.addr, remove_function=False)
 
                     a = b
                     continue
@@ -2562,14 +2630,23 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._nodes[new_node.addr] = new_node
         self._nodes_by_addr[new_node.addr].append(new_node)
 
-        if remove_function:
-            # the function starting at this point is probably totally incorrect
-            # hopefull future call to `make_functions()` will correct everything
-            if node.addr in self.kb.functions:
-                del self.kb.functions[node.addr]
+        # the function starting at this point is probably totally incorrect
+        # hopefull future call to `make_functions()` will correct everything
+        if node.addr in self.kb.functions:
+            del self.kb.functions[node.addr]
 
-            if node.addr in self.kb.functions.callgraph:
-                self.kb.functions.callgraph.remove_node(node.addr)
+            if not remove_function:
+                # add functions back
+                self._function_add_node(node.addr, node.addr)
+                successor_node = self.get_any_node(successor_node_addr)
+                if successor_node and successor_node.function_address == node.addr:
+                    # if there is absolutely no predecessors to successor_node, we'd like to add it as a new function
+                    # so that it will not be left behind
+                    if not self.graph.predecessors(successor_node):
+                        self._function_add_node(successor_node_addr, successor_node_addr)
+
+        #if node.addr in self.kb.functions.callgraph:
+        #    self.kb.functions.callgraph.remove_node(node.addr)
 
     def _analyze_all_function_features(self):
         """
@@ -2674,6 +2751,38 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         else:
             self.graph.add_edge(src_node, cfg_node, jumpkind=src_jumpkind,
                                 stmt_idx=src_stmt_idx)
+
+    def _make_return_edges(self):
+        """
+        For each returning function, create return edges in self.graph.
+
+        :return: None
+        """
+
+        for func_addr, function in self.functions.iteritems():
+            if function.returning is False:
+                continue
+
+            # get the node on CFG
+            startpoint = self.get_any_node(function.startpoint.addr)
+            if startpoint is None:
+                # weird...
+                l.warning('No CFGNode is found for function %#x in _make_return_edges().', func_addr)
+                continue
+            # get all endpoints
+            endpoints = function.endpoints
+            # get all callers
+            callers = self.get_predecessors(startpoint, jumpkind='Ijk_Call')
+            # for each caller, since they all end with a call instruction, get the immediate successor
+            return_targets = itertools.chain.from_iterable(
+                self.get_successors(caller, excluding_fakeret=False, jumpkind='Ijk_FakeRet') for caller in callers
+            )
+            return_targets = set(return_targets)
+
+            for ep in endpoints:
+                src = self.get_any_node(ep.addr)
+                for rt in return_targets:
+                    self._graph_add_edge(rt, src, 'Ijk_Ret', 'default')
 
     #
     # Function utils

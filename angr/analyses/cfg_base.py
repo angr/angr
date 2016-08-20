@@ -151,18 +151,24 @@ class CFGBase(Analysis):
     def get_bbl_dict(self):
         return self._nodes
 
-    def get_predecessors(self, cfgnode, excluding_fakeret=True):
+    def get_predecessors(self, cfgnode, excluding_fakeret=True, jumpkind=None):
         """
-        Get predecessors of a node on the control flow graph.
+        Get predecessors of a node in the control flow graph.
 
-        :param CFGNode cfgnode: The node
-        :param bool excluding_fakeret: True if you want to exclude all predecessors that is connected to the node with
-                                       a fakeret edge.
-        :return: A list of predecessors
-        :rtype: list
+        :param CFGNode cfgnode:             The node.
+        :param bool excluding_fakeret:      True if you want to exclude all predecessors that is connected to the node
+                                            with a fakeret edge.
+        :param str or None jumpkind:        Only return predecessors with the specified jumpkind. This argument will be
+                                            ignored if set to None.
+        :return:                            A list of predecessors
+        :rtype:                             list
         """
 
-        if not excluding_fakeret:
+        if excluding_fakeret and jumpkind == 'Ijk_Ret':
+            return [ ]
+
+        if not excluding_fakeret and jumpkind is None:
+            # fast path
             if cfgnode in self._graph:
                 return self._graph.predecessors(cfgnode)
             else:
@@ -170,13 +176,36 @@ class CFGBase(Analysis):
         else:
             predecessors = []
             for pred, _, data in self._graph.in_edges_iter([cfgnode], data=True):
-                jumpkind = data['jumpkind']
-                if jumpkind != 'Ijk_FakeRet':
+                jk = data['jumpkind']
+                if jumpkind is not None:
+                    if jk == jumpkind:
+                        predecessors.append(pred)
+                elif excluding_fakeret:
+                    if jk != 'Ijk_FakeRet':
+                        predecessors.append(pred)
+                else:
                     predecessors.append(pred)
             return predecessors
 
-    def get_successors(self, basic_block, excluding_fakeret=True):
-        if not excluding_fakeret:
+    def get_successors(self, basic_block, excluding_fakeret=True, jumpkind=None):
+        """
+        Get successors of a node in the control flow graph.
+
+        :param CFGNode cfgnode:             The node.
+        :param bool excluding_fakeret:      True if you want to exclude all successors that is connected to the node
+                                            with a fakeret edge.
+        :param str or None jumpkind:        Only return successors with the specified jumpkind. This argument will be
+                                            ignored if set to None.
+        :return:                            A list of successors
+        :rtype:                             list
+        """
+
+        if jumpkind is not None:
+            if excluding_fakeret and jumpkind == 'Ijk_FakeRet':
+                return []
+
+        if not excluding_fakeret and jumpkind is None:
+            # fast path
             if basic_block in self._graph:
                 return self._graph.successors(basic_block)
             else:
@@ -184,8 +213,14 @@ class CFGBase(Analysis):
         else:
             successors = []
             for _, suc, data in self._graph.out_edges_iter([basic_block], data=True):
-                jumpkind = data['jumpkind']
-                if jumpkind != 'Ijk_FakeRet':
+                jk = data['jumpkind']
+                if jumpkind is not None:
+                    if jumpkind == jk:
+                        successors.append(suc)
+                elif excluding_fakeret:
+                    if jk != 'Ijk_FakeRet':
+                        successors.append(suc)
+                else:
                     successors.append(suc)
             return successors
 
@@ -982,6 +1017,23 @@ class CFGBase(Analysis):
     # Function identification and such
     #
 
+    def remove_function_alignments(self):
+        """
+        Remove all function alignments.
+
+        :return: None
+        """
+
+        for func_addr in self.kb.functions.keys():
+            function = self.kb.functions[func_addr]
+            if len(function.block_addrs_set) == 1:
+                block = next((b for b in function.blocks), None)
+                if block is None:
+                    continue
+                if all(self._is_noop_insn(insn) for insn in block.capstone.insns):
+                    # remove this function
+                    del self.kb.functions[func_addr]
+
     def make_functions(self):
         """
         Revisit the entire control flow graph, create Function instances accordingly, and correctly put blocks into
@@ -1019,6 +1071,10 @@ class CFGBase(Analysis):
             jumpkind = data.get('jumpkind', "")
             if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
                 function_nodes.add(dst)
+
+        entry_node = self.get_any_node(self._binary.entry)
+        if entry_node is not None:
+            function_nodes.add(entry_node)
 
         # aggressively remove and merge functions
         # For any function, if there is a call to it, it won't be removed
@@ -1415,6 +1471,13 @@ class CFGBase(Analysis):
             if n is None: dst_node = dst_addr
             else: dst_node = self._to_snippet(n)
 
+            # pre-check: if source and destination do not belong to the same section, it must be jumping to another
+            # function
+            src_section = self._addr_belongs_to_section(src_addr)
+            dst_section = self._addr_belongs_to_section(dst_addr)
+            if src_section != dst_section:
+                _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+
             # is it a jump to another function?
             if dst_addr in known_functions or (
                 dst_addr in blockaddr_to_function and blockaddr_to_function[dst_addr] is not src_function
@@ -1465,3 +1528,31 @@ class CFGBase(Analysis):
 
         else:
             l.debug('Ignored jumpkind %s', jumpkind)
+
+    #
+    # Other functions
+    #
+
+    @staticmethod
+    def _is_noop_insn(insn):
+        """
+        Check if the instruction does nothing.
+
+        :param insn: The capstone insn object.
+        :return: True if the instruction does no-op, False otherwise.
+        """
+
+        if insn.insn_name() == 'nop':
+            # nops
+            return True
+        if insn.insn_name() == 'lea':
+            # lea reg, [reg + 0]
+            op0, op1 = insn.operands
+            if op0.type == 1 and op1.type == 3:
+                # reg and mem
+                if op0.reg == op1.mem.base and op1.mem.index == 0 and op1.mem.disp == 0:
+                    return True
+
+        # add more types of no-op instructions here :-)
+
+        return False

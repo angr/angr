@@ -791,7 +791,9 @@ class DDG(Analysis):
                         const_variable = SimConstantVariable()
                         if statements is not None:
                             stmt = statements[a.stmt_idx]
-                            if isinstance(stmt.data, pyvex.IRExpr.Const):
+                            if isinstance(stmt, pyvex.IRStmt.Dirty):
+                                l.warning('Dirty statements are not supported in DDG for now.')
+                            elif isinstance(stmt.data, pyvex.IRExpr.Const):
                                 const_variable = SimConstantVariable(value=stmt.data.con.value)
                         const_pv = ProgramVariable(const_variable, current_code_location)
                         self._data_graph_add_edge(const_pv, pv)

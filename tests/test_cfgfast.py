@@ -152,10 +152,18 @@ def test_fauxware():
             }
     }
 
+    return_edges = {
+        'x86_64':
+            [
+                (0x4006fb, 0x4007c7)  # return from accepted to main
+            ]
+    }
+
     arches = functions.keys()
 
     for arch in arches:
         yield cfg_fast_functions_check, arch, filename, functions[arch], function_features[arch]
+        yield cfg_fast_edges_check, arch, filename, return_edges[arch]
 
 def test_cfg_loop_unrolling():
     filename = "cfg_loop_unrolling"
