@@ -3,11 +3,12 @@ import sys
 import copy
 import struct
 import ctypes
-import logging
 import threading
 import itertools
-l = logging.getLogger('simuvex.plugins.unicorn')
+import pkg_resources
 
+import logging
+l = logging.getLogger('simuvex.plugins.unicorn')
 
 try:
     import unicorn
@@ -71,6 +72,7 @@ class AggressiveConcretizationAnnotation(claripy.SimplificationAvoidanceAnnotati
 _unicounter = itertools.count()
 
 class Uniwrapper(unicorn.Uc if unicorn is not None else object):
+    # pylint: disable=non-parent-init-called
     def __init__(self, arch, cache_key):
         l.debug("Creating unicorn state!")
         self.arch = arch
@@ -152,19 +154,10 @@ def _load_native():
         libfile = 'sim_unicorn.dylib'
     else:
         libfile = 'sim_unicorn.so'
-    _simuvex_paths = [ os.path.join(os.path.dirname(__file__), '..', '..', 'simuvex_c', libfile), os.path.join(sys.prefix, 'lib', libfile) ]
+
     try:
-        h = None
-
-        for f in _simuvex_paths:
-            l.debug('checking %r', f)
-            if os.path.exists(f):
-                h = ctypes.CDLL(f)
-                break
-
-        if h is None:
-            l.warning('failed loading sim_unicorn, unicorn support disabled')
-            raise ImportError("Could not find sim_unicorn shared object.")
+        simuvex_path = pkg_resources.resource_filename('simuvex', os.path.join('lib', libfile))
+        h = ctypes.CDLL(simuvex_path)
 
         VexArch = ctypes.c_int
         uc_err = ctypes.c_int

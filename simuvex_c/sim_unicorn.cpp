@@ -1,4 +1,4 @@
-#include "unicorn.h"
+#include <unicorn/unicorn.h>
 #include "log.h"
 
 #include <cstring>
@@ -11,7 +11,7 @@
 
 extern "C" {
 #include <libvex.h>
-#include <pyvex_static.h>
+#include <pyvex.h>
 }
 
 #define PAGE_SIZE 0x1000
@@ -90,7 +90,6 @@ private:
 	BlockCache *block_cache;
 	bool hooked;
 
-	void (*uc_reg_update)(uc_engine *uc, void *buf, int save);
 	uint8_t tmp_reg[MAX_REG_SIZE];
 
 	std::vector<mem_access_t> mem_writes;
@@ -145,19 +144,6 @@ public:
 				page_cache = it->second.page_cache;
         block_cache = it->second.block_cache;
 		}
-
-		arch = *((uc_arch*)uc);	// unicorn hides all its internals...
-		switch (arch) {
-				case UC_ARCH_X86:
-						*(void **)&uc_reg_update = (void *)x86_reg_update;
-						break;
-				case UC_ARCH_MIPS:
-						*(void **)&uc_reg_update = (void *)mips_reg_update;
-						break;
-				default:
-						*(void **)&uc_reg_update = (void *)0xdeadbeef;
-						LOG_E("unsupported arch");
-		};
 	}
 	
 	/*
@@ -249,7 +235,7 @@ public:
 			case STOP_SYSCALL:
 				msg = "unable to handle syscall";
 				commit();
-				uc_reg_update(uc, tmp_reg, 1);
+				uc_save_regstate(uc, tmp_reg);
 				break;
 			case STOP_ZEROPAGE:
 				msg = "accessing zero page";
@@ -276,7 +262,7 @@ public:
 	}
 
 	void step(uint64_t current_address, int32_t size, bool check_stop_points=true) {
-		uc_reg_update(uc, tmp_reg, 1); // save current registers
+		uc_save_regstate(uc, tmp_reg); // save current registers
 		bbl_addrs.push_back(current_address);
 		cur_address = current_address;
 		cur_size = size;
@@ -368,7 +354,7 @@ public:
 		}
 		mem_writes.clear();
 
-		uc_reg_update(uc, tmp_reg, 0);
+		uc_restore_regstate(uc, tmp_reg);
 		bbl_addrs.pop_back();
 	}
 

@@ -1,27 +1,41 @@
 # pylint: disable=no-name-in-module,import-error
 import os
+import sys
 import subprocess
+import pkg_resources
+import shutil
 from setuptools import setup
 from distutils.errors import LibError
 from distutils.command.build import build as _build
 
+if sys.platform == 'darwin':
+    library_file = "sim_unicorn.dylib"
+else:
+    library_file = "sim_unicorn.so"
+
 def _build_sim_unicorn():
     try:
         import unicorn
+        import pyvex
     except ImportError:
-        raise LibError("You must install unicorn before building simuvex")
+        raise LibError("You must install unicorn and pyvex before building simuvex")
 
-    uc_path = os.path.join(os.path.dirname(unicorn.__file__), '../../..')
     env = os.environ.copy()
-    env['UNICORN_PATH'] = uc_path
+    env['UNICORN_LIB_PATH'] = pkg_resources.resource_filename('unicorn', 'lib')
+    env['UNICORN_INCLUDE_PATH'] = pkg_resources.resource_filename('unicorn', 'include')
+    env['PYVEX_LIB_PATH'] = pkg_resources.resource_filename('pyvex', 'lib')
+    env['PYVEX_INCLUDE_PATH'] = pkg_resources.resource_filename('pyvex', 'include')
     if subprocess.call(['make'], cwd='simuvex_c', env=env) != 0:
         raise LibError('Unable to build sim_unicorn')
+
+    shutil.rmtree('simuvex/lib', ignore_errors=True)
+    os.mkdir('simuvex/lib')
+    shutil.copy(os.path.join('simuvex_c', library_file), 'simuvex/lib')
 
 class build(_build):
     def run(self, *args):
         try:
             self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
-            data_files.append(('lib', (os.path.join('simuvex_c', 'sim_unicorn.so'),),))
         except LibError:
             print 'Failed to build unicorn engine support'
         _build.run(self, *args)
@@ -31,7 +45,6 @@ class develop(_develop):
     def run(self, *args):
         try:
             self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
-            data_files.append(('lib', (os.path.join('simuvex_c', 'sim_unicorn.so'),),))
         except LibError:
             pass
         _develop.run(self, *args)
@@ -40,7 +53,6 @@ cmdclass = {
         'build': build,
         'develop': develop,
 }
-data_files = []
 
 setup(
     name='simuvex',
@@ -57,6 +69,9 @@ setup(
         'cooldict',
         'ana'
     ],
-    data_files=data_files,
     cmdclass=cmdclass,
+    include_package_data=True,
+    package_data={
+        'simuvex': ['lib/*']
+    }
 )
