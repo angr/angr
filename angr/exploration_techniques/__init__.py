@@ -105,4 +105,5 @@ from .threading import Threading
 from .dfs import DFS
 from .looplimiter import LoopLimiter
 from .veritesting import Veritesting
+from .oppologist import Oppologist
 from ..errors import AngrError, AngrExplorationTechniqueError
