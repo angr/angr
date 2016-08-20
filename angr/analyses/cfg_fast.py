@@ -1070,6 +1070,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self.normalize()
 
         self.make_functions()
+        # optional: remove functions that must be alignments
+        self.remove_function_alignments()
 
         if self.project.loader.main_bin.sections:
             # this binary has sections
@@ -2634,7 +2636,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._function_add_node(node.addr, node.addr)
                 successor_node = self.get_any_node(successor_node_addr)
                 if successor_node and successor_node.function_address == node.addr:
-                    self._function_add_node(successor_node_addr, successor_node_addr)
+                    # if there is absolutely no predecessors to successor_node, we'd like to add it as a new function
+                    # so that it will not be left behind
+                    if not self.graph.predecessors(successor_node):
+                        self._function_add_node(successor_node_addr, successor_node_addr)
 
         #if node.addr in self.kb.functions.callgraph:
         #    self.kb.functions.callgraph.remove_node(node.addr)
@@ -2997,30 +3002,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     #
     # Other methods
     #
-
-    @staticmethod
-    def _is_noop_insn(insn):
-        """
-        Check if the instruction does nothing.
-
-        :param insn: The capstone insn object.
-        :return: True if the instruction does no-op, False otherwise.
-        """
-
-        if insn.insn_name() == 'nop':
-            # nops
-            return True
-        if insn.insn_name() == 'lea':
-            # lea reg, [reg + 0]
-            op0, op1 = insn.operands
-            if op0.type == 1 and op1.type == 3:
-                # reg and mem
-                if op0.reg == op1.mem.base and op1.mem.index == 0 and op1.mem.disp == 0:
-                    return True
-
-        # add more types of no-op instructions here :-)
-
-        return False
 
     def _generate_cfgnode(self, addr, current_function_addr):
         """

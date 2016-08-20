@@ -982,6 +982,23 @@ class CFGBase(Analysis):
     # Function identification and such
     #
 
+    def remove_function_alignments(self):
+        """
+        Remove all function alignments.
+
+        :return: None
+        """
+
+        for func_addr in self.kb.functions.keys():
+            function = self.kb.functions[func_addr]
+            if len(function.block_addrs_set) == 1:
+                block = next((b for b in function.blocks), None)
+                if block is None:
+                    continue
+                if all(self._is_noop_insn(insn) for insn in block.capstone.insns):
+                    # remove this function
+                    del self.kb.functions[func_addr]
+
     def make_functions(self):
         """
         Revisit the entire control flow graph, create Function instances accordingly, and correctly put blocks into
@@ -1476,3 +1493,31 @@ class CFGBase(Analysis):
 
         else:
             l.debug('Ignored jumpkind %s', jumpkind)
+
+    #
+    # Other functions
+    #
+
+    @staticmethod
+    def _is_noop_insn(insn):
+        """
+        Check if the instruction does nothing.
+
+        :param insn: The capstone insn object.
+        :return: True if the instruction does no-op, False otherwise.
+        """
+
+        if insn.insn_name() == 'nop':
+            # nops
+            return True
+        if insn.insn_name() == 'lea':
+            # lea reg, [reg + 0]
+            op0, op1 = insn.operands
+            if op0.type == 1 and op1.type == 3:
+                # reg and mem
+                if op0.reg == op1.mem.base and op1.mem.index == 0 and op1.mem.disp == 0:
+                    return True
+
+        # add more types of no-op instructions here :-)
+
+        return False
