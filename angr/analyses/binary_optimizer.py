@@ -180,7 +180,7 @@ class BinaryOptimizer(Analysis):
         if 'dead_assignment_elimination' in self._techniques:
             self._dead_assignment_elimination(function, ddg.simplified_data_graph)
 
-    def _constant_propagation(self, function, data_graph):
+    def _constant_propagation(self, function, data_graph):  #pylint:disable=unused-argument
         """
 
         :param function:
@@ -212,7 +212,7 @@ class BinaryOptimizer(Analysis):
             if not isinstance(n2.variable, SimMemoryVariable):
                 continue
             n2_inedges = data_graph.in_edges(n2, data=True)
-            if len([ 0 for src, dst, data in n2_inedges if 'type' in data and data['type'] == 'mem_data' ]) != 1:
+            if len([ 0 for _, _, data in n2_inedges if 'type' in data and data['type'] == 'mem_data' ]) != 1:
                 continue
 
             cp = ConstantPropagation(n0.variable.value, n0.location, n2.location)
@@ -400,7 +400,7 @@ class BinaryOptimizer(Analysis):
             return
         if not (insn4.mnemonic == 'pop' and insn4.op_str == 'ebp'):
             return
-        if not (insn5.mnemonic == 'ret'):
+        if not insn5.mnemonic == 'ret':
             return
 
         # make sure esp is not used anywhere else - all stack variables must be indexed using ebp
@@ -431,15 +431,13 @@ class BinaryOptimizer(Analysis):
         epilogue_addr = insn3.address
         epilogue_size = insn3.size + insn4.size + insn5.size
 
-        """
         # look at consumer of those esp variables. no other instruction should be consuming them
-        esp_consumer_insns = { insn0.address, insn1.address, insn2.address, insn3.address, insn4.address,
-                               insn5.address} | esp_insns
-        for esp_variable in esp_variables:  # type: angr.analyses.ddg.ProgramVariable
-            consumers = data_graph.successors(esp_variable)
-            if any([ consumer.location.ins_addr not in esp_consumer_insns for consumer in consumers ]):
-                return
-        """
+        # esp_consumer_insns = { insn0.address, insn1.address, insn2.address, insn3.address, insn4.address,
+        #                        insn5.address} | esp_insns
+        # for esp_variable in esp_variables:  # type: angr.analyses.ddg.ProgramVariable
+        #     consumers = data_graph.successors(esp_variable)
+        #     if any([ consumer.location.ins_addr not in esp_consumer_insns for consumer in consumers ]):
+        #         return
 
         # make sure we never gets the address of those stack variables into any register
         # say, lea edx, [ebp-0x4] is forbidden
@@ -596,7 +594,7 @@ class BinaryOptimizer(Analysis):
                     repr(function)
                     )
 
-    def _dead_assignment_elimination(self, function, data_graph):
+    def _dead_assignment_elimination(self, function, data_graph):  #pylint:disable=unused-argument
         """
         Remove assignments to registers that has no consumers, but immediately killed.
 
@@ -619,7 +617,7 @@ class BinaryOptimizer(Analysis):
             out_edges = data_graph.out_edges(reg, data=True)
             consumers = [ ]
             killers = [ ]
-            for _, dst, data in out_edges:
+            for _, _, data in out_edges:
                 if 'type' in data and data['type'] == 'kill':
                     killers.append(data)
                 else:

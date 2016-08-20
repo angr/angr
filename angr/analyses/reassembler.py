@@ -1363,12 +1363,16 @@ class Data(object):
                         addr_to_labels[k] = []
                     addr_to_labels[k].append(v)
 
-                if directive is not None and \
-                        (
-                            len(addr_to_labels) == 0 or (len(addr_to_labels) == 1 and (
-                            (self.addr is not None and addr_to_labels.keys()[0] == self.addr) or
-                            (self.addr is None and addr_to_labels.keys()[0] == 0)))
-                        ):
+                show_integer = False
+                if len(addr_to_labels) == 0:
+                    show_integer = True
+                elif len(addr_to_labels) == 1:
+                    if self.addr is not None and addr_to_labels.keys()[0] == self.addr:
+                        show_integer = True
+                    elif self.addr is None and addr_to_labels.keys()[0] == 0:
+                        show_integer = True
+
+                if directive is not None and show_integer:
                     # nice, we should display it as an integer
                     if addr_to_labels:
                         for label in addr_to_labels.values()[0]:
@@ -2014,7 +2018,7 @@ class Reassembler(Analysis):
         for proc in self.procedures:
             proc.assign_labels()
 
-        for i, data in enumerate(self.data):
+        for data in self.data:
             data.assign_labels()
 
         # Get all instruction addresses, and modify those labels pointing to the middle of an instruction
@@ -2541,7 +2545,8 @@ class Reassembler(Analysis):
             return True
         return False
 
-    def _is_pointer(self, cfg, ptr):
+    @staticmethod
+    def _is_pointer(cfg, ptr):
         if cfg._addr_belongs_to_section(ptr) is not None or cfg._addr_belongs_to_segment(ptr) is not None or \
                 (cfg._extra_memory_regions and
                      next(((a < ptr < b) for (a, b) in cfg._extra_memory_regions), None)
