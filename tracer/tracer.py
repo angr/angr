@@ -6,7 +6,6 @@ import socket
 import claripy
 import simuvex
 import tempfile
-import topsecret
 import subprocess
 import shellphish_qemu
 from .tracerpov import TracerPoV
@@ -961,7 +960,7 @@ class Tracer(object):
             hierarchy=False,
             save_unconstrained=self.crash_mode)
 
-        pg.use_technique(topsecret.Oppologist())
+        pg.use_technique(angr.exploration_techniques.Oppologist())
         l.info("oppologist enabled")
 
         return pg
