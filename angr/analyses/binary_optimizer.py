@@ -5,7 +5,7 @@ import logging
 
 from simuvex import SimConstantVariable, SimRegisterVariable, SimMemoryVariable, SimStackVariable
 from simuvex import SimProcedures
-from .. import Analysis, register_analysis
+from ..analysis import Analysis, register_analysis
 from .. import KnowledgeBase
 from ..knowledge import HookNode
 

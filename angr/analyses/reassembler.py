@@ -12,7 +12,8 @@ import networkx
 import pyvex
 
 from simuvex import SimMemoryVariable, SimTemporaryVariable
-from .. import Analysis, register_analysis, KnowledgeBase
+from ..analysis import Analysis, register_analysis
+from ..knowledge_base import KnowledgeBase
 from ..extern_obj import AngrExternObject
 
 l = logging.getLogger('angr.analyses.reassembler')
