@@ -862,14 +862,18 @@ class BinDiff(Analysis):
         back_traversal = not enable_advanced_backward_slicing
 
         if cfg_a is None:
+            #self.cfg_a = self.project.analyses.CFG(resolve_indirect_jumps=True)
+            #self.cfg_b = other_project.analyses.CFG(resolve_indirect_jumps=True)
             self.cfg_a = self.project.analyses.CFGAccurate(context_sensitivity_level=1,
-                                                   keep_state=True,
-                                                   enable_symbolic_back_traversal=back_traversal,
-                                                   enable_advanced_backward_slicing=enable_advanced_backward_slicing)
+                                                            keep_state = True,
+                                                            enable_symbolic_back_traversal = back_traversal,
+                                                            enable_advanced_backward_slicing = enable_advanced_backward_slicing)
+
             self.cfg_b = other_project.analyses.CFGAccurate(context_sensitivity_level=1,
-                                                    keep_state=True,
-                                                    enable_symbolic_back_traversal=back_traversal,
-                                                    enable_advanced_backward_slicing=enable_advanced_backward_slicing)
+                                                            keep_state = True,
+                                                            enable_symbolic_back_traversal = back_traversal,
+                                                            enable_advanced_backward_slicing = enable_advanced_backward_slicing)
+
         else:
             self.cfg_a = cfg_a
             self.cfg_b = cfg_b
@@ -1066,6 +1070,24 @@ class BinDiff(Analysis):
 
         return plt_matches
 
+    def _get_name_matches(self):
+        names_to_addrs_a = dict()
+        for f in self.cfg_a.functions.values():
+            if not f.name.startswith("sub_"):
+                names_to_addrs_a[f.name] = f.addr
+
+        names_to_addrs_b = dict()
+        for f in self.cfg_b.functions.values():
+            if not f.name.startswith("sub_"):
+                names_to_addrs_b[f.name] = f.addr
+
+        name_matches = []
+        for name, addr in names_to_addrs_a.items():
+            if name in names_to_addrs_b:
+                name_matches.append((addr, names_to_addrs_b[name]))
+
+        return name_matches
+
     def _compute_diff(self):
         # get the attributes for all functions
         self.attributes_a = self._compute_function_attributes(self.cfg_a)
@@ -1073,6 +1095,7 @@ class BinDiff(Analysis):
 
         # get the initial matches
         initial_matches = self._get_plt_matches()
+        initial_matches += self._get_name_matches()
         initial_matches += self._get_function_matches(self.attributes_a, self.attributes_b)
         for (a, b) in initial_matches:
             l.debug("Initally matched (%#x, %#x)", a, b)
@@ -1090,6 +1113,9 @@ class BinDiff(Analysis):
             matched_a[x] = y
             matched_b[y] = x
 
+        callgraph_a_nodes = set(self.cfg_a.kb.callgraph.nodes())
+        callgraph_b_nodes = set(self.cfg_b.kb.callgraph.nodes())
+
         # while queue is not empty
         while to_process:
             (func_a, func_b) = to_process.pop()
@@ -1101,10 +1127,10 @@ class BinDiff(Analysis):
             if not self._p2.loader.main_bin.contains_addr(func_b):
                 continue
 
-            func_a_succ = self.cfg_a.kb.callgraph.successors(func_a)
-            func_b_succ = self.cfg_b.kb.callgraph.successors(func_b)
-            func_a_pred = self.cfg_a.kb.callgraph.predecessors(func_a)
-            func_b_pred = self.cfg_b.kb.callgraph.predecessors(func_b)
+            func_a_succ = self.cfg_a.kb.callgraph.successors(func_a) if func_a in callgraph_a_nodes else []
+            func_b_succ = self.cfg_b.kb.callgraph.successors(func_b) if func_b in callgraph_b_nodes else []
+            func_a_pred = self.cfg_a.kb.callgraph.predecessors(func_a) if func_a in callgraph_a_nodes else []
+            func_b_pred = self.cfg_b.kb.callgraph.predecessors(func_b) if func_b in callgraph_b_nodes else []
 
             # get possible new matches
             new_matches = set(self._get_function_matches(self.attributes_a, self.attributes_b,
