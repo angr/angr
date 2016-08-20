@@ -4,7 +4,7 @@ Manage OS-level configuration.
 
 import logging
 
-from archinfo import ArchARM, ArchMIPS32, ArchX86, ArchAMD64
+from archinfo import ArchARM, ArchMIPS32, ArchMIPS64, ArchX86, ArchAMD64, ArchPPC32, ArchPPC64, ArchAArch64
 from simuvex import SimState, SimIRSB, SimStateSystem, SimActionData
 from simuvex import s_options as o, s_cc
 from simuvex import SimProcedures
@@ -485,11 +485,17 @@ class SimLinux(SimOS):
 
         if self.proj.loader.tls_object is not None:
             if isinstance(state.arch, ArchAMD64):
-                state.regs.fs = self.proj.loader.tls_object.thread_pointer
+                state.regs.fs = self.proj.loader.tls_object.user_thread_pointer
             elif isinstance(state.arch, ArchX86):
-                state.regs.gs = self.proj.loader.tls_object.thread_pointer >> 16
-            elif isinstance(state.arch, ArchMIPS32):
-                state.regs.ulr = self.proj.loader.tls_object.thread_pointer
+                state.regs.gs = self.proj.loader.tls_object.user_thread_pointer >> 16
+            elif isinstance(state.arch, (ArchMIPS32, ArchMIPS64)):
+                state.regs.ulr = self.proj.loader.tls_object.user_thread_pointer
+            elif isinstance(state.arch, ArchPPC32):
+                state.regs.r2 = self.proj.loader.tls_object.user_thread_pointer
+            elif isinstance(state.arch, ArchPPC64):
+                state.regs.r13 = self.proj.loader.tls_object.user_thread_pointer
+            elif isinstance(state.arch, ArchAArch64):
+                state.regs.tpidr_el0 = self.proj.loader.tls_object.user_thread_pointer
 
         state.register_plugin('posix', SimStateSystem(fs=fs, concrete_fs=concrete_fs, chroot=chroot))
 
@@ -601,10 +607,12 @@ class SimLinux(SimOS):
                 elif val == 'ld_destructor':
                     # a pointer to the dynamic linker's destructor routine, to be called at exit
                     # or NULL. We like NULL. It makes things easier.
-                    state.registers.store(reg, claripy.BVV(0, state.arch.bits))
+                    state.registers.store(reg, 0)
                 elif val == 'toc':
                     if self.proj.loader.main_bin.is_ppc64_abiv1:
                         state.registers.store(reg, self.proj.loader.main_bin.ppc64_initial_rtoc)
+                elif val == 'thread_pointer':
+                    state.registers.store(reg, self.proj.loader.tls_object.user_thread_pointer)
                 else:
                     l.warning('Unknown entry point register value indicator "%s"', val)
             else:
@@ -851,7 +859,7 @@ class _vsyscall(SimProcedure):
 class _kernel_user_helper_get_tls(SimProcedure):
     # pylint: disable=arguments-differ
     def run(self, ld=None):
-        self.state.regs.r0 = ld.tls_object.thread_pointer
+        self.state.regs.r0 = ld.tls_object.user_thread_pointer
         return
 
 class CallReturn(SimProcedure):
