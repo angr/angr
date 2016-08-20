@@ -151,18 +151,24 @@ class CFGBase(Analysis):
     def get_bbl_dict(self):
         return self._nodes
 
-    def get_predecessors(self, cfgnode, excluding_fakeret=True):
+    def get_predecessors(self, cfgnode, excluding_fakeret=True, jumpkind=None):
         """
-        Get predecessors of a node on the control flow graph.
+        Get predecessors of a node in the control flow graph.
 
-        :param CFGNode cfgnode: The node
-        :param bool excluding_fakeret: True if you want to exclude all predecessors that is connected to the node with
-                                       a fakeret edge.
-        :return: A list of predecessors
-        :rtype: list
+        :param CFGNode cfgnode:             The node.
+        :param bool excluding_fakeret:      True if you want to exclude all predecessors that is connected to the node
+                                            with a fakeret edge.
+        :param str or None jumpkind:        Only return predecessors with the specified jumpkind. This argument will be
+                                            ignored if set to None.
+        :return:                            A list of predecessors
+        :rtype:                             list
         """
 
-        if not excluding_fakeret:
+        if excluding_fakeret and jumpkind == 'Ijk_Ret':
+            return [ ]
+
+        if not excluding_fakeret and jumpkind is None:
+            # fast path
             if cfgnode in self._graph:
                 return self._graph.predecessors(cfgnode)
             else:
@@ -170,13 +176,36 @@ class CFGBase(Analysis):
         else:
             predecessors = []
             for pred, _, data in self._graph.in_edges_iter([cfgnode], data=True):
-                jumpkind = data['jumpkind']
-                if jumpkind != 'Ijk_FakeRet':
+                jk = data['jumpkind']
+                if jumpkind is not None:
+                    if jk == jumpkind:
+                        predecessors.append(pred)
+                elif excluding_fakeret:
+                    if jk != 'Ijk_FakeRet':
+                        predecessors.append(pred)
+                else:
                     predecessors.append(pred)
             return predecessors
 
-    def get_successors(self, basic_block, excluding_fakeret=True):
-        if not excluding_fakeret:
+    def get_successors(self, basic_block, excluding_fakeret=True, jumpkind=None):
+        """
+        Get successors of a node in the control flow graph.
+
+        :param CFGNode cfgnode:             The node.
+        :param bool excluding_fakeret:      True if you want to exclude all successors that is connected to the node
+                                            with a fakeret edge.
+        :param str or None jumpkind:        Only return successors with the specified jumpkind. This argument will be
+                                            ignored if set to None.
+        :return:                            A list of successors
+        :rtype:                             list
+        """
+
+        if jumpkind is not None:
+            if excluding_fakeret and jumpkind == 'Ijk_FakeRet':
+                return []
+
+        if not excluding_fakeret and jumpkind is None:
+            # fast path
             if basic_block in self._graph:
                 return self._graph.successors(basic_block)
             else:
@@ -184,8 +213,14 @@ class CFGBase(Analysis):
         else:
             successors = []
             for _, suc, data in self._graph.out_edges_iter([basic_block], data=True):
-                jumpkind = data['jumpkind']
-                if jumpkind != 'Ijk_FakeRet':
+                jk = data['jumpkind']
+                if jumpkind is not None:
+                    if jumpkind == jk:
+                        successors.append(suc)
+                elif excluding_fakeret:
+                    if jk != 'Ijk_FakeRet':
+                        successors.append(suc)
+                else:
                     successors.append(suc)
             return successors
 

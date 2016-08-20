@@ -3,6 +3,7 @@ import string
 import math
 import re
 import struct
+import itertools
 from collections import defaultdict
 
 import cffi
@@ -1072,6 +1073,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self.make_functions()
         # optional: remove functions that must be alignments
         self.remove_function_alignments()
+
+        # make return edges
+        self._make_return_edges()
 
         if self.project.loader.main_bin.sections:
             # this binary has sections
@@ -2747,6 +2751,38 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         else:
             self.graph.add_edge(src_node, cfg_node, jumpkind=src_jumpkind,
                                 stmt_idx=src_stmt_idx)
+
+    def _make_return_edges(self):
+        """
+        For each returning function, create return edges in self.graph.
+
+        :return: None
+        """
+
+        for func_addr, function in self.functions.iteritems():
+            if function.returning is False:
+                continue
+
+            # get the node on CFG
+            startpoint = self.get_any_node(function.startpoint.addr)
+            if startpoint is None:
+                # weird...
+                l.warning('No CFGNode is found for function %#x in _make_return_edges().', func_addr)
+                continue
+            # get all endpoints
+            endpoints = function.endpoints
+            # get all callers
+            callers = self.get_predecessors(startpoint, jumpkind='Ijk_Call')
+            # for each caller, since they all end with a call instruction, get the immediate successor
+            return_targets = itertools.chain.from_iterable(
+                self.get_successors(caller, excluding_fakeret=False, jumpkind='Ijk_FakeRet') for caller in callers
+            )
+            return_targets = set(return_targets)
+
+            for ep in endpoints:
+                src = self.get_any_node(ep.addr)
+                for rt in return_targets:
+                    self._graph_add_edge(rt, src, 'Ijk_Ret', 'default')
 
     #
     # Function utils
