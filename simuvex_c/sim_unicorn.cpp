@@ -102,7 +102,7 @@ public:
 	std::vector<transmit_record_t> transmit_records;
 	uint64_t cur_steps, max_steps;
 	uc_hook h_read, h_write, h_block, h_prot, h_unmap, h_intr;
-  bool stopped;
+	bool stopped;
 	stop_t stop_reason;
 	uint64_t stopping_register;
 	uint64_t stopping_memory;
@@ -117,8 +117,8 @@ public:
 	uint32_t transmit_sysno;
 	uint32_t transmit_bbl_addr;
 
-  VexArch vex_guest;
-  VexArchInfo vex_archinfo;
+	VexArch vex_guest;
+	VexArchInfo vex_archinfo;
 	RegisterSet symbolic_registers; // tracking of symbolic registers
 
 	State(uc_engine *_uc, uint64_t cache_key):uc(_uc)
@@ -126,24 +126,25 @@ public:
 		hooked = false;
 		h_read = h_write = h_block = h_prot = 0;
 		max_steps = cur_steps = 0;
-    stopped = true;
+		stopped = true;
 		stop_reason = STOP_NOSTART;
 		ignore_next_block = false;
 		ignore_next_selfmod = false;
 		interrupt_handled = false;
 		transmit_sysno == -1;
-    vex_guest = VexArch_INVALID;
-    syscall_count = 0;
+		vex_guest = VexArch_INVALID;
+		syscall_count = 0;
 
 		auto it = global_cache.find(cache_key);
 		if (it == global_cache.end()) {
-				page_cache = new PageCache();
-        block_cache = new BlockCache();
-				global_cache[cache_key] = {page_cache, block_cache};
+			page_cache = new PageCache();
+			block_cache = new BlockCache();
+			global_cache[cache_key] = {page_cache, block_cache};
 		} else {
-				page_cache = it->second.page_cache;
-        block_cache = it->second.block_cache;
+			page_cache = it->second.page_cache;
+			block_cache = it->second.block_cache;
 		}
+		arch = *((uc_arch*)uc); // unicorn hides all its internals...
 	}
 	
 	/*
@@ -199,7 +200,7 @@ public:
 	}
 
 	uc_err start(uint64_t pc, uint64_t step = 1) {
-    stopped = false;
+		stopped = false;
 		stop_reason = STOP_NOSTART;
 		max_steps = step;
 		cur_steps = -1;
@@ -214,7 +215,7 @@ public:
 	}
 
 	void stop(stop_t reason) {
-    stopped = true;
+		stopped = true;
 		const char *msg = NULL;
 		switch (reason) {
 			case STOP_NORMAL:
@@ -226,9 +227,9 @@ public:
 			case STOP_SYMBOLIC_MEM:
 				msg = "read symbolic data";
 				break;
-      case STOP_SYMBOLIC_REG:
-        msg = "going to try to read symbolic reg";
-        break;
+			case STOP_SYMBOLIC_REG:
+				msg = "going to try to read symbolic reg";
+				break;
 			case STOP_ERROR:
 				msg = "something wrong";
 				break;
@@ -313,7 +314,7 @@ public:
 				it->clean = (1 << it->size) - 1;
 				LOG_D("commit: lazy initialize mem_write [%#lx, %#lx]", it->address, it->address + it->size);
 			}
-    }
+		}
 		mem_writes.clear();
 		cur_steps++;
 	}
@@ -484,7 +485,7 @@ public:
 	// check if we can clobberedly handle this IRExpr
 	inline bool check_expr(RegisterSet *clobbered, RegisterSet *danger, IRExpr *e)
 	{
-    int i, expr_size;
+		int i, expr_size;
 		if (e == NULL) return true;
 		switch (e->tag)
 		{
@@ -500,7 +501,7 @@ public:
 				break;
 			case Iex_RdTmp:
 				break;
-      case Iex_Get:
+			case Iex_Get:
 				if (e->Iex.Get.ty == Ity_I1)
 				{
 					LOG_W("seeing a 1-bit get from a register");
@@ -561,9 +562,9 @@ public:
 	{
 		for (int i = 0; i < size; i++)
 		{
-      if (clobbered->count(offset + i) == 0) {
-        danger->insert(offset + i);
-      }
+			if (clobbered->count(offset + i) == 0) {
+				danger->insert(offset + i);
+			}
 		}
 	}
 
@@ -572,7 +573,7 @@ public:
 	{
 		switch (s->tag)
 		{
-      case Ist_Put: {
+			case Ist_Put: {
 				if (!this->check_expr(clobbered, danger, s->Ist.Put.data)) return false;
 				IRType expr_type = typeOfIRExpr(tyenv, s->Ist.Put.data);
 				if (expr_type == Ity_I1)
@@ -584,7 +585,7 @@ public:
 				int expr_size = sizeofIRType(expr_type);
 				this->mark_register_clobbered(clobbered, s->Ist.Put.offset, expr_size);
 				break;
-      }
+			}
 			case Ist_PutI:
 				// we cannot handle the PutI because:
 				// 1. in the case of symbolic registers, we need to have a good
@@ -615,7 +616,7 @@ public:
 				if (!this->check_expr(clobbered, danger, s->Ist.LLSC.addr)) return false;
 				if (!this->check_expr(clobbered, danger, s->Ist.LLSC.storedata)) return false;
 				break;
-      case Ist_Dirty: {
+			case Ist_Dirty: {
 				if (!this->check_expr(clobbered, danger, s->Ist.Dirty.details->guard)) return false;
 				if (!this->check_expr(clobbered, danger, s->Ist.Dirty.details->mAddr)) return false;
 				for (int i = 0; s->Ist.Dirty.details->args[i] != NULL; i++)
@@ -623,7 +624,7 @@ public:
 					if (!this->check_expr(clobbered, danger, s->Ist.Dirty.details->args[i])) return false;
 				}
 				break;
-      }
+							}
 			case Ist_Exit:
 				if (!this->check_expr(clobbered, danger, s->Ist.Exit.guard)) return false;
 				break;
@@ -654,61 +655,61 @@ public:
 	// check if the block is feasible
 	bool check_block(uint64_t address, int32_t size)
 	{
-    // assume we're good if we're not checking symbolic registers
-    if (this->vex_guest == VexArch_INVALID) {
-      return true;
-    }
+		// assume we're good if we're not checking symbolic registers
+		if (this->vex_guest == VexArch_INVALID) {
+			return true;
+		}
 
 		// if there are no symbolic registers we're ok
 		if (this->symbolic_registers.size() == 0) {
-      return true;
-    }
+			return true;
+		}
 
-    // check if it's in the cache already
-    RegisterSet *clobbered_registers;
-    RegisterSet *used_registers;
-    auto search = this->block_cache->find(address);
-    if (search != this->block_cache->end()) {
-      if (!search->second.try_unicorn) {
-        return false;
-      }
-      clobbered_registers = &search->second.clobbered_registers;
-      used_registers = &search->second.used_registers;
-    } else {
-      // wtf i hate c++...
-      auto& entry = this->block_cache->emplace(std::make_pair(address, block_entry_t())).first->second;
-      entry.try_unicorn = true;
-      clobbered_registers = &entry.clobbered_registers;
-      used_registers = &entry.used_registers;
+		// check if it's in the cache already
+		RegisterSet *clobbered_registers;
+		RegisterSet *used_registers;
+		auto search = this->block_cache->find(address);
+		if (search != this->block_cache->end()) {
+			if (!search->second.try_unicorn) {
+				return false;
+			}
+			clobbered_registers = &search->second.clobbered_registers;
+			used_registers = &search->second.used_registers;
+		} else {
+			// wtf i hate c++...
+			auto& entry = this->block_cache->emplace(std::make_pair(address, block_entry_t())).first->second;
+			entry.try_unicorn = true;
+			clobbered_registers = &entry.clobbered_registers;
+			used_registers = &entry.used_registers;
 
-      std::unique_ptr<uint8_t[]> instructions(new uint8_t[size]);
-      uc_mem_read(this->uc, address, instructions.get(), size);
-      IRSB *the_block = vex_block_bytes(this->vex_guest, this->vex_archinfo, instructions.get(), address, size, 0);
+			std::unique_ptr<uint8_t[]> instructions(new uint8_t[size]);
+			uc_mem_read(this->uc, address, instructions.get(), size);
+			IRSB *the_block = vex_block_bytes(this->vex_guest, this->vex_archinfo, instructions.get(), address, size, 0);
 
-      if (the_block == NULL) {
-        // TODO: how to handle?
-        return false;
-      }
+			if (the_block == NULL) {
+				// TODO: how to handle?
+				return false;
+			}
 
-      for (int i = 0; i < the_block->stmts_used; i++) {
-        if (!this->check_stmt(clobbered_registers, used_registers, the_block->tyenv, the_block->stmts[i])) {
-          entry.try_unicorn = false;
-          return false;
-        }
-      }
+			for (int i = 0; i < the_block->stmts_used; i++) {
+				if (!this->check_stmt(clobbered_registers, used_registers, the_block->tyenv, the_block->stmts[i])) {
+					entry.try_unicorn = false;
+					return false;
+				}
+			}
 
-      if (!this->check_expr(clobbered_registers, used_registers, the_block->next)) {
-        entry.try_unicorn = false;
-        return false;
-      }
-    }
+			if (!this->check_expr(clobbered_registers, used_registers, the_block->next)) {
+				entry.try_unicorn = false;
+				return false;
+			}
+		}
 
-    for (uint64_t off : this->symbolic_registers) {
-      if (used_registers->count(off) > 0) {
-      	stopping_register = off;
-        return false;
-      }
-    }
+		for (uint64_t off : this->symbolic_registers) {
+			if (used_registers->count(off) > 0) {
+				stopping_register = off;
+				return false;
+			}
+		}
 
 		for (uint64_t off : *clobbered_registers) {
 			this->symbolic_registers.erase(off);
@@ -863,9 +864,9 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 	state->step(address, size);
 
 	if (!state->stopped && !state->check_block(address, size)) {
-    state->stop(STOP_SYMBOLIC_REG);
-    LOG_I("finishing early at address %#lx", address);
-  }
+		state->stop(STOP_SYMBOLIC_REG);
+		LOG_I("finishing early at address %#lx", address);
+	}
 }
 
 static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
@@ -1077,7 +1078,7 @@ uint64_t stopping_memory(State *state) {
 extern "C"
 void symbolic_register_data(State *state, uint64_t count, uint64_t *offsets)
 {
-  state->symbolic_registers.clear();
+	state->symbolic_registers.clear();
 	for (int i = 0; i < count; i++)
 	{
 		state->symbolic_registers.insert(offsets[i]);
@@ -1098,13 +1099,13 @@ uint64_t get_symbolic_registers(State *state, uint64_t *output)
 
 extern "C"
 void enable_symbolic_reg_tracking(State *state, VexArch guest, VexArchInfo archinfo) {
-  state->vex_guest = guest;
-  state->vex_archinfo = archinfo;
+	state->vex_guest = guest;
+	state->vex_archinfo = archinfo;
 }
 
 extern "C"
 void disable_symbolic_reg_tracking(State *state) {
-  state->vex_guest = VexArch_INVALID;
+	state->vex_guest = VexArch_INVALID;
 }
 
 //
