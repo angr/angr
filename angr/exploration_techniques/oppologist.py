@@ -4,8 +4,7 @@ import simuvex
 import functools
 
 import logging
-l = logging.getLogger("topsecret.Oppologist")
-l.setLevel('DEBUG')
+l = logging.getLogger("angr.exploration_techniques.Oppologist")
 
 from ..errors import AngrError
 exc_list = (AngrError, simuvex.SimError, claripy.ClaripyError, TypeError, ValueError, ArithmeticError, MemoryError)
