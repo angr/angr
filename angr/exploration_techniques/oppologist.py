@@ -39,6 +39,7 @@ class Oppologist(ExplorationTechnique):
         pn.state.options.add(simuvex.options.UNICORN_AGGRESSIVE_CONCRETIZATION)
         pn.state.unicorn.max_steps = 1
         pn.state.unicorn.countdown_symbolic_registers = 0
+        pn.state.unicorn.countdown_symbolic_memory = 0
         pn.state.unicorn.countdown_nonunicorn_blocks = 0
         pn.step(extra_stop_points=stops, throw=True, **kwargs)
 
