@@ -610,8 +610,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                       'recovery.'
                       )
 
-        self._start = start if start is not None else (self._binary.rebase_addr + self._binary.get_min_addr())
-        self._end = end if end is not None else (self._binary.rebase_addr + self._binary.get_max_addr())
+        self._start = start if start is not None else self._binary.get_min_addr()
+        self._end = end if end is not None else self._binary.get_max_addr()
 
         self._pickle_intermediate_results = pickle_intermediate_results
         self._indirect_jump_target_limit = indirect_jump_target_limit
