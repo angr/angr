@@ -286,15 +286,6 @@ class SegmentList(object):
     # Public methods
     #
 
-    def has_blocks(self):
-        """
-        Returns if this segment list has any block or not. !is_empty
-
-        :return: True if it's not empty, False otherwise
-        """
-
-        return len(self._list) > 0
-
     def next_free_pos(self, address):
         """
         Returns the next free position with respect to an address, excluding that address itself
@@ -399,6 +390,16 @@ class SegmentList(object):
         """
 
         return self._bytes_occupied
+
+    @property
+    def has_blocks(self):
+        """
+        Returns if this segment list has any block or not. !is_empty
+
+        :return: True if it's not empty, False otherwise
+        """
+
+        return len(self._list) > 0
 
 
 class FunctionReturn(object):
