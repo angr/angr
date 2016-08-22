@@ -3,7 +3,7 @@ import os
 import angr
 import simuvex
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private/'))
+test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../..'))
 
 def _ultra_oppologist(p, s):
     old_ops = dict(simuvex.vex.irop.operations)
@@ -20,7 +20,7 @@ def _ultra_oppologist(p, s):
         simuvex.vex.irop.operations.update(old_ops)
 
 def test_fauxware_oppologist():
-    p = angr.Project(os.path.join(test_location, '../binaries/tests/i386/fauxware'))
+    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
     s = p.factory.full_init_state(
         remove_options={ simuvex.options.LAZY_SOLVES }
     )
@@ -31,7 +31,7 @@ def test_fauxware_oppologist():
     assert pg.deadended[0].state.posix.dumps(1).count("\n") == 3
 
 def test_cromu_70():
-    p = angr.Project(os.path.join(test_location, 'cgc_trials/CROMU_00070'))
+    p = angr.Project(os.path.join(test_location, 'binaries-private/cgc_trials/CROMU_00070'))
     s = p.factory.full_init_state(
         add_options={ simuvex.options.UNICORN },
         remove_options={ simuvex.options.LAZY_SOLVES, simuvex.options.SUPPORT_FLOATING_POINT }
