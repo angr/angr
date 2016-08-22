@@ -1032,6 +1032,7 @@ class CFGBase(Analysis):
                     continue
                 if all(self._is_noop_insn(insn) for insn in block.capstone.insns):
                     # remove this function
+                    l.debug('Function chunk %#x is used as function alignments. Removing it.', func_addr)
                     del self.kb.functions[func_addr]
 
     def make_functions(self):

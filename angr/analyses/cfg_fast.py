@@ -2611,21 +2611,33 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                               ]
                            )
 
-        old_edges = self.graph.in_edges(node, data=True)
+        old_in_edges = self.graph.in_edges(node, data=True)
 
-        for src, _, data in old_edges:
-            self.graph.add_edge(src, new_node, data)
+        for src, _, data in old_in_edges:
+            self.graph.add_edge(src, new_node, **data)
 
         successor_node_addr = node.addr + new_size
         if successor_node_addr in self._nodes:
             successor = self._nodes[successor_node_addr]
-            self.graph.add_edge(new_node, successor, jumpkind='Ijk_Boring')
+        else:
+            successor = CFGNode(successor_node_addr, new_size, self,
+                                function_address=successor_node_addr if remove_function else node.function_address,
+                                instruction_addrs=[i for i in node.instruction_addrs if i >= node.addr + new_size]
+                                )
+        self.graph.add_edge(new_node, successor, jumpkind='Ijk_Boring')
+
+        old_out_edges = self.graph.out_edges(node, data=True)
+        for _, dst, data in old_out_edges:
+            self.graph.add_edge(successor, dst, **data)
 
         # remove the old node from indices
         if node.addr in self._nodes and self._nodes[node.addr] is node:
             del self._nodes[node.addr]
         if node.addr in self._nodes_by_addr and node in self._nodes_by_addr[node.addr]:
             self._nodes_by_addr[node.addr].remove(node)
+
+        # remove the old node form the graph
+        self.graph.remove_node(node)
 
         # add the new node to indices
         self._nodes[new_node.addr] = new_node
