@@ -26,9 +26,16 @@ class Lifter(object):
 
     LRUCACHE_SIZE = 10000
 
-    def __init__(self, project=None, cache=False):
+    def __init__(self, project=None, arch=None, cache=False):
+        if project:
+            self._arch = project.arch
+        elif arch:
+            self._arch = arch
+        else:
+            self._arch = None
+
         self._project = project
-        self._thumbable = isinstance(project.arch, ArchARM) if project is not None else False
+        self._thumbable = isinstance(self._arch, ArchARM) if self._arch is not None else False
         self._cache_enabled = cache
         self._block_cache = LRUCache(maxsize=self.LRUCACHE_SIZE)
 
@@ -41,27 +48,19 @@ class Lifter(object):
         self._cache_hit_count = 0
         self._cache_miss_count = 0
 
-    def fresh_block(self, addr, size, arch=None, insn_bytes=None, thumb=False):
+    def _normalize_options(self, addr, arch, thumb):
         """
-        Returns a Block object with the specified size. No lifting will be performed.
-
-        :param int addr: Address at which to start the block.
-        :param int size: Size of the block.
-        :return: A Block instance.
-        :rtype: Block
+        Given a subset of the arguments to lift or fresh_block, perform all the sanity checks
+        and normalize the form of the args
         """
-
-        arch = arch
-        thumbable = False  # just to stop pycharm from complaining
-        if arch is not None:
-            # custom arch - recalculate the thumbable flag
-            thumbable = isinstance(arch, ArchARM)
-        elif self._project is not None:
-            arch = self._project.arch
-            thumbable = self._thumbable
-
         if arch is None:
-            raise AngrLifterError('"arch" must be specified.')
+            if self._arch is None:
+                raise AngrLifterError('"arch" must be specified')
+
+            thumbable = self._thumbable
+            arch = self._arch
+        else:
+            thumbable = isinstance(arch, ArchARM)
 
         if thumbable and addr % 2 == 1:
             thumb = True
@@ -71,6 +70,19 @@ class Lifter(object):
 
         if thumb:
             addr &= ~1
+
+        return addr, arch, thumb
+
+    def fresh_block(self, addr, size, arch=None, insn_bytes=None, thumb=False):
+        """
+        Returns a Block object with the specified size. No lifting will be performed.
+
+        :param int addr: Address at which to start the block.
+        :param int size: Size of the block.
+        :return: A Block instance.
+        :rtype: Block
+        """
+        addr, arch, thumb = self._normalize_options(addr, arch, thumb)
 
         if self._cache_enabled:
             for opt_level in (0, 1):
@@ -83,6 +95,9 @@ class Lifter(object):
                 raise AngrLifterError("Lifter does not have an associated angr Project. "
                                       "You must specify \"insn_bytes\".")
             insn_bytes, size = self._load_bytes(addr, size, None)
+
+        if thumb:
+            addr += 1
 
         b = Block(insn_bytes, arch=arch, addr=addr, size=size, thumb=thumb)
 
@@ -115,26 +130,7 @@ class Lifter(object):
         num_inst = VEX_IRSB_MAX_INST if num_inst is None else num_inst
         opt_level = VEX_DEFAULT_OPT_LEVEL if opt_level is None else opt_level
 
-        arch = arch
-        thumbable = False  # just to stop pycharm from complaining
-        if arch is not None:
-            # custom arch - recalculate the thumbable flag
-            thumbable = isinstance(arch, ArchARM)
-        elif self._project is not None:
-            arch = self._project.arch
-            thumbable = self._thumbable
-
-        if arch is None:
-            raise AngrLifterError('"arch" must be specified.')
-
-        if thumbable and addr % 2 == 1:
-            thumb = True
-        elif not thumbable and thumb:
-            l.warning("Why did you pass in thumb=True on a non-ARM architecture")
-            thumb = False
-
-        if thumb:
-            addr &= ~1
+        addr, arch, thumb = self._normalize_options(addr, arch, thumb)
 
         cache_key = (addr, insn_bytes, max_size, num_inst, thumb, opt_level)
         if self._cache_enabled and cache_key in self._block_cache and self._block_cache[cache_key].vex is not None:
@@ -211,7 +207,7 @@ class Lifter(object):
                     break
 
         irsb = self._post_process(irsb, arch)
-        b = Block(buff, arch=arch, addr=addr, size=irsb.size, vex=irsb, thumb=thumb)
+        b = Block(buff, arch=arch, addr=addr, vex=irsb, thumb=thumb)
         if self._cache_enabled:
             self._block_cache[cache_key] = b
         return b
@@ -392,13 +388,11 @@ class Lifter(object):
 
 
 class Block(object):
-    # TODO: Automatically lift the bytes to VEX IRSB if _vex is None
-
     BLOCK_MAX_SIZE = 4096
 
-    __slots__ = ['_bytes', '_vex', '_thumb', '_arch', '_capstone', 'addr', 'size', 'instructions', 'instruction_addrs']
+    __slots__ = ['bytes', '_vex', '_thumb', '_arch', '_capstone', 'addr', 'size', 'instructions', 'instruction_addrs']
 
-    def __init__(self, byte_string, arch=None, addr=None, size=None, vex=None, thumb=None):
+    def __init__(self, byte_string, arch, addr=None, size=None, vex=None, thumb=None):
         self._vex = vex
         self._thumb = thumb
         self._arch = arch
@@ -409,6 +403,27 @@ class Block(object):
         self.instructions = None
         self.instruction_addrs = []
 
+        self._parse_vex_info()
+
+        if self.addr is None:
+            l.warning('Lifted basic block with no IMarks!')
+            self.addr = 0
+
+        if type(byte_string) is str:
+            if self.size is not None:
+                self.bytes = byte_string[:self.size]
+            else:
+                self.bytes = byte_string
+        else:
+            # Convert bytestring to a str
+            if self.size is not None:
+                self.bytes = str(pyvex.ffi.buffer(byte_string, self.size))
+            else:
+                l.warning("Block size is unknown. Truncate it to BLOCK_MAX_SIZE")
+                self.bytes = str(pyvex.ffi.buffer(byte_string), Block.BLOCK_MAX_SIZE)
+
+    def _parse_vex_info(self):
+        vex = self._vex
         if vex is not None:
             self.instructions = vex.instructions
 
@@ -425,28 +440,10 @@ class Block(object):
                     self.addr = stmt.addr + stmt.delta
                 self.instruction_addrs.append(stmt.addr + stmt.delta)
 
-        if self.addr is None:
-            l.warning('Lifted basic block with no IMarks!')
-            self.addr = 0
-
-        if type(byte_string) is str:  # pylint:disable=unidiomatic-typecheck
-            if self.size is not None:
-                self._bytes = byte_string[:self.size]
-            else:
-                self._bytes = byte_string
-        else:
-            # Convert bytestring to a str
-            if self.size is not None:
-                self._bytes = str(pyvex.ffi.buffer(byte_string, self.size))
-            else:
-                l.warning("Block size is unknown. Truncate it to BLOCK_MAX_SIZE")
-                self._bytes = str(pyvex.ffi.buffer(byte_string), Block.BLOCK_MAX_SIZE)
-
     def __repr__(self):
         return '<Block for %#x, %d bytes>' % (self.addr, self.size)
 
     def __getstate__(self):
-        self._bytes = self.bytes
         return dict((k, getattr(self, k)) for k in self.__slots__ if k not in ('_capstone', ))
 
     def __setstate__(self, data):
@@ -469,11 +466,12 @@ class Block(object):
 
     @property
     def vex(self):
-        return self._vex
+        if not self._vex:
+            offset = 1 if self._thumb else 0
+            self._vex = pyvex.IRSB(self.bytes, self.addr, self._arch, bytes_offset=offset)
+            self._parse_vex_info()
 
-    @property
-    def bytes(self):
-        return self._bytes
+        return self._vex
 
     @property
     def capstone(self):
