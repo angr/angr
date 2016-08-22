@@ -286,15 +286,6 @@ class SegmentList(object):
     # Public methods
     #
 
-    def has_blocks(self):
-        """
-        Returns if this segment list has any block or not. !is_empty
-
-        :return: True if it's not empty, False otherwise
-        """
-
-        return len(self._list) > 0
-
     def next_free_pos(self, address):
         """
         Returns the next free position with respect to an address, excluding that address itself
@@ -399,6 +390,16 @@ class SegmentList(object):
         """
 
         return self._bytes_occupied
+
+    @property
+    def has_blocks(self):
+        """
+        Returns if this segment list has any block or not. !is_empty
+
+        :return: True if it's not empty, False otherwise
+        """
+
+        return len(self._list) > 0
 
 
 class FunctionReturn(object):
@@ -610,8 +611,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                       'recovery.'
                       )
 
-        self._start = start if start is not None else (self._binary.rebase_addr + self._binary.get_min_addr())
-        self._end = end if end is not None else (self._binary.rebase_addr + self._binary.get_max_addr())
+        self._start = start if start is not None else self._binary.get_min_addr()
+        self._end = end if end is not None else self._binary.get_max_addr()
 
         self._pickle_intermediate_results = pickle_intermediate_results
         self._indirect_jump_target_limit = indirect_jump_target_limit
@@ -2610,21 +2611,33 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                               ]
                            )
 
-        old_edges = self.graph.in_edges(node, data=True)
+        old_in_edges = self.graph.in_edges(node, data=True)
 
-        for src, _, data in old_edges:
-            self.graph.add_edge(src, new_node, data)
+        for src, _, data in old_in_edges:
+            self.graph.add_edge(src, new_node, **data)
 
         successor_node_addr = node.addr + new_size
         if successor_node_addr in self._nodes:
             successor = self._nodes[successor_node_addr]
-            self.graph.add_edge(new_node, successor, jumpkind='Ijk_Boring')
+        else:
+            successor = CFGNode(successor_node_addr, new_size, self,
+                                function_address=successor_node_addr if remove_function else node.function_address,
+                                instruction_addrs=[i for i in node.instruction_addrs if i >= node.addr + new_size]
+                                )
+        self.graph.add_edge(new_node, successor, jumpkind='Ijk_Boring')
+
+        old_out_edges = self.graph.out_edges(node, data=True)
+        for _, dst, data in old_out_edges:
+            self.graph.add_edge(successor, dst, **data)
 
         # remove the old node from indices
         if node.addr in self._nodes and self._nodes[node.addr] is node:
             del self._nodes[node.addr]
         if node.addr in self._nodes_by_addr and node in self._nodes_by_addr[node.addr]:
             self._nodes_by_addr[node.addr].remove(node)
+
+        # remove the old node form the graph
+        self.graph.remove_node(node)
 
         # add the new node to indices
         self._nodes[new_node.addr] = new_node
