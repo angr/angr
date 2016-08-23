@@ -288,13 +288,13 @@ class SegmentList(object):
 
     def next_free_pos(self, address):
         """
-        Returns the next free position with respect to an address, excluding that address itself
+        Returns the next free position with respect to an address, including that address itself
 
-        :param address: The address to begin the search with (excluding itself)
+        :param address: The address to begin the search with (including itself)
         :return: The next free position
         """
 
-        idx = self._search(address + 1)
+        idx = self._search(address)
         if idx < len(self._list) and self._list[idx].start <= address < self._list[idx].end:
             # Occupied
             i = idx
@@ -305,7 +305,7 @@ class SegmentList(object):
             else:
                 return self._list[i].end
         else:
-            return address + 1
+            return address
 
     def is_occupied(self, address):
         """
@@ -641,7 +641,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._memory_data = { }
 
         self._initial_state = None
-        self._next_addr = self._start - 1
+        self._next_addr = self._start
 
         # Create the segment list
         self._seg_list = SegmentList()
