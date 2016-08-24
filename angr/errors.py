@@ -55,7 +55,10 @@ class AngrCallableError(AngrSurveyorError):
 class AngrCallableMultistateError(AngrCallableError):
     pass
 
-class AngrUnsupportedSyscallError(AngrError):
+class AngrSyscallError(AngrError):
+    pass
+
+class AngrUnsupportedSyscallError(AngrSyscallError):
     pass
 
 class AngrSimOSError(AngrError):
