@@ -10,6 +10,9 @@ class receive(simuvex.SimProcedure):
 
     def run(self, fd, buf, count, rx_bytes):
 
+        if simuvex.options.CGC_ENFORCE_FD in self.state.options:
+            fd = 0
+
         if self.state.mode == 'fastpath':
             # Special case for CFG generation
             if not self.state.se.symbolic(count):
