@@ -741,11 +741,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # TODO: Take care of those functions that are already generated
         curr_addr = self._next_addr
         if self._seg_list.has_blocks:
-            curr_addr = self._seg_list.next_free_pos(curr_addr)
+            curr_addr = self._seg_list.next_free_pos(curr_addr + 1)
 
         if alignment is not None:
             if curr_addr % alignment > 0:
-                curr_addr = curr_addr - curr_addr % alignment + alignment
+                curr_addr = curr_addr - (curr_addr % alignment) + alignment
 
         # Make sure curr_addr exists in binary
         accepted = False
