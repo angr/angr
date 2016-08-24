@@ -5,3 +5,4 @@ claripy
 cooldict
 ana
 bintrees
+unicorn

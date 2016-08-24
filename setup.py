@@ -62,6 +62,7 @@ setup(
     packages=['simuvex', 'simuvex.plugins', 'simuvex.storage', 'simuvex.vex', 'simuvex.vex.statements', 'simuvex.vex.expressions', 'simuvex.procedures', 'simuvex.procedures.cgc', 'simuvex.procedures.ld-linux-x86-64___so___2', 'simuvex.procedures.testing', 'simuvex.procedures.stubs', 'simuvex.procedures.syscalls', 'simuvex.procedures.ld-uClibc___so___0', 'simuvex.procedures.libc___so___6', 'simuvex.concretization_strategies'],
     install_requires=[
         'bintrees',
+        'unicorn',
         'dpkt-fix',
         'pyvex',
         'archinfo',
