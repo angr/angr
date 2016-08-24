@@ -13,7 +13,7 @@ from cle import MetaELF, BackedCGC
 import pyvex
 import claripy
 
-from .errors import AngrUnsupportedSyscallError, AngrCallableError, AngrSimOSError
+from .errors import AngrSyscallError, AngrUnsupportedSyscallError, AngrCallableError, AngrSimOSError
 from .tablespecs import StringTableSpec
 
 l = logging.getLogger("angr.simos")
@@ -37,6 +37,142 @@ class IRange(object):
         self.start, self.end = state
 
 
+class SyscallEntry(object):
+    """
+    Describes a syscall.
+
+    :ivar str name:         Name of the syscall.
+    :ivar int pseudo_addr:  The pseudo address assigned to this syscall.
+    :ivar simproc:          The SimProcedure class for handling this syscall.
+    :ivar bool supported:   True if this syscall is defined and has a SimProcedure implemented, False otherwise.
+    """
+    def __init__(self, name, pseudo_addr, simproc, supported=True):
+        """
+        Constructor.
+
+        :param str name:        Syscall name.
+        :param int pseudo_addr: The pseudo address assigned to this syscall.
+        :param simproc:         The SimProcedure for handling this syscall.
+        :param bool supported:  True if this syscall is defined and there is a SimProcedure implemented for it.
+        """
+
+        self.name = name
+        self.pseudo_addr = pseudo_addr
+        self.simproc = simproc
+        self.supported = supported
+
+    def __repr__(self):
+        s = "<Syscall %s @ %#x%s>" % (self.name, self.pseudo_addr, ", unsupported" if not self.supported else "")
+        return s
+
+
+class SyscallTable(object):
+    """
+    Represents a syscall table.
+
+    :ivar int max_syscall_number:       The maximum syscall number of all supported syscalls in the platform.
+    :ivar int unknown_syscall_number:   The syscall number of the "unknown" syscall used for unsupported syscalls.
+    """
+    def __init__(self, max_syscall_number=None):
+        """
+        Constructor.
+
+        :param int or None max_syscall_number: The maximum syscall number of all supported syscalls in the platform.
+        """
+        self.max_syscall_number = max_syscall_number
+
+        self.unknown_syscall_number = None
+
+        self._table = { }
+
+    def __setitem__(self, syscall_number, syscall):
+        """
+        Insert a syscall entry to the table.
+
+        :param int syscall_number:      Number of the syscall.
+        :param SyscallEntry syscall:    The syscall to insert.
+        :return: None
+        """
+
+        if syscall_number > self.max_syscall_number:
+            self.max_syscall_number = syscall_number
+
+        self._table[syscall_number] = syscall
+
+    def __getitem__(self, syscall_number):
+        """
+        Get a syscall entry from the table.
+
+        :param int syscall_number:  Number of the syscall.
+        :return:                    The syscall entry.
+        :rtype: SyscallEntry
+        """
+
+        if syscall_number in self._table:
+            return self._table[syscall_number]
+        raise KeyError('Syscall number %d not found in syscall table.' % syscall_number)
+
+    def __len__(self):
+        """
+        Get the number of all syscalls supported by this syscall table.
+
+        :return: The number of all syscalls supported.
+        :rtype: int
+        """
+
+        return len(self._table)
+
+    def __contains__(self, syscall_number):
+        """
+        Check if the sycall number is defined in this syscall table.
+
+        :param int syscall_number: The syscall number to check.
+        :return: True if the syscall is defined in this table, False otherwise.
+        :rtype: int
+        """
+
+        return syscall_number in self._table
+
+    @property
+    def max_syscall(self):
+        """
+        Get the maximum syscall number, or None if the syscall table is empty and `max_syscall_number` is not set..
+
+        :return: The syscall number.
+        :rtype: int or None
+        """
+
+        return self.max_syscall_number
+
+    @property
+    def unknown_syscall(self):
+        """
+        Get the "unknown" syscall entry.
+
+        :return: The syscall entry for unknown syscalls.
+        :rtype: SyscallEntry
+        """
+
+        if self.unknown_syscall_number is None:
+            raise AngrSyscallError('The unknown syscall number of this syscall table is not set.')
+
+        return self[self.unknown_syscall_number]
+
+    def supports(self, syscall_number):
+        """
+        Check if the syscall number is defined and supported.
+
+        :param int syscall_number: The number of syscall to check.
+        :return: True if the syscall number is defined and supported by angr, False otherwise
+        :rtype: bool
+        """
+
+        if syscall_number not in self._table:
+            return False
+
+        return self._table[syscall_number].supported
+
+
 class SimOS(object):
     """
     A class describing OS/arch-level configuration.
@@ -48,56 +184,57 @@ class SimOS(object):
         self.name = name
         self.continue_addr = None
         self.return_deadend = None
-        self.syscall_table = { }
+        self.syscall_table = SyscallTable()
 
     def _load_syscalls(self, syscall_table, syscall_lib):
         """
         Load a table of syscalls to self.proj._syscall_obj. Each syscall entry takes 8 bytes no matter what
         architecture it is on.
 
-        :param dict syscall_table: Syscall table
+        :param dict syscall_table: Syscall table.
         :param str syscall_lib: Name of the syscall library
         :return: None
         """
 
         base_addr = self.proj._syscall_obj.rebase_addr
+
         syscall_entry_count = 0 if not syscall_table else max(syscall_table.keys()) + 1
         for syscall_number in xrange(syscall_entry_count):
 
             syscall_addr = base_addr + syscall_number * 8
 
             if syscall_number in syscall_table:
-                name, simproc_name  = syscall_table[syscall_number]
+                name, simproc_name = syscall_table[syscall_number]
 
                 if simproc_name in SimProcedures[syscall_lib]:
                     simproc = SimProcedures[syscall_lib][simproc_name]
                 else:
+                    # no SimProcedure is implemented for this syscall
                     simproc = SimProcedures["syscalls"]["stub"]
 
-                self.syscall_table[syscall_number] = (syscall_addr,
-                                                      name,
-                                                      simproc
-                                                      )
+                self.syscall_table[syscall_number] = SyscallEntry(name, syscall_addr, simproc)
 
                 # Write it to the SimProcedure dict
                 self.proj._sim_procedures[syscall_addr] = (simproc, { })
 
             else:
-                # There is no SimProcedure implemented for this syscall
-                self.syscall_table[syscall_number] = (syscall_addr,
-                                                      "_unsupported",
-                                                      SimProcedures["syscalls"]["stub"]
-                                                      )
+                # no syscall number available in the pre-defined syscall table
+                self.syscall_table[syscall_number] = SyscallEntry("_unsupported", syscall_addr,
+                                                                  SimProcedures["syscalls"]["stub"],
+                                                                  supported=False
+                                                                  )
 
                 # Write it to the SimProcedure dict
                 self.proj._sim_procedures[syscall_addr] = (SimProcedures["syscalls"]["stub"], { })
 
         # Now here is the fallback syscall stub
         unknown_syscall_addr = base_addr + (syscall_entry_count + 1) * 8
-        self.syscall_table[syscall_entry_count + 1] = (unknown_syscall_addr,
-                                                       "_unknown",
-                                                       SimProcedures["syscalls"]["stub"]
-                                                       )
+        unknown_syscall_number = syscall_entry_count + 1
+        self.syscall_table.unknown_syscall_number = unknown_syscall_number
+        self.syscall_table[unknown_syscall_number] = SyscallEntry("_unknown", unknown_syscall_addr,
+                                                                   SimProcedures["syscalls"]["stub"],
+                                                                   supported=False
+                                                                   )
 
         self.proj._sim_procedures[unknown_syscall_addr] = (SimProcedures["syscalls"]["stub"], { })
 
@@ -120,30 +257,29 @@ class SimOS(object):
         syscall_num = cc.syscall_num(state)
 
         possible = state.se.any_n_int(syscall_num, 2)
-        syscall_table_keys = self.syscall_table.keys()
 
-        if len(possible) > 1 and len(syscall_table_keys) > 0:
+        if len(possible) > 1 and len(self.syscall_table) > 0:
             # Symbolic syscalls are not supported - we will create a 'unknown syscall" stub for it
-            n = max(syscall_table_keys)
+            n = self.syscall_table.unknown_syscall_number
         elif not possible:
             # The state is not satisfiable
             raise AngrUnsupportedSyscallError("The program state is not satisfiable")
         else:
             n = possible[0]
 
-        if n not in self.syscall_table:
+        if not self.syscall_table.supports(n):
             if o.BYPASS_UNSUPPORTED_SYSCALL in state.options:
                 state.log.add_event('resilience', resilience_type='syscall', syscall=n, message='unsupported syscall')
 
-                addr, syscall_name, cls = self.syscall_table[max(self.syscall_table.keys())]
+                syscall = self.syscall_table.unknown_syscall if n not in self.syscall_table else self.syscall_table[n]
 
             else:
                 l.error("Syscall %d is not found for arch %s", n, state.arch.name)
                 raise AngrUnsupportedSyscallError("Syscall %d is not found for arch %s" % (n, state.arch.name))
         else:
-            addr, syscall_name, cls = self.syscall_table[n]
+            syscall = self.syscall_table[n]
 
-        return cc, addr, syscall_name, cls
+        return cc, syscall.pseudo_addr, syscall.name, syscall.simproc
 
     def handle_syscall(self, state):
         """
@@ -674,7 +810,7 @@ class SimCGC(SimOS):
         s.get_plugin('cgc')
 
         # set up the address for concrete transmits
-        s.unicorn.transmit_addr = self.syscall_table[2][0]
+        s.unicorn.transmit_addr = self.syscall_table[2].pseudo_addr
 
         return s
 
