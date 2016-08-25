@@ -211,7 +211,7 @@ class Tracer(object):
         # this is used to track constrained addresses
         self._address_concretization = list()
 
-        self.syscall_statistics = list()
+        self.syscall = list()
 # EXPOSED
 
     def next_branch(self):
@@ -1022,7 +1022,7 @@ class Tracer(object):
         self._preconstrain_flag_page(entry_state, self.cgc_flag_bytes)
         entry_state.memory.store(0x4347c000, claripy.Concat(*self.cgc_flag_bytes))
 
-        entry_state.inspect.b('syscall', when=simuvex.BP_BEFORE, action=self.syscall_statistics)
+        entry_state.inspect.b('syscall', when=simuvex.BP_BEFORE, action=self.syscall)
         entry_state.inspect.b('path_step', when=simuvex.BP_AFTER,
                 action=self.check_stack)
         pg = project.factory.path_group(
@@ -1038,16 +1038,16 @@ class Tracer(object):
 
         return pg
 
-    def syscall_statistics(self, state):
+    def syscall(self, state):
         syscall_addr = state.se.any_int(state.ip)
         # 0xa000008 is terminate, which we exclude from syscall statistics.
         if syscall_addr != 0xa000008:
             args = s_cc.SyscallCC['X86']['CGC'](self._p.arch).get_args(state, 4)
-            d = {'syscall_addr': syscall_addr}
+            d = {'addr': syscall_addr}
             for i in xrange(4):
                 d['arg_%d' % i] = args[i]
                 d['arg_%d_symbolic' % i] = args[i].ast.symbolic
-            self.syscall_statistics.append(d)
+            self.syscall.append(d)
 
     def check_stack(self, state):
         l.debug("checking %s" % state.ip)
