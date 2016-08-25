@@ -5,6 +5,7 @@ import angr
 import signal
 import socket
 import claripy
+import signal
 import simuvex
 import tempfile
 import subprocess
@@ -20,13 +21,14 @@ from simuvex import s_cc
 import logging
 
 l = logging.getLogger("tracer.Tracer")
-#l.setLevel('INFO')
+l.setLevel('INFO')
 
 # global writable attribute used for specifying cache procedures
 GlobalCacheManager = None
 
 EXEC_STACK = 'EXEC_STACK'
 QEMU_CRASH = 'SEG_FAULT'
+QEMU_MAXTIME = 20
 
 class TracerInstallError(Exception):
     pass
@@ -43,6 +45,8 @@ class TracerMisfollowError(Exception):
 class TracerDynamicTraceOOBError(Exception):
     pass
 
+class TracerTimeout(Exception):
+    pass
 
 class Tracer(object):
     '''
@@ -170,7 +174,11 @@ class Tracer(object):
         self._magic_content = None
 
         # will set crash_mode correctly
-        self.trace = self.dynamic_trace()
+        try:
+            self.trace = self.dynamic_trace()
+        except RuntimeError:
+            l.info('dynamic trace error')
+            raise RuntimeError
 
         l.info("trace consists of %d basic blocks", len(self.trace))
 
@@ -367,7 +375,7 @@ class Tracer(object):
                 )):
             self.path_group = self.path_group.prune(to_stash='missed')
         else:
-            l.debug("bb %d / %d", self.bb_cnt, len(self.trace))
+            l.info("bb %d / %d", self.bb_cnt, len(self.trace))
             self.path_group = self.path_group.stash_not_addr(
                                            self.trace[self.bb_cnt],
                                            to_stash='missed')
@@ -700,6 +708,9 @@ class Tracer(object):
             else:
                 raise TracerDynamicTraceOOBError
 
+    def _signal_handler(signum, frame):
+        raise TracerTimeout
+
     def dynamic_trace(self, stdout_file=None):
         '''
         accumulate a basic block trace using qemu
@@ -718,41 +729,48 @@ class Tracer(object):
 
         args += ["-d", "exec", "-D", lname, self.binary]
 
+        # qemu does not always exit, so we add a timer to force it
+        # exit
         with open('/dev/null', 'wb') as devnull:
             stdout_f = devnull
             if stdout_file is not None:
                 stdout_f = open(stdout_file, 'wb')
 
-            # we assume qemu with always exit and won't block
-            if self.pov_file is None:
-                l.info("tracing as raw input")
-                p = subprocess.Popen(
-                        args,
-                        stdin=subprocess.PIPE,
-                        stdout=stdout_f,
-                        stderr=devnull)
-                _, _ = p.communicate(self.input)
-            else:
-                l.info("tracing as pov file")
-                in_s, out_s = socket.socketpair()
-                p = subprocess.Popen(
-                        args,
-                        stdin=in_s,
-                        stdout=stdout_f,
-                        stderr=devnull)
-
-                for write in self.pov_file.writes:
-                    out_s.send(write)
-                    time.sleep(.01)
-
-            timer = Timer(5, lambda process: process.kill(), [p])
             ret = 0
+            # set a 20-second timer
+            signal.signal(signal.SIGALRM, self._signal_handler)
+            signal.alarm(QEMU_MAXTIME)
             try:
-                timer.start()
+                if self.pov_file is None:
+                    l.info("tracing as raw input")
+                    p = subprocess.Popen(
+                            args,
+                            stdin=subprocess.PIPE,
+                            stdout=stdout_f,
+                            stderr=devnull)
+                    _, _ = p.communicate(self.input)
+                else:
+                    l.info("tracing as pov file")
+                    in_s, out_s = socket.socketpair()
+                    p = subprocess.Popen(
+                            args,
+                            stdin=in_s,
+                            stdout=stdout_f,
+                            stderr=devnull)
+                    for write in self.pov_file.writes:
+                        out_s.send(write)
+                        time.sleep(.01)
                 ret = p.wait()
-            finally:
-                timer.cancel()
-            l.debug("program finished. return %d" % ret)
+                # disable the timer
+                signal.alarm(0)
+            except TracerTimeout:
+                os.remove(mname)
+                os.remove(lname)
+                p.kill()
+                l.error('Tracer cannot finish Qemu\'s execution.')
+                raise TracerTimeout
+
+            l.info("program finished. return %d" % ret)
             # did a crash occur?
             if ret < 0:
                 if abs(ret) == signal.SIGSEGV or abs(ret) == signal.SIGILL:
@@ -760,6 +778,10 @@ class Tracer(object):
                             during dynamic tracing", abs(ret))
                     l.info("entering crash mode")
                     self.crash_mode = True
+                else:
+                    l.info("input causes an exit with signal %d, so\
+                    we judge by pov file", abs(ret))
+                    self.crash_mode = ("POV" in self.pov_file.filename)
 
             if stdout_file is not None:
                 stdout_f.close()
@@ -1019,12 +1041,12 @@ class Tracer(object):
         syscall_addr = state.se.any_int(state.ip)
         # 0xa000008 is terminate, which we exclude from syscall statistics.
         if syscall_addr != 0xa000008:
-	    args = s_cc.SyscallCC['X86']['CGC'](self._p.arch).get_args(state, 4)
-	    d = {'syscall_addr': syscall_addr}
-	    for i in xrange(4):
-	        d['arg_%d' % i] = args[i]
-	        d['arg_%d_symbolic' % i] = args[i].ast.symbolic
-	    self.syscall_statistics.append(d)
+            args = s_cc.SyscallCC['X86']['CGC'](self._p.arch).get_args(state, 4)
+            d = {'syscall_addr': syscall_addr}
+            for i in xrange(4):
+                d['arg_%d' % i] = args[i]
+                d['arg_%d_symbolic' % i] = args[i].ast.symbolic
+            self.syscall_statistics.append(d)
 
     def check_stack(self, state):
         l.debug("checking %s" % state.ip)
