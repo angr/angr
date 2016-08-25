@@ -7,6 +7,7 @@ import socket
 import claripy
 import signal
 import simuvex
+import subprocess
 import tempfile
 import subprocess
 import shellphish_qemu
