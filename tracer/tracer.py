@@ -22,7 +22,6 @@ from simuvex import s_cc
 import logging
 
 l = logging.getLogger("tracer.Tracer")
-l.setLevel('INFO')
 
 # global writable attribute used for specifying cache procedures
 GlobalCacheManager = None
