@@ -436,14 +436,7 @@ def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_
 
     cc_str = data_inverted[platform]['OpTypes'][cc_op]
 
-    if cc_str.endswith('B'):
-        nbits = 8
-    elif cc_str.endswith('W'):
-        nbits = 16
-    elif cc_str.endswith('L'):
-        nbits = 32
-    elif cc_str.endswith('Q'):
-        nbits = 64
+    nbits = _get_nbits(cc_str)
     l.debug("nbits == %d", nbits)
 
     cc_dep1_formal = cc_dep1_formal[nbits-1:0]
@@ -652,28 +645,60 @@ each conditional flag, which greatly helps static analysis (like VSA).
 def _cond_flag(state, condition):
     return state.se.If(condition, state.se.BVV(1, 1), state.se.BVV(0, 1))
 
-# DEC
+# TODO: Implement the missing ones
 
-def pc_actions_DEC_CondZ(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, arg_l - 1 == 0)
+# General ops
+def pc_actions_op_SUB(arg_l, arg_r, cc_ndep):
+    return arg_l - arg_r
 
-# INC
+def pc_actions_op_DEC(arg_l, arg_r, cc_ndep):
+    return arg_l - 1
 
-def pc_actions_INC_CondNZ(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, arg_l + 1 != 0)
+def pc_actions_op_INC(arg_l, arg_r, cc_ndep):
+    return arg_l + 1
 
-# SHR
+def pc_actions_op_SHR(arg_l, arg_r, cc_ndep):
+    return arg_l >> arg_r
 
-def pc_actions_SHR_CondZ(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, arg_l >> arg_r == 0)
+def pc_actions_op_SHL(arg_l, arg_r, cc_ndep):
+    return arg_l << arg_r
 
-# ADD
+def pc_actions_op_ADD(arg_l, arg_r, cc_ndep):
+    return arg_l + arg_r
 
-# TODO: Implement them
+def pc_actions_op_LOGIC(arg_l, arg_r, cc_ndep):
+    return arg_l
 
-# SUB
+# General conditions
+def pc_actions_cond_CondZ(state, cc_expr):
+    return _cond_flag(state, cc_expr == 0)
+
+def pc_actions_cond_CondNZ(state, cc_expr):
+    return _cond_flag(state, cc_expr != 0)
+
+def pc_actions_cond_CondS(state, cc_expr):
+    return _cond_flag(state, state.se.SLT(cc_expr, 0))
+
+def pc_actions_cond_CondB(state, cc_expr):
+    return _cond_flag(state, state.se.ULT(cc_expr, 0))
+    
+def pc_actions_cond_CondBE(state, cc_expr):
+    return _cond_flag(state, state.se.ULE(cc_expr, 0))
+    
+def pc_actions_cond_CondNBE(state, cc_expr):
+    return _cond_flag(state, state.se.UGT(cc_expr, 0))
+
+def pc_actions_cond_CondL(state, cc_expr):
+    return _cond_flag(state, state.se.SLT(cc_expr, 0))
+    
+def pc_actions_cond_CondLE(state, cc_expr):
+    return _cond_flag(state, state.se.SLE(cc_expr, 0))
+    
+def pc_actions_cond_CondNLE(state, cc_expr):
+    return _cond_flag(state, state.se.SGT(cc_expr, 0))
 
 
+# Specialized versions of (op,cond) to make claripy happy
 def pc_actions_SUB_CondZ(state, arg_l, arg_r, cc_ndep):
     return _cond_flag(state, arg_l == arg_r)
 
@@ -690,30 +715,14 @@ def pc_actions_SUB_CondNBE(state, arg_l, arg_r, cc_ndep):
     return _cond_flag(state, state.se.UGT(arg_l, arg_r))
 
 def pc_actions_SUB_CondL(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, arg_l < arg_r)
+    return _cond_flag(state, state.se.SLT(arg_l, arg_r))
 
 def pc_actions_SUB_CondLE(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, arg_l <= arg_r)
+    return _cond_flag(state, state.se.SLE(arg_l, arg_r))
 
 def pc_actions_SUB_CondNLE(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, arg_l > arg_r)
+    return _cond_flag(state, state.se.SGT(arg_l, arg_r))
 
-def pc_actions_SUB_CondS(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, arg_l - arg_r < 0)
-
-# LOGIC
-
-def pc_actions_LOGIC_CondZ(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, arg_l == 0)
-
-def pc_actions_LOGIC_CondLE(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, arg_l <= arg_r)
-
-def pc_actions_LOGIC_CondNZ(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, arg_l != 0)
-
-def pc_actions_LOGIC_CondS(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, arg_l < 0)
 
 def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
     """
@@ -729,7 +738,14 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
 
     # Extract the operation
     cc_op = flag_concretize(state, cc_op)
+    
+    if cc_op == data[platform]['OpTypes']['G_CC_OP_COPY']:
+        raise SimCCallError("G_CC_OP_COPY is not supported in pc_calculate_condition_simple(). Consider implementing.")
+    if cc_op == data[platform]['OpTypes']['G_CC_OP_NUMBER']:
+        raise SimCCallError("G_CC_OP_NUMBER is not supported in pc_calculate_condition_simple(). Consider implementing.")
+
     op = data_inverted[platform]['OpTypes'][cc_op]
+    nbits = _get_nbits(op)
     op = op[8 : -1]
 
     # Extract the condition
@@ -740,13 +756,25 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
             cond = key
             break
 
+    cc_dep1_nbits = cc_dep1[nbits-1:0]
+    cc_dep2_nbits = cc_dep2[nbits-1:0]
+
+    # check for a specialized version first
     funcname = "pc_actions_%s_%s" % (op, cond)
     if funcname in globals():
-        r = globals()[funcname](state, cc_dep1, cc_dep2, cc_ndep)
-        return state.se.Concat(state.se.BVV(0, state.arch.bits - 1), r), []
+        r = globals()[funcname](state, cc_dep1_nbits, cc_dep2_nbits, cc_ndep)
+    else:
+        op_funcname = "pc_actions_op_%s" % op
+        cond_funcname = "pc_actions_cond_%s" % cond
+        if op_funcname in globals() and cond_funcname in globals():
+            cc_expr = globals()[op_funcname](cc_dep1_nbits, cc_dep2_nbits, cc_ndep)
+            r = globals()[cond_funcname](state, cc_expr)
+        else:
+            l.warning('Operation %s with condition %s is not supported in pc_calculate_condition_simple(). Consider implementing.', op, cond)
+            raise KeyError('Operation %s with condition %s not found.' % (op, cond))
+        
+    return state.se.Concat(state.se.BVV(0, state.arch.bits - 1), r), []
 
-    l.warning('%s is not supported in pc_calculate_condition_simple(). Consider implementing.', funcname)
-    raise KeyError('%s not found.' % funcname)
 
 def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
     cc_op = flag_concretize(state, cc_op)
@@ -1401,6 +1429,18 @@ def _get_flags(state):
         return amd64g_calculate_rflags_all(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
     else:
         l.warning("No such thing as a flags register for arch %s", state.arch.name)
+
+def _get_nbits(cc_str):
+    nbits = None
+    if cc_str.endswith('B'):
+        nbits = 8
+    elif cc_str.endswith('W'):
+        nbits = 16
+    elif cc_str.endswith('L'):
+        nbits = 32
+    elif cc_str.endswith('Q'):
+        nbits = 64
+    return nbits
 
 from ..s_errors import SimError, SimCCallError
 from ..s_options import USE_SIMPLIFIED_CCALLS
