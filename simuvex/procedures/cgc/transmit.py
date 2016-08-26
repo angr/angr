@@ -7,6 +7,9 @@ class transmit(simuvex.SimProcedure):
 
     def run(self, fd, buf, count, tx_bytes):
 
+        if simuvex.options.CGC_ENFORCE_FD in self.state.options:
+            fd = 1
+
         if self.state.mode == 'fastpath':
             # Special case for CFG generation
             self.state.memory.store(tx_bytes, count, endness='Iend_LE')
