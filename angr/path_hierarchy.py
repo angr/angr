@@ -8,8 +8,12 @@ import claripy
 l = logging.getLogger('angr.path_hierarchy')
 
 class PathHierarchy(object):
-    def __init__(self):
-        self._path_mapping = weakref.WeakValueDictionary()
+    def __init__(self, weakkey_path_mapping=False):
+
+        if weakkey_path_mapping:
+            self._path_mapping = weakref.WeakKeyDictionary()
+        else:
+            self._path_mapping = weakref.WeakValueDictionary()
 
         # The New Order
         self._graph = networkx.DiGraph()
@@ -100,6 +104,15 @@ class PathHierarchy(object):
         nodes = list(networkx.algorithms.dfs_postorder_nodes(self._graph, h))[:-1]
         nodes.reverse()
         return nodes
+
+    def history_successors(self, h):
+        return [ ref() for ref in self._graph.successors(weakref.ref(h)) ]
+
+    def history_predecessors(self, h):
+        return [ ref() for ref in self._graph.predecessors(weakref.ref(h)) ]
+
+    def history_contains(self, h):
+        return weakref.ref(h) in self._graph
 
     #
     # LAZY_SOLVES support
