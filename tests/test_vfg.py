@@ -151,7 +151,7 @@ def run_vfg_1(arch):
     # - the last basic block in `authenticate` should only be executed twice (on a non-normalized CFG)
     nose.tools.assert_equal(vfg._execution_counter[0x4006eb], 2)
 
-def temporarily_disabled_vfg_1():
+def test_vfg_1():
     # Test the code coverage of VFG
     for arch in vfg_1_addresses:
         yield run_vfg_1, arch
