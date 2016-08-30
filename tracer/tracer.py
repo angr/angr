@@ -22,7 +22,7 @@ from simuvex import s_cc
 import logging
 
 l = logging.getLogger("tracer.Tracer")
-
+l.setLevel('INFO')
 # global writable attribute used for specifying cache procedures
 GlobalCacheManager = None
 
@@ -708,7 +708,7 @@ class Tracer(object):
             else:
                 raise TracerDynamicTraceOOBError
 
-    def _signal_handler(signum, frame):
+    def _signal_handler(self, signum, frame):
         raise TracerTimeout
 
     def dynamic_trace(self, stdout_file=None):
