@@ -9,6 +9,19 @@ test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '.
 import simuvex
 from simuvex import s_options as so
 
+def _get_calltrace(path):
+    """
+    Get a list of (calling target, return target, stack depth) from path.callstack_trace, which essentially filters
+    out stack pointers in callstack_trace.
+
+    :param angr.Path path: The path to extract information from.
+    :return: A list of extracted information.
+    :rtype: tuple
+    """
+
+    info = [(frame.func_addr, frame.ret_addr, depth) for _, frame, depth in path.callstack_backtrace]
+    return info
+
 def test_unicorn():
     p = angr.Project(os.path.join(test_location, 'binaries-private/cgc_qualifier_event/cgc/99c22c01_01'))
 
@@ -46,6 +59,10 @@ def test_unicorn():
     nose.tools.assert_true(uc_trace_filtered == real_trace)
     nose.tools.assert_true(uc_trace == angr_trace)
     nose.tools.assert_equal(pg_angr.one_errored.error.addr, pg_unicorn.one_errored.error.addr)
+
+    uc_calltrace = _get_calltrace(pg_unicorn.one_errored)
+    angr_calltrace = _get_calltrace(pg_angr.one_errored)
+    nose.tools.assert_true(uc_calltrace == angr_calltrace)
 
 def test_stops():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/uc_stop'))
