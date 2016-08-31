@@ -555,7 +555,7 @@ class Path(object):
                         self._manage_callstack_call(state)
                     else:
                         func_addr = state.scratch.bbl_addr_list[i + 1]
-                        stack_ptr = 0  # the stack pointer is missing
+                        stack_ptr = state.scratch.stack_pointer_list[i + 1]
                         ret_addr = bbl_addr + block_size
                         self._manage_callstack_call(func_addr=func_addr, stack_ptr=stack_ptr, ret_addr=ret_addr)
 
@@ -564,7 +564,7 @@ class Path(object):
                         self._manage_callstack_sys(state)
                     else:
                         func_addr = state.scratch.bbl_addr_list[i + 1]
-                        stack_ptr = 0 # stack pointer is missing
+                        stack_ptr = state.scratch.stack_pointer_list[i + 1]
                         ret_addr = bbl_addr + block_size
                         self._manage_callstack_sys(func_addr=func_addr, stack_ptr=stack_ptr, ret_addr=ret_addr,
                                                    jumpkind=jumpkind

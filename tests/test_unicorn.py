@@ -11,15 +11,14 @@ from simuvex import s_options as so
 
 def _get_calltrace(path):
     """
-    Get a list of (calling target, return target, stack depth) from path.callstack_trace, which essentially filters
-    out stack pointers in callstack_trace.
+    Get a list of (calling target, stack pointer, return target, stack depth) from path.callstack_trace.
 
     :param angr.Path path: The path to extract information from.
     :return: A list of extracted information.
     :rtype: tuple
     """
 
-    info = [(frame.func_addr, frame.ret_addr, depth) for _, frame, depth in path.callstack_backtrace]
+    info = [(frame.func_addr, frame.stack_ptr, frame.ret_addr, depth) for _, frame, depth in path.callstack_backtrace]
     return info
 
 def test_unicorn():
@@ -30,7 +29,6 @@ def test_unicorn():
 
     pg_unicorn = p.factory.path_group(s_unicorn)
     pg_angr = p.factory.path_group(s_angr)
-    print pg_angr, pg_unicorn
 
     # input = 'x\n\0\0\0\0'
     inp = 'L\x0alaehdamfeg\x0a10\x2f28\x2f2014\x0a-2147483647:-2147483647:-2147483647\x0ajfifloiblk\x0a126\x0a63\x0a47\x0a31\x0a3141\x0a719\x0a'
