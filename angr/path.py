@@ -336,6 +336,8 @@ class Path(object):
             self._run_args = run_args
             self._make_sim_run(throw=throw)
 
+        self.state._inspect('path_step', simuvex.BP_BEFORE)
+
         if self._run_error:
             return [ self.copy(error=self._run_error) ]
 
@@ -344,6 +346,9 @@ class Path(object):
                 and isinstance(self._run, simuvex.SimIRSB) \
                 and self.addr + self._run.irsb.size == out[0].state.se.any_int(out[0].state.regs.ip):
             out[0].state.regs.ip = self.addr
+
+        for p in out:
+            p.state._inspect('path_step', simuvex.BP_AFTER)
         return out
 
     def clear(self):
