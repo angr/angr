@@ -16,6 +16,7 @@ class SimStateScratch(SimStatePlugin):
         self.ins_addr = None
         self.sim_procedure = None
         self.bbl_addr_list = None
+        self.stack_pointer_list = None
 
         # information on exits *from* this state
         self.jumpkind = None
@@ -62,6 +63,7 @@ class SimStateScratch(SimStatePlugin):
             self.ins_addr = scratch.ins_addr
             self.sim_procedure = scratch.sim_procedure
             self.bbl_addr_list = scratch.bbl_addr_list
+            self.stack_pointer_list = scratch.stack_pointer_list
 
         # priveleges
         self._priv_stack = [False]

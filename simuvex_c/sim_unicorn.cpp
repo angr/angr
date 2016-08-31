@@ -98,6 +98,7 @@ private:
 
 public:
 	std::vector<uint64_t> bbl_addrs;
+	std::vector<uint64_t> stack_pointers;
 	uint64_t syscall_count;
 	std::vector<transmit_record_t> transmit_records;
 	uint64_t cur_steps, max_steps;
@@ -265,6 +266,7 @@ public:
 	void step(uint64_t current_address, int32_t size, bool check_stop_points=true) {
 		uc_save_regstate(uc, tmp_reg); // save current registers
 		bbl_addrs.push_back(current_address);
+		stack_pointers.push_back(get_stack_pointer(uc));
 		cur_address = current_address;
 		cur_size = size;
 
@@ -476,6 +478,27 @@ public:
 
 	bool in_cache(uint64_t address) {
 		return page_cache->find(address) != page_cache->end();
+	}
+
+	uint64_t get_stack_pointer(uc_engine *uc) {
+		// Note that only registers are stored - accessing anything other than stored registers from `cpu_arch_state` will
+		// result in out-of-bound read.
+
+		uint64_t sp = 0;
+
+		if (arch == UC_ARCH_X86) {
+			uc_reg_read(uc, UC_X86_REG_ESP, &sp);
+		} else if (arch == UC_ARCH_ARM) {
+			uc_reg_read(uc, UC_ARM_REG_SP, &sp);
+		} else if (arch == UC_ARCH_ARM64) {
+			uc_reg_read(uc, UC_ARM64_REG_SP, &sp);
+		} else if (arch == UC_ARCH_MIPS) {
+			uc_reg_read(uc, UC_MIPS_REG_SP, &sp);
+		} else {
+			LOG_W("get_stack_pointer() does not support this architecture. Returning 0 as the stack pointer value.");
+		}
+
+		return sp;
 	}
 
 	//
@@ -988,6 +1011,11 @@ void dealloc(State *state) {
 extern "C"
 uint64_t *bbl_addrs(State *state) {
 	return &(state->bbl_addrs[0]);
+}
+
+extern "C"
+uint64_t *stack_pointers(State *state) {
+	return &(state->stack_pointers[0]);
 }
 
 extern "C"
