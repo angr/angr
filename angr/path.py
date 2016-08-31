@@ -23,6 +23,9 @@ class CallFrame(object):
         Initialize with either a state or the function address,
         stack pointer, and return address
         """
+
+        self.jumpkind = jumpkind if jumpkind is not None else (state.scratch.jumpkind if state is not None else None)
+
         if state is not None:
             try:
                 self.func_addr = state.se.any_int(state.ip)
@@ -31,10 +34,17 @@ class CallFrame(object):
                 self.func_addr = None
                 self.stack_ptr = None
 
-            if state.arch.call_pushes_ret:
-                self.ret_addr = state.memory.load(state.regs.sp, state.arch.bits/8, endness=state.arch.memory_endness, inspect=False)
+            if self.jumpkind and self.jumpkind.startswith('Ijk_Sys'):
+                # syscalls
+                self.ret_addr = state.regs.ip_at_syscall
             else:
-                self.ret_addr = state.regs.lr
+                # calls
+                if state.arch.call_pushes_ret:
+                    self.ret_addr = state.memory.load(state.regs.sp, state.arch.bits / 8,
+                                                      endness=state.arch.memory_endness, inspect=False
+                                                      )
+                else:
+                    self.ret_addr = state.regs.lr
 
             # Try to convert the ret_addr to an integer
             try:
@@ -46,7 +56,6 @@ class CallFrame(object):
             self.stack_ptr = stack_ptr
             self.ret_addr = ret_addr
 
-        self.jumpkind = jumpkind if jumpkind is not None else (state.scratch.jumpkind if state is not None else None)
         self.block_counter = collections.Counter()
 
     def __str__(self):
@@ -523,21 +532,83 @@ class Path(object):
         """
 
         # maintain the blockcounter stack
-        if state.scratch.jumpkind == "Ijk_Call":
-            callframe = CallFrame(state)
-            self.callstack.push(callframe)
-            self.callstack_backtrace.append((hash(self.callstack), callframe, len(self.callstack)))
-        elif state.scratch.jumpkind.startswith('Ijk_Sys'):
-            callframe = CallFrame(state)
-            self.callstack.push(callframe)
-            self.callstack_backtrace.append((hash(self.callstack), callframe, len(self.callstack)))
-        elif state.scratch.jumpkind == "Ijk_Ret":
-            self.popped_callframe = self.callstack.pop()
-            if len(self.callstack) == 0:
-                l.info("Path callstack unbalanced...")
-                self.callstack.push(CallFrame(None, 0, 0, 0))
+        if state.scratch.bbl_addr_list is not None:
+            # there are more than one block - probably from Unicorn engine
 
-        self.callstack.top.block_counter[state.scratch.bbl_addr] += 1
+            for i, bbl_addr in enumerate(state.scratch.bbl_addr_list):
+
+                if self._project.is_hooked(bbl_addr):
+                    if issubclass(self._project.hooked_by(bbl_addr), simuvex.SimProcedure):
+                        block_size = None  # it will not be used
+                        jumpkind = 'Ijk_Ret'
+                    else:
+                        block_size = None  # will not be used either
+                        jumpkind = 'Ijk_Boring'
+
+                else:
+                    block = self._project.factory.block(bbl_addr)
+                    block_size = block.size
+                    jumpkind = block.vex.jumpkind
+
+                if jumpkind == 'Ijk_Call':
+                    if i == len(state.scratch.bbl_addr_list) - 1:
+                        self._manage_callstack_call(state)
+                    else:
+                        func_addr = state.scratch.bbl_addr_list[i + 1]
+                        stack_ptr = state.scratch.stack_pointer_list[i + 1]
+                        ret_addr = bbl_addr + block_size
+                        self._manage_callstack_call(func_addr=func_addr, stack_ptr=stack_ptr, ret_addr=ret_addr)
+
+                elif jumpkind.startswith('Ijk_Sys'):
+                    if i == len(state.scratch.bbl_addr_list) - 1:
+                        self._manage_callstack_sys(state)
+                    else:
+                        func_addr = state.scratch.bbl_addr_list[i + 1]
+                        stack_ptr = state.scratch.stack_pointer_list[i + 1]
+                        ret_addr = bbl_addr + block_size
+                        self._manage_callstack_sys(func_addr=func_addr, stack_ptr=stack_ptr, ret_addr=ret_addr,
+                                                   jumpkind=jumpkind
+                                                   )
+
+                elif jumpkind == 'Ijk_Ret':
+                    self._manage_callstack_ret()
+
+        else:
+            # there is only one block
+            if state.scratch.jumpkind == "Ijk_Call":
+                self._manage_callstack_call(state)
+
+            elif state.scratch.jumpkind.startswith('Ijk_Sys'):
+                self._manage_callstack_sys(state)
+
+            elif state.scratch.jumpkind == "Ijk_Ret":
+                self._manage_callstack_ret()
+
+            self.callstack.top.block_counter[state.scratch.bbl_addr] += 1
+
+    def _manage_callstack_call(self, state=None, func_addr=None, stack_ptr=None, ret_addr=None):
+        if state is not None:
+            callframe = CallFrame(state)
+        else:
+            callframe = CallFrame(func_addr=func_addr, stack_ptr=stack_ptr, ret_addr=ret_addr, jumpkind='Ijk_Call')
+
+        self.callstack.push(callframe)
+        self.callstack_backtrace.append((hash(self.callstack), callframe, len(self.callstack)))
+
+    def _manage_callstack_sys(self, state=None, func_addr=None, stack_ptr=None, ret_addr=None, jumpkind=None):
+        if state is not None:
+            callframe = CallFrame(state)
+        else:
+            callframe = CallFrame(func_addr=func_addr, stack_ptr=stack_ptr, ret_addr=ret_addr, jumpkind=jumpkind)
+
+        self.callstack.push(callframe)
+        self.callstack_backtrace.append((hash(self.callstack), callframe, len(self.callstack)))
+
+    def _manage_callstack_ret(self):
+        self.popped_callframe = self.callstack.pop()
+        if len(self.callstack) == 0:
+            l.info("Path callstack unbalanced...")
+            self.callstack.push(CallFrame(state=None, func_addr=0, stack_ptr=0, ret_addr=0))
 
     #
     # Merging and splitting
