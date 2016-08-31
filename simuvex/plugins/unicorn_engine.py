@@ -769,7 +769,7 @@ class Unicorn(SimStatePlugin):
         self.errno = _UC_NATIVE.start(self._uc_state, addr, self.max_steps if step is None else step)
 
     def finish(self):
-        # do the superficial syncronization
+        # do the superficial synchronization
         self.get_regs()
         self.steps = _UC_NATIVE.step(self._uc_state)
         self.stop_reason = _UC_NATIVE.stop_reason(self._uc_state)
