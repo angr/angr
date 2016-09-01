@@ -1,10 +1,8 @@
 import os
 import time
 import angr
-import signal
 import socket
 import claripy
-import signal
 import simuvex
 import tempfile
 import subprocess
@@ -24,7 +22,6 @@ GlobalCacheManager = None
 
 EXEC_STACK = 'EXEC_STACK'
 QEMU_CRASH = 'SEG_FAULT'
-QEMU_MAXTIME = 20
 
 class TracerInstallError(Exception):
     pass
@@ -698,9 +695,6 @@ class Tracer(object):
             else:
                 raise TracerDynamicTraceOOBError
 
-    def _signal_handler(self, signum, frame):
-        raise TracerTimeout
-
     def dynamic_trace(self, stdout_file=None):
         '''
         accumulate a basic block trace using qemu
@@ -719,48 +713,32 @@ class Tracer(object):
 
         args += ["-d", "exec", "-D", lname, self.binary]
 
-        # qemu does not always exit, so we add a timer to force it
-        # exit
         with open('/dev/null', 'wb') as devnull:
             stdout_f = devnull
             if stdout_file is not None:
                 stdout_f = open(stdout_file, 'wb')
 
-            ret = 0
-            # set a 20-second timer
-            signal.signal(signal.SIGALRM, self._signal_handler)
-            signal.alarm(QEMU_MAXTIME)
-            try:
-                if self.pov_file is None:
-                    l.info("tracing as raw input")
-                    p = subprocess.Popen(
-                            args,
-                            stdin=subprocess.PIPE,
-                            stdout=stdout_f,
-                            stderr=devnull)
-                    _, _ = p.communicate(self.input)
-                else:
-                    l.info("tracing as pov file")
-                    in_s, out_s = socket.socketpair()
-                    p = subprocess.Popen(
-                            args,
-                            stdin=in_s,
-                            stdout=stdout_f,
-                            stderr=devnull)
-                    for write in self.pov_file.writes:
-                        out_s.send(write)
-                        time.sleep(.01)
-                ret = p.wait()
-                # disable the timer
-                signal.alarm(0)
-            except TracerTimeout:
-                os.remove(mname)
-                os.remove(lname)
-                p.kill()
-                l.error('Tracer cannot finish Qemu\'s execution.')
-                raise TracerTimeout
-
-            l.info("program finished. return %d" % ret)
+            # we assume qemu with always exit and won't block
+            if self.pov_file is None:
+                l.info("tracing as raw input")
+                p = subprocess.Popen(
+                        args,
+                        stdin=subprocess.PIPE,
+                        stdout=stdout_f,
+                        stderr=devnull)
+                _, _ = p.communicate(self.input)
+            else:
+                l.info("tracing as pov file")
+                in_s, out_s = socket.socketpair()
+                p = subprocess.Popen(
+                        args,
+                        stdin=in_s,
+                        stdout=stdout_f,
+                        stderr=devnull)
+                for write in self.pov_file.writes:
+                    out_s.send(write)
+                    time.sleep(.01)
+            ret = p.wait()
             # did a crash occur?
             if ret < 0:
                 if abs(ret) == signal.SIGSEGV or abs(ret) == signal.SIGILL:
@@ -768,10 +746,6 @@ class Tracer(object):
                             during dynamic tracing", abs(ret))
                     l.info("entering crash mode")
                     self.crash_mode = True
-                else:
-                    l.info("input causes an exit with signal %d, so\
-                    we judge by pov file", abs(ret))
-                    self.crash_mode = ("POV" in self.pov_file.filename)
 
             if stdout_file is not None:
                 stdout_f.close()
