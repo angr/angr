@@ -5,6 +5,7 @@ import socket
 import claripy
 import simuvex
 import tempfile
+import signal
 import subprocess
 import shellphish_qemu
 from .tracerpov import TracerPoV
@@ -50,7 +51,7 @@ class Tracer(object):
                  hooks=None, seed=None, preconstrain_input=True,
                  preconstrain_flag=True, resiliency=True, chroot=None,
                  add_options=None, remove_options=None, trim_history=True,
-                 project=None, dump_syscall=False):
+                 project=None, dump_syscall=False, dump_cache=True):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -98,7 +99,7 @@ class Tracer(object):
         # the path after execution with input/pov_file
         self.path = None
 
-        cm = LocalCacheManager() if GlobalCacheManager is None else GlobalCacheManager
+        cm = LocalCacheManager(dump_cache=dump_cache) if GlobalCacheManager is None else GlobalCacheManager
         # cache managers need the tracer to be set for them
         self._cache_manager = cm
         self._cache_manager.set_tracer(self)
