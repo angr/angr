@@ -16,9 +16,9 @@ class arch_prctl(simuvex.SimProcedure):
     def run(self, code, addr):
         
         if self.state.se.symbolic(code):
-            raise Exception("Code value passed to arch_prctl must be concrete.")
+            raise simuvex.SimValueError("Code value passed to arch_prctl must be concrete.")
 
-        code = self.state.any_int(code)
+        code = self.state.se.any_int(code)
         
         #ARCH_SET_GS
         if code == 0x1001: 
@@ -35,4 +35,5 @@ class arch_prctl(simuvex.SimProcedure):
             gs = self.regs.gs
             self.state.memory.store(addr,gs)
         else:
-            raise Exception("Invalid code value passed to arch_prctl syscall.")
+            #EINVAL is returned if code is not a valid subcommand.
+            return 22
