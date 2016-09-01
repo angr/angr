@@ -1,5 +1,4 @@
 import os
-import pickle
 import time
 import angr
 import signal
@@ -7,11 +6,9 @@ import socket
 import claripy
 import signal
 import simuvex
-import subprocess
 import tempfile
 import subprocess
 import shellphish_qemu
-from threading import Timer
 from .tracerpov import TracerPoV
 from .cachemanager import LocalCacheManager
 from .simprocedures import receive
@@ -22,7 +19,6 @@ from simuvex import s_cc
 import logging
 
 l = logging.getLogger("tracer.Tracer")
-l.setLevel('INFO')
 # global writable attribute used for specifying cache procedures
 GlobalCacheManager = None
 
@@ -57,7 +53,7 @@ class Tracer(object):
                  hooks=None, seed=None, preconstrain_input=True,
                  preconstrain_flag=True, resiliency=True, chroot=None,
                  add_options=None, remove_options=None, trim_history=True,
-                 project=None):
+                 project=None, dump_syscall=False):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -77,6 +73,8 @@ class Tracer(object):
         :param remove_options: remove options from the state which is used to
             do tracing
         :param trim_history: Trim the history of a path.
+        :param project: The original project.
+        :param dump_syscall: True if we want to dump the syscall information
         """
 
         self.binary = binary
@@ -174,11 +172,7 @@ class Tracer(object):
         self._magic_content = None
 
         # will set crash_mode correctly
-        try:
-            self.trace = self.dynamic_trace()
-        except RuntimeError:
-            l.info('dynamic trace error')
-            raise RuntimeError
+        self.trace = self.dynamic_trace()
 
         l.info("trace consists of %d basic blocks", len(self.trace))
 
@@ -205,12 +199,16 @@ class Tracer(object):
         # this will be set by _prepare_paths
         self.unicorn_enabled = False
 
+        # initilize the syscall statistics if the flag is on
+        self._dump_syscall = dump_syscall
+        if self._dump_syscall:
+            self._syscall = list()
+
         self.path_group = self._prepare_paths()
 
         # this is used to track constrained addresses
         self._address_concretization = list()
 
-        self.syscall = list()
 # EXPOSED
 
     def next_branch(self):
@@ -375,7 +373,7 @@ class Tracer(object):
                 )):
             self.path_group = self.path_group.prune(to_stash='missed')
         else:
-            l.info("bb %d / %d", self.bb_cnt, len(self.trace))
+            l.debug("bb %d / %d", self.bb_cnt, len(self.trace))
             self.path_group = self.path_group.stash_not_addr(
                                            self.trace[self.bb_cnt],
                                            to_stash='missed')
@@ -390,8 +388,6 @@ class Tracer(object):
 
         # make sure we only have one or zero active paths at this point
         assert len(self.path_group.active) < 2
-
-        l.debug("taking the branch at %x", self.path_group.active[0].addr)
 
         rpg = self.path_group
 
@@ -479,9 +475,6 @@ class Tracer(object):
         branches = None
         while (branches is None or len(branches.active)) and self.bb_cnt < len(self.trace):
             branches = self.next_branch()
-            # import resource
-            # if resource.getrusage(resource.RUSAGE_SELF).ru_maxrss > 4000000:
-            #     import bpdb; bpdb.set_trace()
 
             # if we spot a crashed path in crash mode return the goods
             if self.crash_mode and 'crashed' in branches.stashes:
@@ -491,11 +484,11 @@ class Tracer(object):
                     last_block = self.trace[self.bb_cnt - 1]
                     l.info("crash occured in basic block %x", last_block)
 
-                    # time to recover the crashing state
+                # time to recover the crashing state
 
-                    # before we step through and collect the actions we have to set
-                    # up a special case for address concretization in the case of a
-                    # controlled read or write vulnerability
+                # before we step through and collect the actions we have to set
+                # up a special case for address concretization in the case of a
+                # controlled read or write vulnerability
 
                 if constrained_addrs is None:
                     self.constrained_addrs = []
@@ -617,9 +610,6 @@ class Tracer(object):
                         path.state.add_constraints(self.variable_map[var])
                     else:
                         l.warning("var %s not found in self.variable_map", var)
-
-    def dump(self, file_name):
-        pickle.dump(self, open(file_name, 'wb'), -1)
 
 # SETUP
 
@@ -905,7 +895,6 @@ class Tracer(object):
         '''
 
         if self.os == "cgc":
-            l.info('prepare_paths')
 
             cache_tuple = self._cache_lookup()
             pg = None
@@ -1021,11 +1010,11 @@ class Tracer(object):
         self._preconstrain_flag_page(entry_state, self.cgc_flag_bytes)
         entry_state.memory.store(0x4347c000, claripy.Concat(*self.cgc_flag_bytes))
 
-        entry_state.inspect.b('syscall', when=simuvex.BP_BEFORE, action=self.syscall)
+        if self._dump_syscall:
+            entry_state.inspect.b('syscall', when=simuvex.BP_BEFORE, action=self._syscall)
         entry_state.inspect.b('path_step', when=simuvex.BP_AFTER,
                 action=self.check_stack)
         pg = project.factory.path_group(
-
             entry_state,
             immutable=True,
             save_unsat=True,
@@ -1046,12 +1035,11 @@ class Tracer(object):
             for i in xrange(4):
                 d['arg_%d' % i] = args[i]
                 d['arg_%d_symbolic' % i] = args[i].ast.symbolic
-            self.syscall.append(d)
+            self._syscall.append(d)
 
     def check_stack(self, state):
-        l.debug("checking %s" % state.ip)
         if state.memory.load(state.ip, state.ip.length).symbolic:
-            l.error("executing input-related code")
+            l.debug("executing input-related code")
             self.crash_type = EXEC_STACK
             self.crash_state = state
 
