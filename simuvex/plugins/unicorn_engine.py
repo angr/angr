@@ -622,7 +622,7 @@ class Unicorn(SimStatePlugin):
         # FIXME check angr hooks at `address`
 
         start = address & (0xffffffffffffff000)
-        length = ((address + size + 0xfff) & (0xffffffffffffff000)) - start
+        length = ((address + size + 0xffff) & (0xfffffffffffff0000)) - start
 
         if (start == 0 or ((start + length) & ((1 << self.state.arch.bits) - 1)) == 0) and options.UNICORN_ZEROPAGE_GUARD in self.state.options:
             # sometimes it happens because of %fs is not correctly set
@@ -652,13 +652,15 @@ class Unicorn(SimStatePlugin):
                 perm = 7
 
         try:
-            the_bytes, _ = self.state.memory.mem.load_bytes(start, length)
+            the_bytes, _, bytes_read = self.state.memory.mem.load_bytes(start, length, ret_on_segv=True)
         except SimSegfaultError:
             _UC_NATIVE.stop(self._uc_state, STOP.STOP_SEGFAULT)
             return False
 
+        length = bytes_read
+
         if access == unicorn.UC_MEM_FETCH_UNMAPPED and len(the_bytes) == 0:
-            # we can not initalize an empty page then execute on it
+            # we can not initialize an empty page then execute on it
             self.error = 'fetching empty page [%#x, %#x]' % (address, address + size - 1)
             l.warning(self.error)
             _UC_NATIVE.stop(self._uc_state, STOP.STOP_EXECNONE)
@@ -747,7 +749,7 @@ class Unicorn(SimStatePlugin):
             if not self._check_registers(report=False):
                 symbolic_offsets = set()
                 highest_reg_offset, reg_size = max(self.state.arch.registers.values())
-                the_bytes, _ = self.state.registers.mem.load_bytes(0, highest_reg_offset+reg_size)
+                the_bytes, _, _ = self.state.registers.mem.load_bytes(0, highest_reg_offset+reg_size)
                 for a,v in the_bytes.iteritems():
                     vv = self._symbolic_passthrough(v.object)
                     if vv.symbolic:

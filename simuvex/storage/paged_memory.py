@@ -223,7 +223,7 @@ class SimPagedMemory(object):
     def allow_segv(self):
         return self._check_perms and not self.state.scratch.priv and options.STRICT_PAGE_ACCESS in self.state.options
 
-    def load_bytes(self, addr, num_bytes):
+    def load_bytes(self, addr, num_bytes, ret_on_segv=False):
         missing = [ ]
         the_bytes = { }
 
@@ -244,12 +244,16 @@ class SimPagedMemory(object):
                 except KeyError:
                     # missing page
                     if self.allow_segv:
+                        if ret_on_segv:
+                            break
                         raise SimSegfaultError(actual_addr, 'read-miss')
                     missing.append(i)
                     i += self._page_size - page_idx
                     continue
 
                 if self.allow_segv and not page.concrete_permissions & Page.PROT_READ:
+                    if ret_on_segv:
+                        break
                     raise SimSegfaultError(actual_addr, 'non-readable')
 
             # get the next object out of the page
@@ -262,7 +266,7 @@ class SimPagedMemory(object):
             i += length
 
         l.debug("... %d found, %d missing", len(the_bytes), len(missing))
-        return the_bytes, missing
+        return the_bytes, missing, i
 
     #
     # Page management
@@ -532,7 +536,7 @@ class SimPagedMemory(object):
                             memory_objects_for_name()`).
         :param new_content: The content (claripy expression) for the new memory object.
         :returns: the new memory object
-    """
+        """
 
         if old.object.size() != new_content.size():
             raise SimMemoryError("memory objects can only be replaced by the same length content")
