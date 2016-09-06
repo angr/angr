@@ -224,12 +224,25 @@ class SimPagedMemory(object):
         return self._check_perms and not self.state.scratch.priv and options.STRICT_PAGE_ACCESS in self.state.options
 
     def load_bytes(self, addr, num_bytes, ret_on_segv=False):
+        """
+        Load bytes from paged memory.
+
+        :param addr: Address to start loading.
+        :param num_bytes: Number of bytes to load.
+        :param bool ret_on_segv: True if you want load_bytes to return directly when a SIGSEV is triggered, otherwise
+                                 a SimSegfaultError will be raised.
+        :return: A 3-tuple of (a dict of pages loaded, a list of indices of missing pages, number of bytes scanned in
+                 all).
+        :rtype: tuple
+        """
+
         missing = [ ]
         the_bytes = { }
 
         l.debug("Reading %d bytes from memory at %#x", num_bytes, addr)
         i = 0
         old_page_num = None
+        bytes_read = 0
 
         while i < num_bytes:
             actual_addr = addr + i
@@ -264,9 +277,10 @@ class SimPagedMemory(object):
                 the_bytes[i] = what
 
             i += length
+            bytes_read += length
 
         l.debug("... %d found, %d missing", len(the_bytes), len(missing))
-        return the_bytes, missing, i
+        return the_bytes, missing, bytes_read
 
     #
     # Page management

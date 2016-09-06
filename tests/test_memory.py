@@ -597,15 +597,17 @@ def test_load_bytes():
     s = simuvex.SimState(arch='AMD64')
     asdf = s.se.BVS('asdf', 0x1000*8)
     s.memory.store(0x4000, asdf)
-    the_bytes, missing = s.memory.mem.load_bytes(0x4000, 0x1000)
+    the_bytes, missing, bytes_read = s.memory.mem.load_bytes(0x4000, 0x1000)
     assert len(missing) == 0
     assert len(the_bytes) == 1
+    assert bytes_read == 0x1000
 
     fdsa = s.se.BVV('fdsa')
     s.memory.store(0x4004, fdsa)
-    the_bytes, missing = s.memory.mem.load_bytes(0x4000, 0x1000)
+    the_bytes, missing, bytes_read = s.memory.mem.load_bytes(0x4000, 0x1000)
     assert len(missing) == 0
     assert len(the_bytes) == 3
+    assert bytes_read == 0x1000
 
 def test_fast_memory():
     s = simuvex.SimState(add_options={simuvex.o.FAST_REGISTERS, simuvex.o.FAST_MEMORY})
