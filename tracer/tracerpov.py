@@ -42,7 +42,7 @@ class TracerPoV(object):
         decode writes
         '''
 
-        self.writes = list()
+        self.writes = []
         for raw_write in self._raw_writes:
             mode = 'ascii'
             if 'format' in raw_write.attrib:

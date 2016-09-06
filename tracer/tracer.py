@@ -200,12 +200,12 @@ class Tracer(object):
         # initilize the syscall statistics if the flag is on
         self._dump_syscall = dump_syscall
         if self._dump_syscall:
-            self._syscall = list()
+            self._syscall = []
 
         self.path_group = self._prepare_paths()
 
         # this is used to track constrained addresses
-        self._address_concretization = list()
+        self._address_concretization = []
 
 # EXPOSED
 
