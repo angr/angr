@@ -32,7 +32,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
     The SimState represents the state of a program, including its memory, registers, and so forth.
     """
 
-    def __init__(self, arch="AMD64", plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
+    def __init__(self, arch="AMD64", engine=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
                  add_options=None, remove_options=None, special_memory_filler=None, os_name=None):
         # the architecture is used for function simulations (autorets) and the bitness
         if isinstance(arch, str):
@@ -82,6 +82,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 self.register_plugin('registers', SimFastMemory(memory_id="reg", endness=self.arch.register_endness))
             else:
                 self.register_plugin('registers', SimSymbolicMemory(memory_id="reg", endness=self.arch.register_endness))
+
+        if not self.has_plugin('engine'):
+            self.register_plugin('engine', VexEngine())
 
         # OS name
         self.os_name = os_name
@@ -155,6 +158,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
             return self.get_plugin(v)
         except KeyError:
             raise AttributeError(v)
+
+    @property
+    def engine(self):
+        return self.get_plugin('engine')
 
     @property
     def memory(self):

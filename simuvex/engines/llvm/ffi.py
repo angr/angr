@@ -1,5 +1,5 @@
 import os
-from enum import Enum
+from enum import Enum, IntEnum
 
 from cffi import FFI
 
@@ -10,13 +10,20 @@ ffi.cdef(open(header_path, 'rb').read())
 
 lib = ffi.dlopen("/usr/lib/llvm-3.8/lib/libLLVM-3.8.so")
 
+class _object2(object):
+    pass
+
 class cachedproperty(object):
     def __init__(self, f):
         self.f = f
 
     def __get__(self, obj, type_=None):
-        setattr(obj, self.f.__name__, self.f(obj))
-        return getattr(obj, self.f.__name__)
+        val = self.f(obj)
+        setattr(obj, self.f.__name__, val)
+        return val
+
+    def __set__(self, obj, value):
+        setattr(obj, self.f.__name__, value)
 
 
 class LLVMType(object):
@@ -34,11 +41,95 @@ class LLVMType(object):
 
         return self._str
 
+class AutoNumberIntEnum(IntEnum):
+    def __new__(cls):
+        value = len(cls.__members__) + 1
+        obj = int.__new__(cls)
+        obj._value_ = value
+        return obj
 
+
+class LLVMValueKind(AutoNumberIntEnum):
+    Argument = ()
+    BasicBlock = ()
+    MemoryUse = ()
+    MemoryDef = ()
+    MemoryPhi = ()
+
+    Function = ()
+    GlobalAlias = ()
+    GlobalIFunc = ()
+    GlobalVariable = ()
+    BlockAddress = ()
+    ConstantExpr = ()
+    ConstantArray = ()
+    ConstantStruct = ()
+    ConstantVector = ()
+
+    UndefValue = ()
+    ConstantAggregateZero = ()
+    ConstantDataArray = ()
+    ConstantDataVector = ()
+    ConstantInt = ()
+    ConstantFP = ()
+    ConstantPointerNull = ()
+    ConstantTokenNone = ()
+
+    MetadataAsValue = ()
+    InlineAsm = ()
+
+    Instruction = ()
+
+
+# TODO: investigate using a cache for all LLVMValue's, a la claripy ASTs
 class LLVMValue(object):
     def __init__(self, mod, val):
         self._mod = mod
         self._val = val
+
+    # for __hash__ and __eq__, purposefully ignore the class and other
+    # attributes -- if mod and val are the same, they must be the same objects,
+    # at least in LLVM land
+    def __hash__(self):
+        return hash((self._mod, self._val))
+
+    def __eq__(self, other):
+        return self._mod == other._mod and self._val == other._val
+
+    @cachedproperty
+    def type(self):
+        return LLVMType(self._mod, lib.LLVMTypeOf(self._val))
+
+    @cachedproperty
+    def name(self):
+        name_r = lib.LLVMGetValueName(self._val)
+        if name_r == ffi.NULL:
+            return None
+        else:
+            return ffi.string(name_r)
+
+    def __repr__(self):
+        return '<LLVMValue %s%s>' % (self.type, " " + self.name if self.name else "")
+
+
+class LLVMConstantInt(LLVMValue):
+    def __init__(self, mod, val):
+        super(LLVMConstantInt, self).__init__(mod, val)
+
+    @cachedproperty
+    def value(self):
+        return lib.LLVMConstIntGetZExtValue(self._val)
+
+    def __repr__(self):
+        return '<LLVMConstantInt %s %d>' % (self.type, self.value)
+
+def _create_value(mod, val):
+    if lib.LLVMIsAConstantInt(val) != ffi.NULL:
+        return LLVMConstantInt(mod, val)
+    elif lib.LLVMIsAInstruction(val) != ffi.NULL:
+        return LLVMInstruction(mod, val)
+    else:
+        return LLVMValue(mod, val)
 
 
 class LLVMOpcode(Enum):
@@ -115,20 +206,57 @@ class LLVMOpcode(Enum):
     catch_switch    = 65
 
 
-class LLVMInstruction(object):
-    def __init__(self, mod, insn):
-        self._mod = mod
-        self._insn = insn
+class LLVMInstruction(LLVMValue):
+    def __init__(self, mod, bb, insn):
+        super(LLVMInstruction, self).__init__(mod, insn)
+        if bb is not None:
+            self._bb = bb
+
+    @cachedproperty
+    def _bb(self):
+        return LLVMBasicBlock(self._mod, lib.LLVMGetInstructionParent(self._val))
 
     @cachedproperty
     def opcode(self):
-        return LLVMOpcode(lib.LLVMGetInstructionOpcode(self._insn))
+        return LLVMOpcode(lib.LLVMGetInstructionOpcode(self._val))
+
+    @cachedproperty
+    def operands(self):
+        return [_create_value(self._mod, lib.LLVMGetOperand(self._val, i)) for i in xrange(lib.LLVMGetNumOperands(self._val))]
+
+    def __repr__(self):
+        return '<LLVMInstruction %s(%s)>' % (self.opcode._name_,
+                                             ', '.join(str(op) for op in self.operands))
+
+    def _operand_to_str(self, op):
+        id_ = self._mod.tracker.lookup_local(self._bb._func, op)
+        if id_ is not None:
+            return str(id_)
+        else:
+            return str(op)
+
+    def ir_str(self):
+        # somewhat close to the string you'd see in the IR
+        out = ""
+
+        id_ = self._mod.tracker.lookup_local(self._bb._func, self)
+        if id_ is not None:
+            out += "%s = " % id_
+
+        out += self.opcode._name_
+
+        out += '('
+        out += ', '.join(self._operand_to_str(op) for op in self.operands)
+        out += ')'
+
+        return out
 
 
-class LLVMBasicBlock(object):
-    def __init__(self, mod, bb):
-        self._mod = mod
+class LLVMBasicBlock(LLVMValue):
+    def __init__(self, mod, func, bb):
+        super(LLVMBasicBlock, self).__init__(mod, lib.LLVMBasicBlockAsValue(bb))
         self._bb = bb
+        self._func = func
 
     def __repr__(self):
         return "<LLVMBasicBlock foo>"
@@ -138,20 +266,15 @@ class LLVMBasicBlock(object):
         insns = []
         insn = lib.LLVMGetFirstInstruction(self._bb)
         while insn != ffi.NULL:
-            insns.append(LLVMInstruction(self._mod, insn))
+            insns.append(LLVMInstruction(self._mod, self, insn))
             insn = lib.LLVMGetNextInstruction(insn)
         return insns
 
 
-class LLVMFunction(object):
+class LLVMFunction(LLVMValue):
     # we need a strong ref to the module since there might be a reference inside the actual Value class
     def __init__(self, mod, val):
-        self._mod = mod
-        self._val = val
-
-    @cachedproperty
-    def type(self):
-        return LLVMType(self._mod, lib.LLVMTypeOf(self._val))
+        super(LLVMFunction, self).__init__(mod, val)
 
     @cachedproperty
     def nparams(self):
@@ -161,7 +284,7 @@ class LLVMFunction(object):
     def params(self):
         params_r = ffi.new("LLVMValueRef[%d]" % self.nparams)
         lib.LLVMGetParams(self._val, params_r)
-        return [params_r[i] for i in xrange(self.nparams)]
+        return [LLVMValue(self, params_r[i]) for i in xrange(self.nparams)]
 
     @cachedproperty
     def nbasic_blocks(self):
@@ -171,7 +294,7 @@ class LLVMFunction(object):
     def basic_blocks(self):
         bbs_r = ffi.new("LLVMBasicBlockRef[%d]" % self.nbasic_blocks)
         lib.LLVMGetBasicBlocks(self._val, bbs_r)
-        return [LLVMBasicBlock(self._mod,  bbs_r[i]) for i in xrange(self.nbasic_blocks)]
+        return [LLVMBasicBlock(self._mod, self, bbs_r[i]) for i in xrange(self.nbasic_blocks)]
 
 
 class LLVMModule(object):
@@ -196,6 +319,10 @@ class LLVMModule(object):
 
     def dump(self):
         lib.LLVMDumpModule(self._mod)
+
+    @cachedproperty
+    def tracker(self):
+        return ValueIDTracker(self)
 
 
 class LLVMContext(object):
@@ -224,3 +351,6 @@ class LLVMContext(object):
             raise err
 
         return LLVMModule(self, module[0])
+
+# from .slots import ValueIDTracker
+from slots import ValueIDTracker
