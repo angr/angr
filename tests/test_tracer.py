@@ -9,8 +9,6 @@ bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..
 pov_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "povs"))
 test_data_location = str(os.path.dirname(os.path.realpath(__file__)))
 
-logging.getLogger("tracer").setLevel("DEBUG")
-
 def test_cgc_0b32aa01_01_raw():
     '''
     Test CGC Scored Event 1's palindrome challenge with raw input
