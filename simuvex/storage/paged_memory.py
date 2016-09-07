@@ -240,12 +240,11 @@ class SimPagedMemory(object):
         the_bytes = { }
 
         l.debug("Reading %d bytes from memory at %#x", num_bytes, addr)
-        i = 0
         old_page_num = None
         bytes_read = 0
 
-        while i < num_bytes:
-            actual_addr = addr + i
+        while bytes_read < num_bytes:
+            actual_addr = addr + bytes_read
             page_num = actual_addr / self._page_size
             page_idx = actual_addr % self._page_size
 
@@ -260,8 +259,7 @@ class SimPagedMemory(object):
                         if ret_on_segv:
                             break
                         raise SimSegfaultError(actual_addr, 'read-miss')
-                    missing.append(i)
-                    i += self._page_size - page_idx
+                    missing.append(bytes_read)
                     bytes_read += self._page_size - page_idx
                     continue
 
@@ -271,13 +269,12 @@ class SimPagedMemory(object):
                     raise SimSegfaultError(actual_addr, 'non-readable')
 
             # get the next object out of the page
-            what, length = page._get_object(page_idx, num_bytes-i)
+            what, length = page._get_object(page_idx, num_bytes-bytes_read)
             if what is None:
-                missing.append(i)
+                missing.append(bytes_read)
             else:
-                the_bytes[i] = what
+                the_bytes[bytes_read] = what
 
-            i += length
             bytes_read += length
 
         l.debug("... %d found, %d missing", len(the_bytes), len(missing))
