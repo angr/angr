@@ -106,7 +106,7 @@ setup(
     packages=packages,
     install_requires=[
         'bintrees',
-        'enum',
+        'enum34',
         'dpkt-fix',
         'pyvex',
         'archinfo',
