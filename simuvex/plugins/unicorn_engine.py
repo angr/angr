@@ -72,6 +72,9 @@ class FetchingZeroPageError(MemoryMappingError):
 class SegfaultError(MemoryMappingError):
     pass
 
+class MixedPermissonsError(MemoryMappingError):
+    pass
+
 #
 # This annotation is added to constraints that Unicorn generates in aggressive concretization mode
 #
@@ -683,6 +686,13 @@ class Unicorn(SimStatePlugin):
                 _UC_NATIVE.stop(self._uc_state, STOP.STOP_SEGFAULT)
                 ret = False
 
+        except MixedPermissonsError:
+            if not size_extension:
+                # weird... it shouldn't be raised at all
+                l.error('MixedPermissionsError is raised when size-extension is disabled. Please report it.')
+                _UC_NATIVE.stop(self._uc_state, STOP.STOP_SEGFAULT)
+                ret = False
+
         except unicorn.UcError as ex:
             if not size_extension:
                 if ex.errno == 11:
@@ -702,26 +712,51 @@ class Unicorn(SimStatePlugin):
 
     def _hook_mem_unmapped_core(self, uc, access, start, length, value, user_data, best_effort_read=True):
 
-        try:
-            # TODO: when loading more than one page, take care of existing pages with different permissions
-            perm = self.state.memory.permissions(start)
-        except SimMemoryError as e:
-            if e.message == "page does not exist at given address": # FIXME: direct string comparison is bad
-                if options.STRICT_PAGE_ACCESS in self.state.options:
-                    raise AccessingZeroPageError()
-                elif access == unicorn.UC_MEM_FETCH_UNMAPPED:
-                    raise FetchingZeroPageError()
+        PAGE_SIZE = 4096
+
+        addr = start
+        end_addr = start + length
+        perms = set()
+        missing_pages = [ ]
+        while addr < end_addr:
+
+            try:
+                perm = self.state.memory.permissions(addr)
+                # TODO: how does adding to a set work with symbolic permissions?
+                perms.add(perm)
+            except SimMemoryError as e:
+                if e.message == "page does not exist at given address":  # FIXME: direct string comparison is bad
+                    missing_pages.append(addr)
                 else:
-                    # initialize the memory page, but do not overwrite existing pages
-                    self.state.memory.map_region(start, length, 3)
-                    perm = 3
+                    raise
+
+            addr += PAGE_SIZE
+
+        if len(perms) == 0 and len(missing_pages) > 0:
+            # all pages are missing
+            if options.STRICT_PAGE_ACCESS in self.state.options:
+                raise AccessingZeroPageError()
+            elif access == unicorn.UC_MEM_FETCH_UNMAPPED:
+                raise FetchingZeroPageError()
             else:
-                raise
-        else:
+                # initialize the memory page, but do not overwrite existing pages
+                self.state.memory.map_region(start, length, 3)
+                perm = 3
+
+        elif len(missing_pages) == 0 and len(perms) == 1:
+            # no page is missing, and all pages have the same permission
+            # great!
+            perm = list(perms)[0]
             if not perm.symbolic:
                 perm = perm.args[0]
             else:
                 perm = 7
+
+        else:
+            # either pages have different permissions, or only some of the pages are missing
+            # give up
+            raise MixedPermissonsError()
+
 
         try:
             ret_on_segv = True if best_effort_read else False
