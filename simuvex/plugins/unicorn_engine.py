@@ -57,6 +57,22 @@ class STOP(object): # stop_t
                 return item
 
 #
+# Memory mapping errors - only used internally
+#
+
+class MemoryMappingError(Exception):
+    pass
+
+class AccessingZeroPageError(MemoryMappingError):
+    pass
+
+class FetchingZeroPageError(MemoryMappingError):
+    pass
+
+class SegfaultError(MemoryMappingError):
+    pass
+
+#
 # This annotation is added to constraints that Unicorn generates in aggressive concretization mode
 #
 
@@ -637,14 +653,66 @@ class Unicorn(SimStatePlugin):
             _UC_NATIVE.stop(self._uc_state, STOP.STOP_ZEROPAGE)
             return False
 
+        ret = False
         try:
+            best_effort_read = size_extension
+            ret = self._hook_mem_unmapped_core(uc, access, start, length, value, user_data,
+                                               best_effort_read=best_effort_read
+                                               )
+
+        except AccessingZeroPageError:
+            # raised when STRICT_PAGE_ACCESS is enabled
+            if not size_extension:
+                _UC_NATIVE.stop(self._uc_state, STOP.STOP_SEGFAULT)
+                ret = False
+
+        except FetchingZeroPageError:
+            # raised when trying to execute code on an unmapped page
+            if not size_extension:
+                self.error = 'fetching empty page [%#x, %#x]' % (start, start + length - 1)
+                l.warning(self.error)
+                _UC_NATIVE.stop(self._uc_state, STOP.STOP_EXECNONE)
+                ret = False
+
+        except SimMemoryError:
+            if not size_extension:
+                raise
+
+        except SegfaultError:
+            if not size_extension:
+                _UC_NATIVE.stop(self._uc_state, STOP.STOP_SEGFAULT)
+                ret = False
+
+        except unicorn.UcError as ex:
+            if not size_extension:
+                if ex.errno == 11:
+                    # Mapping failed. Probably because of size extension... let's try to redo it without size extension
+                    pass
+                else:
+                    # just raise the exception
+                    raise
+
+        finally:
+            if size_extension and not ret:
+                # retry without size-extension if size-extension was enabled
+                # any exception will not be caught
+                ret = self._hook_mem_unmapped(uc, access, address, size, value, user_data, size_extension=False)
+
+        return ret
+
+    def _hook_mem_unmapped_core(self, uc, access, start, length, value, user_data, best_effort_read=True):
+
+        try:
+            # TODO: when loading more than one page, take care of existing pages with different permissions
             perm = self.state.memory.permissions(start)
         except SimMemoryError as e:
-            if e.message == "page does not exist at given address":
+            if e.message == "page does not exist at given address": # FIXME: direct string comparison is bad
                 if options.STRICT_PAGE_ACCESS in self.state.options:
-                    _UC_NATIVE.stop(self._uc_state, STOP.STOP_SEGFAULT)
-                    return False
+                    raise AccessingZeroPageError()
+                elif access == unicorn.UC_MEM_FETCH_UNMAPPED:
+                    raise FetchingZeroPageError()
                 else:
+                    # initialize the memory page, but do not overwrite existing pages
                     self.state.memory.map_region(start, length, 3)
                     perm = 3
             else:
@@ -656,20 +724,16 @@ class Unicorn(SimStatePlugin):
                 perm = 7
 
         try:
-            ret_on_segv = True if size_extension else False
+            ret_on_segv = True if best_effort_read else False
             the_bytes, _, bytes_read = self.state.memory.mem.load_bytes(start, length, ret_on_segv=ret_on_segv)
         except SimSegfaultError:
-            _UC_NATIVE.stop(self._uc_state, STOP.STOP_SEGFAULT)
-            return False
+            raise SegfaultError()
 
         length = bytes_read
 
         if access == unicorn.UC_MEM_FETCH_UNMAPPED and len(the_bytes) == 0:
             # we can not initialize an empty page then execute on it
-            self.error = 'fetching empty page [%#x, %#x]' % (address, address + length - 1)
-            l.warning(self.error)
-            _UC_NATIVE.stop(self._uc_state, STOP.STOP_EXECNONE)
-            return False
+            raise FetchingZeroPageError()
 
         data = bytearray(length)
 
@@ -716,12 +780,6 @@ class Unicorn(SimStatePlugin):
             try:
                 uc.mem_map(start, length, perm)
             except unicorn.UcError as ex:
-                if ex.errno == 11:
-                    # Mapping failed. Probably because of size extension... let's try to redo it without size extension
-                    if size_extension:
-                        return self._hook_mem_unmapped(uc, access, address, size, value, user_data,
-                                                       size_extension=False
-                                                       )
                 raise
 
             uc.mem_write(start, str(data))
