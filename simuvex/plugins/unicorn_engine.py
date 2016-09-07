@@ -621,10 +621,11 @@ class Unicorn(SimStatePlugin):
         """
         # FIXME check angr hooks at `address`
 
-        start = address & (0xffffffffffffff000)
         if size_extension:
+            start = address & (0xfffffffffffff0000)
             length = ((address + size + 0xffff) & (0xfffffffffffff0000)) - start
         else:
+            start = address & (0xffffffffffffff000)
             length = ((address + size + 0xfff) & (0xffffffffffffff000)) - start
 
         if (start == 0 or ((start + length) & ((1 << self.state.arch.bits) - 1)) == 0) and options.UNICORN_ZEROPAGE_GUARD in self.state.options:
