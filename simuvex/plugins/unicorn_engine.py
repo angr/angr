@@ -629,7 +629,7 @@ class Unicorn(SimStatePlugin):
 
         if (start == 0 or ((start + length) & ((1 << self.state.arch.bits) - 1)) == 0) and options.UNICORN_ZEROPAGE_GUARD in self.state.options:
             # sometimes it happens because of %fs is not correctly set
-            self.error = 'accessing zero page [%#x, %#x] (%#x)' % (address, address + size - 1, access)
+            self.error = 'accessing zero page [%#x, %#x] (%#x)' % (address, address + length - 1, access)
             l.warning(self.error)
 
             # tell uc_state to rollback
@@ -665,7 +665,7 @@ class Unicorn(SimStatePlugin):
 
         if access == unicorn.UC_MEM_FETCH_UNMAPPED and len(the_bytes) == 0:
             # we can not initialize an empty page then execute on it
-            self.error = 'fetching empty page [%#x, %#x]' % (address, address + size - 1)
+            self.error = 'fetching empty page [%#x, %#x]' % (address, address + length - 1)
             l.warning(self.error)
             _UC_NATIVE.stop(self._uc_state, STOP.STOP_EXECNONE)
             return False
@@ -686,24 +686,24 @@ class Unicorn(SimStatePlugin):
             pos = offsets[i]
             next_pos = offsets[i+1]
             chunk = the_bytes[pos]
-            size = min((chunk.base + len(chunk) / 8) - (start + pos), next_pos - pos)
-            d = self._process_value(chunk.bytes_at(start + pos, size), 'mem')
+            chunk_size = min((chunk.base + len(chunk) / 8) - (start + pos), next_pos - pos)
+            d = self._process_value(chunk.bytes_at(start + pos, chunk_size), 'mem')
             # if not self.state.se.unique(d):
 
             if d is None:
                 if taint is None:
                     taint = ctypes.create_string_buffer(length)
                 offset = ctypes.cast(ctypes.addressof(taint) + pos, ctypes.POINTER(ctypes.c_char))
-                ctypes.memset(offset, 0x2, size) # mark them as TAINT_SYMBOLIC
+                ctypes.memset(offset, 0x2, chunk_size) # mark them as TAINT_SYMBOLIC
             else:
                 s = self.state.se.any_str(d)
-                data[pos:pos + size] = s
+                data[pos:pos + chunk_size] = s
 
-            if pos + size < next_pos and options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options:
+            if pos + chunk_size < next_pos and options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options:
                 if taint is None:
                     taint = ctypes.create_string_buffer(length)
-                offset = ctypes.cast(ctypes.addressof(taint) + pos + size, ctypes.POINTER(ctypes.c_char))
-                ctypes.memset(offset, 0x2, next_pos - pos - size)
+                offset = ctypes.cast(ctypes.addressof(taint) + pos + chunk_size, ctypes.POINTER(ctypes.c_char))
+                ctypes.memset(offset, 0x2, next_pos - pos - chunk_size)
 
 
         l.info('mmap [%#x, %#x], %d%s', start, start + length - 1, perm, ' (symbolic)' if taint else '')
