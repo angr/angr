@@ -615,14 +615,17 @@ class Unicorn(SimStatePlugin):
             l.debug("... denied")
             return None
 
-    def _hook_mem_unmapped(self, uc, access, address, size, value, user_data): #pylint:disable=unused-argument
+    def _hook_mem_unmapped(self, uc, access, address, size, value, user_data, size_extension=True): #pylint:disable=unused-argument
         """
         This callback is called when unicorn needs to access data that's not yet present in memory.
         """
         # FIXME check angr hooks at `address`
 
         start = address & (0xffffffffffffff000)
-        length = ((address + size + 0xffff) & (0xfffffffffffff0000)) - start
+        if size_extension:
+            length = ((address + size + 0xffff) & (0xfffffffffffff0000)) - start
+        else:
+            length = ((address + size + 0xfff) & (0xffffffffffffff000)) - start
 
         if (start == 0 or ((start + length) & ((1 << self.state.arch.bits) - 1)) == 0) and options.UNICORN_ZEROPAGE_GUARD in self.state.options:
             # sometimes it happens because of %fs is not correctly set
@@ -652,7 +655,8 @@ class Unicorn(SimStatePlugin):
                 perm = 7
 
         try:
-            the_bytes, _, bytes_read = self.state.memory.mem.load_bytes(start, length, ret_on_segv=True)
+            ret_on_segv = True if size_extension else False
+            the_bytes, _, bytes_read = self.state.memory.mem.load_bytes(start, length, ret_on_segv=ret_on_segv)
         except SimSegfaultError:
             _UC_NATIVE.stop(self._uc_state, STOP.STOP_SEGFAULT)
             return False
@@ -708,7 +712,17 @@ class Unicorn(SimStatePlugin):
             l.debug('caching non-writable page')
             return _UC_NATIVE.cache_page(self._uc_state, start, length, str(data), perm)
         else:
-            uc.mem_map(start, length, perm)
+            try:
+                uc.mem_map(start, length, perm)
+            except unicorn.UcError as ex:
+                if ex.errno == 11:
+                    # Mapping failed. Probably because of size extension... let's try to redo it without size extension
+                    if size_extension:
+                        return self._hook_mem_unmapped(uc, access, address, size, value, user_data,
+                                                       size_extension=False
+                                                       )
+                raise
+
             uc.mem_write(start, str(data))
             self._mapped += 1
             _UC_NATIVE.activate(self._uc_state, start, length, taint)
