@@ -811,7 +811,8 @@ class SimPagedMemory(object):
         # this check should not be performed when constructing a CFG
         if self.state.mode != 'fastpath':
             for page in xrange(pages):
-                if base_page_num + page in self._pages:
+                page_id = base_page_num + page
+                if page_id in self:
                     l.warning("map_page received address and length combination which contained mapped page")
                     return
 
@@ -819,8 +820,9 @@ class SimPagedMemory(object):
             permissions = claripy.BVV(permissions, 3)
 
         for page in xrange(pages):
-            self._pages[base_page_num + page] = Page(self._page_size, permissions)
-            self._symbolic_addrs[base_page_num + page] = set()
+            page_id = base_page_num + page
+            self._pages[page_id] = Page(self._page_size, permissions)
+            self._symbolic_addrs[page_id] = set()
 
     def unmap_region(self, addr, length):
         if o.TRACK_MEMORY_MAPPING not in self.state.options:
