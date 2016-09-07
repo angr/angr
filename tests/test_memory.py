@@ -609,6 +609,11 @@ def test_load_bytes():
     assert len(the_bytes) == 3
     assert bytes_read == 0x1000
 
+    the_bytes, missing, bytes_read = s.memory.mem.load_bytes(0x8000, 0x2000)
+    assert len(the_bytes) == 0
+    assert len(missing) == 2
+    assert bytes_read == 0x2000
+
 def test_fast_memory():
     s = simuvex.SimState(add_options={simuvex.o.FAST_REGISTERS, simuvex.o.FAST_MEMORY})
 

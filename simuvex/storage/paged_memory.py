@@ -101,7 +101,7 @@ class Page(object):
             return (self._sinkhole, actual_max - page_idx)
 
         # there are two options now:
-        # 1. there *is* a page index in range, but if we can't fulfil the request
+        # 1. there *is* a page index in range, but if we can't fulfill the request
         # from the storage, it's still the sinkhole (if set)
         # 2. we have an actual target and we'll step until we find that we're no longer
         # on it
@@ -262,6 +262,7 @@ class SimPagedMemory(object):
                         raise SimSegfaultError(actual_addr, 'read-miss')
                     missing.append(i)
                     i += self._page_size - page_idx
+                    bytes_read += self._page_size - page_idx
                     continue
 
                 if self.allow_segv and not page.concrete_permissions & Page.PROT_READ:
