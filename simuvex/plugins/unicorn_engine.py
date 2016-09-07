@@ -659,9 +659,7 @@ class Unicorn(SimStatePlugin):
         ret = False
         try:
             best_effort_read = size_extension
-            ret = self._hook_mem_unmapped_core(uc, access, start, length, value, user_data,
-                                               best_effort_read=best_effort_read
-                                               )
+            ret = self._hook_mem_unmapped_core(uc, access, start, length, best_effort_read=best_effort_read)
 
         except AccessingZeroPageError:
             # raised when STRICT_PAGE_ACCESS is enabled
@@ -710,7 +708,7 @@ class Unicorn(SimStatePlugin):
 
         return ret
 
-    def _hook_mem_unmapped_core(self, uc, access, start, length, value, user_data, best_effort_read=True):
+    def _hook_mem_unmapped_core(self, uc, access, start, length, best_effort_read=True):
 
         PAGE_SIZE = 4096
 
@@ -814,7 +812,7 @@ class Unicorn(SimStatePlugin):
         else:
             try:
                 uc.mem_map(start, length, perm)
-            except unicorn.UcError as ex:
+            except unicorn.UcError:
                 raise
 
             uc.mem_write(start, str(data))
