@@ -753,7 +753,7 @@ class CFGBase(Analysis):
                         continue
                     target_addr = edges[0][1].addr
                     target_func = self.kb.functions.function(addr=target_addr)
-                    if target_func.returning is False:
+                    if target_func is not None and target_func.returning is False:
                         edges_to_remove.append((src, dst))
 
             for src, dst in edges_to_remove:
