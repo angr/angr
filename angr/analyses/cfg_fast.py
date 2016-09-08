@@ -2435,7 +2435,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     except AngrTranslationError:
                         continue
                     insns = block.capstone.insns
-                    if self._is_noop_insn(insns[0]):
+                    if insns and self._is_noop_insn(insns[0]):
                         # see where those nop instructions terminate
                         nop_length = 0
                         for insn in insns:
