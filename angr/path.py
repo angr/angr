@@ -540,20 +540,27 @@ class Path(object):
         if state.scratch.bbl_addr_list is not None:
             # there are more than one block - probably from Unicorn engine
 
+            block_addr_to_jumpkind = { } # cache
+
             for i, bbl_addr in enumerate(state.scratch.bbl_addr_list):
 
-                if self._project.is_hooked(bbl_addr):
-                    if issubclass(self._project.hooked_by(bbl_addr), simuvex.SimProcedure):
-                        block_size = None  # it will not be used
-                        jumpkind = 'Ijk_Ret'
-                    else:
-                        block_size = None  # will not be used either
-                        jumpkind = 'Ijk_Boring'
+                try:
+                    block_size, jumpkind = block_addr_to_jumpkind[bbl_addr]
+                except KeyError:
+                    if self._project.is_hooked(bbl_addr):
+                        if issubclass(self._project.hooked_by(bbl_addr), simuvex.SimProcedure):
+                            block_size = None  # it will not be used
+                            jumpkind = 'Ijk_Ret'
+                        else:
+                            block_size = None  # will not be used either
+                            jumpkind = 'Ijk_Boring'
 
-                else:
-                    block = self._project.factory.block(bbl_addr)
-                    block_size = block.size
-                    jumpkind = block.vex.jumpkind
+                    else:
+                        block = self._project.factory.block(bbl_addr)
+                        block_size = block.size
+                        jumpkind = block.vex.jumpkind
+
+                    block_addr_to_jumpkind[bbl_addr] = block_size, jumpkind
 
                 if jumpkind == 'Ijk_Call':
                     if i == len(state.scratch.bbl_addr_list) - 1:
