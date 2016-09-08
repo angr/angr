@@ -501,12 +501,13 @@ public:
 		auto it = page_cache->lower_bound(address);
 
 		if (it == page_cache->end() && it != page_cache->begin()) {
+			// Maybe the previous one works?
 			it--;
 		}
 
 		if (it != page_cache->end()) {
 			uint64_t cached_page_addr = it->first;
-			if (cached_page_addr > address) {
+			if (cached_page_addr > address && it != page_cache->begin()) {
 				it--;
 				cached_page_addr = it->first;
 			}
