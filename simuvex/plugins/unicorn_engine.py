@@ -810,11 +810,9 @@ class Unicorn(SimStatePlugin):
             l.debug('caching non-writable page')
             return _UC_NATIVE.cache_page(self._uc_state, start, length, str(data), perm)
         else:
-            try:
-                uc.mem_map(start, length, perm)
-            except unicorn.UcError:
-                raise
-
+            # if the memory range has already been mapped, or it somehow fails sanity checks, mem_map() may fail with
+            # a unicorn.UcError raised. THe exception will be caught outside.
+            uc.mem_map(start, length, perm)
             uc.mem_write(start, str(data))
             self._mapped += 1
             _UC_NATIVE.activate(self._uc_state, start, length, taint)
