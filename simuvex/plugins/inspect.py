@@ -20,6 +20,7 @@ event_types = {
     'symbolic_variable',
     'call',
     'syscall',
+    'path_step',
     'cfg_handle_entry',
 }
 

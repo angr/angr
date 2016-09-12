@@ -421,7 +421,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     #
 
     def _read_from(self, addr, num_bytes):
-        the_bytes, missing =  self.mem.load_bytes(addr, num_bytes)
+        the_bytes, missing, _ =  self.mem.load_bytes(addr, num_bytes)
 
         if len(missing) > 0:
             name = "%s_%x" % (self.id, addr)

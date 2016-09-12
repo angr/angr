@@ -101,7 +101,7 @@ class Page(object):
             return (self._sinkhole, actual_max - page_idx)
 
         # there are two options now:
-        # 1. there *is* a page index in range, but if we can't fulfil the request
+        # 1. there *is* a page index in range, but if we can't fulfill the request
         # from the storage, it's still the sinkhole (if set)
         # 2. we have an actual target and we'll step until we find that we're no longer
         # on it
@@ -223,16 +223,28 @@ class SimPagedMemory(object):
     def allow_segv(self):
         return self._check_perms and not self.state.scratch.priv and options.STRICT_PAGE_ACCESS in self.state.options
 
-    def load_bytes(self, addr, num_bytes):
+    def load_bytes(self, addr, num_bytes, ret_on_segv=False):
+        """
+        Load bytes from paged memory.
+
+        :param addr: Address to start loading.
+        :param num_bytes: Number of bytes to load.
+        :param bool ret_on_segv: True if you want load_bytes to return directly when a SIGSEV is triggered, otherwise
+                                 a SimSegfaultError will be raised.
+        :return: A 3-tuple of (a dict of pages loaded, a list of indices of missing pages, number of bytes scanned in
+                 all).
+        :rtype: tuple
+        """
+
         missing = [ ]
         the_bytes = { }
 
         l.debug("Reading %d bytes from memory at %#x", num_bytes, addr)
-        i = 0
         old_page_num = None
+        bytes_read = 0
 
-        while i < num_bytes:
-            actual_addr = addr + i
+        while bytes_read < num_bytes:
+            actual_addr = addr + bytes_read
             page_num = actual_addr / self._page_size
             page_idx = actual_addr % self._page_size
 
@@ -244,25 +256,29 @@ class SimPagedMemory(object):
                 except KeyError:
                     # missing page
                     if self.allow_segv:
+                        if ret_on_segv:
+                            break
                         raise SimSegfaultError(actual_addr, 'read-miss')
-                    missing.append(i)
-                    i += self._page_size - page_idx
+                    missing.append(bytes_read)
+                    bytes_read += self._page_size - page_idx
                     continue
 
                 if self.allow_segv and not page.concrete_permissions & Page.PROT_READ:
+                    if ret_on_segv:
+                        break
                     raise SimSegfaultError(actual_addr, 'non-readable')
 
             # get the next object out of the page
-            what, length = page._get_object(page_idx, num_bytes-i)
+            what, length = page._get_object(page_idx, num_bytes-bytes_read)
             if what is None:
-                missing.append(i)
+                missing.append(bytes_read)
             else:
-                the_bytes[i] = what
+                the_bytes[bytes_read] = what
 
-            i += length
+            bytes_read += length
 
         l.debug("... %d found, %d missing", len(the_bytes), len(missing))
-        return the_bytes, missing
+        return the_bytes, missing, bytes_read
 
     #
     # Page management
@@ -532,7 +548,7 @@ class SimPagedMemory(object):
                             memory_objects_for_name()`).
         :param new_content: The content (claripy expression) for the new memory object.
         :returns: the new memory object
-    """
+        """
 
         if old.object.size() != new_content.size():
             raise SimMemoryError("memory objects can only be replaced by the same length content")
@@ -795,7 +811,8 @@ class SimPagedMemory(object):
         # this check should not be performed when constructing a CFG
         if self.state.mode != 'fastpath':
             for page in xrange(pages):
-                if base_page_num + page in self._pages:
+                page_id = base_page_num + page
+                if page_id in self:
                     l.warning("map_page received address and length combination which contained mapped page")
                     return
 
@@ -803,8 +820,9 @@ class SimPagedMemory(object):
             permissions = claripy.BVV(permissions, 3)
 
         for page in xrange(pages):
-            self._pages[base_page_num + page] = Page(self._page_size, permissions)
-            self._symbolic_addrs[base_page_num + page] = set()
+            page_id = base_page_num + page
+            self._pages[page_id] = Page(self._page_size, permissions)
+            self._symbolic_addrs[page_id] = set()
 
     def unmap_region(self, addr, length):
         if o.TRACK_MEMORY_MAPPING not in self.state.options:

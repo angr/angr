@@ -57,6 +57,25 @@ class STOP(object): # stop_t
                 return item
 
 #
+# Memory mapping errors - only used internally
+#
+
+class MemoryMappingError(Exception):
+    pass
+
+class AccessingZeroPageError(MemoryMappingError):
+    pass
+
+class FetchingZeroPageError(MemoryMappingError):
+    pass
+
+class SegfaultError(MemoryMappingError):
+    pass
+
+class MixedPermissonsError(MemoryMappingError):
+    pass
+
+#
 # This annotation is added to constraints that Unicorn generates in aggressive concretization mode
 #
 
@@ -177,6 +196,7 @@ def _load_native():
         _setup_prototype(h, 'stop', None, state_t, stop_t)
         _setup_prototype(h, 'sync', ctypes.POINTER(MEM_PATCH), state_t)
         _setup_prototype(h, 'bbl_addrs', ctypes.POINTER(ctypes.c_uint64), state_t)
+        _setup_prototype(h, 'stack_pointers', ctypes.POINTER(ctypes.c_uint64), state_t)
         _setup_prototype(h, 'bbl_addr_count', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'syscall_count', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'destroy', None, ctypes.POINTER(MEM_PATCH))
@@ -614,54 +634,139 @@ class Unicorn(SimStatePlugin):
             l.debug("... denied")
             return None
 
-    def _hook_mem_unmapped(self, uc, access, address, size, value, user_data): #pylint:disable=unused-argument
+    def _hook_mem_unmapped(self, uc, access, address, size, value, user_data, size_extension=True): #pylint:disable=unused-argument
         """
         This callback is called when unicorn needs to access data that's not yet present in memory.
         """
         # FIXME check angr hooks at `address`
 
-        start = address & (0xffffffffffffff000)
-        length = ((address + size + 0xfff) & (0xffffffffffffff000)) - start
+        if size_extension:
+            start = address & (0xfffffffffffff0000)
+            length = ((address + size + 0xffff) & (0xfffffffffffff0000)) - start
+        else:
+            start = address & (0xffffffffffffff000)
+            length = ((address + size + 0xfff) & (0xffffffffffffff000)) - start
 
         if (start == 0 or ((start + length) & ((1 << self.state.arch.bits) - 1)) == 0) and options.UNICORN_ZEROPAGE_GUARD in self.state.options:
             # sometimes it happens because of %fs is not correctly set
-            self.error = 'accessing zero page [%#x, %#x] (%#x)' % (address, address + size - 1, access)
+            self.error = 'accessing zero page [%#x, %#x] (%#x)' % (address, address + length - 1, access)
             l.warning(self.error)
 
             # tell uc_state to rollback
             _UC_NATIVE.stop(self._uc_state, STOP.STOP_ZEROPAGE)
             return False
 
+        ret = False
         try:
-            perm = self.state.memory.permissions(start)
-        except SimMemoryError as e:
-            if e.message == "page does not exist at given address":
-                if options.STRICT_PAGE_ACCESS in self.state.options:
-                    _UC_NATIVE.stop(self._uc_state, STOP.STOP_SEGFAULT)
-                    return False
-                else:
-                    self.state.memory.map_region(start, length, 3)
-                    perm = 3
-            else:
+            best_effort_read = size_extension
+            ret = self._hook_mem_unmapped_core(uc, access, start, length, best_effort_read=best_effort_read)
+
+        except AccessingZeroPageError:
+            # raised when STRICT_PAGE_ACCESS is enabled
+            if not size_extension:
+                _UC_NATIVE.stop(self._uc_state, STOP.STOP_SEGFAULT)
+                ret = False
+
+        except FetchingZeroPageError:
+            # raised when trying to execute code on an unmapped page
+            if not size_extension:
+                self.error = 'fetching empty page [%#x, %#x]' % (start, start + length - 1)
+                l.warning(self.error)
+                _UC_NATIVE.stop(self._uc_state, STOP.STOP_EXECNONE)
+                ret = False
+
+        except SimMemoryError:
+            if not size_extension:
                 raise
-        else:
+
+        except SegfaultError:
+            if not size_extension:
+                _UC_NATIVE.stop(self._uc_state, STOP.STOP_SEGFAULT)
+                ret = False
+
+        except MixedPermissonsError:
+            if not size_extension:
+                # weird... it shouldn't be raised at all
+                l.error('MixedPermissionsError is raised when size-extension is disabled. Please report it.')
+                _UC_NATIVE.stop(self._uc_state, STOP.STOP_SEGFAULT)
+                ret = False
+
+        except unicorn.UcError as ex:
+            if not size_extension:
+                if ex.errno == 11:
+                    # Mapping failed. Probably because of size extension... let's try to redo it without size extension
+                    pass
+                else:
+                    # just raise the exception
+                    raise
+
+        finally:
+            if size_extension and not ret:
+                # retry without size-extension if size-extension was enabled
+                # any exception will not be caught
+                ret = self._hook_mem_unmapped(uc, access, address, size, value, user_data, size_extension=False)
+
+        return ret
+
+    def _hook_mem_unmapped_core(self, uc, access, start, length, best_effort_read=True):
+
+        PAGE_SIZE = 4096
+
+        addr = start
+        end_addr = start + length
+        perms = set()
+        missing_pages = [ ]
+        while addr < end_addr:
+
+            try:
+                perm = self.state.memory.permissions(addr)
+                # TODO: how does adding to a set work with symbolic permissions?
+                perms.add(perm)
+            except SimMemoryError as e:
+                if e.message == "page does not exist at given address":  # FIXME: direct string comparison is bad
+                    missing_pages.append(addr)
+                else:
+                    raise
+
+            addr += PAGE_SIZE
+
+        if len(perms) == 0 and len(missing_pages) > 0:
+            # all pages are missing
+            if options.STRICT_PAGE_ACCESS in self.state.options:
+                raise AccessingZeroPageError()
+            elif access == unicorn.UC_MEM_FETCH_UNMAPPED:
+                raise FetchingZeroPageError()
+            else:
+                # initialize the memory page, but do not overwrite existing pages
+                self.state.memory.map_region(start, length, 3)
+                perm = 3
+
+        elif len(missing_pages) == 0 and len(perms) == 1:
+            # no page is missing, and all pages have the same permission
+            # great!
+            perm = list(perms)[0]
             if not perm.symbolic:
                 perm = perm.args[0]
             else:
                 perm = 7
 
+        else:
+            # either pages have different permissions, or only some of the pages are missing
+            # give up
+            raise MixedPermissonsError()
+
+
         try:
-            the_bytes, _ = self.state.memory.mem.load_bytes(start, length)
+            ret_on_segv = True if best_effort_read else False
+            the_bytes, _, bytes_read = self.state.memory.mem.load_bytes(start, length, ret_on_segv=ret_on_segv)
         except SimSegfaultError:
-            _UC_NATIVE.stop(self._uc_state, STOP.STOP_SEGFAULT)
-            return False
+            raise SegfaultError()
+
+        length = bytes_read
 
         if access == unicorn.UC_MEM_FETCH_UNMAPPED and len(the_bytes) == 0:
-            # we can not initalize an empty page then execute on it
-            self.error = 'fetching empty page [%#x, %#x]' % (address, address + size - 1)
-            l.warning(self.error)
-            _UC_NATIVE.stop(self._uc_state, STOP.STOP_EXECNONE)
-            return False
+            # we can not initialize an empty page then execute on it
+            raise FetchingZeroPageError()
 
         data = bytearray(length)
 
@@ -679,24 +784,24 @@ class Unicorn(SimStatePlugin):
             pos = offsets[i]
             next_pos = offsets[i+1]
             chunk = the_bytes[pos]
-            size = min((chunk.base + len(chunk) / 8) - (start + pos), next_pos - pos)
-            d = self._process_value(chunk.bytes_at(start + pos, size), 'mem')
+            chunk_size = min((chunk.base + len(chunk) / 8) - (start + pos), next_pos - pos)
+            d = self._process_value(chunk.bytes_at(start + pos, chunk_size), 'mem')
             # if not self.state.se.unique(d):
 
             if d is None:
                 if taint is None:
                     taint = ctypes.create_string_buffer(length)
                 offset = ctypes.cast(ctypes.addressof(taint) + pos, ctypes.POINTER(ctypes.c_char))
-                ctypes.memset(offset, 0x2, size) # mark them as TAINT_SYMBOLIC
+                ctypes.memset(offset, 0x2, chunk_size) # mark them as TAINT_SYMBOLIC
             else:
                 s = self.state.se.any_str(d)
-                data[pos:pos + size] = s
+                data[pos:pos + chunk_size] = s
 
-            if pos + size < next_pos and options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options:
+            if pos + chunk_size < next_pos and options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options:
                 if taint is None:
                     taint = ctypes.create_string_buffer(length)
-                offset = ctypes.cast(ctypes.addressof(taint) + pos + size, ctypes.POINTER(ctypes.c_char))
-                ctypes.memset(offset, 0x2, next_pos - pos - size)
+                offset = ctypes.cast(ctypes.addressof(taint) + pos + chunk_size, ctypes.POINTER(ctypes.c_char))
+                ctypes.memset(offset, 0x2, next_pos - pos - chunk_size)
 
 
         l.info('mmap [%#x, %#x], %d%s', start, start + length - 1, perm, ' (symbolic)' if taint else '')
@@ -705,6 +810,8 @@ class Unicorn(SimStatePlugin):
             l.debug('caching non-writable page')
             return _UC_NATIVE.cache_page(self._uc_state, start, length, str(data), perm)
         else:
+            # if the memory range has already been mapped, or it somehow fails sanity checks, mem_map() may fail with
+            # a unicorn.UcError raised. THe exception will be caught outside.
             uc.mem_map(start, length, perm)
             uc.mem_write(start, str(data))
             self._mapped += 1
@@ -746,7 +853,7 @@ class Unicorn(SimStatePlugin):
             if not self._check_registers(report=False):
                 symbolic_offsets = set()
                 highest_reg_offset, reg_size = max(self.state.arch.registers.values())
-                the_bytes, _ = self.state.registers.mem.load_bytes(0, highest_reg_offset+reg_size)
+                the_bytes, _, _ = self.state.registers.mem.load_bytes(0, highest_reg_offset+reg_size)
                 for a,v in the_bytes.iteritems():
                     vv = self._symbolic_passthrough(v.object)
                     if vv.symbolic:
@@ -768,7 +875,7 @@ class Unicorn(SimStatePlugin):
         self.errno = _UC_NATIVE.start(self._uc_state, addr, self.max_steps if step is None else step)
 
     def finish(self):
-        # do the superficial syncronization
+        # do the superficial synchronization
         self.get_regs()
         self.steps = _UC_NATIVE.step(self._uc_state)
         self.stop_reason = _UC_NATIVE.stop_reason(self._uc_state)
@@ -832,6 +939,10 @@ class Unicorn(SimStatePlugin):
         # get the address list out of the state
         bbl_addrs = _UC_NATIVE.bbl_addrs(self._uc_state)
         self.state.scratch.bbl_addr_list = bbl_addrs[:self.steps]
+        # get the stack pointers
+        stack_pointers = _UC_NATIVE.stack_pointers(self._uc_state)
+        self.state.scratch.stack_pointer_list = stack_pointers[ : self.steps]
+        # syscall counts
         self.state.scratch.executed_syscall_count = _UC_NATIVE.syscall_count(self._uc_state)
 
     def destroy(self):

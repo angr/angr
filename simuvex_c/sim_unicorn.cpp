@@ -47,8 +47,14 @@ typedef struct block_entry {
   std::unordered_set<uint64_t> clobbered_registers;
 } block_entry_t;
 
+typedef struct CachedPage {
+	size_t size;
+	uint8_t *bytes;
+	uint64_t perms;
+} CachedPage;
+
 typedef taint_t PageBitmap[PAGE_SIZE];
-typedef std::map<uint64_t, std::pair<char *, uint64_t>> PageCache;
+typedef std::map<uint64_t, CachedPage> PageCache;
 typedef std::unordered_map<uint64_t, block_entry_t> BlockCache;
 typedef struct caches {
   PageCache *page_cache;
@@ -98,6 +104,7 @@ private:
 
 public:
 	std::vector<uint64_t> bbl_addrs;
+	std::vector<uint64_t> stack_pointers;
 	uint64_t syscall_count;
 	std::vector<transmit_record_t> transmit_records;
 	uint64_t cur_steps, max_steps;
@@ -265,6 +272,7 @@ public:
 	void step(uint64_t current_address, int32_t size, bool check_stop_points=true) {
 		uc_save_regstate(uc, tmp_reg); // save current registers
 		bbl_addrs.push_back(current_address);
+		stack_pointers.push_back(get_stack_pointer(uc));
 		cur_address = current_address;
 		cur_size = size;
 
@@ -448,34 +456,103 @@ public:
 			stop_points.insert(stops[i]);
 	}
 
-	void cache_page(uint64_t address, char* bytes, uint64_t permissions) {
+	void cache_page(uint64_t address, size_t size, char* bytes, uint64_t permissions)
+	{
+		printf("caching page %#lx - %#lx.\n", address, address + size);
+		// Make sure this page is not overlapping with any existing cached page
+		auto after = page_cache->lower_bound(address);
+		auto before = page_cache->lower_bound(address);
+
+		if (after != page_cache->end()) {
+			if (address + size >= after->first) {
+				if (address >= after->first) {
+					printf("[%#lx, %#lx] overlaps with [%#lx, %#lx].\n", address, address + size, after->first, after->first + after->second.size);
+					// A complete overlap
+					return;
+				}
+				size = after->first - address;
+			}
+		}
+		if (before != page_cache->begin()) {
+			before--;
+			if (address < before->first + before->second.size) {
+				if (address + size <= before->first + before->second.size) {
+					// A complete overlap
+					printf("[%#lx, %#lx] overlaps with [%#lx, %#lx].\n", address, address + size, before->first, before->first + before->second.size);
+					return;
+				}
+				size = address + size - (before->first + before->second.size);
+				address = before->first + before->second.size;
+			}
+		}
+
+		uint8_t *copy = (uint8_t *)malloc(size);
+		CachedPage cached_page = {
+			size,
+			copy,
+			permissions
+		};
 		// address should be aligned to 0x1000
-		char *copy = (char *)malloc(0x1000);
-		memcpy(copy, bytes, 0x1000);
-		page_cache->insert(std::pair<uint64_t, std::pair<char *, uint64_t>>(address, std::pair<char *, uint64_t>(copy, permissions)));
+		memcpy(copy, bytes, size);
+		page_cache->insert(std::pair<uint64_t, CachedPage>(address, cached_page));
 	}
 
 	bool map_cache(uint64_t address) {
-		auto it = page_cache->find(address);
+		auto it = page_cache->lower_bound(address);
+
+		if (it == page_cache->end() && it != page_cache->begin()) {
+			// Maybe the previous one works?
+			it--;
+		}
 
 		if (it != page_cache->end()) {
-			auto itt = it->second;
-			char *bytes = itt.first;
-			uint64_t permissions = itt.second;
-			LOG_D("hit cache [%#lx, %#lx]", address, address + 0x1000);
-			uc_err err = uc_mem_map_ptr(uc, address, 0x1000, permissions, bytes);
-			if (err) {
-				LOG_E("map_cache: %s", uc_strerror(err));
-				return false;
+			uint64_t cached_page_addr = it->first;
+			if (cached_page_addr > address && it != page_cache->begin()) {
+				it--;
+				cached_page_addr = it->first;
 			}
-			return true;
-		} else {
-			return false;
+			auto itt = it->second;
+			size_t size = itt.size;
+			uint8_t *bytes = itt.bytes;
+			uint64_t permissions = itt.perms;
+
+			if (address >= cached_page_addr && address < cached_page_addr + size) {
+				LOG_D("hit cache [%#lx, %#lx]", address, address + size);
+				uc_err err = uc_mem_map_ptr(uc, cached_page_addr, size, permissions, bytes);
+				if (err) {
+					LOG_E("map_cache [%#lx, %#lx]: %s", address, address + size, uc_strerror(err));
+					return false;
+				}
+				return true;
+			}
 		}
+		LOG_D("cache miss.");
+		return false;
 	}
 
 	bool in_cache(uint64_t address) {
 		return page_cache->find(address) != page_cache->end();
+	}
+
+	uint64_t get_stack_pointer(uc_engine *uc) {
+		// Note that only registers are stored - accessing anything other than stored registers from `cpu_arch_state` will
+		// result in out-of-bound read.
+
+		uint64_t sp = 0;
+
+		if (arch == UC_ARCH_X86) {
+			uc_reg_read(uc, UC_X86_REG_ESP, &sp);
+		} else if (arch == UC_ARCH_ARM) {
+			uc_reg_read(uc, UC_ARM_REG_SP, &sp);
+		} else if (arch == UC_ARCH_ARM64) {
+			uc_reg_read(uc, UC_ARM64_REG_SP, &sp);
+		} else if (arch == UC_ARCH_MIPS) {
+			uc_reg_read(uc, UC_MIPS_REG_SP, &sp);
+		} else {
+			LOG_W("get_stack_pointer() does not support this architecture. Returning 0 as the stack pointer value.");
+		}
+
+		return sp;
 	}
 
 	//
@@ -991,6 +1068,11 @@ uint64_t *bbl_addrs(State *state) {
 }
 
 extern "C"
+uint64_t *stack_pointers(State *state) {
+	return &(state->stack_pointers[0]);
+}
+
+extern "C"
 uint64_t bbl_addr_count(State *state) {
 	return state->bbl_addrs.size();
 }
@@ -1147,10 +1229,9 @@ transmit_record_t *process_transmit(State *state, uint32_t num) {
 extern "C"
 bool cache_page(State *state, uint64_t address, uint64_t length, char *bytes, uint64_t permissions) {
 	LOG_I("caching [%#lx, %#lx]", address, address + length);
-	for (uint64_t offset = 0; offset < length; offset += 0x1000) {
-		state->cache_page(address + offset, &bytes[offset], permissions);
-		if (!state->map_cache(address + offset))
-				return false;
-	}
+
+	state->cache_page(address, length, bytes, permissions);
+	if (!state->map_cache(address))
+		return false;
 	return true;
 }
