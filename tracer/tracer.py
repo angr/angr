@@ -986,7 +986,7 @@ class Tracer(object):
         entry_state.memory.store(0x4347c000, claripy.Concat(*self.cgc_flag_bytes))
 
         if self._dump_syscall:
-            entry_state.inspect.b('syscall', when=simuvex.BP_BEFORE, action=self._syscall)
+            entry_state.inspect.b('syscall', when=simuvex.BP_BEFORE, action=self.syscall)
         entry_state.inspect.b('path_step', when=simuvex.BP_AFTER,
                 action=self.check_stack)
         pg = project.factory.path_group(
