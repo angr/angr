@@ -26,3 +26,7 @@ colorguard:
 patcherex:
     script: "angr-test patcherex"
     tags: [angr]
+
+alphack:
+    script: "angr-test alphack"
+    tags: [angr]
