@@ -1086,9 +1086,9 @@ class DDG(Analysis):
         # Group all dependencies first
 
         simrun_addr_to_func = { }
-        for _, func in self._cfg.function_manager.functions.iteritems():
+        for _, func in self.kb.functions.iteritems():
             for block in func.blocks:
-                simrun_addr_to_func[block] = func
+                simrun_addr_to_func[block.addr] = func
 
         for src, dst, data in self.graph.edges_iter(data=True):
             src_target_func = None

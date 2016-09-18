@@ -2688,6 +2688,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # Execute the predecessor
                 path = self.project.factory.path(
                     self.project.factory.blank_state(mode="fastpath", addr=blocks_ahead[0].addr))
+                path.step()
                 all_successors = path.next_run.successors + path.next_run.unsat_successors
                 if len(all_successors) == 0:
                     continue
@@ -2717,6 +2718,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 if len(blocks_after):
                     path = self.project.factory.path(
                         self.project.factory.blank_state(mode="fastpath", addr=blocks_after[0].addr))
+                    path.step()
                     all_successors = path.next_run.successors + path.next_run.unsat_successors
                     if len(all_successors) == 0:
                         continue

@@ -164,7 +164,7 @@ class CFGBase(Analysis):
         :rtype:                             list
         """
 
-        if excluding_fakeret and jumpkind == 'Ijk_Ret':
+        if excluding_fakeret and jumpkind == 'Ijk_FakeRet':
             return [ ]
 
         if not excluding_fakeret and jumpkind is None:
