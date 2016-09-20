@@ -1361,7 +1361,7 @@ class CFGBase(Analysis):
         """
 
         stack = list(starts)
-        traversed = set()
+        traversed = set() if traversed_cfg_nodes is None else set(traversed_cfg_nodes)
 
         while stack:
             n = stack[0]  # type: CFGNode
