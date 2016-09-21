@@ -975,14 +975,37 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # Increment tracing count for this SimRun
         self._traced_addrs[entry.call_stack_suffix][addr] += 1
 
-        # Create the CFGNode object
-        cfg_node = self._create_cfgnode(simrun, entry.call_stack_suffix, entry.func_addr, simrun_key=simrun_key)
+        if simrun_key not in self._nodes:
+            # Create the CFGNode object
+            cfg_node = self._create_cfgnode(simrun, entry.call_stack_suffix, entry.func_addr, simrun_key=simrun_key)
+
+            self._nodes[simrun_key] = cfg_node
+            self._nodes_by_addr[cfg_node.addr].append(cfg_node)
+
+        else:
+            # each simrun_key should only correspond to one CFGNode
+            # use the existing CFGNode object
+            # note that since we reuse existing CFGNodes, we may miss the following cases:
+            #
+            # mov eax, label_0       mov ebx, label_1
+            #     jmp xxx                 jmp xxx
+            #         |                      |
+            #         |                      |
+            #         *----------------------*
+            #                     |
+            #                 call eax
+            #
+            # Since the basic block "call eax" will only be traced once, either label_0 or label_1 will be missed in
+            # this case. Indirect jump resolution might be able to get it, but that's another story. Ideally,
+            # "call eax" should be traced twice with *different* simrun keys, which requires SimRun Key being flow
+            # sensitive, but it is way too expensive.
+
+            cfg_node = self._nodes[simrun_key]
 
         if self._keep_state:
+            # TODO: if we are reusing an existing CFGNode, we will be overwriting the original input state here. we
+            # TODO: should save them all, which, unfortunately, requires some redesigning :-(
             cfg_node.input_state = simrun.initial_state
-
-        self._nodes[simrun_key] = cfg_node
-        self._nodes_by_addr[cfg_node.addr].append(cfg_node)
 
         self._graph_add_edge(src_simrun_key, simrun_key, jumpkind=entry.jumpkind, exit_stmt_idx=src_exit_stmt_idx)
         self._update_function_transition_graph(src_simrun_key, simrun_key, jumpkind=entry.jumpkind)
