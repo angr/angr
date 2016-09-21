@@ -2514,7 +2514,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         if isinstance(simrun, simuvex.SimProcedure):
             simproc_name = simrun.__class__.__name__.split('.')[-1]
-            if simproc_name == "ReturnUnconstrained":
+            if simproc_name == "ReturnUnconstrained" and simrun.resolves is not None:
                 simproc_name = simrun.resolves
 
             no_ret = False
