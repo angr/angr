@@ -1,7 +1,7 @@
 import simuvex
 from simuvex.s_type import SimTypeInt
 
-from . import _IO_FILE
+from . import io_file_data_for_arch
 
 ######################################
 # fgetc
@@ -14,7 +14,7 @@ class fgetc(simuvex.SimProcedure):
     def run(self, file_ptr):
         self.return_type = SimTypeInt(32, True)
 
-        fd_offset = _IO_FILE[self.state.arch.name]['fd']
+        fd_offset = io_file_data_for_arch(self.state.arch)['fd']
         fd = self.state.mem[file_ptr + fd_offset : ].int.resolved
 
         data = self.inline_call(

@@ -1,6 +1,6 @@
 import logging
 from simuvex.s_format import FormatParser
-from . import _IO_FILE
+from . import io_file_data_for_arch
 
 l = logging.getLogger("simuvex.procedures.libc_so_6.fprintf")
 
@@ -15,7 +15,7 @@ class fprintf(FormatParser):
         fmt_str = self._parse(1)
         out_str = fmt_str.replace(2, self.arg)
 
-        fd_offset = _IO_FILE[self.state.arch.name]['fd']
+        fd_offset = io_file_data_for_arch(self.state.arch)['fd']
         fileno = self.state.mem[file_ptr + fd_offset:].int.resolved
         self.state.posix.write(fileno, out_str, out_str.size() / 8)
 
