@@ -1,7 +1,7 @@
 import simuvex
 from simuvex.s_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 
-from . import _IO_FILE
+from . import io_file_data_for_arch
 
 ######################################
 # fgets
@@ -21,7 +21,7 @@ class fgets(simuvex.SimProcedure):
         max_str_len = self.state.libc.max_str_len
 
         # let's get the memory back for the file we're interested in and find the newline
-        fd_offset = _IO_FILE[self.state.arch.name]['fd']
+        fd_offset = io_file_data_for_arch(self.state.arch)['fd']
         fd = self.state.mem[file_ptr + fd_offset:].int.resolved
         fp = self.state.posix.get_file(fd)
         pos = fp.pos

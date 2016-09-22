@@ -1,6 +1,6 @@
 import simuvex
 
-from . import _IO_FILE
+from . import io_file_data_for_arch
 
 ######################################
 # fseek
@@ -26,7 +26,7 @@ class fseek(simuvex.SimProcedure):
             if whence_int not in (0, 1, 2):
                 return 22 # EINVAL
 
-        fd_offset = _IO_FILE[self.state.arch.name]['fd']
+        fd_offset = io_file_data_for_arch(self.state.arch)['fd']
         fd = self.state.mem[file_ptr + fd_offset : ].int.resolved
         r = self.state.posix.seek(fd, offset, whence_int)
 

@@ -1,6 +1,6 @@
 import simuvex
 
-from . import _IO_FILE
+from . import io_file_data_for_arch
 
 ######################################
 # fopen
@@ -45,11 +45,12 @@ class fopen(simuvex.SimProcedure):
         else:
             # Allocate a FILE struct in heap
             malloc = simuvex.SimProcedures['libc.so.6']['malloc']
-            file_struct_ptr = self.inline_call(malloc, _IO_FILE[self.state.arch.name]['size']).ret_expr
+            io_file_data = io_file_data_for_arch(self.state.arch)
+            file_struct_ptr = self.inline_call(malloc, io_file_data['size']).ret_expr
 
             # Write the fd
             fd_bvv = self.state.se.BVV(fd, 4 * 8) # int
-            self.state.memory.store(file_struct_ptr + _IO_FILE[self.state.arch.name]['fd'],
+            self.state.memory.store(file_struct_ptr + io_file_data['fd'],
                                     fd_bvv,
                                     endness=self.state.arch.memory_endness)
 
