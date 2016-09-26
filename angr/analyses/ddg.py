@@ -125,7 +125,7 @@ class LiveDefinitions(object):
                 l.warning('add_def: Got a None for a SimRegisterVariable. Consider fixing.')
                 return new_defs_added
 
-            size = min(variable.size / 8, size_threshold)
+            size = min(variable.size, size_threshold)
             offset = variable.reg
             while offset < variable.reg + size:
                 if location not in self._register_map[offset]:
@@ -136,7 +136,7 @@ class LiveDefinitions(object):
             self._defs[variable].add(location)
 
         elif isinstance(variable, SimMemoryVariable):
-            size = min(variable.size / 8, size_threshold)
+            size = min(variable.size, size_threshold)
             offset = variable.addr
             while offset < variable.addr + size:
                 if location not in self._memory_map[offset]:
@@ -184,7 +184,7 @@ class LiveDefinitions(object):
                 l.warning('kill_def: Got a None for a SimRegisterVariable. Consider fixing.')
                 return None
 
-            size = min(variable.size / 8, size_threshold)
+            size = min(variable.size, size_threshold)
             offset = variable.reg
             while offset < variable.reg + size:
                 self._register_map[offset] = { location }
@@ -193,7 +193,7 @@ class LiveDefinitions(object):
             self._defs[variable] = { location }
 
         elif isinstance(variable, SimMemoryVariable):
-            size = min(variable.size / 8, size_threshold)
+            size = min(variable.size, size_threshold)
             offset = variable.addr
             while offset < variable.addr + size:
                 self._memory_map[offset] = { location }
@@ -223,7 +223,7 @@ class LiveDefinitions(object):
                 l.warning('lookup_defs: Got a None for a SimRegisterVariable. Consider fixing.')
                 return live_def_locs
 
-            size = min(variable.size / 8, size_threshold)
+            size = min(variable.size, size_threshold)
             offset = variable.reg
             while offset < variable.reg + size:
                 if offset in self._register_map:
@@ -231,7 +231,7 @@ class LiveDefinitions(object):
                 offset += 1
 
         elif isinstance(variable, SimMemoryVariable):
-            size = min(variable.size / 8, size_threshold)
+            size = min(variable.size, size_threshold)
             offset = variable.addr
             while offset < variable.addr + size:
                 if offset in self._memory_map:
@@ -697,7 +697,7 @@ class DDG(Analysis):
                 # TODO: Support symbolic register offsets
 
                 reg_offset = a.offset
-                variable = SimRegisterVariable(reg_offset, a.data.ast.size())
+                variable = SimRegisterVariable(reg_offset, a.data.ast.size() / 8)
 
                 if a.action == 'read':
                     # What do we want to do?
