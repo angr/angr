@@ -245,15 +245,16 @@ class CFGBase(Analysis):
     def get_all_successors(self, basic_block):
         return networkx.dfs_successors(self._graph, basic_block)
 
-    def get_node(self, addr_tuple):
+    def get_node(self, node_key):
         """
         Get a single node from node key.
 
-        :param addr_tuple: The node key
-        :return:
+        :param SimRunKey node_key: The node key
+        :return: The CFGNode
+        :rtype: CFGNode.
         """
-        if addr_tuple in self._nodes.keys():
-            return self._nodes[addr_tuple]
+        if node_key in self._nodes:
+            return self._nodes[node_key]
         else:
             return None
 

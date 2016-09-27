@@ -130,7 +130,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param call_tracing_filter:                 Filter to apply on a given path and jumpkind to determine if it
                                                     should be skipped when call_depth is reached.
         :param initial_state:                       An initial state to use to begin analysis.
-        :param starts:                              A list of addresses at which to begin analysis
+        :param iterable starts:                     A collection of starting points to begin analysis. It can contain
+                                                    the following three different types of entries: an address specified
+                                                    as an integer, a 2-tuple that includes an integer address and a
+                                                    jumpkind, or a SimState instance. Unsupported entries in starts will
+                                                    lead to an AngrCFGError being raised.
         :param keep_state:                          Whether to keep the SimStates for each CFGNode.
         :param enable_advanced_backward_slicing:    Whether to enable an intensive technique for resolving direct jumps
         :param enable_symbolic_back_traversal:      Whether to enable an intensive technique for resolving indirect jumps
@@ -158,11 +162,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
         ForwardAnalysis.__init__(self, order_entries=True if base_graph is not None else False)
         CFGBase.__init__(self, context_sensitivity_level, normalize=normalize, iropt_level=iropt_level)
-        self._symbolic_function_initial_state = {}
-        self._function_input_states = None
-        self._loop_back_edges_set = set()
-
-        self._unresolvable_runs = set()
 
         if start is not None:
             l.warning("`start` is deprecated. Please consider using `starts` instead in your code.")
@@ -185,6 +184,13 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._enable_symbolic_back_traversal = enable_symbolic_back_traversal
         self._additional_edges = additional_edges if additional_edges else {}
         self._max_steps = max_steps
+
+        # more initialization
+
+        self._symbolic_function_initial_state = {}
+        self._function_input_states = None
+        self._loop_back_edges_set = set()
+        self._unresolvable_runs = set()
 
         # Stores the index for each CFGNode in this CFG after a quasi-topological sort (currently a DFS)
         # TODO: remove it since it's no longer used
@@ -662,6 +668,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 elif isinstance(item, simuvex.SimState):
                     new_starts.append(item)
 
+                else:
+                    raise AngrCFGError('Unsupported item type in "starts": %s' % type(item))
+
             self._starts = new_starts
 
         if not self._starts:
@@ -1079,9 +1088,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     def _get_successors(self, entry):
         """
+        Get a collection of successors out of the current job.
 
-        :param entry:
-        :return:
+        :param CFGJob entry: The CFGJob instance.
+        :return: A collection of successors.
+        :rtype: list
         """
 
         addr = entry.addr
@@ -1176,11 +1187,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # Well, there is just no successors. What can you expect?
                 pass
 
-        #
-        # Enough foreplay. Time to do real job!
-        #
-
-        # First, handle all actions
+        # handle all actions
         if successors:
             self._handle_actions(successors[0],
                                  simrun,
