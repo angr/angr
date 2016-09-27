@@ -239,6 +239,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._pending_edges = defaultdict(list)
 
         if not no_construct:
+            self._initialize_cfg()
             self._analyze()
 
     #
@@ -274,6 +275,24 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         new_cfg.project = self.project
 
         return new_cfg
+
+    def resume(self, starts=None, max_steps=None):
+        """
+        Resume a paused or terminated control flow graph recovery.
+
+        :param iterable starts: A collection of new starts to resume from. If `starts` is None, we will resume CFG
+                                recovery from where it was paused before.
+        :param int max_steps:   The maximum number of blocks on the longest path starting from each start before pausing
+                                the recovery.
+        :return: None
+        """
+
+        self._starts = starts
+        self._max_steps = max_steps
+
+        self._sanitize_starts()
+
+        self._analyze()
 
     def get_lbe_exits(self):
         """
@@ -621,6 +640,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if not isinstance(self._avoid_runs, (list, set)):
             raise AngrCFGError('"avoid_runs" must either be None, or a list or a set.')
 
+        self._sanitize_starts()
+
+    def _sanitize_starts(self):
         # Sanitize starts
         # Convert self._starts to a list of SimState instances or tuples of (ip, jumpkind)
         if self._starts is None:
@@ -685,8 +707,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         :return: None
         """
-
-        self._initialize_cfg()
 
         # Fill up self._starts
         for item in self._starts:
@@ -887,9 +907,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Normalize all loop backedges
         self._normalize_loop_backedges()
-
-        # Discard intermediate state dicts
-        delattr(self, "_function_input_states")
 
         CFGBase._post_analysis(self)
 
@@ -1182,8 +1199,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
 
         # Finally, post-process CFG Node and log the return target
-        if entry.extra_info['is_call_jump'] and entry.extra_info['return_target'] is not None:
-            entry.cfg_node.return_target = entry.extra_info['return_target']
+        if entry.extra_info:
+            if entry.extra_info['is_call_jump'] and entry.extra_info['return_target'] is not None:
+                entry.cfg_node.return_target = entry.extra_info['return_target']
 
         # Debugging output if needed
         if l.level == logging.DEBUG:
