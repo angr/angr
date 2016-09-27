@@ -1,12 +1,14 @@
 import copy
 import logging
-from itertools import dropwhile
 
 import simuvex
+
+from .call_stack import CallFrame as BaseCallFrame, CallStack as BaseCallStack
 
 l = logging.getLogger(name="angr.entry_wrapper")
 
 # TODO: Make callsite an object and use it in SimRunKey and FunctionKey
+
 
 class SimRunKey(object):
     """
@@ -105,17 +107,18 @@ class FunctionKey(object):
         return FunctionKey(addr, callsite_tuples)
 
 
-class CallStackFrame(object):
+class CallStackFrame(BaseCallFrame):
     """
     CallStackFrame represents a stack frame in the call stack.
     """
-    def __init__(self, call_site, call_target, function_address, return_target, stack_pointer=None, accessed_registers=None):
+    def __init__(self, call_site, call_target, caller_func_addr, return_target, stack_pointer=None,
+                 accessed_registers=None):
         """
         Constructor.
 
         :param int call_site: Address of the call site.
         :param int call_target: Target of the call. Usually it is the address of a function.
-        :param int function_address: Address of the current function. Note that it may not always be the same as
+        :param int caller_func_addr: Address of the current function. Note that it may not always be the same as
                                      call_target (consider situations like PLT entries and tail-call optimization).
         :param int return_target: Target address of returning.
         :param int stack_pointer: Value of the stack pointer.
@@ -123,11 +126,10 @@ class CallStackFrame(object):
         :return: None
         """
 
-        self.call_site = call_site
-        self.call_target = call_target
-        self.function_address = function_address
-        self.return_target = return_target
-        self.stack_pointer = stack_pointer
+        super(CallStackFrame, self).__init__(call_site_addr=call_site, func_addr=call_target, stack_ptr=stack_pointer, ret_addr=return_target, jumpkind='Ijk_Call')
+
+        # extra properties
+        self.caller_func_addr = caller_func_addr
         self.accessed_registers = set() if accessed_registers is None else accessed_registers
 
     def __repr__(self):
@@ -139,9 +141,9 @@ class CallStackFrame(object):
         """
         return "CallStackFrame (calling %s from %s, returning to %s, function %s)" % (
             ("%#x" % self.call_target) if self.call_target is not None else "None",
-            ("%#x" % self.call_site) if self.call_site is not None else "None",
+            ("%#x" % self.call_site_addr) if self.call_site_addr is not None else "None",
             ("%#x" % self.return_target) if self.return_target is not None else "None",
-            ("%#x" % self.function_address) if self.function_address is not None else "None",
+            ("%#x" % self.caller_func_addr) if self.caller_func_addr is not None else "None",
         )
 
     def copy(self):
@@ -152,15 +154,16 @@ class CallStackFrame(object):
         :rtype: CallStackFrame
         """
 
-        return CallStackFrame(self.call_site,
+        return CallStackFrame(self.call_site_addr,
                               self.call_target,
-                              self.function_address,
+                              self.caller_func_addr,
                               self.return_target,
                               stack_pointer=self.stack_pointer,
                               accessed_registers=self.accessed_registers.copy()
                               )
 
-class CallStack(object):
+
+class CallStack(BaseCallStack):
     """
     CallStack is a representation of a call stack along a specific execution path.
     """
@@ -171,62 +174,8 @@ class CallStack(object):
         :param list stack: A list representing the stack, where each element is a CallStackFrame instance.
         :return: None
         """
-        self._stack = [ ] if stack is None else stack
 
-    #
-    # Static methods
-    #
-
-    @staticmethod
-    def stack_suffix_to_string(stack_suffix):
-        """
-        Convert a stack suffix to a human-readable string representation.
-        :param tuple stack_suffix: The stack suffix.
-        :return: A string representation
-        :rtype: str
-        """
-        s = "[" + ",".join([("0x%x" % i) if i is not None else "Unspecified" for i in stack_suffix]) + "]"
-        return s
-
-    @staticmethod
-    def _rfind(lst, item):
-        """
-        Reverse look-up.
-
-        :param list lst: The list to look up in.
-        :param item: The item to look for.
-        :return: Offset of the item if found. A ValueError is raised if the item is not in the list.
-        :rtype: int
-        """
-
-        try:
-            return dropwhile(lambda x: lst[x] != item,
-                             reversed(xrange(len(lst)))).next()
-        except Exception:
-            raise ValueError("%s not in the list" % item)
-
-    #
-    # Overriden properties
-    #
-
-    def __len__(self):
-        """
-        Get how many frames there are in the current stack
-
-        :return: Number of frames
-        :rtype: int
-        """
-
-        return len(self._stack)
-
-    def __repr__(self):
-        """
-        Get a string representation.
-
-        :return: A printable representation of the CallStack object
-        :rtype: str
-        """
-        return "<CallStack of %d frames>" % len(self._stack)
+        super(CallStack, self).__init__(stack=stack)
 
     #
     # Properties
@@ -241,25 +190,25 @@ class CallStack(object):
         :rtype: int
         """
 
-        if len(self._stack) == 0:
-            return 0 # This is the root level
+        if len(self._callstack) == 0:
+            return 0  # This is the root level
         else:
-            frame =  self._stack[-1]
-            return frame.function_address
+            frame = self._callstack[-1]
+            return frame.caller_func_addr
 
     @current_function_address.setter
-    def current_function_address(self, function_address):
+    def current_function_address(self, caller_func_addr):
         """
         Set the address of the current function. Note that we must make a copy of the CallStackFrame as CallStackFrame
         is considered to be immutable.
 
-        :param int function_address: The function address.
+        :param int caller_func_addr: The function address.
         :return: None
         """
 
-        frame = self._stack[-1].copy()
-        frame.function_address = function_address
-        self._stack[-1] = frame
+        frame = self._callstack[-1].copy()
+        frame.caller_func_addr = caller_func_addr
+        self._callstack[-1] = frame
 
     @property
     def all_function_addresses(self):
@@ -269,21 +218,7 @@ class CallStack(object):
         :return: a list of function addresses
         :rtype: list
         """
-        return [ frame.function_address for frame in self._stack ]
-
-    @property
-    def current_stack_pointer(self):
-        """
-        Get the value of the stack pointer.
-
-        :return: Value of the stack pointer
-        :rtype: int
-        """
-        if len(self._stack) == 0:
-            return None
-        else:
-            frame = self._stack[-1]
-            return frame.stack_pointer
+        return [ frame.caller_func_addr for frame in self._callstack ]
 
     @property
     def current_function_accessed_registers(self):
@@ -293,24 +228,11 @@ class CallStack(object):
         :return: A set of register offsets
         :rtype: set
         """
-        if len(self._stack) == 0:
+        if len(self._callstack) == 0:
             return set()
         else:
-            frame = self._stack[-1]
+            frame = self._callstack[-1]
             return frame.accessed_registers
-
-    @property
-    def current_return_target(self):
-        """
-        Get the return target.
-
-        :return: The address of return target.
-        :rtype: int
-        """
-
-        if len(self._stack) == 0:
-            return None
-        return self._stack[-1].return_target
 
     #
     # Private methods
@@ -326,8 +248,8 @@ class CallStack(object):
         :rtype: int
         """
 
-        for i in xrange(len(self._stack) - 1, -1, -1):
-            frame = self._stack[i]
+        for i in xrange(len(self._callstack) - 1, -1, -1):
+            frame = self._callstack[i]
             if frame.return_target == target:
                 return i
         return None
@@ -335,55 +257,6 @@ class CallStack(object):
     #
     # Public methods
     #
-
-    def dbg_repr(self):
-        """
-        Debugging representation of this CallStack object.
-
-        :return: Details of this CalLStack
-        :rtype: str
-        """
-
-        stack = [ ]
-        for i, frame in enumerate(reversed(self._stack)):
-            s = "%d | %s -> %s, returning to %s" % (
-                i,
-                "None" if frame.call_site is None else "%#x" % (frame.call_site),
-                "None" if frame.function_address is None else "%#x" % (frame.function_address),
-                "None" if frame.return_target is None else "%#x" % (frame.return_target)
-            )
-            stack.append(s)
-
-        return "\n".join(stack)
-
-    def clear(self):
-        """
-        Clear the call stack.
-
-        :return: None
-        """
-        self._stack = [ ]
-
-    def stack_suffix(self, context_sensitivity_level):
-        """
-        Generate the stack suffix. A stack suffix can be used as the key to a SimRun in CFG recovery.
-
-        :param int context_sensitivity_level: Level of context sensitivity.
-        :return: A tuple of stack suffix.
-        :rtype: tuple
-        """
-
-        length = len(self._stack)
-
-        ret = ()
-        for i in xrange(context_sensitivity_level):
-            index = length - i - 1
-            if index < 0:
-                ret = (None, None) + ret
-            else:
-                frame = self._stack[index]
-                ret = (frame.call_site, frame.call_target) + ret
-        return ret
 
     def call(self, callsite_addr, addr, retn_target=None, stack_pointer=None):
         """
@@ -397,7 +270,7 @@ class CallStack(object):
         """
 
         frame = CallStackFrame(callsite_addr, addr, addr, retn_target, stack_pointer=stack_pointer)
-        self._stack.append(frame)
+        self._callstack.append(frame)
 
     def ret(self, retn_target):
         """
@@ -416,7 +289,7 @@ class CallStack(object):
             levels = return_target_index
 
             # Remove all frames higher than the level
-            self._stack = self._stack[ : levels]
+            self._callstack = self._callstack[ : levels]
 
         else:
             l.warning("Returning to an unexpected address %#x", retn_target)
@@ -435,7 +308,8 @@ class CallStack(object):
         :rtype: CallStack
         """
 
-        return CallStack(stack=self._stack[::])
+        return CallStack(stack=self._callstack[::])
+
 
 class BBLStack(object):
     def __init__(self, stack_dict=None):
@@ -475,7 +349,7 @@ class BBLStack(object):
         key = self._get_key(callstack_suffix, func_addr)
 
         if key not in self._stack_dict:
-            l.warning("Key %s is not in stack dict. It might be caused by " + \
+            l.warning("Key %s is not in stack dict. It might be caused by " +
                       "an unexpected exit target.", hex(key) if isinstance(key, (int, long)) else key)
             self.call(callstack_suffix, func_addr)
         self._stack_dict[key].append(bbl)
