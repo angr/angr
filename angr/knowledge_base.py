@@ -2,6 +2,7 @@
 
 from .knowledge.data import Data
 from .knowledge.function_manager import FunctionManager
+from .knowledge.labels import Labels
 
 
 class KnowledgeBase(object):
@@ -14,6 +15,8 @@ class KnowledgeBase(object):
         self.obj = obj
         self.data = Data(self)
         self.functions = FunctionManager(self)
+        self.labels = Labels(self)
+        self.comments = {}
 
         # a set of unresolved and a set of resolved indirect jumps
         self._unresolved_indirect_jumps = set()

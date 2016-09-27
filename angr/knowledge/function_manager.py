@@ -37,6 +37,7 @@ class FunctionManager(collections.Mapping):
         self._kb = kb
         self._function_map = FunctionDict(self)
         self.callgraph = networkx.MultiDiGraph()
+        self.block_map = {}
 
         # Registers used for passing arguments around
         self._arg_registers = kb._project.arch.argument_registers
@@ -52,6 +53,7 @@ class FunctionManager(collections.Mapping):
     def clear(self):
         self._function_map.clear()
         self.callgraph = networkx.MultiDiGraph()
+        self.block_map.clear()
 
     def _genenare_callmap_sif(self, filepath):
         """
@@ -71,6 +73,7 @@ class FunctionManager(collections.Mapping):
         if syscall in (True, False):
             dst_func.is_syscall = syscall
         dst_func._register_nodes(True, node)
+        self.block_map[node.addr] = node
 
     def _add_call_to(self, function_addr, from_node, to_addr, retn_node, syscall=None):
 

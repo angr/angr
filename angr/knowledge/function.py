@@ -46,27 +46,23 @@ class Function(object):
         self.is_plt = False
         self.is_simprocedure = False
 
+        if name is None and addr in function_manager._kb.labels:
+            # Try to get a name from existing labels
+            name = function_manager._kb.labels[addr]
         if name is None:
-            # Try to get a name from project.loader
-            name = project.loader.find_symbol_name(addr)
-        if name is None:
-            name = project.loader.find_plt_stub_name(addr)
-            if name is not None:
-                name = 'plt.' + name
-                # Whether this function is a plt entry or not is fully relying on the PLT detection in CLE
-                self.is_plt = True
-        if project.is_hooked(addr):
-            hooker = project.hooked_by(addr)
-            self.is_simprocedure = True
-            if hooker is simuvex.SimProcedures['stubs']['ReturnUnconstrained']:
-                kwargs_dict = project._sim_procedures[addr][1]
-                if 'resolves' in kwargs_dict:
-                    name = kwargs_dict['resolves']
-            else:
-                name = hooker.__name__.split('.')[-1]
+            if project.is_hooked(addr):
+                hooker = project.hooked_by(addr)
+                self.is_simprocedure = True
+                if hooker is simuvex.SimProcedures['stubs']['ReturnUnconstrained']:
+                    kwargs_dict = project._sim_procedures[addr][1]
+                    if 'resolves' in kwargs_dict:
+                        name = kwargs_dict['resolves']
+                else:
+                    name = hooker.__name__.split('.')[-1]
         if name is None:
             name = 'sub_%x' % addr
 
+        self._name = None
         self.name = name
 
         # Register offsets of those arguments passed in registers
@@ -100,6 +96,15 @@ class Function(object):
         self._local_block_addrs = set() # a set of addresses of all blocks inside the function
 
         self.info = { }  # storing special information, like $gp values for MIPS32
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, v):
+        self._name = v
+        self._function_manager._kb.labels[self.addr] = v
 
     @property
     def blocks(self):
@@ -490,6 +495,7 @@ class Function(object):
             raise AngrValueError('_register_nodes(): the "is_local" parameter must be a bool')
 
         for node in nodes:
+            node.function = self
             self.transition_graph.add_node(node)
             node._graph = self.transition_graph
             if node.addr not in self or self._block_sizes[node.addr] == 0:
