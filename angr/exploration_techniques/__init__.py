@@ -106,4 +106,5 @@ from .dfs import DFS
 from .looplimiter import LoopLimiter
 from .veritesting import Veritesting
 from .oppologist import Oppologist
+from .determinist import Determinist, ExecuteAddressGoal
 from ..errors import AngrError, AngrExplorationTechniqueError
