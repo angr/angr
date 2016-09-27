@@ -102,7 +102,7 @@ class Instruction(DisassemblyPiece):
         self.disect_instruction()
 
     def reload_format(self):
-        self.insn = CapstoneInstruction(next(self.project.arch.capstone.disasm(self.insn.bytes, self.addr)))
+        self.insn = CapstoneInsn(next(self.project.arch.capstone.disasm(self.insn.bytes, self.addr)))
         self.disect_instruction()
 
     def disect_instruction(self):
