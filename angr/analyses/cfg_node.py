@@ -22,7 +22,8 @@ class CFGNode(object):
                  final_states=None,
                  simrun_key=None,
                  irsb=None,
-                 instruction_addrs=None):
+                 instruction_addrs=None,
+                 depth=None):
         """
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -41,6 +42,7 @@ class CFGNode(object):
         self._cfg = cfg
         self.function_address = function_address
         self.simrun_key = simrun_key
+        self.depth = depth
 
         self.name = simprocedure_name or cfg.project.loader.find_symbol_name(addr)
         if function_address and self.name is None:

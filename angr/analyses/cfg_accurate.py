@@ -116,6 +116,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                  address_whitelist=None,
                  base_graph=None,
                  iropt_level=None,
+                 max_steps=None
                  ):
         """
         All parameters are optional.
@@ -152,6 +153,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                     edges and extract useful information.
         :param int iropt_level:                     The optimization level of VEX IR (0, 1, 2). The default level will
                                                     be used if `iropt_level` is None.
+        :param int max_steps:                       The maximum number of basic blocks to recover forthe longest path
+                                                    from each start before pausing the recovery procedure.
         """
         ForwardAnalysis.__init__(self, order_entries=True if base_graph is not None else False)
         CFGBase.__init__(self, context_sensitivity_level, normalize=normalize, iropt_level=iropt_level)
@@ -181,6 +184,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._advanced_backward_slicing = enable_advanced_backward_slicing
         self._enable_symbolic_back_traversal = enable_symbolic_back_traversal
         self._additional_edges = additional_edges if additional_edges else {}
+        self._max_steps = max_steps
 
         # Stores the index for each CFGNode in this CFG after a quasi-topological sort (currently a DFS)
         # TODO: remove it since it's no longer used
@@ -252,6 +256,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         new_cfg.named_errors = dict(self.named_errors)
         new_cfg.errors = list(self.errors)
         new_cfg._fail_fast = self._fail_fast
+        new_cfg._max_steps = self._max_steps
         new_cfg.project = self.project
 
         # Intelligently (or stupidly... you tell me) fill it up
@@ -976,9 +981,26 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # Increment tracing count for this SimRun
         self._traced_addrs[entry.call_stack_suffix][addr] += 1
 
+        # determine the depth of this basic block
+        if self._max_steps is None:
+            # it's unnecessary to track depth when we are not limiting max_steps
+            depth = None
+        else:
+            if src_simrun_key is None:
+                # oh this is the very first basic block on this path
+                depth = 0
+            else:
+                src_cfgnode = self._nodes[src_simrun_key]
+                depth = src_cfgnode.depth + 1
+                # the depth will not be updated later on even if this block has a greater depth on another path.
+                # consequently, the `max_steps` limit is not veyr precise - I didn't see a need to make it precise
+                # though.
+
         if simrun_key not in self._nodes:
             # Create the CFGNode object
-            cfg_node = self._create_cfgnode(simrun, entry.call_stack_suffix, entry.func_addr, simrun_key=simrun_key)
+            cfg_node = self._create_cfgnode(simrun, entry.call_stack_suffix, entry.func_addr, simrun_key=simrun_key,
+                                            depth=depth
+                                            )
 
             self._nodes[simrun_key] = cfg_node
             self._nodes_by_addr[cfg_node.addr].append(cfg_node)
@@ -1047,6 +1069,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         addr = entry.addr
         simrun = entry.simrun
+
+        # check step limit
+        if self._max_steps is not None:
+            depth = entry.cfg_node.depth
+            if depth >= self._max_steps:
+                return [ ]
 
         # Get all successors of this SimRun
         successors = (simrun.flat_successors + simrun.unsat_successors) if addr not in self._avoid_runs else []
@@ -2502,15 +2530,17 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return new_call_stack
 
-    def _create_cfgnode(self, simrun, call_stack_suffix, func_addr, simrun_key=None):
+    def _create_cfgnode(self, simrun, call_stack_suffix, func_addr, simrun_key=None, depth=None):
         """
         Create a context-sensitive CFGNode instance for a specific SimRun.
 
-        :param simuvex.SimRun simrun: The SimRun object.
-        :param tuple call_stack_suffix: The call stack suffix
-        :param int func_addr: Address of the current function
-        :return: The CFGNode instance
-        :rtype: CFGNode
+        :param simuvex.SimRun simrun:       The SimRun object.
+        :param tuple call_stack_suffix:     The call stack suffix.
+        :param int func_addr:               Address of the current function.
+        :param simrun_key:                  The SimRun key of this CFGNode.
+        :param int or None depth:           Depth of this CFGNode.
+        :return:                            The CFGNode instance
+        :rtype:                             CFGNode
         """
 
         # Determine whether this is a syscall
@@ -2541,7 +2571,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                is_syscall=is_syscall,
                                syscall=syscall,
                                function_address=simrun.addr,
-                               simrun_key=simrun_key)
+                               simrun_key=simrun_key,
+                               depth=depth
+                               )
 
         else:
             cfg_node = CFGNode(simrun.addr,
@@ -2553,7 +2585,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                syscall=syscall,
                                simrun=simrun,
                                function_address=func_addr,
-                               simrun_key=simrun_key)
+                               simrun_key=simrun_key,
+                               depth=depth
+                               )
 
         return cfg_node
 
