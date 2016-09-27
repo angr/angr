@@ -15,10 +15,11 @@ class SimRunKey(object):
     A context-sensitive key for a SimRun object.
     """
 
-    def __init__(self, addr, callsite_tuples, jump_type):
+    def __init__(self, addr, callsite_tuples, jump_type, continue_at=None):
         self.addr = addr
         self.callsite_tuples = callsite_tuples
         self.jump_type = jump_type
+        self.continue_at = continue_at
 
         self._hash = None
 
@@ -34,30 +35,33 @@ class SimRunKey(object):
         return " -> ".join(s)
 
     def __repr__(self):
-        return "<SRKey %#08x (%s) %% %s>" % (self.addr, self.callsite_repr(), self.jump_type)
+        return "<SRKey %#08x (%s) %% %s%s>" % (self.addr, self.callsite_repr(), self.jump_type,
+                                               "" if self.continue_at is None else self.continue_at
+                                               )
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash((self.callsite_tuples,) + (self.addr, self.jump_type, ))
+            self._hash = hash((self.callsite_tuples,) + (self.addr, self.jump_type, self.continue_at, ))
         return self._hash
 
     def __eq__(self, other):
         return isinstance(other, SimRunKey) and \
                self.addr == other.addr and self.callsite_tuples == other.callsite_tuples and \
-               self.jump_type == other.jump_type
+               self.jump_type == other.jump_type and \
+               self.continue_at == other.continue_at
 
     def __ne__(self, other):
         return not self == other
 
     @staticmethod
-    def new(addr, callstack_suffix, jumpkind):
+    def new(addr, callstack_suffix, jumpkind, continue_at=None):
         if jumpkind.startswith('Ijk_Sys') or jumpkind == 'syscall':
             jump_type = 'syscall'
         elif jumpkind in ('Ijk_Exit', 'exit'):
             jump_type = 'exit'
         else:
             jump_type = "normal"
-        return SimRunKey(addr, callstack_suffix, jump_type)
+        return SimRunKey(addr, callstack_suffix, jump_type, continue_at=continue_at)
 
     @property
     def func_addr(self):
@@ -372,20 +376,22 @@ class BBLStack(object):
 
         return "\n".join(s)
 
+
 class EntryWrapper(object):
     """
     Describes an entry in CFG or VFG. Only used internally by the analysis.
     """
     def __init__(self, addr, path, context_sensitivity_level, simrun_key=None, src_simrun_key=None,
                  src_exit_stmt_idx=None, jumpkind=None, call_stack=None, bbl_stack=None, is_narrowing=False,
-                 skip=False, final_return_address=None):
-        self.addr = addr # Note that addr may not always be equal to self.path.addr (for syscalls, for example)
+                 skip=False, final_return_address=None, continue_at=None):
+        self.addr = addr  # Note that addr may not always be equal to self.path.addr (for syscalls, for example)
         self._path = path
         self.jumpkind = jumpkind
         self.src_simrun_key = src_simrun_key
         self.src_exit_stmt_idx = src_exit_stmt_idx
         self.skip = skip
         self._simrun_key = simrun_key
+        self.continue_at = continue_at
 
         # Other parameters
         self._context_sensitivity_level = context_sensitivity_level

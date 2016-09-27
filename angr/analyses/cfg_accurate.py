@@ -43,7 +43,8 @@ class CFGJob(EntryWrapper):
     def simrun_key(self):
         if self._simrun_key is None:
             self._simrun_key = CFGAccurate._generate_simrun_key(
-                self.call_stack.stack_suffix(self._context_sensitivity_level), self.addr, self.is_syscall
+                self.call_stack.stack_suffix(self._context_sensitivity_level), self.addr, self.is_syscall,
+                continue_at=self.continue_at
             )
         return self._simrun_key
 
@@ -1398,7 +1399,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # Create the callstack suffix
         new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
         # Tuple that will be used to index this exit
-        new_tpl = self._generate_simrun_key(new_call_stack_suffix, target_addr, suc_jumpkind.startswith('Ijk_Sys'))
+        continue_at = None
+        if self.project.is_hooked(target_addr) and \
+                self.project.hooked_by(target_addr) is simuvex.s_procedure.SimProcedureContinuation and \
+                successor.procedure_data.callstack:
+            continue_at = successor.procedure_data.callstack[-1][1]  # TODO: Use a named tuple or a class in simuvex instead
+        new_tpl = self._generate_simrun_key(new_call_stack_suffix, target_addr, suc_jumpkind.startswith('Ijk_Sys'),
+                                            continue_at=continue_at
+                                            )
 
         if isinstance(entry.simrun, simuvex.SimIRSB):
             self._detect_loop(entry.simrun,
@@ -1436,6 +1444,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     src_exit_stmt_idx=suc_exit_stmt_idx,
                     call_stack=new_call_stack,
                     bbl_stack=new_bbl_stack,
+                    continue_at=continue_at,
         )
 
         # Generate new exits
@@ -2827,11 +2836,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         return True
 
     @staticmethod
-    def _generate_simrun_key(call_stack_suffix, simrun_addr, is_syscall):
+    def _generate_simrun_key(call_stack_suffix, simrun_addr, is_syscall, continue_at=None):
         if not is_syscall:
-            return SimRunKey.new(simrun_addr, call_stack_suffix, 'normal')
+            return SimRunKey.new(simrun_addr, call_stack_suffix, 'normal', continue_at=continue_at)
         else:
-            return SimRunKey.new(simrun_addr, call_stack_suffix, 'syscall')
+            return SimRunKey.new(simrun_addr, call_stack_suffix, 'syscall', continue_at=continue_at)
 
     @staticmethod
     def _simrun_key_repr(simrun_key):
