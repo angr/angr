@@ -16,9 +16,6 @@ from .cfg_utils import CFGUtils
 
 l = logging.getLogger(name="angr.analyses.vfg")
 
-# The maximum tracing times of a basic block before we widen the results
-MAX_ANALYSIS_TIMES_WITHOUT_MERGING = 5
-MAX_ANALYSIS_TIMES = 80
 
 class VFGJob(EntryWrapper):
     """
@@ -235,7 +232,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                  remove_options=None,
                  timeout=None,
                  start_at_function=True,
-                 ara=None,
+                 ara=None,  # TODO: remove it
+                 max_iterations_before_widening=10,
+                 max_iterations=20,
                  ):
         """
         :param project: The project object.
@@ -251,7 +250,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         :param bool start_at_function:
         """
 
-        ForwardAnalysis.__init__(self, order_entries=True, allow_merging=True)
+        ForwardAnalysis.__init__(self, order_entries=True, allow_merging=True, allow_widening=True)
 
         # Related CFG.
         # We can still perform analysis if you don't specify a CFG. But providing a CFG may give you better result.
@@ -271,6 +270,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         self._initial_state = initial_state
 
         self._ara = ara
+        self._max_iterations_before_widening = max_iterations_before_widening
+        self._max_iterations = max_iterations
 
         self._nodes = {}            # all the vfg nodes, keyed on simrun keys
         self._normal_states = { }   # Last available state for each program point without widening
@@ -536,7 +537,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         input_state = current_path.state
         simrun_key = SimRunKey.new(addr, job.call_stack_suffix, job.jumpkind)
 
-        if self._tracing_times[simrun_key] > MAX_ANALYSIS_TIMES:
+        if self._tracing_times[simrun_key] > self._max_iterations:
             raise AngrSkipEntryNotice()
 
         self._tracing_times[simrun_key] += 1
@@ -663,7 +664,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             # TODO: Should fall back to reading targets from CFG
             # It cannot be concretized currently. Maybe we could handle
             # it later, maybe it just cannot be concretized
-            return
+            return [ ]
 
         if len(successor_addrs) > 1:
             # multiple concrete targets
@@ -690,15 +691,14 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                     del all_successors[-1]
                     fakeret_successor = None
 
-        # Create a new call stack for the successor
-        # TODO: why are we creating a new callstack even when we're not doing a call?
-        new_call_stack = self._create_callstack(job, successor_addr, jumpkind, job.is_call_jump, fakeret_successor)
-        if new_call_stack is None:
-            l.debug("Cannot create a new callstack for address %#x", successor_addr)
-            return
-        new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
-
         if self._is_call_jumpkind(jumpkind):
+            # Create a new call stack for the successor
+            new_call_stack = self._create_callstack(job, successor_addr, jumpkind, job.is_call_jump, fakeret_successor)
+            if new_call_stack is None:
+                l.debug("Cannot create a new callstack for address %#x", successor_addr)
+                job.dbg_exit_status[successor] = ""
+                return [ ]
+            new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
 
             new_function_key = FunctionKey.new(successor_addr, new_call_stack_suffix)
             # Save the initial state for the function
@@ -715,6 +715,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 job.call_function_key = new_function_key
 
                 return [ ]
+
+        else:
+            new_call_stack = job.call_stack
+            new_call_stack_suffix = job.call_stack_suffix
 
         # Generate the new SimRun key
         new_simrun_key = SimRunKey.new(successor_addr, new_call_stack_suffix, jumpkind)
@@ -881,6 +885,38 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return new_job
 
+    def _should_widen_entries(self, *jobs):
+        """
+
+        :param iterable jobs:
+        :return: True if should widen, Flase otherwise
+        :rtype: bool
+        """
+
+        job_0, job_1 = jobs[-2:]  # type: VFGJob
+        tracing_times = self._tracing_times[job_0.simrun_key]
+
+        if tracing_times > self._max_iterations_before_widening:
+            return True
+
+        return False
+
+    def _widen_entries(self, *jobs):
+        """
+
+        :param iterable jobs:
+        :return:
+        """
+
+        job_0, job_1 = jobs[-2:]  # type: VFGJob
+
+        l.debug("Widening %s", job_1)
+
+        new_state, _ = self._widen_states(job_0.state, job_1.state)
+        job_1.state = new_state
+
+        return job_1
+
     def _entry_list_empty(self):
 
         if self._pending_returns:
@@ -927,127 +963,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
     def _post_analysis(self):
         pass
 
-    def _handle_states_merging(self, node, addr, new_state, tracing_times):
-        """
-        Examine if we have reached to a fix point for the current node, and perform merging/widening if necessary.
-
-        :param node: An instance of VFGNode.
-        :param new_state: The new input state that we want to compare against.
-        :returns: A bool value indicating whether we have reached fix point, and the merge state/original state if possible.
-        """
-        tracing_times[node] += 1
-
-        tracing_count = tracing_times[node]
-
-        l.debug("Analyzing %s for the %dth time", node, tracing_count)
-
-        if tracing_count == 1:
-            node.append_state(new_state)
-            return False, new_state
-
-        if tracing_count > MAX_ANALYSIS_TIMES:
-            l.debug("%s has been analyzed too many times. Skip.", node)
-
-            return False, None
-
-        # Extract two states
-        old_state = node.state
-
-        # The widening flag
-        widening_occurred = False
-
-        # TODO: _widen_points doesn't exist anymore!
-        if addr in set(dst.addr for (_, dst) in self._widen_points):
-            # We reached a merge point
-
-            if tracing_count >= MAX_ANALYSIS_TIMES_WITHOUT_MERGING:
-
-                if node.widened_state is not None:
-                    # We want to narrow the state
-                    widened_state = node.widened_state
-                    merged_state, narrowing_occurred = self._narrow_states(node, old_state, new_state, widened_state)
-                    merging_occurred = narrowing_occurred
-
-                else:
-                    # We want to widen the state
-                    # ... but, we should merge them first
-                    merged_state, merging_occurred = self._merge_states(old_state, new_state)
-                    # ... then widen it
-                    merged_state, widening_occurred = self._widen_states(old_state, merged_state)
-
-                    merging_occurred = widening_occurred
-
-            else:
-                # We want to merge them
-                merged_state, merging_occurred = self._merge_states(old_state, new_state)
-
-        else:
-            # Not a merge point
-            # Always merge the state with existing states
-            merged_state, merging_occurred = self._merge_states(old_state, new_state)
-
-        if widening_occurred:
-            node.append_state(merged_state, is_widened_state=True)
-
-        else:
-            node.append_state(merged_state)
-
-        if merging_occurred:
-            l.debug("Merging/widening/narrowing occured for %s. Returning a new state.", node)
-
-            return True, merged_state
-        else:
-            # if simuvex.s_options.WIDEN_ON_MERGE in merged_state.options:
-            #    merged_state.options.remove(simuvex.s_options.WIDEN_ON_MERGE)
-            l.debug("%s reached fixpoint.", node)
-
-            return False, None
-
     #
     # State widening, merging, and narrowing
     #
-
-    @staticmethod
-    def _widen_states(old_state, new_state):
-        """
-        Perform widen operation on the given states, and return a new one.
-
-        :param old_state:
-        :param new_state:
-        :returns: The widened state, and whether widening has occurred
-        """
-
-        # print old_state.dbg_print_stack()
-        # print new_state.dbg_print_stack()
-
-        l.debug('Widening state at IP %s', old_state.ip)
-
-        widened_state, widening_occurred = old_state.widen(new_state)
-
-        # print "Widened: "
-        # print widened_state.dbg_print_stack()
-
-        return widened_state, widening_occurred
-
-    def _narrow_states(self, node, old_state, new_state, previously_widened_state):  # pylint:disable=unused-argument,no-self-use
-        """
-        Try to narrow the state!
-
-        :param old_state:
-        :param new_state:
-        :param previously_widened_state:
-        :returns: The narrowed state, and whether a narrowing has occurred
-        """
-
-        l.debug('Narrowing state at IP %s', previously_widened_state.ip)
-
-        s = previously_widened_state.copy()
-
-        narrowing_occurred = False
-
-        # TODO: Finish the narrowing logic
-
-        return s, narrowing_occurred
 
     @staticmethod
     def _merge_states(old_state, new_state):
@@ -1069,6 +987,50 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return merged_state, merging_occurred
 
+    @staticmethod
+    def _widen_states(old_state, new_state):
+        """
+        Perform widen operation on the given states, and return a new one.
+
+        :param old_state:
+        :param new_state:
+        :returns: The widened state, and whether widening has occurred
+        """
+
+        # print old_state.dbg_print_stack()
+        # print new_state.dbg_print_stack()
+
+        l.debug('Widening state at IP %s', old_state.ip)
+
+        widened_state, widening_occurred = old_state.widen(new_state)
+
+        import ipdb; ipdb.set_trace()
+
+        # print "Widened: "
+        # print widened_state.dbg_print_stack()
+
+        return widened_state, widening_occurred
+
+    @staticmethod
+    def _narrow_states(self, node, old_state, new_state, previously_widened_state):  # pylint:disable=unused-argument,no-self-use
+        """
+        Try to narrow the state!
+
+        :param old_state:
+        :param new_state:
+        :param previously_widened_state:
+        :returns: The narrowed state, and whether a narrowing has occurred
+        """
+
+        l.debug('Narrowing state at IP %s', previously_widened_state.ip)
+
+        s = previously_widened_state.copy()
+
+        narrowing_occurred = False
+
+        # TODO: Finish the narrowing logic
+
+        return s, narrowing_occurred
 
     #
     # Helper methods
@@ -1541,24 +1503,21 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         addr = entry_wrapper.path.addr
 
         if self._is_call_jumpkind(jumpkind):
-            if len(entry_wrapper.call_stack) <= self._interfunction_level:
-                new_call_stack = entry_wrapper.call_stack_copy()
-                # Notice that in ARM, there are some freaking instructions
-                # like
-                # BLEQ <address>
-                # It should give us three exits: Ijk_Call, Ijk_Boring, and
-                # Ijk_Ret. The last exit is simulated.
-                # Notice: We assume the last exit is the simulated one
-                if fakeret_successor is None:
-                    retn_target_addr = None
-                else:
-                    retn_target_addr = fakeret_successor.se.exactly_n_int(fakeret_successor.ip, 1)[0]
-
-                # Create call stack
-                new_call_stack.call(addr, successor_ip,
-                                    retn_target=retn_target_addr)
+            new_call_stack = entry_wrapper.call_stack_copy()
+            # Notice that in ARM, there are some freaking instructions
+            # like
+            # BLEQ <address>
+            # It should give us three exits: Ijk_Call, Ijk_Boring, and
+            # Ijk_Ret. The last exit is simulated.
+            # Notice: We assume the last exit is the simulated one
+            if fakeret_successor is None:
+                retn_target_addr = None
             else:
-                return None
+                retn_target_addr = fakeret_successor.se.exactly_n_int(fakeret_successor.ip, 1)[0]
+
+            # Create call stack
+            new_call_stack.call(addr, successor_ip,
+                                retn_target=retn_target_addr)
 
         elif jumpkind == "Ijk_Ret" and not is_call_jump:
             new_call_stack = entry_wrapper.call_stack_copy()

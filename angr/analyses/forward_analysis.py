@@ -1,5 +1,10 @@
 import networkx
 
+# errors
+from ..errors import AngrForwardAnalysisError
+# notices
+from ..errors import AngrSkipEntryNotice, AngrJobMergingFailureNotice, AngrJobWideningFailureNotice
+
 class EntryInfo(object):
     """
     Stores information for each entry
@@ -69,17 +74,24 @@ class ForwardAnalysis(object):
     Feel free to discuss with me (Fish) if you have any suggestion or complaint!
     """
 
-    def __init__(self, order_entries=False, allow_merging=False):
+    def __init__(self, order_entries=False, allow_merging=False, allow_widening=False):
         """
         Constructor
 
         :param bool order_entries: If all entries should be ordered or not.
+        :param bool allow_merging: If entry merging is allowed.
+        :param bool allow_widening: If entry widening is allowed.
         :return: None
         """
 
         self._order_entries = order_entries
 
         self._allow_merging = allow_merging
+        self._allow_widening = allow_widening
+
+        # sanity checks
+        if self._allow_widening and not self._allow_merging:
+            raise AngrForwardAnalysisError('Merging must be allowed if widening is allowed.')
 
         # Analysis progress control
         self._should_abort = False
@@ -162,6 +174,9 @@ class ForwardAnalysis(object):
     def _merge_entries(self, *entries):
         raise NotImplementedError('_merge_entries() is not implemented.')
 
+    def _should_widen_entries(self, *entries):
+        raise NotImplementedError('_should_widen_entries() is not implemented.')
+
     def _widen_entries(self, *entries):
         raise NotImplementedError('_widen_entries() is not implemented.')
 
@@ -240,24 +255,41 @@ class ForwardAnalysis(object):
         :return: None
         """
 
-        if self._allow_merging:
-            key = self._entry_key(entry)
+        key = self._entry_key(entry)
 
+        if self._allow_merging:
             if key in self._entries_map:
                 entry_info = self._entries_map[key]
-                try:
-                    merged_entry = self._merge_entries(entry_info.entry, entry)
-                    entry_info.add_entry(merged_entry, merged=True)
-                except AngrJobMergingFailureNotice:
-                    # merging failed
-                    entry_info = EntryInfo(key, entry)
-                    # update the entries map
-                    self._entries_map[key] = entry_info
+
+                # decide if we want to trigger a widening
+                # if not, we'll simply do the merge
+                # TODO: save all previous entries for the sake of widening
+                entry_added = False
+                if self._allow_widening and self._should_widen_entries(entry_info.entry, entry):
+                    try:
+                        widened_entry = self._widen_entries(entry_info.entry, entry)
+                        entry_info.add_entry(widened_entry, widened=True)
+                        entry_added = True
+                    except AngrJobWideningFailureNotice:
+                        # widening failed
+                        # fall back to merging...
+                        pass
+
+                if not entry_added:
+                    try:
+                        merged_entry = self._merge_entries(entry_info.entry, entry)
+                        entry_info.add_entry(merged_entry, merged=True)
+                    except AngrJobMergingFailureNotice:
+                        # merging failed
+                        entry_info = EntryInfo(key, entry)
+                        # update the entries map
+                        self._entries_map[key] = entry_info
+
             else:
                 entry_info = EntryInfo(key, entry)
                 self._entries_map[key] = entry_info
+
         else:
-            key = self._entry_key(entry)
             entry_info = EntryInfo(key, entry)
 
         if self._order_entries:
@@ -314,5 +346,3 @@ class ForwardAnalysis(object):
                 hi = mid
 
         lst.insert(lo, elem)
-
-from ..errors import AngrSkipEntryNotice, AngrJobMergingFailureNotice
