@@ -23,7 +23,7 @@ class cachedproperty(object):
         return val
 
     def __set__(self, obj, value):
-        setattr(obj, self.f.__name__, value)
+        obj.__dict__[self.f.__name__] = value
 
 
 class LLVMType(object):
@@ -207,7 +207,7 @@ class LLVMOpcode(Enum):
 
 
 class LLVMInstruction(LLVMValue):
-    def __init__(self, mod, bb, insn):
+    def __init__(self, mod, insn, bb=None):
         super(LLVMInstruction, self).__init__(mod, insn)
         if bb is not None:
             self._bb = bb
@@ -253,10 +253,15 @@ class LLVMInstruction(LLVMValue):
 
 
 class LLVMBasicBlock(LLVMValue):
-    def __init__(self, mod, func, bb):
+    def __init__(self, mod, bb, func=None):
         super(LLVMBasicBlock, self).__init__(mod, lib.LLVMBasicBlockAsValue(bb))
         self._bb = bb
-        self._func = func
+        if func is not None:
+            self._func = func
+
+    @cachedproperty
+    def _func(self):
+        return LLVMFunction(self._mod, lib.LLVMGetBasicBlockParent(self._bb))
 
     def __repr__(self):
         return "<LLVMBasicBlock foo>"
@@ -266,9 +271,13 @@ class LLVMBasicBlock(LLVMValue):
         insns = []
         insn = lib.LLVMGetFirstInstruction(self._bb)
         while insn != ffi.NULL:
-            insns.append(LLVMInstruction(self._mod, self, insn))
+            insns.append(LLVMInstruction(self._mod, insn, self))
             insn = lib.LLVMGetNextInstruction(insn)
         return insns
+
+    @cachedproperty
+    def tracker(self):
+        return self._func.tracker
 
 
 class LLVMFunction(LLVMValue):
@@ -284,7 +293,7 @@ class LLVMFunction(LLVMValue):
     def params(self):
         params_r = ffi.new("LLVMValueRef[%d]" % self.nparams)
         lib.LLVMGetParams(self._val, params_r)
-        return [LLVMValue(self, params_r[i]) for i in xrange(self.nparams)]
+        return [LLVMValue(self._mod, params_r[i]) for i in xrange(self.nparams)]
 
     @cachedproperty
     def nbasic_blocks(self):
@@ -294,7 +303,11 @@ class LLVMFunction(LLVMValue):
     def basic_blocks(self):
         bbs_r = ffi.new("LLVMBasicBlockRef[%d]" % self.nbasic_blocks)
         lib.LLVMGetBasicBlocks(self._val, bbs_r)
-        return [LLVMBasicBlock(self._mod, self, bbs_r[i]) for i in xrange(self.nbasic_blocks)]
+        return [LLVMBasicBlock(self._mod, bbs_r[i], self) for i in xrange(self.nbasic_blocks)]
+
+    @cachedproperty
+    def tracker(self):
+        return self._mod.tracker
 
 
 class LLVMModule(object):
