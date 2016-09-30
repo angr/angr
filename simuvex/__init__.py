@@ -21,9 +21,9 @@ import simuvex.s_options as o
 import simuvex.s_options as options
 from .s_pcap import *
 from .plugins import *
-from .vex.irsb import SimIRSB
-from .vex.statements import SimIRStmt
-from .vex.irop import operations, all_operations, unsupported as unsupported_operations, unclassified as unclassified_operations
+from .engines.vex.irsb import SimIRSB
+from .engines.vex.statements import SimIRStmt
+from .engines.vex.irop import operations, all_operations, unsupported as unsupported_operations, unclassified as unclassified_operations
 from .s_cc import SimCC, DefaultCC
 from .s_slicer import SimSlicer
 from .s_variable import *

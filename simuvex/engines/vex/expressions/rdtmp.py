@@ -1,6 +1,6 @@
 from .base import SimIRExpr
-from ... import s_options as o
-from ...s_action import SimActionData
+from simuvex import s_options as o
+from simuvex.s_action import SimActionData
 
 class SimIRExpr_RdTmp(SimIRExpr):
     def _execute(self):

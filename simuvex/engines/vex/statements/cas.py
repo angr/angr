@@ -63,5 +63,5 @@ class SimIRStmt_CAS(SimIRStmt):
             a = SimActionData(self.state, self.state.memory.id, SimActionData.WRITE, addr=addr_ao, data=data_ao, condition=guard_ao, size=size_ao)
             self.state.memory.store(addr.expr, data.expr, condition=old_lo == expd_lo.expr, endness=self.stmt.endness, action=a)
 
-from ...s_action import SimActionData
-from ...s_action_object import SimActionObject
+from simuvex.s_action import SimActionData
+from simuvex.s_action_object import SimActionObject

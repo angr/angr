@@ -1,7 +1,8 @@
 from . import SimIRStmt
-from ... import s_options as o
-from ...s_action_object import SimActionObject
-from ...s_action import SimActionData
+from simuvex import s_options as o
+from simuvex.s_action_object import SimActionObject
+from simuvex.s_action import SimActionData
+from simuvex.s_variable import SimRegisterVariable
 
 class SimIRStmt_Put(SimIRStmt):
     def _execute(self):

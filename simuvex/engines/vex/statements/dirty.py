@@ -1,8 +1,8 @@
 from . import SimIRStmt
-from ... import s_options as o
 from .. import size_bits
 from .. import dirty
-from ...s_errors import UnsupportedDirtyError
+from simuvex import s_options as o
+from simuvex.s_errors import UnsupportedDirtyError
 
 import logging
 l = logging.getLogger('simuvex.vex.statements.dirty')

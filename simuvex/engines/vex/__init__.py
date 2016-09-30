@@ -33,5 +33,6 @@ from .expressions import SimIRExpr, translate_expr
 from .statements import SimIRStmt, translate_stmt
 from .irsb import SimIRSB, SimIRSBError
 from . import ccall
-from ..s_errors import SimExpressionError, UnsupportedIRExprError
-from .. import s_options as options
+
+from simuvex.s_errors import SimExpressionError, UnsupportedIRExprError
+from simuvex import s_options as options
