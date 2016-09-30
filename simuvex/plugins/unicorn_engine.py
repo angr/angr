@@ -1298,6 +1298,6 @@ class Unicorn(SimStatePlugin):
 
         return True
 
-from ..vex import ccall
+from ..engines.vex import ccall
 from .. import s_options as options
 SimStatePlugin.register_default('unicorn', Unicorn)
