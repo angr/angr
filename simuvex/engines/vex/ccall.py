@@ -1503,5 +1503,5 @@ def _get_nbits(cc_str):
         nbits = 64
     return nbits
 
-from ..s_errors import SimError, SimCCallError
-from ..s_options import USE_SIMPLIFIED_CCALLS
+from ...s_errors import SimError, SimCCallError
+from ...s_options import USE_SIMPLIFIED_CCALLS

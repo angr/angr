@@ -2,10 +2,10 @@
 from pyvex.expr import RdTmp, Get
 
 from .base import SimIRExpr
-from ... import s_options as o
-from ...s_errors import UnsupportedIROpError, SimOperationError
 from ..irop import translate
-from ...s_action import SimActionOperation, SimActionObject
+from simuvex import s_options as o
+from simuvex.s_errors import UnsupportedIROpError, SimOperationError
+from simuvex.s_action import SimActionOperation, SimActionObject
 
 class SimIRExpr_Op(SimIRExpr):
     def _execute(self):

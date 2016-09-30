@@ -1,7 +1,4 @@
 from . import SimIRStmt
-#from ... import s_options as o
-#from ...s_action_object import SimActionObject
-#from ...s_action import SimActionData
 from .. import size_bytes
 
 import logging
@@ -48,6 +45,6 @@ class SimIRStmt_LLSC(SimIRStmt):
             self.state.scratch.store_tmp(self.stmt.result, result)
             self._write_tmp(self.stmt.result, result, result.length, addr.reg_deps() | store_data.reg_deps(), addr.tmp_deps() | store_data.tmp_deps())
 
-from ...s_action_object import SimActionObject
-from ...s_action import SimActionData
-from ... import s_options as o
+from simuvex.s_action_object import SimActionObject
+from simuvex.s_action import SimActionData
+from simuvex import s_options as o

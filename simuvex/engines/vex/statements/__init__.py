@@ -1,7 +1,7 @@
-from .base import SimIRStmt
-from ...s_errors import UnsupportedIRStmtError, UnsupportedDirtyError, SimStatementError
-from ... import s_options as o
+from simuvex.s_errors import UnsupportedIRStmtError, UnsupportedDirtyError, SimStatementError
+from simuvex import s_options as o
 
+from .base import SimIRStmt
 from .noop import SimIRStmt_NoOp
 from .imark import SimIRStmt_IMark
 from .abihint import SimIRStmt_AbiHint

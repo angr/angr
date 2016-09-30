@@ -338,6 +338,6 @@ class SimProcedureContinuation(SimProcedure):
 
 from . import s_options as o
 from .s_errors import SimProcedureError, SimProcedureArgumentError
-from .vex.irsb import SimIRSB
+from .engines.vex.irsb import SimIRSB
 from .s_type import SimTypePointer
 from .s_action import SimActionExit

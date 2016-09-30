@@ -60,6 +60,6 @@ class SimIRStmt(object):
             r = SimActionData(self.state, SimActionData.TMP, SimActionData.WRITE, tmp=tmp, data=data_ao, size=size)
             self.actions.append(r)
 
-from ... import s_options as o
-from ...s_action import SimActionData, SimActionObject
 from ..expressions import translate_expr
+from simuvex import s_options as o
+from simuvex.s_action import SimActionData, SimActionObject

@@ -9,7 +9,7 @@ l = logging.getLogger("simuvex.vex.irsb")
 #l.setLevel(logging.DEBUG)
 
 import pyvex
-from ..s_run import SimRun
+from ...s_run import SimRun
 
 
 class IMark(object):
@@ -286,7 +286,8 @@ from .statements import translate_stmt
 from .expressions import translate_expr
 
 from . import size_bits
-from .. import s_options as o
-from ..plugins.inspect import BP_AFTER, BP_BEFORE
-from ..s_errors import SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException
-from ..s_action import SimActionExit, SimActionObject
+
+from simuvex import s_options as o
+from simuvex.plugins.inspect import BP_AFTER, BP_BEFORE
+from simuvex.s_errors import SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException
+from simuvex.s_action import SimActionExit, SimActionObject

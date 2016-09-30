@@ -1,4 +1,4 @@
-from ....s_engine import SimEngine
+from simuvex.s_engine import SimEngine
 
 class VexEngine(SimEngine):
     """

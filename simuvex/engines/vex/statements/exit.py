@@ -1,8 +1,9 @@
 from . import SimIRStmt
-from ... import s_options as o
-from ...s_action_object import SimActionObject
-from ...s_action import SimActionExit
 from .. import translate_irconst
+
+from simuvex import s_options as o
+from simuvex.s_action_object import SimActionObject
+from simuvex.s_action import SimActionExit
 
 class SimIRStmt_Exit(SimIRStmt):
     def __init__(self, irsb, stmt_idx, imark, state):
