@@ -556,7 +556,7 @@ class Path(object):
                             jumpkind = 'Ijk_Boring'
 
                     else:
-                        block = self._project.factory.block(bbl_addr)
+                        block = self._project.factory.block(bbl_addr, backup_state=state)
                         block_size = block.size
                         jumpkind = block.vex.jumpkind
 
