@@ -607,10 +607,10 @@ class DDG(Analysis):
                 data_generated = None
                 last_statement_id = a.stmt_idx
 
-            if a.bbl_addr is None:
-                current_code_location = CodeLocation(None, None, sim_procedure=a.sim_procedure)
-            else:
+            if a.sim_procedure is None:
                 current_code_location = CodeLocation(a.bbl_addr, a.stmt_idx, ins_addr=a.ins_addr)
+            else:
+                current_code_location = CodeLocation(None, None, sim_procedure=a.sim_procedure)
 
             if a.type == "mem":
                 if a.actual_addrs is None:
