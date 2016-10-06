@@ -61,7 +61,12 @@ class BaseGoal(object):
         continue_at = None
         if cfg.project.is_hooked(path.addr) and \
                 cfg.project.hooked_by(path.addr) is simuvex.s_procedure.SimProcedureContinuation:
-            continue_at = path.state.procedure_data.callstack[-1][1]
+            if path.state.procedure_data.callstack:
+                continue_at = path.state.procedure_data.callstack[-1][1]
+            else:
+                # umm why does this happen?
+                # TODO: figure it out
+                continue_at = None
 
         simrun_key = cfg._generate_simrun_key(call_stack_suffix, path.addr,
                                               is_syscall, continue_at=continue_at
@@ -220,15 +225,15 @@ class CallFunctionGoal(BaseGoal):
                     # TODO: add calling convention detection to individual functions, and use that instead of the
                     # TODO: default calling convention of the platform
 
-                    cc = simuvex.DefaultCC[path.state.arch.name]()  # type: simuvex.s_cc.SimCC
+                    cc = simuvex.DefaultCC[path.state.arch.name](path.state.arch)  # type: simuvex.s_cc.SimCC
 
                     for i, expected_arg in enumerate(self.arguments):
                         if expected_arg is None:
                             continue
-                        real_arg = cc.arg(i)
+                        real_arg = cc.arg(the_node.input_state, i)
 
                         expected_arg_type, expected_arg_value = expected_arg
-                        r = self._compare_arguments(the_node.state, expected_arg_type, expected_arg_type, real_arg)
+                        r = self._compare_arguments(the_node.input_state, expected_arg_type, expected_arg_value, real_arg)
                         if not r:
                             return False
 
@@ -265,6 +270,9 @@ class CallFunctionGoal(BaseGoal):
                 # char *
                 # perform a concrete string comparison
                 ptr = real_value
+                if isinstance(expected_value, str):
+                    # convert it to an AST
+                    expected_value = state.se.BVV(expected_value)
                 length = expected_value.size() / 8
                 real_string = state.memory.load(ptr, length, endness='Iend_BE')
 
