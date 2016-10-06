@@ -20,14 +20,14 @@ from .puti import SimIRStmt_PutI
 import logging
 l = logging.getLogger('simuvex.vex.statements')
 
-def translate_stmt(irsb, stmt_idx, imark, state):
+def translate_stmt(irsb, stmt_idx, state):
     stmt = irsb.statements[stmt_idx]
     stmt_name = 'SimIRStmt_' +  type(stmt).__name__.split('IRStmt')[-1].split('.')[-1]
 
     if stmt_name in globals():
         l.debug("Handling IRStmt %s (index %d)", type(stmt), stmt_idx)
         stmt_class = globals()[stmt_name]
-        s = stmt_class(irsb, stmt_idx, imark, state)
+        s = stmt_class(irsb, stmt_idx, None, state)
         s.process()
         return s
     else:
