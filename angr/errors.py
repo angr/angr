@@ -118,5 +118,9 @@ class AngrExplorationTechniqueError(AngrError):
         return "<OtiegnqwvkError %s>" % self.message
 
 class AngrExplorerError(AngrExplorationTechniqueError):
-    def __str(self):
+    def __str__(self):
         return "<OtiegnqwvkExplorerError %s>" % self.message
+
+class AngrDirectorError(AngrExplorationTechniqueError):
+    def __str__(self):
+        return "<DirectorTechniqueError %s>" % self.message

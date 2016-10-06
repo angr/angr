@@ -5,14 +5,19 @@ from collections import defaultdict
 import networkx
 
 import simuvex
+import claripy
 
 from ..knowledge_base import KnowledgeBase
+from ..errors import AngrDirectorError
 from . import ExplorationTechnique
 
 l = logging.getLogger("angr.exploration_techniques.director")
 
 
 class BaseGoal(object):
+
+    REQUIRE_CFG_STATES = False
+
     def __init__(self, sort):
         self.sort = sort
 
@@ -104,6 +109,10 @@ class BaseGoal(object):
 
 
 class ExecuteAddressGoal(BaseGoal):
+    """
+    A goal that prioritizes paths reaching (or are likely to reach) certain address in some specific steps.
+    """
+
     def __init__(self, addr):
         super(ExecuteAddressGoal, self).__init__('execute_address')
 
@@ -135,8 +144,6 @@ class ExecuteAddressGoal(BaseGoal):
         for src, dst in self._dfs_edges(cfg.graph, node, max_steps=peek_blocks):
             if src.addr == self.addr or dst.addr == self.addr:
                 l.debug("Path %s will reach %#x.", path, self.addr)
-                if path.addr == 0x4005ca:
-                    import ipdb; ipdb.set_trace()
                 return True
 
         l.debug('Path %s will not reach %#x.', path, self.addr)
@@ -144,14 +151,139 @@ class ExecuteAddressGoal(BaseGoal):
 
 
 class CallFunctionGoal(BaseGoal):
+    """
+    A goal that prioritizes paths reaching certain function, and optionally with specific arguments.
+    Note that constraints on arguments (and on function address as well) have to be identifiable on an accurate CFG.
+    For example, you may have a CallFunctionGoal saying "call printf with the first argument being 'Hello, world'", and
+    CFGAccurate must be able to figure our the first argument to printf is in fact "Hello, world", not some symbolic
+    strings that will be constrained to "Hello, world" during symbolic execution (or simulation, however you put it).
+    """
+
+    REQUIRE_CFG_STATES = True
+
     def __init__(self, function, arguments):
         super(CallFunctionGoal, self).__init__('function_call')
 
         self.function = function
         self.arguments = arguments
 
+        if self.arguments is not None:
+            for i, arg in enumerate(self.arguments):
+                if arg is not None:
+                    if len(arg) != 2:
+                        raise AngrDirectorError('Each argument must be either None or a 2-tuple contains argument ' +
+                                                'type and the expected value.'
+                                                )
+
+                    arg_type, expected_value = arg
+                    if isinstance(expected_value, claripy.ast.Base) and expected_value.symbolic:
+                        raise AngrDirectorError('Symbolic arguments are not supported.')
+
+        # TODO: allow user to provide an optional argument processor to process arguments
+
     def __repr__(self):
         return "<FunctionCallCondition over %s>" % self.function
+
+    def check(self, cfg, path, peek_blocks):
+        """
+        Check if the specified function will be reached with certain arguments.
+
+        :param cfg:
+        :param path:
+        :param peek_blocks:
+        :return:
+        """
+
+        # Get the current CFGNode
+        node = self._get_cfg_node(cfg, path)
+
+        if node is None:
+            l.error("Failed to find CFGNode for path %s on the control flow graph.", path)
+            return False
+
+        # crawl the graph to see if we can reach the target function within the limited steps
+        for src, dst in self._dfs_edges(cfg.graph, node, max_steps=peek_blocks):
+            the_node = None
+            if src.addr == self.function.addr:
+                the_node = src
+            elif dst.addr == self.function.addr:
+                the_node = dst
+
+            if the_node is not None:
+                if self.arguments is None:
+                    # we do not care about argumetns
+                    return True
+
+                else:
+                    # check arguments
+
+                    # TODO: add calling convention detection to individual functions, and use that instead of the
+                    # TODO: default calling convention of the platform
+
+                    cc = simuvex.DefaultCC[path.state.arch.name]()  # type: simuvex.s_cc.SimCC
+
+                    for i, expected_arg in enumerate(self.arguments):
+                        if expected_arg is None:
+                            continue
+                        real_arg = cc.arg(i)
+
+                        expected_arg_type, expected_arg_value = expected_arg
+                        r = self._compare_arguments(the_node.state, expected_arg_type, expected_arg_type, real_arg)
+                        if not r:
+                            return False
+
+                    # all arguments are the same!
+                    return True
+
+        l.debug("Path %s will not reach function %s.", path, self.function)
+        return False
+
+    #
+    # Private methods
+    #
+
+    def _compare_arguments(self, state, arg_type, expected_value, real_value):
+        """
+
+        :param simuvex.SimState state:
+        :param simvuex.s_type.SimType arg_type:
+        :param claripy.ast.Base expected_value:
+        :param claripy.ast.Base real_value:
+        :return:
+        :rtype: bool
+        """
+
+        if real_value.symbolic:
+            # we do not support symbolic arguments yet
+            return False
+
+        if isinstance(arg_type, simuvex.s_type.SimTypePointer):
+            # resolve the pointer and compare the content
+            points_to_type = arg_type.pts_to
+
+            if isinstance(points_to_type, simuvex.s_type.SimTypeChar):
+                # char *
+                # perform a concrete string comparison
+                ptr = real_value
+                length = expected_value.size() / 8
+                real_string = state.memory.load(ptr, length, endness='Iend_BE')
+
+                if real_string.symbolic:
+                    # we do not support symbolic arguments
+                    return False
+
+                if state.se.any_int(real_string) == state.se.any_int(expected_value):
+                    return True
+                else:
+                    return False
+
+            else:
+                l.error('Unsupported argument type %s in _compare_arguments(). Please bug Fish to implement.', arg_type)
+
+        else:
+            l.error('Unsupported argument type %s in _compare_arguments(). Please bug Fish to implement.', arg_type)
+
+        return False
 
 
 class Director(ExplorationTechnique):
@@ -169,7 +301,7 @@ class Director(ExplorationTechnique):
       chance for those paths to be explored as well in order to prevent over-fitting.
     """
 
-    def __init__(self, peek_blocks=100, peek_functions=5, goals=None):
+    def __init__(self, peek_blocks=100, peek_functions=5, goals=None, cfg_keep_states=False):
         """
         Constructor.
         """
@@ -179,6 +311,7 @@ class Director(ExplorationTechnique):
         self._peek_blocks = peek_blocks
         self._peek_functions = peek_functions
         self._goals = goals if goals is not None else [ ]
+        self._cfg_keep_states = cfg_keep_states
 
         self._cfg = None
         self._cfg_kb = None
@@ -229,7 +362,9 @@ class Director(ExplorationTechnique):
             starts = [ p.state for p in pg.active ]
             self._cfg_kb = KnowledgeBase(self.project, self.project.loader.main_bin)
 
-            self._cfg = self.project.analyses.CFGAccurate(kb=self._cfg_kb, starts=starts, max_steps=self._peek_blocks)
+            self._cfg = self.project.analyses.CFGAccurate(kb=self._cfg_kb, starts=starts, max_steps=self._peek_blocks,
+                                                          keep_state=self._cfg_keep_states
+                                                          )
 
         else:
 
