@@ -4,8 +4,7 @@ l = logging.getLogger("simuvex.vex.statements")
 class SimIRStmt(object):
     """A class for symbolically translating VEX IRStmts."""
 
-    def __init__(self, irsb, stmt_idx, imark, state):
-        self.imark = imark
+    def __init__(self, irsb, stmt_idx, state):
         self.stmt_idx = stmt_idx
         self.state = state
 
@@ -33,7 +32,7 @@ class SimIRStmt(object):
 
     def _translate_expr(self, expr):
         """Translates an IRExpr into a SimIRExpr."""
-        e = translate_expr(expr, self.imark, self.stmt_idx, self.irsb.tyenv, self.state)
+        e = translate_expr(expr, self.stmt_idx, self.irsb.tyenv, self.state)
         self._record_expr(e)
         return e
 
