@@ -9,7 +9,7 @@ import simuvex
 from ..knowledge_base import KnowledgeBase
 from . import ExplorationTechnique
 
-l = logging.getLogger("angr.exploration_techniques.determinist")
+l = logging.getLogger("angr.exploration_techniques.director")
 
 
 class BaseGoal(object):
@@ -154,7 +154,7 @@ class CallFunctionGoal(BaseGoal):
         return "<FunctionCallCondition over %s>" % self.function
 
 
-class Determinist(ExplorationTechnique):
+class Director(ExplorationTechnique):
     """
     An exploration technique for directed symbolic execution.
 

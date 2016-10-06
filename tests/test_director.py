@@ -17,7 +17,7 @@ def test_execute_address_brancher():
     pg = p.factory.path_group()
 
     # initialize the exploration technique
-    dm = angr.exploration_techniques.Determinist()
+    dm = angr.exploration_techniques.Director()
     goal = angr.exploration_techniques.ExecuteAddressGoal(0x400594)
     dm.add_goal(goal)
     pg.use_technique(dm)
