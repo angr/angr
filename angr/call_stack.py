@@ -161,6 +161,35 @@ class CallStack(object):
     #
 
     @property
+    def current_function_address(self):
+        """
+        Address of the current function.
+
+        :return: the address of the function
+        :rtype: int
+        """
+
+        if len(self._callstack) == 0:
+            return 0  # This is the root level
+        else:
+            frame = self._callstack[-1]
+            return frame.func_addr
+
+    @current_function_address.setter
+    def current_function_address(self, func_addr):
+        """
+        Set the address of the current function. Note that we must make a copy of the CallStackFrame as CallStackFrame
+        is considered to be immutable.
+
+        :param int func_addr: The function address.
+        :return: None
+        """
+
+        frame = self._callstack[-1].copy()
+        frame.func_addr = func_addr
+        self._callstack[-1] = frame
+
+    @property
     def current_stack_pointer(self):
         """
         Get the value of the stack pointer.
@@ -231,6 +260,16 @@ class CallStack(object):
         except IndexError:
             raise ValueError("Empty CallStack")
 
+    @property
+    def all_function_addresses(self):
+        """
+        Get all function addresses called in the path, from the earliest one to the most recent one
+
+        :return: a list of function addresses
+        :rtype: list
+        """
+        return [frame.caller_func_addr for frame in self._callstack]
+
     #
     # Public methods
     #
@@ -251,6 +290,49 @@ class CallStack(object):
             return self._callstack.pop(-1)
         except IndexError:
             raise ValueError("Empty CallStack")
+
+    def call(self, callsite_addr, addr, retn_target=None, stack_pointer=None):
+        """
+        Push a stack frame into the call stack. This method is called when calling a function in CFG recovery.
+
+        :param int callsite_addr: Address of the call site
+        :param int addr: Address of the call target
+        :param int retn_target: Address of the return target
+        :param int stack_pointer: Value of the stack pointer
+        :return: None
+        """
+
+        frame = CallFrame(call_site_addr=callsite_addr, func_addr=addr, ret_addr=retn_target,
+                          stack_ptr=stack_pointer)
+        self._callstack.append(frame)
+
+    def ret(self, retn_target):
+        """
+        Pop one or many call frames from the stack. This method is called when returning from a function in CFG
+        recovery.
+
+        :param int retn_target: The target to return to.
+        :return: None
+        """
+
+        return_target_index = self._rfind_return_target(retn_target)
+
+        if return_target_index is not None:
+            # We may want to return to several levels up there, not only a
+            # single stack frame
+            levels = return_target_index
+
+            # Remove all frames higher than the level
+            self._callstack = self._callstack[: levels]
+
+        else:
+            import ipdb; ipdb.set_trace()
+            l.warning("Returning to an unexpected address %#x", retn_target)
+
+            # For Debugging
+            # raise Exception()
+            # There are cases especially in ARM where return is used as a jump
+            # So we don't pop anything out
 
     def dbg_repr(self):
         """
@@ -305,3 +387,23 @@ class CallStack(object):
         c = CallStack()
         c._callstack = [cf.copy() for cf in self._callstack]
         return c
+
+    #
+    # Private methods
+    #
+
+    def _rfind_return_target(self, target):
+        """
+        Check if the return target exists in the stack, and return the index if exists. We always search from the most
+        recent call stack frame since the most recent frame has a higher chance to be hit in normal CFG recovery.
+
+        :param int target: Target of the return.
+        :return: The index of the object
+        :rtype: int
+        """
+
+        for i in xrange(len(self._callstack) - 1, -1, -1):
+            frame = self._callstack[i]
+            if frame.return_target == target:
+                return i
+        return None

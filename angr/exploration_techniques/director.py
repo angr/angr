@@ -72,8 +72,8 @@ class BaseGoal(object):
                                               is_syscall, continue_at=continue_at
                                               )
 
-        if cfg.get_node(simrun_key) is None:
-            import ipdb; ipdb.set_trace()
+        #if cfg.get_node(simrun_key) is None:
+        #    import ipdb; ipdb.set_trace()
 
         return cfg.get_node(simrun_key)
 
@@ -376,7 +376,7 @@ class Director(ExplorationTechnique):
 
         else:
 
-            starts = [ p.state for p in pg.active ]
+            starts = [ p for p in pg.active ]
 
             self._cfg.resume(starts=starts, max_steps=self._peek_blocks)
 

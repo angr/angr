@@ -9,7 +9,7 @@ class CFGNode(object):
                  addr,
                  size,
                  cfg,
-                 callstack_key=None,
+                 callstack=None,
                  input_state=None,
                  simprocedure_name=None,
                  syscall_name=None,
@@ -23,13 +23,14 @@ class CFGNode(object):
                  simrun_key=None,
                  irsb=None,
                  instruction_addrs=None,
-                 depth=None):
+                 depth=None,
+                 callstack_key=None):
         """
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
         """
 
-        self.callstack_key = callstack_key
+        self.callstack = callstack
         self.addr = addr
         self.input_state = input_state
         self.simprocedure_name = simprocedure_name
@@ -43,6 +44,9 @@ class CFGNode(object):
         self.function_address = function_address
         self.simrun_key = simrun_key
         self.depth = depth
+
+        self._callstack_key = self.callstack.stack_suffix(self._cfg.context_sensitivity_level) \
+            if self.callstack is not None else callstack_key
 
         self.name = simprocedure_name or cfg.project.loader.find_symbol_name(addr)
         if function_address and self.name is None:
@@ -73,6 +77,10 @@ class CFGNode(object):
         self.irsb = irsb
 
         self.has_return = False
+
+    @property
+    def callstack_key(self):
+        return self._callstack_key
 
     @property
     def successors(self):

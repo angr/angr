@@ -13,7 +13,7 @@ from ..entry_wrapper import SimRunKey, EntryWrapper
 from ..analysis import register_analysis
 from ..errors import AngrCFGError, AngrError, AngrSkipEntryNotice
 from ..knowledge import FunctionManager
-from ..path import make_path
+from ..path import make_path, Path
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase
 from .forward_analysis import ForwardAnalysis
@@ -547,6 +547,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         return subcfg
 
     @property
+    def context_sensitivity_level(self):
+        return self._context_sensitivity_level
+
+    @property
     def functions(self):
         return self.kb.functions
 
@@ -665,7 +669,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 elif isinstance(item, (int, long)):
                     new_starts.append((item, None))
 
-                elif isinstance(item, simuvex.SimState):
+                elif isinstance(item, (simuvex.SimState, Path)):
                     new_starts.append(item)
 
                 else:
@@ -719,20 +723,31 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Fill up self._starts
         for item in self._starts:
+            callstack = None
             if isinstance(item, tuple):
                 # (addr, jumpkind)
                 ip = item[0]
                 state = self._create_initial_state(item[0], item[1])
 
-            else:
+            elif isinstance(item, simuvex.SimState):
                 # simuvex.SimState
                 state = item
                 ip = state.se.exactly_int(state.ip) # pylint: disable=no-member
 
+            elif isinstance(item, Path):
+                # angr.Path
+                # now we can get a usable callstack from it
+                state = item.state
+                ip = item.addr
+                callstack = item.callstack
+
             self._symbolic_function_initial_state[ip] = state
 
             entry_path = self.project.factory.path(state)
-            path_wrapper = CFGJob(ip, entry_path, self._context_sensitivity_level, None, None)
+
+            # try to get a callstack from an existing node if it exists
+
+            path_wrapper = CFGJob(ip, entry_path, self._context_sensitivity_level, None, None, call_stack=callstack)
 
             self._insert_entry(path_wrapper)
 
@@ -1024,7 +1039,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         if simrun_key not in self._nodes:
             # Create the CFGNode object
-            cfg_node = self._create_cfgnode(simrun, entry.call_stack_suffix, entry.func_addr, simrun_key=simrun_key,
+            cfg_node = self._create_cfgnode(simrun, entry.call_stack, entry.func_addr, simrun_key=simrun_key,
                                             depth=depth
                                             )
 
@@ -1187,13 +1202,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # Well, there is just no successors. What can you expect?
                 pass
 
+        # TODO: replace it with a DDG-based I/O analysis
         # handle all actions
-        if successors:
-            self._handle_actions(successors[0],
-                                 simrun,
-                                 entry.current_function,
-                                 entry.current_stack_pointer,
-                                 entry.accessed_registers_in_function)
+        #if successors:
+        #    self._handle_actions(successors[0],
+        #                         simrun,
+        #                         entry.current_function,
+        #                         entry.current_stack_pointer,
+        #                         entry.accessed_registers_in_function)
 
         return successors
 
@@ -1607,10 +1623,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             pt = CFGNode(self._simrun_key_addr(node_key),
                          None,
                          self,
-                         callstack_key=self._simrun_key_callstack_key(node_key),
+                         callstack=None,  # getting a callstack here is difficult, so we pass in a callstack key instead
                          input_state=None,
                          simprocedure_name="PathTerminator",
-                         function_address=func_addr)
+                         function_address=func_addr,
+                         callstack_key=self._simrun_key_callstack_key(node_key),
+                         )
             if self._keep_state:
                 # We don't have an input state available for it (otherwise we won't have to create a
                 # PathTerminator). This is just a trick to make get_any_irsb() happy.
@@ -1676,7 +1694,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             )._get_block(ret_addr).codenode if ret_addr else None
 
             if ret_node is None:
-                l.warning("Unknown return site for call to %#x at call-site %#x", dst_node.addr, src_node.addr)
+                # it happens if the target function being called does not return
+                l.debug("Unknown return site for call to %#x at call-site %#x. Maybe function %#x does not return.",
+                        dst_node.addr, src_node.addr, dst_node.addr
+                        )
 
             self.kb.functions._add_call_to(
                 function_addr=src_node.function_address,
@@ -2555,12 +2576,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return new_call_stack
 
-    def _create_cfgnode(self, simrun, call_stack_suffix, func_addr, simrun_key=None, depth=None):
+    def _create_cfgnode(self, simrun, call_stack, func_addr, simrun_key=None, depth=None):
         """
         Create a context-sensitive CFGNode instance for a specific SimRun.
 
         :param simuvex.SimRun simrun:       The SimRun object.
-        :param tuple call_stack_suffix:     The call stack suffix.
+        :param CallStack call_stack_suffix: The call stack.
         :param int func_addr:               Address of the current function.
         :param simrun_key:                  The SimRun key of this CFGNode.
         :param int or None depth:           Depth of this CFGNode.
@@ -2588,7 +2609,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             cfg_node = CFGNode(simrun.addr,
                                None,
                                self,
-                               callstack_key=call_stack_suffix,
+                               callstack=call_stack,
                                input_state=None,
                                simprocedure_name=simproc_name,
                                syscall_name=syscall,
@@ -2604,7 +2625,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             cfg_node = CFGNode(simrun.addr,
                                simrun.irsb.size,
                                self,
-                               callstack_key=call_stack_suffix,
+                               callstack=call_stack,
                                input_state=None,
                                is_syscall=is_syscall,
                                syscall=syscall,
