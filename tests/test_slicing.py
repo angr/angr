@@ -59,7 +59,7 @@ def test_control_flow_slicing():
     anno_cfg = bs.annotated_cfg()
     nose.tools.assert_equal(anno_cfg.get_whitelisted_statements(0x40057c), None)
     nose.tools.assert_equal(anno_cfg.get_whitelisted_statements(0x400594), None)
-    nose.tools.assert_equal(anno_cfg.get_whitelisted_statements(0x4005a4), None)
+    nose.tools.assert_equal(anno_cfg.get_whitelisted_statements(0x4005a4), [ ])
 
 def broken_backward_slice():
     #TODO: Fix this test case. There seems to be a bug with CDG itself.

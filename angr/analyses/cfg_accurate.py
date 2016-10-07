@@ -786,9 +786,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # angr.Path
                 # now we can get a usable callstack from it
                 path = item
-                state = path.state
-                ip = path.addr
-                callstack = path.callstack
+                state = path.state  # pylint: disable=no-member
+                ip = path.addr  # pylint: disable=no-member
+                callstack = path.callstack  # pylint: disable=no-member
 
             self._symbolic_function_initial_state[ip] = state
 

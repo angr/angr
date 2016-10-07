@@ -1,4 +1,4 @@
-import copy
+
 import logging
 
 import simuvex
