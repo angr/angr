@@ -277,26 +277,50 @@ class CallFunctionGoal(BaseGoal):
                 # char *
                 # perform a concrete string comparison
                 ptr = real_value
-                if isinstance(expected_value, str):
-                    # convert it to an AST
-                    expected_value = state.se.BVV(expected_value)
-                length = expected_value.size() / 8
-                real_string = state.memory.load(ptr, length, endness='Iend_BE')
-
-                if real_string.symbolic:
-                    # we do not support symbolic arguments
-                    return False
-
-                return state.se.any_int(real_string) == state.se.any_int(expected_value)
+                return CallFunctionGoal._compare_pointer_content(state, ptr, expected_value)
 
             else:
                 l.error('Unsupported argument type %s in _compare_arguments(). Please bug Fish to implement.', arg_type)
+
+        elif isinstance(arg_type, simuvex.s_type.SimTypeString):
+            # resolve the pointer and compare the content
+            ptr = real_value
+            return CallFunctionGoal._compare_pointer_content(state, ptr, expected_value)
+
+        elif isinstance(arg_type, simuvex.s_type.SimTypeReg):
+            # directly compare the numbers
+            return CallFunctionGoal._compare_integer_content(state, real_value, expected_value)
 
         else:
             l.error('Unsupported argument type %s in _compare_arguments(). Please bug Fish to implement.', arg_type)
 
         return False
 
+    @staticmethod
+    def _compare_pointer_content(state, ptr, expected):
+
+        if isinstance(expected, str):
+            # convert it to an AST
+            expected = state.se.BVV(expected)
+        length = expected.size() / 8
+        real_string = state.memory.load(ptr, length, endness='Iend_BE')
+
+        if real_string.symbolic:
+            # we do not support symbolic arguments
+            return False
+
+        return state.se.any_int(real_string) == state.se.any_int(expected)
+
+    @staticmethod
+    def _compare_integer_content(state, val, expected):
+
+        # note that size difference does not matter - we only compare their concrete values
+
+        if isinstance(val, claripy.ast.Base) and val.symbolic:
+            # we do not support symboli arguments
+            return False
+
+        return state.se.any_int(val) == state.se.any_int(expected)
 
 class Director(ExplorationTechnique):
     """
