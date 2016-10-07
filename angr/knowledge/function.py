@@ -742,7 +742,7 @@ class Function(object):
         # let's put a check here
         if self.startpoint is None:
             # this function is empty
-            l.error('Unexpected error: %s does not have any blocks. normalize() fails.', repr(self))
+            l.debug('Unexpected error: %s does not have any blocks. normalize() fails.', repr(self))
             return
 
         graph = self.transition_graph
@@ -762,7 +762,7 @@ class Function(object):
             other_nodes = all_nodes[1:]
 
             is_outside_node = False
-            if smallest_node not in self.graph:
+            if smallest_node not in graph:
                 is_outside_node = True
 
             # Break other nodes
