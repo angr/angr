@@ -36,7 +36,7 @@ class SimRunKey(object):
 
     def __repr__(self):
         return "<SRKey %#08x (%s) %% %s%s>" % (self.addr, self.callsite_repr(), self.jump_type,
-                                               "" if self.continue_at is None else self.continue_at
+                                               "" if self.continue_at is None else "-" + self.continue_at
                                                )
 
     def __hash__(self):
@@ -111,74 +111,12 @@ class FunctionKey(object):
         return FunctionKey(addr, callsite_tuples)
 
 
-class BBLStack(object):
-    def __init__(self, stack_dict=None):
-        if stack_dict is None:
-            self._stack_dict = { }
-        else:
-            self._stack_dict = stack_dict
-
-    @staticmethod
-    def _get_key(callstack_suffix, func_addr):
-        if len(callstack_suffix) > 0:
-            key = callstack_suffix
-        else:
-            key = func_addr
-
-        return key
-
-    def copy(self):
-        return BBLStack(copy.deepcopy(self._stack_dict))
-
-    def call(self, callstack_suffix, func_addr):
-        key = self._get_key(callstack_suffix, func_addr)
-
-        # Create a stack with respect to that function
-        self._stack_dict[key] = []
-
-    def ret(self, callstack_suffix, func_addr):
-        key = self._get_key(callstack_suffix, func_addr)
-
-        if key in self._stack_dict:
-            # Return from a function. Remove the corresponding stack
-            del self._stack_dict[key]
-        else:
-            l.warning("Attempting to ret from a non-existing stack frame %s.", hex(key) if isinstance(key, (int, long)) else key)
-
-    def push(self, callstack_suffix, func_addr, bbl):
-        key = self._get_key(callstack_suffix, func_addr)
-
-        if key not in self._stack_dict:
-            l.warning("Key %s is not in stack dict. It might be caused by " +
-                      "an unexpected exit target.", hex(key) if isinstance(key, (int, long)) else key)
-            self.call(callstack_suffix, func_addr)
-        self._stack_dict[key].append(bbl)
-
-    def in_stack(self, callstack_suffix, func_addr, bbl):
-        key = self._get_key(callstack_suffix, func_addr)
-
-        if key in self._stack_dict:
-            return bbl in self._stack_dict[key]
-        return False
-
-    def __repr__(self):
-        s = [ ]
-        for key, stack in self._stack_dict.iteritems():
-            s_ = ", ".join([ (hex(k) if k is not None else "None") for k in key ])
-            s_ = "[" + s_ + "]:\n  "
-            s_ += " -> ".join([ hex(k) for k in stack ])
-
-            s.append(s_)
-
-        return "\n".join(s)
-
-
 class EntryWrapper(object):
     """
     Describes an entry in CFG or VFG. Only used internally by the analysis.
     """
     def __init__(self, addr, path, context_sensitivity_level, simrun_key=None, src_simrun_key=None,
-                 src_exit_stmt_idx=None, jumpkind=None, call_stack=None, bbl_stack=None, is_narrowing=False,
+                 src_exit_stmt_idx=None, jumpkind=None, call_stack=None, is_narrowing=False,
                  skip=False, final_return_address=None, continue_at=None):
         self.addr = addr  # Note that addr may not always be equal to self.path.addr (for syscalls, for example)
         self._path = path
@@ -214,15 +152,6 @@ class EntryWrapper(object):
         else:
             self._call_stack = call_stack
 
-        if bbl_stack is None:
-            self._bbl_stack = BBLStack()
-            # Initialize the BBL stack
-            self._bbl_stack.call(self._call_stack.stack_suffix(self._context_sensitivity_level), path.addr)
-        else:
-            self._bbl_stack = bbl_stack
-
-        assert self._call_stack is not None and self._bbl_stack is not None
-
     @property
     def path(self):
         return self._path
@@ -237,18 +166,6 @@ class EntryWrapper(object):
     def get_call_stack_suffix(self):
         return self._call_stack.stack_suffix(self._context_sensitivity_level)
 
-    def bbl_stack_push(self, call_stack_suffix, function_addr, bbl_addr):
-        self._bbl_stack.push(call_stack_suffix, function_addr, bbl_addr)
-
-    def bbl_in_stack(self, call_stack_suffix, function_addr, bbl_addr):
-        return self._bbl_stack.in_stack(call_stack_suffix, function_addr, bbl_addr)
-
-    def bbl_stack(self):
-        return self._bbl_stack
-
-    def bbl_stack_copy(self):
-        return self._bbl_stack.copy()
-
     @property
     def func_addr(self):
         return self._call_stack.current_function_address
@@ -256,10 +173,6 @@ class EntryWrapper(object):
     @property
     def current_stack_pointer(self):
         return self._call_stack.current_stack_pointer
-
-    @property
-    def accessed_registers_in_function(self):
-        return self._call_stack.current_function_accessed_registers
 
     def __repr__(self):
         return "<Entry %#08x %% %s>" % (self.addr, self.jumpkind)

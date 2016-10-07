@@ -1,9 +1,11 @@
 
 import collections
 from itertools import dropwhile
+import logging
 
 import simuvex
 
+l = logging.getLogger('angr.call_stack')
 
 class CallFrame(object):
     """
@@ -326,7 +328,6 @@ class CallStack(object):
             self._callstack = self._callstack[: levels]
 
         else:
-            import ipdb; ipdb.set_trace()
             l.warning("Returning to an unexpected address %#x", retn_target)
 
             # For Debugging

@@ -45,7 +45,8 @@ class BaseGoal(object):
     # Private methods
     #
 
-    def _get_cfg_node(self, cfg, path):
+    @staticmethod
+    def _get_cfg_node(cfg, path):
         """
         Get the CFGNode object on the control flow graph given an angr path.
 
@@ -77,7 +78,8 @@ class BaseGoal(object):
 
         return cfg.get_node(simrun_key)
 
-    def _dfs_edges(self, graph, source, max_steps=None):
+    @staticmethod
+    def _dfs_edges(graph, source, max_steps=None):
         """
         Perform a depth-first search on the given DiGraph, with a limit on maximum steps.
 
@@ -173,7 +175,7 @@ class CallFunctionGoal(BaseGoal):
         self.arguments = arguments
 
         if self.arguments is not None:
-            for i, arg in enumerate(self.arguments):
+            for arg in self.arguments:
                 if arg is not None:
                     if len(arg) != 2:
                         raise AngrDirectorError('Each argument must be either None or a 2-tuple contains argument ' +
@@ -181,6 +183,10 @@ class CallFunctionGoal(BaseGoal):
                                                 )
 
                     arg_type, expected_value = arg
+
+                    if not isinstance(arg_type, simuvex.s_type.SimType):
+                        raise AngrDirectorError('Each argument type must be an instance of simuvex.SimType.')
+
                     if isinstance(expected_value, claripy.ast.Base) and expected_value.symbolic:
                         raise AngrDirectorError('Symbolic arguments are not supported.')
 
@@ -247,7 +253,8 @@ class CallFunctionGoal(BaseGoal):
     # Private methods
     #
 
-    def _compare_arguments(self, state, arg_type, expected_value, real_value):
+    @staticmethod
+    def _compare_arguments(state, arg_type, expected_value, real_value):
         """
 
         :param simuvex.SimState state:
@@ -280,10 +287,7 @@ class CallFunctionGoal(BaseGoal):
                     # we do not support symbolic arguments
                     return False
 
-                if state.se.any_int(real_string) == state.se.any_int(expected_value):
-                    return True
-                else:
-                    return False
+                return state.se.any_int(real_string) == state.se.any_int(expected_value)
 
             else:
                 l.error('Unsupported argument type %s in _compare_arguments(). Please bug Fish to implement.', arg_type)
@@ -314,7 +318,7 @@ class Director(ExplorationTechnique):
         Constructor.
         """
 
-        super(ExplorationTechnique, self).__init__()
+        super(Director, self).__init__()
 
         self._peek_blocks = peek_blocks
         self._peek_functions = peek_functions

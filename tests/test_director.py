@@ -6,7 +6,6 @@ import logging
 import nose.tools
 
 import angr
-import simuvex
 from simuvex.s_type import SimTypePointer, SimTypeChar
 
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
@@ -27,8 +26,6 @@ def test_execute_address_brancher():
 
     nose.tools.assert_greater(len(pg.deprioritized), 0)
 
-    # TODO: finish this test case
-
 def test_call_function_brancher():
 
     p = angr.Project(os.path.join(test_location, 'x86_64', 'brancher'), load_options={'auto_load_libs': False})
@@ -37,7 +34,7 @@ def test_call_function_brancher():
 
     # initialize the exploration technique
     dm = angr.exploration_techniques.Director(cfg_keep_states=True)
-    cfg = p.analyses.CFG()
+    _ = p.analyses.CFG()
     puts_func = p.kb.functions.function(name='puts')
     goal = angr.exploration_techniques.CallFunctionGoal(puts_func, [(SimTypePointer(SimTypeChar()), ">=20")])
     dm.add_goal(goal)

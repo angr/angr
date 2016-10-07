@@ -61,7 +61,7 @@ class CFGJob(EntryWrapper):
 
 
 class PendingExit(object):
-    def __init__(self, returning_source, state, src_simrun_key, src_exit_stmt_idx, bbl_stack, call_stack):
+    def __init__(self, returning_source, state, src_simrun_key, src_exit_stmt_idx, call_stack):
         """
         PendingExit is whatever will be put into our pending_exit list. A pending exit is an entry that created by the
         returning of a call or syscall. It is "pending" since we cannot immediately figure out whether this entry will
@@ -76,7 +76,6 @@ class PendingExit(object):
         :param state:               The state after returning from the callee function. Of course there is no way to get
                                     a precise state without emulating the execution of the callee, but at least we can
                                     properly adjust the stack and registers to imitate the real returned state.
-        :param bbl_stack:           A basic block stack.
         :param call_stack:          A callstack.
         """
 
@@ -84,7 +83,6 @@ class PendingExit(object):
         self.state = state
         self.src_simrun_key = src_simrun_key
         self.src_exit_stmt_idx = src_exit_stmt_idx
-        self.bbl_stack = bbl_stack
         self.call_stack = call_stack
 
     def __repr__(self):
@@ -223,6 +221,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         self._nodes = {}
         self._nodes_by_addr = defaultdict(list)
+        self._start_keys = [ ]  # a list of SimRun keys of all starts
 
         # For each call, we are always getting two exits: an Ijk_Call that
         # stands for the real call exit, and an Ijk_Ret that is a simulated exit
@@ -231,7 +230,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # imprecision of the concrete execution. So we save those simulated
         # exits here to increase our code coverage. Of course the real retn from
         # that call always precedes those "fake" retns.
-        # Tuple --> (Initial state, call_stack, bbl_stack)
+        # Tuple --> (Initial state, call_stack)
         self._pending_entries = { }
 
         # Counting how many times a basic block is traced into
@@ -300,16 +299,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         self._analyze()
 
-    def get_lbe_exits(self):
-        """
-        -> Generator
-        Returns a generator of exits of the loops
-        based on the back egdes
-        """
-        for lirsb, _ in self._loop_back_edges:
-            exits = lirsb.exits()
-            yield exits
-
     def remove_cycles(self):
         l.debug("Removing cycles...")
         l.debug("There are %d loop back edges.", len(self._loop_back_edges))
@@ -342,110 +331,29 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             raise AngrCFGError('Max loop unrolling times must be set to an integer greater than or equal to 0 if ' +
                                'loop unrolling is enabled.')
 
-        # Traverse the CFG and try to find the beginning of loops
-        loop_backedges = []
-
-        start = self._starts[0]
-        if isinstance(start, tuple):
-            start, _ = start  # pylint: disable=unpacking-non-sequence
-        start_node = self.get_any_node(start)
-        if start_node is None:
-            raise AngrCFGError('Cannot find start node when trying to unroll loops. The CFG might be empty.')
-
-        graph_copy = networkx.DiGraph(self.graph)
-
-        while True:
-            cycles_iter = networkx.simple_cycles(graph_copy)
-            try:
-                cycle = cycles_iter.next()
-            except StopIteration:
-                break
-
-            loop_backedge = (None, None)
-
-            for n in networkx.dfs_preorder_nodes(graph_copy, source=start_node):
-                if n in cycle:
-                    idx = cycle.index(n)
-                    if idx == 0:
-                        loop_backedge = (cycle[-1], cycle[idx])
-                    else:
-                        loop_backedge = (cycle[idx - 1], cycle[idx])
-                    break
-
-            if loop_backedge not in loop_backedges:
-                loop_backedges.append(loop_backedge)
-
-            # Create a common end node for all nodes whose out_degree is 0
-            end_nodes = [n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0]
-            new_end_node = "end_node"
-
-            if len(end_nodes) == 0:
-                # We gotta randomly break a loop
-                cycles = sorted(networkx.simple_cycles(graph_copy), key=len)
-                first_cycle = cycles[0]
-                if len(first_cycle) == 1:
-                    graph_copy.remove_edge(first_cycle[0], first_cycle[0])
-                else:
-                    graph_copy.remove_edge(first_cycle[0], first_cycle[1])
-                end_nodes = [n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0]
-
-            for en in end_nodes:
-                graph_copy.add_edge(en, new_end_node)
-
-            # postdoms = self.immediate_postdominators(new_end_node, target_graph=graph_copy)
-            # reverse_postdoms = defaultdict(list)
-            # for k, v in postdoms.iteritems():
-            #    reverse_postdoms[v].append(k)
-
-            # Find all loop bodies
-            # for src, dst in loop_backedges:
-            #    nodes_in_loop = { src, dst }
-
-            #    while True:
-            #        new_nodes = set()
-
-            #        for n in nodes_in_loop:
-            #            if n in reverse_postdoms:
-            #                for node in reverse_postdoms[n]:
-            #                    if node not in nodes_in_loop:
-            #                        new_nodes.add(node)
-
-            #        if not new_nodes:
-            #            break
-
-            #        nodes_in_loop |= new_nodes
-
-            # Unroll the loop body
-            # TODO: Finish the implementation
-
-            graph_copy.remove_node(new_end_node)
+        def _unroll(graph, loop_backedge, cycle):
             src, dst = loop_backedge
-            if graph_copy.has_edge(src, dst):  # It might have been removed before
+            if graph.has_edge(src, dst):  # It might have been removed before
                 # Duplicate the dst node
                 new_dst = dst.copy()
                 new_dst.looping_times = dst.looping_times + 1
-                if (
-                        new_dst not in graph_copy and
+                if (new_dst not in graph and
                         # If the new_dst is already in the graph, we don't want to keep unrolling
                         # the this loop anymore since it may *create* a new loop. Of course we
                         # will lose some edges in this way, but in general it is acceptable.
-                        new_dst.looping_times <= max_loop_unrolling_times):
+                        new_dst.looping_times <= max_loop_unrolling_times
+                    ):
                     # Log all successors of the dst node
-                    dst_successors = graph_copy.successors(dst)
+                    dst_successors = graph.successors(dst)
                     # Add new_dst to the graph
-                    edge_data = graph_copy.get_edge_data(src, dst)
-                    graph_copy.add_edge(src, new_dst, **edge_data)
+                    edge_data = graph.get_edge_data(src, dst)
+                    graph.add_edge(src, new_dst, **edge_data)
                     for ds in dst_successors:
                         if ds.looping_times == 0 and ds not in cycle:
-                            edge_data = graph_copy.get_edge_data(dst, ds)
-                            graph_copy.add_edge(new_dst, ds, **edge_data)
-                # Remove the original edge
-                graph_copy.remove_edge(src, dst)
+                            edge_data = graph.get_edge_data(dst, ds)
+                            graph.add_edge(new_dst, ds, **edge_data)
 
-        # Update loop backedges
-        self._loop_back_edges = loop_backedges
-
-        self._graph = graph_copy
+        self._detect_loops(loop_backedge_callback=_unroll)
 
     def immediate_dominators(self, start, target_graph=None):
         return self._immediate_dominators(start, target_graph=target_graph, reverse_graph=False)
@@ -737,17 +645,28 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             elif isinstance(item, Path):
                 # angr.Path
                 # now we can get a usable callstack from it
-                state = item.state
-                ip = item.addr
-                callstack = item.callstack
+                path = item
+                state = path.state
+                ip = path.addr
+                callstack = path.callstack
 
             self._symbolic_function_initial_state[ip] = state
 
             entry_path = self.project.factory.path(state)
 
             # try to get a callstack from an existing node if it exists
+            continue_at = None
+            if self.project.is_hooked(ip) and \
+                    self.project.hooked_by(ip) is simuvex.s_procedure.SimProcedureContinuation and \
+                    state.procedure_data.callstack:
+                continue_at = state.procedure_data.callstack[-1][1]
 
-            path_wrapper = CFGJob(ip, entry_path, self._context_sensitivity_level, None, None, call_stack=callstack)
+            path_wrapper = CFGJob(ip, entry_path, self._context_sensitivity_level, None, None, call_stack=callstack,
+                                  continue_at=continue_at
+                                  )
+            key = path_wrapper.simrun_key
+            if key not in self._start_keys:
+                self._start_keys.append(key)
 
             self._insert_entry(path_wrapper)
 
@@ -848,7 +767,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         pending_entry = self._pending_entries.pop(pending_entry_key)
         pending_entry_state = pending_entry.state
         pending_entry_call_stack = pending_entry.call_stack
-        pending_entry_bbl_stack = pending_entry.bbl_stack
         pending_entry_src_simrun_key = pending_entry.src_simrun_key
         pending_entry_src_exit_stmt_idx = pending_entry.src_exit_stmt_idx
 
@@ -875,7 +793,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                        src_simrun_key=pending_entry_src_simrun_key,
                        src_exit_stmt_idx=pending_entry_src_exit_stmt_idx,
                        call_stack=pending_entry_call_stack,
-                       bbl_stack=pending_entry_bbl_stack
         )
         l.debug("Tracing a missing return exit %s", self._simrun_key_repr(pending_entry_key))
 
@@ -913,10 +830,13 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     def _post_analysis(self):
         """
-        Post-CFG-construction
+        Post-CFG-construction.
 
         :return: None
         """
+
+        # loop detection
+        self._detect_loops()
 
         # Create all pending edges
         for _, edges in self._pending_edges.iteritems():
@@ -928,9 +848,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Perform function calling convention analysis
         self._analyze_calling_conventions()
-
-        # Normalize all loop backedges
-        self._normalize_loop_backedges()
 
         CFGBase._post_analysis(self)
 
@@ -1477,30 +1394,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                             continue_at=continue_at
                                             )
 
-        if isinstance(entry.simrun, simuvex.SimIRSB):
-            self._detect_loop(entry.simrun,
-                              new_tpl,
-                              entry.simrun_key,
-                              new_call_stack_suffix,
-                              target_addr,
-                              suc_jumpkind,
-                              entry_wrapper,
-                              entry.func_addr)
-
-        # Generate the new BBL stack of target block
-        if self._is_call_jumpkind(suc_jumpkind):
-            new_bbl_stack = entry_wrapper.bbl_stack_copy()
-            new_bbl_stack.call(new_call_stack_suffix, target_addr)
-            new_bbl_stack.push(new_call_stack_suffix, target_addr, target_addr)
-        elif suc_jumpkind == "Ijk_Ret":
-            new_bbl_stack = entry_wrapper.bbl_stack_copy()
-            new_bbl_stack.ret(entry.call_stack_suffix, entry.func_addr)
-        elif suc_jumpkind == "Ijk_FakeRet":
-            new_bbl_stack = entry_wrapper.bbl_stack_copy()
-        else:
-            new_bbl_stack = entry_wrapper.bbl_stack_copy()
-            new_bbl_stack.push(new_call_stack_suffix, entry.func_addr, target_addr)
-
         new_path = self.project.factory.path(new_state)
         # We might have changed the mode for this basic block
         # before. Make sure it is still running in 'fastpath' mode
@@ -1512,7 +1405,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     src_simrun_key=entry.simrun_key,
                     src_exit_stmt_idx=suc_exit_stmt_idx,
                     call_stack=new_call_stack,
-                    bbl_stack=new_bbl_stack,
                     continue_at=continue_at,
         )
 
@@ -1534,7 +1426,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                              st,
                              entry.simrun_key,
                              suc_exit_stmt_idx,
-                             new_bbl_stack,
                              new_call_stack)
             self._pending_entries[new_tpl] = pe
             entry.successor_status[state] = "Pended"
@@ -2639,97 +2530,73 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     # Private methods - loops and graph normalization
 
-    def _detect_loop(self, sim_run, new_tpl, simrun_key, new_call_stack_suffix, new_addr, new_jumpkind,
-                     current_exit_wrapper, current_function_addr):
+    def _detect_loops(self, loop_backedge_callback=None):
         """
         Loop detection.
 
-        :param sim_run:
-        :param new_tpl:
-        :param simrun_key:
-        :param new_call_stack_suffix:
-        :param new_addr:
-        :param new_jumpkind:
-        :param current_exit_wrapper:
-        :param current_function_addr:
-        :return:
+        :param func loop_backedge_callback: A callback function for each detected loop backedge.
+        :return: None
         """
-        assert isinstance(sim_run, simuvex.SimIRSB)
 
-        if new_jumpkind.startswith("Ijk_Sys"):
-            return
+        # Traverse the CFG and try to find the beginning of loops
+        loop_backedges = [ ]
 
-        # Loop detection only applies to SimIRSBs
-        # The most f****** case: An IRSB branches to itself
-        if new_tpl == simrun_key:
-            l.debug("%s is branching to itself. That's a loop.", sim_run)
-            if (sim_run.addr, sim_run.addr) not in self._loop_back_edges_set:
-                self._loop_back_edges_set.add((sim_run.addr, sim_run.addr))
-                self._loop_back_edges.append((simrun_key, new_tpl))
-        elif new_jumpkind != "Ijk_Call" and new_jumpkind != "Ijk_Ret" and \
-                current_exit_wrapper.bbl_in_stack(
-                    new_call_stack_suffix, current_function_addr, new_addr):
-            '''
-            There are two cases:
-            # The loop header we found is a single IRSB that doesn't overlap with
-            other IRSBs
-            or
-            # The loop header we found is a subset of the original loop header IRSB,
-            as IRSBa could be inside IRSBb if they don't start at the same address but
-            end at the same address
-            We should take good care of these two cases.
-            '''  # pylint:disable=W0105
-            # First check if this is an overlapped loop header
-            next_irsb = self._nodes[new_tpl]
+        start_key = self._start_keys[0]
+        start_node = self.get_node(start_key)
+        if start_node is None:
+            raise AngrCFGError('Cannot find start node when trying to unroll loops. The CFG might be empty.')
 
-            other_preds = set()
+        graph_copy = networkx.DiGraph(self.graph)
 
-            for node in self._nodes_by_addr[next_irsb.addr]:
-                predecessors = self.graph.predecessors(node)
-                for pred in predecessors:
-                    if pred.addr != sim_run.addr:
-                        other_preds.add(pred)
+        while True:
+            cycles_iter = networkx.simple_cycles(graph_copy)
+            try:
+                cycle = cycles_iter.next()
+            except StopIteration:
+                break
 
-            if len(other_preds) > 0:
-                is_overlapping = False
-                for p in other_preds:
-                    if isinstance(p, simuvex.SimIRSB):
-                        if p.addr + p.irsb.size() == sim_run.addr + sim_run.irsb.size():
-                            # Overlapping!
-                            is_overlapping = True
-                            break
-                if is_overlapping:
-                    # Case 2, it's overlapped with another loop header
-                    # Pending. We should remove all exits from sim_run
-                    self._overlapped_loop_headers.append(sim_run)
-                    l.debug("Found an overlapped loop header %s", sim_run)
+            loop_backedge = (None, None)
+
+            for n in networkx.dfs_preorder_nodes(graph_copy, source=start_node):
+                if n in cycle:
+                    idx = cycle.index(n)
+                    if idx == 0:
+                        loop_backedge = (cycle[-1], cycle[idx])
+                    else:
+                        loop_backedge = (cycle[idx - 1], cycle[idx])
+                    break
+
+            if loop_backedge not in loop_backedges:
+                loop_backedges.append(loop_backedge)
+
+            # Create a common end node for all nodes whose out_degree is 0
+            end_nodes = [n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0]
+            new_end_node = "end_node"
+
+            if len(end_nodes) == 0:
+                # We gotta randomly break a loop
+                cycles = sorted(networkx.simple_cycles(graph_copy), key=len)
+                first_cycle = cycles[0]
+                if len(first_cycle) == 1:
+                    graph_copy.remove_edge(first_cycle[0], first_cycle[0])
                 else:
-                    # Case 1
-                    if (sim_run.addr, next_irsb.addr) not in self._loop_back_edges_set:
-                        self._loop_back_edges_set.add((sim_run.addr, next_irsb.addr))
-                        self._loop_back_edges.append((simrun_key, new_tpl))
-                        l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
-            else:
-                # Case 1, it's not over lapping with any other things
-                if (sim_run.addr, next_irsb.addr) not in self._loop_back_edges_set:
-                    self._loop_back_edges_set.add((sim_run.addr, next_irsb.addr))
-                    self._loop_back_edges.append((simrun_key, new_tpl))
-                l.debug("Found a loop, back edge %s --> %s", sim_run, next_irsb)
+                    graph_copy.remove_edge(first_cycle[0], first_cycle[1])
+                end_nodes = [n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0]
 
-    def _normalize_loop_backedges(self):
-        """
-        Convert loop_backedges from tuples of simrun keys to real edges in self.graph.
-        """
+            for en in end_nodes:
+                graph_copy.add_edge(en, new_end_node)
 
-        loop_backedges = []
+            graph_copy.remove_node(new_end_node)
 
-        for src_key, dst_key in self._loop_back_edges:
-            src = self._nodes[src_key]
-            dst = self._nodes[dst_key]
+            if loop_backedge_callback is not None:
+                loop_backedge_callback(graph_copy, loop_backedge, cycle)
 
-            loop_backedges.append((src, dst))
+            if graph_copy.has_edge(*loop_backedge):
+                graph_copy.remove_edge(*loop_backedge)
 
+        # Update loop backedges and graph
         self._loop_back_edges = loop_backedges
+        self._graph = graph_copy
 
     # Private methods - function/procedure/subroutine analysis
     # Including calling convention, function arguments, etc.
