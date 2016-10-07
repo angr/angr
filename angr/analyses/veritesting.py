@@ -99,15 +99,16 @@ class CallTracingFilter(object):
             new_blacklist.append(addr)
             tracing_filter = CallTracingFilter(self.project, depth=self.depth + 1, blacklist=new_blacklist)
             cfg = self.project.analyses.CFGAccurate(starts=((addr, jumpkind),),
-                                               initial_state=call_target_state,
-                                               context_sensitivity_level=0,
-                                               call_depth=1,
-                                               call_tracing_filter=tracing_filter.filter
-                                               )
+                                                    initial_state=call_target_state,
+                                                    context_sensitivity_level=0,
+                                                    call_depth=1,
+                                                    call_tracing_filter=tracing_filter.filter,
+                                                    normalize=True
+                                                    )
             self.cfg_cache[cfg_key] = (cfg, tracing_filter)
 
             try:
-                cfg.unroll_loops(1)
+                cfg.force_unroll_loops(1)
             except AngrCFGError:
                 # Exceptions occurred during loop unrolling
                 # reject
@@ -544,11 +545,11 @@ class Veritesting(Analysis):
                 context_sensitivity_level=0,
                 call_depth=1,
                 call_tracing_filter=filter,
-                initial_state=cfg_initial_state
+                initial_state=cfg_initial_state,
+                normalize=True,
             )
-            cfg.normalize()
             cfg_graph_with_loops = networkx.DiGraph(cfg.graph)
-            cfg.unroll_loops(self._loop_unrolling_limit)
+            cfg.force_unroll_loops(self._loop_unrolling_limit)
             self.cfg_cache[cfg_key] = (cfg, cfg_graph_with_loops)
 
         return cfg, cfg_graph_with_loops
@@ -581,14 +582,14 @@ class Veritesting(Analysis):
         # Remove all "FakeRet" edges
         fakeret_edges = [
             (src, dst) for src, dst, data in graph.edges_iter(data=True)
-            if data['jumpkind'] == 'Ijk_FakeRet'
+            if data['jumpkind'] in ('Ijk_FakeRet', 'Ijk_Exit')
         ]
         graph.remove_edges_from(fakeret_edges)
 
         # Remove all "FakeRet" edges from cyclic_graph as well
         fakeret_edges = [
             (src, dst) for src, dst, data in reversed_cyclic_graph.edges_iter(data=True)
-            if data['jumpkind'] == 'Ijk_FakeRet'
+            if data['jumpkind'] in ('Ijk_FakeRet', 'Ijk_Exit')
         ]
         reversed_cyclic_graph.remove_edges_from(fakeret_edges)
 
