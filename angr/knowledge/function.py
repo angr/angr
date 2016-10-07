@@ -80,7 +80,7 @@ class Function(object):
         self.sp_delta = 0
 
         # Calling convention
-        self.call_convention = None
+        self.calling_convention = None
 
         # Whether this function returns or not. `None` means it's not determined yet
         self.returning = None
@@ -356,7 +356,7 @@ class Function(object):
             (self._argument_registers,
              self._argument_stack_variables)
         s += '  Blocks: [%s]\n' % ", ".join(['%#x' % i.addr for i in self._local_blocks])
-        s += "  Calling convention: %s" % self.call_convention
+        s += "  Calling convention: %s" % self.calling_convention
         return s
 
     def __repr__(self):
@@ -716,10 +716,10 @@ class Function(object):
 
     @property
     def arguments(self):
-        if self.call_convention is None:
+        if self.calling_convention is None:
             return self._argument_registers + self._argument_stack_variables
         else:
-            return self.call_convention.args
+            return self.calling_convention.args
 
     @property
     def has_return(self):

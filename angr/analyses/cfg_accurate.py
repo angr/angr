@@ -1128,14 +1128,15 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # Well, there is just no successors. What can you expect?
                 pass
 
-        # TODO: replace it with a DDG-based I/O analysis
+        # TODO: replace it with a DDG-based function IO analysis
         # handle all actions
-        #if successors:
-        #    self._handle_actions(successors[0],
-        #                         simrun,
-        #                         entry.current_function,
-        #                         entry.current_stack_pointer,
-        #                         entry.accessed_registers_in_function)
+        if successors:
+            self._handle_actions(successors[0],
+                                 simrun,
+                                 entry.current_function,
+                                 entry.current_stack_pointer,
+                                 set(),
+                                 )
 
         return successors
 
@@ -1487,7 +1488,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     if (self.project.arch.call_pushes_ret and addr >= new_sp_addr) or \
                             (not self.project.arch.call_pushes_ret and addr >= new_sp_addr):
                         # TODO: What if a variable locates higher than the stack is modified as well? We probably want
-                        # to make sure the accessing address falls in the range of stack
+                        # TODO: to make sure the accessing address falls in the range of stack
                         offset = addr - new_sp_addr
                         func._add_argument_stack_variable(offset)
                 elif a.type == "reg":
@@ -2572,7 +2573,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         l.debug("Analyzing calling conventions of each function.")
 
         for func in self.kb.functions.values():
-            if func.call_convention is not None:
+            if func.calling_convention is not None:
                 continue
 
             #
@@ -2582,7 +2583,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self._refine_function_arguments(func, callsites)
 
             # Set the calling convention
-            func.call_convention = func._match_cc()
+            func.calling_convention = func._match_cc()
 
     def _refine_function_arguments(self, func, callsites):
         """

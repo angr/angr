@@ -16,19 +16,19 @@ def test_simcc_x86_64():
 
     f_arg1 = p.kb.functions['arg1']
     nose.tools.assert_not_equal(f_arg1, None)
-    nose.tools.assert_equal(type(f_arg1.call_convention), SimCCSystemVAMD64)
+    nose.tools.assert_equal(type(f_arg1.calling_convention), SimCCSystemVAMD64)
     nose.tools.assert_equal(len(f_arg1.arguments), 1)
     nose.tools.assert_equal(f_arg1.arguments[0].reg_name, 'rdi')
 
     f_arg7 = p.kb.functions['arg7']
     nose.tools.assert_not_equal(f_arg7, None)
-    nose.tools.assert_equal(type(f_arg7.call_convention), SimCCSystemVAMD64)
+    nose.tools.assert_equal(type(f_arg7.calling_convention), SimCCSystemVAMD64)
     nose.tools.assert_equal(len(f_arg7.arguments), 7)
     nose.tools.assert_equal(f_arg7.arguments[1].reg_name, 'rsi')
 
     f_arg9 = p.kb.functions.function(name='arg9')
     nose.tools.assert_not_equal(f_arg9, None)
-    nose.tools.assert_equal(type(f_arg9.call_convention), SimCCSystemVAMD64)
+    nose.tools.assert_equal(type(f_arg9.calling_convention), SimCCSystemVAMD64)
     nose.tools.assert_equal(len(f_arg9.arguments), 9)
     nose.tools.assert_equal(f_arg9.arguments[8].stack_offset, 0x8 + 0x8 * 2)
 
