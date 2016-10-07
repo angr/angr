@@ -1258,7 +1258,8 @@ class Unicorn(SimStatePlugin):
         return True
 
     def check(self):
-        if unicorn is None:
+        if unicorn is None or _UC_NATIVE is None:
+            l.error("You are attempting to use unicorn engine support even though it or the simuvex compatibility layer isn't installed")
             return False
 
         self.countdown_nonunicorn_blocks -= 1
