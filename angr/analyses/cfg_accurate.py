@@ -187,7 +187,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         self._symbolic_function_initial_state = {}
         self._function_input_states = None
-        self._loop_back_edges_set = set()
         self._unresolvable_runs = set()
 
         # Stores the index for each CFGNode in this CFG after a quasi-topological sort (currently a DFS)
@@ -212,7 +211,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # These save input states of functions. It will be discarded after the CFG is constructed
         self._function_input_states = {}
-        self._loop_back_edges_set = set()
         self._loop_back_edges = []
         self._overlapped_loop_headers = []
         self._pending_function_hints = set()
@@ -270,7 +268,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         new_cfg._nodes = self._nodes.copy()
         new_cfg._nodes_by_addr = self._nodes_by_addr.copy() if self._nodes_by_addr is not None else None
         new_cfg._edge_map = self._edge_map.copy()
-        new_cfg._loop_back_edges_set = self._loop_back_edges_set.copy()
         new_cfg._loop_back_edges = self._loop_back_edges[::]
         new_cfg._executable_address_ranges = self._executable_address_ranges[::]
         new_cfg._unresolvable_runs = self._unresolvable_runs.copy()
@@ -331,29 +328,40 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             raise AngrCFGError('Max loop unrolling times must be set to an integer greater than or equal to 0 if ' +
                                'loop unrolling is enabled.')
 
-        def _unroll(graph, loop_backedge, cycle):
-            src, dst = loop_backedge
-            if graph.has_edge(src, dst):  # It might have been removed before
-                # Duplicate the dst node
-                new_dst = dst.copy()
-                new_dst.looping_times = dst.looping_times + 1
-                if (new_dst not in graph and
-                        # If the new_dst is already in the graph, we don't want to keep unrolling
-                        # the this loop anymore since it may *create* a new loop. Of course we
-                        # will lose some edges in this way, but in general it is acceptable.
-                        new_dst.looping_times <= max_loop_unrolling_times
-                    ):
-                    # Log all successors of the dst node
-                    dst_successors = graph.successors(dst)
-                    # Add new_dst to the graph
-                    edge_data = graph.get_edge_data(src, dst)
-                    graph.add_edge(src, new_dst, **edge_data)
-                    for ds in dst_successors:
-                        if ds.looping_times == 0 and ds not in cycle:
-                            edge_data = graph.get_edge_data(dst, ds)
-                            graph.add_edge(new_dst, ds, **edge_data)
+        def _unroll(graph, loop):
+            """
+            The loop callback method where loops are unrolled.
 
-        self._detect_loops(loop_backedge_callback=_unroll)
+            :param networkx.DiGraph graph: The control flow graph.
+            :param angr.analyses.loopfinder.Loop loop: The loop instance.
+            :return: None
+            """
+            for loop_backedge in loop.continue_edges:
+                src, dst = loop_backedge
+                if graph.has_edge(src, dst):  # It might have been removed before
+                    # Duplicate the dst node
+                    new_dst = dst.copy()
+                    new_dst.looping_times = dst.looping_times + 1
+                    if (new_dst not in graph and
+                            # If the new_dst is already in the graph, we don't want to keep unrolling
+                            # the this loop anymore since it may *create* a new loop. Of course we
+                            # will lose some edges in this way, but in general it is acceptable.
+                            new_dst.looping_times <= max_loop_unrolling_times
+                        ):
+                        # Log all successors of the dst node
+                        dst_successors = graph.successors(dst)
+                        # Add new_dst to the graph
+                        edge_data = graph.get_edge_data(src, dst)
+                        graph.add_edge(src, new_dst, **edge_data)
+                        for ds in dst_successors:
+                            if ds.looping_times == 0 and ds not in loop.body_nodes:
+                                edge_data = graph.get_edge_data(dst, ds)
+                                graph.add_edge(new_dst, ds, **edge_data)
+
+                if graph.has_edge(*loop_backedge):
+                    graph.remove_edge(*loop_backedge)
+
+        self._detect_loops(loop_callback=_unroll)
 
     def immediate_dominators(self, start, target_graph=None):
         return self._immediate_dominators(start, target_graph=target_graph, reverse_graph=False)
@@ -835,9 +843,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: None
         """
 
-        # loop detection
-        self._detect_loops()
-
         # Create all pending edges
         for _, edges in self._pending_edges.iteritems():
             for src_node, dst_node, data in edges:
@@ -850,6 +855,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._analyze_calling_conventions()
 
         CFGBase._post_analysis(self)
+
+        # loop detection
+        # only detect loops after potential graph normalization
+        self._detect_loops()
 
     # Entry handling
 
@@ -2530,73 +2539,26 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     # Private methods - loops and graph normalization
 
-    def _detect_loops(self, loop_backedge_callback=None):
+    def _detect_loops(self, loop_callback=None):
         """
         Loop detection.
 
-        :param func loop_backedge_callback: A callback function for each detected loop backedge.
+        :param func loop_callback: A callback function for each detected loop backedge.
         :return: None
         """
 
-        # Traverse the CFG and try to find the beginning of loops
-        loop_backedges = [ ]
+        loop_finder = self.project.analyses.LoopFinder(kb=self.kb, normalize=False)
 
-        start_key = self._start_keys[0]
-        start_node = self.get_node(start_key)
-        if start_node is None:
-            raise AngrCFGError('Cannot find start node when trying to unroll loops. The CFG might be empty.')
+        if loop_callback is not None:
+            graph_copy = networkx.DiGraph(self._graph)
 
-        graph_copy = networkx.DiGraph(self.graph)
+            for loop in loop_finder.loops:  # type: angr.analyses.loopfinder.Loop
+                loop_callback(graph_copy, loop)
 
-        while True:
-            cycles_iter = networkx.simple_cycles(graph_copy)
-            try:
-                cycle = cycles_iter.next()
-            except StopIteration:
-                break
-
-            loop_backedge = (None, None)
-
-            for n in networkx.dfs_preorder_nodes(graph_copy, source=start_node):
-                if n in cycle:
-                    idx = cycle.index(n)
-                    if idx == 0:
-                        loop_backedge = (cycle[-1], cycle[idx])
-                    else:
-                        loop_backedge = (cycle[idx - 1], cycle[idx])
-                    break
-
-            if loop_backedge not in loop_backedges:
-                loop_backedges.append(loop_backedge)
-
-            # Create a common end node for all nodes whose out_degree is 0
-            end_nodes = [n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0]
-            new_end_node = "end_node"
-
-            if len(end_nodes) == 0:
-                # We gotta randomly break a loop
-                cycles = sorted(networkx.simple_cycles(graph_copy), key=len)
-                first_cycle = cycles[0]
-                if len(first_cycle) == 1:
-                    graph_copy.remove_edge(first_cycle[0], first_cycle[0])
-                else:
-                    graph_copy.remove_edge(first_cycle[0], first_cycle[1])
-                end_nodes = [n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0]
-
-            for en in end_nodes:
-                graph_copy.add_edge(en, new_end_node)
-
-            graph_copy.remove_node(new_end_node)
-
-            if loop_backedge_callback is not None:
-                loop_backedge_callback(graph_copy, loop_backedge, cycle)
-
-            if graph_copy.has_edge(*loop_backedge):
-                graph_copy.remove_edge(*loop_backedge)
+            self._graph = graph_copy
 
         # Update loop backedges and graph
-        self._loop_back_edges = loop_backedges
-        self._graph = graph_copy
+        self._loop_back_edges = list(itertools.chain.from_iterable(loop.continue_edges for loop in loop_finder.loops))
 
     # Private methods - function/procedure/subroutine analysis
     # Including calling convention, function arguments, etc.
