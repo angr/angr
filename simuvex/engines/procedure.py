@@ -11,38 +11,39 @@ symbolic_count = itertools.count()
 import pyvex
 import claripy
 
-from .s_run import SimRun
-from .s_cc import DefaultCC
-from .plugins.inspect import BP_BEFORE, BP_AFTER
+from .engine import SimEngine
+from ..s_cc import DefaultCC
+from ..plugins.inspect import BP_BEFORE, BP_AFTER
+from .vex.irsb import SimIRSB
 
-class SimProcedure(SimRun):
+class SimEngineProcedure(SimEngine):
     ADDS_EXITS = False
     NO_RET = False
     IS_SYSCALL = False
 
     local_vars = ()
 
-    def __init__(
-        self,
-        stmt_from=None, convention=None, arguments=None, sim_kwargs=None,
-        run_func_name='run', syscall_name=None, force_bbl_addr=None, **kwargs
+    def _process_request(
+        self, request,
+        ret_to=None, convention=None, arguments=None, sim_kwargs=None,
+        run_func_name='run', syscall_name=None, force_bbl_addr=None,
+        **kwargs
     ):
-        self.kwargs = { } if sim_kwargs is None else sim_kwargs
-        SimRun.__init__(self, state, **kwargs)
+        request.sim_kwargs = { } if sim_kwargs is None else sim_kwargs
 
-        # Save scratch.bbl_addr and scratch.sim_procedure, and restore them later if this is an inlined call
-        old_bbl_addr = self.state.scratch.bbl_addr
-        old_sim_procedure = self.state.scratch.sim_procedure
+        # Save scratch.bbl_addr and scratch.sim_procedure,
+        # and restore them later if this is an inlined call
+        old_bbl_addr = request.active_state.scratch.bbl_addr
+        old_sim_procedure = self.active_state.scratch.sim_procedure
 
         # Update state.scratch
-        self.state.scratch.bbl_addr = self.addr if force_bbl_addr is None else force_bbl_addr
-        self.state.scratch.sim_procedure = self.__class__.__name__
-        self.state.scratch.executed_block_count = 1
+        request.active_state.scratch.bbl_addr = self.addr if force_bbl_addr is None else force_bbl_addr
+        request.active_state.scratch.sim_procedure = self.__class__.__name__
+        request.active_state.scratch.executed_block_count = 1
 
-        self.stmt_from = -1 if stmt_from is None else stmt_from
         self.arguments = arguments
-        self.ret_to = ret_to
-        self.ret_expr = None
+        request.ret_to = ret_to
+        request.ret_expr = None
         self.symbolic_return = False
         self.run_func_name = run_func_name
 
@@ -61,10 +62,10 @@ class SimProcedure(SimRun):
         self.overriding_no_ret = None
 
         # prepare and run!
-        if o.AUTO_REFS not in self.state.options:
+        if o.AUTO_REFS not in request.active_state.options:
             cleanup_options = True
-            self.state.options.add(o.AST_DEPS)
-            self.state.options.add(o.AUTO_REFS)
+            request.active_state.options.add(o.AST_DEPS)
+            request.active_state.options.add(o.AUTO_REFS)
         else:
             cleanup_options = False
 
@@ -80,13 +81,13 @@ class SimProcedure(SimRun):
             self.ret(r)
 
         if cleanup_options:
-            self.state.options.discard(o.AST_DEPS)
-            self.state.options.discard(o.AUTO_REFS)
+            request.active_state.options.discard(o.AST_DEPS)
+            request.active_state.options.discard(o.AUTO_REFS)
 
-        if self._inline:
+        if request.inline:
             # If this is an inlined call, restore old scratch members
-            self.state.scratch.bbl_addr = old_bbl_addr
-            self.state.scratch.sim_procedure = old_sim_procedure
+            request.active_state.scratch.bbl_addr = old_bbl_addr
+            request.active_state.scratch.sim_procedure = old_sim_procedure
 
         self.cleanup()
 
@@ -125,14 +126,6 @@ class SimProcedure(SimRun):
 
     def run(self, *args, **kwargs): #pylint:disable=unused-argument
         raise SimProcedureError("%s does not implement a run() method" % self.__class__.__name__)
-
-    def reanalyze(self, new_state=None, addr=None, stmt_from=None, convention=None):
-        new_state = self.initial_state.copy() if new_state is None else new_state
-        addr = self.addr if addr is None else addr
-        stmt_from = self.stmt_from if stmt_from is None else stmt_from
-        cc = self.cc if convention is None else convention
-
-        return self.__class__(new_state, addr=addr, stmt_from=stmt_from, convention=cc, sim_kwargs=self.kwargs) #pylint:disable=E1124,E1123
 
     def initialize_run(self):
         pass
@@ -188,21 +181,15 @@ class SimProcedure(SimRun):
         return p
 
     # Sets an expression as the return value. Also updates state.
-    def set_return_expr(self, expr):
+    def set_return_expr(self, request, expr):
         if isinstance(expr, (int, long)):
-            expr = self.state.se.BVV(expr, self.state.arch.bits)
+            expr = request.state.se.BVV(expr, self.state.arch.bits)
 
         if o.SIMPLIFY_RETS in self.state.options:
             l.debug("... simplifying")
             l.debug("... before: %s", expr)
             expr = self.state.se.simplify(expr)
             l.debug("... after: %s", expr)
-
-        if self.symbolic_return:
-            size = len(expr)
-            new_expr = self.state.se.Unconstrained("multiwrite_" + self.__class__.__name__, size) #pylint:disable=maybe-no-member
-            self.state.add_constraints(new_expr == expr)
-            expr = new_expr
 
         if self.arguments is not None:
             self.ret_expr = expr
@@ -339,8 +326,7 @@ class SimProcedureContinuation(SimProcedure):
         self.initial_state = state
         return self
 
-from . import s_options as o
-from .s_errors import SimProcedureError, SimProcedureArgumentError
-from .engines.vex.irsb import SimIRSB
-from .s_type import SimTypePointer
-from .s_action import SimActionExit
+from .. import s_options as o
+from ..s_errors import SimProcedureError, SimProcedureArgumentError
+from ..s_type import SimTypePointer
+from ..s_action import SimActionExit

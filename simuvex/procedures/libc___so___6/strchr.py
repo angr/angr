@@ -1,4 +1,5 @@
 import simuvex
+from simuvex.plugins.symbolic_memory import MultiwriteAnnotation
 from simuvex.s_type import SimTypeString, SimTypeInt, SimTypeChar
 
 import logging
@@ -26,10 +27,8 @@ class strchr(simuvex.SimProcedure):
             max_search = self.state.se.any_int(s_strlen.ret_expr)
             a, c, i = self.state.memory.find(s_addr, c, max_search, default=0)
 
-        if len(i) == 0:
-            self.symbolic_return = False
-        else:
-            self.symbolic_return = True
+        if len(i) != 0:
+            a = a.annotate(MultiwriteAnnotation())
             self.state.add_constraints(*c)
 
         return a
