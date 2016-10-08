@@ -31,6 +31,17 @@ class SimEngineRequest(object):
         # the name (for stringification)
         self.custom_name = None
 
+        # some scratch stuff for the VEX engine
+        self.irsb = None
+        self.conditional_guards = None
+        self.last_imark = None
+
+        # some scratch stuff for the SimProcedure engine
+        self.procedure = None
+        self.sim_kwargs = None
+        self.ret_to = None
+        self.ret_expr = None
+
     @property
     def addr(self):
         if self.force_bbl_addr is not None:

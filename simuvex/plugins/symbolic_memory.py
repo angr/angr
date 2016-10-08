@@ -12,8 +12,17 @@ from ..storage.memory_object import SimMemoryObject
 
 DEFAULT_MAX_SEARCH = 8
 
-def _multiwrite_filter(mem, ast):
-    return any("multiwrite" in var for var in mem.state.se.variables(ast))
+class MultiwriteAnnotation(claripy.Annotation):
+    @property
+    def eliminatable(self):
+        return False
+    @property
+    def relocateable(self):
+        return True
+
+def _multiwrite_filter(mem, ast): #pylint:disable=unused-argument
+    # this is a huge hack, but so is the whole multiwrite crap
+    return any(isinstance(a, MultiwriteAnnotation) for a in ast._uneliminateable_annotations)
 
 class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     _CONCRETIZATION_STRATEGIES = [ 'symbolic', 'symbolic_approx', 'any', 'any_approx', 'max', 'max_approx',
@@ -266,7 +275,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 concretization_strategies.SimConcretizationStrategyRange(128)
             )
         else:
-            # we try to find a range of values, but only for things named "multiwrite"
+            # we try to find a range of values, but only for ASTs annotated with the multiwrite annotation
             self.write_strategies.append(concretization_strategies.SimConcretizationStrategyRange(
                 128,
                 filter=_multiwrite_filter
