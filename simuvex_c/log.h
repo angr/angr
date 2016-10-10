@@ -66,4 +66,11 @@ void logStop(int sig);
 }
 #endif
 
+// courtesy of @pwntester on github
+#if defined(__APPLE__)
+  #if !defined(__NR_gettid)
+    #define __NR_gettid SYS_gettid
+  #endif
+#endif
+
 #endif                          /* _LOG_H */
