@@ -719,16 +719,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # Generate the new SimRun key
         new_simrun_key = SimRunKey.new(successor_addr, new_call_stack_suffix, jumpkind)
 
-        # Generate the new BBL stack of target block
-        new_bbl_stack = self._create_bblstack(job,
-                                              jumpkind,
-                                              successor_addr,
-                                              job.is_call_jump,
-                                              job.call_stack_suffix,
-                                              new_call_stack_suffix,
-                                              job.func_addr
-                                              )
-
         #
         # Generate new VFG jobs
         #
@@ -755,7 +745,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 l.debug("%s reaches a fix-point.", new_simrun_key)
                 return [ ]
 
-        new_jobs = self._create_new_jobs(job, successor, new_simrun_key, new_call_stack, new_bbl_stack)
+        new_jobs = self._create_new_jobs(job, successor, new_simrun_key, new_call_stack)
 
         return new_jobs
 
@@ -910,7 +900,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 # TODO: rewind the stack, and pop the correct pending job out of the queue
                 raise NotImplementedError('Task stack rewinding is not implemented yet.')
 
-            state, call_stack, bbl_stack = self._pending_returns.pop(pending_ret_key)
+            state, call_stack = self._pending_returns.pop(pending_ret_key)
             addr = pending_ret_key.addr
 
             # Unlike CFG, we will still trace those blocks that have been traced before. In other words, we don't
@@ -927,7 +917,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                          simrun_key=simrun_key,
                          jumpkind=new_path.state.scratch.jumpkind,
                          call_stack=call_stack,
-                         bbl_stack=bbl_stack
                          )
             self._insert_entry(job)
 
@@ -1306,7 +1295,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return sim_run, error_occured, restart_analysis
 
-    def _create_new_jobs(self, job, successor, new_simrun_key, new_call_stack, new_bbl_stack):
+    def _create_new_jobs(self, job, successor, new_simrun_key, new_call_stack):
         """
         Create a list of new VFG jobs for the successor state.
 
@@ -1314,7 +1303,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         :param simuvex.SimState successor: THe succeeding state.
         :param SimRunKey new_simrun_key: SimRunKey for the new VFGJob
         :param new_call_stack: The new callstack.
-        :param new_bbl_stack: The new basic block stack.
         :return: A list of newly created VFG jobs.
         :rtype: list
         """
@@ -1360,7 +1348,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                                  simrun_key=new_simrun_key,
                                  jumpkind='Ijk_Ret',
                                  call_stack=new_call_stack,
-                                 bbl_stack=new_bbl_stack,
                                  )
 
                 # create the function analysis task, since it should be created when we trace the callee, but we
@@ -1377,7 +1364,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
             else:
                 self._pending_returns[new_simrun_key] = \
-                    (successor_state, new_call_stack, new_bbl_stack)
+                    (successor_state, new_call_stack)
                 job.dbg_exit_status[successor] = "Pending"
 
         else:
@@ -1414,7 +1401,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                              simrun_key=new_simrun_key,
                              jumpkind=successor_path.state.scratch.jumpkind,
                              call_stack=new_call_stack,
-                             bbl_stack=new_bbl_stack,
                              )
             # r = self._worklist_append_entry(new_exit_wrapper)
             # _dbg_exit_status[successor] = r
@@ -1583,21 +1569,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             new_call_stack = entry_wrapper.call_stack
 
         return new_call_stack
-
-    def _create_bblstack(self, entry_wrapper, jumpkind, successor_ip, is_call_jump, call_stack_suffix,
-                         new_call_stack_suffix, current_function_address):
-        if self._is_call_jumpkind(jumpkind):
-            new_bbl_stack = entry_wrapper.bbl_stack_copy()
-            new_bbl_stack.call(new_call_stack_suffix, current_function_address)
-            new_bbl_stack.push(new_call_stack_suffix, current_function_address, successor_ip)
-        elif jumpkind == "Ijk_Ret" and not is_call_jump:
-            new_bbl_stack = entry_wrapper.bbl_stack_copy()
-            new_bbl_stack.ret(call_stack_suffix, current_function_address)
-        else:
-            new_bbl_stack = entry_wrapper.bbl_stack_copy()
-            new_bbl_stack.push(new_call_stack_suffix, current_function_address, successor_ip)
-
-        return new_bbl_stack
 
     def _save_function_initial_state(self, function_key, function_address, state):
         """

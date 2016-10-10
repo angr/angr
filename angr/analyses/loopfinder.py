@@ -33,7 +33,7 @@ class LoopFinder(Analysis):
     Extracts all the loops from all the functions in a binary.
     """
 
-    def __init__(self, functions=None):
+    def __init__(self, functions=None, normalize=True):
         if functions is None:
             functions = self.kb.functions.itervalues()
 
@@ -48,7 +48,8 @@ class LoopFinder(Analysis):
 
             found_any = True
             with self._resilience():
-                function.normalize()
+                if normalize:
+                    function.normalize()
                 tops, alls = self._parse_loops_from_graph(function.graph)
                 self.loops += alls
                 self.loops_hierarchy[function.addr] = tops
@@ -76,8 +77,8 @@ class LoopFinder(Analysis):
             for pred_node in bigg.predecessors(node):
                 if pred_node not in loop_body_nodes:
                     if entry_node is not None and entry_node != node:
-                        l.warning("Bad loop: more than one entry point (%#x, %#x)", entry_node, node)
-                        return []
+                        l.warning("Bad loop: more than one entry point (%s, %s)", entry_node, node)
+                        return None, []
                     entry_node = node
                     entry_edges.append((pred_node, node))
                     subg.add_edge(pred_node, node)
@@ -87,7 +88,7 @@ class LoopFinder(Analysis):
                     subg.add_edge(node, succ_node)
         if entry_node is None:
             entry_node = min(loop_body_nodes, key=lambda n: n.addr)
-            l.info("Couldn't find entry point, assuming it's the first by address (%#x)", entry_node)
+            l.info("Couldn't find entry point, assuming it's the first by address (%s)", entry_node)
 
         acyclic_subg = subg.copy()
         for pred_node in subg.predecessors(entry_node):
@@ -162,8 +163,9 @@ class LoopFinder(Analysis):
                 if len(subg.successors(subg.nodes()[0])) == 0:
                     continue
             thisloop, allloops = self._parse_loop_graph(subg, graph)
-            outall += allloops
-            outtop.append(thisloop)
+            if thisloop is not None:
+                outall += allloops
+                outtop.append(thisloop)
         return outtop, outall
 
 register_analysis(LoopFinder, 'LoopFinder')

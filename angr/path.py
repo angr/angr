@@ -1,160 +1,16 @@
 from os import urandom
 import copy
 import logging
-import collections
 l = logging.getLogger("angr.path")
 
 import simuvex
-import claripy
 import mulpyplexer
+
+from .call_stack import CallFrame, CallStack
 
 #pylint:disable=unidiomatic-typecheck
 
 UNAVAILABLE_RET_ADDR = -1
-
-
-class CallFrame(object):
-    """
-    Stores the address of the function you're in and the value of SP
-    at the VERY BOTTOM of the stack, i.e. points to the return address.
-    """
-    def __init__(self, state=None, func_addr=None, stack_ptr=None, ret_addr=None, jumpkind=None):
-        """
-        Initialize with either a state or the function address,
-        stack pointer, and return address
-        """
-
-        self.jumpkind = jumpkind if jumpkind is not None else (state.scratch.jumpkind if state is not None else None)
-
-        if state is not None:
-            try:
-                self.func_addr = state.se.any_int(state.ip)
-                self.stack_ptr = state.se.any_int(state.regs.sp)
-            except (simuvex.SimUnsatError, simuvex.SimSolverModeError):
-                self.func_addr = None
-                self.stack_ptr = None
-
-            if self.jumpkind and self.jumpkind.startswith('Ijk_Sys'):
-                # syscalls
-                self.ret_addr = state.regs.ip_at_syscall
-            else:
-                # calls
-                if state.arch.call_pushes_ret:
-                    self.ret_addr = state.memory.load(state.regs.sp, state.arch.bits / 8,
-                                                      endness=state.arch.memory_endness, inspect=False
-                                                      )
-                else:
-                    self.ret_addr = state.regs.lr
-
-            # Try to convert the ret_addr to an integer
-            try:
-                self.ret_addr = state.se.any_int(self.ret_addr)
-            except (simuvex.SimUnsatError, simuvex.SimSolverModeError):
-                self.ret_addr = None
-        else:
-            self.func_addr = func_addr
-            self.stack_ptr = stack_ptr
-            self.ret_addr = ret_addr
-
-        self.block_counter = collections.Counter()
-
-    def __str__(self):
-        return "Func %#x, sp=%#x, ret=%#x" % (self.func_addr, self.stack_ptr, self.ret_addr)
-
-    def __repr__(self):
-        return '<CallFrame (Func %#x)>' % (self.func_addr)
-
-    def copy(self):
-        c = CallFrame(state=None, func_addr=self.func_addr, stack_ptr=self.stack_ptr, ret_addr=self.ret_addr,
-                      jumpkind=self.jumpkind
-                      )
-        c.block_counter = collections.Counter(self.block_counter)
-        return c
-
-
-class CallStack(object):
-    """
-    Represents a call stack.
-    """
-    def __init__(self):
-        self._callstack = []
-
-    def __iter__(self):
-        """
-        Iterate through the callstack, from top to bottom
-        (most recent first).
-        """
-        for cf in reversed(self._callstack):
-            yield cf
-
-    def push(self, cf):
-        """
-        Push the :class:`CallFrame` `cf` on the callstack.
-        """
-        self._callstack.append(cf)
-
-    def pop(self):
-        """
-        Pops one :class:`CallFrame` from the callstack.
-
-        :return: A CallFrame.
-        """
-        try:
-            return self._callstack.pop(-1)
-        except IndexError:
-            raise ValueError("Empty CallStack")
-
-    @property
-    def top(self):
-        """
-        Returns the element at the top of the callstack without removing it.
-
-        :return: A CallFrame.
-        """
-        try:
-            return self._callstack[-1]
-        except IndexError:
-            raise ValueError("Empty CallStack")
-
-    def __getitem__(self, k):
-        """
-        Returns the CallFrame at index k, indexing from the top of the stack.
-        """
-        k = -1 - k
-        return self._callstack[k]
-
-    def __len__(self):
-        return len(self._callstack)
-
-    def __repr__(self):
-        return "<CallStack (depth %d)>" % len(self._callstack)
-
-    def __str__(self):
-        return "Backtrace:\n%s" % "\n".join(str(f) for f in self)
-
-    def __eq__(self, other):
-        if not isinstance(other, CallStack):
-            return False
-
-        if len(self) != len(other):
-            return False
-
-        for c1, c2 in zip(self._callstack, other._callstack):
-            if c1.func_addr != c2.func_addr or c1.stack_ptr != c2.stack_ptr or c1.ret_addr != c2.ret_addr:
-                return False
-
-        return True
-
-    def __ne__(self, other):
-        return self != other
-
-    def __hash__(self):
-        return hash(tuple((c.func_addr, c.stack_ptr, c.ret_addr) for c in self._callstack))
-
-    def copy(self):
-        c = CallStack()
-        c._callstack = [cf.copy() for cf in self._callstack]
-        return c
 
 
 class ReverseListProxy(list):
@@ -190,7 +46,9 @@ class Path(object):
             except (simuvex.SimSolverModeError, simuvex.SimUnsatError):
                 stack_ptr = None
 
-            self.callstack.push(CallFrame(state=None, func_addr=self.addr,
+            self.callstack.push(CallFrame(state=None,
+                                          call_site_addr=None,
+                                          func_addr=self.addr,
                                           stack_ptr=stack_ptr,
                                           ret_addr=UNAVAILABLE_RET_ADDR
                                           )
@@ -564,22 +422,28 @@ class Path(object):
 
                 if jumpkind == 'Ijk_Call':
                     if i == len(state.scratch.bbl_addr_list) - 1:
-                        self._manage_callstack_call(state)
+                        call_site_addr = state.scratch.bbl_addr_list[i - 1] if i > 0 else None
+                        self._manage_callstack_call(state=state, call_site_addr=call_site_addr)
                     else:
+                        call_site_addr = state.scratch.bbl_addr_list[i]
                         func_addr = state.scratch.bbl_addr_list[i + 1]
                         stack_ptr = state.scratch.stack_pointer_list[i + 1]
                         ret_addr = bbl_addr + block_size
-                        self._manage_callstack_call(func_addr=func_addr, stack_ptr=stack_ptr, ret_addr=ret_addr)
+                        self._manage_callstack_call(call_site_addr=call_site_addr, func_addr=func_addr,
+                                                    stack_ptr=stack_ptr, ret_addr=ret_addr
+                                                    )
 
                 elif jumpkind.startswith('Ijk_Sys'):
                     if i == len(state.scratch.bbl_addr_list) - 1:
-                        self._manage_callstack_sys(state)
+                        call_site_addr = state.scratch.bbl_addr_list[i - 1] if i > 0 else None
+                        self._manage_callstack_sys(state=state, call_site_addr=call_site_addr)
                     else:
+                        call_site_addr = state.scratch.bbl_addr_list[i]
                         func_addr = state.scratch.bbl_addr_list[i + 1]
                         stack_ptr = state.scratch.stack_pointer_list[i + 1]
                         ret_addr = bbl_addr + block_size
-                        self._manage_callstack_sys(func_addr=func_addr, stack_ptr=stack_ptr, ret_addr=ret_addr,
-                                                   jumpkind=jumpkind
+                        self._manage_callstack_sys(call_site_addr=call_site_addr, func_addr=func_addr,
+                                                   stack_ptr=stack_ptr, ret_addr=ret_addr, jumpkind=jumpkind
                                                    )
 
                 elif jumpkind == 'Ijk_Ret':
@@ -587,31 +451,32 @@ class Path(object):
 
         else:
             # there is only one block
+            call_site_addr = self.previous_run.addr if self.previous_run else None
             if state.scratch.jumpkind == "Ijk_Call":
-                self._manage_callstack_call(state)
+                self._manage_callstack_call(state=state, call_site_addr=call_site_addr)
 
             elif state.scratch.jumpkind.startswith('Ijk_Sys'):
-                self._manage_callstack_sys(state)
+                self._manage_callstack_sys(state=state, call_site_addr=call_site_addr)
 
             elif state.scratch.jumpkind == "Ijk_Ret":
                 self._manage_callstack_ret()
 
             self.callstack.top.block_counter[state.scratch.bbl_addr] += 1
 
-    def _manage_callstack_call(self, state=None, func_addr=None, stack_ptr=None, ret_addr=None):
+    def _manage_callstack_call(self, state=None, call_site_addr=None, func_addr=None, stack_ptr=None, ret_addr=None):
         if state is not None:
-            callframe = CallFrame(state)
+            callframe = CallFrame(state=state, call_site_addr=call_site_addr)
         else:
-            callframe = CallFrame(func_addr=func_addr, stack_ptr=stack_ptr, ret_addr=ret_addr, jumpkind='Ijk_Call')
+            callframe = CallFrame(call_site_addr=call_site_addr, func_addr=func_addr, stack_ptr=stack_ptr, ret_addr=ret_addr, jumpkind='Ijk_Call')
 
         self.callstack.push(callframe)
         self.callstack_backtrace.append((hash(self.callstack), callframe, len(self.callstack)))
 
-    def _manage_callstack_sys(self, state=None, func_addr=None, stack_ptr=None, ret_addr=None, jumpkind=None):
+    def _manage_callstack_sys(self, state=None, call_site_addr=None, func_addr=None, stack_ptr=None, ret_addr=None, jumpkind=None):
         if state is not None:
-            callframe = CallFrame(state)
+            callframe = CallFrame(state=state, call_site_addr=call_site_addr)
         else:
-            callframe = CallFrame(func_addr=func_addr, stack_ptr=stack_ptr, ret_addr=ret_addr, jumpkind=jumpkind)
+            callframe = CallFrame(call_site_addr=call_site_addr, func_addr=func_addr, stack_ptr=stack_ptr, ret_addr=ret_addr, jumpkind=jumpkind)
 
         self.callstack.push(callframe)
         self.callstack_backtrace.append((hash(self.callstack), callframe, len(self.callstack)))
