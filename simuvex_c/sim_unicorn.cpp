@@ -458,7 +458,7 @@ public:
 
 	void cache_page(uint64_t address, size_t size, char* bytes, uint64_t permissions)
 	{
-		printf("caching page %#lx - %#lx.\n", address, address + size);
+		//printf("caching page %#lx - %#lx.\n", address, address + size);
 		// Make sure this page is not overlapping with any existing cached page
 		auto after = page_cache->lower_bound(address);
 		auto before = page_cache->lower_bound(address);
@@ -1052,63 +1052,63 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
  */
 
 extern "C"
-State *alloc(uc_engine *uc, uint64_t cache_key) {
+State *simunicorn_alloc(uc_engine *uc, uint64_t cache_key) {
 	State *state = new State(uc, cache_key);
 	return state;
 }
 
 extern "C"
-void dealloc(State *state) {
+void simunicorn_dealloc(State *state) {
 	delete state;
 }
 
 extern "C"
-uint64_t *bbl_addrs(State *state) {
+uint64_t *simunicorn_bbl_addrs(State *state) {
 	return &(state->bbl_addrs[0]);
 }
 
 extern "C"
-uint64_t *stack_pointers(State *state) {
+uint64_t *simunicorn_stack_pointers(State *state) {
 	return &(state->stack_pointers[0]);
 }
 
 extern "C"
-uint64_t bbl_addr_count(State *state) {
+uint64_t simunicorn_bbl_addr_count(State *state) {
 	return state->bbl_addrs.size();
 }
 
 extern "C"
-uint64_t syscall_count(State *state) {
+uint64_t simunicorn_syscall_count(State *state) {
 	return state->syscall_count;
 }
 
 extern "C"
-void hook(State *state) {
+void simunicorn_hook(State *state) {
 	state->hook();
 }
 
 extern "C"
-void unhook(State *state) {
+void simunicorn_unhook(State *state) {
 	state->unhook();
 }
 
 extern "C"
-uc_err start(State *state, uint64_t pc, uint64_t step) {
+uc_err simunicorn_start(State *state, uint64_t pc, uint64_t step) {
 	return state->start(pc, step);
 }
 
 extern "C"
-void stop(State *state, stop_t reason) {
+void simunicorn_stop(State *state, stop_t reason) {
 	state->stop(reason);
 }
 
 extern "C"
-mem_update_t *sync(State *state) {
+mem_update_t *simunicorn_sync(State *state) {
 	return state->sync();
 }
 
 extern "C"
-void destroy(mem_update_t * head) {
+void simunicorn_destroy(mem_update_t * head) {
 	mem_update_t *next;
 	for (mem_update_t *cur = head; cur; cur = next) {
 		next = cur->next;
@@ -1117,18 +1117,18 @@ void destroy(mem_update_t * head) {
 }
 
 extern "C"
-uint64_t step(State *state) {
+uint64_t simunicorn_step(State *state) {
 	return state->cur_steps;
 }
 
 extern "C"
-void set_stops(State *state, uint64_t count, uint64_t *stops)
+void simunicorn_set_stops(State *state, uint64_t count, uint64_t *stops)
 {
 	state->set_stops(count, stops);
 }
 
 extern "C"
-void activate(State *state, uint64_t address, uint64_t length, uint8_t *taint) {
+void simunicorn_activate(State *state, uint64_t address, uint64_t length, uint8_t *taint) {
 	// LOG_D("activate [%#lx, %#lx]", address, address + length);
 	for (uint64_t offset = 0; offset < length; offset += 0x1000)
 		state->page_activate(address + offset, taint, offset);
@@ -1139,17 +1139,17 @@ void activate(State *state, uint64_t address, uint64_t length, uint8_t *taint) {
 //
 
 extern "C"
-stop_t stop_reason(State *state) {
+stop_t simunicorn_stop_reason(State *state) {
 	return state->stop_reason;
 }
 
 extern "C"
-uint64_t stopping_register(State *state) {
+uint64_t simunicorn_stopping_register(State *state) {
 	return state->stopping_register;
 }
 
 extern "C"
-uint64_t stopping_memory(State *state) {
+uint64_t simunicorn_stopping_memory(State *state) {
 	return state->stopping_memory;
 }
 
@@ -1158,7 +1158,7 @@ uint64_t stopping_memory(State *state) {
 //
 
 extern "C"
-void symbolic_register_data(State *state, uint64_t count, uint64_t *offsets)
+void simunicorn_symbolic_register_data(State *state, uint64_t count, uint64_t *offsets)
 {
 	state->symbolic_registers.clear();
 	for (int i = 0; i < count; i++)
@@ -1168,7 +1168,7 @@ void symbolic_register_data(State *state, uint64_t count, uint64_t *offsets)
 }
 
 extern "C"
-uint64_t get_symbolic_registers(State *state, uint64_t *output)
+uint64_t simunicorn_get_symbolic_registers(State *state, uint64_t *output)
 {
 	int i = 0;
 	for (auto r : state->symbolic_registers)
@@ -1180,13 +1180,13 @@ uint64_t get_symbolic_registers(State *state, uint64_t *output)
 }
 
 extern "C"
-void enable_symbolic_reg_tracking(State *state, VexArch guest, VexArchInfo archinfo) {
+void simunicorn_enable_symbolic_reg_tracking(State *state, VexArch guest, VexArchInfo archinfo) {
 	state->vex_guest = guest;
 	state->vex_archinfo = archinfo;
 }
 
 extern "C"
-void disable_symbolic_reg_tracking(State *state) {
+void simunicorn_disable_symbolic_reg_tracking(State *state) {
 	state->vex_guest = VexArch_INVALID;
 }
 
@@ -1195,18 +1195,18 @@ void disable_symbolic_reg_tracking(State *state) {
 //
 
 extern "C"
-bool is_interrupt_handled(State *state) {
+bool simunicorn_is_interrupt_handled(State *state) {
 	return state->interrupt_handled;
 }
 
 extern "C"
-void set_transmit_sysno(State *state, uint32_t sysno, uint64_t bbl_addr) {
+void simunicorn_set_transmit_sysno(State *state, uint32_t sysno, uint64_t bbl_addr) {
 	state->transmit_sysno = sysno;
 	state->transmit_bbl_addr = bbl_addr;
 }
 
 extern "C"
-transmit_record_t *process_transmit(State *state, uint32_t num) {
+transmit_record_t *simunicorn_process_transmit(State *state, uint32_t num) {
 	if (num >= state->transmit_records.size()) {
 		for (auto record_iter = state->transmit_records.begin();
 				record_iter != state->transmit_records.end();
@@ -1227,7 +1227,7 @@ transmit_record_t *process_transmit(State *state, uint32_t num) {
  */
 
 extern "C"
-bool cache_page(State *state, uint64_t address, uint64_t length, char *bytes, uint64_t permissions) {
+bool simunicorn_cache_page(State *state, uint64_t address, uint64_t length, char *bytes, uint64_t permissions) {
 	LOG_I("caching [%#lx, %#lx]", address, address + length);
 
 	state->cache_page(address, length, bytes, permissions);

@@ -185,9 +185,15 @@ def _load_native():
         uc_engine_t = ctypes.c_void_p
 
         def _setup_prototype(handle, func, restype, *argtypes):
+            realname = 'simunicorn_' + func
+            _setup_prototype_explicit(handle, realname, restype, *argtypes)
+            setattr(handle, func, getattr(handle, realname))
+
+        def _setup_prototype_explicit(handle, func, restype, *argtypes):
             getattr(handle, func).restype = restype
             getattr(handle, func).argtypes = argtypes
 
+        _setup_prototype_explicit(h, 'logSetLogLevel', None, ctypes.c_uint64)
         _setup_prototype(h, 'alloc', state_t, uc_engine_t, ctypes.c_uint64)
         _setup_prototype(h, 'dealloc', None, state_t)
         _setup_prototype(h, 'hook', None, state_t)
@@ -204,7 +210,6 @@ def _load_native():
         _setup_prototype(h, 'stop_reason', stop_t, state_t)
         _setup_prototype(h, 'activate', None, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p)
         _setup_prototype(h, 'set_stops', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
-        _setup_prototype(h, 'logSetLogLevel', None, ctypes.c_uint64)
         _setup_prototype(h, 'cache_page', ctypes.c_bool, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p, ctypes.c_uint64)
         _setup_prototype(h, 'enable_symbolic_reg_tracking', None, state_t, VexArch, _VexArchInfo)
         _setup_prototype(h, 'disable_symbolic_reg_tracking', None, state_t)
@@ -219,8 +224,8 @@ def _load_native():
         l.info('native plugin is enabled')
 
         return h
-    except (OSError, AttributeError):
-        l.warning('failed loading "%s", unicorn support disabled', libfile)
+    except (OSError, AttributeError) as e:
+        l.warning('failed loading "%s", unicorn support disabled (%s)', libfile, e)
         e_type, value, traceback = sys.exc_info()
         raise ImportError, ("Unable to import native SimUnicorn support.", e_type, value), traceback
 
