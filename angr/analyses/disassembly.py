@@ -82,7 +82,7 @@ class Hook(DisassemblyPiece):
         self.addr = addr
         self.parentblock = parentblock
         self.name = str(parentblock.sim_procedure).split()[-1].strip("'<>")
-        self.short_name = str(a).strip("'<>").split('.')[-1]
+        self.short_name = str(parentblock.sim_procedure).strip("'<>").split('.')[-1]
 
     def _render(self, formatting):
         return ['SimProcedure ' + self.short_name]
@@ -106,53 +106,80 @@ class Instruction(DisassemblyPiece):
         self.disect_instruction()
 
     def disect_instruction(self):
+        # perform a "smart split" of an operands string into smaller pieces
         insn_pieces = self.split_op_string(self.insn.op_str)
-        live_pieces = []
+        self.operands = []
+        cur_operand = None
         i = len(insn_pieces) - 1
         cs_op_num = -1
-        serial = 0
+
+        # iterate over operands in reverse order
         while i >= 0:
             c = insn_pieces[i]
             if c == '':
                 i -= 1
                 continue
 
+            if cur_operand is None:
+                cur_operand = []
+                self.operands.append(cur_operand)
+
+            # check if this is a number or an identifier
             ordc = ord(c[0])
             if (ordc >= 0x30 and ordc <= 0x39) or \
                (ordc >= 0x41 and ordc <= 0x5a) or \
                (ordc >= 0x61 and ordc <= 0x7a):
+
+                # perform some basic classification
+                intc = None
+                reg = False
                 try:
                     intc = int(c, 0)
                 except ValueError:
-                    if c in self.project.arch.registers:
-                        live_pieces.append(InstructionRegOperand(c, self, cs_op_num, serial))
-                        serial += 1
-                        insn_pieces[i] = '%s'
-                        if i > 0 and insn_pieces[i-1] in ('$', '%'):
-                            insn_pieces[i-1] = ''
-                    else:
-                        insn_pieces[i] += ' '
-                else:
+                    reg = c in self.project.arch.registers
+
+                # if this is a "live" piece, liven it up!
+                # special considerations:
+                # - registers should consolidate with a $ or % prefix
+                # - integers should consolidate with a sign prefix
+
+                if reg:
+                    prefix = ''
+                    if i > 0 and insn_pieces[i-1] in ('$', '%'):
+                        prefix = insn_pieces[i-1]
+                        insn_pieces[i-1] = ''
+                    cur_operand.append(Register(c, prefix))
+                elif intc is not None:
                     with_sign = False
                     if i > 0 and insn_pieces[i-1] in ('+', '-'):
                         with_sign = True
                         if insn_pieces[i-1] == '-':
                             intc = -intc
                         insn_pieces[i-1] = ''
-                    live_pieces.append(InstructionValOperand(intc, self, with_sign, cs_op_num, serial))
-                    serial += 1
-                    insn_pieces[i] = '%s'
+                    cur_operand.append(Value(intc, with_sign))
+                else:
+                    # XXX STILL A HACK
+                    cur_operand.append(c if c[-1] == ':' else c + ' ')
+
             elif c == ',':
-                insn_pieces[i] = ', '
                 cs_op_num -= 1
-            elif c == ':':
-                insn_pieces[i] = insn_pieces[i-1] + ':'
-                insn_pieces[i-1] = ''
+                cur_operand = None
+            elif c == ':': # XXX this is a hack! fix this later
+                insn_pieces[i-1] += ':'
+            else:
+                if cur_operand is None:
+                    cur_operand = [c]
+                    self.operands.append(cur_operand)
+                else:
+                    cur_operand.append(c)
 
             i -= 1
 
-        self.format = '%-7s ' + ''.join(insn_pieces)
-        self.components = [InstructionOpcode(self)] + list(reversed(live_pieces))
+        self.opcode = Opcode(self)
+        self.operands.reverse()
+        for i, o in enumerate(self.operands):
+            o.reverse()
+            self.operands[i] = Operand(i, o, self)
 
     @staticmethod
     def split_op_string(insn_str):
@@ -171,19 +198,17 @@ class Instruction(DisassemblyPiece):
                 else:
                     in_word = True
                     pieces.append(c)
-            elif c == '%':
-                in_word = False
-                pieces.append('%%')
             else:
                 in_word = False
                 pieces.append(c)
 
         return pieces
 
-    def render(self, formatting):
-        return [self.format % tuple(x.render(formatting)[0] for x in self.components)]
+    def _render(self, formatting):
+        return ['%s %s' % (self.opcode.render(formatting)[0], ', '.join(o.render(formatting)[0] for o in self.operands))]
 
-class InstructionOpcode(DisassemblyPiece):
+
+class Opcode(DisassemblyPiece):
     def __init__(self, parentinsn):
         self.addr = parentinsn.addr
         self.insn = parentinsn.insn
@@ -192,36 +217,63 @@ class InstructionOpcode(DisassemblyPiece):
         self.ident = (self.addr, 'opcode')
 
     def _render(self, formatting):
-        return [self.opcode_string]
+        return [self.opcode_string.ljust(7)]
 
     def __eq__(self, other):
-        return type(other) is InstructionOpcode and self.opcode_string == other.opcode_string
+        return type(other) is Opcode and self.opcode_string == other.opcode_string
 
-class InstructionRegOperand(DisassemblyPiece):
-    def __init__(self, reg, parentinsn, op_num, serial):
+
+class Operand(DisassemblyPiece):
+    def __init__(self, op_num, children, parentinsn):
         self.addr = parentinsn.addr
-        self.reg = reg
+        self.children = children
+        self.parentinsn = parentinsn
         self.op_num = op_num
-        self.ident = (self.addr, 'operand', serial)
+
+        for i, c in enumerate(self.children):
+            if type(c) not in (str, unicode):
+                c.ident = (self.addr, 'operand piece', self.op_num, i)
+                c.parentop = self
+
+    @property
+    def cs_operand(self):
+        return self.parentinsn.insn.operands[self.op_num]
+
+    def _render(self, formatting):
+        return [''.join(x if type(x) in (str, unicode) else x.render(formatting)[0] for x in self.children)]
+
+
+class OperandPiece(DisassemblyPiece): # pylint: disable=abstract-method
+    # These get filled in later...
+    addr = None
+    parentop = None
+    ident = None
+
+
+class Register(OperandPiece):
+    def __init__(self, reg, prefix):
+        self.reg = reg
+        self.prefix = prefix
 
     def _render(self, formatting):
         # TODO: register renaming
-        return [self.reg]
+        return [self.prefix + self.reg]
 
     def __eq__(self, other):
-        return type(other) is InstructionRegOperand and self.reg == other.reg
+        return type(other) is Register and self.reg == other.reg
 
-class InstructionValOperand(DisassemblyPiece):
-    def __init__(self, val, parentinsn, render_with_sign, op_num, serial):
-        self.addr = parentinsn.addr
+
+class Value(OperandPiece):
+    def __init__(self, val, render_with_sign):
         self.val = val
-        self.parentinsn = parentinsn
         self.render_with_sign = render_with_sign
-        self.ident = (self.addr, 'operand', serial)
-        self.project = parentinsn.project
+
+    @property
+    def project(self):
+        return self.parentop.parentinsn.project
 
     def __eq__(self, other):
-        return type(other) is InstructionValOperand and self.val == other.val
+        return type(other) is Value and self.val == other.val
 
     def _render(self, formatting):
         try:
@@ -253,17 +305,18 @@ class InstructionValOperand(DisassemblyPiece):
             else:
                 return ['%#x' % self.val]
 
+
 class Comment(DisassemblyPiece):
     def __init__(self, addr, text):
         self.addr = addr
-        self.text = self.text.split('\n')
+        self.text = text.split('\n')
 
     def _render(self, formatting):
-        return self.text
+        return [self.text]
 
     def height(self, formatting):
-        l = len(self.text)
-        return 0 if l == 1 else l
+        lines = len(self.text)
+        return 0 if lines == 1 else lines
 
 class FuncComment(DisassemblyPiece):
     def __init__(self, func):
