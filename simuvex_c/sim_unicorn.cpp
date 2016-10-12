@@ -96,7 +96,7 @@ private:
 	BlockCache *block_cache;
 	bool hooked;
 
-	uint8_t tmp_reg[MAX_REG_SIZE];
+	uc_context *saved_regs;
 
 	std::vector<mem_access_t> mem_writes;
 	std::map<uint64_t, taint_t *> active_pages;
@@ -141,6 +141,7 @@ public:
 		transmit_sysno == -1;
 		vex_guest = VexArch_INVALID;
 		syscall_count = 0;
+		uc_context_alloc(uc, &saved_regs);
 
 		auto it = global_cache.find(cache_key);
 		if (it == global_cache.end()) {
@@ -204,6 +205,7 @@ public:
 			delete[] it->second;
 		}
 		active_pages.clear();
+		uc_context_free(saved_regs);
 	}
 
 	uc_err start(uint64_t pc, uint64_t step = 1) {
@@ -243,7 +245,7 @@ public:
 			case STOP_SYSCALL:
 				msg = "unable to handle syscall";
 				commit();
-				uc_save_regstate(uc, tmp_reg);
+				uc_context_save(uc, saved_regs);
 				break;
 			case STOP_ZEROPAGE:
 				msg = "accessing zero page";
@@ -270,7 +272,7 @@ public:
 	}
 
 	void step(uint64_t current_address, int32_t size, bool check_stop_points=true) {
-		uc_save_regstate(uc, tmp_reg); // save current registers
+		uc_context_save(uc, saved_regs); // save current registers
 		bbl_addrs.push_back(current_address);
 		stack_pointers.push_back(get_stack_pointer(uc));
 		cur_address = current_address;
@@ -363,7 +365,7 @@ public:
 		}
 		mem_writes.clear();
 
-		uc_restore_regstate(uc, tmp_reg);
+		uc_context_restore(uc, saved_regs);
 		bbl_addrs.pop_back();
 	}
 
