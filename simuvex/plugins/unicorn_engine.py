@@ -16,6 +16,8 @@ except ImportError:
     l.warning("Unicorn is not installed. Support disabled.")
     unicorn = None
 
+_install_warning = False
+
 import pyvex
 import claripy
 from .plugin import SimStatePlugin
@@ -1264,7 +1266,10 @@ class Unicorn(SimStatePlugin):
 
     def check(self):
         if unicorn is None or _UC_NATIVE is None:
-            l.error("You are attempting to use unicorn engine support even though it or the simuvex compatibility layer isn't installed")
+            global _install_warning
+            if not _install_warning:
+                l.error("You are attempting to use unicorn engine support even though it or the simuvex compatibility layer isn't installed")
+                _install_warning = True
             return False
 
         self.countdown_nonunicorn_blocks -= 1
