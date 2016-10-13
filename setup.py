@@ -4,6 +4,8 @@ import sys
 import subprocess
 import pkg_resources
 import shutil
+import platform
+from distutils.util import get_platform
 from setuptools import setup
 from distutils.errors import LibError
 from distutils.command.build import build as _build
@@ -53,6 +55,17 @@ cmdclass = {
         'build': build,
         'develop': develop,
 }
+
+if 'bdist_wheel' in sys.argv and '--plat-name' not in sys.argv:
+    sys.argv.append('--plat-name')
+    name = get_platform()
+    if 'linux' in name:
+        # linux_* platform tags are disallowed because the python ecosystem is fubar
+        # linux builds should be built in the centos 5 vm for maximum compatibility
+        sys.argv.append('manylinux1_' + platform.machine())
+    else:
+        # https://www.python.org/dev/peps/pep-0425/
+        sys.argv.append(name.replace('.', '_').replace('-', '_'))
 
 setup(
     name='simuvex',
