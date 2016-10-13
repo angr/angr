@@ -13,7 +13,7 @@ CFLAGS := -I ${UNICORN_INCLUDE_PATH} -I ${PYVEX_INCLUDE_PATH} \
 	`pkg-config --cflags glib-2.0` -O3 -fPIC -std=c++11
 
 OBJS := log.o
-LIBS := -lglib-2.0 -lunicorn -lpyvex
+LIBS := `pkg-config --libs glib-2.0` -lunicorn -lpyvex
 
 all: ${LIB_SIM_UNICORN}
 
