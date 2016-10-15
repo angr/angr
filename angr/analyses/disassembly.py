@@ -1,3 +1,6 @@
+
+from collections import defaultdict
+
 from ..analysis import Analysis, register_analysis
 from ..lifter import CapstoneInsn
 
@@ -98,8 +101,13 @@ class Instruction(DisassemblyPiece):
         self.project = parentblock.project
         self.format = ''
         self.components = ()
+        self.operands = [ ]
 
         self.disect_instruction()
+
+    @property
+    def mnemonic(self):
+        return self.components[0]
 
     def reload_format(self):
         self.insn = CapstoneInsn(next(self.project.arch.capstone.disasm(self.insn.bytes, self.addr)))
@@ -198,6 +206,10 @@ class Instruction(DisassemblyPiece):
                 else:
                     in_word = True
                     pieces.append(c)
+            elif c == '%':
+                in_word = False
+                pieces.append('%%')
+
             else:
                 in_word = False
                 pieces.append(c)
@@ -311,23 +323,32 @@ class Comment(DisassemblyPiece):
         self.addr = addr
         self.text = text.split('\n')
 
-    def _render(self, formatting):
+    def _render(self, formatting=None):
         return [self.text]
 
     def height(self, formatting):
         lines = len(self.text)
         return 0 if lines == 1 else lines
 
+
 class FuncComment(DisassemblyPiece):
     def __init__(self, func):
         self.func = func
 
-    def _render(self, formatting):
+    def _render(self, formatting=None):
         return ['##', '## Function ' + self.func.name, '##']
 
 class Disassembly(Analysis):
     def __init__(self, function=None, ranges=None):
         self.raw_result = []
+        self.raw_result_map = {
+            'block_starts': {},
+            'comments': {},
+            'labels': {},
+            'instructions': {},
+            'hooks': {},
+        }
+        self.block_to_insn_addrs = defaultdict(list)
         self._func_cache = {}
 
         if function is not None:
@@ -356,16 +377,25 @@ class Disassembly(Analysis):
         self.raw_result.append(bs)
 
         if block.is_hook:
-            self.raw_result.append(Hook(block.addr, bs))
+            hook = Hook(block.addr, bs)
+            self.raw_result.append(hook)
+            self.raw_result_map['hooks'][block.addr] = hook
+
         else:
             cs = self.project.arch.capstone
             bytestr = ''.join(self.project.loader.memory.read_bytes(block.addr, block.size))
             for cs_insn in cs.disasm(bytestr, block.addr):
                 if cs_insn.address in self.kb.labels:
-                    self.raw_result.append(Label(cs_insn.address, self.kb.labels[cs_insn.address]))
+                    label = Label(cs_insn.address, self.kb.labels[cs_insn.address])
+                    self.raw_result.append(label)
+                    self.raw_result_map['labels'][label.addr] = label
                 if cs_insn.address in self.kb.comments:
-                    self.raw_result.append(Comment(self.kb.comments[cs_insn.address]))
-                self.raw_result.append(Instruction(CapstoneInsn(cs_insn), bs))
+                    comment = Comment(self.kb.comments[cs_insn.address])
+                    self.raw_result.append(comment)
+                    self.raw_result_map['comments'][comment.addr] = comment
+                instruction = Instruction(CapstoneInsn(cs_insn), bs)
+                self.raw_result.append(instruction)
+                self.raw_result_map['instructions'][instruction.addr] = instruction
 
     def render(self, formatting=None):
         if formatting is None: formatting = {}
