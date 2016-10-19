@@ -346,13 +346,14 @@ class SimStateSystem(SimStatePlugin):
 
         return SimStateSystem(initialize=False, files=files, concrete_fs=self.concrete_fs, chroot=self.chroot, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, auxv=self.auxv, tls_modules=self.tls_modules, fs=self.fs, queued_syscall_returns=list(self.queued_syscall_returns), sigmask=self._sigmask, pid=self.pid)
 
-    def merge(self, others, merge_conditions):
+    def merge(self, others, merge_conditions, common_ancestor=None):
         all_files = set.union(*(set(o.files.keys()) for o in [ self ] + others))
 
         merging_occurred = False
         for fd in all_files:
             merging_occurred |= self.get_file(fd).merge(
-                [ o.get_file(fd) for o in others ], merge_conditions
+                [ o.get_file(fd) for o in others ], merge_conditions,
+                common_ancestor=common_ancestor.get_file(fd) if common_ancestor is not None else None
             )
 
         return merging_occurred
@@ -366,7 +367,7 @@ class SimStateSystem(SimStatePlugin):
 
         return merging_occurred
 
-    def dumps(self, fd):
+    def dumps(self, fd, **kwargs):
         """
         Returns the concrete content for a file descriptor.
 
@@ -374,7 +375,7 @@ class SimStateSystem(SimStatePlugin):
         :return:    The concrete content.
         :rtype:     str
         """
-        return self.state.se.any_str(self.get_file(fd).all_bytes())
+        return self.state.se.any_str(self.get_file(fd).all_bytes(), **kwargs)
 
     def dump(self, fd, filename):
         """

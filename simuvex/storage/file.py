@@ -181,7 +181,7 @@ class SimFile(SimStatePlugin):
             buff.append(self.content.load(i, 1))
         return self.state.se.Concat(*buff)
 
-    def merge(self, others, merge_conditions):
+    def merge(self, others, merge_conditions, common_ancestor=None):
         """
         Merges the SimFile object with `others`.
         """
@@ -194,18 +194,21 @@ class SimFile(SimStatePlugin):
             l.warning("Cheap HACK to support multiple file positions in a merge.")
             # self.pos = max(o.pos for o in all_files)
             # max cannot be used as file positions might be symbolic.
-            max_pos = None
-            for o in all_files:
-                if max_pos is not None:
-                    comp = self.state.se.simplify(max_pos >= o.pos)
-                    if self.state.se.symbolic(comp):
-                        import ipdb; ipdb.set_trace()
-                        raise SimMergeError("merging file positions with symbolic max position is not ye supported (TODO)")
+            #max_pos = None
+            #for o in all_files:
+            #   if max_pos is not None:
+            #       comp = self.state.se.simplify(max_pos >= o.pos)
+            #       #if self.state.se.symbolic(comp):
+            #       #   #import ipdb; ipdb.set_trace()
+            #       #   raise SimMergeError("merging file positions with symbolic max position is not ye supported (TODO)")
 
-                    max_pos = o.pos if self.state.se.is_false(comp) else max_pos
-                else:
-                    max_pos = o.pos
-            self.pos = max_pos
+            #       max_pos = o.pos if self.state.se.is_false(comp) else max_pos
+            #   else:
+            #       max_pos = o.pos
+            self.pos = max(
+                self.state.se.max(self.pos),
+                max(o.state.se.max(o.pos) for o in others)
+            )
 
         #if len(set(o.name for o in all_files)) > 1:
         #   raise SimMergeError("merging file names is not yet supported (TODO)")
@@ -213,7 +216,9 @@ class SimFile(SimStatePlugin):
         #if len(set(o.mode for o in all_files)) > 1:
         #   raise SimMergeError("merging modes is not yet supported (TODO)")
 
-        return self.content.merge([ o.content for o in others ], merge_conditions)
+        return self.content.merge(
+            [ o.content for o in others ], merge_conditions, common_ancestor=common_ancestor
+        )
 
 class SimDialogue(SimFile):
     """

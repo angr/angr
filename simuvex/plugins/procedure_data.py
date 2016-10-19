@@ -14,7 +14,7 @@ class SimProcedureData(SimStatePlugin):
         out.callstack = list(self.callstack)
         return out
 
-    def merge(self, others, merge_conditions):
+    def merge(self, others, merge_conditions, common_ancestor=None):
         return False
 
     def widen(self, others):

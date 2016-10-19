@@ -117,7 +117,7 @@ class SimStateScratch(SimStatePlugin):
     def copy(self):
         return SimStateScratch(scratch=self)
 
-    def merge(self, others, merge_conditions):
+    def merge(self, others, merge_conditions, common_ancestor=None):
         return False
 
     def widen(self, others):

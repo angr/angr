@@ -32,7 +32,7 @@ class SimRegNameView(SimStatePlugin):
     def copy(self):
         return SimRegNameView()
 
-    def merge(self, others, merge_conditions):
+    def merge(self, others, merge_conditions, common_ancestor=None):
         return False
 
     def widen(self, others):
@@ -120,7 +120,7 @@ class SimMemView(SimStatePlugin):
     def copy(self):
         return SimMemView()
 
-    def merge(self, others, merge_conditions):
+    def merge(self, others, merge_conditions, common_ancestor=None):
         return False
 
     def widen(self, others):
