@@ -53,6 +53,8 @@ class PathHierarchy(object):
         self._leaves.discard(h)
         self._twigs.discard(h)
         self._path_mapping.pop(h(), None)
+        if h() is not None:
+            h().demote()
 
     def add_path(self, p):
         h = p.history

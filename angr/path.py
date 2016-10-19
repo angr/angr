@@ -517,7 +517,8 @@ class Path(object):
 
         # merge the state with these constraints
         new_state, merge_conditions, _ = all_paths[0].state.merge(
-            *[ p.state for p in all_paths[1:] ], merge_conditions=constraints
+            *[ p.state for p in all_paths[1:] ], merge_conditions=constraints,
+            common_ancestor=common_history.state
         )
         new_path = Path(all_paths[0]._project, new_state, path=all_paths[0])
 

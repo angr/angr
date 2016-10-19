@@ -10,7 +10,7 @@ class PathHistory(object):
     This class keeps track of historically-relevant information for paths.
     """
 
-    __slots__ = ('_parent', 'merged_from', 'merge_conditions', 'length', 'extra_length', '_addrs', '_runstr', '_target', '_guard', '_jumpkind', '_events', '_jump_source', '_jump_avoidable', '_all_constraints', '_fresh_constraints', '_satisfiable', '_state_ref', '__weakref__')
+    __slots__ = ('_parent', 'merged_from', 'merge_conditions', 'length', 'extra_length', '_addrs', '_runstr', '_target', '_guard', '_jumpkind', '_events', '_jump_source', '_jump_avoidable', '_all_constraints', '_fresh_constraints', '_satisfiable', '_state_strong_ref', '_state_weak_ref', '__weakref__')
 
     def __init__(self, parent=None):
         self._parent = parent
@@ -34,7 +34,8 @@ class PathHistory(object):
         self._satisfiable = None
 
         # the state itself
-        self._state_ref = None
+        self._state_weak_ref = None
+        self._state_strong_ref = None
 
     def copy(self):
         c = PathHistory()
@@ -56,22 +57,23 @@ class PathHistory(object):
         c._all_constraints = list(self._all_constraints)
         c._fresh_constraints = list(self._fresh_constraints)
         c._satisfiable = self._satisfiable
-        c._state_ref = self._state_ref
+        c._state_weak_ref = self._state_weak_ref
+        c._state_strong_ref = self._state_strong_ref
 
         return c
 
     def __getstate__(self):
         return [
             (k, getattr(self, k)) for k in self.__slots__ if k not in
-            ('__weakref__', '_state_ref')
+            ('__weakref__', '_state_weak_ref')
         ]
 
     def __setstate__(self, state):
         for k,v in state:
             setattr(self, k, v)
-        self._state_ref = None
+        self._state_weak_ref = None
 
-    def _record_state(self, state):
+    def _record_state(self, state, strong_reference=True):
         self._jumpkind = state.scratch.jumpkind
         self._jump_source = state.scratch.source
         self._jump_avoidable = state.scratch.avoidable
@@ -109,14 +111,29 @@ class PathHistory(object):
             self._satisfiable = None
 
         # record the state as a weak reference
-        self._state_ref = weakref.ref(state)
+        self._state_weak_ref = weakref.ref(state)
+
+        # and as a strong ref
+        if strong_reference:
+            self._state_strong_ref = state
 
     def _record_run(self, run):
         self._runstr = str(run)
 
     @property
     def state(self):
-        return self._state_ref() if self._state_ref is not None else None
+        return (
+            self._state_strong_ref if self._state_strong_ref is not None else
+            self._state_weak_ref() if self._state_weak_ref is not None else
+            None
+        )
+
+    def demote(self):
+        """
+        Demotes this PathHistory node, causing it to convert references to the state
+        to weakrefs.
+        """
+        self._state_strong_ref = None
 
     #
     # Some GC-dependent pass-throughts to the state

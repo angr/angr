@@ -1,4 +1,5 @@
 from . import ExplorationTechnique
+import random
 
 class DFS(ExplorationTechnique):
     """
@@ -7,22 +8,25 @@ class DFS(ExplorationTechnique):
     Will only keep one path active at a time, any others will be stashed in the 'deferred' stash.
     When we run out of active paths to step, we take the longest one from deferred and continue.
     """
+
+    def __init__(self):
+        super(DFS, self).__init__()
+        self._random = random.Random()
+        self._random.seed(10)
+
     def setup(self, pg):
         if 'deferred' not in pg.stashes:
             pg.stashes['deferred'] = []
 
     def step(self, pg, stash, **kwargs):
-
         pg = pg.step(stash=stash, **kwargs)
         if len(pg.stashes[stash]) > 1:
-            pg.stashes['deferred'].extend(pg.stashes[stash][1:])
-            del pg.stashes[stash][1:]
+            self._random.shuffle(pg.stashes[stash])
+            pg.split(from_stash=stash, to_stash='deferred', limit=1)
 
         if len(pg.stashes[stash]) == 0:
             if len(pg.stashes['deferred']) == 0:
                 return pg
-            i, deepest = max(enumerate(pg.stashes['deferred']), key=lambda l: len(l[1].trace))
-            pg.stashes['deferred'].pop(i)
-            pg.stashes[stash].append(deepest)
+            pg.stashes[stash].append(pg.stashes['deferred'].pop())
 
         return pg
