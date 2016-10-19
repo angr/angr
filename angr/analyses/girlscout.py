@@ -18,6 +18,7 @@ from ..errors import AngrError
 from ..analysis import Analysis, register_analysis
 from ..surveyors import Explorer, Slicecutor
 from ..annocfg import AnnotatedCFG
+from cfg_fast import SegmentList
 
 l = logging.getLogger("angr.analyses.girlscout")
 
@@ -78,7 +79,11 @@ class GirlScout(Analysis):
 
     @property
     def call_map(self):
-        return self.call_map
+        return self._call_map
+
+    @call_map.setter
+    def call_map(self, call_map):
+        self._call_map = call_map
 
     def _get_next_addr_to_search(self, alignment=None):
         # TODO: Take care of those functions that are already generated
