@@ -519,9 +519,18 @@ class SimLinux(SimOS):
         'MIPS32': {
             4001: ('exit', 'exit'),
             4003: ('read', 'read'),
+            4004: ('write', 'write'),
+            4005: ('open', 'open'),
+            4006: ('close', 'close'),
+            4045: ('brk', 'brk'),
         },
         'MIPS64': {
-
+            5000: ('read', 'read'),
+            5001: ('write', 'write'),
+            5002: ('open', 'open'),
+            5003: ('close', 'close'),
+            5012: ('brk', 'brk'),
+            5058: ('exit', 'exit'),
         },
         'ARM': {
 
