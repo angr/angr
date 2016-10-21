@@ -517,7 +517,8 @@ class SimLinux(SimOS):
 
         },
         'MIPS32': {
-
+            4001: ('exit', 'exit'),
+            4003: ('read', 'read'),
         },
         'MIPS64': {
 
