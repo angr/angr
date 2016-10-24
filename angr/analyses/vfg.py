@@ -473,7 +473,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         if job.addr not in self._merge_points(job.func_addr):
             # put it in the front, but still obeying their order
             # TODO: this order should be solely based on their sorting order.
-            block_in_function_pos = job.addr - job.func_addr
+            block_in_function_pos = min(job.addr - job.func_addr, MAX_ENTRIES_PER_FUNCTION - 1)
 
         else:
             block_in_function_pos = self._merge_points(job.func_addr).index(job.addr)
