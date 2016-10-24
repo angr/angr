@@ -51,6 +51,18 @@ class VFGJob(EntryWrapper):
     def simrun_key(self):
         return self._simrun_key
 
+    def callstack_repr(self, kb=None):
+        s = [ ]
+        for i in self.call_stack_suffix:
+            if i is None:
+                continue
+            if i in kb.functions:
+                s.append(kb.functions[i].name)
+            else:
+                s.append("%#x" % i)
+
+        return "//".join(s)
+
 
 class AnalysisTask(object):
     """
@@ -102,6 +114,7 @@ class CallAnalysis(AnalysisTask):
         self.return_address = return_address
         self.function_analysis_tasks = function_analysis_tasks if function_analysis_tasks is not None else [ ]
 
+        self.skipped = False
         self._final_jobs = [ ]
 
     def __repr__(self):
@@ -467,9 +480,17 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         MAX_ENTRIES_PER_FUNCTION = 1000000
 
-        function_pos = list(reversed(
+        task_functions = list(reversed(
             list(task.function_address for task in self._task_stack if isinstance(task, FunctionAnalysis))
-            )).index(job.func_addr)
+            ))
+        try:
+            function_pos = task_functions.index(job.func_addr)
+        except ValueError:
+            # not in the list
+            # it might be because we followed the wrong path, or there is a bug in the traversal algorithm
+            # anyways, do it first
+            l.warning('Function address %#x is not found in task stack.', job.func_addr)
+            return 0
 
         if job.addr not in self._merge_points(job.func_addr):
             # put it in the front, but still obeying their order
@@ -516,7 +537,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         assert isinstance(self._top_task, FunctionAnalysis)
 
         if job not in self._top_task.jobs:
-            l.debug("The job is not recorded. SKip the entry.")
+            l.debug("The job is not recorded. Skip the entry.")
             raise AngrSkipEntryNotice()
 
         # increment the execution counter
@@ -693,7 +714,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         if self._is_call_jumpkind(jumpkind):
             # Create a new call stack for the successor
-            new_call_stack = self._create_callstack(job, successor_addr, jumpkind, job.is_call_jump, fakeret_successor)
+            new_call_stack = self._create_callstack(job, successor_addr, jumpkind, fakeret_successor)
             if new_call_stack is None:
                 l.debug("Cannot create a new callstack for address %#x", successor_addr)
                 job.dbg_exit_status[successor] = ""
@@ -714,7 +735,18 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 job.call_skipped = True
                 job.call_function_key = new_function_key
 
+                job.call_task.skipped = True
+
                 return [ ]
+
+        elif jumpkind == 'Ijk_Ret':
+            # Pop the current function out from the call stack
+            new_call_stack = self._create_callstack(job, successor_addr, jumpkind, fakeret_successor)
+            if new_call_stack is None:
+                l.debug("Cannot create a new callstack for address %#x", successor_addr)
+                job.dbg_exit_status[successor] = ""
+                return [ ]
+            new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
 
         else:
             new_call_stack = job.call_stack
@@ -816,7 +848,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         if isinstance(task, CallAnalysis):
             # the call never returns
-            l.debug('%s never returns.', task)
+            if task.skipped:
+                l.debug("Calls from %s are skipped.", task)
+            else:
+                l.debug('%s never returns.', task)
             self._task_stack.pop()
 
         else:
@@ -1003,8 +1038,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         l.debug('Widening state at IP %s', old_state.ip)
 
         widened_state, widening_occurred = old_state.widen(new_state)
-
-        import ipdb; ipdb.set_trace()
 
         # print "Widened: "
         # print widened_state.dbg_print_stack()
@@ -1312,17 +1345,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                                  call_stack=new_call_stack,
                                  )
 
-                # create the function analysis task, since it should be created when we trace the callee, but we
-                # skipped it
-                task = FunctionAnalysis(successor_path.addr, None)
-                self._task_stack.append(task)
-                # Register the job to the call analysis task
-                job.call_task.register_function_analysis(task)
-                job.call_task.add_final_job(new_job)
-
-                self._save_function_final_state(job.call_function_key, job.call_target, successor_state)
-
-                job.dbg_exit_status[successor] = "Added as a final job"
+                new_jobs.append(new_job)
+                assert isinstance(self._task_stack[-2], FunctionAnalysis)
+                self._task_stack[-2].jobs.append(new_job)
+                job.dbg_exit_status[successor] = "Pending"
 
             else:
                 self._pending_returns[new_simrun_key] = \
@@ -1447,8 +1473,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         function_name = self.project.loader.find_symbol_name(job.addr)
         module_name = self.project.loader.find_module_name(job.addr)
 
-        l.debug("VFGJob @ %#08x with callstack %s", job.addr,
-                "->".join([hex(i) for i in job.call_stack_suffix if i is not None])
+        l.debug("VFGJob @ %#08x with callstack [ %s ]", job.addr,
+                job.callstack_repr(self.kb),
                 )
         l.debug("(Function %s of %s)", function_name, module_name)
         l.debug("-  is call jump: %s", job.is_call_jump)
@@ -1470,6 +1496,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys_'):
             return True
         return False
+
+    @staticmethod
+    def _is_return_jumpkind(jumpkind):
+        return jumpkind in ('Ijk_Ret', 'Ijk_FakeRet')
 
     @staticmethod
     def _create_stack_region(successor_state, successor_ip):
@@ -1499,7 +1529,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return reg_sp_si
 
-    def _create_callstack(self, entry_wrapper, successor_ip, jumpkind, is_call_jump, fakeret_successor):
+    def _create_callstack(self, entry_wrapper, successor_ip, jumpkind, fakeret_successor):
         addr = entry_wrapper.path.addr
 
         if self._is_call_jumpkind(jumpkind):
@@ -1519,7 +1549,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             new_call_stack.call(addr, successor_ip,
                                 retn_target=retn_target_addr)
 
-        elif jumpkind == "Ijk_Ret" and not is_call_jump:
+        elif jumpkind == "Ijk_Ret":
             new_call_stack = entry_wrapper.call_stack_copy()
             new_call_stack.ret(successor_ip)
 
