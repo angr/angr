@@ -14,9 +14,6 @@ class SimIRExpr_Load(SimIRExpr):
         # get the address expression and track stuff
         addr = self._translate_expr(self._expr.addr)
 
-        if o.FRESHNESS_ANALYSIS in self.state.options:
-            self.state.scratch.input_variables.add_memory_variables(self.state.memory.normalize_address(addr.expr), size)
-
         if o.UNINITIALIZED_ACCESS_AWARENESS in self.state.options:
             if getattr(addr.expr._model_vsa, 'uninitialized', False):
                 raise SimUninitializedAccessError('addr', addr.expr)

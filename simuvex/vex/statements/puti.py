@@ -3,7 +3,6 @@ from .. import size_bytes
 from ... import s_options as o
 from ...s_action_object import SimActionObject
 from ...s_action import SimActionData
-from ...s_variable import SimRegisterVariable
 
 class SimIRStmt_PutI(SimIRStmt):
     def _execute(self):
@@ -19,10 +18,6 @@ class SimIRStmt_PutI(SimIRStmt):
         self.array_base = self.stmt.descr.base
         self.array_index = (self.ix.expr + self.stmt.bias) % self.stmt.descr.nElems
         self.offset = self.array_base + self.array_index*self.array_size
-
-        if o.FRESHNESS_ANALYSIS in self.state.options:
-            var = SimRegisterVariable(self.offset, expr.size() / 8)
-            self.state.scratch.used_variables.add_register_variable(var)
 
         # track the put
         if o.TRACK_REGISTER_ACTIONS in self.state.options:

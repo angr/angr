@@ -6,6 +6,10 @@ l = logging.getLogger("simuvex.plugins.scratch")
 import claripy
 
 from .plugin import SimStatePlugin
+from ..s_errors import SimValueError
+from .. import s_options as o
+from .inspect import BP_AFTER, BP_BEFORE
+
 class SimStateScratch(SimStatePlugin):
     def __init__(self, scratch=None):
         SimStatePlugin.__init__(self)
@@ -32,11 +36,6 @@ class SimStateScratch(SimStatePlugin):
         # information on VEX temps of this IRSB
         self.temps = { }
 
-        # variable analysis of this block
-        self.input_variables = SimVariableSet()
-        self.used_variables = SimVariableSet()
-        self.ignored_variables = None
-
         # dirtied addresses, for dealing with self-modifying code
         self.dirty_addrs = set()
         self.num_insns = 0
@@ -51,12 +50,6 @@ class SimStateScratch(SimStatePlugin):
             self.executed_block_count = scratch.executed_block_count
             self.executed_syscall_count = scratch.executed_syscall_count
             self.executed_instruction_count = scratch.executed_instruction_count
-
-            if scratch.input_variables is not None:
-                self.input_variables |= scratch.input_variables
-            if scratch.used_variables is not None:
-                self.used_variables |= scratch.used_variables
-            self.ignored_variables = None if scratch.ignored_variables is None else scratch.ignored_variables.copy()
 
             self.bbl_addr = scratch.bbl_addr
             self.stmt_idx = scratch.stmt_idx
@@ -128,11 +121,4 @@ class SimStateScratch(SimStatePlugin):
         self.__init__()
         self.state = s
 
-    def update_ignored_variables(self):
-        self.ignored_variables = self.used_variables.complement(self.input_variables)
-
-from ..s_variable import SimVariableSet
-from ..s_errors import SimValueError
-from .. import s_options as o
-from .inspect import BP_AFTER, BP_BEFORE
 SimStateScratch.register_default('scratch', SimStateScratch)

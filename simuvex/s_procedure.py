@@ -76,9 +76,6 @@ class SimProcedure(SimRun):
                 (self.overriding_no_ret is None and not self.NO_RET):
             self.ret(r)
 
-        if o.FRESHNESS_ANALYSIS in self.state.options:
-            self.state.scratch.update_ignored_variables()
-
         if cleanup_options:
             self.state.options.discard(o.AST_DEPS)
             self.state.options.discard(o.AUTO_REFS)

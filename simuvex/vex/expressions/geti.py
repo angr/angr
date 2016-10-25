@@ -2,22 +2,15 @@ from .base import SimIRExpr
 from .. import size_bytes
 from ... import s_options as o
 from ...s_action import SimActionData
-from ...s_variable import SimRegisterVariable
 
 class SimIRExpr_GetI(SimIRExpr):
     def _execute(self):
-        self.ix = self._translate_expr(self._expr.ix)
+        self.ix = self._translate_expr(self._expr.ix)  # pylint:disable=attribute-defined-outside-init
         size = size_bytes(self._expr.descr.elemTy)
         self.type = self._expr.descr.elemTy
-        self.array_base = self._expr.descr.base
-        self.array_index = (self.ix.expr + self._expr.bias) % self._expr.descr.nElems
-        self.offset = self.array_base + self.array_index*size
-
-        # FIXME: @fish will this code work with symbolic offset?
-        if o.FRESHNESS_ANALYSIS in self.state.options:
-            var = SimRegisterVariable(self.offset, size)
-            if not self.state.scratch.used_variables.contains_register_variable(var):
-                self.state.scratch.input_variables.add(var)
+        self.array_base = self._expr.descr.base  # pylint:disable=attribute-defined-outside-init
+        self.array_index = (self.ix.expr + self._expr.bias) % self._expr.descr.nElems  # pylint:disable=attribute-defined-outside-init
+        self.offset = self.array_base + self.array_index*size  # pylint:disable=attribute-defined-outside-init
 
         # get it!
         self.expr = self.state.registers.load(self.offset, size)
