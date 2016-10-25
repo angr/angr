@@ -53,13 +53,17 @@ class VFGJob(EntryWrapper):
 
     def callstack_repr(self, kb=None):
         s = [ ]
-        for i in self.call_stack_suffix:
-            if i is None:
+        for i in xrange(0, len(self.call_stack_suffix), 2):
+            call_site, func_addr = self.call_stack_suffix[i], self.call_stack_suffix[i + 1]
+            if func_addr is None:
                 continue
-            if i in kb.functions:
-                s.append(kb.functions[i].name)
+
+            call_site_str = "%#x" % call_site if call_site is not None else "None"
+
+            if func_addr in kb.functions:
+                s.append("%s[%s]" % (kb.functions[func_addr].name, call_site_str))
             else:
-                s.append("%#x" % i)
+                s.append("%#x[%s]" % (func_addr, call_site_str))
 
         return "//".join(s)
 
