@@ -220,6 +220,10 @@ class SimFile(SimStatePlugin):
             [ o.content for o in others ], merge_conditions, common_ancestor=common_ancestor
         )
 
+    def widen(self, others):
+        return self.merge(others, [])
+
+
 class SimDialogue(SimFile):
     """
     Emulates a dialogue with a program. Enables us to perform concrete short reads.
