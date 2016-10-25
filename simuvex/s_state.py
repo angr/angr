@@ -452,20 +452,19 @@ class SimState(ana.Storable): # pylint: disable=R0904
         :return:
         """
 
-        merge_flag = self.se.BVS("state_merge_%d" % merge_counter.next(), 16)
-        merge_values = range(len(others) + 1)
-
         if len(set(frozenset(o.plugins.keys()) for o in others)) != 1:
-            raise SimMergeError("Unable to merge due to different sets of plugins.")
+            raise SimMergeError("Unable to widen due to different sets of plugins.")
         if len(set(o.arch.name for o in others)) != 1:
-            raise SimMergeError("Unable to merge due to different architectures.")
+            raise SimMergeError("Unable to widen due to different architectures.")
 
         widened = self.copy()
         widening_occurred = False
 
         # plugins
         for p in self.plugins:
-            plugin_state_widened = widened.plugins[p].widen([_.plugins[p] for _ in others], merge_flag, merge_values)
+            if p == 'solver_engine':
+                continue
+            plugin_state_widened = widened.plugins[p].widen([_.plugins[p] for _ in others])
             if plugin_state_widened:
                 l.debug('Widening occured in %s', p)
                 widening_occurred = True

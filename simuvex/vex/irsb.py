@@ -127,10 +127,6 @@ class SimIRSB(SimRun):
                 self.default_exit = self.add_successor(self.state, self.next_expr.expr, self.default_exit_guard,
                                                        self.irsb.jumpkind, 'default')
 
-                if o.FRESHNESS_ANALYSIS in self.state.options:
-                    # Note: only the default exit will have ignored_variables member.
-                    self.default_exit.scratch.update_ignored_variables()
-
             except KeyError:
                 # For some reason, the temporary variable that the successor relies on does not exist. It can be
                 # intentional (e.g. when executing a program slice)
@@ -147,11 +143,6 @@ class SimIRSB(SimRun):
         all_successors = self.successors + self.unsat_successors
         self.successors = [ ]
         for exit_state in successors:
-
-            if o.FRESHNESS_ANALYSIS in self.state.options:
-                # Note: only the default exit will have ignored_variables member.
-                self.default_exit.scratch.update_ignored_variables()
-
             self.successors.append(exit_state)
 
         for exit_state in all_successors:

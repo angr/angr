@@ -71,30 +71,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         for o in others:  # pylint:disable=redefined-outer-name
             changed_bytes |= self.changed_bytes(o)
 
-        if options.FRESHNESS_ANALYSIS in self.state.options and self.state.scratch.ignored_variables is not None:
-            ignored_var_changed_bytes = set()
-
-            if self.category == 'reg':
-                fresh_vars = self.state.scratch.ignored_variables.register_variables
-
-                for v in fresh_vars:
-                    offset, size = v.reg, v.size
-                    ignored_var_changed_bytes |= set(xrange(offset, offset + size))
-
-            else:
-                fresh_vars = self.state.scratch.ignored_variables.memory_variables
-
-                for v in fresh_vars:
-                    # v.addr is an AddressWrapper object
-                    region_id = v.addr.region
-                    offset = v.addr.address
-                    size = v.size
-
-                    if region_id == self.id:
-                        ignored_var_changed_bytes |= set(range(offset, offset + size))
-
-            changed_bytes = changed_bytes - ignored_var_changed_bytes
-
         return changed_bytes
 
     def merge(self, others, merge_conditions, common_ancestor=None):
