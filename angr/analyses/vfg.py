@@ -843,43 +843,46 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         if l.level == logging.DEBUG:
             self._post_entry_handling_dbg(job, successors)
 
-        # pop all tasks if they are finished
-        task = self._top_task
+        # pop all finished tasks from the task stack
+        while True:
+            task = self._top_task
 
-        if task is None:
-            # the task stack is empty
-            return
+            if task is None:
+                # the task stack is empty
+                break
 
-        if isinstance(task, CallAnalysis):
-            # the call never returns
-            if task.skipped:
-                l.debug("Calls from %s are skipped.", task)
-            else:
-                l.debug('%s never returns.', task)
-            self._task_stack.pop()
-
-        else:
-            if task.done:
-                l.debug('%s is finished.', task)
+            if isinstance(task, CallAnalysis):
+                # the call never returns
+                if task.skipped:
+                    l.debug("Calls from %s are skipped.", task)
+                else:
+                    l.debug('%s never returns.', task)
                 self._task_stack.pop()
 
-                # the next guy *might be* a call analysis task
-                task = self._top_task
-                if isinstance(task, CallAnalysis):
-                    if task.done:
-                        # awesome!
-                        # pop it from the task stack
-                        self._task_stack.pop()
+            else:
+                if not task.done:
+                    break
+                else:
+                    l.debug('%s is finished.', task)
+                    self._task_stack.pop()
 
-                        if task._final_jobs:
-                            # merge all jobs, and create a new job
-                            new_job = task.merge_jobs()
+                    # the next guy *might be* a call analysis task
+                    task = self._top_task
+                    if isinstance(task, CallAnalysis):
+                        if task.done:
+                            # awesome!
+                            # pop it from the task stack
+                            self._task_stack.pop()
 
-                            # insert the entry
-                            self._insert_entry(new_job)
+                            if task._final_jobs:
+                                # merge all jobs, and create a new job
+                                new_job = task.merge_jobs()
 
-                            # register the job to the top task
-                            self._top_task.jobs.append(new_job)
+                                # insert the entry
+                                self._insert_entry(new_job)
+
+                                # register the job to the top task
+                                self._top_task.jobs.append(new_job)
 
     def _intra_analysis(self):
         pass
