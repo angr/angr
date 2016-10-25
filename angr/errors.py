@@ -81,6 +81,9 @@ class AngrSkipEntryNotice(AngrForwardAnalysisError):
 class AngrJobMergingFailureNotice(AngrForwardAnalysisError):
     pass
 
+class AngrJobWideningFailureNotice(AngrForwardAnalysisError):
+    pass
+
 #
 # CFG errors
 #
