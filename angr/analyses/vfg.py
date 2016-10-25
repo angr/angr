@@ -54,7 +54,7 @@ class VFGJob(EntryWrapper):
     def callstack_repr(self, kb=None):
         s = [ ]
         for i in xrange(0, len(self.call_stack_suffix), 2):
-            call_site, func_addr = self.call_stack_suffix[i], self.call_stack_suffix[i + 1]
+            call_site, func_addr = self.call_stack_suffix[i], self.call_stack_suffix[i + 1]  # pylint:disable=unsubscriptable-object
             if func_addr is None:
                 continue
 
@@ -78,6 +78,7 @@ class AnalysisTask(object):
     @property
     def done(self):
         raise NotImplementedError()
+
 
 class FunctionAnalysis(AnalysisTask):
     """
@@ -105,6 +106,7 @@ class FunctionAnalysis(AnalysisTask):
     @property
     def done(self):
         return not self.jobs
+
 
 class CallAnalysis(AnalysisTask):
     """
@@ -161,6 +163,7 @@ class CallAnalysis(AnalysisTask):
             job.state = job.state.merge(other.state)[0]
 
         return job
+
 
 class VFGNode(object):
     """
@@ -935,7 +938,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         :rtype: bool
         """
 
-        job_0, job_1 = jobs[-2:]  # type: VFGJob
+        job_0, _ = jobs[-2:]  # type: VFGJob
         tracing_times = self._tracing_times[job_0.simrun_key]
 
         if tracing_times > self._max_iterations_before_widening:
@@ -1052,7 +1055,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         return widened_state, widening_occurred
 
     @staticmethod
-    def _narrow_states(self, node, old_state, new_state, previously_widened_state):  # pylint:disable=unused-argument,no-self-use
+    def _narrow_states(node, old_state, new_state, previously_widened_state):  # pylint:disable=unused-argument,no-self-use
         """
         Try to narrow the state!
 
@@ -1497,6 +1500,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             except simuvex.SimValueError:
                 l.debug("-  target cannot be concretized. %s [%s]", job.dbg_exit_status[suc], suc.scratch.jumpkind)
         l.debug("Remaining/pending jobs: %d/%d", len(self._entries), len(self._pending_returns))
+        l.debug("Task stack: %s", self._task_stack)
 
     @staticmethod
     def _is_call_jumpkind(jumpkind):
