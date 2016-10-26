@@ -108,6 +108,8 @@ class CFGUtils(object):
 
             if isinstance(src, SCCPlaceholder) and isinstance(dst, SCCPlaceholder) and src == dst:
                 continue
+            if src == dst:
+                continue
 
             graph_copy.add_edge(src, dst)
 
