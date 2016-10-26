@@ -54,6 +54,27 @@ class CFGUtils(object):
         return addrs
 
     @staticmethod
+    def reverse_post_order_sort_nodes(graph, nodes=None):
+        """
+        Sort a given set of nodes in reverse post ordering.
+
+        :param networkx.DiGraph graph: A local transition graph of a function.
+        :param iterable nodes: A collection of nodes to sort.
+        :return: A list of sorted nodes.
+        :rtype: list
+        """
+
+        post_order = networkx.dfs_postorder_nodes(graph)
+
+        if nodes is None:
+            return reversed(list(post_order))
+        else:
+            addrs_to_index = {}
+            for i, n in enumerate(post_order):
+                addrs_to_index[n.addr] = i
+            return sorted(nodes, key=lambda n: addrs_to_index[n.addr], reverse=True)
+
+    @staticmethod
     def quasi_topological_sort_nodes(graph, nodes=None):
         """
         Sort a given set of nodes from a graph based on the following rules:
