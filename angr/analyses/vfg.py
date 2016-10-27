@@ -1665,7 +1665,11 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # we are entering a new function. now it's time to figure out how to optimally traverse the control flow
         # graph by generating the sorted merge points
-        new_function = self.kb.functions[function_address]
+        try:
+            new_function = self.kb.functions[function_address]
+        except KeyError:
+            # the function does not exist
+            return [ ]
 
         if function_address not in self._function_merge_points:
             ordered_merge_points = CFGUtils.find_merge_points(function_address, new_function.endpoints,
