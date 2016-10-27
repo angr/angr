@@ -8,6 +8,7 @@ import claripy
 import angr
 import archinfo
 
+from ..call_stack import CallStack
 from ..entry_wrapper import SimRunKey, FunctionKey, EntryWrapper
 from ..analysis import Analysis, register_analysis
 from ..errors import AngrVFGError, AngrError, AngrVFGRestartAnalysisNotice, AngrJobMergingFailureNotice
@@ -461,8 +462,15 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             self._final_address = 0x4fff0000
             self._set_return_address(entry_state, self._final_address)
 
+        call_stack = None
+        if not self._start_at_function:
+            # we should build a custom call stack
+            call_stack = CallStack()
+            call_stack.call(None, self._function_start, retn_target=self._final_address)
+
         job = VFGJob(entry_path.addr, entry_path, self._context_sensitivity_level,
                      jumpkind='Ijk_Boring', final_return_address=self._final_address,
+                     call_stack=call_stack
                      )
         simrun_key = SimRunKey.new(entry_path.addr, job.get_call_stack_suffix(), job.jumpkind)
         job._simrun_key = simrun_key
