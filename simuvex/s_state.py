@@ -462,7 +462,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         # plugins
         for p in self.plugins:
-            if p == 'solver_engine':
+            if p in ('solver_engine', 'unicorn'):
                 continue
             plugin_state_widened = widened.plugins[p].widen([_.plugins[p] for _ in others])
             if plugin_state_widened:
