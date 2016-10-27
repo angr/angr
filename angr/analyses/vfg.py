@@ -255,6 +255,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                  timeout=None,
                  max_iterations_before_widening=10,
                  max_iterations=20,
+                 final_state_callback=None,
                  ):
         """
         :param project: The project object.
@@ -291,6 +292,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         self._max_iterations_before_widening = max_iterations_before_widening
         self._max_iterations = max_iterations
+
+        self._final_state_callback = final_state_callback
 
         self._nodes = {}            # all the vfg nodes, keyed on simrun keys
         self._normal_states = { }   # Last available state for each program point without widening
@@ -563,7 +566,13 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         assert isinstance(self._top_task, FunctionAnalysis)
 
         if job not in self._top_task.jobs:
-            l.debug("The job is not recorded. Skip the entry.")
+            l.debug("%s is not recorded. Skip the entry.", job)
+            raise AngrSkipEntryNotice()
+
+        # check if this is considered to be a final state
+        if self._final_state_callback is not None and self._final_state_callback(job.state, job.call_stack):
+            l.debug("%s.state is considered as a final state. Skip the entry.", job)
+            self.final_states.append(job.state)
             raise AngrSkipEntryNotice()
 
         # increment the execution counter
