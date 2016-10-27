@@ -312,6 +312,9 @@ class SimMemory(SimStatePlugin):
         self._temp_stack_region_map = stack_region_map
         self._temp_generic_region_map = generic_region_map
 
+        self._stack_region_map = None
+        self._generic_region_map = None
+
     @property
     def category(self):
         """
@@ -673,7 +676,7 @@ class SimMemory(SimStatePlugin):
             self.state.add_constraints(*c)
 
         if (self.category == 'mem' and o.SIMPLIFY_MEMORY_READS in self.state.options) or \
-           (self.category == 'reg' and o.SIMPLIFY_REGISTER_READS in self.state.options):
+           (self.category == 'reg' and o.SIMPLIFY_REGISTER_READS in self.state.options):  # pylint:disable=too-many-boolean-expressions
             l.debug("simplifying %s read...", self.category)
             r = self.state.simplify(r)
 

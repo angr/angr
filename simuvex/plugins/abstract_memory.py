@@ -7,8 +7,7 @@ from claripy.vsa import ValueSet, RegionAnnotation
 
 from ..storage.memory import SimMemory, AddressWrapper, MemoryStoreRequest
 from ..s_errors import SimMemoryError, SimAbstractMemoryError
-from .. import s_options as o
-from ..s_options import KEEP_MEMORY_READS_DISCRETE, AVOID_MULTIVALUED_READS
+from ..s_options import KEEP_MEMORY_READS_DISCRETE, AVOID_MULTIVALUED_READS, REGION_MAPPING
 from .symbolic_memory import SimSymbolicMemory
 from ..s_action_object import _raw_ast
 
@@ -316,7 +315,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         SimMemory.set_state(self, state)
 
         # Sanity check
-        if o.REGION_MAPPING not in self.state.options:
+        if REGION_MAPPING not in self.state.options:
             raise SimAbstractMemoryError('Region mapping must be enabled in state options for abstract memory.')
 
         for _,v in self._regions.items():
