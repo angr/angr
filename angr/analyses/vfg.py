@@ -245,14 +245,13 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
     def __init__(self,
                  cfg=None,
                  context_sensitivity_level=2,
+                 start=None,
                  function_start=None,
                  interfunction_level=0,
                  initial_state=None,
                  avoid_runs=None,
                  remove_options=None,
                  timeout=None,
-                 start_at_function=True,
-                 ara=None,  # TODO: remove it
                  max_iterations_before_widening=10,
                  max_iterations=20,
                  ):
@@ -267,7 +266,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         :param remove_options: State options to remove from the initial state. It only works when `initial_state` is
                                 None
         :param int timeout:
-        :param bool start_at_function:
         """
 
         ForwardAnalysis.__init__(self, order_entries=True, allow_merging=True, allow_widening=True)
@@ -277,7 +275,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         self._cfg = cfg
 
         # Where to start the analysis
-        self._start = function_start if function_start is not None else self.project.entry
+        self._start = start if start is not None else self.project.entry
+        self._function_start = function_start if function_start is not None else self._start
 
         # Other parameters
         self._avoid_runs = [ ] if avoid_runs is None else avoid_runs
@@ -285,11 +284,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         self._interfunction_level = interfunction_level
         self._state_options_to_remove = set() if remove_options is None else remove_options
         self._timeout = timeout
-        self._start_at_function = start_at_function
+        self._start_at_function = self._start == self._function_start
 
         self._initial_state = initial_state
 
-        self._ara = ara
         self._max_iterations_before_widening = max_iterations_before_widening
         self._max_iterations = max_iterations
 
@@ -472,7 +470,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         self._insert_entry(job)
 
         # create the task
-        function_analysis_task = FunctionAnalysis(self._start, self._final_address)
+        function_analysis_task = FunctionAnalysis(self._function_start, self._final_address)
         function_analysis_task.jobs.append(job)
         self._task_stack.append(function_analysis_task)
 
