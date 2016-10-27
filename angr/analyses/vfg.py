@@ -320,6 +320,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         self._final_address = None  # Address of the very last instruction. The analysis is terminated there.
 
         self._function_merge_points = {}
+        self._function_node_addrs = {}  # sorted in reverse post-order
 
         self._task_stack = [ ]
 
@@ -505,13 +506,11 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             l.warning('Function address %#x is not found in task stack.', job.func_addr)
             return 0
 
-        if job.addr not in self._merge_points(job.func_addr):
-            # put it in the front, but still obeying their order
-            # TODO: this order should be solely based on their sorting order.
+        try:
+            block_in_function_pos = self._ordered_node_addrs(job.func_addr).index(job.addr)
+        except ValueError:
+            # block not found. what?
             block_in_function_pos = min(job.addr - job.func_addr, MAX_ENTRIES_PER_FUNCTION - 1)
-
-        else:
-            block_in_function_pos = self._merge_points(job.func_addr).index(job.addr)
 
         return block_in_function_pos + MAX_ENTRIES_PER_FUNCTION * function_pos
 
@@ -1667,5 +1666,27 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             self._function_merge_points[function_address] = ordered_merge_points
 
         return self._function_merge_points[function_address]
+
+    def _ordered_node_addrs(self, function_address):
+        """
+        For a given function, return all nodes in an optimal traversal order. If the function does not exist, return an
+        empty list.
+
+        :param int function_address: Address of the function.
+        :return: A ordered list of the nodes.
+        :rtype: list
+        """
+
+        try:
+            function = self.kb.functions[function_address]
+        except KeyError:
+            # the function does not exist
+            return [ ]
+
+        if function_address not in self._function_node_addrs:
+            sorted_nodes = CFGUtils.quasi_topological_sort_nodes(function.graph)
+            self._function_node_addrs[function_address] = [ n.addr for n in sorted_nodes ]
+
+        return self._function_node_addrs[function_address]
 
 register_analysis(VFG, 'VFG')
