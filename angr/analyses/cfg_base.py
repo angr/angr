@@ -131,6 +131,16 @@ class CFGBase(Analysis):
                 if not self.project.is_hooked(f.addr):
                     f.normalize()
 
+    def make_copy(self, copy_to):
+        """
+        Copy self attributes to the new object.
+
+        :param CFGBase copy_to: The target to copy to.
+        :return: None
+        """
+
+        copy_to._normalized = self._normalized
+
     # pylint: disable=no-self-use
     def copy(self):
         raise NotImplementedError()

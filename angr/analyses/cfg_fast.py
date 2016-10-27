@@ -3181,6 +3181,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def copy(self):
         n = CFGFast.__new__(CFGFast)
+        super(CFGFast, self).make_copy(n)
 
         n._binary = self._binary
         n._start = self._start
