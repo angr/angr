@@ -257,6 +257,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :rtype: angr.analyses.CFG
         """
         new_cfg = CFGAccurate.__new__(CFGAccurate)
+        super(CFGAccurate, self).make_copy(new_cfg)
+
         new_cfg.named_errors = dict(self.named_errors)
         new_cfg.errors = list(self.errors)
         new_cfg._fail_fast = self._fail_fast
