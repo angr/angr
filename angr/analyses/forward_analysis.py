@@ -268,6 +268,9 @@ class ForwardAnalysis(object):
                 if self._allow_widening and self._should_widen_entries(entry_info.entry, entry):
                     try:
                         widened_entry = self._widen_entries(entry_info.entry, entry)
+                        # remove the old job since now we have a widened one
+                        if entry_info in self._entries:
+                            self._entries.remove(entry_info)
                         entry_info.add_entry(widened_entry, widened=True)
                         entry_added = True
                     except AngrJobWideningFailureNotice:
@@ -278,6 +281,9 @@ class ForwardAnalysis(object):
                 if not entry_added:
                     try:
                         merged_entry = self._merge_entries(entry_info.entry, entry)
+                        # remove the old job since now we have a merged one
+                        if entry_info in self._entries:
+                            self._entries.remove(entry_info)
                         entry_info.add_entry(merged_entry, merged=True)
                     except AngrJobMergingFailureNotice:
                         # merging failed
