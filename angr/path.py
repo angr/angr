@@ -6,7 +6,7 @@ l = logging.getLogger("angr.path")
 import simuvex
 import mulpyplexer
 
-from .call_stack import CallFrame, CallStack
+from .call_stack import CallFrame, CallStack, CallStackAction
 
 #pylint:disable=unidiomatic-typecheck
 
@@ -38,6 +38,7 @@ class Path(object):
             # the path history
             self.history = PathHistory()
             self.callstack = CallStack()
+            self.callstack_backtrace = []
 
             # Note that stack pointer might be symbolic, and simply calling state.se.any_int over sp will fail in that
             # case. We should catch exceptions here.
@@ -46,15 +47,10 @@ class Path(object):
             except (simuvex.SimSolverModeError, simuvex.SimUnsatError):
                 stack_ptr = None
 
-            self.callstack.push(CallFrame(state=None,
-                                          call_site_addr=None,
-                                          func_addr=self.addr,
-                                          stack_ptr=stack_ptr,
-                                          ret_addr=UNAVAILABLE_RET_ADDR
-                                          )
-                                )
+            # generate a base callframe
+            self._initialize_callstack(self.addr, stack_ptr)
+
             self.popped_callframe = None
-            self.callstack_backtrace = []
 
             # the previous run
             self.previous_run = None
@@ -447,7 +443,11 @@ class Path(object):
                                                    )
 
                 elif jumpkind == 'Ijk_Ret':
-                    self._manage_callstack_ret()
+                    if i == len(state.scratch.bbl_addr_list) - 1:
+                        ret_site_addr = state.scratch.bbl_addr_list[i - 1] if i > 0 else None
+                    else:
+                        ret_site_addr = state.scratch.bbl_addr_list[i]
+                    self._manage_callstack_ret(ret_site_addr)
 
         else:
             # there is only one block
@@ -459,9 +459,20 @@ class Path(object):
                 self._manage_callstack_sys(state=state, call_site_addr=call_site_addr)
 
             elif state.scratch.jumpkind == "Ijk_Ret":
-                self._manage_callstack_ret()
+                ret_site_addr = call_site_addr
+                self._manage_callstack_ret(ret_site_addr)
 
             self.callstack.top.block_counter[state.scratch.bbl_addr] += 1
+
+    def _initialize_callstack(self, addr, stack_ptr):
+        callframe = CallFrame(call_site_addr=None, func_addr=addr, stack_ptr=stack_ptr, ret_addr=UNAVAILABLE_RET_ADDR,
+                              jumpkind='Ijk_Boring'
+                              )
+        self.callstack.push(callframe)
+        self.callstack_backtrace.append(CallStackAction(hash(self.callstack), len(self.callstack), 'push',
+                                                        callframe=callframe
+                                                        )
+                                        )
 
     def _manage_callstack_call(self, state=None, call_site_addr=None, func_addr=None, stack_ptr=None, ret_addr=None):
         if state is not None:
@@ -470,7 +481,10 @@ class Path(object):
             callframe = CallFrame(call_site_addr=call_site_addr, func_addr=func_addr, stack_ptr=stack_ptr, ret_addr=ret_addr, jumpkind='Ijk_Call')
 
         self.callstack.push(callframe)
-        self.callstack_backtrace.append((hash(self.callstack), callframe, len(self.callstack)))
+        self.callstack_backtrace.append(CallStackAction(hash(self.callstack), len(self.callstack), 'push',
+                                                        callframe=callframe
+                                                        )
+                                        )
 
     def _manage_callstack_sys(self, state=None, call_site_addr=None, func_addr=None, stack_ptr=None, ret_addr=None, jumpkind=None):
         if state is not None:
@@ -479,12 +493,23 @@ class Path(object):
             callframe = CallFrame(call_site_addr=call_site_addr, func_addr=func_addr, stack_ptr=stack_ptr, ret_addr=ret_addr, jumpkind=jumpkind)
 
         self.callstack.push(callframe)
-        self.callstack_backtrace.append((hash(self.callstack), callframe, len(self.callstack)))
+        self.callstack_backtrace.append(CallStackAction(hash(self.callstack), len(self.callstack), 'push',
+                                                        callframe=callframe
+                                                        )
+                                        )
 
-    def _manage_callstack_ret(self):
-        self.popped_callframe = self.callstack.pop()
+    def _manage_callstack_ret(self, ret_site_addr):
+        if len(self.callstack) != 0:
+            self.popped_callframe = self.callstack.pop()
+            self.callstack_backtrace.append(CallStackAction(hash(self.callstack), len(self.callstack), 'pop',
+                                                            ret_site_addr=ret_site_addr
+                                                            )
+                                            )
+
         if len(self.callstack) == 0:
-            l.info("Path callstack unbalanced...")
+            l.info("Callstack on the path is unbalanced.")
+
+            # make sure there is at least one dummy callframe available
             self.callstack.push(CallFrame(state=None, func_addr=0, stack_ptr=0, ret_addr=0))
 
     #

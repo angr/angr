@@ -5,6 +5,8 @@ import logging
 
 import simuvex
 
+from .errors import AngrError
+
 l = logging.getLogger('angr.call_stack')
 
 class CallFrame(object):
@@ -85,6 +87,35 @@ class CallFrame(object):
                       )
         c.block_counter = collections.Counter(self.block_counter)
         return c
+
+
+class CallStackAction(object):
+    """
+    Used in callstack backtrace, which is a history of callstacks along a path, to record individual actions occurred
+    each time the callstack is changed.
+    """
+    def __init__(self, callstack_hash, callstack_depth, action, callframe=None, ret_site_addr=None):
+        self.callstack_hash = callstack_hash
+        self.callstack_depth = callstack_depth
+        self.action = action
+
+        if action not in ('push', 'pop'):
+            raise AngrError('Unsupported action string "%s".' % action)
+
+        self.callframe = callframe
+        self.ret_site_addr = ret_site_addr
+
+        if action == 'push' and self.callframe is None:
+            raise AngrError('callframe must be specified when action is "push".')
+
+        elif action == 'pop' and self.callframe is not None:
+            raise AngrError('callframe must not be specified when action is "pop".')
+
+    def __repr__(self):
+        if self.action == 'push':
+            return "<CallStackAction push with %s>" % self.callframe
+        else: # pop
+            return "<CallStackAction pop, ret site %#x>" % self.ret_site_addr
 
 
 class CallStack(object):
