@@ -354,6 +354,20 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         return self._task_stack[-1]
 
     @property
+    def _top_function_analysis_task(self):
+        """
+        Get the first FunctionAnalysis task in the stack.
+
+        :return: The top function analysis task in the stack, or None if there isn't any.
+        :rtype: FunctionAnalysis
+        """
+
+        for r in reversed(self._task_stack):
+            if isinstance(r, FunctionAnalysis):
+                return r
+        return None
+
+    @property
     def function_initial_states(self):
         return self._function_initial_states
 
@@ -902,23 +916,16 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # there should not be more than two entries being merged at the same time
         assert len(entries) == 2
 
-        if not self._merge_points(self._current_function_address):
-            raise AngrJobMergingFailureNotice()
-
         addr = entries[0].path.addr
 
         if self.project.is_hooked(addr) and \
                 self.project.hooked_by(addr) is simuvex.s_procedure.SimProcedureContinuation:
             raise AngrJobMergingFailureNotice()
 
-        if entries[0].path.addr not in self._merge_points(self._current_function_address):
-            # if it's not a valid merge point, we don't merge it right now
-            raise AngrJobMergingFailureNotice()
-
         # update jobs
         for entry in entries:
-            if entry in self._top_task.jobs:
-                self._top_task.jobs.remove(entry)
+            if entry in self._top_function_analysis_task.jobs:
+                self._top_function_analysis_task.jobs.remove(entry)
 
         path_0 = entries[0].path
         path_1 = entries[1].path
@@ -931,7 +938,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                          simrun_key=entries[0].simrun_key, call_stack=entries[0].call_stack
                          )
 
-        self._top_task.jobs.append(new_job)
+        self._top_function_analysis_task.jobs.append(new_job)
 
         return new_job
 
