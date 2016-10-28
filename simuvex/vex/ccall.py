@@ -441,7 +441,7 @@ def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_
 
     cc_dep1_formal = cc_dep1_formal[nbits-1:0]
     cc_dep2_formal = cc_dep2_formal[nbits-1:0]
-    # TODO: does ndep need to be extracted as well?
+    cc_ndep_formal = cc_ndep_formal[nbits-1:0]
 
     if cc_str in [ 'G_CC_OP_ADDB', 'G_CC_OP_ADDW', 'G_CC_OP_ADDL', 'G_CC_OP_ADDQ' ]:
         l.debug("cc_str: ADD")
