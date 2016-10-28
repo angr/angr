@@ -320,7 +320,7 @@ def pc_actions_ADC(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
     af = (res ^ arg_l ^ arg_r)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
     zf = calc_zerobit(state, res)
     sf = res[nbits - 1]
-    of = (arg_l ^ arg_r ^ -1) & (arg_l ^ res)
+    of = ((arg_l ^ arg_r ^ -1) & (arg_l ^ res))[0]
 
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
