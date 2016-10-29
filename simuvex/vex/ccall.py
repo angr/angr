@@ -320,7 +320,7 @@ def pc_actions_ADC(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
     af = (res ^ arg_l ^ arg_r)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
     zf = calc_zerobit(state, res)
     sf = res[nbits - 1]
-    of = (arg_l ^ arg_r ^ -1) & (arg_l ^ res)
+    of = ((arg_l ^ arg_r ^ -1) & (arg_l ^ res))[0]
 
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
@@ -441,7 +441,7 @@ def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_
 
     cc_dep1_formal = cc_dep1_formal[nbits-1:0]
     cc_dep2_formal = cc_dep2_formal[nbits-1:0]
-    # TODO: does ndep need to be extracted as well?
+    cc_ndep_formal = cc_ndep_formal[nbits-1:0]
 
     if cc_str in [ 'G_CC_OP_ADDB', 'G_CC_OP_ADDW', 'G_CC_OP_ADDL', 'G_CC_OP_ADDQ' ]:
         l.debug("cc_str: ADD")
