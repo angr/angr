@@ -25,10 +25,10 @@ class SimEngineProcedure(SimEngine):
 
     def _process_request(
         self, request,
-        ret_to=None, convention=None, arguments=None, sim_kwargs=None,
-        run_func_name='run', syscall_name=None, force_bbl_addr=None,
         **kwargs
     ):
+        #ret_to=None, convention=None, arguments=None, sim_kwargs=None,
+        #run_func_name='run', syscall_name=None, force_bbl_addr=None,
         request.sim_kwargs = { } if sim_kwargs is None else sim_kwargs
 
         # Save scratch.bbl_addr and scratch.sim_procedure,
@@ -41,25 +41,8 @@ class SimEngineProcedure(SimEngine):
         request.active_state.scratch.sim_procedure = self.__class__.__name__
         request.active_state.scratch.executed_block_count = 1
 
-        self.arguments = arguments
-        request.ret_to = ret_to
+        request.ret_to = kwargs.get('ret_to', None)
         request.ret_expr = None
-        self.symbolic_return = False
-        self.run_func_name = run_func_name
-
-        # types
-        self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
-        self.return_type = None
-
-        # calling convention
-        self.cc = None
-        self.set_convention(convention)
-
-        # NO_RET flag, for overriding the default NO_RET flag set by the SimProcedure itself
-        # None - no overriding, respect the default flag
-        # True - the same as NO_RET == True
-        # False - the same as NO_RET == False
-        self.overriding_no_ret = None
 
         # prepare and run!
         if o.AUTO_REFS not in request.active_state.options:
@@ -69,16 +52,8 @@ class SimEngineProcedure(SimEngine):
         else:
             cleanup_options = False
 
-        run_spec = inspect.getargspec(self.run)
-        num_args = len(run_spec.args) - (len(run_spec.defaults) if run_spec.defaults is not None else 0) - 1
-        args = [ self.arg(_) for _ in xrange(num_args) ]
+        # do it
 
-        run_func = getattr(self, run_func_name)
-        r = self._run(run_func, *args, syscall_name=syscall_name, **self.kwargs)
-
-        if (self.overriding_no_ret is False) or \
-                (self.overriding_no_ret is None and not self.NO_RET):
-            self.ret(r)
 
         if cleanup_options:
             request.active_state.options.discard(o.AST_DEPS)

@@ -23,10 +23,9 @@ class pthread_create(simuvex.SimProcedure):
         self.add_successor(new_state, code_addr, new_state.se.true, jumpkind='Ijk_Call')
         return self.state.se.BVV(0, self.state.arch.bits)
 
-    @classmethod
-    def static_exits(cls, arch, blocks):
+    def static_exits(cls, blocks):
         # Execute those blocks with a blank state, and then dump the arguments
-        blank_state = simuvex.SimState(arch=arch, mode="fastpath")
+        blank_state = simuvex.SimState(arch=self.arch, mode="fastpath")
 
         # Execute each block
         state = blank_state
@@ -39,7 +38,7 @@ class pthread_create(simuvex.SimProcedure):
             else:
                 break
 
-        cc = simuvex.DefaultCC[arch.name](arch)
+        cc = simuvex.DefaultCC[self.arch.name](self.arch)
         callfunc = cc.arg(state, 2)
         retaddr = state.memory.load(state.regs.sp, arch.bytes)
 

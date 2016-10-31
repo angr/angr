@@ -27,7 +27,7 @@ class __libc_init(simuvex.SimProcedure):
         self.argv = self.state.memory.load(raw_args + 1 * offset, readlen, endness=endness)
         self.envp= self.state.memory.load(raw_args + (1 + argc_val + 1) * offset, readlen, endness=endness)
         # TODO: __cxa_atexit calls for various at-exit needs
-        self.call(self.main, (self.argc, self.argv, self.envp), 'after_slingshot')
+        self.call_out(self.main, (self.argc, self.argv, self.envp), 'after_slingshot')
 
     def after_slingshot(self, raw_args, unused, slingshot, structors, exit_addr=0):
         self.inline_call(simuvex.SimProcedures['libc.so.6']['exit'], 0)
