@@ -4,32 +4,13 @@ import types
 import logging
 import inspect
 import itertools
-import contextlib
 l = logging.getLogger(name = "simuvex.s_procedure")
 
 symbolic_count = itertools.count()
 
-import pyvex
-import claripy
-
 from .s_cc import DefaultCC
 from .plugins.inspect import BP_BEFORE, BP_AFTER
 
-@contextlib.contextmanager
-def _with_autorefs(state):
-        # prepare and run!
-        if o.AUTO_REFS not in state.options:
-            cleanup_options = True
-            state.options.add(o.AST_DEPS)
-            state.options.add(o.AUTO_REFS)
-        else:
-            cleanup_options = False
-
-        yield
-
-        if cleanup_options:
-            state.options.discard(o.AST_DEPS)
-            state.options.discard(o.AUTO_REFS)
 
 class SimProcedure(object):
     local_vars = ()
@@ -43,7 +24,8 @@ class SimProcedure(object):
         symbolic_return=None,
         returns=None, is_syscall=None,
         num_args=None, display_name=None, ret_to=None,
-        stmt_from=None, convention=None, sim_kwargs=None
+        stmt_from=None, convention=None, sim_kwargs=None,
+        is_function=False
     ):
         self.kwargs = { } if sim_kwargs is None else sim_kwargs
 
@@ -65,7 +47,9 @@ class SimProcedure(object):
         self.returns = returns if returns is not None else not self.NO_RET
         self.is_syscall = is_syscall if is_syscall is not None else self.IS_SYSCALL
         self.display_name = None
+        self.is_function = is_function
 
+        # Get the concrete number of arguments that should be passed to this procedure
         if num_args is None:
             run_spec = inspect.getargspec(self.run)
             self.num_args = len(run_spec.args) - (len(run_spec.defaults) if run_spec.defaults is not None else 0) - 1
@@ -77,7 +61,7 @@ class SimProcedure(object):
         self.arguments = None
         self.ret_expr = None
 
-    def setup_and_run(self, request, run_func_name='run', *args, **kwargs):
+    def setup_and_run(self, request, arguments=None):
         # check to see if this is a syscall and if we should override its return value
         override = None
         if self.is_syscall:
@@ -86,10 +70,6 @@ class SimProcedure(object):
             if len(request.state.posix.queued_syscall_returns):
                 override = request.state.posix.queued_syscall_returns.pop(0)
 
-        if request.inline:
-            old_bbl_addr = request.state.scratch.bbl_addr
-            old_sim_procedure = request.state.scratch.sim_procedure
-
         if isinstance(override, types.FunctionType):
             try:
                 override(request.state, run=self)
@@ -97,33 +77,41 @@ class SimProcedure(object):
                 override(request.state)
             r = None
             return
+
         elif override is not None:
             r = override
+
         else:
             self.current_request = request
-            self.arguments = args
+            self.arguments = arguments
 
             # get the arguments
-            sim_args = [ self.arg(_) for _ in xrange(self.num_args) ]
-            sim_kwargs = dict(self.kwargs)
-            sim_kwargs.update(kwargs)
+            if arguments is None:
+                sim_args = [ self.arg(_) for _ in xrange(self.num_args) ]
+            else:
+                sim_args = self.arguments
+
+            # handle if this is a continuation from a return
+            if self.is_function and self.state.scratch.jumpkind == 'Ijk_Ret':
+                if len(self.state.procedure_data.callstack) == 0:
+                    raise SimProcedureError("Tried to run simproc continuation with empty stack")
+
+                continue_at, stack_space, saved_local_vars = self.state.procedure_data.callstack.pop()
+                run_func = getattr(self, continue_at)
+                self.state.regs.sp += stack_space
+                for name, val in saved_local_vars:
+                    setattr(self, name, val)
+            else:
+                run_func = self.run
 
             # run it
-            run_func = getattr(self, run_func_name)
-            r = run_func(*sim_args, **sim_kwargs)
+            r = run_func(*sim_args, **self.kwargs)
 
         if self.returns:
             self.ret(r)
 
         if self.is_syscall:
             request.state._inspect('syscall', BP_AFTER)
-
-        if request.inline:
-            # If this is an inlined call, restore old scratch members
-            request.state.scratch.bbl_addr = old_bbl_addr
-            request.state.scratch.sim_procedure = old_sim_procedure
-
-        return r
 
     def run(self, *args, **kwargs): #pylint:disable=unused-argument
         raise SimProcedureError("%s does not implement a run() method" % self.__class__.__name__)
@@ -135,6 +123,23 @@ class SimProcedure(object):
     @property
     def state(self):
         return self.current_request.active_state
+
+    @property
+    def addr(self):
+        return self.state.addr
+
+    # There are two separate metrics for inline-ness that we might want to keep separate
+    # there's whether the request is inline, which means that we don't add exits
+    # but there's also whether the call is inline, which means that the arguments and the
+    # return values should be passed around through different means.
+
+    @property
+    def is_inline_request(self):
+        return self.current_request.inline
+
+    @property
+    def is_inline_call(self):
+        return self.arguments is not None
 
     #
     # Argument wrangling
@@ -169,7 +174,7 @@ class SimProcedure(object):
         :return: The argument
         :rtype: object
         """
-        if self.arguments is not None:
+        if self.is_inline_call:
             if i >= len(self.arguments):
                 raise SimProcedureArgumentError("Argument %d does not exist." % i)
             r = self.arguments[i]
@@ -184,21 +189,20 @@ class SimProcedure(object):
     #
 
     def inline_call(self, procedure, *arguments, **sim_kwargs):
-        e_args = [ self.state.se.BVV(a, self.state.arch.bits) if isinstance(a, (int, long)) else a for a in arguments ]
-        p = procedure(self.state, inline=True, arguments=e_args, sim_kwargs=sim_kwargs)
-        return p
+        with self.current_request.as_inline():
+            e_args = [ self.state.se.BVV(a, self.state.arch.bits) if isinstance(a, (int, long)) else a for a in arguments ]
+            p = procedure(self.arch, sim_kwargs=sim_kwargs)
+            p.setup_and_run(self.current_request, e_args)
+            return p
 
-    def call_out(self, addr, args, continue_at, cc=None):
+    def call(self, addr, args, continue_at, cc=None):
         if cc is None:
             cc = self.cc
 
         call_state = self.state.copy()
-        if isinstance(self.state.procedure_data.hook_addr, claripy.ast.Base):
-            ret_addr = self.state.procedure_data.hook_addr
-        else:
-            ret_addr = self.state.se.BVV(self.state.procedure_data.hook_addr, self.state.arch.bits)
+        ret_addr = self.addr
         saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
-        simcallstack_entry = (self.__class__, continue_at, cc.stack_space(args), saved_local_vars, self.kwargs)
+        simcallstack_entry = (continue_at, cc.stack_space(args), saved_local_vars)
         cc.setup_callsite(call_state, ret_addr, args)
         call_state.procedure_data.callstack.append(simcallstack_entry)
 
@@ -208,17 +212,17 @@ class SimProcedure(object):
         elif call_state.arch.name in ('MIPS32', 'MIPS64'):
             call_state.regs.t9 = addr
 
-        self.add_successor(call_state, addr, call_state.se.true, 'Ijk_Call')
+        self.current_request.add_successor(call_state, addr, call_state.se.true, 'Ijk_Call')
 
         if o.DO_RET_EMULATION in self.state.options:
             ret_state = self.state.copy()
             cc.setup_callsite(ret_state, ret_addr, args)
             ret_state.procedure_data.callstack.append(simcallstack_entry)
             guard = ret_state.se.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else ret_state.se.false
-            self.add_successor(ret_state, ret_addr, guard, 'Ijk_FakeRet')
+            self.current_request.add_successor(ret_state, ret_addr, guard, 'Ijk_FakeRet')
 
     def jump(self, addr):
-        self.add_successor(self.state, addr, self.state.se.true, 'Ijk_Boring')
+        self.current_request.add_successor(self.state, addr, self.state.se.true, 'Ijk_Boring')
 
     def exit(self, exit_code):
         self.state.options.discard(o.AST_DEPS)
@@ -227,7 +231,7 @@ class SimProcedure(object):
         if isinstance(exit_code, (int, long)):
             exit_code = self.state.se.BVV(exit_code, self.state.arch.bits)
         self.state.log.add_event('terminate', exit_code=exit_code)
-        self.add_successor(self.state, self.state.regs.ip, self.state.se.true, 'Ijk_Exit')
+        self.current_request.add_successor(self.state, self.state.regs.ip, self.state.se.true, 'Ijk_Exit')
 
     #
     # Returning
@@ -266,47 +270,39 @@ class SimProcedure(object):
             self.state.add_constraints(new_expr == expr)
             expr = new_expr
 
-        if self.arguments is not None:
+        if self.is_inline_call:
             self.ret_expr = expr
-            return
         else:
             self.cc.return_val.set_value(self.state, expr)
 
     # Adds an exit representing the function returning. Modifies the state.
     def ret(self, expr=None):
         if expr is not None: self.set_return_expr(expr)
-        if self.arguments is not None:
+        if self.is_inline_request:
             l.debug("Returning without setting exits due to 'internal' call.")
-            return
+
         elif self.ret_to is not None:
+            # XXX
             self.state.log.add_action(SimActionExit(self.state, self.ret_to))
-            self.add_successor(self.state, self.ret_to, self.state.se.true, 'Ijk_Ret')
+            self.current_request.add_successor(self.state, self.ret_to, self.state.se.true, 'Ijk_Ret')
         else:
-            if self.cleanup:
-                self.state.options.discard(o.AST_DEPS)
-                self.state.options.discard(o.AUTO_REFS)
+            # XXX WHY IS THIS HERE
+            #if o.KEEP_IP_SYMBOLIC in self.state.options and isinstance(self.addr, claripy.ast.Base):
+            #    # TODO maybe i want to keep address symbolic
+            #    s = claripy.Solver()
+            #    addrs = s.eval(self.state.regs.ip, 257, extra_constraints=tuple(self.state.ip_constraints))
+            #    if len(addrs) > 256:
+            #        addrs = self.state.se.any_n_int(self.state.regs.ip, 1)
 
-            if o.KEEP_IP_SYMBOLIC in self.state.options and isinstance(self.addr, claripy.ast.Base):
-                # TODO maybe i want to keep address symbolic
-                s = claripy.Solver()
-                addrs = s.eval(self.state.regs.ip, 257, extra_constraints=tuple(self.state.ip_constraints))
-                if len(addrs) > 256:
-                    addrs = self.state.se.any_n_int(self.state.regs.ip, 1)
+            #    self.addr = addrs[0]
 
-                self.addr = addrs[0]
-
-            ret_irsb = pyvex.IRSB(self.state.arch.ret_instruction, self.addr, self.state.arch)
-            ret_simirsb = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr)
-            if not ret_simirsb.flat_successors + ret_simirsb.unsat_successors:
-                ret_state = ret_simirsb.default_exit
+            if self.state.arch.call_pushes_ret:
+                ret_addr = self.state.stack_pop()
             else:
-                ret_state = (ret_simirsb.flat_successors + ret_simirsb.unsat_successors)[0]
+                ret_addr = self.state.registers.load(self.state.arch.lr_offset, self.state.arch.bytes)
 
-            if self.cleanup:
-                self.state.options.add(o.AST_DEPS)
-                self.state.options.add(o.AUTO_REFS)
+            self.current_request.add_successor(self.state, ret_addr, self.state.se.true, 'Ijk_Ret')
 
-            self._add_successor_state(ret_state, ret_state.scratch.target)
 
     def ty_ptr(self, ty):
         return SimTypePointer(self.arch, ty)
@@ -322,27 +318,7 @@ class SimProcedure(object):
         else:
             return "<%s %s>" % (class_name, self.__class__.__name__)
 
-class SimProcedureContinuation(SimProcedure):
-    def setup_and_run(self, request):
-        # pylint: disable=bad-super-call
-        if len(state.procedure_data.callstack) == 0:
-            raise SimProcedureError("Tried to run simproc continuation with empty stack")
-
-        newstate = state.copy()
-        cls, continue_at, stack_space, saved_local_vars, saved_kwargs = newstate.procedure_data.callstack.pop()
-
-        newstate.regs.sp += stack_space
-        self = object.__new__(cls)
-        for name, val in saved_local_vars:
-            setattr(self, name, val)
-
-        kwargs['sim_kwargs'] = saved_kwargs
-        self.__init__(newstate, *args, run_func_name=continue_at, **kwargs)
-        self.initial_state = state
-        return self
-
 from . import s_options as o
 from .s_errors import SimProcedureError, SimProcedureArgumentError
-from .engines.vex.irsb import SimIRSB
 from .s_type import SimTypePointer
 from .s_action import SimActionExit
