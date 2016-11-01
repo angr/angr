@@ -13,24 +13,53 @@ from .plugins.inspect import BP_BEFORE, BP_AFTER
 
 
 class SimProcedure(object):
+    #
+    # Implement these in a subclass!
+    #
+
     local_vars = ()
 
     NO_RET = False
     ADDS_EXITS = False
     IS_SYSCALL = False
 
+    def run(self, *args, **kwargs): #pylint:disable=unused-argument
+        """
+        Implement the actual procedure here!
+        """
+        raise SimProcedureError("%s does not implement a run() method" % self.__class__.__name__)
+
+    def static_exits(self, blocks):  # pylint: disable=unused-argument
+        """
+        Get new exits by performing static analysis and heuristics. This is a fast and best-effort approach to get new
+        exits for scenarios where states are not available (e.g. when building a fast CFG).
+
+        :param list blocks: Blocks that are executed before reaching this SimProcedure.
+        :return: A list of tuples. Each tuple is (address, jumpkind).
+        :rtype: list
+        """
+
+        if self.ADDS_EXITS:
+            raise SimProcedureError("static_exits() is not implemented for %s" % self)
+        else:
+            # This SimProcedure does not add any new exit
+            return [ ]
+
+    #
+    # Initialization and clerical work
+    #
+
     def __init__(
         self, arch,
         symbolic_return=None,
         returns=None, is_syscall=None,
-        num_args=None, display_name=None, ret_to=None,
+        num_args=None, display_name=None,
         stmt_from=None, convention=None, sim_kwargs=None,
         is_function=False
     ):
         self.kwargs = { } if sim_kwargs is None else sim_kwargs
 
         self.stmt_from = -1 if stmt_from is None else stmt_from
-        self.ret_to = ret_to
         self.display_name = display_name
 
         # types
@@ -62,6 +91,9 @@ class SimProcedure(object):
         self.ret_expr = None
 
     def setup_and_run(self, request, arguments=None):
+        """
+        Call this method with a SimEngineRequest to execute the procedure
+        """
         # check to see if this is a syscall and if we should override its return value
         override = None
         if self.is_syscall:
@@ -113,9 +145,6 @@ class SimProcedure(object):
         if self.is_syscall:
             request.state._inspect('syscall', BP_AFTER)
 
-    def run(self, *args, **kwargs): #pylint:disable=unused-argument
-        raise SimProcedureError("%s does not implement a run() method" % self.__class__.__name__)
-
     #
     # Some accessors
     #
@@ -142,7 +171,7 @@ class SimProcedure(object):
         return self.arguments is not None
 
     #
-    # Argument wrangling
+    # Working with calling conventions
     #
 
     def set_convention(self, convention=None):
@@ -184,77 +213,12 @@ class SimProcedure(object):
         l.debug("returning argument")
         return r
 
-    #
-    # Calling/exiting
-    #
-
-    def inline_call(self, procedure, *arguments, **sim_kwargs):
-        with self.current_request.as_inline():
-            e_args = [ self.state.se.BVV(a, self.state.arch.bits) if isinstance(a, (int, long)) else a for a in arguments ]
-            p = procedure(self.arch, sim_kwargs=sim_kwargs)
-            p.setup_and_run(self.current_request, e_args)
-            return p
-
-    def call(self, addr, args, continue_at, cc=None):
-        if cc is None:
-            cc = self.cc
-
-        call_state = self.state.copy()
-        ret_addr = self.addr
-        saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
-        simcallstack_entry = (continue_at, cc.stack_space(args), saved_local_vars)
-        cc.setup_callsite(call_state, ret_addr, args)
-        call_state.procedure_data.callstack.append(simcallstack_entry)
-
-        if call_state.libc.ppc64_abiv == 'ppc64_1':
-            call_state.regs.r2 = self.state.mem[addr + 8:].long.resolved
-            addr = call_state.mem[addr:].long.resolved
-        elif call_state.arch.name in ('MIPS32', 'MIPS64'):
-            call_state.regs.t9 = addr
-
-        self.current_request.add_successor(call_state, addr, call_state.se.true, 'Ijk_Call')
-
-        if o.DO_RET_EMULATION in self.state.options:
-            ret_state = self.state.copy()
-            cc.setup_callsite(ret_state, ret_addr, args)
-            ret_state.procedure_data.callstack.append(simcallstack_entry)
-            guard = ret_state.se.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else ret_state.se.false
-            self.current_request.add_successor(ret_state, ret_addr, guard, 'Ijk_FakeRet')
-
-    def jump(self, addr):
-        self.current_request.add_successor(self.state, addr, self.state.se.true, 'Ijk_Boring')
-
-    def exit(self, exit_code):
-        self.state.options.discard(o.AST_DEPS)
-        self.state.options.discard(o.AUTO_REFS)
-
-        if isinstance(exit_code, (int, long)):
-            exit_code = self.state.se.BVV(exit_code, self.state.arch.bits)
-        self.state.log.add_event('terminate', exit_code=exit_code)
-        self.current_request.add_successor(self.state, self.state.regs.ip, self.state.se.true, 'Ijk_Exit')
-
-    #
-    # Returning
-    #
-
-    def static_exits(self, blocks):  # pylint: disable=unused-argument
-        """
-        Get new exits by performing static analysis and heuristics. This is a fast and best-effort approach to get new
-        exits for scenarios where states are not available (e.g. when building a fast CFG).
-
-        :param list blocks: Blocks that are executed before reaching this SimProcedure.
-        :return: A list of tuples. Each tuple is (address, jumpkind).
-        :rtype: list
-        """
-
-        if self.ADDS_EXITS:
-            raise SimProcedureError("static_exits() is not implemented for %s" % self)
-        else:
-            # This SimProcedure does not add any new exit
-            return [ ]
-
-    # Sets an expression as the return value. Also updates state.
     def set_return_expr(self, expr):
+        """
+        Set this expression as the return value for the function.
+        If this is not an inline call, this will write the expression to the state via the
+        calling convention.
+        """
         if isinstance(expr, (int, long)):
             expr = self.state.se.BVV(expr, self.state.arch.bits)
 
@@ -275,34 +239,115 @@ class SimProcedure(object):
         else:
             self.cc.return_val.set_value(self.state, expr)
 
-    # Adds an exit representing the function returning. Modifies the state.
+    #
+    # Calling/exiting
+    #
+
+    def inline_call(self, procedure, *arguments, **sim_kwargs):
+        """
+        Call another SimProcedure in-line to retrieve its return value.
+        Returns an instance of the procedure with the ret_expr property set.
+
+        :param procedure:       The class of the procedure to execute
+        :param arguments:       Any additional positional args will be used as arguments to the
+                                procedure call
+        :param sim_kwargs:      Any additional keyword args will be passed as sim_kwargs to the
+                                procedure construtor
+        """
+        with self.current_request.as_inline():
+            e_args = [ self.state.se.BVV(a, self.state.arch.bits) if isinstance(a, (int, long)) else a for a in arguments ]
+            p = procedure(self.arch, sim_kwargs=sim_kwargs)
+            p.setup_and_run(self.current_request, e_args)
+            return p
+
     def ret(self, expr=None):
-        if expr is not None: self.set_return_expr(expr)
+        """
+        Add an exit representing a return from this function.
+        If this is not an inline call, grab a return address from the state and jump to it.
+        If this is not an inline call, set a return expression with the calling convention.
+        """
+        if expr is not None:
+            self.set_return_expr(expr)
+
         if self.is_inline_request:
             l.debug("Returning without setting exits due to 'internal' call.")
+            return
 
-        elif self.ret_to is not None:
-            # XXX
-            self.state.log.add_action(SimActionExit(self.state, self.ret_to))
-            self.current_request.add_successor(self.state, self.ret_to, self.state.se.true, 'Ijk_Ret')
+        if self.current_request.ret_to is not None:
+            # TODO: If set ret_to, do we also want to pop an unused ret addr from the stack?
+            ret_addr = self.current_request.ret_to
         else:
-            # XXX WHY IS THIS HERE
-            #if o.KEEP_IP_SYMBOLIC in self.state.options and isinstance(self.addr, claripy.ast.Base):
-            #    # TODO maybe i want to keep address symbolic
-            #    s = claripy.Solver()
-            #    addrs = s.eval(self.state.regs.ip, 257, extra_constraints=tuple(self.state.ip_constraints))
-            #    if len(addrs) > 256:
-            #        addrs = self.state.se.any_n_int(self.state.regs.ip, 1)
-
-            #    self.addr = addrs[0]
-
             if self.state.arch.call_pushes_ret:
                 ret_addr = self.state.stack_pop()
             else:
                 ret_addr = self.state.registers.load(self.state.arch.lr_offset, self.state.arch.bytes)
 
-            self.current_request.add_successor(self.state, ret_addr, self.state.se.true, 'Ijk_Ret')
+        self._exit_action(self.state, ret_addr)
+        self.current_request.add_successor(self.state, ret_addr, self.state.se.true, 'Ijk_Ret')
 
+    def call(self, addr, args, continue_at, cc=None):
+        """
+        Add an exit representing calling another function via pointer.
+
+        :param addr:        The address of the function to call
+        :param args:        The list of arguments to call the function with
+        :param continue_at: Later, when the called function returns, execution of the current
+                            procedure will continue in the named method.
+        :param cc:          Optional: use this calling convention for calling the new function.
+                            Default is to use the current convention.
+        """
+        if cc is None:
+            cc = self.cc
+
+        call_state = self.state.copy()
+        ret_addr = self.addr
+        saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
+        simcallstack_entry = (continue_at, cc.stack_space(args), saved_local_vars)
+        cc.setup_callsite(call_state, ret_addr, args)
+        call_state.procedure_data.callstack.append(simcallstack_entry)
+
+        if call_state.libc.ppc64_abiv == 'ppc64_1':
+            call_state.regs.r2 = self.state.mem[addr + 8:].long.resolved
+            addr = call_state.mem[addr:].long.resolved
+        elif call_state.arch.name in ('MIPS32', 'MIPS64'):
+            call_state.regs.t9 = addr
+
+        self._exit_action(call_state, addr)
+        self.current_request.add_successor(call_state, addr, call_state.se.true, 'Ijk_Call')
+
+        if o.DO_RET_EMULATION in self.state.options:
+            ret_state = self.state.copy()
+            cc.setup_callsite(ret_state, ret_addr, args)
+            ret_state.procedure_data.callstack.append(simcallstack_entry)
+            guard = ret_state.se.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else ret_state.se.false
+            self.current_request.add_successor(ret_state, ret_addr, guard, 'Ijk_FakeRet')
+
+    def jump(self, addr):
+        """
+        Add an exit representing jumping to an address.
+        """
+        self._exit_action(self.state, addr)
+        self.current_request.add_successor(self.state, addr, self.state.se.true, 'Ijk_Boring')
+
+    def exit(self, exit_code):
+        """
+        Add an exit representing terminating the program.
+        """
+        self.state.options.discard(o.AST_DEPS)
+        self.state.options.discard(o.AUTO_REFS)
+
+        if isinstance(exit_code, (int, long)):
+            exit_code = self.state.se.BVV(exit_code, self.state.arch.bits)
+        self.state.log.add_event('terminate', exit_code=exit_code)
+        self.current_request.add_successor(self.state, self.state.regs.ip, self.state.se.true, 'Ijk_Exit')
+
+    def _exit_action(self, state, addr):
+        if o.TRACK_JMP_ACTIONS in state.options:
+            state.log.add_action(SimActionExit(state, addr))
+
+    #
+    # misc
+    #
 
     def ty_ptr(self, ty):
         return SimTypePointer(self.arch, ty)

@@ -279,8 +279,8 @@ class SimEngineRequest(object):
         self.inline = old_inline
 
 
-from simuvex.plugins.inspect import BP_BEFORE, BP_AFTER
-from simuvex.s_errors import SimSolverModeError, UnsupportedSyscallError
-from simuvex.s_cc import SyscallCC
-from simuvex.s_action_object import _raw_ast
+from ..plugins.inspect import BP_BEFORE, BP_AFTER
+from ..s_errors import SimSolverModeError, UnsupportedSyscallError
+from ..s_cc import SyscallCC
+from ..s_action_object import _raw_ast
 from .. import s_options as o

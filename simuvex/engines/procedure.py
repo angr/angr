@@ -24,15 +24,12 @@ class SimEngineProcedure(SimEngine):
         request.active_state.scratch.executed_block_count = 1
 
         request.ret_to = kwargs.get('ret_to', None)
-        request.ret_expr = None
 
         # prepare and run!
-        if o.AUTO_REFS not in request.active_state.options:
-            cleanup_options = True
+        cleanup_options = o.AUTO_REFS not in request.active_state.options:
+        if cleanup_options:
             request.active_state.options.add(o.AST_DEPS)
             request.active_state.options.add(o.AUTO_REFS)
-        else:
-            cleanup_options = False
 
         # do it
         procedure.setup_and_run(request)
@@ -40,8 +37,6 @@ class SimEngineProcedure(SimEngine):
         if cleanup_options:
             request.active_state.options.discard(o.AST_DEPS)
             request.active_state.options.discard(o.AUTO_REFS)
-
-        self.cleanup()
 
     def initialize_run(self):
         pass
