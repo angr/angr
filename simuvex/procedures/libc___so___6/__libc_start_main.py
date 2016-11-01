@@ -51,14 +51,14 @@ class __libc_start_main(simuvex.SimProcedure):
 
         # TODO: __cxa_atexit calls for various at-exit needs
 
-        self.call_out(self.init, (self.argc, self.argv, self.envp), 'after_init')
+        self.call(self.init, (self.argc, self.argv, self.envp), 'after_init')
 
     def after_init(self, main, argc, argv, init, fini, exit_addr=0):
         if isinstance(self.state.arch, ArchAMD64):
             # (rsp+8) must be aligned to 16 as required by System V ABI
             # ref: http://www.x86-64.org/documentation/abi.pdf , page 16
             self.state.regs.rsp = (self.state.regs.rsp & 0xfffffffffffffff0) - 8
-        self.call_out(self.main, (self.argc, self.argv, self.envp), 'after_main')
+        self.call(self.main, (self.argc, self.argv, self.envp), 'after_main')
 
     def after_main(self, main, argc, argv, init, fini, exit_addr=0):
         self.exit(0)
