@@ -686,7 +686,9 @@ class Function(object):
         """
         Draw the graph and save it to a PNG file.
         """
-        import matplotlib.pyplot as pyplot # pylint: disable=import-error
+        import matplotlib.pyplot as pyplot  # pylint: disable=import-error
+        from networkx.drawing.nx_agraph import graphviz_layout  # pylint: disable=import-error
+
         tmp_graph = networkx.DiGraph()
         for from_block, to_block in self.transition_graph.edges():
             node_a = "%#08x" % from_block.addr
@@ -696,7 +698,7 @@ class Function(object):
             if node_a in self._call_sites:
                 node_a += "[Call]"
             tmp_graph.add_edge(node_a, node_b)
-        pos = networkx.graphviz_layout(tmp_graph, prog='fdp')   # pylint: disable=no-member
+        pos = graphviz_layout(tmp_graph, prog='fdp')   # pylint: disable=no-member
         networkx.draw(tmp_graph, pos, node_size=1200)
         pyplot.savefig(filename)
 
