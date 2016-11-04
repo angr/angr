@@ -1,4 +1,4 @@
-def translate_expr(expr, stmt_idx, tyenv, state):
+def translate_expr(expr, tyenv, state):
     expr_name = 'SimIRExpr_' + type(expr).__name__.split('IRExpr')[-1].split('.')[-1]
     g = globals()
 
@@ -10,7 +10,7 @@ def translate_expr(expr, stmt_idx, tyenv, state):
         expr_class = g[expr_name]
 
     l.debug("Processing expression %s", expr_name)
-    e = expr_class(expr, stmt_idx, tyenv, state)
+    e = expr_class(expr, tyenv, state)
     e.process()
     return e
 

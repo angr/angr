@@ -1,5 +1,4 @@
 from . import SimIRStmt
-from .. import size_bytes
 
 import logging
 l = logging.getLogger('simuvex.vex.statements.llsc')
@@ -14,9 +13,9 @@ class SimIRStmt_LLSC(SimIRStmt):
 
         if self.stmt.storedata is None:
             # it's a load-linked
-            load_size = size_bytes(self.irsb.tyenv.types[self.stmt.result])
+            load_size = self.stmt.result_size/8
             data = self.state.memory.load(addr.expr, load_size, endness=self.stmt.endness)
-            self._write_tmp(self.stmt.result, data, data.length, addr.reg_deps(), addr.tmp_deps())
+            self.state.scratch.store_tmp(self.stmt.result, data, addr.reg_deps(), addr.tmp_deps())
         else:
             # it's a store-conditional
             #result = self.state.se.Unconstrained('llcd_result', 1)
@@ -42,8 +41,7 @@ class SimIRStmt_LLSC(SimIRStmt):
                 a = None
 
             self.state.memory.store(addr.expr, store_data.expr, action=a)
-            self.state.scratch.store_tmp(self.stmt.result, result)
-            self._write_tmp(self.stmt.result, result, result.length, addr.reg_deps() | store_data.reg_deps(), addr.tmp_deps() | store_data.tmp_deps())
+            self.state.scratch.store_tmp(self.stmt.result, result, addr.reg_deps() | store_data.reg_deps(), addr.tmp_deps() | store_data.tmp_deps())
 
 from simuvex.s_action_object import SimActionObject
 from simuvex.s_action import SimActionData

@@ -18,7 +18,7 @@ class fclose(simuvex.SimProcedure):
         sys_close = simuvex.SimProcedures['syscalls']['close']
         
         # Call system close and return
-        retval = sys_close(self.state, inline=True, arguments=[self.state.se.any_int(fileno)]).ret_expr
+        retval = self.inline_call(sys_close, fileno).ret_expr
         
         return retval
 

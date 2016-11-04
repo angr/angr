@@ -33,7 +33,7 @@ class SimIRStmt_LoadG(SimIRStmt):
         else:
             reg_deps = None
             tmp_deps = None
-        self._write_tmp(self.stmt.dst, read_expr, converted_size*8, reg_deps, tmp_deps)
+        self.state.scratch.store_tmp(self.stmt.dst, read_expr, reg_deps, tmp_deps)
 
         if o.TRACK_MEMORY_ACTIONS in self.state.options:
             data_ao = SimActionObject(converted_expr)

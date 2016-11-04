@@ -14,8 +14,8 @@ class strcmp(simuvex.SimProcedure):
 
         strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 
-        a_strlen = strlen(self.state, inline=True, arguments=[a_addr])
-        b_strlen = strlen(self.state, inline=True, arguments=[b_addr])
+        a_strlen = self.inline_call(strlen, a_addr)
+        b_strlen = self.inline_call(strlen, b_addr)
         maxlen = self.state.se.BVV(max(a_strlen.max_null_index, b_strlen.max_null_index), self.state.arch.bits)
 
         strncmp = self.inline_call(simuvex.SimProcedures['libc.so.6']['strncmp'], a_addr, b_addr, maxlen, a_len=a_strlen, b_len=b_strlen)

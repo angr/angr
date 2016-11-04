@@ -4,13 +4,9 @@ l = logging.getLogger("simuvex.vex.statements")
 class SimIRStmt(object):
     """A class for symbolically translating VEX IRStmts."""
 
-    def __init__(self, irsb, stmt_idx, state):
-        self.stmt_idx = stmt_idx
+    def __init__(self, stmt, state):
+        self.stmt = stmt
         self.state = state
-
-        # temporarily store this
-        self.stmt = irsb.statements[stmt_idx]
-        self.irsb = irsb
 
         # references by the statement
         self.actions = []
@@ -20,19 +16,15 @@ class SimIRStmt(object):
         """
         Process the statement, applying its effects on the state.
         """
-
         # this is where we would choose between different analysis modes
         self._execute()
-
-        del self.stmt
-        del self.irsb
 
     def _execute(self):
         raise NotImplementedError()
 
     def _translate_expr(self, expr):
         """Translates an IRExpr into a SimIRExpr."""
-        e = translate_expr(expr, self.stmt_idx, self.irsb.tyenv, self.state)
+        e = translate_expr(expr, self.irsb.tyenv, self.state)
         self._record_expr(e)
         return e
 
@@ -49,15 +41,12 @@ class SimIRStmt(object):
         self._constraints.extend(constraints)
         self.state.add_constraints(*constraints)
 
-    def _write_tmp(self, tmp, v, size, reg_deps, tmp_deps):
-        """Writes an expression to a tmp. If in symbolic mode, this involves adding a constraint for the tmp's symbolic variable."""
-        self.state.scratch.store_tmp(tmp, v)
+    def _write_tmp(self, tmp, v, reg_deps, tmp_deps):
+        """
+        Writes an expression to a tmp. 
+        """
+        self.state.scratch.store_tmp(tmp, v, reg_deps, tmp_deps)
 
-        # get the size, and record the write
-        if o.TRACK_TMP_ACTIONS in self.state.options:
-            data_ao = SimActionObject(v, reg_deps=reg_deps, tmp_deps=tmp_deps)
-            r = SimActionData(self.state, SimActionData.TMP, SimActionData.WRITE, tmp=tmp, data=data_ao, size=size)
-            self.actions.append(r)
 
 from ..expressions import translate_expr
 from simuvex import s_options as o

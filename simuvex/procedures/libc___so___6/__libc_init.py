@@ -15,6 +15,7 @@ class __libc_init(simuvex.SimProcedure):
 
     ADDS_EXITS = True
     NO_RET = True
+    IS_FUNCTION = True
     local_vars = ('main', 'argc', 'argv', 'envp')
 
     def run(self, raw_args, unused, slingshot, structors):
