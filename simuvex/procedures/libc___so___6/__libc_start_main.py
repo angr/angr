@@ -14,6 +14,7 @@ class __libc_start_main(simuvex.SimProcedure):
 
     ADDS_EXITS = True
     NO_RET = True
+    IS_FUNCTION = True
     local_vars = ('main', 'argc', 'argv', 'init', 'fini')
 
     def _initialize_ctype_table(self):

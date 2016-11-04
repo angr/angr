@@ -21,7 +21,7 @@ class SimIRExpr_Load(SimIRExpr):
         # if we got a symbolic address and we're not in symbolic mode, just return a symbolic value to deal with later
         if o.DO_LOADS not in self.state.options:
             self.expr = self.state.se.Unconstrained("load_expr_0x%x_%d" % (
-                self.state.scratch.ins_addr, self.stmt_idx
+                self.state.scratch.ins_addr, self.state.scratch.stmt_idx
             ), size*8)
         else:
 

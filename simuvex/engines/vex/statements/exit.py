@@ -6,8 +6,8 @@ from simuvex.s_action_object import SimActionObject
 from simuvex.s_action import SimActionExit
 
 class SimIRStmt_Exit(SimIRStmt):
-    def __init__(self, irsb, stmt_idx, state):
-        SimIRStmt.__init__(self, irsb, stmt_idx, state)
+    def __init__(self, stmt, state):
+        SimIRStmt.__init__(self, stmt, state)
 
         self.guard = None
         self.target = None

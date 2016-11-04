@@ -1,30 +1,20 @@
 import claripy
-import contextlib
 
 import logging
 l = logging.getLogger('simuvex.engine.request')
 
-class SimEngineRequest(object):
+class SimSuccessors(object):
     """
-    This class serves as a container for the input to SimEngine and output from a SimEngine.
+    This class serves as a categorization of all the kinds of result states that can come from a
+    SimEngine run.
     """
 
-    def __init__(self, state, inline=False, force_bbl_addr=None, *args, **kwargs):
+    def __init__(self, addr):
         """
-        Create a SimEngineRequest.
+        :param addr:    The source address that produced the successors. Cosmetic.
         """
-        self.kwargs = kwargs
-        self.args = args
-        self.input_state = state
-        self.active_state = None
+        self.addr = addr
 
-        # whether or not the execution should be "inlined"
-        self.inline = inline
-
-        # an override for the address of the state
-        self.force_bbl_addr = force_bbl_addr
-
-        # The successors of this SimRun
         self.successors = [ ]
         self.all_successors = [ ]
         self.flat_successors = [ ]
@@ -35,47 +25,24 @@ class SimEngineRequest(object):
         self.engine = None
         self.processed = False
 
-        # the name (for stringification)
-        self.custom_name = None
-
-        # some scratch stuff for the VEX engine
-        self.irsb = None
-        self.conditional_guards = None
-        self.last_imark = None
-
-        # some scratch stuff for the SimProcedure engine
-        self.procedure = None
-        self.sim_kwargs = None
-        self.ret_to = None
-        self.ret_expr = None
-
-    @property
-    def addr(self):
-        if self.force_bbl_addr is not None:
-            return self.input_state.any_int(self.input_state.pc)
-        else:
-            return self.force_bbl_addr
-
     def __repr__(self):
-        start_str = "%s to %s" % (self.input_state.scratch.jumpkind, self.addr)
-
         if self.processed:
             successor_strings = [ ]
             if len(self.flat_successors) != 0:
-                successor_strings.append("%d sat")
+                successor_strings.append("%d sat" % len(self.flat_successors))
             if len(self.unsat_successors) != 0:
-                successor_strings.append("%d unsat")
+                successor_strings.append("%d unsat" % len(self.unsat_successors))
             if len(self.unconstrained_successors) != 0:
-                successor_strings.append("%d unconstrained")
+                successor_strings.append("%d unconstrained" % len(self.unconstrained_successors))
 
-            if len(successor_strings) != 0:
-                successors = "successors (%s)" % ", ".join(successor_strings)
-
-            processed_str = " - ".join((successors, self.engine.describe(self)))
+            if len(successor_strings) == 0:
+                result = 'empty'
+            else:
+                result = ' '.join(successor_strings)
         else:
-            processed_str = "unprocessed"
+            result = 'failure'
 
-        return "<SimEngineRequest %s - %s>" % (start_str, processed_str)
+        return '<SimSuccessors from %#x: %s>' % (self.addr, result)
 
     def add_successor(self, state, target, guard, jumpkind, add_guard=True, exit_stmt_idx=None, source=None):
         """
@@ -266,17 +233,21 @@ class SimEngineRequest(object):
 
         return syscall_num, possible
 
-    @contextlib.contextmanager
-    def as_inline(self):
-        old_bbl_addr = self.active_state.scratch.bbl_addr
-        old_sim_procedure = self.active_state.scratch.sim_procedure
-        old_inline = self.inline
+    def _finalize(self):
+        """
+        Finalizes the request.
+        """
+        if len(self.all_successors) == 0:
+            return
 
-        yield
+        # do some cleanup
+        if o.DOWNSIZE_Z3 in self.all_successors[0].options:
+            for s in self.all_successors:
+                s.downsize()
 
-        self.active_state.scratch.bbl_addr = old_bbl_addr
-        self.active_state.scratch.sim_procedure = old_sim_procedure
-        self.inline = old_inline
+        # record if the exit is unavoidable
+        if len(self.flat_successors) == 1 and len(self.unconstrained_successors) == 0:
+            self.flat_successors[0].scratch.avoidable = False
 
 
 from ..plugins.inspect import BP_BEFORE, BP_AFTER

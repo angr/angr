@@ -29,8 +29,8 @@ class fopen(simuvex.SimProcedure):
     def run(self, p_addr, m_addr):
         strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 
-        p_strlen = strlen(self.state, inline=True, arguments=[p_addr])
-        m_strlen = strlen(self.state, inline=True, arguments=[m_addr])
+        p_strlen = self.inline_call(strlen, p_addr)
+        m_strlen = self.inline_call(strlen, m_addr)
         p_expr = self.state.memory.load(p_addr, p_strlen.max_null_index, endness='Iend_BE')
         m_expr = self.state.memory.load(m_addr, m_strlen.max_null_index, endness='Iend_BE')
         path = self.state.se.any_str(p_expr)
