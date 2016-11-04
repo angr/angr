@@ -1,4 +1,5 @@
-from simuvex import SimIRSB, SimProcedures, SimUnicorn, SimState, BP_BEFORE, BP_AFTER, SimUnicornError
+from simuvex import SimEngineVEX, SimEngineProcedure, SimProcedures, SimState, BP_BEFORE, BP_AFTER
+#from simuvex import , SimProcedures, SimUnicorn, SimState, BP_BEFORE, BP_AFTER, SimUnicornError
 from simuvex import s_options as o, s_cc
 from simuvex.s_errors import SimSegfaultError, SimReliftException
 from .surveyors.caller import Callable
@@ -25,7 +26,7 @@ class AngrObjectFactory(object):
         else:
             return self.block(addr, **block_opts).codenode # pylint: disable=no-member
 
-    def sim_block(self, state, stmt_whitelist=None, last_stmt=None,
+    def sim_block(self, state, stmt_whitelist=None, last_stmt=100,
                   addr=None, opt_level=None, **block_opts):
         """
         Returns a SimIRSB object with execution based on state.
@@ -97,12 +98,11 @@ class AngrObjectFactory(object):
                             **block_opts)
 
             try:
-                return SimIRSB(state,
-                               bb.vex,
-                               addr=addr,
-                               whitelist=stmt_whitelist,
-                               last_stmt=last_stmt,
-                               force_bbl_addr=force_bbl_addr)
+                return SimEngineVEX().process(state,
+                                              bb.vex,
+                                              force_addr=force_bbl_addr,
+                                              whitelist=stmt_whitelist,
+                                              last_stmt=last_stmt)
             except SimReliftException as e:
                 state = e.state
                 force_bbl_addr = state.scratch.bbl_addr
@@ -145,7 +145,7 @@ class AngrObjectFactory(object):
 
         if jumpkind == 'Ijk_Exit':
             l.debug('Execution hit exit at %#x', addr)
-            return SimProcedures['stubs']['PathTerminator'](state, addr=addr)
+            return SimEngineProcedure().process(state, SimProcedures['stubs']['PathTerminator'](state.arch))
 
         if jumpkind.startswith("Ijk_Sys"):
             l.debug("Invoking system call handler")
@@ -159,24 +159,23 @@ class AngrObjectFactory(object):
                                 "using project.hook(%#x, your_function, length=length_of_instruction)." % (addr, addr))
 
         elif self._project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
-            sim_proc_class, kwargs = self._project._sim_procedures[addr]
-            l.debug("Creating SimProcedure %s (originally at %#x)",
-                    sim_proc_class.__name__, addr)
-            state._inspect('call', BP_BEFORE, function_name=sim_proc_class.__name__)
-            r = sim_proc_class(state, addr=addr, sim_kwargs=kwargs)
-            state._inspect('call', BP_AFTER, function_name=sim_proc_class.__name__)
-            l.debug("... %s created", r)
+            procedure_class = self._project._sim_procedures[addr]
+            l.debug("Running %s (originally at %#x)",
+                    repr(procedure_class), addr)
+            state._inspect('call', BP_BEFORE, function_name=procedure_class.__name__)
+            r = SimEngineProcedure().process(state, procedure_class, force_addr=addr)
+            state._inspect('call', BP_AFTER, function_name=procedure_class.__name__)
 
-        elif o.UNICORN in state.options and state.unicorn.check():
-            l.info('Creating SimUnicorn at %#x', addr)
-            stops = self._project._sim_procedures.keys()
-            if extra_stop_points is not None:
-                stops.extend(extra_stop_points)
+        #elif o.UNICORN in state.options and state.unicorn.check():
+        #    l.info('Creating SimUnicorn at %#x', addr)
+        #    stops = self._project._sim_procedures.keys()
+        #    if extra_stop_points is not None:
+        #        stops.extend(extra_stop_points)
 
-            try:
-                r = SimUnicorn(state, stop_points=stops)
-            except SimUnicornError:
-                r = self.sim_block(state, **block_opts)
+        #    try:
+        #        r = SimUnicorn(state, stop_points=stops)
+        #    except SimUnicornError:
+        #        r = self.sim_block(state, **block_opts)
 
         else:
             l.debug("Creating SimIRSB at 0x%x", addr)

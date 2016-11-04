@@ -241,7 +241,7 @@ class Project(object):
                 procedure = simuvex.SimProcedures['stubs']['NoReturnUnconstrained']
                 if func.name not in procedure.use_cases:
                     procedure = simuvex.SimProcedures['stubs']['ReturnUnconstrained']
-                self.hook_symbol(func.name, procedure, {'resolves': func.name})
+                self.hook_symbol(func.name, procedure(resolves=func.name))
                 already_resolved.add(func.name)
 
     def _should_exclude_sim_procedure(self, f):
@@ -274,31 +274,29 @@ class Project(object):
         :param addr:        The address to hook.
         :param func:        The function that will perform an action when execution reaches the hooked address.
         :param length:      How many bytes you'd like to skip over with your hook. Can be zero.
-        :param kwargs:      Any additional keyword arguments will be passed to your function or your
-                            :class:`SimProcedure`'s run function.
+        :param kwargs:      Any additional keyword arguments will be passed your hook function at
+                            execution time
         """
-
-        l.debug('hooking %#x with %s', addr, func)
         if kwargs is None: kwargs = {}
 
+        l.debug('hooking %#x with %s', addr, func)
+
         if self.is_hooked(addr):
-            l.warning("Address is already hooked [hook(%#x, %s, %s()]", addr, func, kwargs.get('funcname', func.__name__))
+            l.warning("Address is already hooked [hook(%#x, %s)]", addr, func)
             return
 
         if isinstance(func, type):
-            proc = func
-        elif hasattr(func, '__call__'):
-            proc = simuvex.procedures.stubs.UserHook.UserHook
-            kwargs = {
-                'user_func': func,
-                'user_kwargs': kwargs,
-                'default_return_addr': addr+length,
-                'length': length,
-            }
+            proc = func(self.arch, sim_kwargs=kwargs)
+        elif callable(func):
+            proc = simuvex.procedures.stubs.UserHook.UserHook(self.arch,
+                    sim_kwargs= dict(user_func=func,
+                                user_kwargs=kwargs,
+                                default_return_addr=addr+length,
+                                length=length))
         else:
             raise AngrError("%s is not a valid object to execute in a hook", func)
 
-        self._sim_procedures[addr] = (proc, kwargs)
+        self._sim_procedures[addr] = proc
 
     def is_hooked(self, addr):
         """
@@ -369,7 +367,7 @@ class Project(object):
             l.warning("Address %#x is not hooked", addr)
             return None
 
-        return self._sim_procedures[addr][0]
+        return self._sim_procedures[addr]
 
     def hook_symbol(self, symbol_name, obj, kwargs=None):
         """

@@ -5,12 +5,11 @@ Manage OS-level configuration.
 import logging
 
 from archinfo import ArchARM, ArchMIPS32, ArchMIPS64, ArchX86, ArchAMD64, ArchPPC32, ArchPPC64, ArchAArch64
-from simuvex import SimState, SimIRSB, SimStateSystem, SimActionData
+from simuvex import SimState, SimStateSystem, SimActionData
 from simuvex import s_options as o, s_cc
 from simuvex import SimProcedures
-from simuvex.s_procedure import SimProcedure, SimProcedureContinuation
+from simuvex.s_procedure import SimProcedure
 from cle import MetaELF, BackedCGC
-import pyvex
 import claripy
 
 from .errors import AngrSyscallError, AngrUnsupportedSyscallError, AngrCallableError, AngrSimOSError
@@ -305,8 +304,6 @@ class SimOS(object):
         """
         Configure the project to set up global settings (like SimProcedures).
         """
-        self.continue_addr = self.proj._extern_obj.get_pseudo_addr('angr##simproc_continue')
-        self.proj.hook(self.continue_addr, SimProcedureContinuation)
         self.return_deadend = self.proj._extern_obj.get_pseudo_addr('angr##return_deadend')
         self.proj.hook(self.return_deadend, CallReturn)
 
@@ -997,22 +994,12 @@ class _vsyscall(SimProcedure):
 
     # This is pretty much entirely copied from SimProcedure.ret
     def run(self):
-        if self.cleanup:
-            self.state.options.discard(o.AST_DEPS)
-            self.state.options.discard(o.AUTO_REFS)
-
-        ret_irsb = pyvex.IRSB(self.state.arch.ret_instruction, self.addr, self.state.arch)
-        ret_simirsb = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr)
-        if not ret_simirsb.flat_successors + ret_simirsb.unsat_successors:
-            ret_state = ret_simirsb.default_exit
+        if self.state.arch.call_pushes_ret:
+            ret_addr = self.state.stack_pop()
         else:
-            ret_state = (ret_simirsb.flat_successors + ret_simirsb.unsat_successors)[0]
+            ret_addr = self.state.registers.load(self.state.arch.lr_offset, self.state.arch.bytes)
 
-        if self.cleanup:
-            self.state.options.add(o.AST_DEPS)
-            self.state.options.add(o.AUTO_REFS)
-
-        self.add_successor(ret_state, ret_state.scratch.target, ret_state.scratch.guard, 'Ijk_Sys')
+        self.add_successor(ret_state, ret_addr, claripy.true, 'Ijk_Sys')
 
 class _kernel_user_helper_get_tls(SimProcedure):
     # pylint: disable=arguments-differ
