@@ -227,35 +227,6 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         return region_base_addr
 
-    def stack_id(self, function_address):
-        """
-        Return a memory region ID for a function. If the default region ID exists in the region mapping, an integer
-        will appended to the region name. In this way we can handle recursive function calls, or a function that
-        appears more than once in the call frame.
-
-        This also means that `stack_id()` should only be called when creating a new stack frame for a function. You are
-        not supposed to call this function every time you want to map a function address to a stack ID.
-
-        :param int function_address: Address of the function.
-        :return: ID of the new memory region.
-        :rtype; str
-        """
-
-        region_id = 'stack_0x%x' % function_address
-
-        # deduplication
-        region_ids = self._stack_region_map.region_ids
-        if region_id not in region_ids:
-            return region_id
-        else:
-            for i in xrange(0, 2000):
-                new_region_id = region_id + '_%d' % i
-                if new_region_id not in region_ids:
-                    return new_region_id
-            raise SimMemoryError('Cannot allocate region ID for function %#08x - recursion too deep' % function_address)
-
-
-
     def set_stack_size(self, size):
         self._stack_size = size
 
