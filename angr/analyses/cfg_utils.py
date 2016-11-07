@@ -54,6 +54,40 @@ class CFGUtils(object):
         return addrs
 
     @staticmethod
+    def find_widening_points(function_addr, function_endpoints, graph):  # pylint: disable=unused-argument
+        """
+        Given a local transition graph of a function, find all widening points inside.
+
+        Correctly choosing widening points is very important in order to not lose too much information during static
+        analysis. We mainly consider merge points that has at least one loop back edges coming in as widening points.
+
+        :param int function_addr: Address of the function.
+        :param list function_endpoints: Endpoints of the function, typically coming from Function.endpoints.
+        :param networkx.DiGraph graph: A local transition graph of a function, normally Function.graph.
+        :return: A list of addresses of widening points.
+        :rtype: list
+        """
+
+        sccs = networkx.strongly_connected_components(graph)
+
+        widening_addrs = set()
+
+        for scc in sccs:
+            if len(scc) == 1:
+                node = next(iter(scc))
+                if graph.has_edge(node, node):
+                    # self loop
+                    widening_addrs.add(node.addr)
+            else:
+                for n in scc:
+                    predecessors = graph.predecessors(n)
+                    if any([ p not in scc for p in predecessors]):
+                        widening_addrs.add(n.addr)
+                        break
+
+        return list(widening_addrs)
+
+    @staticmethod
     def reverse_post_order_sort_nodes(graph, nodes=None):
         """
         Sort a given set of nodes in reverse post ordering.
