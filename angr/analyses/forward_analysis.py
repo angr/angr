@@ -3,7 +3,8 @@ import networkx
 # errors
 from ..errors import AngrForwardAnalysisError
 # notices
-from ..errors import AngrSkipEntryNotice, AngrJobMergingFailureNotice, AngrJobWideningFailureNotice
+from ..errors import AngrSkipEntryNotice, AngrDelayEntryNotice, AngrJobMergingFailureNotice, \
+    AngrJobWideningFailureNotice
 
 class EntryInfo(object):
     """
@@ -11,11 +12,9 @@ class EntryInfo(object):
     """
     def __init__(self, key, entry):
         self.key = key
-        self.entries = [ entry ]
+        self.entries = [ (entry, '') ]
 
-        self.merged_entries = [ ]
-        self.widened_entries = [ ]
-        self.narrowing_count = 0
+        self.narrowing_count = 0  # not used
 
     def __hash__(self):
         return hash(self.key)
@@ -36,12 +35,20 @@ class EntryInfo(object):
         :return: The latest available entry.
         """
 
-        if self.widened_entries:
-            return self.widened_entries[-1]
-        elif self.merged_entries:
-            return self.merged_entries[-1]
-        else:
-            return self.entries[-1]
+        ent, _ = self.entries[-1]
+        return ent
+
+    @property
+    def merged_entries(self):
+        for ent, type in self.entries:
+            if type == 'merged':
+                yield ent
+
+    @property
+    def widened_entries(self):
+        for ent, type in self.entries:
+            if type == 'widened':
+                yield ent
 
     def add_entry(self, entry, merged=False, widened=False):
         """
@@ -51,14 +58,12 @@ class EntryInfo(object):
         :param bool widened: Whether it is a widened entry or not.
         """
 
+        type = ''
         if merged:
-            self.merged_entries.append(entry)
-
+            type = 'merged'
         elif widened:
-            self.widened_entries.append(entry)
-
-        else:
-            self.entries.append(entry)
+            type = 'widened'
+        self.entries.append((entry, type))
 
 
 class ForwardAnalysis(object):
@@ -202,6 +207,17 @@ class ForwardAnalysis(object):
         while not self.should_abort and self._entries:
 
             entry_info = self._entries[0]
+
+            try:
+                self._pre_entry_handling(entry_info.entry)
+            except AngrDelayEntryNotice:
+                # delay the handling of this job
+                continue
+            except AngrSkipEntryNotice:
+                # consume and skip this job
+                self._entries = self._entries[1:]
+                continue
+
             self._entries = self._entries[1:]
 
             self._handle_entry(entry_info)
@@ -225,11 +241,6 @@ class ForwardAnalysis(object):
         """
 
         entry = entry_info.entry
-
-        try:
-            self._pre_entry_handling(entry)
-        except AngrSkipEntryNotice:
-            return
 
         successors = self._get_successors(entry)
 
