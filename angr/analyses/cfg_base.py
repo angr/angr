@@ -7,7 +7,7 @@ import networkx
 from cle import ELF, PE
 import simuvex
 
-from ..knowledge import Function, HookNode, BlockNode
+from ..knowledge import Function, HookNode, BlockNode, FunctionManager
 from ..analysis import Analysis
 from ..errors import AngrCFGError, AngrTranslationError, AngrMemoryError
 from ..extern_obj import AngrExternObject
@@ -118,6 +118,8 @@ class CFGBase(Analysis):
         Re-create the DiGraph
         """
         self._graph = networkx.DiGraph()
+
+        self.kb.functions = FunctionManager(self.kb)
 
     def _post_analysis(self):
 

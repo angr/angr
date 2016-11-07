@@ -851,8 +851,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             self._insert_entry(path_wrapper)
 
-        self.kb.functions = FunctionManager(self.kb)
-
     def _intra_analysis(self):
         """
         During the analysis. We process function hints here.
