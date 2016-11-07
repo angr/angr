@@ -49,6 +49,8 @@ class Path(object):
 
             # generate a base callframe
             self._initialize_callstack(self.addr, stack_ptr)
+            if simuvex.o.REGION_MAPPING in self.state.options and simuvex.o.ABSTRACT_MEMORY not in self.state.options:
+                self._add_stack_region_mapping(self.state, sp=stack_ptr, ip=self.addr)
 
             self.popped_callframe = None
 
@@ -420,6 +422,8 @@ class Path(object):
                     if i == len(state.scratch.bbl_addr_list) - 1:
                         call_site_addr = state.scratch.bbl_addr_list[i - 1] if i > 0 else None
                         self._manage_callstack_call(state=state, call_site_addr=call_site_addr)
+                        if simuvex.o.REGION_MAPPING in self.state.options and simuvex.o.ABSTRACT_MEMORY not in self.state.options:
+                            self._add_stack_region_mapping(state)
                     else:
                         call_site_addr = state.scratch.bbl_addr_list[i]
                         func_addr = state.scratch.bbl_addr_list[i + 1]
@@ -428,11 +432,15 @@ class Path(object):
                         self._manage_callstack_call(call_site_addr=call_site_addr, func_addr=func_addr,
                                                     stack_ptr=stack_ptr, ret_addr=ret_addr
                                                     )
+                        if simuvex.o.REGION_MAPPING in self.state.options and simuvex.o.ABSTRACT_MEMORY not in self.state.options:
+                            self._add_stack_region_mapping(state, sp=stack_ptr, ip=func_addr)
 
                 elif jumpkind.startswith('Ijk_Sys'):
                     if i == len(state.scratch.bbl_addr_list) - 1:
                         call_site_addr = state.scratch.bbl_addr_list[i - 1] if i > 0 else None
                         self._manage_callstack_sys(state=state, call_site_addr=call_site_addr)
+                        if simuvex.o.REGION_MAPPING in self.state.options and simuvex.o.ABSTRACT_MEMORY not in self.state.options:
+                            self._add_stack_region_mapping(state)
                     else:
                         call_site_addr = state.scratch.bbl_addr_list[i]
                         func_addr = state.scratch.bbl_addr_list[i + 1]
@@ -441,6 +449,8 @@ class Path(object):
                         self._manage_callstack_sys(call_site_addr=call_site_addr, func_addr=func_addr,
                                                    stack_ptr=stack_ptr, ret_addr=ret_addr, jumpkind=jumpkind
                                                    )
+                        if simuvex.o.REGION_MAPPING in self.state.options and simuvex.o.ABSTRACT_MEMORY not in self.state.options:
+                            self._add_stack_region_mapping(state, sp=stack_ptr, ip=func_addr)
 
                 elif jumpkind == 'Ijk_Ret':
                     if i == len(state.scratch.bbl_addr_list) - 1:
@@ -454,9 +464,13 @@ class Path(object):
             call_site_addr = self.previous_run.addr if self.previous_run else None
             if state.scratch.jumpkind == "Ijk_Call":
                 self._manage_callstack_call(state=state, call_site_addr=call_site_addr)
+                if simuvex.o.REGION_MAPPING in self.state.options and simuvex.o.ABSTRACT_MEMORY not in self.state.options:
+                    self._add_stack_region_mapping(state)
 
             elif state.scratch.jumpkind.startswith('Ijk_Sys'):
                 self._manage_callstack_sys(state=state, call_site_addr=call_site_addr)
+                if simuvex.o.REGION_MAPPING in self.state.options and simuvex.o.ABSTRACT_MEMORY not in self.state.options:
+                    self._add_stack_region_mapping(state)
 
             elif state.scratch.jumpkind == "Ijk_Ret":
                 ret_site_addr = call_site_addr
@@ -511,6 +525,19 @@ class Path(object):
 
             # make sure there is at least one dummy callframe available
             self.callstack.push(CallFrame(state=None, func_addr=0, stack_ptr=0, ret_addr=0))
+
+    #
+    # Region mapping
+    #
+
+    def _add_stack_region_mapping(self, state, sp=None, ip=None):
+        if sp is None or ip is None:
+            # dump sp and ip from state
+            sp = state.regs.sp._model_concrete.value
+            ip = state.regs.ip._model_concrete.value
+
+        region_id = self.state.memory.stack_id(ip)
+        self.state.memory.set_stack_address_mapping(sp, region_id, ip)
 
     #
     # Merging and splitting
