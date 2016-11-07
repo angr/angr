@@ -24,6 +24,7 @@ class Function(object):
         """
         self.transition_graph = networkx.DiGraph()
         self._local_transition_graph = None
+        self.normalized = False
 
         # block nodes at whose ends the function returns
         self._ret_sites = set()
@@ -833,6 +834,8 @@ class Function(object):
 
         # Clear the cache
         self._local_transition_graph = None
+
+        self.normalized = True
 
     def _match_cc(self):
         """
