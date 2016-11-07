@@ -28,12 +28,20 @@ def test_execute_address_brancher():
 
 def test_call_function_brancher():
 
+    class NonLocal(object):
+        the_path = None
+        the_goal = None
+
+    def goal_reached_callback(goal, p, pg):
+        NonLocal.the_path = p
+        NonLocal.the_goal = goal
+
     p = angr.Project(os.path.join(test_location, 'x86_64', 'brancher'), load_options={'auto_load_libs': False})
 
     pg = p.factory.path_group()
 
     # initialize the exploration technique
-    dm = angr.exploration_techniques.Director(cfg_keep_states=True)
+    dm = angr.exploration_techniques.Director(cfg_keep_states=True, goal_satisfied_callback=goal_reached_callback)
     _ = p.analyses.CFG()
     puts_func = p.kb.functions.function(name='puts')
     goal = angr.exploration_techniques.CallFunctionGoal(puts_func, [(SimTypePointer(SimTypeChar()), ">=20")])
@@ -43,6 +51,9 @@ def test_call_function_brancher():
     pg.explore(find=(0x40059e,))
 
     nose.tools.assert_greater(len(pg.deprioritized), 0)
+    nose.tools.assert_greater(len(pg.found), 0)
+    nose.tools.assert_is_not(NonLocal.the_path, None)
+    nose.tools.assert_is(NonLocal.the_goal, goal)
 
 if __name__ == "__main__":
 
