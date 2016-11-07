@@ -541,6 +541,43 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return self._quasi_topological_order.get(cfg_node, None)
 
+    def get_subgraph(self, starting_node, block_addresses):
+        """
+        Get a sub-graph out of a bunch of basic block addresses.
+
+        :param CFGNode starting_node: The beginning of the subgraph
+        :param iterable block_addresses: A collection of block addresses that should be included in the subgraph if
+                                        there is a path between `starting_node` and a CFGNode with the specified
+                                        address, and all nodes on the path should also be included in the subgraph.
+        :return: A new CFG that only contain the specific subgraph.
+        :rtype: CFGAccurate
+        """
+
+        graph = networkx.DiGraph()
+
+        if starting_node not in self.graph:
+            raise AngrCFGError('get_subgraph(): the specified "starting_node" %s does not exist in the current CFG.'
+                               % starting_node
+                               )
+
+        addr_set = set(block_addresses)
+
+        graph.add_node(starting_node)
+        queue = [ starting_node ]
+
+        while queue:
+            node = queue.pop()
+            for _, dst, data in self.graph.out_edges_iter([node], data=True):
+                if dst not in graph and dst.addr in addr_set:
+                    graph.add_edge(node, dst, **data)
+                    queue.append(dst)
+
+        cfg = self.copy()
+        cfg._graph = graph
+        cfg._starts = (starting_node.addr, )
+
+        return cfg
+
     def get_function_subgraph(self, start, max_call_depth=None):
         """
         Get a sub-graph of a certain function.
