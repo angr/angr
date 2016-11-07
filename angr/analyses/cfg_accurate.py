@@ -818,14 +818,16 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             elif isinstance(item, simuvex.SimState):
                 # simuvex.SimState
-                state = item
+                state = item.copy()
                 ip = state.se.exactly_int(state.ip) # pylint: disable=no-member
+                state.set_mode('fastpath')
 
             elif isinstance(item, Path):
                 # angr.Path
                 # now we can get a usable callstack from it
                 path = item
-                state = path.state  # pylint: disable=no-member
+                state = path.state.copy()  # pylint: disable=no-member
+                state.set_mode('fastpath')
                 ip = path.addr  # pylint: disable=no-member
                 callstack = path.callstack  # pylint: disable=no-member
 
