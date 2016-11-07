@@ -1090,7 +1090,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self._graph_add_edge(src_simrun_key, simrun_key, jumpkind=entry.jumpkind, exit_stmt_idx=src_exit_stmt_idx)
             self._update_function_transition_graph(src_simrun_key, simrun_key, jumpkind=entry.jumpkind)
 
-            # If this entry cancels another FakeRet entry, we should also create the FekeRet edge
+            # If this entry cancels another FakeRet entry, we should also create the FakeRet edge
 
             # This is the real return exit
             # Check if this retn is inside our pending_exits set
@@ -1380,7 +1380,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         function_name = self.project.loader.find_symbol_name(simrun.addr)
         module_name = self.project.loader.find_module_name(simrun.addr)
 
-        l.debug("Basic block %s %s", simrun, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
+        l.debug("Basic block %s(%d) %s", simrun, self.get_node(entry.simrun_key).depth,
+                "->".join([hex(i) for i in call_stack_suffix if i is not None])
+                )
         l.debug("(Function %s of binary %s)", function_name, module_name)
         l.debug("|    Call jump: %s", extra_info['is_call_jump'])
 
