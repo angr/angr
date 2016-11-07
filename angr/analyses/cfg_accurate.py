@@ -1435,8 +1435,13 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 current_function_addr = self._simrun_key_current_func_addr(simrun_key)
                 if current_function_addr is not None:
                     current_function = self.kb.functions.function(current_function_addr)
-                    call_site_addr = self._simrun_key_addr(pe.src_simrun_key)
-                    current_function._call_sites[call_site_addr] = (func.addr, None)
+                    if current_function is not None:
+                        call_site_addr = self._simrun_key_addr(pe.src_simrun_key)
+                        current_function._call_sites[call_site_addr] = (func.addr, None)
+                    else:
+                        l.warning('An expected function at %#x is not found. Please report it to Fish.',
+                                  current_function_addr
+                                  )
 
         for simrun_key in pending_exits_to_remove:
             l.debug('Removing a pending exit to 0x%x since the target function 0x%x does not return',
