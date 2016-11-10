@@ -386,7 +386,7 @@ class Director(ExplorationTechnique):
     """
 
     def __init__(self, peek_blocks=100, peek_functions=5, goals=None, cfg_keep_states=False,
-                 goal_satisfied_callback=None):
+                 goal_satisfied_callback=None, num_fallback_paths=5):
         """
         Constructor.
         """
@@ -398,6 +398,7 @@ class Director(ExplorationTechnique):
         self._goals = goals if goals is not None else [ ]
         self._cfg_keep_states = cfg_keep_states
         self._goal_satisfied_callback = goal_satisfied_callback
+        self._num_fallback_paths = num_fallback_paths
 
         self._cfg = None
         self._cfg_kb = None
@@ -463,6 +464,9 @@ class Director(ExplorationTechnique):
         Categorize all paths into two different groups: reaching the destination within the peek depth, and not
         reaching the destination within the peek depth.
 
+        When there is no active path after categorization, the last N deprioritized paths will be extracted from the
+        "deprioritized" stash and put to "active" stash.  N is controlled by 'num_fallback_paths'.
+
         :param PathGroup pg:    The path group that contains paths. All active paths (path belonging to "active" stash)
                                 are subjected to categorization.
         :return:                The categorized path group.
@@ -483,19 +487,18 @@ class Director(ExplorationTechnique):
                                       self._goals
                                       ),
             from_stash='active',
-            to_stash='tmp',
+            to_stash='deprioritized',
         )
 
-        if not pg.active:
-            # active paths are empty - none of our existing paths will reach the target for sure
-            # take back all deprioritized paths
-            pg.stash(from_stash='tmp', to_stash='active')
-
-        else:
+        if pg.active:
             # TODO: pick some paths from depriorized stash to active stash to avoid overfitting
             pass
 
-        pg.stash(from_stash='tmp', to_stash='deprioritized')
+        else:
+            # active paths are empty - none of our existing paths will reach the target for sure
+            # take back some of the deprioritized paths
+            if 'deprioritized' in pg.stashes and pg.deprioritized:
+                pg.active.extend(pg.deprioritized[-self._num_fallback_paths : ])
 
         active_paths = len(pg.active)
         # deprioritized_paths = len(pg.deprioritized)
