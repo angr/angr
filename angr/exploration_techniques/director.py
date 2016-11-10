@@ -418,8 +418,18 @@ class Director(ExplorationTechnique):
         # categorize all paths in the path group
         self._categorize_paths(pg)
 
-        # step all active paths forward
-        return pg.step()
+        if not pg.active:
+            # active paths are empty - none of our existing paths will reach the target for sure
+            self._load_fallback_paths(pg)
+
+        if pg.active:
+            # step all active paths forward
+            pg.step()
+
+        if not pg.active:
+            self._load_fallback_paths(pg)
+
+        return pg
 
     def add_goal(self, goal):
         """
@@ -459,13 +469,24 @@ class Director(ExplorationTechnique):
 
             self._cfg.resume(starts=starts, max_steps=self._peek_blocks)
 
+    def _load_fallback_paths(self, pg):
+        """
+        Load the last N deprioritized paths will be extracted from the "deprioritized" stash and put to "active" stash.
+        N is controlled by 'num_fallback_paths'.
+
+        :param PathGroup pg: The path group.
+        :return: None
+        """
+
+        # take back some of the deprioritized paths
+        l.debug("No more active paths. Load some deprioritized paths to 'active' stash.")
+        if 'deprioritized' in pg.stashes and pg.deprioritized:
+            pg.active.extend(pg.deprioritized[-self._num_fallback_paths:])
+
     def _categorize_paths(self, pg):
         """
         Categorize all paths into two different groups: reaching the destination within the peek depth, and not
         reaching the destination within the peek depth.
-
-        When there is no active path after categorization, the last N deprioritized paths will be extracted from the
-        "deprioritized" stash and put to "active" stash.  N is controlled by 'num_fallback_paths'.
 
         :param PathGroup pg:    The path group that contains paths. All active paths (path belonging to "active" stash)
                                 are subjected to categorization.
@@ -493,12 +514,6 @@ class Director(ExplorationTechnique):
         if pg.active:
             # TODO: pick some paths from depriorized stash to active stash to avoid overfitting
             pass
-
-        else:
-            # active paths are empty - none of our existing paths will reach the target for sure
-            # take back some of the deprioritized paths
-            if 'deprioritized' in pg.stashes and pg.deprioritized:
-                pg.active.extend(pg.deprioritized[-self._num_fallback_paths : ])
 
         active_paths = len(pg.active)
         # deprioritized_paths = len(pg.deprioritized)
