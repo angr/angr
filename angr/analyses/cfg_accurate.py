@@ -28,8 +28,12 @@ class CFGJob(EntryWrapper):
         #
         # local variables used during analysis
         #
+        if self.jumpkind is None:
+            # load jumpkind from path.state.scratch
+            self.jumpkind = 'Ijk_Boring' if self.path.state.scratch.jumpkind is None else \
+                self.path.state.scratch.jumpkind
+
         self.call_stack_suffix = None
-        self.jumpkind = None
         self.current_function = None
 
         self.simrun = None
@@ -1048,8 +1052,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Extract initial info from entry_wrapper
         entry.call_stack_suffix = entry.get_call_stack_suffix()
-        entry.jumpkind = 'Ijk_Boring' if entry.path.state.scratch.jumpkind is None else \
-                         entry.path.state.scratch.jumpkind
         entry.current_function = self.kb.functions.function(entry.func_addr, create=True,
                                                                  syscall=entry.jumpkind.startswith("Ijk_Sys"))
         src_simrun_key = entry.src_simrun_key
@@ -1594,6 +1596,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     src_exit_stmt_idx=suc_exit_stmt_idx,
                     call_stack=new_call_stack,
                     continue_at=continue_at,
+                    jumpkind=suc_jumpkind,
         )
 
         # Generate new exits
