@@ -481,7 +481,8 @@ class Director(ExplorationTechnique):
         # take back some of the deprioritized paths
         l.debug("No more active paths. Load some deprioritized paths to 'active' stash.")
         if 'deprioritized' in pg.stashes and pg.deprioritized:
-            pg.active.extend(pg.deprioritized[-self._num_fallback_paths:])
+            pg.active.extend(pg.deprioritized[-self._num_fallback_paths : ])
+            pg.stashes['deprioritized'] = pg.deprioritized[ : -self._num_fallback_paths]
 
     def _categorize_paths(self, pg):
         """
