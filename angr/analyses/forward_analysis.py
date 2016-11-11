@@ -79,7 +79,7 @@ class ForwardAnalysis(object):
     Feel free to discuss with me (Fish) if you have any suggestion or complaint!
     """
 
-    def __init__(self, order_entries=False, allow_merging=False, allow_widening=False):
+    def __init__(self, order_entries=False, allow_merging=False, allow_widening=False, status_callback=None):
         """
         Constructor
 
@@ -93,6 +93,8 @@ class ForwardAnalysis(object):
 
         self._allow_merging = allow_merging
         self._allow_widening = allow_widening
+
+        self._status_callback = status_callback
 
         # sanity checks
         if self._allow_widening and not self._allow_merging:
@@ -205,6 +207,13 @@ class ForwardAnalysis(object):
             self._entry_list_empty()
 
         while not self.should_abort and self._entries:
+
+            if self._status_callback is not None:
+                self._status_callback(self)
+
+            # should_abort might be changed by the status callback function
+            if self.should_abort:
+                return
 
             entry_info = self._entries[0]
 
