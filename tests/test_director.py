@@ -17,7 +17,7 @@ def test_execute_address_brancher():
     pg = p.factory.path_group()
 
     # initialize the exploration technique
-    dm = angr.exploration_techniques.Director()
+    dm = angr.exploration_techniques.Director(num_fallback_paths=1)
     goal = angr.exploration_techniques.ExecuteAddressGoal(0x400594)
     dm.add_goal(goal)
     pg.use_technique(dm)
@@ -41,7 +41,9 @@ def test_call_function_brancher():
     pg = p.factory.path_group()
 
     # initialize the exploration technique
-    dm = angr.exploration_techniques.Director(cfg_keep_states=True, goal_satisfied_callback=goal_reached_callback)
+    dm = angr.exploration_techniques.Director(cfg_keep_states=True, goal_satisfied_callback=goal_reached_callback,
+                                              num_fallback_paths=1
+                                              )
     _ = p.analyses.CFG()
     puts_func = p.kb.functions.function(name='puts')
     goal = angr.exploration_techniques.CallFunctionGoal(puts_func, [(SimTypePointer(SimTypeChar()), ">=20")])
@@ -57,7 +59,7 @@ def test_call_function_brancher():
 
 if __name__ == "__main__":
 
-    logging.getLogger('angr.exploration_techniques.determinist').setLevel(logging.DEBUG)
+    logging.getLogger('angr.exploration_techniques.director').setLevel(logging.DEBUG)
 
     if len(sys.argv) > 1:
         globals()['test_' + sys.argv[1]]()
