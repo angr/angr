@@ -1382,7 +1382,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         function_name = self.project.loader.find_symbol_name(simrun.addr)
         module_name = self.project.loader.find_module_name(simrun.addr)
 
-        l.debug("Basic block %s(%d) %s", simrun, self.get_node(entry.simrun_key).depth,
+        l.debug("Basic block %s(%s) %s", simrun, self.get_node(entry.simrun_key).depth,
                 "->".join([hex(i) for i in call_stack_suffix if i is not None])
                 )
         l.debug("(Function %s of binary %s)", function_name, module_name)
