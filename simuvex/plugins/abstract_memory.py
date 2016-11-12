@@ -281,13 +281,16 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         :param state: A SimState object
         :return: None
         """
-        self.state = state
-
-        SimMemory.set_state(self, state)
 
         # Sanity check
-        if REGION_MAPPING not in self.state.options:
-            raise SimAbstractMemoryError('Region mapping must be enabled in state options for abstract memory.')
+        if REGION_MAPPING not in state.options:
+            # add REGION_MAPPING into state.options
+            l.warning('Option "REGION_MAPPING" must be enabled when using SimAbstractMemory as the memory model. '
+                      'The option is added to state options as a courtesy.'
+                      )
+            state.options.add(REGION_MAPPING)
+
+        SimMemory.set_state(self, state)
 
         for _,v in self._regions.items():
             v.set_state(state)
