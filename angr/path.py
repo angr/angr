@@ -533,7 +533,13 @@ class Path(object):
     def _add_stack_region_mapping(self, state, sp=None, ip=None):
         if sp is None or ip is None:
             # dump sp and ip from state
-            sp = state.regs.sp._model_concrete.value
+            if state.regs.sp.symbolic:
+                l.warning('Got a symbolic stack pointer. Stack region mapping may break.')
+                sp = state.se.max(state.regs.sp)
+            else:
+                sp = state.regs.sp._model_concrete.value
+
+            # ip cannot be symbolic
             ip = state.regs.ip._model_concrete.value
 
         region_id = self.state.memory.stack_id(ip)
