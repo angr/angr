@@ -206,7 +206,7 @@ class ForwardAnalysis(object):
         if not self._entries:
             self._entry_list_empty()
 
-        while not self.should_abort and self._entries:
+        while not self.should_abort:
 
             if self._status_callback is not None:
                 self._status_callback(self)
@@ -214,6 +214,13 @@ class ForwardAnalysis(object):
             # should_abort might be changed by the status callback function
             if self.should_abort:
                 return
+
+            if not self._entries:
+                self._entry_list_empty()
+
+            if not self._entries:
+                # still no job available
+                break
 
             entry_info = self._entries[0]
 
@@ -236,9 +243,6 @@ class ForwardAnalysis(object):
                 break
 
             self._intra_analysis()
-
-            if not self._entries:
-                self._entry_list_empty()
 
         self._post_analysis()
 
