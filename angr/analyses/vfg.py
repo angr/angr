@@ -258,6 +258,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                  widening_interval=3,
                  final_state_callback=None,
                  status_callback=None,
+                 record_function_final_states=False
                  ):
         """
         :param project: The project object.
@@ -299,6 +300,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         self._widening_interval = widening_interval
 
         self._final_state_callback = final_state_callback
+
+        self._record_function_final_states = record_function_final_states
 
         self._nodes = {}            # all the vfg nodes, keyed on simrun keys
         self._normal_states = { }   # Last available state for each program point without widening
@@ -1485,8 +1488,12 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 # it's returning to the return site
 
                 # save the state as a final state of the function that we are returning from
-                source_function_key = FunctionKey.new(job.func_addr, job.call_stack_suffix) # key of the function that we are returning from
-                # self._save_function_final_state(source_function_key, job.func_addr, successor_state)
+                if self._record_function_final_states:
+                    # key of the function that we are returning from
+                    source_function_key = FunctionKey.new(job.func_addr,
+                                                          job.call_stack_suffix
+                                                          )
+                    self._save_function_final_state(source_function_key, job.func_addr, successor_state)
 
                 # TODO: add an assertion that requires the returning target being the same as the return address we
                 # TODO: stored before
