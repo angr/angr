@@ -72,7 +72,9 @@ def run_vfg_0(arch):
 
     cfg = proj.analyses.CFG(normalize=True)
     main = cfg.functions.function(name='main')
-    vfg = proj.analyses.VFG(cfg, function_start=main.addr, context_sensitivity_level=1, interfunction_level=3)
+    vfg = proj.analyses.VFG(cfg, start=main.addr, context_sensitivity_level=1, interfunction_level=3,
+                            record_function_final_states=True
+                            )
 
     function_final_states = vfg._function_final_states
     nose.tools.assert_in(main.addr, function_final_states)
@@ -129,7 +131,9 @@ def run_vfg_1(arch):
     )
 
     cfg = proj.analyses.CFGAccurate()
-    vfg = proj.analyses.VFG(cfg, function_start=0x40071d, context_sensitivity_level=10, interfunction_level=10)
+    vfg = proj.analyses.VFG(cfg, start=0x40071d, context_sensitivity_level=10, interfunction_level=10,
+                            record_function_final_states=True
+                            )
 
     all_block_addresses = set([ n.addr for n in vfg.graph.nodes() ])
     nose.tools.assert_true(vfg_1_addresses[arch].issubset(all_block_addresses))
@@ -148,8 +152,8 @@ def run_vfg_1(arch):
     # optimal execution tests
     # - the basic block after returning from `authenticate` should only be executed once
     nose.tools.assert_equal(vfg._execution_counter[0x4007b3], 1)
-    # - the last basic block in `authenticate` should only be executed twice (on a non-normalized CFG)
-    nose.tools.assert_equal(vfg._execution_counter[0x4006eb], 2)
+    # - the last basic block in `authenticate` should only be executed once (on a non-normalized CFG)
+    nose.tools.assert_equal(vfg._execution_counter[0x4006eb], 1)
 
 def test_vfg_1():
     # Test the code coverage of VFG
