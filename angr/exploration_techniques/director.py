@@ -523,7 +523,7 @@ class Director(ExplorationTechnique):
 
         return pg
 
-    def _check_goals(self, goal, path):
+    def _check_goals(self, goal, path):  # pylint:disable=no-self-use
         """
         Check if the path is satisfying the goal.
 

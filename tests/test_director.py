@@ -32,7 +32,7 @@ def test_call_function_brancher():
         the_path = None
         the_goal = None
 
-    def goal_reached_callback(goal, p, pg):
+    def goal_reached_callback(goal, p, pg):  # pylint:disable=unused-argument
         NonLocal.the_path = p
         NonLocal.the_goal = goal
 

@@ -40,14 +40,14 @@ class EntryInfo(object):
 
     @property
     def merged_entries(self):
-        for ent, type in self.entries:
-            if type == 'merged':
+        for ent, entry_type in self.entries:
+            if entry_type == 'merged':
                 yield ent
 
     @property
     def widened_entries(self):
-        for ent, type in self.entries:
-            if type == 'widened':
+        for ent, entry_type in self.entries:
+            if entry_type == 'widened':
                 yield ent
 
     def add_entry(self, entry, merged=False, widened=False):
@@ -58,12 +58,12 @@ class EntryInfo(object):
         :param bool widened: Whether it is a widened entry or not.
         """
 
-        type = ''
+        entry_type = ''
         if merged:
-            type = 'merged'
+            entry_type = 'merged'
         elif widened:
-            type = 'widened'
-        self.entries.append((entry, type))
+            entry_type = 'widened'
+        self.entries.append((entry, entry_type))
 
 
 class ForwardAnalysis(object):

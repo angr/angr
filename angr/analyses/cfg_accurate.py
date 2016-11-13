@@ -12,7 +12,6 @@ from archinfo import ArchARM
 from ..entry_wrapper import SimRunKey, EntryWrapper
 from ..analysis import register_analysis
 from ..errors import AngrCFGError, AngrError, AngrSkipEntryNotice
-from ..knowledge import FunctionManager
 from ..path import make_path, Path
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase
@@ -822,8 +821,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             elif isinstance(item, simuvex.SimState):
                 # simuvex.SimState
-                state = item.copy()
-                ip = state.se.exactly_int(state.ip) # pylint: disable=no-member
+                state = item.copy()  # pylint: disable=no-member
+                ip = state.se.exactly_int(state.ip)
                 state.set_mode('fastpath')
 
             elif isinstance(item, Path):
