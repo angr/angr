@@ -910,7 +910,7 @@ class SimCCPowerPC(SimCC):
 
 class SimCCPowerPCLinuxSyscall(SimCC):
     # TODO: Make sure all the information is correct
-    ARG_REGS = [ ]
+    ARG_REGS = ['r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10']
     FP_ARG_REGS = [ ]
     RETURN_VAL = SimRegArg('r3', 4)
     ARCH = ArchPPC32
