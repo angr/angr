@@ -2050,7 +2050,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         stmt_id = [i for i, s in enumerate(simirsb.irsb.statements)
                    if isinstance(s, pyvex.IRStmt.WrTmp) and s.tmp == next_tmp][0]
 
-        cdg = self.project.analyses.CDG(cfg=self)
+        cdg = self.project.analyses.CDG(cfg=self, start=current_function_addr)
         ddg = self.project.analyses.DDG(cfg=self, start=current_function_addr, call_depth=0)
 
         bc = self.project.analyses.BackwardSlice(self, cdg, ddg, targets=[(cfgnode, stmt_id)], same_function=True)
