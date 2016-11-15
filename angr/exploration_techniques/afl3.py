@@ -48,7 +48,7 @@ class AFL3(AFLBase):
         for transition in max_transition_runners:
             interesting_paths.add(max_transition_runners[transition][0])
 
-        for transition in max_transition_runners:
+        for transition in min_transition_runners:
             interesting_paths.add(max_transition_runners[transition][0])
 
         # Stash away all non-interesting paths
