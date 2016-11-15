@@ -511,7 +511,12 @@ class SimLinux(SimOS):
             252: ('exit_group', 'exit'),  # really exit_group, but close enough
         },
         'PPC32': {
-
+            1: ('exit', 'exit'),
+            3: ('read', 'read'),
+            4: ('write', 'write'),
+            5: ('open', 'open'),
+            6: ('close', 'close'),
+            45: ('brk', 'brk'),
         },
         'PPC64': {
 
