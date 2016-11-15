@@ -144,7 +144,7 @@ class Project(object):
         self._cdg = None
 
         self.entry = self.loader.main_bin.entry
-        self.factory = AngrObjectFactory(self, translation_cache=translation_cache)
+        self.factory = AngrObjectFactory(self, translation_cache=translation_cache if not self._support_selfmodifying_code else False)
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
         self.kb = KnowledgeBase(self, self.loader.main_bin)
