@@ -48,8 +48,9 @@ class AFL3(AFLBase):
         for transition in max_transition_runners:
             interesting_paths.add(max_transition_runners[transition][0])
 
+        # Reactivate all least running transition paths
         for transition in min_transition_runners:
-            interesting_paths.add(max_transition_runners[transition][0])
+            interesting_paths.add(min_transition_runners[transition][0])
 
         # Stash away all non-interesting paths
         pg.move(stash, self.wait_stash, filter_func=lambda p: p not in interesting_paths)
