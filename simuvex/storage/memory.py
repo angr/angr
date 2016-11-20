@@ -275,12 +275,12 @@ class SimMemory(SimStatePlugin):
     """
     Represents the memory space of the process.
     """
-    def __init__(self, endness=None, abstract_backer=None):
+    def __init__(self, endness=None, abstract_backer=None, stack_region_map=None, generic_region_map=None):
         SimStatePlugin.__init__(self)
         self.id = None
         self.endness = "Iend_BE" if endness is None else endness
 
-        # Whether this memory is internally used inside SimAbstractMemory
+        # Boolean or None. Indicates whether this memory is internally used inside SimAbstractMemory
         self._abstract_backer = abstract_backer
 
         #
@@ -307,6 +307,14 @@ class SimMemory(SimStatePlugin):
         # Same, but for concrete writes
         self._maximum_concrete_size = 0x1000000
 
+        # Save those arguments first. Since self.state is empty at this moment, we delay the initialization of region
+        # maps until set_state() is called.
+        self._temp_stack_region_map = stack_region_map
+        self._temp_generic_region_map = generic_region_map
+
+        self._stack_region_map = None
+        self._generic_region_map = None
+
     @property
     def category(self):
         """
@@ -325,6 +333,32 @@ class SimMemory(SimStatePlugin):
 
         else:
             raise SimMemoryError('Unknown SimMemory category for memory_id "%s"' % self.id)
+
+    def set_state(self, state):
+        """
+        Call the set_state method in SimStatePlugin class, and then perform the delayed initialization.
+
+        :param state: The SimState instance
+        """
+        SimStatePlugin.set_state(self, state)
+
+        # Delayed initialization
+        stack_region_map, generic_region_map = self._temp_stack_region_map, self._temp_generic_region_map
+
+        if stack_region_map or generic_region_map:
+            # Inherited from its parent
+            self._stack_region_map = stack_region_map.copy()
+            self._generic_region_map = generic_region_map.copy()
+
+        else:
+            if not self._abstract_backer and o.REGION_MAPPING in self.state.options:
+                # Only the top-level SimMemory instance can have region maps.
+                self._stack_region_map = RegionMap(True)
+                self._generic_region_map = RegionMap(False)
+
+            else:
+                self._stack_region_map = None
+                self._generic_region_map = None
 
     def _resolve_location_name(self, name):
         if self.category == 'reg':
@@ -355,6 +389,55 @@ class SimMemory(SimStatePlugin):
             data_e = data_e.to_bv()
 
         return data_e
+
+    def set_stack_address_mapping(self, absolute_address, region_id, related_function_address=None):
+        """
+        Create a new mapping between an absolute address (which is the base address of a specific stack frame) and a
+        region ID.
+
+        :param absolute_address: The absolute memory address.
+        :param region_id: The region ID.
+        :param related_function_address: Related function address.
+        """
+        if self._stack_region_map is None:
+            raise SimMemoryError('Stack region map is not initialized.')
+        self._stack_region_map.map(absolute_address, region_id, related_function_address=related_function_address)
+
+    def unset_stack_address_mapping(self, absolute_address):
+        """
+        Remove a stack mapping.
+
+        :param absolute_address: An absolute memory address, which is the base address of the stack frame to destroy.
+        """
+        if self._stack_region_map is None:
+            raise SimMemoryError('Stack region map is not initialized.')
+        self._stack_region_map.unmap_by_address(absolute_address)
+
+    def stack_id(self, function_address):
+        """
+        Return a memory region ID for a function. If the default region ID exists in the region mapping, an integer
+        will appended to the region name. In this way we can handle recursive function calls, or a function that
+        appears more than once in the call frame.
+
+        This also means that `stack_id()` should only be called when creating a new stack frame for a function. You are
+        not supposed to call this function every time you want to map a function address to a stack ID.
+
+        :param int function_address: Address of the function.
+        :return: ID of the new memory region.
+        :rtype: str
+        """
+        region_id = 'stack_0x%x' % function_address
+
+        # deduplication
+        region_ids = self._stack_region_map.region_ids
+        if region_id not in region_ids:
+            return region_id
+        else:
+            for i in xrange(0, 2000):
+                new_region_id = region_id + '_%d' % i
+                if new_region_id not in region_ids:
+                    return new_region_id
+            raise SimMemoryError('Cannot allocate region ID for function %#08x - recursion too deep' % function_address)
 
     def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None, inspect=True, priv=None):
         """
@@ -619,7 +702,7 @@ class SimMemory(SimStatePlugin):
             self.state.add_constraints(*c)
 
         if (self.category == 'mem' and o.SIMPLIFY_MEMORY_READS in self.state.options) or \
-           (self.category == 'reg' and o.SIMPLIFY_REGISTER_READS in self.state.options):
+           (self.category == 'reg' and o.SIMPLIFY_REGISTER_READS in self.state.options):  # pylint:disable=too-many-boolean-expressions
             l.debug("simplifying %s read...", self.category)
             r = self.state.simplify(r)
 

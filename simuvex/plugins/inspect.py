@@ -22,6 +22,8 @@ event_types = {
     'syscall',
     'path_step',
     'cfg_handle_entry',
+    'vfg_handle_successor',
+    'vfg_widen_state',
 }
 
 inspect_attributes = {
@@ -70,7 +72,9 @@ inspect_attributes = {
     'address_concretization_result',
     'address_concretization_add_constraints',
 
-    'syscall_name'
+    'syscall_name',
+
+    'path',
     }
 
 BP_BEFORE = 'before'

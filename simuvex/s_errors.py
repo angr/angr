@@ -26,6 +26,9 @@ class SimMergeError(SimStateError):
 class SimMemoryError(SimStateError):
     pass
 
+class SimAbstractMemoryError(SimMemoryError):
+    pass
+
 class SimRegionMapError(SimMemoryError):
     pass
 

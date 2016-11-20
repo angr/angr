@@ -23,9 +23,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def __init__(
         self, memory_backer=None, permissions_backer=None, mem=None, memory_id="mem",
         endness=None, abstract_backer=False, check_permissions=None,
-        read_strategies=None, write_strategies=None
+        read_strategies=None, write_strategies=None, stack_region_map=None, generic_region_map=None
     ):
-        SimMemory.__init__(self, endness=endness, abstract_backer=abstract_backer)
+        SimMemory.__init__(self,
+                           endness=endness,
+                           abstract_backer=abstract_backer,
+                           stack_region_map=stack_region_map,
+                           generic_region_map=generic_region_map
+                           )
+        self.mem = SimPagedMemory(memory_backer=memory_backer, permissions_backer=permissions_backer) if mem is None else mem
         self.id = memory_id
 
         if check_permissions is None:
@@ -57,6 +63,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             abstract_backer=self._abstract_backer,
             read_strategies=[ s.copy() for s in self.read_strategies ],
             write_strategies=[ s.copy() for s in self.write_strategies ],
+            stack_region_map=self._stack_region_map,
+            generic_region_map=self._generic_region_map
         )
 
         return c
@@ -89,8 +97,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         self.write_strategies = self._merge_strategies(self.write_strategies, *[
             o.write_strategies for o in others
         ])
-        self._merge(others, changed_bytes, merge_conditions=merge_conditions)
-        return len(changed_bytes) > 0
+        merged_bytes = self._merge(others, changed_bytes, merge_conditions=merge_conditions)
+
+        return len(merged_bytes) > 0
 
     @staticmethod
     def _merge_strategies(*strategy_lists):
@@ -121,6 +130,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         merged_to = None
         merged_objects = set()
+        merged_bytes = set()
         for b in sorted(changed_bytes):
             if merged_to is not None and not b >= merged_to:
                 l.info("merged_to = %d ... already merged byte 0x%x", merged_to, b)
@@ -160,10 +170,18 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     to_merge, memory_objects[0][0].length, is_widening=is_widening
                 )
 
+                if options.ABSTRACT_MEMORY in self.state.options:
+                    # merge check for abstract memory
+                    if not to_merge[0][0].uninitialized and self.state.se.backends.vsa.identical(merged_val, to_merge[0][0]):
+                        continue
+
                 # do the replacement
                 new_object = self.mem.replace_memory_object(our_mo, merged_val)
                 merged_objects.add(new_object)
                 merged_objects.update(mos)
+
+                merged_bytes.add(b)
+
             else:
                 # get the size that we can merge easily. This is the minimum of
                 # the size of all memory objects and unallocated spaces.
@@ -186,7 +204,18 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 to_merge = extracted + created
 
                 merged_val = self._merge_values(to_merge, min_size, is_widening=is_widening)
-                self.store(b, merged_val)
+
+                if options.ABSTRACT_MEMORY in self.state.options:
+                    # merge check for abstract memory
+                    if (not unconstrained_in or not unconstrained_in[0][0] is self) \
+                            and self.state.se.backends.vsa.identical(merged_val, to_merge[0][0]):
+                        continue
+
+                self.store(b, merged_val, endness='Iend_BE', inspect=False)  # do not convert endianness again
+
+                merged_bytes.add(b)
+
+        return merged_bytes
 
     def set_state(self, s):
         SimMemory.set_state(self, s)
