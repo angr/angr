@@ -12,7 +12,6 @@ from archinfo import ArchARM
 from ..entry_wrapper import SimRunKey, EntryWrapper
 from ..analysis import register_analysis
 from ..errors import AngrCFGError, AngrError, AngrSkipEntryNotice
-from ..knowledge import FunctionManager
 from ..path import make_path, Path
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase
@@ -28,8 +27,12 @@ class CFGJob(EntryWrapper):
         #
         # local variables used during analysis
         #
+        if self.jumpkind is None:
+            # load jumpkind from path.state.scratch
+            self.jumpkind = 'Ijk_Boring' if self.path.state.scratch.jumpkind is None else \
+                self.path.state.scratch.jumpkind
+
         self.call_stack_suffix = None
-        self.jumpkind = None
         self.current_function = None
 
         self.simrun = None
@@ -257,6 +260,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :rtype: angr.analyses.CFG
         """
         new_cfg = CFGAccurate.__new__(CFGAccurate)
+        super(CFGAccurate, self).make_copy(new_cfg)
+
         new_cfg.named_errors = dict(self.named_errors)
         new_cfg.errors = list(self.errors)
         new_cfg._fail_fast = self._fail_fast
@@ -539,6 +544,43 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return self._quasi_topological_order.get(cfg_node, None)
 
+    def get_subgraph(self, starting_node, block_addresses):
+        """
+        Get a sub-graph out of a bunch of basic block addresses.
+
+        :param CFGNode starting_node: The beginning of the subgraph
+        :param iterable block_addresses: A collection of block addresses that should be included in the subgraph if
+                                        there is a path between `starting_node` and a CFGNode with the specified
+                                        address, and all nodes on the path should also be included in the subgraph.
+        :return: A new CFG that only contain the specific subgraph.
+        :rtype: CFGAccurate
+        """
+
+        graph = networkx.DiGraph()
+
+        if starting_node not in self.graph:
+            raise AngrCFGError('get_subgraph(): the specified "starting_node" %s does not exist in the current CFG.'
+                               % starting_node
+                               )
+
+        addr_set = set(block_addresses)
+
+        graph.add_node(starting_node)
+        queue = [ starting_node ]
+
+        while queue:
+            node = queue.pop()
+            for _, dst, data in self.graph.out_edges_iter([node], data=True):
+                if dst not in graph and dst.addr in addr_set:
+                    graph.add_edge(node, dst, **data)
+                    queue.append(dst)
+
+        cfg = self.copy()
+        cfg._graph = graph
+        cfg._starts = (starting_node.addr, )
+
+        return cfg
+
     def get_function_subgraph(self, start, max_call_depth=None):
         """
         Get a sub-graph of a certain function.
@@ -779,14 +821,16 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             elif isinstance(item, simuvex.SimState):
                 # simuvex.SimState
-                state = item
-                ip = state.se.exactly_int(state.ip) # pylint: disable=no-member
+                state = item.copy()  # pylint: disable=no-member
+                ip = state.se.exactly_int(state.ip)
+                state.set_mode('fastpath')
 
             elif isinstance(item, Path):
                 # angr.Path
                 # now we can get a usable callstack from it
                 path = item
-                state = path.state  # pylint: disable=no-member
+                state = path.state.copy()  # pylint: disable=no-member
+                state.set_mode('fastpath')
                 ip = path.addr  # pylint: disable=no-member
                 callstack = path.callstack  # pylint: disable=no-member
 
@@ -809,8 +853,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 self._start_keys.append(key)
 
             self._insert_entry(path_wrapper)
-
-        self.kb.functions = FunctionManager(self.kb)
 
     def _intra_analysis(self):
         """
@@ -1009,8 +1051,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Extract initial info from entry_wrapper
         entry.call_stack_suffix = entry.get_call_stack_suffix()
-        entry.jumpkind = 'Ijk_Boring' if entry.path.state.scratch.jumpkind is None else \
-                         entry.path.state.scratch.jumpkind
         entry.current_function = self.kb.functions.function(entry.func_addr, create=True,
                                                                  syscall=entry.jumpkind.startswith("Ijk_Sys"))
         src_simrun_key = entry.src_simrun_key
@@ -1051,7 +1091,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self._graph_add_edge(src_simrun_key, simrun_key, jumpkind=entry.jumpkind, exit_stmt_idx=src_exit_stmt_idx)
             self._update_function_transition_graph(src_simrun_key, simrun_key, jumpkind=entry.jumpkind)
 
-            # If this entry cancels another FakeRet entry, we should also create the FekeRet edge
+            # If this entry cancels another FakeRet entry, we should also create the FakeRet edge
 
             # This is the real return exit
             # Check if this retn is inside our pending_exits set
@@ -1341,7 +1381,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         function_name = self.project.loader.find_symbol_name(simrun.addr)
         module_name = self.project.loader.find_module_name(simrun.addr)
 
-        l.debug("Basic block %s %s", simrun, "->".join([hex(i) for i in call_stack_suffix if i is not None]))
+        l.debug("Basic block %s(%s) %s", simrun, self.get_node(entry.simrun_key).depth,
+                "->".join([hex(i) for i in call_stack_suffix if i is not None])
+                )
         l.debug("(Function %s of binary %s)", function_name, module_name)
         l.debug("|    Call jump: %s", extra_info['is_call_jump'])
 
@@ -1394,8 +1436,13 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 current_function_addr = self._simrun_key_current_func_addr(simrun_key)
                 if current_function_addr is not None:
                     current_function = self.kb.functions.function(current_function_addr)
-                    call_site_addr = self._simrun_key_addr(pe.src_simrun_key)
-                    current_function._call_sites[call_site_addr] = (func.addr, None)
+                    if current_function is not None:
+                        call_site_addr = self._simrun_key_addr(pe.src_simrun_key)
+                        current_function._call_sites[call_site_addr] = (func.addr, None)
+                    else:
+                        l.warning('An expected function at %#x is not found. Please report it to Fish.',
+                                  current_function_addr
+                                  )
 
         for simrun_key in pending_exits_to_remove:
             l.debug('Removing a pending exit to 0x%x since the target function 0x%x does not return',
@@ -1548,6 +1595,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     src_exit_stmt_idx=suc_exit_stmt_idx,
                     call_stack=new_call_stack,
                     continue_at=continue_at,
+                    jumpkind=suc_jumpkind,
         )
 
         # Generate new exits

@@ -7,7 +7,7 @@ import networkx
 from cle import ELF, PE
 import simuvex
 
-from ..knowledge import Function, HookNode, BlockNode
+from ..knowledge import Function, HookNode, BlockNode, FunctionManager
 from ..analysis import Analysis
 from ..errors import AngrCFGError, AngrTranslationError, AngrMemoryError
 from ..extern_obj import AngrExternObject
@@ -119,6 +119,8 @@ class CFGBase(Analysis):
         """
         self._graph = networkx.DiGraph()
 
+        self.kb.functions = FunctionManager(self.kb)
+
     def _post_analysis(self):
 
         if self._normalize:
@@ -130,6 +132,16 @@ class CFGBase(Analysis):
             for f in self.kb.functions.values():
                 if not self.project.is_hooked(f.addr):
                     f.normalize()
+
+    def make_copy(self, copy_to):
+        """
+        Copy self attributes to the new object.
+
+        :param CFGBase copy_to: The target to copy to.
+        :return: None
+        """
+
+        copy_to._normalized = self._normalized
 
     # pylint: disable=no-self-use
     def copy(self):

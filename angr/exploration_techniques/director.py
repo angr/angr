@@ -41,6 +41,17 @@ class BaseGoal(object):
 
         raise NotImplementedError()
 
+    def check_path(self, path):
+        """
+        Check if the current state of the path satisfies the goal.
+
+        :param angr.Path path:                  The path to check.
+        :return: True if it satisfies the goal, False otherwise.
+        :rtype: bool
+        """
+
+        raise NotImplementedError()
+
     #
     # Private methods
     #
@@ -156,6 +167,17 @@ class ExecuteAddressGoal(BaseGoal):
         l.debug('Path %s will not reach %#x.', path, self.addr)
         return False
 
+    def check_path(self, path):
+        """
+        Check if the current address is the target address.
+
+        :param angr.Path path: The path to check.
+        :return: True if the current address is the target address, False otherwise.
+        :rtype: bool
+        """
+
+        return path.addr == self.addr
+
 
 class CallFunctionGoal(BaseGoal):
     """
@@ -222,36 +244,61 @@ class CallFunctionGoal(BaseGoal):
 
             if the_node is not None:
                 if self.arguments is None:
-                    # we do not care about argumetns
+                    # we do not care about arguments
                     return True
 
                 else:
                     # check arguments
+                    arch = path.state.arch
+                    state = the_node.input_state
+                    same_arguments = self._check_arguments(arch, state)
 
-                    # TODO: add calling convention detection to individual functions, and use that instead of the
-                    # TODO: default calling convention of the platform
-
-                    cc = simuvex.DefaultCC[path.state.arch.name](path.state.arch)  # type: simuvex.s_cc.SimCC
-
-                    for i, expected_arg in enumerate(self.arguments):
-                        if expected_arg is None:
-                            continue
-                        real_arg = cc.arg(the_node.input_state, i)
-
-                        expected_arg_type, expected_arg_value = expected_arg
-                        r = self._compare_arguments(the_node.input_state, expected_arg_type, expected_arg_value, real_arg)
-                        if not r:
-                            return False
-
-                    # all arguments are the same!
-                    return True
+                    if same_arguments:
+                        # all arguments are the same!
+                        return True
 
         l.debug("Path %s will not reach function %s.", path, self.function)
+        return False
+
+    def check_path(self, path):
+        """
+        Check if the specific function is reached with certain arguments
+
+        :param angr.Path path: The path to check
+        :return: True if the function is reached with certain arguments, False otherwise.
+        :rtype: bool
+        """
+
+        if path.addr == self.function.addr:
+            arch = path.state.arch
+            state = path.state
+            if self._check_arguments(arch, state):
+                return True
+
         return False
 
     #
     # Private methods
     #
+
+    def _check_arguments(self, arch, state):
+
+        # TODO: add calling convention detection to individual functions, and use that instead of the
+        # TODO: default calling convention of the platform
+
+        cc = simuvex.DefaultCC[arch.name](arch)  # type: simuvex.s_cc.SimCC
+
+        for i, expected_arg in enumerate(self.arguments):
+            if expected_arg is None:
+                continue
+            real_arg = cc.arg(state, i)
+
+            expected_arg_type, expected_arg_value = expected_arg
+            r = self._compare_arguments(state, expected_arg_type, expected_arg_value, real_arg)
+            if not r:
+                return False
+
+        return True
 
     @staticmethod
     def _compare_arguments(state, arg_type, expected_value, real_value):
@@ -322,6 +369,7 @@ class CallFunctionGoal(BaseGoal):
 
         return state.se.any_int(val) == state.se.any_int(expected)
 
+
 class Director(ExplorationTechnique):
     """
     An exploration technique for directed symbolic execution.
@@ -337,7 +385,8 @@ class Director(ExplorationTechnique):
       chance for those paths to be explored as well in order to prevent over-fitting.
     """
 
-    def __init__(self, peek_blocks=100, peek_functions=5, goals=None, cfg_keep_states=False):
+    def __init__(self, peek_blocks=100, peek_functions=5, goals=None, cfg_keep_states=False,
+                 goal_satisfied_callback=None, num_fallback_paths=5):
         """
         Constructor.
         """
@@ -348,6 +397,8 @@ class Director(ExplorationTechnique):
         self._peek_functions = peek_functions
         self._goals = goals if goals is not None else [ ]
         self._cfg_keep_states = cfg_keep_states
+        self._goal_satisfied_callback = goal_satisfied_callback
+        self._num_fallback_paths = num_fallback_paths
 
         self._cfg = None
         self._cfg_kb = None
@@ -367,8 +418,18 @@ class Director(ExplorationTechnique):
         # categorize all paths in the path group
         self._categorize_paths(pg)
 
-        # step all active paths forward
-        return pg.step()
+        if not pg.active:
+            # active paths are empty - none of our existing paths will reach the target for sure
+            self._load_fallback_paths(pg)
+
+        if pg.active:
+            # step all active paths forward
+            pg.step()
+
+        if not pg.active:
+            self._load_fallback_paths(pg)
+
+        return pg
 
     def add_goal(self, goal):
         """
@@ -408,6 +469,21 @@ class Director(ExplorationTechnique):
 
             self._cfg.resume(starts=starts, max_steps=self._peek_blocks)
 
+    def _load_fallback_paths(self, pg):
+        """
+        Load the last N deprioritized paths will be extracted from the "deprioritized" stash and put to "active" stash.
+        N is controlled by 'num_fallback_paths'.
+
+        :param PathGroup pg: The path group.
+        :return: None
+        """
+
+        # take back some of the deprioritized paths
+        l.debug("No more active paths. Load some deprioritized paths to 'active' stash.")
+        if 'deprioritized' in pg.stashes and pg.deprioritized:
+            pg.active.extend(pg.deprioritized[-self._num_fallback_paths : ])
+            pg.stashes['deprioritized'] = pg.deprioritized[ : -self._num_fallback_paths]
+
     def _categorize_paths(self, pg):
         """
         Categorize all paths into two different groups: reaching the destination within the peek depth, and not
@@ -422,22 +498,23 @@ class Director(ExplorationTechnique):
         past_active_paths = len(pg.active)
         # past_deprioritized_paths = len(pg.deprioritized)
 
+        for goal in self._goals:
+            for p in pg.active:
+                if self._check_goals(goal, p):
+                    if self._goal_satisfied_callback is not None:
+                        self._goal_satisfied_callback(goal, p, pg)
+
         pg.stash(
-            filter_func=lambda p: all(not goal.check(self._cfg, p, peek_blocks=self._peek_blocks) for goal in self._goals),
+            filter_func=lambda p: all(not goal.check(self._cfg, p, peek_blocks=self._peek_blocks) for goal in
+                                      self._goals
+                                      ),
             from_stash='active',
-            to_stash='tmp',
+            to_stash='deprioritized',
         )
 
-        if not pg.active:
-            # active paths are empty - none of our existing paths will reach the target for sure
-            # take back all deprioritized paths
-            pg.stash(from_stash='tmp', to_stash='active')
-
-        else:
+        if pg.active:
             # TODO: pick some paths from depriorized stash to active stash to avoid overfitting
             pass
-
-        pg.stash(from_stash='tmp', to_stash='deprioritized')
 
         active_paths = len(pg.active)
         # deprioritized_paths = len(pg.deprioritized)
@@ -445,3 +522,15 @@ class Director(ExplorationTechnique):
         l.debug('%d/%d active paths are deprioritized.', past_active_paths - active_paths, past_active_paths)
 
         return pg
+
+    def _check_goals(self, goal, path):  # pylint:disable=no-self-use
+        """
+        Check if the path is satisfying the goal.
+
+        :param BaseGoal goal: The goal to check against.
+        :param angr.Path path: The path to check.
+        :return: True if the path satisfies the goal currently, False otherwise.
+        :rtype: bool
+        """
+
+        return goal.check_path(path)

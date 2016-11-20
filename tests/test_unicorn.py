@@ -18,7 +18,9 @@ def _get_calltrace(path):
     :rtype: tuple
     """
 
-    info = [(frame.func_addr, frame.stack_ptr, frame.ret_addr, depth) for _, frame, depth in path.callstack_backtrace]
+    info = [(action.callframe.func_addr, action.callframe.stack_ptr, action.callframe.ret_addr, action.callstack_depth)
+            for action in path.callstack_backtrace if action.action == 'push'
+            ]
     return info
 
 def test_unicorn():

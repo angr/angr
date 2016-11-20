@@ -78,6 +78,9 @@ class AngrForwardAnalysisError(AngrError):
 class AngrSkipEntryNotice(AngrForwardAnalysisError):
     pass
 
+class AngrDelayEntryNotice(AngrForwardAnalysisError):
+    pass
+
 class AngrJobMergingFailureNotice(AngrForwardAnalysisError):
     pass
 
