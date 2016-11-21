@@ -20,6 +20,7 @@ class AFL2(AFLBase):
         self.reorder_func = explore_path_reorder_function
 
     def setup(self, pg):
+        super(AFL2, self).setup(pg)
         if self.wait_stash not in pg.stashes:
             pg.stashes[self.wait_stash] = []
 

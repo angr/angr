@@ -11,6 +11,7 @@ class AFL(ExplorationTechnique):
     left over. Then it returns.
     """
     def setup(self, pg):
+        super(AFL, self).setup(pg)
         # A dictionary mapping from one label_descriptor to a list of known successors
         self.global_transition_count = defaultdict(int)
         self.wait_stash = 'no_interesting_transitions'

@@ -17,6 +17,7 @@ class AFL3(AFLBase):
         self.wait_stash = 'no_interesting_transitions'
 
     def setup(self, pg):
+        super(AFL3, self).setup(pg)
         if self.wait_stash not in pg.stashes:
             pg.stashes[self.wait_stash] = []
 

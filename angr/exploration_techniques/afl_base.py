@@ -1,3 +1,5 @@
+from angr.exploration_techniques.afl_transition_tracker import SimTransitionTracker
+
 from . import ExplorationTechnique
 
 
@@ -10,6 +12,14 @@ class AFLBase(ExplorationTechnique):
 
     def __init__(self):
         super(AFLBase, self).__init__()
+
+    def setup(self, pg):
+        super(AFLBase, self).setup(pg)
+
+        for stash in pg.stashes:
+            for path in pg.stashes[stash]:
+                path.state.register_plugin('transition_tracker', SimTransitionTracker())
+
 
     @staticmethod
     def _find_unique_transition_path(transition_to_path_mapping):
