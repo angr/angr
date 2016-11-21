@@ -195,18 +195,20 @@ class SimSolver(SimStatePlugin):
         if self._stored_solver is not None:
             return self._stored_solver
 
+        track = o.CONSTRAINT_TRACKING_IN_SOLVER in self.state.options
+
         if o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverVSA()
         elif o.REPLACEMENT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverReplacement(auto_replace=False)
         elif o.CACHELESS_SOLVER in self.state.options:
-            self._stored_solver = claripy.SolverCacheless()
+            self._stored_solver = claripy.SolverCacheless(track=track)
         elif o.COMPOSITE_SOLVER in self.state.options:
-            self._stored_solver = claripy.SolverComposite()
+            self._stored_solver = claripy.SolverComposite(track=track)
         elif o.SYMBOLIC in self.state.options and o.approximation & self.state.options:
-            self._stored_solver = claripy.SolverHybrid()
+            self._stored_solver = claripy.SolverHybrid(track=track)
         elif o.SYMBOLIC in self.state.options:
-            self._stored_solver = claripy.Solver()
+            self._stored_solver = claripy.Solver(track=track)
         else:
             self._stored_solver = claripy.SolverConcrete()
 
@@ -419,6 +421,12 @@ class SimSolver(SimStatePlugin):
                 assert ar is False
             return ar
         return self._solver.is_false(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
+
+    @timed_function
+    @ast_stripping_decorator
+    @error_converter
+    def unsat_core(self, extra_constraints=()):
+        return self._solver.unsat_core(extra_constraints=extra_constraints)
 
     @timed_function
     @ast_stripping_decorator
