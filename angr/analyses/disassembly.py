@@ -11,7 +11,7 @@ class DisassemblyPiece(object):
     addr = None
     ident = float('nan')
 
-    def render(self, formatting):
+    def render(self, formatting=None):
         x = self._render(formatting)
         if len(x) == 1:
             return [self.highlight(x[0], formatting)]
@@ -39,9 +39,9 @@ class DisassemblyPiece(object):
         except KeyError:
             return string
 
-    def highlight(self, string, formatting):
+    def highlight(self, string, formatting=None):
         try:
-            if self in formatting['highlight']:
+            if formatting is not None and self in formatting['highlight']:
                 return self.color(string, 'highlight', formatting)
         except KeyError:
             pass
@@ -52,8 +52,19 @@ class DisassemblyPiece(object):
 
 class FunctionStart(DisassemblyPiece):
     def __init__(self, func):
+        """
+        Constructor.
+
+        :param angr.knowledge.Function func: The function instance.
+        """
+
         self.addr = func.addr
         self.vars = []
+        self.name = func.name
+        self.is_simprocedure = func.is_simprocedure
+        self.sim_procedure = None
+        if self.is_simprocedure:
+            self.sim_procedure = func._project.hooked_by(self.addr)
 
     def _render(self, formatting):
         # TODO: Make the individual elements be individual Pieces
@@ -84,8 +95,8 @@ class Hook(DisassemblyPiece):
     def __init__(self, addr, parentblock):
         self.addr = addr
         self.parentblock = parentblock
-        self.name = str(parentblock.sim_procedure).split()[-1].strip("'<>")
-        self.short_name = str(parentblock.sim_procedure).strip("'<>").split('.')[-1]
+        self.name = str(parentblock.parentfunc.sim_procedure).split()[-1].strip("'<>")
+        self.short_name = str(parentblock.parentfunc.sim_procedure).strip("'<>").split('.')[-1]
 
     def _render(self, formatting):
         return ['SimProcedure ' + self.short_name]
@@ -107,7 +118,7 @@ class Instruction(DisassemblyPiece):
 
     @property
     def mnemonic(self):
-        return self.components[0]
+        return self.opcode
 
     def reload_format(self):
         self.insn = CapstoneInsn(next(self.project.arch.capstone.disasm(self.insn.bytes, self.addr)))
@@ -216,7 +227,7 @@ class Instruction(DisassemblyPiece):
 
         return pieces
 
-    def _render(self, formatting):
+    def _render(self, formatting=None):
         return ['%s %s' % (self.opcode.render(formatting)[0], ', '.join(o.render(formatting)[0] for o in self.operands))]
 
 
@@ -228,7 +239,7 @@ class Opcode(DisassemblyPiece):
         self.opcode_string = self.insn.mnemonic
         self.ident = (self.addr, 'opcode')
 
-    def _render(self, formatting):
+    def _render(self, formatting=None):
         return [self.opcode_string.ljust(7)]
 
     def __eq__(self, other):
@@ -288,25 +299,26 @@ class Value(OperandPiece):
         return type(other) is Value and self.val == other.val
 
     def _render(self, formatting):
-        try:
-            style = formatting['int_styles'][self.ident]
-            if style[0] == 'hex':
-                if self.render_with_sign:
-                    return ['%#+x' % self.val]
-                else:
-                    return ['%#x' % self.val]
-            elif style[0] == 'dec':
-                if self.render_with_sign:
-                    return ['%+d' % self.val]
-                else:
-                    return [str(self.val)]
-            elif style[0] == 'label':
-                labeloffset = style[1]
-                if labeloffset == 0:
-                    return [self.project.kb.labels[self.val]]
-                return ['%s%s%#+x' % ('+' if self.render_with_sign else '', self.project.kb.labels[self.val + labeloffset], labeloffset)]
-        except KeyError:
-            pass
+        if formatting is not None:
+            try:
+                style = formatting['int_styles'][self.ident]
+                if style[0] == 'hex':
+                    if self.render_with_sign:
+                        return ['%#+x' % self.val]
+                    else:
+                        return ['%#x' % self.val]
+                elif style[0] == 'dec':
+                    if self.render_with_sign:
+                        return ['%+d' % self.val]
+                    else:
+                        return [str(self.val)]
+                elif style[0] == 'label':
+                    labeloffset = style[1]
+                    if labeloffset == 0:
+                        return [self.project.kb.labels[self.val]]
+                    return ['%s%s%#+x' % ('+' if self.render_with_sign else '', self.project.kb.labels[self.val + labeloffset], labeloffset)]
+            except KeyError:
+                pass
 
         # default case
         if self.val in self.project.kb.labels:
@@ -384,6 +396,7 @@ class Disassembly(Analysis):
         else:
             cs = self.project.arch.capstone
             bytestr = ''.join(self.project.loader.memory.read_bytes(block.addr, block.size))
+            self.block_to_insn_addrs[block.addr] = []
             for cs_insn in cs.disasm(bytestr, block.addr):
                 if cs_insn.address in self.kb.labels:
                     label = Label(cs_insn.address, self.kb.labels[cs_insn.address])
@@ -396,6 +409,7 @@ class Disassembly(Analysis):
                 instruction = Instruction(CapstoneInsn(cs_insn), bs)
                 self.raw_result.append(instruction)
                 self.raw_result_map['instructions'][instruction.addr] = instruction
+                self.block_to_insn_addrs[block.addr].append(cs_insn.address)
 
     def render(self, formatting=None):
         if formatting is None: formatting = {}
