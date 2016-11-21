@@ -73,6 +73,16 @@ class AngrObjectFactory(object):
                                     state.arch.instruction_alignment,
                                     state.arch.name))
 
+        if self._project._support_selfmodifying_code:
+
+            if o.OPTIMIZE_IR in state.options:
+                state.options.remove(o.OPTIMIZE_IR)
+                l.warning("Disabling VEX optmizations (OPTIMIZE_IR) because support for self-modifying code is enabled.")
+
+            if opt_level > 0:
+                l.warning("Self-modifying code is not always correctly optimized by PyVEX. To guarantee correctness, VEX optimizations have been disabled.")
+                opt_level = 0
+
         if opt_level is None:
             opt_level = 1 if o.OPTIMIZE_IR in state.options else 0
 
