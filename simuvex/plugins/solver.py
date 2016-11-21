@@ -426,6 +426,8 @@ class SimSolver(SimStatePlugin):
     @ast_stripping_decorator
     @error_converter
     def unsat_core(self, extra_constraints=()):
+        if o.CONSTRAINT_TRACKING_IN_SOLVER not in self.state.options:
+            raise SimSolverOptionError('CONSTRAINT_TRACKING_IN_SOLVER must be enabled before calling unsat_core().')
         return self._solver.unsat_core(extra_constraints=extra_constraints)
 
     @timed_function
@@ -576,4 +578,4 @@ class SimSolver(SimStatePlugin):
 SimStatePlugin.register_default('solver_engine', SimSolver)
 from .. import s_options as o
 from .inspect import BP_AFTER
-from ..s_errors import SimValueError, SimUnsatError, SimSolverModeError
+from ..s_errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError
