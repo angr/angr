@@ -195,18 +195,20 @@ class SimSolver(SimStatePlugin):
         if self._stored_solver is not None:
             return self._stored_solver
 
+        track = o.CONSTRAINT_TRACKING_IN_SOLVER in self.state.options
+
         if o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverVSA()
         elif o.REPLACEMENT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverReplacement(auto_replace=False)
         elif o.CACHELESS_SOLVER in self.state.options:
-            self._stored_solver = claripy.SolverCacheless()
+            self._stored_solver = claripy.SolverCacheless(track=track)
         elif o.COMPOSITE_SOLVER in self.state.options:
-            self._stored_solver = claripy.SolverComposite()
+            self._stored_solver = claripy.SolverComposite(track=track)
         elif o.SYMBOLIC in self.state.options and o.approximation & self.state.options:
-            self._stored_solver = claripy.SolverHybrid()
+            self._stored_solver = claripy.SolverHybrid(track=track)
         elif o.SYMBOLIC in self.state.options:
-            self._stored_solver = claripy.Solver()
+            self._stored_solver = claripy.Solver(track=track)
         else:
             self._stored_solver = claripy.SolverConcrete()
 
@@ -423,6 +425,14 @@ class SimSolver(SimStatePlugin):
     @timed_function
     @ast_stripping_decorator
     @error_converter
+    def unsat_core(self, extra_constraints=()):
+        if o.CONSTRAINT_TRACKING_IN_SOLVER not in self.state.options:
+            raise SimSolverOptionError('CONSTRAINT_TRACKING_IN_SOLVER must be enabled before calling unsat_core().')
+        return self._solver.unsat_core(extra_constraints=extra_constraints)
+
+    @timed_function
+    @ast_stripping_decorator
+    @error_converter
     def solve(self, extra_constraints=(), exact=None):
         return self._solver.solve(extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
@@ -568,4 +578,4 @@ class SimSolver(SimStatePlugin):
 SimStatePlugin.register_default('solver_engine', SimSolver)
 from .. import s_options as o
 from .inspect import BP_AFTER
-from ..s_errors import SimValueError, SimUnsatError, SimSolverModeError
+from ..s_errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError

@@ -133,5 +133,16 @@ def broken_symbolic_write():
 
     print "GROOVY"
 
+def test_unsat_core():
+
+    s = SimState(arch='AMD64', mode='symbolic', add_options={ simuvex.options.CONSTRAINT_TRACKING_IN_SOLVER })
+    x = s.se.BVS('x', 32)
+    s.add_constraints(s.se.BVV(0, 32) == x)
+    s.add_constraints(s.se.BVV(1, 32) == x)
+
+    nose.tools.assert_false(s.satisfiable())
+    unsat_core = s.se.unsat_core()
+    nose.tools.assert_equal(len(unsat_core), 2)
+
 if __name__ == '__main__':
     test_concretization_strategies()

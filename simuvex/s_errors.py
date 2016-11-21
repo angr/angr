@@ -73,6 +73,9 @@ class SimSolverError(SimError):
 class SimSolverModeError(SimSolverError):
     pass
 
+class SimSolverOptionError(SimSolverError):
+    pass
+
 class SimValueError(SimSolverError):
     pass
 

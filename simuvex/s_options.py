@@ -129,6 +129,9 @@ TRACK_ACTION_HISTORY = "TRACK_ACTION_HISTORY"
 # track memory mapping and permissions
 TRACK_MEMORY_MAPPING = "TRACK_MEMORY_MAPPING"
 
+# track constraints in solver. This is required to enable unsat_core()
+CONSTRAINT_TRACKING_IN_SOLVER = "CONSTRAINT_TRACKING_IN_SOLVER"
+
 # this is an internal option to automatically track dependencies in SimProcedures
 AUTO_REFS = "AUTO_REFS"
 
