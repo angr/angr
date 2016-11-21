@@ -781,7 +781,7 @@ class PathGroup(ana.Storable):
     def explore(self, stash=None, n=None, find=None, avoid=None, find_stash='found', avoid_stash='avoid', cfg=None, num_find=1, step_func=None):
         """
         Tick stash "stash" forward (up to "n" times or until "num_find" paths are found), looking for condition "find",
-        avoiding condition "avoid". Stashes found paths into "found_stash' and avoided paths into "avoid_stash".
+        avoiding condition "avoid". Stores found paths into "find_stash' and avoided paths into "avoid_stash".
 
         The "find" and "avoid" parameters may be any of:
 
