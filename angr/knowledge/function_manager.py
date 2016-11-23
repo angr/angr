@@ -195,16 +195,28 @@ class FunctionManager(collections.Mapping):
         for i in sorted(self._function_map.iterkeys()):
             yield i
 
-    def function(self, addr=None, name=None, create=False, syscall=False):
+    def function(self, addr=None, name=None, create=False, syscall=False, plt=None):
         """
         Get a function object from the function manager.
 
         Pass either `addr` or `name` with the appropriate values.
+
+        :param int addr: Address of the function.
+        :param str name: Name of the function.
+        :param bool create: Whether to create the function or not if the function does not exist.
+        :param bool syscall: True to create the function as a syscall, False otherwise.
+        :param bool or None plt: True to find the PLT stub, False to find a non-PLT stub, None to disable this
+                                 restriction.
+        :return: The Function instance, or None if the function is not found and create is False.
+        :rtype: Function or None
         """
         if addr is not None:
             if addr in self._function_map:
-                return self._function_map[addr]
+                f = self._function_map[addr]
+                if plt is None or f.is_plt == plt:
+                    return f
             elif create:
+                # the function is not found
                 f = self._function_map[addr]
                 if syscall:
                     f.is_syscall=True
@@ -212,7 +224,8 @@ class FunctionManager(collections.Mapping):
         elif name is not None:
             for func in self._function_map.itervalues():
                 if func.name == name:
-                    return func
+                    if plt is None or func.is_plt == plt:
+                        return func
 
         return None
 
