@@ -247,7 +247,7 @@ def test_fakeret_edges_0():
     p = angr.Project(binary_path)
     cfg = p.analyses.CFGAccurate(context_sensitivity_level=3)
 
-    putchar = cfg.functions.function(name="putchar")
+    putchar = cfg.functions.function(name="putchar", plt=False)
 
     # Since context sensitivity is 3, there should be two different putchar nodes
     putchar_cfgnodes = cfg.get_all_nodes(putchar.addr)
