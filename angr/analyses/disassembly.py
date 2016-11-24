@@ -21,7 +21,7 @@ class DisassemblyPiece(object):
     def _render(self, formatting):
         raise NotImplementedError
 
-    def getpiece(self, formatting, column):
+    def getpiece(self, formatting, column):  # pylint:disable=unused-argument
         return self
 
     def width(self, formatting):
@@ -78,7 +78,7 @@ class Label(DisassemblyPiece):
         self.addr = addr
         self.name = name
 
-    def _render(self, formating):
+    def _render(self, formatting):  # pylint:disable=unused-argument
         return [self.name + ':']
 
 class BlockStart(DisassemblyPiece):
@@ -145,6 +145,7 @@ class Instruction(DisassemblyPiece):
 
             # check if this is a number or an identifier
             ordc = ord(c[0])
+            # pylint:disable=too-many-boolean-expressions
             if (ordc >= 0x30 and ordc <= 0x39) or \
                (ordc >= 0x41 and ordc <= 0x5a) or \
                (ordc >= 0x61 and ordc <= 0x7a):
@@ -209,6 +210,7 @@ class Instruction(DisassemblyPiece):
             if ordc == 0x20:
                 in_word = False
                 continue
+            # pylint:disable=too-many-boolean-expressions
             if (ordc >= 0x30 and ordc <= 0x39) or \
                (ordc >= 0x41 and ordc <= 0x5a) or \
                (ordc >= 0x61 and ordc <= 0x7a):
@@ -351,7 +353,10 @@ class FuncComment(DisassemblyPiece):
         return ['##', '## Function ' + self.func.name, '##']
 
 class Disassembly(Analysis):
-    def __init__(self, function=None, ranges=None):
+    def __init__(self, function=None, ranges=None):  # pylint:disable=unused-argument
+
+        # TODO: support ranges
+
         self.raw_result = []
         self.raw_result_map = {
             'block_starts': {},
@@ -403,7 +408,7 @@ class Disassembly(Analysis):
                     self.raw_result.append(label)
                     self.raw_result_map['labels'][label.addr] = label
                 if cs_insn.address in self.kb.comments:
-                    comment = Comment(self.kb.comments[cs_insn.address])
+                    comment = Comment(cs_insn.address, self.kb.comments[cs_insn.address])
                     self.raw_result.append(comment)
                     self.raw_result_map['comments'][comment.addr] = comment
                 instruction = Instruction(CapstoneInsn(cs_insn), bs)
