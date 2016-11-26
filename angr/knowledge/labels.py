@@ -20,5 +20,9 @@ class Labels(object):
         if k in self._kb.functions:
             self._kb.functions[k] = v
 
+    def __delitem__(self, k):
+        if k in self._labels:
+            del self._labels[k]
+
     def __contains__(self, k):
         return k in self._labels
