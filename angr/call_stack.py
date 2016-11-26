@@ -45,7 +45,11 @@ class CallFrame(object):
 
             # Try to convert the ret_addr to an integer
             try:
-                self.ret_addr = state.se.any_int(self.ret_addr)
+                if self.ret_addr.symbolic:
+                    l.warning('CallStack does not support symbolic return addresses for performance concerns.')
+                    self.ret_addr = None
+                else:
+                    self.ret_addr = state.se.any_int(self.ret_addr)
             except (simuvex.SimUnsatError, simuvex.SimSolverModeError):
                 self.ret_addr = None
         else:
