@@ -1284,14 +1284,21 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         irsb_next, jumpkind = irsb.next, irsb.jumpkind
         successors = [ ]
 
+        last_ins_addr = None
         ins_addr = addr
         for i, stmt in enumerate(irsb.statements):
             if isinstance(stmt, pyvex.IRStmt.Exit):
-                successors.append((i, ins_addr, stmt.dst, stmt.jumpkind))
+                successors.append((i,
+                                   last_ins_addr if self.project.arch.branch_delay_slot else ins_addr,
+                                   stmt.dst,
+                                   stmt.jumpkind
+                                   )
+                                  )
             elif isinstance(stmt, pyvex.IRStmt.IMark):
+                last_ins_addr = ins_addr
                 ins_addr = stmt.addr + stmt.delta
 
-        successors.append(('default', ins_addr, irsb_next, jumpkind))
+        successors.append(('default', last_ins_addr if self.project.arch.branch_delay_slot else ins_addr, irsb_next, jumpkind))
 
         entries = [ ]
 
@@ -1414,9 +1421,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                     if addr not in self.indirect_jumps:
                         tmp_statements = irsb.statements if stmt_idx == 'default' else irsb.statements[: stmt_idx]
-                        ins_addr = next(iter(stmt.addr for stmt in reversed(tmp_statements)
-                                             if isinstance(stmt, pyvex.IRStmt.IMark)), None
-                                        )
+                        if self.project.arch.branch_delay_slot:
+                            ins_addr = next(itertools.islice(iter(stmt.addr for stmt in reversed(tmp_statements)
+                                                 if isinstance(stmt, pyvex.IRStmt.IMark)), 1, None
+                                            ), None)
+                        else:
+                            ins_addr = next(iter(stmt.addr for stmt in reversed(tmp_statements)
+                                              if isinstance(stmt, pyvex.IRStmt.IMark)), None
+                                            )
                         ij = IndirectJump(addr, ins_addr, current_function_addr, jumpkind, stmt_idx,
                                           resolved_targets=[])
                         self.indirect_jumps[addr] = ij
@@ -2813,7 +2825,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             for ep in endpoints:
                 src = self.get_any_node(ep.addr)
                 for rt in return_targets:
-                    self._graph_add_edge(rt, src, 'Ijk_Ret', 'default')
+                    if not src.instruction_addrs:
+                        ins_addr = None
+                    else:
+                        if self.project.arch.branch_delay_slot:
+                            ins_addr = src.instruction_addrs[-2]
+                        else:
+                            ins_addr = src.instruction_addrs[-1]
+
+                    self._graph_add_edge(rt, src, 'Ijk_Ret', ins_addr, 'default')
 
     #
     # Function utils
