@@ -477,9 +477,9 @@ class MemoryDataReference(object):
         self.ref_ins_addr = ref_ins_addr
 
 
-class CFGEntry(object):
+class CFGJob(object):
     """
-    Defines an entry to resume the CFG recovery
+    Defines a job to work on during the CFG recovery
     """
 
     def __init__(self, addr, func_addr, jumpkind, ret_target=None, last_addr=None, src_node=None, src_ins_addr=None,
@@ -506,12 +506,13 @@ class CFGEntry(object):
                 self.last_addr == other.last_addr and \
                 self.src_node == other.src_node and \
                 self.src_stmt_idx == other.src_stmt_idx and \
+                self.src_ins_addr == other.src_ins_addr and \
                 self.returning_source == other.returning_source and \
                 self.syscall == other.syscall
 
     def __hash__(self):
         return hash((self.addr, self.func_addr, self.jumpkind, self.ret_target, self.last_addr, self.src_node,
-                     self.src_stmt_idx, self.returning_source, self.syscall)
+                     self.src_stmt_idx, self.src_ins_addr, self.returning_source, self.syscall)
                     )
 
 class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
@@ -877,7 +878,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Create entries for all starting points
         for sp in starting_points:
-            self._insert_entry(CFGEntry(sp, sp, 'Ijk_Boring'))
+            self._insert_entry(CFGJob(sp, sp, 'Ijk_Boring'))
 
         self._changed_functions = set()
 
@@ -908,13 +909,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _intra_analysis(self):
         pass
 
-    def _get_successors(self, entry):
+    def _get_successors(self, job):
 
-        current_function_addr = entry.func_addr
-        addr = entry.addr
-        jumpkind = entry.jumpkind
-        src_node = entry.src_node
-        src_stmt_idx = entry.src_stmt_idx
+        current_function_addr = job.func_addr
+        addr = job.addr
+        jumpkind = job.jumpkind
+        src_node = job.src_node
+        src_stmt_idx = job.src_stmt_idx
+        src_ins_addr = job.src_ins_addr
 
         if current_function_addr != -1:
             l.debug("Tracing new exit 0x%08x in function %#08x",
@@ -922,7 +924,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         else:
             l.debug("Tracing new exit %#08x", addr)
 
-        return self._scan_block(addr, current_function_addr, jumpkind, src_node, src_stmt_idx)
+        return self._scan_block(addr, current_function_addr, jumpkind, src_node, src_ins_addr, src_stmt_idx)
 
     def _handle_successor(self, entry, successor, successors):
         return [ successor ]
@@ -989,7 +991,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if self._seg_list.is_occupied(prolog_addr):
                     continue
 
-                self._insert_entry(CFGEntry(prolog_addr, prolog_addr, 'Ijk_Boring'))
+                self._insert_entry(CFGJob(prolog_addr, prolog_addr, 'Ijk_Boring'))
                 return
 
         # Try to see if there is any indirect jump left to be resolved
@@ -1008,11 +1010,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if r:
                     # TODO: get a better estimate of the function address
                     target_func_addr = func_addr if not to_outside else addr
-                    self._insert_entry(CFGEntry(addr, target_func_addr, "Ijk_Boring", last_addr=source_addr,
-                                                  src_node=self._nodes[source_addr],
-                                                  src_stmt_idx=None,
-                                                  )
-                                         )
+                    self._insert_entry(CFGJob(addr, target_func_addr, "Ijk_Boring", last_addr=source_addr,
+                                              src_node=self._nodes[source_addr],
+                                              src_stmt_idx=None,
+                                              )
+                                       )
 
             if self._entries:
                 return
@@ -1021,7 +1023,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             addr = self._next_code_addr()
 
             if addr is not None:
-                self._insert_entry(CFGEntry(addr, addr, "Ijk_Boring", last_addr=None))
+                self._insert_entry(CFGJob(addr, addr, "Ijk_Boring", last_addr=None))
 
     def _post_analysis(self):
 
@@ -1159,7 +1161,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     # Basic block scanning
 
-    def _scan_block(self, addr, current_function_addr, previous_jumpkind, previous_src_node, previous_src_stmt_idx): #pylint:disable=unused-argument
+    def _scan_block(self, addr, current_function_addr, previous_jumpkind, previous_src_node, previous_src_ins_addr,
+                    previous_src_stmt_idx):
         """
         Scan a basic block starting at a specific address
 
@@ -1180,16 +1183,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if self.project.is_hooked(addr):
             entries = self._scan_procedure(addr, current_function_addr, previous_jumpkind, previous_src_node,
-                                 previous_src_stmt_idx)
+                                           previous_src_ins_addr, previous_src_stmt_idx)
 
         else:
             entries = self._scan_irsb(addr, current_function_addr, previous_jumpkind, previous_src_node,
-                                   previous_src_stmt_idx)
+                                      previous_src_ins_addr, previous_src_stmt_idx)
 
         return entries
 
-    def _scan_procedure(self, addr, current_function_addr, previous_jumpkind,  # pylint:disable=unused-argument
-                        previous_src_node, previous_src_stmt_idx):
+    def _scan_procedure(self, addr, current_function_addr, previous_jumpkind, previous_src_node, previous_src_ins_addr,
+                        previous_src_stmt_idx):
         try:
             hooker = self.project.hooked_by(addr)
 
@@ -1209,7 +1212,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         except (AngrTranslationError, AngrMemoryError):
             return [ ]
 
-        self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
+        self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_ins_addr, previous_src_stmt_idx)
         self._function_add_node(addr, current_function_addr)
         self._changed_functions.add(current_function_addr)
 
@@ -1243,7 +1246,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return entries
 
-    def _scan_irsb(self, addr, current_function_addr, previous_jumpkind, previous_src_node, previous_src_stmt_idx):  # pylint:disable=unused-argument
+    def _scan_irsb(self, addr, current_function_addr, previous_jumpkind, previous_src_node, previous_src_ins_addr,
+                   previous_src_stmt_idx):
 
         addr, current_function_addr, cfg_node, irsb = self._generate_cfgnode(addr, current_function_addr)
 
@@ -1251,7 +1255,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # exceptions occurred, or we cannot get a CFGNode for other reasons
             return [ ]
 
-        self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_stmt_idx)
+        self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_ins_addr,
+                             previous_src_stmt_idx
+                             )
         self._function_add_node(addr, current_function_addr)
         self._changed_functions.add(current_function_addr)
 
@@ -1340,8 +1346,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 else:
                     target_func_addr = current_function_addr
 
-                ce = CFGEntry(target_addr, target_func_addr, jumpkind, last_addr=addr, src_node=cfg_node,
-                              src_ins_addr=ins_addr, src_stmt_idx=stmt_idx)
+                ce = CFGJob(target_addr, target_func_addr, jumpkind, last_addr=addr, src_node=cfg_node,
+                            src_ins_addr=ins_addr, src_stmt_idx=stmt_idx)
                 entries.append(ce)
 
             else:
@@ -1375,28 +1381,32 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                                 r = self._function_add_transition_edge(tmp_addr, cfg_node, current_function_addr)
                                 if r:
-                                    ce = CFGEntry(tmp_addr, tmp_function_addr, jumpkind, last_addr=tmp_addr,
-                                                  src_node=cfg_node, src_stmt_idx=stmt_idx)
+                                    ce = CFGJob(tmp_addr, tmp_function_addr, jumpkind, last_addr=tmp_addr,
+                                                src_node=cfg_node, src_stmt_idx=stmt_idx, src_ins_addr=ins_addr)
                                     entries.append(ce)
 
                                     # Fill the IndirectJump object
                                     ij.resolved_targets.add(tmp_addr)
 
-                                    self._function_add_call_edge(tmp_addr, None, None, tmp_function_addr)
+                                    self._function_add_call_edge(tmp_addr, None, None, tmp_function_addr,
+                                                                 stmt_idx=stmt_idx, ins_addr=ins_addr
+                                                                 )
 
         elif jumpkind == 'Ijk_Call' or jumpkind.startswith("Ijk_Sys"):
             is_syscall = jumpkind.startswith("Ijk_Sys")
 
             if target_addr is not None:
-                entries += self._create_entry_call(addr, irsb, cfg_node, stmt_idx, current_function_addr, target_addr,
-                                                   jumpkind, is_syscall=is_syscall)
+                entries += self._create_entry_call(addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr,
+                                                   target_addr, jumpkind, is_syscall=is_syscall
+                                                   )
 
             else:
                 resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, current_function_addr)
                 if resolved:
                     for t in resolved_targets:
-                        entries += self._create_entry_call(addr, irsb, cfg_node, stmt_idx, current_function_addr,
-                                                           t, jumpkind, is_syscall=is_syscall)
+                        entries += self._create_entry_call(addr, irsb, cfg_node, stmt_idx, ins_addr,
+                                                           current_function_addr, t, jumpkind, is_syscall=is_syscall
+                                                           )
 
                 else:
                     l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
@@ -1415,8 +1425,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                     self._indirect_jumps_to_resolve.add(ij)
 
-                    self._create_entry_call(addr, irsb, cfg_node, stmt_idx, current_function_addr, None, jumpkind,
-                                            is_syscall=is_syscall
+                    self._create_entry_call(addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, None,
+                                            jumpkind, is_syscall=is_syscall
                                             )
 
         elif jumpkind == "Ijk_Ret":
@@ -1432,7 +1442,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return entries
 
-    def _create_entry_call(self, addr, irsb, cfg_node, stmt_idx, current_function_addr, target_addr, jumpkind,
+    def _create_entry_call(self, addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, target_addr, jumpkind,
                            is_syscall=False):
 
         entries = [ ]
@@ -1454,20 +1464,21 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if new_function_addr is not None:
             r = self._function_add_call_edge(new_function_addr, cfg_node, return_site, current_function_addr,
-                                             syscall=is_syscall)
+                                             syscall=is_syscall, stmt_idx=stmt_idx, ins_addr=ins_addr)
             if not r:
                 return [ ]
 
         if new_function_addr is not None:
             # Keep tracing from the call
-            ce = CFGEntry(target_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
-                          src_stmt_idx=stmt_idx, syscall=is_syscall)
+            ce = CFGJob(target_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
+                        src_stmt_idx=stmt_idx, src_ins_addr=ins_addr, syscall=is_syscall)
             entries.append(ce)
 
         if return_site is not None:
             # Also, keep tracing from the return site
-            ce = CFGEntry(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
-                          src_stmt_idx=stmt_idx, returning_source=new_function_addr, syscall=is_syscall)
+            ce = CFGJob(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
+                        src_stmt_idx=stmt_idx, src_ins_addr=ins_addr, returning_source=new_function_addr,
+                        syscall=is_syscall)
             self._pending_entries.append(ce)
 
         if new_function_addr is not None:
@@ -2000,7 +2011,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     self._nodes[self._unresolvable_target_addr] = dst_node
                     self._nodes_by_addr[self._unresolvable_target_addr].append(dst_node)
 
-                self._graph_add_edge(dst_node, src_node, jump.jumpkind, jump.stmt_idx)
+                self._graph_add_edge(dst_node, src_node, jump.jumpkind, jump.ins_addr, jump.stmt_idx)
                 # mark it as a jumpout site for that function
                 self._function_add_transition_edge(self._unresolvable_target_addr, src_node, jump.func_addr,
                                                    to_outside=True,
@@ -2573,7 +2584,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                     if new_b_size > 0:
                         # there are still some parts left in node b - we don't want to lose it
-                        self._scan_block(new_b_addr, a.function_address, None, None, None)
+                        self._scan_block(new_b_addr, a.function_address, None, None, None, None)
 
                     continue
 
@@ -2765,11 +2776,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     # Graph utils
     #
 
-    def _graph_add_edge(self, cfg_node, src_node, src_jumpkind, src_stmt_idx):
+    def _graph_add_edge(self, cfg_node, src_node, src_jumpkind, src_ins_addr, src_stmt_idx):
         if src_node is None:
             self.graph.add_node(cfg_node)
         else:
-            self.graph.add_edge(src_node, cfg_node, jumpkind=src_jumpkind,
+            self.graph.add_edge(src_node, cfg_node, jumpkind=src_jumpkind, ins_addr=src_ins_addr,
                                 stmt_idx=src_stmt_idx)
 
     def _make_return_edges(self):
@@ -2848,7 +2859,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         except (AngrMemoryError, AngrTranslationError):
             return False
 
-    def _function_add_call_edge(self, addr, src_node, ret_addr, function_addr, syscall=False):
+    def _function_add_call_edge(self, addr, src_node, ret_addr, function_addr, syscall=False, stmt_idx=None,
+                                ins_addr=None
+                                ):
         """
         Add a call edge to the function transition map.
 
@@ -2857,6 +2870,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :param int ret_addr: Address that returns to (in case the function returns).
         :param int function_addr: Function address..
         :param bool syscall: If this is a call to a syscall or not.
+        :param int or str stmt_idx: Statement ID of this call.
+        :param int or None ins_addr: Instruction address of this call.
         :return: True if the edge is added. False if any exception occurred.
         :rtype: bool
         """
@@ -2871,7 +2886,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 except KeyError:
                     ret_node = ret_addr
 
-                self.kb.functions._add_call_to(function_addr, src_node, addr, ret_node, syscall=syscall)
+                self.kb.functions._add_call_to(function_addr, src_node, addr, ret_node, syscall=syscall,
+                                               stmt_idx=stmt_idx, ins_addr=ins_addr,
+                                               )
             return True
         except (AngrMemoryError, AngrTranslationError):
             return False

@@ -1459,7 +1459,12 @@ class CFGBase(Analysis):
             if n is None: src_node = src_addr
             else: src_node = self._to_snippet(n)
 
-            self.kb.functions._add_call_to(src_function.addr, src_node, dst_addr, None, syscall=is_syscall)
+            # get instruction address and statement index
+            ins_addr = data.get('ins_addr', None)
+            stmt_idx = data.get('stmt_idx', None)
+
+            self.kb.functions._add_call_to(src_function.addr, src_node, dst_addr, None, syscall=is_syscall,
+                                           ins_addr=ins_addr, stmt_idx=stmt_idx)
 
             if dst_function.returning:
                 returning_target = src.addr + src.size
