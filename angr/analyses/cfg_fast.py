@@ -1065,7 +1065,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if f.returning is None:
                     f.returning = len(f.endpoints) > 0
 
-        self._remove_redundant_overlapping_blocks()
+        if self.project.arch.name in ('X86', 'AMD64'):
+            self._remove_redundant_overlapping_blocks()
 
         if self._normalize:
             # Normalize the control flow graph first before rediscovering all functions
