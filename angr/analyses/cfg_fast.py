@@ -2839,7 +2839,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         ins_addr = None
                     else:
                         if self.project.arch.branch_delay_slot:
-                            ins_addr = src.instruction_addrs[-2]
+                            if len(src.instruction_addrs) > 1:
+                                ins_addr = src.instruction_addrs[-2]
+                            else:
+                                l.error('At %s: expecting more than one instruction. Only got one.', src)
+                                ins_addr = None
                         else:
                             ins_addr = src.instruction_addrs[-1]
 
