@@ -1329,7 +1329,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if jumpkind == 'Ijk_Boring':
             if target_addr is not None:
 
-                r = self._function_add_transition_edge(target_addr, cfg_node, current_function_addr)
+                r = self._function_add_transition_edge(target_addr, cfg_node, current_function_addr, ins_addr=ins_addr,
+                                                       stmt_idx=stmt_idx
+                                                       )
 
                 if not r:
                     if cfg_node is not None:
@@ -1386,7 +1388,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                     self.project.loader.main_bin) \
                                     or self.project.is_hooked(tmp_addr):
 
-                                r = self._function_add_transition_edge(tmp_addr, cfg_node, current_function_addr)
+                                r = self._function_add_transition_edge(tmp_addr, cfg_node, current_function_addr,
+                                                                       ins_addr=ins_addr, stmt_idx=stmt_idx
+                                                                       )
                                 if r:
                                     ce = CFGJob(tmp_addr, tmp_function_addr, jumpkind, last_addr=tmp_addr,
                                                 src_node=cfg_node, src_stmt_idx=stmt_idx, src_ins_addr=ins_addr)
@@ -2031,7 +2035,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # mark it as a jumpout site for that function
                 self._function_add_transition_edge(self._unresolvable_target_addr, src_node, jump.func_addr,
                                                    to_outside=True,
-                                                   to_function_addr=self._unresolvable_target_addr
+                                                   to_function_addr=self._unresolvable_target_addr,
+                                                   ins_addr=jump.ins_addr,
+                                                   stmt_idx=jump.stmt_idx,
                                                    )
                 # tell KnowledgeBase that it's not resolved
                 # TODO: self.kb._unresolved_indirect_jumps is not processed during normalization. Fix it.
@@ -2850,7 +2856,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             node = addr
         self.kb.functions._add_node(function_addr, node)
 
-    def _function_add_transition_edge(self, addr, src_node, function_addr, to_outside=False, to_function_addr=None):
+    def _function_add_transition_edge(self, addr, src_node, function_addr, to_outside=False, to_function_addr=None,
+                                      stmt_idx=None, ins_addr=None):
         """
         Add a transition edge to the function transiton map.
 
@@ -2874,10 +2881,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 src_node = self._to_snippet(src_node)
                 if not to_outside:
-                    self.kb.functions._add_transition_to(function_addr, src_node, target)
+                    self.kb.functions._add_transition_to(function_addr, src_node, target, stmt_idx=stmt_idx,
+                                                         ins_addr=ins_addr
+                                                         )
                 else:
                     self.kb.functions._add_outside_transition_to(function_addr, src_node, target,
-                                                                 to_function_addr=to_function_addr
+                                                                 to_function_addr=to_function_addr,
+                                                                 stmt_idx=stmt_idx, ins_addr=ins_addr
                                                                  )
             return True
         except (AngrMemoryError, AngrTranslationError):

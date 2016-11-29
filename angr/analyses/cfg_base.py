@@ -1448,6 +1448,10 @@ class CFGBase(Analysis):
 
         dst_addr = dst.addr
 
+        # get instruction address and statement index
+        ins_addr = data.get('ins_addr', None)
+        stmt_idx = data.get('stmt_idx', None)
+
         if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
 
             is_syscall = jumpkind.startswith('Ijk_Sys')
@@ -1458,10 +1462,6 @@ class CFGBase(Analysis):
             n = self.get_any_node(src_addr)
             if n is None: src_node = src_addr
             else: src_node = self._to_snippet(n)
-
-            # get instruction address and statement index
-            ins_addr = data.get('ins_addr', None)
-            stmt_idx = data.get('stmt_idx', None)
 
             self.kb.functions._add_call_to(src_function.addr, src_node, dst_addr, None, syscall=is_syscall,
                                            ins_addr=ins_addr, stmt_idx=stmt_idx)
@@ -1522,7 +1522,9 @@ class CFGBase(Analysis):
                 if dst_addr not in blockaddr_to_function:
                     blockaddr_to_function[dst_addr] = src_function
 
-                self.kb.functions._add_transition_to(src_function.addr, src_node, dst_node)
+                self.kb.functions._add_transition_to(src_function.addr, src_node, dst_node, ins_addr=ins_addr,
+                                                     stmt_idx=stmt_idx
+                                                     )
 
         elif jumpkind == 'Ijk_FakeRet':
 

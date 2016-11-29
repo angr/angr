@@ -415,7 +415,7 @@ class Function(object):
 
         self.transition_graph[src][dst]['confirmed'] = True
 
-    def _transit_to(self, from_node, to_node, outside=False):
+    def _transit_to(self, from_node, to_node, outside=False, ins_addr=None, stmt_idx=None):
         """
         Registers an edge between basic blocks in this function's transition graph.
         Arguments are CodeNode objects.
@@ -436,7 +436,9 @@ class Function(object):
         else:
             self._register_nodes(True, from_node, to_node)
 
-        self.transition_graph.add_edge(from_node, to_node, type='transition', outside=outside)
+        self.transition_graph.add_edge(from_node, to_node, type='transition', outside=outside, ins_addr=ins_addr,
+                                       stmt_idx=stmt_idx
+                                       )
 
         if outside:
             # this node is an endpoint of the current function
