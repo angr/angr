@@ -1929,26 +1929,30 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         state = self.project.factory.blank_state(addr=source_addr, mode="fastpath")
         func = self.kb.functions.function(addr=func_addr)
-        if 'gp' not in func.info:
-            return False, [ ]
 
         gp_offset = self.project.arch.registers['gp'][0]
-        state.regs.gp = func.info['gp']
+        if 'gp' in func.info:
+            state.regs.gp = func.info['gp']
 
         def overwrite_tmp_value(state):
             state.inspect.tmp_write_expr = state.se.BVV(func.info['gp'], state.arch.bits)
 
         # Special handling for cases where `gp` is stored on the stack
-        for i, stmt in enumerate(self.project.factory.block(source_addr).vex.statements):
-            if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == gp_offset and \
-                    isinstance(stmt.data, pyvex.IRExpr.RdTmp):
-                tmp_offset = stmt.data.tmp  # pylint:disable=cell-var-from-loop
-                # we must make sure value of that temporary variable equals to the correct gp value
-                state.inspect.make_breakpoint('tmp_write', when=simuvex.BP_BEFORE,
-                                              condition=lambda s: s.scratch.bbl_addr == addr and
-                                                                  s.scratch.stmt_idx == i and  # pylint:disable=cell-var-from-loop
-                                                                  s.inspect.tmp_write_num == tmp_offset,  # pylint:disable=cell-var-from-loop
-                                              action=overwrite_tmp_value)
+        got_gp_stack_store = False
+        for block_addr_in_slice in set(slice_node[0] for slice_node in b.slice.nodes()):
+            for i, stmt in enumerate(self.project.factory.block(block_addr_in_slice).vex.statements):
+                if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == gp_offset and \
+                        isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+                    tmp_offset = stmt.data.tmp  # pylint:disable=cell-var-from-loop
+                    # we must make sure value of that temporary variable equals to the correct gp value
+                    state.inspect.make_breakpoint('tmp_write', when=simuvex.BP_BEFORE,
+                                                  condition=lambda s: s.scratch.bbl_addr == block_addr_in_slice and
+                                                                      s.inspect.tmp_write_num == tmp_offset,  # pylint:disable=cell-var-from-loop
+                                                  action=overwrite_tmp_value)
+                    got_gp_stack_store = True
+                    break
+            if got_gp_stack_store:
+                break
 
         path = self.project.factory.path(state)
         slicecutor = Slicecutor(self.project, annotated_cfg=annotated_cfg, start=path)
@@ -3199,19 +3203,37 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         elif self.project.arch.name == "MIPS32":
             if addr == func_addr:
+                # check if gp is being written to
+                last_gp_setting_insn_id = None
+                insn_ctr = 0
+                for stmt in irsb.statements:
+                    if isinstance(stmt, pyvex.IRStmt.IMark):
+                        insn_ctr += 1
+                        if insn_ctr >= 10:
+                            break
+                    elif isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == self.project.arch.registers['gp'][0]:
+                        last_gp_setting_insn_id = insn_ctr
+                        break
+
+                if last_gp_setting_insn_id is None:
+                    return
+
                 # Prudently search for $gp values
-                state = self.project.factory.blank_state(addr=addr, mode="fastpath")
+                state = self.project.factory.blank_state(addr=addr, mode="fastpath",
+                                                         remove_options={simuvex.options.OPTIMIZE_IR}
+                                                         )
                 state.regs.t9 = func_addr
                 state.regs.gp = 0xffffffff
                 p = self.project.factory.path(state)
-                p.step(num_inst=3)
+                p.step(num_inst=last_gp_setting_insn_id + 1)
 
                 if not p.successors:
                     return
 
                 state = p.successors[0].state
                 if not state.regs.gp.symbolic and state.se.is_false(state.regs.gp == 0xffffffff):
-                    self.kb.functions.function(func_addr).info['gp'] = state.regs.gp._model_concrete.value
+                    function = self.kb.functions.function(func_addr)
+                    function.info['gp'] = state.regs.gp._model_concrete.value
 
     #
     # Public methods
