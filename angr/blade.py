@@ -256,6 +256,8 @@ class Blade(object):
             in_edges = self._graph.in_edges(cfgnode, data=True)
 
             for pred, _, data in in_edges:
+                if 'jumpkind' in data and data['jumpkind'] in ('Ijk_FakeRet'):
+                    continue
                 if pred not in self._traced_runs:
                     self._traced_runs.add(pred)
                     self._backward_slice_recursive(self._max_level - 1, pred, regs, stack_offsets, prev, data.get('stmt_idx', None))
@@ -311,6 +313,8 @@ class Blade(object):
             in_edges = self._graph.in_edges(self._get_cfgnode(run), data=True)
 
             for pred, _, data in in_edges:
+                if 'jumpkind' in data and data['jumpkind'] in ('Ijk_FakeRet'):
+                    continue
                 if pred not in self._traced_runs:
                     self._traced_runs.add(pred)
                     self._backward_slice_recursive(level - 1, pred, regs, stack_offsets, prev, data.get('stmt_idx', None))
