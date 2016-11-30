@@ -481,7 +481,7 @@ class SimSolver(SimStatePlugin):
         :param e: the expression
         :param **extra_constraints: extra constraints to apply to the solver
         :param **exact: if False, returns approximate solutions
-        :return: a single integer solution, in the form of a Python primitive
+        :return: a single string solution, in the form of a Python primitive
         :rtype: string
         """
         ans = self.any_n_str(e, 1, **kwargs)
