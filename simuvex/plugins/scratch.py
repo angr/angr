@@ -82,7 +82,11 @@ class SimStateScratch(SimStatePlugin):
         :returns: a Claripy expression of the tmp
         """
         self.state._inspect('tmp_read', BP_BEFORE, tmp_read_num=tmp)
-        v = self.temps[tmp]
+        v = self.temps.get(tmp, None)
+        if v is None:
+            raise SimValueError('VEX temp variable %d does not exist. This is usually the result of an incorrect '
+                                'slicing.' % tmp
+                                )
         self.state._inspect('tmp_read', BP_AFTER, tmp_read_expr=v)
         return v
 
