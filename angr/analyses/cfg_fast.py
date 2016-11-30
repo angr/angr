@@ -2854,6 +2854,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 continue
 
             # get the node on CFG
+            if function.startpoint is None:
+                l.warning('Function %#x does not have a startpoint (yet).', func_addr)
+                continue
+
             startpoint = self.get_any_node(function.startpoint.addr)
             if startpoint is None:
                 # weird...
