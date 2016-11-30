@@ -145,6 +145,16 @@ class Analysis(object):
     _show_progressbar = False
     _progressbar = None
 
+    _PROGRESS_WIDGETS = [
+        progressbar.Percentage(),
+        ' ',
+        progressbar.Bar(),
+        ' ',
+        progressbar.Timer(),
+        ' ',
+        progressbar.ETA()
+    ]
+
     @contextlib.contextmanager
     def _resilience(self, name=None, exception=Exception):
         try:
@@ -166,16 +176,7 @@ class Analysis(object):
         :return: None
         """
 
-        widgets = [progressbar.Percentage(),
-                   ' ',
-                   progressbar.Bar(),
-                   ' ',
-                   progressbar.Timer(),
-                   ' ',
-                   progressbar.ETA()
-                   ]
-
-        self._progressbar = progressbar.ProgressBar(widgets=widgets, maxval=10000 * 100).start()
+        self._progressbar = progressbar.ProgressBar(widgets=Analysis._PROGRESS_WIDGETS, maxval=10000 * 100).start()
 
     def _update_progress(self, percentage):
         """

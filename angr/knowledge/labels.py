@@ -5,7 +5,7 @@ class Labels(object):
         for obj in kb._project.loader.all_objects:
             for k, v in obj.symbols_by_addr.iteritems():
                 if v.name:
-                    self._labels[k] = v.name
+                    self._labels[v.rebased_addr] = v.name
             try:
                 for v, k in obj.plt.iteritems():
                     self._labels[k] = v
