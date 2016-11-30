@@ -1937,8 +1937,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         func = self.kb.functions.function(addr=func_addr)
 
         gp_offset = self.project.arch.registers['gp'][0]
-        if 'gp' in func.info:
-            state.regs.gp = func.info['gp']
+        if 'gp' not in func.info:
+            # this might a special case: gp is only used once in this function, and it can be initialized right before
+            # its use site.
+            # TODO: handle this case
+            return False, [ ]
+
+        if 'gp' not in func.info:
+            l.warning('Failed to determine value of register gp for function %#x.', func.addr)
+            return
+
+        state.regs.gp = func.info['gp']
 
         def overwrite_tmp_value(state):
             state.inspect.tmp_write_expr = state.se.BVV(func.info['gp'], state.arch.bits)
