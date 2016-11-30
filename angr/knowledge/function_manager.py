@@ -75,7 +75,7 @@ class FunctionManager(collections.Mapping):
         dst_func._register_nodes(True, node)
         self.block_map[node.addr] = node
 
-    def _add_call_to(self, function_addr, from_node, to_addr, retn_node, syscall=None):
+    def _add_call_to(self, function_addr, from_node, to_addr, retn_node, syscall=None, stmt_idx=None, ins_addr=None):
 
         if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
@@ -85,7 +85,9 @@ class FunctionManager(collections.Mapping):
         if syscall in (True, False):
             dest_func.is_syscall = syscall
 
-        self._function_map[function_addr]._call_to(from_node, dest_func, retn_node)
+        self._function_map[function_addr]._call_to(from_node, dest_func, retn_node, stmt_idx=stmt_idx,
+                                                   ins_addr=ins_addr
+                                                   )
         self._function_map[function_addr]._add_call_site(from_node.addr, to_addr, retn_node.addr if retn_node else None)
 
         # is there any existing edge on the callgraph?
@@ -128,19 +130,22 @@ class FunctionManager(collections.Mapping):
             from_node = self._kb._project.factory.snippet(from_node)
         self._function_map[function_addr]._add_return_site(from_node)
 
-    def _add_transition_to(self, function_addr, from_node, to_node):
+    def _add_transition_to(self, function_addr, from_node, to_node, ins_addr=None, stmt_idx=None):
         if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
         if type(to_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
-        self._function_map[function_addr]._transit_to(from_node, to_node)
+        self._function_map[function_addr]._transit_to(from_node, to_node, ins_addr=ins_addr, stmt_idx=stmt_idx)
 
-    def _add_outside_transition_to(self, function_addr, from_node, to_node, to_function_addr=None):
+    def _add_outside_transition_to(self, function_addr, from_node, to_node, to_function_addr=None, ins_addr=None,
+                                   stmt_idx=None):
         if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
         if type(to_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
-        self._function_map[function_addr]._transit_to(from_node, to_node, outside=True)
+        self._function_map[function_addr]._transit_to(from_node, to_node, outside=True, ins_addr=ins_addr,
+                                                      stmt_idx=stmt_idx
+                                                      )
 
         if to_function_addr is not None:
             # mark it on the callgraph

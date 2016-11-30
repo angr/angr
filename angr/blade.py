@@ -3,7 +3,6 @@ import networkx
 import pyvex
 import simuvex
 
-from .knowledge import CodeNode
 
 class Blade(object):
     """
@@ -169,7 +168,7 @@ class Blade(object):
     def _in_graph(self, v):
         return self._get_cfgnode(v) in self._graph
 
-    def _inslice_callback(self, stmt_idx, stmt, infodict):
+    def _inslice_callback(self, stmt_idx, stmt, infodict):  # pylint:disable=unused-argument
         tpl = (infodict['irsb_addr'], stmt_idx)
         if 'prev' in infodict and infodict['prev']:
             prev = infodict['prev']
@@ -256,6 +255,8 @@ class Blade(object):
             in_edges = self._graph.in_edges(cfgnode, data=True)
 
             for pred, _, data in in_edges:
+                if 'jumpkind' in data and data['jumpkind'] == 'Ijk_FakeRet':
+                    continue
                 if pred not in self._traced_runs:
                     self._traced_runs.add(pred)
                     self._backward_slice_recursive(self._max_level - 1, pred, regs, stack_offsets, prev, data.get('stmt_idx', None))
@@ -311,6 +312,8 @@ class Blade(object):
             in_edges = self._graph.in_edges(self._get_cfgnode(run), data=True)
 
             for pred, _, data in in_edges:
+                if 'jumpkind' in data and data['jumpkind'] == 'Ijk_FakeRet':
+                    continue
                 if pred not in self._traced_runs:
                     self._traced_runs.add(pred)
                     self._backward_slice_recursive(level - 1, pred, regs, stack_offsets, prev, data.get('stmt_idx', None))

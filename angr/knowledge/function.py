@@ -415,7 +415,7 @@ class Function(object):
 
         self.transition_graph[src][dst]['confirmed'] = True
 
-    def _transit_to(self, from_node, to_node, outside=False):
+    def _transit_to(self, from_node, to_node, outside=False, ins_addr=None, stmt_idx=None):
         """
         Registers an edge between basic blocks in this function's transition graph.
         Arguments are CodeNode objects.
@@ -436,7 +436,9 @@ class Function(object):
         else:
             self._register_nodes(True, from_node, to_node)
 
-        self.transition_graph.add_edge(from_node, to_node, type='transition', outside=outside)
+        self.transition_graph.add_edge(from_node, to_node, type='transition', outside=outside, ins_addr=ins_addr,
+                                       stmt_idx=stmt_idx
+                                       )
 
         if outside:
             # this node is an endpoint of the current function
@@ -445,7 +447,7 @@ class Function(object):
         # clear the cache
         self._local_transition_graph = None
 
-    def _call_to(self, from_node, to_func, ret_node):
+    def _call_to(self, from_node, to_func, ret_node, stmt_idx=None, ins_addr=None):
         """
         Registers an edge between the caller basic block and callee function.
 
@@ -456,14 +458,18 @@ class Function(object):
         :param ret_node     The basic block that control flow should return to after the
                             function call.
         :type  to_func:     angr.knowledge.CodeNode or None
+        :param stmt_idx:    Statement ID of this call.
+        :type  stmt_idx:    int, str or None
+        :param ins_addr:    Instruction address of this call.
+        :type  ins_addr:    int or None
         """
 
         self._register_nodes(True, from_node)
 
         if to_func.is_syscall:
-            self.transition_graph.add_edge(from_node, to_func, type='syscall')
+            self.transition_graph.add_edge(from_node, to_func, type='syscall', stmt_idx=stmt_idx, ins_addr=ins_addr)
         else:
-            self.transition_graph.add_edge(from_node, to_func, type='call')
+            self.transition_graph.add_edge(from_node, to_func, type='call', stmt_idx=stmt_idx, ins_addr=ins_addr)
             if ret_node is not None:
                 self._fakeret_to(from_node, ret_node)
 

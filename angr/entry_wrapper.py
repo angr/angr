@@ -116,13 +116,14 @@ class EntryWrapper(object):
     Describes an entry in CFG or VFG. Only used internally by the analysis.
     """
     def __init__(self, addr, path, context_sensitivity_level, simrun_key=None, src_simrun_key=None,
-                 src_exit_stmt_idx=None, jumpkind=None, call_stack=None, is_narrowing=False,
+                 src_exit_stmt_idx=None, src_ins_addr=None, jumpkind=None, call_stack=None, is_narrowing=False,
                  skip=False, final_return_address=None, continue_at=None):
         self.addr = addr  # Note that addr may not always be equal to self.path.addr (for syscalls, for example)
         self._path = path
         self.jumpkind = jumpkind
         self.src_simrun_key = src_simrun_key
         self.src_exit_stmt_idx = src_exit_stmt_idx
+        self.src_ins_addr = src_ins_addr
         self.skip = skip
         self._simrun_key = simrun_key
         self.continue_at = continue_at

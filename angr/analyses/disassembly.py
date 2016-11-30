@@ -1,10 +1,12 @@
 
 from collections import defaultdict
+import logging
 
 from ..analysis import Analysis, register_analysis
 from ..lifter import CapstoneInsn
 
-import logging
+from .disassembly_utils import decode_instruction
+
 l = logging.getLogger('angr.analyses.disassembly')
 
 class DisassemblyPiece(object):
@@ -114,7 +116,14 @@ class Instruction(DisassemblyPiece):
         self.components = ()
         self.operands = [ ]
 
+        # the following members will be filled in after disecting the instruction
+        self.type = None
+        self.branch_type = None
+        self.branch_target_operand = None
+
         self.disect_instruction()
+
+        decode_instruction(self.project.arch, self)
 
     @property
     def mnemonic(self):
