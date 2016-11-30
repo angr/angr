@@ -58,7 +58,7 @@ class SimRun(object):
             self.flat_successors[0].scratch.avoidable = False
 
 
-    def add_successor(self, state, target, guard, jumpkind, exit_stmt_idx=None, source=None):
+    def add_successor(self, state, target, guard, jumpkind, exit_stmt_idx=None, exit_ins_addr=None, source=None):
         """
         Add a successor state of the SimRun.
         This procedure stores method parameters into state.scratch, does some necessary cleaning, and then calls out to
@@ -70,6 +70,7 @@ class SimRun(object):
         :param jumpkind:      The jumpkind (call, ret, jump, or whatnot).
         :param exit_stmt_idx: The ID of the exit statement, an integer by default. 'default' stands for the default exit,
                               and None means it's not from a statement (for example, from a SimProcedure).
+        :param exit_ins_addr: The instruction pointer of this exit, whic is an integer by default.
         :param source:        The source of the jump (i.e., the address of the basic block).
         """
 
@@ -96,6 +97,7 @@ class SimRun(object):
         state.scratch.guard = _raw_ast(guard)
         state.scratch.source = source if source is not None else self.addr
         state.scratch.exit_stmt_idx = exit_stmt_idx
+        state.scratch.exit_ins_addr = exit_ins_addr
 
         state.add_constraints(guard)
         state.regs.ip = target
