@@ -461,11 +461,29 @@ class SimSolver(SimStatePlugin):
 
     @concrete_path_scalar
     def any_int(self, e, **kwargs):
+        """
+        Evaluate an expression, using the solver if necessary. Returns an integer.
+
+        :param e: the expression
+        :param **extra_constraints: extra constraints to apply to the solver
+        :param **exact: if False, returns approximate solutions
+        :return: a single integer solution, in the form of a Python primitive
+        :rtype: int
+        """
         ans = self.eval(e, 1, **kwargs)
         if len(ans) > 0: return ans[0]
         else: raise SimUnsatError("Not satisfiable: %s" % e.shallow_repr())
 
     def any_str(self, e, **kwargs):
+        """
+        Evaluate an expression, using the solver if necessary. Returns a string.
+
+        :param e: the expression
+        :param **extra_constraints: extra constraints to apply to the solver
+        :param **exact: if False, returns approximate solutions
+        :return: a single integer solution, in the form of a Python primitive
+        :rtype: string
+        """
         ans = self.any_n_str(e, 1, **kwargs)
         if len(ans) > 0: return ans[0]
         else: raise SimUnsatError("Not satisfiable: %s" % e.shallow_repr())
