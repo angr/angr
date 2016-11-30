@@ -1530,8 +1530,31 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return:
         """
 
-        # helper methods
+        if self.project.arch.name in ('X86', 'AMD64'):
+            # first pass to see if there are any cross-statement optimizations. if so, we relift the basic block with
+            # optimization level 0 to preserve as much constant references as possible
+            empty_insn = False
+            all_statements = len(irsb.statements)
+            for i, stmt in enumerate(irsb.statements[:-1]):
+                if isinstance(stmt, pyvex.IRStmt.IMark) and (
+                        isinstance(irsb.statements[i + 1], pyvex.IRStmt.IMark) or
+                        (i + 2 < all_statements and isinstance(irsb.statements[i + 2], pyvex.IRStmt.IMark))
+                ):
+                    # this is a very bad check...
+                    # the correct way to do it is to disable cross-instruction optimization in VEX
+                    empty_insn = True
+                    break
 
+            if empty_insn:
+                # make sure opt_level is 0
+                irsb = self.project.factory.block(addr=irsb_addr, max_size=irsb.size, opt_level=0).vex
+
+        # for each statement, collect all constants that are referenced or used.
+        self._collect_data_references_core(irsb, irsb_addr)
+
+    def _collect_data_references_core(self, irsb, irsb_addr):
+
+        # helper methods
         def _process(irsb_, stmt_, stmt_idx_, data_, insn_addr, next_insn_addr, data_size=None, data_type=None):
             if type(data_) is pyvex.expr.Const:  # pylint: disable=unidiomatic-typecheck
                 val = data_.con.value
@@ -1545,28 +1568,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                          data_size=data_size, data_type=data_type
                                          )
 
-        # first pass to see if there are any cross-statement optimizations. if so, we relift the basic block with
-        # optimization level 0 to preserve as much constant references as possible
-        empty_insn = False
-        all_statements = len(irsb.statements)
-        for i, stmt in enumerate(irsb.statements[:-1]):
-            if isinstance(stmt, pyvex.IRStmt.IMark) and (
-                    isinstance(irsb.statements[i + 1], pyvex.IRStmt.IMark) or
-                    (i + 2 < all_statements and isinstance(irsb.statements[i + 2], pyvex.IRStmt.IMark))
-            ):
-                # this is a very bad check...
-                # the correct way to do it is to disable cross-instruction optimization in VEX
-                empty_insn = True
-                break
-
-        if empty_insn:
-            # make sure opt_level is 0
-            irsb = self.project.factory.block(addr=irsb_addr, max_size=irsb.size, opt_level=0).vex
-
-        # second pass. get all instruction addresses
+        # get all instruction addresses
         instr_addrs = [ (i.addr + i.delta) for i in irsb.statements if isinstance(i, pyvex.IRStmt.IMark) ]
 
-        # third pass. for each statement, collect all constants that are referenced or used.
+        # for each statement, collect all constants that are referenced or used.
         instr_addr = None
         next_instr_addr = None
         for stmt_idx, stmt in enumerate(irsb.statements):
