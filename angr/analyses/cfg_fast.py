@@ -440,6 +440,8 @@ class MemoryData(object):
         self.max_size = max_size
         self.pointer_addr = pointer_addr
 
+        self.content = None  # optional
+
         self.refs = set()
         if irsb_addr and stmt_idx:
             self.refs.add((irsb_addr, stmt_idx, insn_addr))
@@ -638,8 +640,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         l.debug("Starts at %#x and ends at %#x.", self._start, self._end)
 
-        # A mapping between (address, size) and the actual data in memory
+        # A mapping between address and the actual data in memory
         self._memory_data = { }
+        # A mapping between address of the instruction that's referencing the memory data and the memory data itself
+        self._insn_addr_to_memory_data = { }
 
         self._initial_state = None
         self._next_addr = self._start
@@ -1528,8 +1532,31 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return:
         """
 
-        # helper methods
+        if self.project.arch.name in ('X86', 'AMD64'):
+            # first pass to see if there are any cross-statement optimizations. if so, we relift the basic block with
+            # optimization level 0 to preserve as much constant references as possible
+            empty_insn = False
+            all_statements = len(irsb.statements)
+            for i, stmt in enumerate(irsb.statements[:-1]):
+                if isinstance(stmt, pyvex.IRStmt.IMark) and (
+                        isinstance(irsb.statements[i + 1], pyvex.IRStmt.IMark) or
+                        (i + 2 < all_statements and isinstance(irsb.statements[i + 2], pyvex.IRStmt.IMark))
+                ):
+                    # this is a very bad check...
+                    # the correct way to do it is to disable cross-instruction optimization in VEX
+                    empty_insn = True
+                    break
 
+            if empty_insn:
+                # make sure opt_level is 0
+                irsb = self.project.factory.block(addr=irsb_addr, max_size=irsb.size, opt_level=0).vex
+
+        # for each statement, collect all constants that are referenced or used.
+        self._collect_data_references_core(irsb, irsb_addr)
+
+    def _collect_data_references_core(self, irsb, irsb_addr):
+
+        # helper methods
         def _process(irsb_, stmt_, stmt_idx_, data_, insn_addr, next_insn_addr, data_size=None, data_type=None):
             if type(data_) is pyvex.expr.Const:  # pylint: disable=unidiomatic-typecheck
                 val = data_.con.value
@@ -1543,28 +1570,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                          data_size=data_size, data_type=data_type
                                          )
 
-        # first pass to see if there are any cross-statement optimizations. if so, we relift the basic block with
-        # optimization level 0 to preserve as much constant references as possible
-        empty_insn = False
-        all_statements = len(irsb.statements)
-        for i, stmt in enumerate(irsb.statements[:-1]):
-            if isinstance(stmt, pyvex.IRStmt.IMark) and (
-                    isinstance(irsb.statements[i + 1], pyvex.IRStmt.IMark) or
-                    (i + 2 < all_statements and isinstance(irsb.statements[i + 2], pyvex.IRStmt.IMark))
-            ):
-                # this is a very bad check...
-                # the correct way to do it is to disable cross-instruction optimization in VEX
-                empty_insn = True
-                break
-
-        if empty_insn:
-            # make sure opt_level is 0
-            irsb = self.project.factory.block(addr=irsb_addr, max_size=irsb.size, opt_level=0).vex
-
-        # second pass. get all instruction addresses
+        # get all instruction addresses
         instr_addrs = [ (i.addr + i.delta) for i in irsb.statements if isinstance(i, pyvex.IRStmt.IMark) ]
 
-        # third pass. for each statement, collect all constants that are referenced or used.
+        # for each statement, collect all constants that are referenced or used.
         instr_addr = None
         next_instr_addr = None
         for stmt_idx, stmt in enumerate(irsb.statements):
@@ -1664,6 +1673,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if self._extra_cross_references:
                 self._memory_data[data_addr].add_ref(irsb_addr, stmt_idx, insn_addr)
 
+        self._insn_addr_to_memory_data[insn_addr] = self._memory_data[data_addr]
+
     def _tidy_data_references(self):
         """
 
@@ -1737,11 +1748,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if memory_data.sort in ('segment-boundary', ):
                 continue
 
+            content_holder = [ ]
+
             # let's see what sort of data it is
             if memory_data.sort in ('unknown', None) or \
                     (memory_data.sort == 'integer' and memory_data.size == self.project.arch.bits / 8):
-                data_type, data_size = self._guess_data_type(memory_data.irsb, memory_data.irsb_addr, memory_data.stmt_idx,
-                                                             data_addr, memory_data.max_size
+                data_type, data_size = self._guess_data_type(memory_data.irsb, memory_data.irsb_addr,
+                                                             memory_data.stmt_idx, data_addr, memory_data.max_size,
+                                                             content_holder=content_holder
                                                              )
             else:
                 data_type, data_size = memory_data.sort, memory_data.size
@@ -1749,6 +1763,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if data_type is not None:
                 memory_data.size = data_size
                 memory_data.sort = data_type
+
+                if len(content_holder) == 1:
+                    memory_data.content = content_holder[0]
 
                 if memory_data.size > 0 and memory_data.size < memory_data.max_size:
                     # Create another memory_data object to fill the gap
@@ -1806,7 +1823,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return new_data_found
 
-    def _guess_data_type(self, irsb, irsb_addr, stmt_idx, data_addr, max_size):  # pylint: disable=unused-argument
+    def _guess_data_type(self, irsb, irsb_addr, stmt_idx, data_addr, max_size, content_holder=None):  # pylint: disable=unused-argument
         """
         Make a guess to the data type.
 
@@ -1891,6 +1908,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             max_unicode_string_len = 1024
             unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
             if len(unicode_str) and all([ c in self.PRINTABLES for c in unicode_str]):
+                if content_holder is not None:
+                    content_holder.append(unicode_str)
                 return "unicode", (len(unicode_str) + 1) * 2
 
         # Is it a null-terminated printable string?
@@ -1900,6 +1919,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if all([ c in self.PRINTABLES for c in s ]):
                 # it's a string
                 # however, it may not be terminated
+                if content_holder is not None:
+                    content_holder.append(s)
                 return "string", min(len(s) + 1, max_string_len)
 
         for handler in self._data_type_guessing_handlers:
