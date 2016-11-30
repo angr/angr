@@ -1931,7 +1931,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         annotated_cfg = AnnotatedCFG(self.project, None, detect_loops=False)
         annotated_cfg.from_digraph(b.slice)
 
-        state = self.project.factory.blank_state(addr=source_addr, mode="fastpath")
+        state = self.project.factory.blank_state(addr=source_addr, mode="fastpath",
+                                                 remove_options=simuvex.options.refs
+                                                 )
         func = self.kb.functions.function(addr=func_addr)
 
         gp_offset = self.project.arch.registers['gp'][0]
