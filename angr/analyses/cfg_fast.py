@@ -2090,6 +2090,29 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             # job done :-)
 
+        class UninitReadMeta(object):
+            uninit_read_base = 0xc000000
+
+        def init_registers_on_demand(state):
+            # for uninitialized read using a register as the source address, we replace them in memory on demand
+            read_addr = state.inspect.mem_read_address
+
+            if not isinstance(read_addr, (int, long)) and read_addr.uninitialized:
+
+                read_length = state.inspect.mem_read_length
+                if not isinstance(read_length, (int, long)):
+                    read_length = read_length._model_vsa.upper_bound
+                if read_length > 16:
+                    return
+                new_read_addr = state.se.BVV(UninitReadMeta.uninit_read_base, state.arch.bits)
+                UninitReadMeta.uninit_read_base += read_length
+
+                # replace the expression in registers
+                state.registers.replace_all(read_addr, new_read_addr)
+
+                state.inspect.mem_read_address = new_read_addr
+
+            # job done :-)
 
         if jumpkind != "Ijk_Boring":
             # Currently we only support boring ones
@@ -2176,6 +2199,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     break
 
             start_state.regs.bp = start_state.arch.initial_sp + 0x2000
+
+            init_registers_on_demand_bp = simuvex.BP(when=simuvex.BP_BEFORE, enabled=True, action=init_registers_on_demand)
+            start_state.inspect.add_breakpoint('mem_read', init_registers_on_demand_bp)
 
             start_path = self.project.factory.path(start_state)
 
