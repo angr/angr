@@ -1955,15 +1955,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Special handling for cases where `gp` is stored on the stack
         got_gp_stack_store = False
         for block_addr_in_slice in set(slice_node[0] for slice_node in b.slice.nodes()):
-            for i, stmt in enumerate(self.project.factory.block(block_addr_in_slice).vex.statements):
+            for stmt in self.project.factory.block(block_addr_in_slice).vex.statements:
                 if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == gp_offset and \
                         isinstance(stmt.data, pyvex.IRExpr.RdTmp):
                     tmp_offset = stmt.data.tmp  # pylint:disable=cell-var-from-loop
                     # we must make sure value of that temporary variable equals to the correct gp value
                     state.inspect.make_breakpoint('tmp_write', when=simuvex.BP_BEFORE,
-                                                  condition=lambda s: s.scratch.bbl_addr == block_addr_in_slice and
-                                                                      s.inspect.tmp_write_num == tmp_offset,  # pylint:disable=cell-var-from-loop
-                                                  action=overwrite_tmp_value)
+                        condition=lambda s, bbl_addr_=block_addr_in_slice, tmp_offset_=tmp_offset:
+                                    s.scratch.bbl_addr == bbl_addr_ and s.inspect.tmp_write_num == tmp_offset_,
+                        action=overwrite_tmp_value
+                                                  )
                     got_gp_stack_store = True
                     break
             if got_gp_stack_store:
