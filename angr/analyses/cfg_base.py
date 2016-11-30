@@ -1157,6 +1157,11 @@ class CFGBase(Analysis):
             if addr != fn.addr and addr in self.kb.functions and self.kb.functions[addr].is_plt:
                 to_remove.add(fn.addr)
 
+        # remove empty functions
+        for function in self.kb.functions.values():
+            if function.startpoint is None:
+                to_remove.add(function.addr)
+
         for addr in to_remove:
             del self.kb.functions[addr]
 
