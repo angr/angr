@@ -440,6 +440,8 @@ class MemoryData(object):
         self.max_size = max_size
         self.pointer_addr = pointer_addr
 
+        self.content = None  # optional
+
         self.refs = set()
         if irsb_addr and stmt_idx:
             self.refs.add((irsb_addr, stmt_idx, insn_addr))
@@ -1737,11 +1739,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if memory_data.sort in ('segment-boundary', ):
                 continue
 
+            content_holder = [ ]
+
             # let's see what sort of data it is
             if memory_data.sort in ('unknown', None) or \
                     (memory_data.sort == 'integer' and memory_data.size == self.project.arch.bits / 8):
-                data_type, data_size = self._guess_data_type(memory_data.irsb, memory_data.irsb_addr, memory_data.stmt_idx,
-                                                             data_addr, memory_data.max_size
+                data_type, data_size = self._guess_data_type(memory_data.irsb, memory_data.irsb_addr,
+                                                             memory_data.stmt_idx, data_addr, memory_data.max_size,
+                                                             content_holder=content_holder
                                                              )
             else:
                 data_type, data_size = memory_data.sort, memory_data.size
@@ -1749,6 +1754,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if data_type is not None:
                 memory_data.size = data_size
                 memory_data.sort = data_type
+
+                if len(content_holder) == 1:
+                    memory_data.content = content_holder[0]
 
                 if memory_data.size > 0 and memory_data.size < memory_data.max_size:
                     # Create another memory_data object to fill the gap
@@ -1806,7 +1814,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return new_data_found
 
-    def _guess_data_type(self, irsb, irsb_addr, stmt_idx, data_addr, max_size):  # pylint: disable=unused-argument
+    def _guess_data_type(self, irsb, irsb_addr, stmt_idx, data_addr, max_size, content_holder=None):  # pylint: disable=unused-argument
         """
         Make a guess to the data type.
 
@@ -1891,6 +1899,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             max_unicode_string_len = 1024
             unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
             if len(unicode_str) and all([ c in self.PRINTABLES for c in unicode_str]):
+                if content_holder is not None:
+                    content_holder.append(unicode_str)
                 return "unicode", (len(unicode_str) + 1) * 2
 
         # Is it a null-terminated printable string?
@@ -1900,6 +1910,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if all([ c in self.PRINTABLES for c in s ]):
                 # it's a string
                 # however, it may not be terminated
+                if content_holder is not None:
+                    content_holder.append(s)
                 return "string", min(len(s) + 1, max_string_len)
 
         for handler in self._data_type_guessing_handlers:
