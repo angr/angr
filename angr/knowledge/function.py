@@ -69,12 +69,11 @@ class Function(object):
                     name = hooker.__name__.split('.')[-1]
 
         # try to get the name from the symbols
-        if name is None:
-            so = project.loader.addr_belongs_to_object(addr)
-            print so, addr
-            if so is not None and addr in so.symbols_by_addr:
-                name = so.symbols_by_addr[addr].name
-                print name
+        #if name is None:
+        #   so = project.loader.addr_belongs_to_object(addr)
+        #   if so is not None and addr in so.symbols_by_addr:
+        #       name = so.symbols_by_addr[addr].name
+        #       print name
 
         # generate an IDA-style sub_X name
         if name is None:
