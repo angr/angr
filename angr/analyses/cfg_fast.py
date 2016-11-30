@@ -640,8 +640,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         l.debug("Starts at %#x and ends at %#x.", self._start, self._end)
 
-        # A mapping between (address, size) and the actual data in memory
+        # A mapping between address and the actual data in memory
         self._memory_data = { }
+        # A mapping between address of the instruction that's referencing the memory data and the memory data itself
+        self._insn_addr_to_memory_data = { }
 
         self._initial_state = None
         self._next_addr = self._start
@@ -1670,6 +1672,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         else:
             if self._extra_cross_references:
                 self._memory_data[data_addr].add_ref(irsb_addr, stmt_idx, insn_addr)
+
+        self._insn_addr_to_memory_data[insn_addr] = self._memory_data[data_addr]
 
     def _tidy_data_references(self):
         """
