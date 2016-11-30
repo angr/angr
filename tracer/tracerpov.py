@@ -63,7 +63,7 @@ class TracerPoV(object):
                 if mode_i == 'ascii':
                     body += text.decode('string-escape')
                 elif mode_i == 'hex':
-                    body += text.decode('hex')
+                    body += text.strip().replace('\n', '').decode('hex')
                 else:
                     raise ValueError("unrecognized mode '%s' in file '%s'" % (mode_i, self.filename))
             self.writes.append(body)
