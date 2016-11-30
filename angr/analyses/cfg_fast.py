@@ -3253,7 +3253,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     self._arm_track_read_lr_from_stack(addr, irsb, self.functions[func_addr])
 
         elif self.project.arch.name == "MIPS32":
-            if addr == func_addr:
+            function = self.kb.functions.function(func_addr)
+            if addr >= func_addr and addr - func_addr < 15 * 4 and 'gp' not in function.info:
                 # check if gp is being written to
                 last_gp_setting_insn_id = None
                 insn_ctr = 0
@@ -3283,7 +3284,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 state = p.successors[0].state
                 if not state.regs.gp.symbolic and state.se.is_false(state.regs.gp == 0xffffffff):
-                    function = self.kb.functions.function(func_addr)
                     function.info['gp'] = state.regs.gp._model_concrete.value
 
     #
