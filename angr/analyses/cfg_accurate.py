@@ -64,7 +64,7 @@ class CFGJob(EntryWrapper):
 
 
 class PendingExit(object):
-    def __init__(self, returning_source, state, src_simrun_key, src_exit_stmt_idx, call_stack):
+    def __init__(self, returning_source, state, src_simrun_key, src_exit_stmt_idx, src_exit_ins_addr, call_stack):
         """
         PendingExit is whatever will be put into our pending_exit list. A pending exit is an entry that created by the
         returning of a call or syscall. It is "pending" since we cannot immediately figure out whether this entry will
@@ -86,6 +86,7 @@ class PendingExit(object):
         self.state = state
         self.src_simrun_key = src_simrun_key
         self.src_exit_stmt_idx = src_exit_stmt_idx
+        self.src_exit_ins_addr = src_exit_ins_addr
         self.call_stack = call_stack
 
     def __repr__(self):
@@ -846,7 +847,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 continue_at = state.procedure_data.callstack[-1][1]
 
             path_wrapper = CFGJob(ip, entry_path, self._context_sensitivity_level, None, None, call_stack=callstack,
-                                  continue_at=continue_at
+                                  continue_at=continue_at,
                                   )
             key = path_wrapper.simrun_key
             if key not in self._start_keys:
@@ -962,7 +963,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                 # However, we should still create the FakeRet edge
                 self._graph_add_edge(pending_entry_src_simrun_key, pending_entry_key, jumpkind="Ijk_FakeRet",
-                                     exit_stmt_idx=pending_entry_src_exit_stmt_idx)
+                                     stmt_idx=pending_entry_src_exit_stmt_idx, ins_addr=pending_entry.src_exit_ins_addr)
 
                 return None
 
@@ -974,6 +975,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                        self._context_sensitivity_level,
                        src_simrun_key=pending_entry_src_simrun_key,
                        src_exit_stmt_idx=pending_entry_src_exit_stmt_idx,
+                       src_ins_addr=pending_entry.src_exit_ins_addr,
                        call_stack=pending_entry_call_stack,
         )
         l.debug("Tracing a missing return exit %s", self._simrun_key_repr(pending_entry_key))
@@ -1055,6 +1057,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                                  syscall=entry.jumpkind.startswith("Ijk_Sys"))
         src_simrun_key = entry.src_simrun_key
         src_exit_stmt_idx = entry.src_exit_stmt_idx
+        src_ins_addr = entry.src_ins_addr
         addr = entry.addr
 
         # Log this address
@@ -1088,8 +1091,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             # But we create the edge anyway. If the simrun does not exist, it will be an edge from the previous node to
             # a PathTerminator
-            self._graph_add_edge(src_simrun_key, simrun_key, jumpkind=entry.jumpkind, exit_stmt_idx=src_exit_stmt_idx)
-            self._update_function_transition_graph(src_simrun_key, simrun_key, jumpkind=entry.jumpkind)
+            self._graph_add_edge(src_simrun_key, simrun_key, jumpkind=entry.jumpkind, stmt_idx=src_exit_stmt_idx,
+                                 ins_addr=src_ins_addr
+                                 )
+            self._update_function_transition_graph(src_simrun_key, simrun_key, jumpkind=entry.jumpkind,
+                                                   ins_addr=src_ins_addr, stmt_idx=src_exit_stmt_idx)
 
             # If this entry cancels another FakeRet entry, we should also create the FakeRet edge
 
@@ -1101,9 +1107,13 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                 pending_entry = self._pending_entries.pop(simrun_key)
                 self._graph_add_edge(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet',
-                                     exit_stmt_idx=pending_entry.src_exit_stmt_idx
+                                     stmt_idx=pending_entry.src_exit_stmt_idx,
+                                     ins_addr=pending_entry.src_exit_ins_addr
                                      )
-                self._update_function_transition_graph(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet')
+                self._update_function_transition_graph(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet',
+                                                       ins_addr=pending_entry.src_exit_ins_addr,
+                                                       stmt_idx=pending_entry.src_exit_stmt_idx
+                                                       )
 
             # We are good. Raise the exception and leave
             raise AngrSkipEntryNotice()
@@ -1169,8 +1179,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # TODO: should save them all, which, unfortunately, requires some redesigning :-(
             cfg_node.input_state = simrun.initial_state
 
-        self._graph_add_edge(src_simrun_key, simrun_key, jumpkind=entry.jumpkind, exit_stmt_idx=src_exit_stmt_idx)
-        self._update_function_transition_graph(src_simrun_key, simrun_key, jumpkind=entry.jumpkind)
+        self._graph_add_edge(src_simrun_key, simrun_key, jumpkind=entry.jumpkind, stmt_idx=src_exit_stmt_idx,
+                             ins_addr=src_ins_addr)
+        self._update_function_transition_graph(src_simrun_key, simrun_key, jumpkind=entry.jumpkind,
+                                               ins_addr=src_ins_addr, stmt_idx=src_exit_stmt_idx)
 
         if simrun_key in self._pending_edges:
             # there are some edges waiting to be created. do it here.
@@ -1185,9 +1197,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             pending_entry = self._pending_entries.pop(simrun_key)
             self._graph_add_edge(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet',
-                                 exit_stmt_idx=pending_entry.src_exit_stmt_idx
+                                 stmt_idx=pending_entry.src_exit_stmt_idx, ins_addr=src_ins_addr
                                  )
-            self._update_function_transition_graph(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet')
+            self._update_function_transition_graph(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet',
+                                                   ins_addr=src_ins_addr, stmt_idx=pending_entry.src_exit_stmt_idx
+                                                   )
 
         simrun_info = self.project.arch.gather_info_from_state(simrun.initial_state)
         self._simrun_info_collection[addr] = simrun_info
@@ -1282,16 +1296,30 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         False
                     )  # You can never return to a syscall
 
+                    if not entry.cfg_node.instruction_addrs:
+                        ret_ins_addr = None
+                    else:
+                        if self.project.arch.branch_delay_slot:
+                            if len(entry.cfg_node.instruction_addrs) > 1:
+                                ret_ins_addr = entry.cfg_node.instruction_addrs[-2]
+                            else:
+                                l.error('At %s: expecting more than one instruction. Only got one.', entry.cfg_node)
+                                ret_ins_addr = None
+                        else:
+                            ret_ins_addr = entry.cfg_node.instruction_addrs[-1]
+
                     # Things might be a bit difficult here. _graph_add_edge() requires both nodes to exist, but here
                     # the return target node may not exist yet. If that's the case, we will put it into a "delayed edge
                     # list", and add this edge later when the return target CFGNode is created.
                     if return_target_key in self._nodes:
-                        self._graph_add_edge(entry.simrun_key, return_target_key, jumpkind='Ijk_Ret', exit_stmt_id='default')
+                        self._graph_add_edge(entry.simrun_key, return_target_key, jumpkind='Ijk_Ret', stmt_id='default',
+                                             ins_addr=ret_ins_addr)
                     else:
                         self._pending_edges[return_target_key].append((entry.simrun_key, return_target_key,
                                                                        {
                                                                            'jumpkind': 'Ijk_Ret',
-                                                                           'exit_stmt_id': 'default',
+                                                                           'stmt_id': 'default',
+                                                                           'ins_addr': ret_ins_addr,
                                                                         }
                                                                        )
                                                                       )
@@ -1490,6 +1518,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         new_state = state.copy()
         suc_jumpkind = state.scratch.jumpkind
         suc_exit_stmt_idx = state.scratch.exit_stmt_idx
+        suc_exit_ins_addr = state.scratch.exit_ins_addr
 
         if suc_jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode', 'Ijk_MapFail', 'Ijk_InvalICache', 'Ijk_NoRedir',
                             'Ijk_SigTRAP', 'Ijk_SigSEGV', 'Ijk_ClientReq'}:
@@ -1593,6 +1622,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     self._context_sensitivity_level,
                     src_simrun_key=entry.simrun_key,
                     src_exit_stmt_idx=suc_exit_stmt_idx,
+                    src_ins_addr=suc_exit_ins_addr,
                     call_stack=new_call_stack,
                     continue_at=continue_at,
                     jumpkind=suc_jumpkind,
@@ -1616,6 +1646,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                              st,
                              entry.simrun_key,
                              suc_exit_stmt_idx,
+                             suc_exit_ins_addr,
                              new_call_stack)
             self._pending_entries[new_tpl] = pe
             entry.successor_status[state] = "Pended"
@@ -1746,7 +1777,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             src_node = self._graph_get_node(src_node_key, terminator_for_nonexistent_node=True)
             self.graph.add_edge(src_node, dst_node, **kwargs)
 
-    def _update_function_transition_graph(self, src_node_key, dst_node_key, jumpkind='Ijk_Boring'):
+    def _update_function_transition_graph(self, src_node_key, dst_node_key, jumpkind='Ijk_Boring', ins_addr=None,
+                                          stmt_idx=None):
         """
         Update transition graphs of functions in function manager based on information passed in.
 
@@ -1785,7 +1817,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 from_node=src_node.to_codenode(),
                 to_addr=dst_node.addr,
                 retn_node=ret_node,
-                syscall=False
+                syscall=False,
+                ins_addr=ins_addr,
+                stmt_idx=stmt_idx,
             )
 
         if jumpkind.startswith('Ijk_Sys'):
@@ -1796,6 +1830,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 to_addr=dst_node.addr,
                 retn_node=src_node.to_codenode(),  # For syscalls, they are returning to the address of themselves
                 syscall=True,
+                ins_addr=ins_addr,
+                stmt_idx=stmt_idx,
             )
 
         elif jumpkind == 'Ijk_Ret':
@@ -1831,7 +1867,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 self.kb.functions._add_transition_to(
                     function_addr=src_node.function_address,
                     from_node=src_node.to_codenode(),
-                    to_node=dst_node.to_codenode()
+                    to_node=dst_node.to_codenode(),
+                    ins_addr=ins_addr,
+                    stmt_idx=stmt_idx,
                 )
 
             else:
@@ -1840,7 +1878,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     from_node=src_node.to_codenode(),
                     to_addr=dst_node.addr,
                     retn_node=None,  # TODO
-                    syscall=False
+                    syscall=False,
+                    ins_addr=ins_addr,
+                    stmt_idx=stmt_idx,
                 )
 
     def _add_additional_edges(self, simrun, cfg_node, successors):

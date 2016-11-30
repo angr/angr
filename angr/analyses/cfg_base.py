@@ -426,7 +426,7 @@ class CFGBase(Analysis):
         if not self.graph.has_edge(src_block, dst_block):
             raise AngrCFGError('Edge (%s, %s) does not exist in CFG' % (src_block, dst_block))
 
-        return self.graph[src_block][dst_block]['exit_stmt_idx']
+        return self.graph[src_block][dst_block]['stmt_idx']
 
     @property
     def graph(self):
