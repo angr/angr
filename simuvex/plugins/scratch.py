@@ -17,6 +17,7 @@ class SimStateScratch(SimStatePlugin):
         # info on the current run
         self.bbl_addr = None
         self.stmt_idx = None
+        self.last_ins_addr = None
         self.ins_addr = None
         self.sim_procedure = None
         self.bbl_addr_list = None
@@ -28,6 +29,7 @@ class SimStateScratch(SimStatePlugin):
         self.target = None
         self.source = None
         self.exit_stmt_idx = None
+        self.exit_ins_addr = None
         self.executed_block_count = 0 # the number of blocks that was executed here
         self.executed_syscall_count = 0 # the number of system calls that was executed here
         self.executed_instruction_count = -1 # the number of instructions that was executed
@@ -47,12 +49,14 @@ class SimStateScratch(SimStatePlugin):
             self.target = scratch.target
             self.source = scratch.source
             self.exit_stmt_idx = scratch.exit_stmt_idx
+            self.exit_ins_addr = scratch.exit_ins_addr
             self.executed_block_count = scratch.executed_block_count
             self.executed_syscall_count = scratch.executed_syscall_count
             self.executed_instruction_count = scratch.executed_instruction_count
 
             self.bbl_addr = scratch.bbl_addr
             self.stmt_idx = scratch.stmt_idx
+            self.last_ins_addr = scratch.last_ins_addr
             self.ins_addr = scratch.ins_addr
             self.sim_procedure = scratch.sim_procedure
             self.bbl_addr_list = scratch.bbl_addr_list
@@ -82,7 +86,11 @@ class SimStateScratch(SimStatePlugin):
         :returns: a Claripy expression of the tmp
         """
         self.state._inspect('tmp_read', BP_BEFORE, tmp_read_num=tmp)
-        v = self.temps[tmp]
+        v = self.temps.get(tmp, None)
+        if v is None:
+            raise SimValueError('VEX temp variable %d does not exist. This is usually the result of an incorrect '
+                                'slicing.' % tmp
+                                )
         self.state._inspect('tmp_read', BP_AFTER, tmp_read_expr=v)
         return v
 

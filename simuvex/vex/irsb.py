@@ -124,8 +124,12 @@ class SimIRSB(SimRun):
                     target_ao = SimActionObject(self.next_expr.expr, reg_deps=self.next_expr.reg_deps(), tmp_deps=self.next_expr.tmp_deps())
                     self.state.log.add_action(SimActionExit(self.state, target_ao, exit_type=SimActionExit.DEFAULT))
 
+                exit_ins_addr = self.state.scratch.last_ins_addr if self.state.arch.branch_delay_slot else \
+                    self.state.scratch.ins_addr
                 self.default_exit = self.add_successor(self.state, self.next_expr.expr, self.default_exit_guard,
-                                                       self.irsb.jumpkind, 'default')
+                                                       self.irsb.jumpkind, exit_stmt_idx='default',
+                                                       exit_ins_addr=exit_ins_addr
+                                                       )
 
             except KeyError:
                 # For some reason, the temporary variable that the successor relies on does not exist. It can be
@@ -165,7 +169,11 @@ class SimIRSB(SimRun):
                 target = ret_state.se.BVV(self.addr + self.irsb.size, ret_state.arch.bits)
                 if ret_state.arch.call_pushes_ret:
                     ret_state.regs.sp = ret_state.regs.sp + ret_state.arch.bytes
-                self.add_successor(ret_state, target, guard, 'Ijk_FakeRet', exit_stmt_idx='default')
+                exit_ins_addr = self.state.scratch.last_ins_addr if self.state.arch.branch_delay_slot else \
+                    self.state.scratch.ins_addr
+                self.add_successor(ret_state, target, guard, 'Ijk_FakeRet', exit_stmt_idx='default',
+                                   exit_ins_addr=exit_ins_addr
+                                   )
 
         if o.BREAK_SIRSB_END in self.state.options:
             import ipdb
@@ -202,6 +210,7 @@ class SimIRSB(SimRun):
             # we'll pass in the imark to the statements
             if type(stmt) == pyvex.IRStmt.IMark:
                 self.last_imark = IMark(stmt)
+                self.state.scratch.last_ins_addr = self.state.scratch.ins_addr
                 self.state.scratch.ins_addr = stmt.addr + stmt.delta
 
                 for subaddr in xrange(stmt.addr, stmt.addr + stmt.len):
@@ -235,8 +244,10 @@ class SimIRSB(SimRun):
             # that we can continue on. Otherwise, add the constraints
             if type(stmt) == pyvex.IRStmt.Exit:
                 l.debug("%s adding conditional exit", self)
-                
-                e = self.add_successor(self.state.copy(), s_stmt.target, s_stmt.guard, s_stmt.jumpkind, stmt_idx)
+                exit_ins_addr = self.state.scratch.last_ins_addr if self.state.arch.branch_delay_slot else \
+                    self.state.scratch.ins_addr
+                e = self.add_successor(self.state.copy(), s_stmt.target, s_stmt.guard, s_stmt.jumpkind,
+                                       exit_stmt_idx=stmt_idx, exit_ins_addr=exit_ins_addr)
                 self.conditional_exits.append(e)
                 self.state.add_constraints(self.state.se.Not(s_stmt.guard))
                 self.default_exit_guard = self.state.se.And(self.default_exit_guard, self.state.se.Not(s_stmt.guard))
