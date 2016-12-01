@@ -7,6 +7,6 @@ class SimIRStmt_WrTmp(SimIRStmt):
         self._write_tmp(self.stmt.tmp, data.expr, data.size_bits(), data.reg_deps(), data.tmp_deps())
 
         actual_size = data.size_bits()
-        expected_size = self.stmt.data.result_size
+        expected_size = self.stmt.data.result_size(self.irsb.tyenv)
         if actual_size != expected_size:
             raise SimStatementError("WrTmp expected length %d but got %d" % (actual_size, expected_size))
