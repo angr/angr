@@ -337,9 +337,8 @@ class Lifter(object):
                                 1].con.value:
 
                         # Create a new IRConst
-                        irconst = pyvex.IRExpr.Const.__new__()  # XXX: does this work???
+                        irconst = pyvex.IRExpr.Const.__new__(pyvex.IRExpr.Const)    # XXX: does this work???
                         irconst.con = dst
-                        irconst.is_atomic = True
                         irconst.result_type = dst.type
                         irconst.tag = 'Iex_Const'
 

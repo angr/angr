@@ -426,7 +426,7 @@ class CFGBase(Analysis):
         if not self.graph.has_edge(src_block, dst_block):
             raise AngrCFGError('Edge (%s, %s) does not exist in CFG' % (src_block, dst_block))
 
-        return self.graph[src_block][dst_block]['exit_stmt_idx']
+        return self.graph[src_block][dst_block]['stmt_idx']
 
     @property
     def graph(self):
@@ -1157,6 +1157,11 @@ class CFGBase(Analysis):
             if addr != fn.addr and addr in self.kb.functions and self.kb.functions[addr].is_plt:
                 to_remove.add(fn.addr)
 
+        # remove empty functions
+        for function in self.kb.functions.values():
+            if function.startpoint is None:
+                to_remove.add(function.addr)
+
         for addr in to_remove:
             del self.kb.functions[addr]
 
@@ -1443,6 +1448,10 @@ class CFGBase(Analysis):
 
         dst_addr = dst.addr
 
+        # get instruction address and statement index
+        ins_addr = data.get('ins_addr', None)
+        stmt_idx = data.get('stmt_idx', None)
+
         if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
 
             is_syscall = jumpkind.startswith('Ijk_Sys')
@@ -1454,7 +1463,8 @@ class CFGBase(Analysis):
             if n is None: src_node = src_addr
             else: src_node = self._to_snippet(n)
 
-            self.kb.functions._add_call_to(src_function.addr, src_node, dst_addr, None, syscall=is_syscall)
+            self.kb.functions._add_call_to(src_function.addr, src_node, dst_addr, None, syscall=is_syscall,
+                                           ins_addr=ins_addr, stmt_idx=stmt_idx)
 
             if dst_function.returning:
                 returning_target = src.addr + src.size
@@ -1512,7 +1522,9 @@ class CFGBase(Analysis):
                 if dst_addr not in blockaddr_to_function:
                     blockaddr_to_function[dst_addr] = src_function
 
-                self.kb.functions._add_transition_to(src_function.addr, src_node, dst_node)
+                self.kb.functions._add_transition_to(src_function.addr, src_node, dst_node, ins_addr=ins_addr,
+                                                     stmt_idx=stmt_idx
+                                                     )
 
         elif jumpkind == 'Ijk_FakeRet':
 

@@ -53,9 +53,11 @@ class Function(object):
             # Whether this function is a plt entry or not is fully relying on the PLT detection in CLE
             self.is_plt = True
 
+        # Try to get a name from existing labels
         if name is None and addr in function_manager._kb.labels:
-            # Try to get a name from existing labels
             name = function_manager._kb.labels[addr]
+
+        # try to get the name from a hook
         if name is None:
             if project.is_hooked(addr):
                 hooker = project.hooked_by(addr)
@@ -65,6 +67,15 @@ class Function(object):
                         name = kwargs_dict['resolves']
                 else:
                     name = hooker.__name__.split('.')[-1]
+
+        # try to get the name from the symbols
+        #if name is None:
+        #   so = project.loader.addr_belongs_to_object(addr)
+        #   if so is not None and addr in so.symbols_by_addr:
+        #       name = so.symbols_by_addr[addr].name
+        #       print name
+
+        # generate an IDA-style sub_X name
         if name is None:
             name = 'sub_%x' % addr
 
@@ -198,13 +209,14 @@ class Function(object):
         All of the constants that are used by this functions's code.
         """
         # TODO: remove link register values
-        return [const for block in self.blocks for const in block.vex.constants]
+        return [const.value for block in self.blocks for const in block.vex.constants]
 
-    def string_references(self, minimum_length=2):
+    def string_references(self, minimum_length=2, vex_only=False):
         """
         All of the constant string references used by this function.
 
         :param minimum_length:  The minimum length of strings to find (default is 1)
+        :param vex_only:        Only analyze VEX IR, don't interpret the entry state to detect additional constants.
         :return:                A list of tuples of (address, string) where is address is the location of the string in
                                 memory.
         """
@@ -220,7 +232,7 @@ class Function(object):
             known_executable_addresses.update(set(x.addr for x in function.graph.nodes()))
 
         # loop over all local runtime values and check if the value points to a printable string
-        for addr in self.local_runtime_values:
+        for addr in self.local_runtime_values if not vex_only else self.code_constants:
             if not isinstance(addr, claripy.fp.FPV) and addr in memory:
                 # check that the address isn't an pointing to known executable code
                 # and that it isn't an indirect pointer to known executable code
@@ -292,20 +304,21 @@ class Function(object):
             # get runtime values from logs of successors
             p = self._project.factory.path(state)
             p.step()
-            for succ in p.next_run.flat_successors + p.next_run.unsat_successors:
-                for a in succ.log.actions:
-                    for ao in a.all_objects:
-                        if not isinstance(ao.ast, claripy.ast.Base):
-                            constants.add(ao.ast)
-                        elif not ao.ast.symbolic:
-                            constants.add(succ.se.any_int(ao.ast))
+            if p.next_run is not None:
+                for succ in p.next_run.flat_successors + p.next_run.unsat_successors:
+                    for a in succ.log.actions:
+                        for ao in a.all_objects:
+                            if not isinstance(ao.ast, claripy.ast.Base):
+                                constants.add(ao.ast)
+                            elif not ao.ast.symbolic:
+                                constants.add(succ.se.any_int(ao.ast))
 
-                # add successors to the queue to analyze
-                if not succ.se.symbolic(succ.ip):
-                    succ_ip = succ.se.any_int(succ.ip)
-                    if succ_ip in self and succ_ip not in analyzed:
-                        analyzed.add(succ_ip)
-                        q.insert(0, succ)
+                    # add successors to the queue to analyze
+                    if not succ.se.symbolic(succ.ip):
+                        succ_ip = succ.se.any_int(succ.ip)
+                        if succ_ip in self and succ_ip not in analyzed:
+                            analyzed.add(succ_ip)
+                            q.insert(0, succ)
 
             # force jumps to missing successors
             # (this is a slightly hacky way to force it to explore all the nodes in the function)
@@ -316,7 +329,7 @@ class Function(object):
             missing = set(x.addr for x in self.graph.successors(node)) - analyzed
             for succ_addr in missing:
                 l.info("Forcing jump to missing successor: %#x", succ_addr)
-                if succ_addr not in analyzed:
+                if succ_addr not in analyzed and p.next_run is not None:
                     all_successors = p.next_run.unconstrained_successors + p.next_run.flat_successors + \
                                      p.next_run.unsat_successors
                     if len(all_successors) > 0:
@@ -415,7 +428,7 @@ class Function(object):
 
         self.transition_graph[src][dst]['confirmed'] = True
 
-    def _transit_to(self, from_node, to_node, outside=False):
+    def _transit_to(self, from_node, to_node, outside=False, ins_addr=None, stmt_idx=None):
         """
         Registers an edge between basic blocks in this function's transition graph.
         Arguments are CodeNode objects.
@@ -436,7 +449,9 @@ class Function(object):
         else:
             self._register_nodes(True, from_node, to_node)
 
-        self.transition_graph.add_edge(from_node, to_node, type='transition', outside=outside)
+        self.transition_graph.add_edge(from_node, to_node, type='transition', outside=outside, ins_addr=ins_addr,
+                                       stmt_idx=stmt_idx
+                                       )
 
         if outside:
             # this node is an endpoint of the current function
@@ -445,7 +460,7 @@ class Function(object):
         # clear the cache
         self._local_transition_graph = None
 
-    def _call_to(self, from_node, to_func, ret_node):
+    def _call_to(self, from_node, to_func, ret_node, stmt_idx=None, ins_addr=None):
         """
         Registers an edge between the caller basic block and callee function.
 
@@ -456,14 +471,18 @@ class Function(object):
         :param ret_node     The basic block that control flow should return to after the
                             function call.
         :type  to_func:     angr.knowledge.CodeNode or None
+        :param stmt_idx:    Statement ID of this call.
+        :type  stmt_idx:    int, str or None
+        :param ins_addr:    Instruction address of this call.
+        :type  ins_addr:    int or None
         """
 
         self._register_nodes(True, from_node)
 
         if to_func.is_syscall:
-            self.transition_graph.add_edge(from_node, to_func, type='syscall')
+            self.transition_graph.add_edge(from_node, to_func, type='syscall', stmt_idx=stmt_idx, ins_addr=ins_addr)
         else:
-            self.transition_graph.add_edge(from_node, to_func, type='call')
+            self.transition_graph.add_edge(from_node, to_func, type='call', stmt_idx=stmt_idx, ins_addr=ins_addr)
             if ret_node is not None:
                 self._fakeret_to(from_node, ret_node)
 
