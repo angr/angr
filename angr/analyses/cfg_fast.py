@@ -52,9 +52,21 @@ class Segment(object):
 
     @property
     def size(self):
+        """
+        Calculate the size of the Segment.
+
+        :return: Size of the Segment.
+        :rtype: int
+        """
         return self.end - self.start
 
     def copy(self):
+        """
+        Make a copy of the Segment.
+
+        :return: A copy of the Segment instance.
+        :rtype: angr.analyses.cfg_fast.Segment
+        """
         return Segment(self.start, self.end, self.sort)
 
 class SegmentList(object):
@@ -265,6 +277,12 @@ class SegmentList(object):
         return merged, new_pos, bytes_changed
 
     def _dbg_output(self):
+        """
+        Returns a string representation of the segments that form this SegmentList
+
+        :return: String representation of contents
+        :rtype: str
+        """
         s = "["
         lst = []
         for segment in self._list:
@@ -274,6 +292,11 @@ class SegmentList(object):
         return s
 
     def _debug_check(self):
+        """
+        Iterates over list checking segments with same sort do not overlap
+
+        :raise: Exception: if segments overlap space with same sort
+        """
         # old_start = 0
         old_end = 0
         old_sort = ""
@@ -374,6 +397,12 @@ class SegmentList(object):
         # self._debug_check()
 
     def copy(self):
+        """
+        Make a copy of the SegmentList.
+
+        :return: A copy of the SegmentList instance.
+        :rtype: angr.analyses.cfg_fast.SegmentList
+        """
         n = SegmentList()
 
         n._list = [ a.copy() for a in self._list ]
@@ -405,6 +434,10 @@ class SegmentList(object):
 
 
 class FunctionReturn(object):
+    """
+    FunctionReturn describes a function call in a specific location and its return location. Hashable and equatable
+    """
+
     def __init__(self, callee_func_addr, caller_func_addr, call_site_addr, return_to):
         self.callee_func_addr = callee_func_addr
         self.caller_func_addr = caller_func_addr
@@ -428,6 +461,10 @@ class FunctionReturn(object):
 
 
 class MemoryData(object):
+    """
+    MemoryData describes the syntactic contents of single address of memory along with a set of references to this
+    address (when not from previous instruction).
+    """
     def __init__(self, address, size, sort, irsb, irsb_addr, stmt, stmt_idx, pointer_addr=None, max_size=None,
                  insn_addr=None):
         self.address = address
@@ -455,6 +492,12 @@ class MemoryData(object):
                                    )
 
     def copy(self):
+        """
+        Make a copy of the MemoryData.
+
+        :return: A copy of the MemoryData instance.
+        :rtype: angr.analyses.cfg_fast.MemoryData
+        """
         s = MemoryData(self.address, self.size, self.sort, self.irsb, self.irsb_addr, self.stmt, self.stmt_idx,
                        pointer_addr=self.pointer_addr, max_size=self.max_size, insn_addr=self.insn_addr
                        )
@@ -715,6 +758,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     #
     @property
     def functions(self):
+        """
+        A collection of all functions in current CFG via FunctionManager
+
+        :return: FunctionManager with all functions
+        :rtype: angr.knowedge.function_manager.FunctionManager
+        """
         return self.kb.functions
 
     @property
@@ -1196,10 +1245,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
         Scan a basic block starting at a specific address
 
-        :param addr: The address to begin scanning
-        :param current_function_addr: Address of the current function
-        :param previous_jumpkind: The jumpkind of the edge going to this node
-        :param previous_src_node: The previous CFGNode
+        :param int addr: The address to begin scanning
+        :param int current_function_addr: Address of the current function
+        :param str previous_jumpkind: The jumpkind of the edge going to this node
+        :param CFGNode previous_src_node: The previous CFGNode
         :return: a list of successors
         :rtype: list
         """
@@ -1223,6 +1272,20 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _scan_procedure(self, addr, current_function_addr, previous_jumpkind, previous_src_node, previous_src_ins_addr,
                         previous_src_stmt_idx):
+        """
+        Checks the hooking procedure for this address searching for new static
+        exit points to add to successors (generating entries for them)
+        if this address has not been traced before. Updates previous CFG nodes
+        with edges.
+
+        :param int addr: The address to begin scanning
+        :param int current_function_addr: Address of the current function
+        :param str previous_jumpkind: The jumpkind of the edge going to this node
+        :param CFGNode previous_src_node: The previous CFGNode
+        :param int previous_src_stmt_idx: The previous ID of the statement.
+        :return: List of successors
+        :rtype: list
+        """
         try:
             if self.project.is_hooked(addr):
                 hooker = self.project.hooked_by(addr)
@@ -1287,6 +1350,18 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _scan_irsb(self, addr, current_function_addr, previous_jumpkind, previous_src_node, previous_src_ins_addr,
                    previous_src_stmt_idx):
+        """
+        Generate list of sucessors (generating them each as entries) to IRSB.
+        Updates previous CFG nodes with edges.
+
+        :param int addr: The address to begin scanning
+        :param int current_function_addr: Address of the current function
+        :param str previous_jumpkind: The jumpkind of the edge going to this node
+        :param CFGNode previous_src_node: The previous CFGNode
+        :param int previous_src_stmt_idx: The previous ID of the statement
+        :return: a list of successors
+        :rtype: list
+        """
 
         addr, current_function_addr, cfg_node, irsb = self._generate_cfgnode(addr, current_function_addr)
 
@@ -1358,6 +1433,21 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _create_entries(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx,
                         fast_indirect_jump_resolution=True):
+        """
+        Given a node and details of a successor, makes a list of CFGEntrys
+        and if it is a call or exit marks it appropriately so in the CFG
+
+        :param int target: The resultant entry's statement destination
+        :param str jumpkind: The jumpkind of the edge going to this node
+        :param int current_function_addr: Address of the current function
+        :param pyvex.IRSB irsb: IRSB of the predecessor node
+        :param int addr: The predecessor address
+        :param CFGNode cfg_node: The CFGNode of the predecessor node
+        :param int ins_addr: The resultant entry's address
+        :param int stmt_idx: The resultant entry's ID of their statement
+        :return: a list of CFGEntrys
+        :rtype: list
+        """
 
         if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
             target_addr = target.con.value
@@ -1509,7 +1599,21 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _create_entry_call(self, addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, target_addr, jumpkind,
                            is_syscall=False):
+        """
+        Generate a CFGEntry for target address, also adding to _pending_entries
+        if returning to succeeding position (if irsb arg is populated)
 
+        :param int addr: The predecessor address
+        :param pyvex.IRSB irsb: IRSB of the predecessor node
+        :param CFGNode cfg_node: The CFGNode of the predecessor node
+        :param int stmt_idx: The ID of statement of resultant entry
+        :param int current_function_addr: Address of the entry function
+        :param int target_addr: The statement destination of resultant entry
+        :param str jumpkind: The jumpkind of the edge going to this node
+        :param bool is_syscall: is the jump kind (and thus this) a system call
+        :return: a list of CFGEntrys
+        :rtype: list
+        """
         entries = [ ]
 
         if is_syscall:
@@ -1573,8 +1677,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _collect_data_references(self, irsb, irsb_addr):
         """
+        Unoptimises IRSB and _add_data_reference's for individual statements or
+        for parts of statements (e.g. Store)
 
-        :return:
+        :param pyvex.IRSB irsb: Block to scan for data references
+        :param int irsb_addr: Address of block
+        :return: None
         """
 
         if self.project.arch.name in ('X86', 'AMD64'):
@@ -1603,6 +1711,20 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # helper methods
         def _process(irsb_, stmt_, stmt_idx_, data_, insn_addr, next_insn_addr, data_size=None, data_type=None):
+            """
+            Helper method used for calling _add_data_reference after checking
+            for manipulation of constants
+
+            :param pyvex.IRSB irsb_: Edited block (as might be de-optimised)
+            :param pyvex.IRStmt.* stmt_: Statement
+            :param int stmt_idx_: Statement ID
+            :param data_: data manipulated by statement
+            :param int insn_addr: instruction address
+            :param int next_insn_addr: next instruction address
+            :param data_size: Size of the data being manipulated
+            :param str data_type: Type of the data being manipulated
+            :return: None
+            """
             if type(data_) is pyvex.expr.Const:  # pylint: disable=unidiomatic-typecheck
                 val = data_.con.value
             elif type(data_) in (int, long):
@@ -1679,11 +1801,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _add_data_reference(self, irsb, irsb_addr, stmt, stmt_idx, insn_addr, data_addr,  # pylint: disable=unused-argument
                             data_size=None, data_type=None):
         """
+        Checks addresses are in the correct segments and creates or updates
+        MemoryData in _memory_data as appropriate, labelling as segment
+        boundaries or data type
 
-        :param irsb:
-        :param stmt:
-        :param data_addr:
-        :return:
+        :param pyvex.IRSB irsb: irsb
+        :param int irsb_addr: irsb address
+        :param pyvex.IRStmt.* stmt: Statement
+        :param int stmt_idx: Statement ID
+        :param int insn_addr: instruction address
+        :param data_addr: address of data manipulated by statement
+        :param data_size: Size of the data being manipulated
+        :param str data_type: Type of the data being manipulated
+        :return: None
         """
 
         # Make sure data_addr is within a valid memory range
@@ -1978,7 +2108,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     # Indirect jumps processing
 
     def _resolve_indirect_jump_timelessly(self, addr, block, func_addr):
+        """
+        Checks if MIPS32 and calls MIPS32 check, otherwise false
 
+        :param int addr: irsb address
+        :param pyvex.IRSB block: irsb
+        :param int func_addr: instruction address
+        :return: If it was resolved and targets alongside it
+        :rtype: tuple
+        """
         if self.project.arch.name == "MIPS32":
             # Prudently search for indirect jump target
             return self._resolve_indirect_jump_timelessly_mips32(addr, block, func_addr)
@@ -1986,7 +2124,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         return False, [ ]
 
     def _resolve_indirect_jump_timelessly_mips32(self, addr, block, func_addr):  # pylint: disable=unused-argument
+        """
+        Attempts to execute any potential paths forward through jump returning
+        a sucess boolean and list of sucessors
 
+        :param int addr: irsb address
+        :param pyvex.IRSB block: irsb
+        :param int func_addr: instruction address
+        :return: If it was resolved and targets alongside it
+        :rtype: tuple
+        """
         b = Blade(self._graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True,
                   ignored_regs=('gp',))
 
@@ -2903,6 +3050,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     #
 
     def _graph_add_edge(self, cfg_node, src_node, src_jumpkind, src_ins_addr, src_stmt_idx):
+        """
+        Add edge between nodes, or add node if entry point
+
+        :param CFGNode cfg_node: node which is jumped to
+        :param CFGNode src_node: node which is jumped from none if entry point
+        :param str src_jumpkind: what type of jump the edge takes
+        :param int src_stmt_idx: source statements ID
+        :return: None
+        """
         if src_node is None:
             self.graph.add_node(cfg_node)
         else:
@@ -2962,6 +3118,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     #
 
     def _function_add_node(self, addr, function_addr):
+        """
+        Adds node to function manager, converting address to CodeNode if
+        possible
+
+        :param int addr: node address
+        :param int function_addr: address of function
+        :return: None
+        """
         try:
             node = self._to_snippet(self._nodes[addr])
         except KeyError:
@@ -3040,6 +3204,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return False
 
     def _function_add_fakeret_edge(self, addr, src_node, function_addr, confirmed=None):
+        """
+        Generate CodeNodes for target and source, if no source node add node
+        for function, otherwise creates fake return to in function manager
+
+        :param int addr: target address
+        :param angr.analyses.CFGNode src_node: source node
+        :param int function_addr: address of function
+        :param confirmed: used as attribute on eventual digraph
+        :return: None
+        """
 
         try:
             target = self._to_snippet(self._nodes[addr])
@@ -3053,7 +3227,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self.kb.functions._add_fakeret_to(function_addr, src_node, target, confirmed=confirmed)
 
     def _function_add_return_site(self, addr, function_addr):
+        """
+        Generate CodeNodes for target address, registers node for function to
+        function manager as return site
 
+        :param int addr: target address
+        :param int function_addr: address of function
+        :return: None
+        """
         try:
             target = self._to_snippet(self._nodes[addr])
         except KeyError:
@@ -3062,6 +3243,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self.kb.functions._add_return_from(function_addr, target)
 
     def _function_add_return_edge(self, return_from_addr, return_to_addr, function_addr):
+        """
+        Generate CodeNodes for return_to_addr, add this node for function to
+        function manager generating new edge
+
+        :param int return_from_addr: target address
+        :param int return_to_addr: target address
+        :param int function_addr: address of function
+        :return: None
+        """
         try:
             return_to_ = self._to_snippet(self._nodes[return_to_addr])
         except KeyError:
@@ -3331,7 +3521,22 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return None, None, None, None
 
     def _process_block_arch_specific(self, addr, irsb, func_addr):  # pylint: disable=unused-argument
+        """
+        According to arch types ['ARMEL', 'ARMHF', 'MIPS32'] does different
+        fixes
 
+        For ARM deals with link register on the stack
+        (see _arm_track_lr_on_stack)
+        For MIPS32 simulates a new state where the global pointer is 0xffffffff
+        from current address after three steps if the first successor does not
+        adjust this value updates this function address (in function manager)
+        to use a conrete global pointer
+
+        :param int addr: irsb address
+        :param pyvex.IRSB irsb: irsb
+        :param func_addr: function address
+        :return: None
+        """
         if self.project.arch.name in ('ARMEL', 'ARMHF'):
             if self._arch_options.ret_jumpkind_heuristics:
                 if addr == func_addr:
