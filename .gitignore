@@ -19,3 +19,5 @@ angr/screenlog.0
 *.egg-info
 /build
 /tags
+MANIFEST
+dist
