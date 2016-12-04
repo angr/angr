@@ -143,6 +143,12 @@ class Project(object):
         self._vfg = None
         self._cdg = None
 
+        if self._support_selfmodifying_code:
+
+            if translation_cache is True:
+                translation_cache = False
+                l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
+
         self.entry = self.loader.main_bin.entry
         self.factory = AngrObjectFactory(self, translation_cache=translation_cache)
         self.analyses = Analyses(self)
