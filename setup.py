@@ -1,12 +1,20 @@
-# pylint: disable=no-name-in-module,import-error
+# pylint: disable=no-name-in-module,import-error,unused-variable
 import os
 import sys
 import subprocess
 import pkg_resources
 import shutil
 import platform
+
+try:
+    from setuptools import setup
+    from setuptools import find_packages
+    packages = find_packages()
+except ImportError:
+    from distutils.core import setup
+    packages = [x.strip('./').replace('/','.') for x in os.popen('find -name "__init__.py" | xargs -n1 dirname').read().strip().split('\n')]
+
 from distutils.util import get_platform
-from setuptools import setup
 from distutils.errors import LibError
 from distutils.command.build import build as _build
 
@@ -42,19 +50,23 @@ class build(_build):
             print 'Failed to build unicorn engine support'
         _build.run(self, *args)
 
-from setuptools.command.develop import develop as _develop
-class develop(_develop):
-    def run(self, *args):
-        try:
-            self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
-        except LibError:
-            pass
-        _develop.run(self, *args)
-
 cmdclass = {
-        'build': build,
-        'develop': develop,
+    'build': build,
 }
+
+try:
+    from setuptools.command.develop import develop as _develop
+    class develop(_develop):
+        def run(self, *args):
+            try:
+                self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
+            except LibError:
+                pass
+            _develop.run(self, *args)
+
+    cmdclass['develop'] = develop
+except ImportError:
+    pass
 
 if 'bdist_wheel' in sys.argv and '--plat-name' not in sys.argv:
     sys.argv.append('--plat-name')
@@ -72,7 +84,7 @@ setup(
     version='5.6.12.3',
     description=' A symbolic execution engine for the VEX IR',
     url='https://github.com/angr/simuvex',
-    packages=['simuvex', 'simuvex.plugins', 'simuvex.storage', 'simuvex.vex', 'simuvex.vex.statements', 'simuvex.vex.expressions', 'simuvex.procedures', 'simuvex.procedures.cgc', 'simuvex.procedures.ld-linux-x86-64___so___2', 'simuvex.procedures.testing', 'simuvex.procedures.stubs', 'simuvex.procedures.syscalls', 'simuvex.procedures.ld-uClibc___so___0', 'simuvex.procedures.libc___so___6', 'simuvex.concretization_strategies'],
+    packages=packages,
     install_requires=[
         'bintrees',
         'dpkt-fix',
