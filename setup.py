@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='angr',
-    version='5.6.10.12',
+    version='5.6.12.3',
     description='The next-generation binary analysis platform from UC Santa Barbara\'s Seclab!',
     packages=['angr', 'angr.surveyors', 'angr.analyses', 'angr.knowledge', 'angr.exploration_techniques'],
     install_requires=[
@@ -13,11 +13,11 @@ setup(
         'mulpyplexer',
         'cooldict',
         'ana',
-        'archinfo>=5.6.10.5',
-        'pyvex>=5.6.10.5',
-        'claripy>=5.6.10.12',
-        'simuvex>=5.6.10.12',
-        'cle>=5.6.10.5',
+        'archinfo>=5.6.12.3',
+        'pyvex>=5.6.12.3',
+        'claripy>=5.6.12.3',
+        'simuvex>=5.6.12.3',
+        'cle>=5.6.12.3',
         'cachetools',
     ],
 )
