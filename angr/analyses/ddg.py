@@ -1101,4 +1101,114 @@ class DDG(Analysis):
                 if not dst_target_func is src_target_func:
                     self._function_data_dependencies[dst_target_func].add_edge(src, dst, **data)
 
+
+    def find_definitions(self, variable, simplified_graph=True):
+        """
+        Find all definitions of the given variable.
+
+        :param SimVariable variable:
+        :param bool simplified_graph: True if you just want to search in the simplified graph instead of the normal
+                                      graph. Usually the simplified graph suffices for finding definitions of register
+                                      or memory variables.
+        :return: A collection of all variable definitions to the specific variable.
+        :rtype: list
+        """
+
+        if simplified_graph:
+            graph = self.simplified_data_graph
+        else:
+            graph = self.graph
+
+        defs = []
+
+        for n in graph.nodes_iter():  # type: ProgramVariable
+            if n.variable == variable:
+                defs.append(n)
+
+        return defs
+
+
+    def find_consumers(self, var_def, simplified_graph=True):
+        """
+        Find all consumers to the specified variable definition.
+
+        :param ProgramVariable var_def: The variable definition.
+        :param bool simplified_graph: True if we want to search in the simplified graph, False otherwise.
+        :return: A collection of all consumers to the specified variable definition.
+        :rtype: list
+        """
+
+        if simplified_graph:
+            graph = self.simplified_data_graph
+        else:
+            graph = self.graph
+
+        if var_def not in graph:
+            return []
+
+        consumers = []
+        out_edges = graph.out_edges(var_def, data=True)
+        for _, dst, data in out_edges:
+            if 'type' in data and data['type'] == 'kill':
+                # skip killing edges
+                continue
+            consumers.append(dst)
+
+        return consumers
+
+
+    def find_killers(self, var_def, simplified_graph=True):
+        """
+        Find all killers to the specified variable definition.
+
+        :param ProgramVariable var_def: The variable definition.
+        :param bool simplified_graph: True if we want to search in the simplified graph, False otherwise.
+        :return: A collection of all killers to the specified variable definition.
+        :rtype: list
+        """
+
+        if simplified_graph:
+            graph = self.simplified_data_graph
+        else:
+            graph = self.graph
+
+        if var_def not in graph:
+            return []
+
+        killers = []
+        out_edges = graph.out_edges(var_def, data=True)
+        for _, dst, data in out_edges:
+            if 'type' in data and data['type'] == 'kill':
+                killers.append(dst)
+
+        return killers
+
+
+    def find_sources(self, var_def, simplified_graph=True):
+        """
+        Find all sources to the specified variable definition.
+
+        :param ProgramVariable var_def: The variable definition.
+        :param bool simplified_graph: True if we want to search in the simplified graph, False otherwise.
+        :return: A collection of all sources to the specified variable definition.
+        :rtype: list
+        """
+
+        if simplified_graph:
+            graph = self.simplified_data_graph
+        else:
+            graph = self.graph
+
+        if var_def not in graph:
+            return []
+
+        sources = []
+        in_edges = graph.in_edges(var_def, data=True)
+        for src, _, data in in_edges:
+            if 'type' in data and data['type'] == 'kill':
+                continue
+            sources.append(src)
+
+        return sources
+
 register_analysis(DDG, 'DDG')
