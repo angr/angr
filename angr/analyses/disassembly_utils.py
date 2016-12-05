@@ -5,6 +5,16 @@ def decode_instruction(arch, instr):
     # this is clearly architecture specific
 
     INS_GROUP_INFO = {
+        'X86': {
+            cs.x86.X86_GRP_CALL: 'call',
+            cs.x86.X86_GRP_JUMP: 'branch',
+            cs.x86.X86_GRP_RET: 'return',
+        },
+        'AMD64': {
+            cs.x86.X86_GRP_CALL: 'call',
+            cs.x86.X86_GRP_JUMP: 'branch',
+            cs.x86.X86_GRP_RET: 'return',
+        },
         'MIPS32': {
             cs.mips.MIPS_GRP_CALL: 'call',
             cs.mips.MIPS_GRP_JUMP: 'branch',
@@ -42,7 +52,15 @@ def decode_instruction(arch, instr):
 
     if instr.type in ('call', 'branch'):
         # determine if this is a direct or indirect call/branch
-        if arch_name == 'MIPS32':
+        if arch_name in ('X86', 'AMD64'):
+            last_operand = instr.insn.operands[-1]
+            if last_operand.type == cs.x86.X86_OP_IMM:
+                instr.branch_type = 'direct'
+            else:
+                instr.branch_type = 'indirect'
+            instr.branch_target_operand = len(instr.insn.operands) - 1
+
+        elif arch_name == 'MIPS32':
             # check the last operand
             last_operand = instr.insn.operands[-1]
             if last_operand.type == cs.mips.MIPS_OP_REG:
