@@ -82,7 +82,7 @@ class SimStateSystem(SimStatePlugin):
         self.chroot = chroot
         self.tls_modules = tls_modules if tls_modules is not None else {}
         self.queued_syscall_returns = [ ] if queued_syscall_returns is None else queued_syscall_returns
-        self.brk = brk
+        self.brk = brk if brk is not None else 0x1b00000
         self._sigmask = sigmask
         self.pid = 1337 if pid is None else pid
 
@@ -100,8 +100,25 @@ class SimStateSystem(SimStatePlugin):
                 l.debug("Not initializing files...")
 
     def set_brk(self, new_brk):
-        cur_brk = self.brk if self.brk is not None else self.state.se.BVV(0x1b00000, self.state.arch.bits)
-        self.brk = self.state.se.If(new_brk == 0, cur_brk, new_brk)
+        # arch word size is not available at init for some reason, fix that here
+        if isinstance(self.brk, (int, long)):
+            self.brk = self.state.se.BVV(self.brk, self.state.arch.bits)
+
+        if new_brk.symbolic:
+            l.warning("Program is requesting a symbolic brk! This cannot be emulated cleanly!")
+            self.brk = self.state.se.If(new_brk < self.brk, self.brk, new_brk)
+
+        else:
+            conc_start = self.state.se.any_int(self.brk)
+            conc_end = self.state.se.any_int(new_brk)
+            # failure cases: new brk is less than old brk, or new brk is not page aligned
+            if conc_end < conc_start or conc_end % 0x1000 != 0:
+                pass
+            else:
+                # TODO: figure out what permissions to use
+                self.state.memory.map_region(conc_start, conc_end - conc_start, 7)
+                self.brk = new_brk
+
         return self.brk
 
     # to keep track of sockets
