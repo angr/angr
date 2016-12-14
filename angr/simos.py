@@ -613,7 +613,10 @@ class SimLinux(SimOS):
                     for reloc in binary.relocs:
                         if reloc.symbol is None or reloc.resolvedby is None:
                             continue
-                        if reloc.resolvedby.type != 'STT_GNU_IFUNC':
+                        try:
+                            if reloc.resolvedby.elftype != 'STT_GNU_IFUNC':
+                                continue
+                        except AttributeError:
                             continue
                         gotaddr = reloc.addr + binary.rebase_addr
                         gotvalue = self.proj.loader.memory.read_addr_at(gotaddr)
