@@ -61,7 +61,7 @@ class SimStateSystem(SimStatePlugin):
 
     def __init__(self, initialize=True, files=None, concrete_fs=False, chroot=None, sockets=None,
             pcap_backer=None, inetd=False, argv=None, argc=None, environ=None, auxv=None, tls_modules=None,
-            fs=None, queued_syscall_returns=None, sigmask=None, pid=None):
+            fs=None, queued_syscall_returns=None, sigmask=None, pid=None, brk=None):
         SimStatePlugin.__init__(self)
 
         # some limits and constants
@@ -82,7 +82,7 @@ class SimStateSystem(SimStatePlugin):
         self.chroot = chroot
         self.tls_modules = tls_modules if tls_modules is not None else {}
         self.queued_syscall_returns = [ ] if queued_syscall_returns is None else queued_syscall_returns
-        self.brk = None
+        self.brk = brk
         self._sigmask = sigmask
         self.pid = 1337 if pid is None else pid
 
