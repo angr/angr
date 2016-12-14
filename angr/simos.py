@@ -649,7 +649,10 @@ class SimLinux(SimOS):
             elif isinstance(state.arch, ArchAArch64):
                 state.regs.tpidr_el0 = self.proj.loader.tls_object.user_thread_pointer
 
-        state.register_plugin('posix', SimStateSystem(fs=fs, concrete_fs=concrete_fs, chroot=chroot))
+        last_addr = self.proj.loader.main_bin.get_max_addr()
+        brk = last_addr - last_addr % 0x1000 + 0x1000
+
+        state.register_plugin('posix', SimStateSystem(fs=fs, concrete_fs=concrete_fs, chroot=chroot, brk=brk))
 
         if self.proj.loader.main_bin.is_ppc64_abiv1:
             state.libc.ppc64_abiv = 'ppc64_1'
