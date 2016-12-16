@@ -632,9 +632,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._extra_cross_references = extra_cross_references
 
-        self._arch_options = arch_options if arch_options is not None else CFGArchOptions(self.project.arch,
-                                                                                          **extra_arch_options
-                                                                                          )
+        try:
+            self._arch_options = arch_options if arch_options is not None else CFGArchOptions(self.project.arch,
+                                                                                              **extra_arch_options
+                                                                                              )
+        except KeyError:
+            raise
 
         self._data_type_guessing_handlers = [ ] if data_type_guessing_handlers is None else data_type_guessing_handlers
 
