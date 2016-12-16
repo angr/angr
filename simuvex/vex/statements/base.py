@@ -33,7 +33,7 @@ class SimIRStmt(object):
 
     def _translate_expr(self, expr):
         """Translates an IRExpr into a SimIRExpr."""
-        e = translate_expr(expr, self.imark, self.stmt_idx, self.state)
+        e = translate_expr(expr, self.imark, self.stmt_idx, self.irsb.tyenv, self.state)
         self._record_expr(e)
         return e
 

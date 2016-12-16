@@ -7,11 +7,12 @@ l = logging.getLogger("simuvex.vex.expressions.base")
 _nonset = frozenset()
 
 class SimIRExpr(object):
-    def __init__(self, expr, imark, stmt_idx, state):
+    def __init__(self, expr, imark, stmt_idx, tyenv, state):
         self.state = state
         self._constraints = [ ]
         self.imark = imark
         self.stmt_idx = stmt_idx
+        self.tyenv = tyenv
         self.child_exprs = [ ]
 
         # effects tracking
@@ -25,7 +26,7 @@ class SimIRExpr(object):
         if expr.tag in ('Iex_BBPTR', 'Iex_VECRET'):
             self.type = None
         else:
-            self.type = expr.result_type
+            self.type = expr.result_type(self.tyenv)
 
         self.state._inspect('expr', BP_BEFORE)
 
@@ -72,7 +73,7 @@ class SimIRExpr(object):
 
     def _translate_expr(self, expr):
         """Translate a single IRExpr, honoring mode and options and so forth. Also updates state..."""
-        e = translate_expr(expr, self.imark, self.stmt_idx, self.state)
+        e = translate_expr(expr, self.imark, self.stmt_idx, self.tyenv, self.state)
         self._record_expr(e)
         self.child_exprs.append(e)
         return e

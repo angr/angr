@@ -116,7 +116,7 @@ class SimIRSB(SimRun):
             l.debug("%s adding default exit.", self)
 
             try:
-                self.next_expr = translate_expr(self.irsb.next, self.last_imark, self.num_stmts, self.state)
+                self.next_expr = translate_expr(self.irsb.next, self.last_imark, self.num_stmts, self.irsb.tyenv, self.state)
 
                 self.state.log.extend_actions(self.next_expr.actions)
 
@@ -244,7 +244,6 @@ class SimIRSB(SimRun):
             # that we can continue on. Otherwise, add the constraints
             if type(stmt) == pyvex.IRStmt.Exit:
                 l.debug("%s adding conditional exit", self)
-
                 exit_ins_addr = self.state.scratch.last_ins_addr if self.state.arch.branch_delay_slot else \
                     self.state.scratch.ins_addr
                 e = self.add_successor(self.state.copy(), s_stmt.target, s_stmt.guard, s_stmt.jumpkind,
