@@ -1,68 +1,12 @@
 import nose
 import angr
 import pickle
-import tracer
 
 import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../'))
 
 import simuvex
 from simuvex import s_options as so
-
-def _get_calltrace(path):
-    """
-    Get a list of (calling target, stack pointer, return target, stack depth) from path.callstack_trace.
-
-    :param angr.Path path: The path to extract information from.
-    :return: A list of extracted information.
-    :rtype: tuple
-    """
-
-    info = [(action.callframe.func_addr, action.callframe.stack_ptr, action.callframe.ret_addr, action.callstack_depth)
-            for action in path.callstack_backtrace if action.action == 'push'
-            ]
-    return info
-
-def test_unicorn():
-    p = angr.Project(os.path.join(test_location, 'binaries-private/cgc_qualifier_event/cgc/99c22c01_01'))
-
-    s_unicorn = p.factory.entry_state(add_options=so.unicorn | {so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH, so.STRICT_PAGE_ACCESS}, remove_options={so.LAZY_SOLVES}) # unicorn
-    s_angr = p.factory.entry_state(add_options={so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH, so.INITIALIZE_ZERO_REGISTERS, so.STRICT_PAGE_ACCESS}, remove_options={so.LAZY_SOLVES}) # pure angr
-
-    pg_unicorn = p.factory.path_group(s_unicorn)
-    pg_angr = p.factory.path_group(s_angr)
-
-    # input = 'x\n\0\0\0\0'
-    inp = 'L\x0alaehdamfeg\x0a10\x2f28\x2f2014\x0a-2147483647:-2147483647:-2147483647\x0ajfifloiblk\x0a126\x0a63\x0a47\x0a31\x0a3141\x0a719\x0a'
-
-    stdin = s_unicorn.posix.get_file(0)
-    stdin.write(inp, len(inp))
-    stdin.seek(0)
-    stdin.size = len(inp)
-
-    stdin = s_angr.posix.get_file(0)
-    stdin.write(inp, len(inp))
-    stdin.seek(0)
-    stdin.size = len(inp)
-
-    t = tracer.Runner(p.filename, inp, record_trace=True)
-    t.dynamic_trace()
-    real_trace = t.trace
-
-    pg_unicorn.run()
-    uc_trace = pg_unicorn.one_errored.addr_trace.hardcopy + [pg_unicorn.one_errored.addr]
-    pg_angr.run()
-    angr_trace = pg_angr.one_errored.addr_trace.hardcopy + [pg_angr.one_errored.addr]
-    uc_trace_filtered = [a for a in uc_trace if not p._extern_obj.contains_addr(a) and not p._syscall_obj.contains_addr(a)]
-
-    # not assert_equal because it tries to use a fancy algorithm that blows up on long lists
-    nose.tools.assert_true(uc_trace_filtered == real_trace)
-    nose.tools.assert_true(uc_trace == angr_trace)
-    nose.tools.assert_equal(pg_angr.one_errored.error.addr, pg_unicorn.one_errored.error.addr)
-
-    uc_calltrace = _get_calltrace(pg_unicorn.one_errored)
-    angr_calltrace = _get_calltrace(pg_angr.one_errored)
-    nose.tools.assert_true(uc_calltrace == angr_calltrace)
 
 def test_stops():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/uc_stop'))
@@ -162,39 +106,12 @@ def run_similarity(binpath, depth, prehook=None):
         cc.pg = prehook(cc.pg)
     cc.run(depth=depth)
 
-def test_similarity_01cf6c01():
-    run_similarity("binaries-private/cgc_qualifier_event/cgc/01cf6c01_01", 1200)
-def test_similarity_38256a01():
-    run_similarity("binaries-private/cgc_qualifier_event/cgc/38256a01_01", 40)
-def test_similarity_5821ad01():
-    run_similarity("binaries-private/cgc_qualifier_event/cgc/5821ad01_01", 50)
-def test_similarity_63cf1501():
-    run_similarity("binaries-private/cgc_qualifier_event/cgc/63cf1501_01", 30)
-def test_similarity_6787bf01():
-    run_similarity("binaries-private/cgc_qualifier_event/cgc/6787bf01_01", 29)
-def test_similarity_7185fe01():
-    run_similarity("binaries-private/cgc_qualifier_event/cgc/7185fe01_01", 29)
-def test_similarity_ab957801():
-    run_similarity("binaries-private/cgc_qualifier_event/cgc/ab957801_01", 29)
-def test_similarity_acedf301():
-    run_similarity("binaries-private/cgc_qualifier_event/cgc/acedf301_01", 250)
-def test_similarity_d009e601():
-    run_similarity("binaries-private/cgc_qualifier_event/cgc/d009e601_01", 250)
-def test_similarity_d4411101():
-    run_similarity("binaries-private/cgc_qualifier_event/cgc/d4411101_01", 200)
-def test_similarity_eae6fa01():
-    run_similarity("binaries-private/cgc_qualifier_event/cgc/eae6fa01_01", 100)
-def test_similarity_ee545a01():
-    run_similarity("binaries-private/cgc_qualifier_event/cgc/ee545a01_01", 200)
-def test_similarity_f5adc401():
-    run_similarity("binaries-private/cgc_qualifier_event/cgc/f5adc401_01", 100)
 def test_similarity_fauxware():
     def cooldown(pg):
         # gotta skip the initializers because of cpuid and RDTSC
         pg.one_left.state.unicorn.countdown_nonunicorn_blocks = 39
         return pg
     run_similarity("binaries/tests/i386/fauxware", 1000, prehook=cooldown)
-#("binaries-private/cgc_qualifier_event/cgc/5c921501_01", 70),
 
 def test_fp():
     type_cache = simuvex.s_type.parse_defns(open(os.path.join(test_location, 'binaries/tests_src/manyfloatsum.c')).read())
@@ -263,7 +180,7 @@ def test_unicorn_pickle():
     )))
 
 def test_concrete_transmits():
-    p = angr.Project(os.path.join(test_location, 'binaries-private/shellphish/PIZZA_00001'))
+    p = angr.Project(os.path.join(test_location, 'binaries/tests/cgc/PIZZA_00001'))
     inp = "320a310a0100000005000000330a330a340a".decode('hex')
 
     s_unicorn = p.factory.entry_state(add_options=so.unicorn | {so.CGC_NO_SYMBOLIC_RECEIVE_LENGTH})
@@ -306,8 +223,3 @@ if __name__ == '__main__':
                         fa = ft[1:]
                         print '...', fa
                         fo(*fa)
-
-# unicorn TODO:
-# test fp reg syncing
-# find memory leak
-# concrete transmits
