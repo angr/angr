@@ -1321,7 +1321,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return entries
 
-    def _create_entries(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx):
+    def _create_entries(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx,
+                        fast_indirect_jump_resolution=True):
 
         if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
             target_addr = target.con.value
@@ -1333,6 +1334,18 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             target_addr = None
 
         entries = [ ]
+
+        if target_addr is None and (
+                        jumpkind in ('Ijk_Boring', 'Ijk_Call') or jumpkind.startswith('Ijk_Sys'))\
+                and fast_indirect_jump_resolution:
+            # try resolving it fast
+            resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, current_function_addr)
+            if resolved:
+                for t in resolved_targets:
+                    ent = self._create_entries(t, jumpkind, current_function_addr, irsb, addr,cfg_node, ins_addr, stmt_idx,
+                                               fast_indirect_jump_resolution=False)
+                    entries.extend(ent)
+                return entries
 
         # pylint: disable=too-many-nested-blocks
         if jumpkind == 'Ijk_Boring':
@@ -1421,38 +1434,30 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                    )
 
             else:
-                resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, current_function_addr)
-                if resolved:
-                    for t in resolved_targets:
-                        entries += self._create_entry_call(addr, irsb, cfg_node, stmt_idx, ins_addr,
-                                                           current_function_addr, t, jumpkind, is_syscall=is_syscall
-                                                           )
+                l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
+                # Add it to our set. Will process it later if user allows.
 
-                else:
-                    l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
-                    # Add it to our set. Will process it later if user allows.
-
-                    if addr not in self.indirect_jumps:
-                        tmp_statements = irsb.statements if stmt_idx == 'default' else irsb.statements[: stmt_idx]
-                        if self.project.arch.branch_delay_slot:
-                            ins_addr = next(itertools.islice(iter(stmt.addr for stmt in reversed(tmp_statements)
-                                                 if isinstance(stmt, pyvex.IRStmt.IMark)), 1, None
-                                            ), None)
-                        else:
-                            ins_addr = next(iter(stmt.addr for stmt in reversed(tmp_statements)
-                                              if isinstance(stmt, pyvex.IRStmt.IMark)), None
-                                            )
-                        ij = IndirectJump(addr, ins_addr, current_function_addr, jumpkind, stmt_idx,
-                                          resolved_targets=[])
-                        self.indirect_jumps[addr] = ij
+                if addr not in self.indirect_jumps:
+                    tmp_statements = irsb.statements if stmt_idx == 'default' else irsb.statements[: stmt_idx]
+                    if self.project.arch.branch_delay_slot:
+                        ins_addr = next(itertools.islice(iter(stmt.addr for stmt in reversed(tmp_statements)
+                                             if isinstance(stmt, pyvex.IRStmt.IMark)), 1, None
+                                        ), None)
                     else:
-                        ij = self.indirect_jumps[addr]
+                        ins_addr = next(iter(stmt.addr for stmt in reversed(tmp_statements)
+                                          if isinstance(stmt, pyvex.IRStmt.IMark)), None
+                                        )
+                    ij = IndirectJump(addr, ins_addr, current_function_addr, jumpkind, stmt_idx,
+                                      resolved_targets=[])
+                    self.indirect_jumps[addr] = ij
+                else:
+                    ij = self.indirect_jumps[addr]
 
-                    self._indirect_jumps_to_resolve.add(ij)
+                self._indirect_jumps_to_resolve.add(ij)
 
-                    self._create_entry_call(addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, None,
-                                            jumpkind, is_syscall=is_syscall
-                                            )
+                self._create_entry_call(addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, None,
+                                        jumpkind, is_syscall=is_syscall
+                                        )
 
         elif jumpkind == "Ijk_Ret":
             if current_function_addr != -1:
@@ -1964,16 +1969,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         gp_offset = self.project.arch.registers['gp'][0]
         if 'gp' not in func.info:
-            # this might a special case: gp is only used once in this function, and it can be initialized right before
-            # its use site.
-            # TODO: handle this case
-            return False, [ ]
-
-        if 'gp' not in func.info:
-            l.warning('Failed to determine value of register gp for function %#x.', func.addr)
-            return
-
-        state.regs.gp = func.info['gp']
+            sec = self._addr_belongs_to_section(func.addr)
+            if sec is None or sec.name != '.plt':
+                # this might a special case: gp is only used once in this function, and it can be initialized right before
+                # its use site.
+                # TODO: handle this case
+                l.debug('Failed to determine value of register gp for function %#x.', func.addr)
+                return False, [ ]
+        else:
+            state.regs.gp = func.info['gp']
 
         def overwrite_tmp_value(state):
             state.inspect.tmp_write_expr = state.se.BVV(func.info['gp'], state.arch.bits)
