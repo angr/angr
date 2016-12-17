@@ -10,6 +10,7 @@ import cffi
 import capstone
 import networkx
 import pyvex
+import cle
 
 from simuvex import SimMemoryVariable, SimTemporaryVariable
 from ..analysis import Analysis, register_analysis
@@ -332,15 +333,22 @@ class SymbolManager(object):
                 symbol_name = symbol_name[ : symbol_name.index('@') ]
 
             # check the type...
-            if symbol.type == 'STT_FUNC':
+            if symbol.type == cle.Symbol.TYPE_FUNCTION:
                 # it's a function!
                 label = FunctionLabel(self.binary, symbol_name, addr)
-            elif symbol.type == 'STT_OBJECT':
+            elif symbol.type == cle.Symbol.TYPE_OBJECT:
                 # it's an object
                 label = ObjectLabel(self.binary, symbol_name, addr)
-            elif symbol.type == 'STT_NOTYPE':
+            elif symbol.type == cle.Symbol.TYPE_NONE:
                 # notype
                 label = NotypeLabel(self.binary, symbol_name, addr)
+            elif symbol.type == cle.Symbol.TYPE_SECTION:
+                # section label
+                # use a normal label instead
+                if not name:
+                    # handle empty names
+                    name = None
+                label = Label.new_label(self.binary, name=name, original_addr=addr)
             else:
                 raise Exception('Unsupported symbol type %s. Bug Fish about it!' % symbol.type)
 
