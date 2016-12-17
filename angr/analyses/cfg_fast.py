@@ -1594,7 +1594,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if type(stmt.data) is pyvex.IRExpr.Load:  # pylint: disable=unidiomatic-typecheck
                     # load
                     # e.g. t7 = LDle:I64(0x0000000000600ff8)
-                    size = stmt.data.result_size / 8 # convert to bytes
+                    size = stmt.data.result_size(irsb.tyenv) / 8 # convert to bytes
                     _process(irsb, stmt, stmt_idx, stmt.data.addr, instr_addr, next_instr_addr,
                              data_size=size, data_type='integer'
                              )
