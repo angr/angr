@@ -629,7 +629,7 @@ class SimLinux(SimOS):
                                 'gotaddr': gotaddr,
                                 'funcname': reloc.symbol.name
                         }
-                        randaddr = self.proj._extern_obj.get_pseudo_addr('ifunc_' + reloc.symbol.name)
+                        randaddr = self.proj._extern_obj.get_pseudo_addr('ifunc_%s_%s' % (binary.binary, reloc.symbol.name))
                         self.proj.hook(randaddr, IFuncResolver, kwargs=kwargs)
                         self.proj.loader.memory.write_addr_at(gotaddr, randaddr)
 
