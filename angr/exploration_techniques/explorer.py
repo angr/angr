@@ -1,5 +1,8 @@
 from . import ExplorationTechnique
 
+import logging
+l = logging.getLogger('angr.exploration_techniques.explorer')
+
 class Explorer(ExplorationTechnique):
     """
     Search for up to "num_find" paths that satisfy condition "find", avoiding condition "avoid". Stashes found paths into "find_stash' and avoided paths into "avoid_stash".
@@ -27,28 +30,63 @@ class Explorer(ExplorationTechnique):
         self.num_find = num_find
         self.avoid_priority = avoid_priority
 
-        if cfg is not None:
+        # TODO: This is a hack for while CFGFast doesn't handle procedure continuations
+        from .. import analyses
+        if isinstance(cfg, analyses.CFGFast):
+            l.error("CFGFast is currently inappropriate for use with Explorer.")
+            l.error("Usage of the CFG has been disabled for this explorer.")
+            self.cfg = None
+
+        if self.cfg is not None:
             if isinstance(avoid, (int, long)):
                 avoid = (avoid,)
-            if not isinstance(avoid, (list, tuple)):
+            elif isinstance(avoid, set):
+                avoid = list(avoid)
+            elif not isinstance(avoid, (list, tuple)):
                 avoid = ()
 
             if isinstance(find, (int, long)):
                 find = (find,)
-            if not isinstance(find, (list, tuple)):
+            elif isinstance(find, set):
+                find = list(find)
+            elif not isinstance(find, (list, tuple)):
+                l.error("You must provide at least one 'find' address as a number, set, list, or tuple if you provide a CFG.")
+                l.error("Usage of the CFG has been disabled for this explorer.")
                 self.cfg = None
                 return
 
+            for a in avoid:
+                if cfg.get_any_node(a) is None:
+                    l.warning("'Avoid' address %#x not present in CFG...", a)
+
             # not a queue but a stack... it's just a worklist!
-            queue = sum((cfg.get_all_nodes(f) for f in find), [])
+            queue = []
+            for f in find:
+                nodes = cfg.get_all_nodes(f)
+                if len(nodes) == 0:
+                    l.warning("'Find' address %#x not present in CFG...", f)
+                else:
+                    queue.extend(nodes)
+
+            seen_nodes = set()
             while len(queue) > 0:
                 n = queue.pop()
-                if n.addr in self.ok_blocks:
+                if id(n) in seen_nodes:
                     continue
                 if n.addr in avoid:
                     continue
                 self.ok_blocks.add(n.addr)
+                seen_nodes.add(id(n))
                 queue.extend(n.predecessors)
+
+            if len(self.ok_blocks) == 0:
+                l.error("No addresses could be validated by the provided CFG!")
+                l.error("Usage of the CFG has been disabled for this explorer.")
+                self.cfg = None
+                return
+
+            l.warning("Please be sure that the CFG you have passed in is complete.")
+            l.warning("Providng an incomplete CFG can cause viable paths to be discarded!")
 
     def setup(self, pg):
         if not self.find_stash in pg.stashes: pg.stashes[self.find_stash] = []
@@ -65,7 +103,7 @@ class Explorer(ExplorationTechnique):
                 if self.avoid_priority & ((type(rFind) is not set) | (type(rAvoid) is not set)):
                     # with avoid_priority and one of the conditions is not a set
                     return self.avoid_stash
-            if (type(rAvoid) is not set):
+            if type(rAvoid) is not set:
                 # rAvoid is False or self.avoid_priority is False
                 # Setting rAvoid to {} simplifies the rest of the code
                 rAvoid = {}
@@ -86,4 +124,3 @@ class Explorer(ExplorationTechnique):
 
     def complete(self, pg):
         return len(pg.stashes[self.find_stash]) >= self.num_find
-
