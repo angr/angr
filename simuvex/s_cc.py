@@ -204,8 +204,12 @@ class ArgSession(object):
 
 class SimCC(object):
     """
+    A calling convention allows you to extract from a state the data passed from function to
+    function by calls and returns. Most of the methods provided by SimCC that operate on a state
+    assume that the program is just after a call but just before stack frame allocation, though
+    this may be overridden with the `stack_base` parameter to each individual method.
+
     This is the base class for all calling conventions.
-    You should not directly instantiate this class.
 
     An instance of this class allows it to be tweaked to the way a specific function should be called.
     """
@@ -236,7 +240,7 @@ class SimCC(object):
     STACKARG_SP_BUFF = 0            # The amount of stack space reserved between the saved return address
                                     # (if applicable) and the arguments. Probably zero.
     STACKARG_SP_DIFF = 0            # The amount of stack space reserved for the return address
-    return_addr = None              # The location where the return address is stored, as a SimFunctionArgument
+    RETURN_ADDR = None              # The location where the return address is stored, as a SimFunctionArgument
     RETURN_VAL = None               # The location where the return value is stored, as a SimFunctionArgument
     FP_RETURN_VAL = None            # The location where floating-point argument return values are stored
     ARCH = None                     # The archinfo.Arch class that this CC must be used for, if relevant
@@ -329,8 +333,18 @@ class SimCC(object):
 
     @property
     def return_val(self):
+        """
+        The location the return value is stored.
+        """
         # pylint: disable=unsubscriptable-object
         return self.RETURN_VAL if self.ret_val is None else self.ret_val
+
+    @property
+    def return_addr(self):
+        """
+        The location the return address is stored.
+        """
+        return self.RETURN_ADDR
 
     #
     # Useful functions!
@@ -691,6 +705,7 @@ class SimLyingRegArg(SimRegArg):
     def set_value(self, state, val, size=None, endness=None, **kwargs):
         if size == 4:
             if state.arch.register_endness == 'IEnd_LE' and endness == 'IEnd_BE':
+                # pylint: disable=no-member
                 val = claripy.fpToFP(claripy.fp.RM_RNE, val.reversed.raw_to_fp(), claripy.FSORT_DOUBLE).reversed
             else:
                 val = claripy.fpToFP(claripy.fp.RM_RNE, val.raw_to_fp(), claripy.FSORT_DOUBLE)
@@ -705,7 +720,7 @@ class SimCCCdecl(SimCC):
     STACKARG_SP_DIFF = 4 # Return address is pushed on to stack by call
     RETURN_VAL = SimRegArg('eax', 4)
     FP_RETURN_VAL = SimLyingRegArg('st0')
-    return_addr = SimStackArg(0, 4)
+    RETURN_ADDR = SimStackArg(0, 4)
     ARCH = ArchX86
 
 class SimCCX86LinuxSyscall(SimCC):
@@ -743,7 +758,7 @@ class SimCCSystemVAMD64(SimCC):
     ARG_REGS = ['rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9']
     FP_ARG_REGS = ['xmm0', 'xmm1', 'xmm2', 'xmm3', 'xmm4', 'xmm5', 'xmm6', 'xmm7']
     STACKARG_SP_DIFF = 8 # Return address is pushed on to stack by call
-    return_addr = SimStackArg(0, 8)
+    RETURN_ADDR = SimStackArg(0, 8)
     RETURN_VAL = SimRegArg('rax', 8)
     FP_RETURN_VAL = SimRegArg('xmm0', 32)
     ARCH = ArchAMD64
@@ -809,7 +824,7 @@ class SimCCAMD64WindowsSyscall(SimCC):
 class SimCCARM(SimCC):
     ARG_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
     FP_ARG_REGS = []    # TODO: ???
-    return_addr = SimRegArg('lr', 4)
+    RETURN_ADDR = SimRegArg('lr', 4)
     RETURN_VAL = SimRegArg('r0', 4)
     ARCH = ArchARM
 
@@ -817,7 +832,7 @@ class SimCCARMLinuxSyscall(SimCC):
     # TODO: Make sure all the information is correct
     ARG_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
     FP_ARG_REGS = []    # TODO: ???
-    return_addr = SimRegArg('lr', 4)
+    RETURN_ADDR = SimRegArg('lr', 4)
     RETURN_VAL = SimRegArg('r0', 4)
     ARCH = ArchARM
 
@@ -833,7 +848,7 @@ class SimCCARMLinuxSyscall(SimCC):
 class SimCCAArch64(SimCC):
     ARG_REGS = [ 'x0', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7' ]
     FP_ARG_REGS = []    # TODO: ???
-    return_addr = SimRegArg('lr', 8)
+    RETURN_ADDR = SimRegArg('lr', 8)
     RETURN_VAL = SimRegArg('x0', 8)
     ARCH = ArchAArch64
 
@@ -857,7 +872,7 @@ class SimCCO32(SimCC):
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
     FP_ARG_REGS = []    # TODO: ???
     STACKARG_SP_BUFF = 16
-    return_addr = SimRegArg('lr', 4)
+    RETURN_ADDR = SimRegArg('lr', 4)
     RETURN_VAL = SimRegArg('v0', 4)
     ARCH = ArchMIPS32
 
@@ -881,7 +896,7 @@ class SimCCO64(SimCC):      # TODO: add n32 and n64
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
     FP_ARG_REGS = []    # TODO: ???
     STACKARG_SP_BUFF = 32
-    return_addr = SimRegArg('lr', 8)
+    RETURN_ADDR = SimRegArg('lr', 8)
     RETURN_VAL = SimRegArg('v0', 8)
     ARCH = ArchMIPS64
 
@@ -904,7 +919,7 @@ class SimCCPowerPC(SimCC):
     ARG_REGS = [ 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10' ]
     FP_ARG_REGS = []    # TODO: ???
     STACKARG_SP_BUFF = 8
-    return_addr = SimRegArg('lr', 4)
+    RETURN_ADDR = SimRegArg('lr', 4)
     RETURN_VAL = SimRegArg('r3', 4)
     ARCH = ArchPPC32
 
@@ -928,7 +943,7 @@ class SimCCPowerPC64(SimCC):
     ARG_REGS = [ 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10' ]
     FP_ARG_REGS = []    # TODO: ???
     STACKARG_SP_BUFF = 0x70
-    return_addr = SimRegArg('lr', 8)
+    RETURN_ADDR = SimRegArg('lr', 8)
     RETURN_VAL = SimRegArg('r3', 8)
     ARCH = ArchPPC64
 
