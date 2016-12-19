@@ -107,8 +107,26 @@ def test_find_to_middle():
     nose.tools.assert_equal(len(pg.found), 1)
     nose.tools.assert_true(pg.found[0].addr == 0x4006ee)
 
-if __name__ == "__main__":
+def test_explore_with_cfg():
+    p = angr.Project(os.path.join(location, 'x86_64', 'fauxware'), load_options={'auto_load_libs': False})
 
+    cfg = p.analyses.CFGAccurate()
+
+    pg = p.factory.path_group()
+    pg.use_technique(angr.exploration_techniques.Explorer(find=0x4006ED, cfg=cfg, num_find=3))
+    pg.run()
+
+    nose.tools.assert_equal(len(pg.active), 0)
+    nose.tools.assert_equal(len(pg.avoid), 1)
+    nose.tools.assert_equal(len(pg.found), 2)
+    nose.tools.assert_equal(pg.found[0].addr, 0x4006ED)
+    nose.tools.assert_equal(pg.found[1].addr, 0x4006ED)
+    nose.tools.assert_equal(pg.avoid[0].addr, 0x4007C9)
+
+if __name__ == "__main__":
+    print 'explore_with_cfg'
+    test_explore_with_cfg()
+    print 'find_to_middle'
     test_find_to_middle()
 
     for func, march, threads in test_fauxware():

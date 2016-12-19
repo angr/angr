@@ -10,7 +10,7 @@ test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 
 def run_signed_div():
-    test_bin = os.path.join(test_location, "../../binaries-private/tests/i386/test_signed_div")
+    test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/test_signed_div")
     b = angr.Project(test_bin)
 
     pg = b.factory.path_group()

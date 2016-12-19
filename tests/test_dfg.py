@@ -35,7 +35,7 @@ def perform_one(binary_path):
             nose.tools.assert_not_equal(n.tag, 'Ist_AbiHint')
             nose.tools.assert_not_equal(n.tag, 'Ist_Exit')
             if n.tag == 'Ist_Put':
-                nose.tools.assert_not_equal(n.offset, n.arch.ip_offset)
+                nose.tools.assert_not_equal(n.offset, proj.arch.ip_offset)
 
         for (a, b) in d.edges():
             if isinstance(a, pyvex.IRExpr.IRExpr):

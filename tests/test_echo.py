@@ -16,7 +16,7 @@ target_arches = {
 
 def run_echo_haha(arch):
     p = angr.Project(os.path.join(test_location, arch, 'echo'), use_sim_procedures=False)
-    s = p.factory.full_init_state(mode='symbolic_approximating', args=['echo', 'haha'])
+    s = p.factory.full_init_state(mode='symbolic_approximating', args=['echo', 'haha'], add_options={angr.simuvex.o.STRICT_PAGE_ACCESS})
     pg = p.factory.path_group(s)
     pg.step(until=lambda lpg: len(lpg.active) != 1)
 

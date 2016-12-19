@@ -31,7 +31,7 @@ def test_fauxware_oppologist():
     assert pg.deadended[0].state.posix.dumps(1).count("\n") == 3
 
 def test_cromu_70():
-    p = angr.Project(os.path.join(test_location, 'binaries-private/cgc_trials/CROMU_00070'))
+    p = angr.Project(os.path.join(test_location, 'binaries/tests/cgc/CROMU_00070'))
     s = p.factory.full_init_state(
         add_options={ simuvex.options.UNICORN },
         remove_options={ simuvex.options.LAZY_SOLVES, simuvex.options.SUPPORT_FLOATING_POINT }
