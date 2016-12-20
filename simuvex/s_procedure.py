@@ -7,127 +7,108 @@ l = logging.getLogger("simuvex.s_procedure")
 
 symbolic_count = itertools.count()
 
-from .s_cc import DefaultCC
-from .plugins.inspect import BP_BEFORE, BP_AFTER
 
-
-# This is a metaclass that pulls together some truly horrifying stuff in order to get the behavior
-# we want. the behavior is the follows:
-#
-# - There exists a SimProcedure class
-# - You can subclass that class and define a run() method
-# - Instanciating that class will produce a specialilzed class
-# - running the .execute method on that class will further instanciate it and produce an instance
-#   which can hold local state, then call the run method from the original subclass on it
-# - This final instance can access a number of utility methods from a common subclass
-#
-# In this case, the common utility methods are on the SimProcedureFriends class, whose prototype
-# is yanked and used as a base prototype for the specialized class that's created at the first
-# instanciation step.
-#
-# Honestly this is pretty horrible, but it works really *really* well.
-
-class SimProcedure(type):
-    def __new__(mcs, *args, **kwargs):  # pylint: disable=unused-argument
-        pickle.dispatch_table[mcs] = mcs.pickle_hell
-        newdict = dict(SimProcedureFriends.__dict__)        # grab the items from SimProcedureFriends
-        newdict.update(mcs.__dict__)                        # grab the items in the user's subclass
-        return type.__new__(mcs, mcs.__name__, (object,), newdict)  # SYNTHESIZE
-
-    def pickle_hell(obj):
-        return type(obj), (obj.arch,)
-
-    @staticmethod
-    def pickle_hell_2(*args):
-        import ipdb; ipbd.set_trace()
-        return 42
-
+class SimProcedure(object):
     def __init__(
-        cls, arch,
+        self, arch,
         symbolic_return=None,
         returns=None, is_syscall=None,
         num_args=None, display_name=None,
-        stmt_from=None, convention=None, sim_kwargs=None,
+        convention=None, sim_kwargs=None,
         is_function=None
     ):
-        super(SimProcedure, cls).__init__(cls.__name__, (object,), {})
-        cls.kwargs = { } if sim_kwargs is None else sim_kwargs
+        """
+        :param arch:            The architecture to use for this procedure
 
-        cls.stmt_from = -1 if stmt_from is None else stmt_from
-        cls.display_name = display_name
+        The following parameters are optional:
+
+        :param symbolic_return: Whether the procedure's return value should be stubbed into a
+                                single symbolic variable constratined to the real return value
+        :param returns:         Whether the procedure should return to its caller afterwards
+        :param is_syscall:      Whether this procedure is a syscall
+        :param num_args:        The number of arguments this procedure should extract
+        :param display_name:    The name to use when displaying this procedure
+        :param convention:      The SimCC to use for this procedure
+        :param sim_kwargs:      Additional keyword arguments to be passed to run()
+        :param is_function:     Whether this procedure emulates a function
+        """
+        self.kwargs = { } if sim_kwargs is None else sim_kwargs
+
+        self.display_name = display_name
 
         # types
-        cls.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
-        cls.return_type = None
-        cls.arch = arch
-        cls.symbolic_return = symbolic_return
+        self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
+        self.return_type = None
+        self.arch = arch
+        self.symbolic_return = symbolic_return
 
         # calling convention
         if convention is None:
             # default conventions
-            if cls.arch.name in DefaultCC:
-                cls.cc = DefaultCC[cls.arch.name](cls.arch)
+            if self.arch.name in DefaultCC:
+                self.cc = DefaultCC[self.arch.name](self.arch)
             else:
                 raise SimProcedureError('There is no default calling convention for architecture %s.' +
                                         ' You must specify a calling convention.', arch.name)
 
         else:
-            cls.cc = convention
+            self.cc = convention
 
         # set some properties about the type of procedure this is
-        cls.returns = returns if returns is not None else not cls.NO_RET
-        cls.is_syscall = is_syscall if is_syscall is not None else cls.IS_SYSCALL
-        cls.is_function = is_function if is_function is not None else cls.IS_FUNCTION
+        self.returns = returns if returns is not None else not self.NO_RET
+        self.is_syscall = is_syscall if is_syscall is not None else self.IS_SYSCALL
+        self.is_function = is_function if is_function is not None else self.IS_FUNCTION
 
         # Get the concrete number of arguments that should be passed to this procedure
         if num_args is None:
-            run_spec = inspect.getargspec(cls.run)
-            cls.num_args = len(run_spec.args) - (len(run_spec.defaults) if run_spec.defaults is not None else 0) - 1
+            run_spec = inspect.getargspec(self.run)
+            self.num_args = len(run_spec.args) - (len(run_spec.defaults) if run_spec.defaults is not None else 0) - 1
         else:
-            cls.num_args = num_args
+            self.num_args = num_args
 
-    def __repr__(cls):
-        if cls.IS_SYSCALL:
-            class_name = "Syscall"
-        else:
-            class_name = "Procedure"
+        # runtime values
+        self.state = None
+        self.successors = None
+        self.arguments = None
+        self.ret_to = None
+        self.ret_expr = None
 
-        if cls.display_name is not None:
-            return "<%s class %s>" % (class_name, cls.display_name)
-        else:
-            return "<%s class %s>" % (class_name, cls.__name__)
+    def __repr__(self):
+        syscall = ' (syscall)' if self.IS_SYSCALL else ''
+        name = self.__name__ if self.display_name is none else self.display_name
+        return "<SimProcedure %s%s>" % (name, syscall)
 
-    def execute(cls, state, successors=None, arguments=None, ret_to=None):
+    def execute(self, state, successors=None, arguments=None, ret_to=None):
         """
-        Call this method with a SimState and a SimSuccessors to execute the procedure
-        and return an instance of this class specialized for this run.
+        Call this method with a SimState and a SimSuccessors to execute the procedure.
 
         Alternately, successors may be none if this is an inline call. In that case, you should
         provide arguments to the function.
         """
         # check to see if this is a syscall and if we should override its return value
         override = None
-        if cls.is_syscall:
-            state._inspect('syscall', BP_BEFORE, syscall_name=cls.display_name)
+        if self.is_syscall:
+            state._inspect('syscall', BP_BEFORE, syscall_name=self.display_name)
             state.scratch.executed_syscall_count = 1
             if len(state.posix.queued_syscall_returns):
                 override = state.posix.queued_syscall_returns.pop(0)
 
-        # TODO: what the fuck is this
         if callable(override):
             try:
-                override(state, run=cls)
+                override(state, run=self)
             except TypeError:
                 override(state)
-            r = None
             return
 
         elif override is not None:
             r = override
 
         else:
-            # TRANSFOOOOOOOOOOORM
-            self = cls(state, successors, arguments, ret_to)
+            self.state = state
+            self.successors = successors
+            self.arguments = arguments
+            self.ret_to = ret_to
+            self.ret_expr = None
 
             # get the arguments
             if arguments is None:
@@ -155,19 +136,11 @@ class SimProcedure(type):
             self.ret(r)
 
         if self.is_syscall:
-            state._inspect('syscall', BP_AFTER)
+            state._inspect('syscall', BP_AFTER, syscall_name=self.display_name)
 
+        # TODO: remove this once we're done plastering over the metaclass embarassment
         return self
 
-# pylint: disable=no-member
-class SimProcedureFriends(object):
-    """
-    DO NOT USE THIS CLASS
-
-    This class is only used as a container for all the below objects and methods.
-    You should subclass SimProcedure directly, and treat it like a base class that contains
-    all the below objects and methods.
-    """
     #
     # Implement these in a subclass of SimProcedure!
     #
@@ -205,13 +178,6 @@ class SimProcedureFriends(object):
     #
     # misc properties
     #
-
-    def __init__(self, state, successors, arguments, ret_to):
-        self.state = state
-        self.successors = successors
-        self.arguments = arguments
-        self.ret_to = ret_to
-        self.ret_expr = None
 
     @property
     def addr(self):
@@ -297,7 +263,8 @@ class SimProcedureFriends(object):
         """
         e_args = [ self.state.se.BVV(a, self.state.arch.bits) if isinstance(a, (int, long)) else a for a in arguments ]
         p = procedure(self.arch, sim_kwargs=sim_kwargs)
-        return p.execute(self.state, None, arguments=e_args)
+        p.execute(self.state, None, arguments=e_args)
+        return p
 
     def ret(self, expr=None):
         """
@@ -392,18 +359,9 @@ class SimProcedureFriends(object):
     def ty_ptr(self, ty):
         return SimTypePointer(self.arch, ty)
 
-    def __repr__(self):
-        if self.IS_SYSCALL:
-            class_name = "Syscall"
-        else:
-            class_name = "Procedure"
-
-        if self.display_name is not None:
-            return "<%s run %s>" % (class_name, self.display_name)
-        else:
-            return "<%s run %s>" % (class_name, self.__class__.__name__)
-
 from . import s_options as o
 from .s_errors import SimProcedureError, SimProcedureArgumentError
 from .s_type import SimTypePointer
 from .s_action import SimActionExit
+from .s_cc import DefaultCC
+from .plugins.inspect import BP_BEFORE, BP_AFTER
