@@ -280,7 +280,7 @@ class Project(object):
         if not isinstance(hook, Hook):
             if kwargs is None: kwargs = {}
 
-            if issubclass(hook, simuvex.s_procedure.SimProcedure):
+            if isinstance(hook, type) and issubclass(hook, simuvex.s_procedure.SimProcedure):
                 hook = Hook(hook, **kwargs)
             elif callable(hook):
                 hook = Hook(simuvex.procedures.stubs.UserHook.UserHook,
@@ -467,6 +467,20 @@ class Hook(object):
         kwargs['sim_kwargs'] = self.kwargs
         return self.procedure(*args, **kwargs)
     instanciate.__doc__ = simuvex.s_procedure.SimProcedure.__init__.__doc__
+
+    def __repr__(self):
+        if len(self.kwargs) == 0:
+            args_str = ''
+        elif len(self.kwargs) == 1:
+            args_str = ' (1 arg)'
+        else:
+            args_str = ' (%d args)' % len(self.kwargs)
+
+        return '<Hook for %s%s>' % (self.name, args_str)
+
+    @property
+    def name(self):
+        return self.procedure.__name__
 
     @classmethod
     def wrap(cls, length=0):

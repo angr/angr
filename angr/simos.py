@@ -286,18 +286,14 @@ class SimOS(object):
         syscalls are not supported - the syscall number *must* have only one solution.
 
         :param simuvex.s_state.SimState state: the program state.
-        :return: a new SimRun instance.
+        :return: an instanciated, but not executed SimProcedure for this syscall
         :rtype: simuvex.s_procedure.SimProcedure
         """
 
         cc, syscall_addr, syscall_name, syscall_class = self.syscall_info(state)
 
-        # The ip_at_syscall register is misused to save the return address for this syscall
-        ret_to = state.regs.ip_at_syscall
         state.ip = syscall_addr
-
-        syscall = syscall_class(state, addr=syscall_addr, ret_to=ret_to, convention=cc, syscall_name=syscall_name)
-
+        syscall = syscall_class(syscall_addr, state.arch, convention=cc, display_name=syscall_name)
         return syscall
 
     def configure_project(self):
@@ -943,13 +939,14 @@ class IFuncResolver(SimProcedure):
             #import IPython; IPython.embed()
             raise
         self.state.memory.store(gotaddr, value, endness=self.state.arch.memory_endness)
-        self.add_successor(self.state, value, claripy.true, 'Ijk_Boring')
+        self.successors.add_successor(self.state, value, claripy.true, 'Ijk_Boring')
 
     def __repr__(self):
         return '<IFuncResolver %s>' % self.kwargs.get('funcname', None)
 
 class LinuxLoader(SimProcedure):
     NO_RET = True
+    IS_FUNCTION = True
 
     # pylint: disable=unused-argument,arguments-differ,attribute-defined-outside-init
     local_vars = ('initializers',)
@@ -999,7 +996,7 @@ class _vsyscall(SimProcedure):
         else:
             ret_addr = self.state.registers.load(self.state.arch.lr_offset, self.state.arch.bytes)
 
-        self.add_successor(ret_state, ret_addr, claripy.true, 'Ijk_Sys')
+        self.successors.add_successor(self.state, ret_addr, claripy.true, 'Ijk_Sys')
 
 class _kernel_user_helper_get_tls(SimProcedure):
     # pylint: disable=arguments-differ

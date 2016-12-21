@@ -6,10 +6,10 @@ import simuvex
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../..'))
 
 def _ultra_oppologist(p, s):
-    old_ops = dict(simuvex.vex.irop.operations)
+    old_ops = dict(simuvex.engines.vex.irop.operations)
     try:
-        simuvex.vex.irop.operations.clear()
-        simuvex.vex.irop.operations['Iop_Add32'] = old_ops['Iop_Add32']
+        simuvex.engines.vex.irop.operations.clear()
+        simuvex.engines.vex.irop.operations['Iop_Add32'] = old_ops['Iop_Add32']
 
         pg = p.factory.path_group(s)
         pg.use_technique(angr.exploration_techniques.Oppologist())
@@ -17,7 +17,7 @@ def _ultra_oppologist(p, s):
 
         return pg
     finally:
-        simuvex.vex.irop.operations.update(old_ops)
+        simuvex.engines.vex.irop.operations.update(old_ops)
 
 def test_fauxware_oppologist():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))

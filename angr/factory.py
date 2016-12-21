@@ -1,5 +1,5 @@
-from simuvex import SimEngineVEX, SimEngineProcedure, SimProcedures, SimState, BP_BEFORE, BP_AFTER
-#from simuvex import , SimProcedures, SimUnicorn, SimState, BP_BEFORE, BP_AFTER, SimUnicornError
+from simuvex import SimEngineVEX, SimEngineProcedure, SimProcedures, SimState
+#from simuvex import , SimProcedures, SimUnicorn, SimState, SimUnicornError
 from simuvex import s_options as o, s_cc
 from simuvex.s_errors import SimSegfaultError, SimReliftException
 from .surveyors.caller import Callable
@@ -26,7 +26,7 @@ class AngrObjectFactory(object):
         else:
             return self.block(addr, **block_opts).codenode # pylint: disable=no-member
 
-    def sim_block(self, state, stmt_whitelist=None, last_stmt=100,
+    def sim_block(self, state, stmt_whitelist=None, last_stmt=99999999,
                   addr=None, opt_level=None, **block_opts):
         """
         Returns a SimIRSB object with execution based on state.
@@ -144,12 +144,21 @@ class AngrObjectFactory(object):
             jumpkind = state.scratch.jumpkind
 
         if jumpkind == 'Ijk_Exit':
-            l.debug('Execution hit exit at %#x', addr)
-            return SimEngineProcedure().process(state, SimProcedures['stubs']['PathTerminator'](state.arch))
+            l.debug('Execution terminated at %#x', addr)
+            terminator = SimProcedures['stubs']['PathTerminator'](addr, state.arch)
+            return SimEngineProcedure().process(state, terminator, force_addr=addr)
 
         if jumpkind.startswith("Ijk_Sys"):
             l.debug("Invoking system call handler")
-            return self._project._simos.handle_syscall(state)
+
+            # The ip_at_syscall register is misused to save the return address for this syscall
+            ret_to = state.regs.ip_at_syscall
+
+            sys_procedure = self._project._simos.handle_syscall(state)
+            return SimEngineProcedure().process(state,
+                                                sys_procedure,
+                                                force_addr=addr,
+                                                ret_to=ret_to)
 
         if jumpkind in ("Ijk_EmFail", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
             raise AngrExitError("Cannot create run following jumpkind %s" % jumpkind)
@@ -159,12 +168,10 @@ class AngrObjectFactory(object):
                                 "using project.hook(%#x, your_function, length=length_of_instruction)." % (addr, addr))
 
         elif self._project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
-            procedure_class = self._project._sim_procedures[addr]
-            l.debug("Running %s (originally at %#x)",
-                    repr(procedure_class), addr)
-            state._inspect('call', BP_BEFORE, function_name=procedure_class.__name__)
-            r = SimEngineProcedure().process(state, procedure_class, force_addr=addr)
-            state._inspect('call', BP_AFTER, function_name=procedure_class.__name__)
+            hook = self._project._sim_procedures[addr]
+            procedure = hook.instanciate(addr, state.arch)
+            l.debug("Running %s (originally at %#x)", repr(procedure), addr)
+            r = SimEngineProcedure().process(state, procedure, force_addr=addr)
 
         #elif o.UNICORN in state.options and state.unicorn.check():
         #    l.info('Creating SimUnicorn at %#x', addr)
