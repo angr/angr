@@ -10,8 +10,7 @@ class close(simuvex.SimProcedure):
     IS_SYSCALL = True
 
     def run(self, fd):
-        if type(fd) == simuvex.s_action_object.SimActionObject:
-            fd = self.state.se.any_int(fd)
+        fd = self.state.se.any_int(fd)
         
         # Return error if file is already closed
         if self.state.posix.files[fd].closed == True:

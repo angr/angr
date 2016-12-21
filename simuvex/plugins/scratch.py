@@ -12,6 +12,7 @@ class SimStateScratch(SimStatePlugin):
         SimStatePlugin.__init__(self)
 
         # info on the current run
+        self.irsb = None
         self.bbl_addr = None
         self.stmt_idx = None
         self.last_ins_addr = None
@@ -34,6 +35,7 @@ class SimStateScratch(SimStatePlugin):
 
         # information on VEX temps of this IRSB
         self.temps = { }
+        self.tyenv = None
 
         # dirtied addresses, for dealing with self-modifying code
         self.dirty_addrs = set()
@@ -41,6 +43,7 @@ class SimStateScratch(SimStatePlugin):
 
         if scratch is not None:
             self.temps.update(scratch.temps)
+            self.tyenv = scratch.tyenv
             self.jumpkind = scratch.jumpkind
             self.guard = scratch.guard
             self.target = scratch.target
@@ -51,6 +54,7 @@ class SimStateScratch(SimStatePlugin):
             self.executed_syscall_count = scratch.executed_syscall_count
             self.executed_instruction_count = scratch.executed_instruction_count
 
+            self.irsb = scratch.irsb
             self.bbl_addr = scratch.bbl_addr
             self.stmt_idx = scratch.stmt_idx
             self.last_ins_addr = scratch.last_ins_addr
@@ -136,6 +140,7 @@ class SimStateScratch(SimStatePlugin):
         self.state = s
         self.jumpkind = j # preserve jumpkind - "what is the previous jumpkind" is an important question sometimes
 
+from ..s_action import SimActionObject, SimActionData
 from ..s_errors import SimValueError
 from .. import s_options as o
 from .inspect import BP_AFTER, BP_BEFORE

@@ -13,7 +13,7 @@ class SimEngineVEX(SimEngine):
     """
     def process(self, state, irsb,
             skip_stmts=0,
-            last_stmt=100,
+            last_stmt=99999999,
             whitelist=None,
             inline=False,
             force_addr=None):
@@ -34,13 +34,16 @@ class SimEngineVEX(SimEngine):
                 inline=inline,
                 force_addr=force_addr)
 
-    def _process(self, state, successors, irsb, skip_stmts=0, last_stmt=100, whitelist=None):
+    def _process(self, state, successors, irsb, skip_stmts=0, last_stmt=99999999, whitelist=None):
+        successors.description = 'IRSB'
         if irsb.size == 0:
             raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
         state.scratch.executed_block_count = 1
         state.scratch.guard = claripy.true
         state.scratch.sim_procedure = None
+        state.scratch.tyenv = irsb.tyenv
+        state.scratch.irsb = irsb
 
         state._inspect('irsb', BP_BEFORE, address=successors.addr)
         try:
@@ -76,6 +79,7 @@ class SimEngineVEX(SimEngine):
                 l.debug("Skipping statement %d", stmt_idx)
                 continue
             if stmt_idx > last_stmt:
+                import ipdb; ipdb.set_trace()
                 l.debug("Truncating statement %d", stmt_idx)
                 continue
             if whitelist is not None and stmt_idx not in whitelist:
@@ -197,13 +201,6 @@ class SimEngineVEX(SimEngine):
             cont_condition = claripy.Not(s_stmt.guard)
             state.add_constraints(cont_condition)
             state.scratch.guard = claripy.And(state.scratch.guard, cont_condition)
-
-    @staticmethod
-    def imark_addrs(request):
-        """
-        Returns a list of instructions that are part of this block.
-        """
-        return [ i.addr for i in request.irsb.statements if type(i) == pyvex.IRStmt.IMark ]
 
 from .statements import translate_stmt
 from .expressions import translate_expr

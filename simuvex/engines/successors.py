@@ -9,11 +9,12 @@ class SimSuccessors(object):
     SimEngine run.
     """
 
-    def __init__(self, addr):
+    def __init__(self, addr, initial_state):
         """
         :param addr:    The source address that produced the successors. Cosmetic.
         """
         self.addr = addr
+        self.initial_state = initial_state
 
         self.successors = [ ]
         self.all_successors = [ ]
@@ -24,6 +25,7 @@ class SimSuccessors(object):
         # the engine that should process or did process this request
         self.engine = None
         self.processed = False
+        self.description = 'SimSuccessors'
 
     def __repr__(self):
         if self.processed:
@@ -42,7 +44,7 @@ class SimSuccessors(object):
         else:
             result = 'failure'
 
-        return '<SimSuccessors from %#x: %s>' % (self.addr, result)
+        return '<%s from %#x: %s>' % (self.description, self.addr, result)
 
     def add_successor(self, state, target, guard, jumpkind, add_guard=True, exit_stmt_idx=None, source=None):
         """

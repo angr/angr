@@ -7,10 +7,9 @@ l = logging.getLogger("simuvex.vex.expressions.base")
 _nonset = frozenset()
 
 class SimIRExpr(object):
-    def __init__(self, expr, tyenv, state):
+    def __init__(self, expr, state):
         self.state = state
         self._constraints = [ ]
-        self.tyenv = tyenv
         self.child_exprs = [ ]
 
         # effects tracking
@@ -24,7 +23,7 @@ class SimIRExpr(object):
         if expr.tag in ('Iex_BBPTR', 'Iex_VECRET'):
             self.type = None
         else:
-            self.type = expr.result_type(self.tyenv)
+            self.type = expr.result_type(state.scratch.tyenv)
 
         self.state._inspect('expr', BP_BEFORE)
 

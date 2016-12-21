@@ -1,6 +1,5 @@
 import inspect
 import itertools
-import pickle
 
 import logging
 l = logging.getLogger("simuvex.s_procedure")
@@ -10,7 +9,7 @@ symbolic_count = itertools.count()
 
 class SimProcedure(object):
     def __init__(
-        self, arch,
+        self, addr, arch,
         symbolic_return=None,
         returns=None, is_syscall=None,
         num_args=None, display_name=None,
@@ -32,15 +31,16 @@ class SimProcedure(object):
         :param sim_kwargs:      Additional keyword arguments to be passed to run()
         :param is_function:     Whether this procedure emulates a function
         """
-        self.kwargs = { } if sim_kwargs is None else sim_kwargs
+        self.addr = addr
+        self.arch = arch
 
-        self.display_name = display_name
+        self.kwargs = { } if sim_kwargs is None else sim_kwargs
+        self.display_name = type(self).__name__ if display_name is None else display_name
+        self.symbolic_return = symbolic_return
 
         # types
         self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
         self.return_type = None
-        self.arch = arch
-        self.symbolic_return = symbolic_return
 
         # calling convention
         if convention is None:
@@ -75,8 +75,7 @@ class SimProcedure(object):
 
     def __repr__(self):
         syscall = ' (syscall)' if self.IS_SYSCALL else ''
-        name = self.__name__ if self.display_name is none else self.display_name
-        return "<SimProcedure %s%s>" % (name, syscall)
+        return "<SimProcedure %s%s>" % (self.display_name, syscall)
 
     def execute(self, state, successors=None, arguments=None, ret_to=None):
         """
@@ -85,31 +84,30 @@ class SimProcedure(object):
         Alternately, successors may be none if this is an inline call. In that case, you should
         provide arguments to the function.
         """
+        # set runtime variables
+        self.state = state
+        self.successors = successors
+        self.arguments = arguments
+        self.ret_to = ret_to
+        self.ret_expr = None
+
         # check to see if this is a syscall and if we should override its return value
         override = None
         if self.is_syscall:
-            state._inspect('syscall', BP_BEFORE, syscall_name=self.display_name)
             state.scratch.executed_syscall_count = 1
             if len(state.posix.queued_syscall_returns):
                 override = state.posix.queued_syscall_returns.pop(0)
 
         if callable(override):
             try:
-                override(state, run=self)
+                r = override(state, run=self)
             except TypeError:
-                override(state)
-            return
+                r = override(state)
 
         elif override is not None:
             r = override
 
         else:
-            self.state = state
-            self.successors = successors
-            self.arguments = arguments
-            self.ret_to = ret_to
-            self.ret_expr = None
-
             # get the arguments
             if arguments is None:
                 sim_args = [ self.arg(_) for _ in xrange(self.num_args) ]
@@ -134,9 +132,6 @@ class SimProcedure(object):
 
         if self.returns:
             self.ret(r)
-
-        if self.is_syscall:
-            state._inspect('syscall', BP_AFTER, syscall_name=self.display_name)
 
         # TODO: remove this once we're done plastering over the metaclass embarassment
         return self
@@ -178,10 +173,6 @@ class SimProcedure(object):
     #
     # misc properties
     #
-
-    @property
-    def addr(self):
-        return self.successors.addr
 
     @property
     def should_add_successors(self):
@@ -238,7 +229,7 @@ class SimProcedure(object):
 
         if self.symbolic_return:
             size = len(expr)
-            new_expr = self.state.se.Unconstrained("multiwrite_" + self.__class__.__name__, size) #pylint:disable=maybe-no-member
+            new_expr = self.state.se.Unconstrained("symbolic_return_" + self.__class__.__name__, size) #pylint:disable=maybe-no-member
             self.state.add_constraints(new_expr == expr)
             expr = new_expr
 
@@ -262,7 +253,7 @@ class SimProcedure(object):
                                 procedure construtor
         """
         e_args = [ self.state.se.BVV(a, self.state.arch.bits) if isinstance(a, (int, long)) else a for a in arguments ]
-        p = procedure(self.arch, sim_kwargs=sim_kwargs)
+        p = procedure(self.addr, self.arch, sim_kwargs=sim_kwargs)
         p.execute(self.state, None, arguments=e_args)
         return p
 
@@ -302,6 +293,8 @@ class SimProcedure(object):
         :param cc:          Optional: use this calling convention for calling the new function.
                             Default is to use the current convention.
         """
+        if not self.is_function:
+            raise ValueError("%s called self.call() without IS_FUNCTION = True")
         if cc is None:
             cc = self.cc
 
@@ -364,4 +357,3 @@ from .s_errors import SimProcedureError, SimProcedureArgumentError
 from .s_type import SimTypePointer
 from .s_action import SimActionExit
 from .s_cc import DefaultCC
-from .plugins.inspect import BP_BEFORE, BP_AFTER

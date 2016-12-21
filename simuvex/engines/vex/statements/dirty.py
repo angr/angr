@@ -1,5 +1,4 @@
 from . import SimIRStmt
-from .. import size_bits
 from .. import dirty
 from simuvex import s_options as o
 from simuvex.s_errors import UnsupportedDirtyError
@@ -33,8 +32,7 @@ class SimIRStmt_Dirty(SimIRStmt):
             self._add_constraints(*retval_constraints)
 
             if self.stmt.tmp not in (0xffffffff, -1):
-                self.state.scratch.store_tmp(self.stmt.tmp, retval, retval_reg_deps, tmp_deps)
+                self.state.scratch.store_tmp(self.stmt.tmp, retval, reg_deps, tmp_deps)
         else:
             l.error("Unsupported dirty helper %s", self.stmt.cee.name)
             raise UnsupportedDirtyError("Unsupported dirty helper %s" % self.stmt.cee.name)
-
