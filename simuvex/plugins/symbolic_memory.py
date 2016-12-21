@@ -22,7 +22,7 @@ class MultiwriteAnnotation(claripy.Annotation):
 
 def _multiwrite_filter(mem, ast): #pylint:disable=unused-argument
     # this is a huge hack, but so is the whole multiwrite crap
-    return any(isinstance(a, MultiwriteAnnotation) for a in ast._uneliminateable_annotations)
+    return any(isinstance(a, MultiwriteAnnotation) for a in ast._uneliminatable_annotations)
 
 class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     _CONCRETIZATION_STRATEGIES = [ 'symbolic', 'symbolic_approx', 'any', 'any_approx', 'max', 'max_approx',

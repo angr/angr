@@ -34,7 +34,7 @@ class SimEngine(object):
             new_state.scratch.clear()
             new_state.scratch.bbl_addr = addr
 
-        successors = SimSuccessors(addr)
+        successors = SimSuccessors(addr, state)
         self._process(new_state, successors, *args, **kwargs)
         return successors
 
