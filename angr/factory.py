@@ -1,7 +1,6 @@
-from simuvex import SimEngineVEX, SimEngineProcedure, SimProcedures, SimState
-#from simuvex import , SimProcedures, SimUnicorn, SimState, SimUnicornError
+from simuvex import SimEngineVEX, SimEngineProcedure, SimEngineUnicorn, SimProcedures, SimState
 from simuvex import s_options as o, s_cc
-from simuvex.s_errors import SimSegfaultError, SimReliftException
+from simuvex.s_errors import SimSegfaultError, SimReliftException, SimUnicornError
 from .surveyors.caller import Callable
 
 import logging
@@ -143,48 +142,52 @@ class AngrObjectFactory(object):
         if jumpkind is None:
             jumpkind = state.scratch.jumpkind
 
-        if jumpkind == 'Ijk_Exit':
+        # error cases
+        if jumpkind in ("Ijk_EmFail", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
+            raise AngrExitError("Cannot create run following jumpkind %s" % jumpkind)
+
+        elif jumpkind == "Ijk_NoDecode" and not self._project.is_hooked(addr):
+            raise AngrExitError("IR decoding error at %#x. You can hook this instruction with a python replacement "
+                                "using project.hook(%#x, your_function, length=length_of_instruction)." % (addr, addr))
+
+        r = None
+
+        if r is None and jumpkind == 'Ijk_Exit':
             l.debug('Execution terminated at %#x', addr)
             terminator = SimProcedures['stubs']['PathTerminator'](addr, state.arch)
-            return SimEngineProcedure().process(state, terminator, force_addr=addr)
+            r = SimEngineProcedure().process(state, terminator, force_addr=addr)
 
-        if jumpkind.startswith("Ijk_Sys"):
+        if r is None and jumpkind.startswith("Ijk_Sys"):
             l.debug("Invoking system call handler")
 
             # The ip_at_syscall register is misused to save the return address for this syscall
             ret_to = state.regs.ip_at_syscall
 
             sys_procedure = self._project._simos.handle_syscall(state)
-            return SimEngineProcedure().process(state,
-                                                sys_procedure,
-                                                force_addr=addr,
-                                                ret_to=ret_to)
+            r = SimEngineProcedure().process(state,
+                                             sys_procedure,
+                                             force_addr=addr,
+                                             ret_to=ret_to)
 
-        if jumpkind in ("Ijk_EmFail", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
-            raise AngrExitError("Cannot create run following jumpkind %s" % jumpkind)
 
-        if jumpkind == "Ijk_NoDecode" and not self._project.is_hooked(addr):
-            raise AngrExitError("IR decoding error at %#x. You can hook this instruction with a python replacement "
-                                "using project.hook(%#x, your_function, length=length_of_instruction)." % (addr, addr))
-
-        elif self._project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
+        if r is None and self._project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
             hook = self._project._sim_procedures[addr]
             procedure = hook.instanciate(addr, state.arch)
             l.debug("Running %s (originally at %#x)", repr(procedure), addr)
             r = SimEngineProcedure().process(state, procedure, force_addr=addr)
 
-        #elif o.UNICORN in state.options and state.unicorn.check():
-        #    l.info('Creating SimUnicorn at %#x', addr)
-        #    stops = self._project._sim_procedures.keys()
-        #    if extra_stop_points is not None:
-        #        stops.extend(extra_stop_points)
+        if r is None and o.UNICORN in state.options and state.unicorn.check():
+            l.info('Creating SimUnicorn at %#x', addr)
+            stops = self._project._sim_procedures.keys()
+            if extra_stop_points is not None:
+                stops.extend(extra_stop_points)
 
-        #    try:
-        #        r = SimUnicorn(state, stop_points=stops)
-        #    except SimUnicornError:
-        #        r = self.sim_block(state, **block_opts)
+            try:
+                r = SimEngineUnicorn().process(state, stop_points=stops)
+            except SimUnicornError:
+                pass
 
-        else:
+        if r is None:
             l.debug("Creating SimIRSB at 0x%x", addr)
             r = self.sim_block(state, addr=addr, **block_opts)
 

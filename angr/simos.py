@@ -213,18 +213,12 @@ class SimOS(object):
 
                 self.syscall_table[syscall_number] = SyscallEntry(name, syscall_addr, simproc)
 
-                # Write it to the SimProcedure dict
-                self.proj._sim_procedures[syscall_addr] = (simproc, { })
-
             else:
                 # no syscall number available in the pre-defined syscall table
                 self.syscall_table[syscall_number] = SyscallEntry("_unsupported", syscall_addr,
                                                                   SimProcedures["syscalls"]["stub"],
                                                                   supported=False
                                                                   )
-
-                # Write it to the SimProcedure dict
-                self.proj._sim_procedures[syscall_addr] = (SimProcedures["syscalls"]["stub"], { })
 
         # Now here is the fallback syscall stub
         unknown_syscall_addr = base_addr + (syscall_entry_count + 1) * 8
@@ -234,8 +228,6 @@ class SimOS(object):
                                                                    SimProcedures["syscalls"]["stub"],
                                                                    supported=False
                                                                    )
-
-        self.proj._sim_procedures[unknown_syscall_addr] = (SimProcedures["syscalls"]["stub"], { })
 
     def syscall_info(self, state):
         """

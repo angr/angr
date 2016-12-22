@@ -291,6 +291,14 @@ class Project(object):
 
         self._sim_procedures[addr] = hook
 
+        # set up a continuation if necessary
+        cont = hook.make_continuation()
+        if cont is not None:
+            cont_addr = self._extern_obj.anon_allocation()
+            self.hook(cont_addr, cont)
+            hook.set_continuation_addr(cont_addr)
+            cont.set_continuation_addr(cont_addr)
+
     def is_hooked(self, addr):
         """
         Returns True if `addr` is hooked.
@@ -462,13 +470,22 @@ class Hook(object):
         """
         self.procedure = procedure
         self.kwargs = kwargs
+        self.is_continuation = False
+        self._continuation_addr = None
 
     def instanciate(self, *args, **kwargs):
         kwargs['sim_kwargs'] = self.kwargs
+        kwargs['is_continuation'] = self.is_continuation
+        kwargs['continuation_addr'] = self._continuation_addr
         return self.procedure(*args, **kwargs)
     instanciate.__doc__ = simuvex.s_procedure.SimProcedure.__init__.__doc__
 
     def __repr__(self):
+        try:
+            resolves_str = ' (resolves %s)' % self.kwargs['resolves']
+        except KeyError:
+            resolves_str = ''
+
         if len(self.kwargs) == 0:
             args_str = ''
         elif len(self.kwargs) == 1:
@@ -476,7 +493,19 @@ class Hook(object):
         else:
             args_str = ' (%d args)' % len(self.kwargs)
 
-        return '<Hook for %s%s>' % (self.name, args_str)
+        cont_str = ' (continuation)' if self.is_continuation else ''
+
+        return '<Hook for %s%s%s%s>' % (self.name, resolves_str, args_str, cont_str)
+
+    def make_continuation(self):
+        if self.is_continuation or not self.procedure.IS_FUNCTION or self._continuation_addr is not None:
+            return None
+        hook = Hook(self.procedure, **self.kwargs)
+        hook.is_continuation = True
+        return hook
+
+    def set_continuation_addr(self, addr):
+        self._continuation_addr = addr
 
     @property
     def name(self):
