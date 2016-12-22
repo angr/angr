@@ -1,5 +1,7 @@
 from os import urandom
 import copy
+import sys
+import ipdb
 import logging
 l = logging.getLogger("angr.path")
 
@@ -90,6 +92,7 @@ class Path(object):
         self._run_args = None       # sim_run args, to determine caching
         self._run = None
         self._run_error = None
+        self._run_traceback = None
 
     @property
     def addr(self):
@@ -195,7 +198,7 @@ class Path(object):
         self.state._inspect('path_step', simuvex.BP_BEFORE)
 
         if self._run_error:
-            return [ self.copy(error=self._run_error) ]
+            return [ self.copy(error=self._run_error, traceback=self._run_traceback) ]
 
         out = [ Path(self._project, s, path=self) for s in self._run.flat_successors ]
         if 'insn_bytes' in run_args and 'addr' not in run_args and len(out) == 1 \
@@ -220,16 +223,19 @@ class Path(object):
     def _make_sim_run(self, throw=None):
         self._run = None
         self._run_error = None
+        self._run_traceback = None
         try:
             self._run = self._project.factory.sim_run(self.state, **self._run_args)
         except (AngrError, simuvex.SimError, claripy.ClaripyError) as e:
             l.debug("Catching exception", exc_info=True)
             self._run_error = e
+            self._run_traceback = sys.exc_info()[2]
             if throw:
                 raise
         except (TypeError, ValueError, ArithmeticError, MemoryError) as e:
             l.debug("Catching exception", exc_info=True)
             self._run_error = e
+            self._run_traceback = sys.exc_info()[2]
             if throw:
                 raise
 
@@ -594,11 +600,11 @@ class Path(object):
         # and return
         return new_path
 
-    def copy(self, error=None):
+    def copy(self, error=None, traceback=None):
         if error is None:
             p = Path(self._project, self.state.copy())
         else:
-            p = ErroredPath(error, self._project, self.state.copy())
+            p = ErroredPath(error, traceback, self._project, self.state.copy())
 
         p.history = self.history.copy()
         p.callstack = self.callstack.copy()
@@ -724,9 +730,10 @@ class ErroredPath(Path):
 
     :ivar error:    The error that was encountered.
     """
-    def __init__(self, error, *args, **kwargs):
+    def __init__(self, error, traceback, *args, **kwargs):
         super(ErroredPath, self).__init__(*args, **kwargs)
         self.error = error
+        self.traceback = traceback
         self.errored = True
 
     def __repr__(self):
@@ -741,6 +748,9 @@ class ErroredPath(Path):
         self._run_args = kwargs
         self._run = self._project.factory.sim_run(self.state, **self._run_args)
         return super(ErroredPath, self).step(**kwargs)
+
+    def debug(self):
+        ipdb.post_mortem(self.traceback)
 
 
 def make_path(project, runs):
