@@ -812,7 +812,7 @@ class SimPagedMemory(object):
         if self.state.mode != 'fastpath':
             for page in xrange(pages):
                 page_id = base_page_num + page
-                if page_id in self:
+                if (page_id * self._page_size) in self:
                     l.warning("map_page received address and length combination which contained mapped page")
                     return
 
