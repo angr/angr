@@ -3,7 +3,7 @@ l = logging.getLogger("simuvex.engines.procedure")
 
 from .engine import SimEngine
 
-#pylint: disable=unidiomatic-typecheck,arguments-differ
+#pylint: disable=arguments-differ
 
 class SimEngineProcedure(SimEngine):
     """
