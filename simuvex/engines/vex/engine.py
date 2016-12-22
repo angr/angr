@@ -5,7 +5,7 @@ import pyvex
 import claripy
 from ..engine import SimEngine
 
-#pylint: disable=unidiomatic-typecheck,arguments-differ
+#pylint: disable=arguments-differ
 
 class SimEngineVEX(SimEngine):
     """

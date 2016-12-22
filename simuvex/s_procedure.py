@@ -14,7 +14,8 @@ class SimProcedure(object):
         returns=None, is_syscall=None,
         num_args=None, display_name=None,
         convention=None, sim_kwargs=None,
-        is_function=None
+        is_function=None, is_continuation=False,
+        continuation_addr=None
     ):
         """
         :param arch:            The architecture to use for this procedure
@@ -58,6 +59,11 @@ class SimProcedure(object):
         self.returns = returns if returns is not None else not self.NO_RET
         self.is_syscall = is_syscall if is_syscall is not None else self.IS_SYSCALL
         self.is_function = is_function if is_function is not None else self.IS_FUNCTION
+        self.is_continuation = is_continuation
+        self.continuation_addr = continuation_addr
+
+        if self.continuation_addr is None and self.is_function:
+            raise ValueError("This procedure is a function but no continuation address is provided!")
 
         # Get the concrete number of arguments that should be passed to this procedure
         if num_args is None:
@@ -115,7 +121,7 @@ class SimProcedure(object):
                 sim_args = self.arguments
 
             # handle if this is a continuation from a return
-            if self.is_function and state.scratch.jumpkind == 'Ijk_Ret':
+            if self.is_continuation:
                 if len(state.procedure_data.callstack) == 0:
                     raise SimProcedureError("Tried to run simproc continuation with empty stack")
 
@@ -299,7 +305,7 @@ class SimProcedure(object):
             cc = self.cc
 
         call_state = self.state.copy()
-        ret_addr = self.addr
+        ret_addr = self.continuation_addr
         saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
         simcallstack_entry = (continue_at, cc.stack_space(args), saved_local_vars)
         cc.setup_callsite(call_state, ret_addr, args)
