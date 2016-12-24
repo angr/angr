@@ -5,5 +5,13 @@ dist: xenial
 env:
   - PY="e" ANGR_REPO=angr
   - PY="e" ANGR_REPO=angr-doc
-install: (sudo apt-get update || true) && cd && git clone https://github.com/angr/angr-dev && cd angr-dev && bash -ex ./setup.sh -i -w -v -$PY angr
+  - PY="e" ANGR_REPO=angrop
+  - PY="e" ANGR_REPO=tracer
+  - PY="e" ANGR_REPO=fuzzer
+  - PY="e" ANGR_REPO=driller
+  - PY="e" ANGR_REPO=rex
+  - PY="e" ANGR_REPO=colorguard
+  - PY="e" ANGR_REPO=patcherex
+  - PY="e" ANGR_REPO=fidget
+install: (sudo apt-get update || true) && cd && git clone https://github.com/angr/angr-dev && cd angr-dev && bash -e ./setup.sh -i -w -v -$PY angr tracer fuzzer driller povsim compilerex rex colorguard fidget identifier patcherex
 script: cd ~/angr-dev && source ~/.virtualenvs/angr/bin/activate && ./travis-test.sh
