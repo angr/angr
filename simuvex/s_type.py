@@ -2,6 +2,8 @@ from collections import OrderedDict, defaultdict
 import subprocess
 import copy
 import re
+import tempfile
+import os
 
 import claripy
 
@@ -741,6 +743,25 @@ def define_struct(defn):
     ALL_TYPES[struct.name] = struct
     return struct
 
+def do_preprocess(defn):
+    tf = tempfile.NamedTemporaryFile(delete=False)
+    tf.write(defn)
+    tf.close()
+    cmd1 = ['cl', tf.name, '-E']
+    cmd2 = ['cpp', tf.name]
+    for cmd in (cmd1, cmd2):
+        try:
+            defn, error = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
+            break
+        except OSError:
+            continue
+    else:
+        l.error("Unable to preprocess struct")
+    os.remove(tf.name)
+
+    defn = '\n'.join(x for x in defn.replace('\r\n', '\n').split('\n') if not x.startswith('#line'))
+    return defn
+
 _include_re = re.compile(r'^\s*#include')
 def parse_defns(defn, preprocess=True):
     if pycparser is None:
@@ -749,7 +770,7 @@ def parse_defns(defn, preprocess=True):
     defn = '\n'.join(x for x in defn.split('\n') if _include_re.match(x) is None)
 
     if preprocess:
-        defn = subprocess.Popen(['cpp'], stdin=subprocess.PIPE, stdout=subprocess.PIPE).communicate(input=defn)[0]
+        defn = do_preprocess(defn)
 
     node = pycparser.c_parser.CParser().parse(defn)
     if not isinstance(node, pycparser.c_ast.FileAST):
@@ -775,7 +796,7 @@ def parse_type(defn, preprocess=True):
         raise ImportError("Please install pycparser in order to parse C definitions")
 
     if preprocess:
-        defn = subprocess.Popen(['cpp'], stdin=subprocess.PIPE, stdout=subprocess.PIPE).communicate(input=defn)[0]
+        defn = do_preprocess(defn)
 
     node = pycparser.c_parser.CParser().parse('typedef ' + defn.strip('; \n\t\r') + ' QQQQ;')
     if not isinstance(node, pycparser.c_ast.FileAST) or \
