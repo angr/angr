@@ -173,6 +173,8 @@ class _VexArchInfo(ctypes.Structure):
 def _load_native():
     if sys.platform == 'darwin':
         libfile = 'sim_unicorn.dylib'
+    elif sys.platform in ('win32', 'cygwin'):
+        libfile = 'sim_unicorn.dll'
     else:
         libfile = 'sim_unicorn.so'
 
@@ -195,7 +197,7 @@ def _load_native():
             getattr(handle, func).restype = restype
             getattr(handle, func).argtypes = argtypes
 
-        _setup_prototype_explicit(h, 'logSetLogLevel', None, ctypes.c_uint64)
+        #_setup_prototype_explicit(h, 'logSetLogLevel', None, ctypes.c_uint64)
         _setup_prototype(h, 'alloc', state_t, uc_engine_t, ctypes.c_uint64)
         _setup_prototype(h, 'dealloc', None, state_t)
         _setup_prototype(h, 'hook', None, state_t)
@@ -229,11 +231,12 @@ def _load_native():
     except (OSError, AttributeError) as e:
         l.warning('failed loading "%s", unicorn support disabled (%s)', libfile, e)
         e_type, value, traceback = sys.exc_info()
+        print e_type, value, traceback
         raise ImportError, ("Unable to import native SimUnicorn support.", e_type, value), traceback
 
 try:
     _UC_NATIVE = _load_native()
-    _UC_NATIVE.logSetLogLevel(2)
+    #_UC_NATIVE.logSetLogLevel(2)
 except ImportError:
     _UC_NATIVE = None
 

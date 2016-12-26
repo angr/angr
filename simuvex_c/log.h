@@ -22,7 +22,6 @@
 #ifndef _LOG_H
 #define _LOG_H
 
-#include <getopt.h>
 #include <stdbool.h>
 
 #define LOG_RAW(...) dprintf(logGetFD(), __VA_ARGS__);

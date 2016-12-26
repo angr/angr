@@ -20,6 +20,8 @@ from distutils.command.build import build as _build
 
 if sys.platform == 'darwin':
     library_file = "sim_unicorn.dylib"
+elif sys.platform in ('win32', 'cygwin'):
+    library_file = "sim_unicorn.dll"
 else:
     library_file = "sim_unicorn.so"
 
@@ -31,11 +33,22 @@ def _build_sim_unicorn():
         raise LibError("You must install unicorn and pyvex before building simuvex")
 
     env = os.environ.copy()
-    env['UNICORN_LIB_PATH'] = pkg_resources.resource_filename('unicorn', 'lib')
     env['UNICORN_INCLUDE_PATH'] = pkg_resources.resource_filename('unicorn', 'include')
-    env['PYVEX_LIB_PATH'] = pkg_resources.resource_filename('pyvex', 'lib')
+    env['UNICORN_LIB_PATH'] = pkg_resources.resource_filename('unicorn', 'lib')
+    env['UNICORN_LIB_FILE'] = pkg_resources.resource_filename('unicorn', 'lib\\unicorn.lib')
     env['PYVEX_INCLUDE_PATH'] = pkg_resources.resource_filename('pyvex', 'include')
-    if subprocess.call(['make'], cwd='simuvex_c', env=env) != 0:
+    env['PYVEX_LIB_PATH'] = pkg_resources.resource_filename('pyvex', 'lib')
+    env['PYVEX_LIB_FILE'] = pkg_resources.resource_filename('pyvex', 'lib\\pyvex.lib')
+    cmd1 = ['nmake', '/f', 'Makefile-win']
+    cmd2 = ['make']
+    for cmd in (cmd1, cmd2):
+        try:
+            if subprocess.call(cmd, cwd='simuvex_c', env=env) != 0:
+                raise LibError('Unable to build sim_unicorn')
+            break
+        except OSError:
+            continue
+    else:
         raise LibError('Unable to build sim_unicorn')
 
     shutil.rmtree('simuvex/lib', ignore_errors=True)

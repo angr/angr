@@ -1,5 +1,4 @@
 #include <unicorn/unicorn.h>
-#include "log.h"
 
 #include <cstring>
 
@@ -138,7 +137,7 @@ public:
 		ignore_next_block = false;
 		ignore_next_selfmod = false;
 		interrupt_handled = false;
-		transmit_sysno == -1;
+		transmit_sysno = -1;
 		vex_guest = VexArch_INVALID;
 		syscall_count = 0;
 		uc_context_alloc(uc, &saved_regs);
@@ -162,7 +161,7 @@ public:
 	 */
 	void hook() {
 		if (hooked) {
-			LOG_D("already hooked");
+			//LOG_D("already hooked");
 			return ;
 		}
 		uc_err err;
@@ -200,7 +199,7 @@ public:
 	~State() {
 		for (auto it = active_pages.begin(); it != active_pages.end(); it++) {
 			// only poor guys consider about memory leak :(
-			LOG_D("delete active page %#lx", it->first);
+			//LOG_D("delete active page %#lx", it->first);
 			// delete should use the bracket operator since PageBitmap is an array typedef
 			delete[] it->second;
 		}
@@ -216,7 +215,7 @@ public:
 
 		// error if pc is 0
 		if (pc == 0) {
-		  stop_reason == STOP_ZEROPAGE;
+		  stop_reason = STOP_ZEROPAGE;
 		  return UC_ERR_MAP;
 		}
 
@@ -263,7 +262,7 @@ public:
 				msg = "unknown error";
 		}
 		stop_reason = reason;
-		LOG_D("stop: %s", msg);
+		//LOG_D("stop: %s", msg);
 		rollback();
 		uc_emu_stop(uc);
 
@@ -301,7 +300,7 @@ public:
 		} else {
 			uc_err err = uc_mem_read(uc, address, record.value, size);
 			if (err) {
-				LOG_E("log_write: %s", uc_strerror(err));
+				//LOG_E("log_write: %s", uc_strerror(err));
 				stop(STOP_ERROR);
 				return false;
 			}
@@ -320,9 +319,9 @@ public:
 		for (auto it = mem_writes.begin(); it != mem_writes.end(); it++) {
 			if (it->clean == -1) {
 				taint_t *bitmap = page_lookup(it->address);
-				memset(&bitmap[it->address & 0xFFFUL], TAINT_DIRTY, sizeof(taint_t) * it->size);
+				memset(&bitmap[it->address & 0xFFFULL], TAINT_DIRTY, sizeof(taint_t) * it->size);
 				it->clean = (1 << it->size) - 1;
-				LOG_D("commit: lazy initialize mem_write [%#lx, %#lx]", it->address, it->address + it->size);
+				//LOG_D("commit: lazy initialize mem_write [%#lx, %#lx]", it->address, it->address + it->size);
 			}
 		}
 		mem_writes.clear();
@@ -343,7 +342,7 @@ public:
 			} else {
 				uc_err err = uc_mem_write(uc, rit->address, rit->value, rit->size);
 				if (err) {
-					LOG_I("rollback: %s", uc_strerror(err));
+					//LOG_I("rollback: %s", uc_strerror(err));
 					break ;
 				}
 				if (rit->clean) {
@@ -374,7 +373,7 @@ public:
 	 * or initialized with symbolic variable, otherwise return NULL.
 	 */
 	taint_t *page_lookup(uint64_t address) const {
-		address &= ~0xFFFUL;
+		address &= ~0xFFFULL;
 		auto it = active_pages.find(address);
 		if (it == active_pages.end()) {
 			return NULL;
@@ -386,12 +385,12 @@ public:
 	 * allocate a new PageBitmap and put into active_pages.
 	 */
 	void page_activate(uint64_t address, uint8_t *taint = NULL, uint64_t taint_offset = 0) {
-		address &= ~0xFFFUL;
+		address &= ~0xFFFULL;
 		taint_t *bitmap = NULL;
 		auto it = active_pages.find(address);
 		if (it == active_pages.end()) {
 			bitmap = new PageBitmap;
-			LOG_D("inserting %lx %p", address, bitmap);
+			//LOG_D("inserting %lx %p", address, bitmap);
 			// active_pages[address] = bitmap;
 			active_pages.insert(std::pair<uint64_t, taint_t*>(address, bitmap));
 			if (taint != NULL) {
@@ -406,11 +405,11 @@ public:
 		}
 
 		for (auto a = mem_writes.begin(); a != mem_writes.end(); a++)
-			if (a->clean == -1 && (a->address & ~0xFFFUL) == address) {
+			if (a->clean == -1 && (a->address & ~0xFFFULL) == address) {
 				// initialize this memory access immediately so that the
 				// following memory read is valid.
-				LOG_D("page_activate: lazy initialize mem_write [%#lx, %#lx]", a->address, a->address + a->size);
-				memset(&bitmap[a->address & 0xFFFUL], TAINT_DIRTY, sizeof(taint_t) * a->size);
+				//LOG_D("page_activate: lazy initialize mem_write [%#lx, %#lx]", a->address, a->address + a->size);
+				memset(&bitmap[a->address & 0xFFFULL], TAINT_DIRTY, sizeof(taint_t) * a->size);
 				a->clean = (1ULL << a->size) - 1;
 			}
 	}
@@ -424,7 +423,7 @@ public:
 		for (auto it = active_pages.begin(); it != active_pages.end(); it++) {
 			taint_t *start = it->second;
 			taint_t *end = &it->second[0x1000];
-			LOG_D("found active page %#lx (%p)", it->first, start);
+			//LOG_D("found active page %#lx (%p)", it->first, start);
 			for (taint_t *i = start; i < end; i++)
 				if ((*i) == TAINT_DIRTY) {
 					taint_t *j = i;
@@ -432,7 +431,7 @@ public:
 
 					char buf[0x1000];
 					uc_mem_read(uc, it->first + (i - start), buf, j - i);
-					LOG_D("sync [%#lx, %#lx] = %#lx", it->first + (i - start), it->first + (j - start), *(uint64_t *)buf);
+					//LOG_D("sync [%#lx, %#lx] = %#lx", it->first + (i - start), it->first + (j - start), *(uint64_t *)buf);
 
 					mem_update_t *range = new mem_update_t;
 					range->address = it->first + (i - start);
@@ -519,16 +518,16 @@ public:
 			uint64_t permissions = itt.perms;
 
 			if (address >= cached_page_addr && address < cached_page_addr + size) {
-				LOG_D("hit cache [%#lx, %#lx]", address, address + size);
+				//LOG_D("hit cache [%#lx, %#lx]", address, address + size);
 				uc_err err = uc_mem_map_ptr(uc, cached_page_addr, size, permissions, bytes);
 				if (err) {
-					LOG_E("map_cache [%#lx, %#lx]: %s", address, address + size, uc_strerror(err));
+					//LOG_E("map_cache [%#lx, %#lx]: %s", address, address + size, uc_strerror(err));
 					return false;
 				}
 				return true;
 			}
 		}
-		LOG_D("cache miss.");
+		//LOG_D("cache miss.");
 		return false;
 	}
 
@@ -551,7 +550,7 @@ public:
 		} else if (arch == UC_ARCH_MIPS) {
 			uc_reg_read(uc, UC_MIPS_REG_SP, &sp);
 		} else {
-			LOG_W("get_stack_pointer() does not support this architecture. Returning 0 as the stack pointer value.");
+			//LOG_W("get_stack_pointer() does not support this architecture. Returning 0 as the stack pointer value.");
 		}
 
 		return sp;
@@ -583,7 +582,7 @@ public:
 			case Iex_Get:
 				if (e->Iex.Get.ty == Ity_I1)
 				{
-					LOG_W("seeing a 1-bit get from a register");
+					//LOG_W("seeing a 1-bit get from a register");
 					return false;
 				}
 
@@ -657,7 +656,7 @@ public:
 				IRType expr_type = typeOfIRExpr(tyenv, s->Ist.Put.data);
 				if (expr_type == Ity_I1)
 				{
-					LOG_W("seeing a 1-bit write to a register");
+					//LOG_W("seeing a 1-bit write to a register");
 					return false;
 				}
 
@@ -724,7 +723,7 @@ public:
 				// no-ops for our purposes
 				break;
 			default:
-				LOG_W("Encountered unknown VEX statement -- can't determine clobberedty.")
+				//LOG_W("Encountered unknown VEX statement -- can't determine clobberedty.")
 				return false;
 		}
 
@@ -892,8 +891,8 @@ public:
 
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
 	// uc_mem_read(uc, address, &value, size);
-	// LOG_D("mem_read [%#lx, %#lx] = %#lx", address, address + size);
-	LOG_D("mem_read [%#lx, %#lx]", address, address + size);
+	// //LOG_D("mem_read [%#lx, %#lx] = %#lx", address, address + size);
+	//LOG_D("mem_read [%#lx, %#lx]", address, address + size);
 	State *state = (State *)user_data;
 
 	auto tainted = state->find_tainted(address, size);
@@ -914,7 +913,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
  */
 
 static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
-	LOG_D("mem_write [%#lx, %#lx]", address, address + size);
+	//LOG_D("mem_write [%#lx, %#lx]", address, address + size);
 	State *state = (State *)user_data;
 
 	if (state->ignore_next_selfmod) {
@@ -931,7 +930,7 @@ static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, in
 }
 
 static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user_data) {
-	LOG_I("block [%#lx, %#lx]", address, address + size);
+	//LOG_I("block [%#lx, %#lx]", address, address + size);
 
 	State *state = (State *)user_data;
 	if (state->ignore_next_block) {
@@ -944,7 +943,7 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 
 	if (!state->stopped && !state->check_block(address, size)) {
 		state->stop(STOP_SYMBOLIC_REG);
-		LOG_I("finishing early at address %#lx", address);
+		//LOG_I("finishing early at address %#lx", address);
 	}
 }
 
@@ -1031,12 +1030,12 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 
 static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
 	State *state = (State *)user_data;
-	uint64_t start = address & ~0xFFFUL;
-	uint64_t end = (address + size - 1) & ~0xFFFUL;
+	uint64_t start = address & ~0xFFFULL;
+	uint64_t end = (address + size - 1) & ~0xFFFULL;
 
 	// only hook nonwritable pages
 	if (type != UC_MEM_WRITE_UNMAPPED && state->map_cache(start) && (start == end || state->map_cache(end))) {
-		LOG_D("handle unmapped page natively");
+		//LOG_D("handle unmapped page natively");
 		return true;
 	}
 
@@ -1131,7 +1130,7 @@ void simunicorn_set_stops(State *state, uint64_t count, uint64_t *stops)
 
 extern "C"
 void simunicorn_activate(State *state, uint64_t address, uint64_t length, uint8_t *taint) {
-	// LOG_D("activate [%#lx, %#lx]", address, address + length);
+	// //LOG_D("activate [%#lx, %#lx]", address, address + length);
 	for (uint64_t offset = 0; offset < length; offset += 0x1000)
 		state->page_activate(address + offset, taint, offset);
 }
@@ -1230,7 +1229,7 @@ transmit_record_t *simunicorn_process_transmit(State *state, uint32_t num) {
 
 extern "C"
 bool simunicorn_cache_page(State *state, uint64_t address, uint64_t length, char *bytes, uint64_t permissions) {
-	LOG_I("caching [%#lx, %#lx]", address, address + length);
+	//LOG_I("caching [%#lx, %#lx]", address, address + length);
 
 	state->cache_page(address, length, bytes, permissions);
 	if (!state->map_cache(address))

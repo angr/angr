@@ -4,6 +4,10 @@
 .*.swp
 *.so
 *.o
+*.obj
+*.exp
+*.lib
+*.dll
 build
 master.zip
 unicorn-master
