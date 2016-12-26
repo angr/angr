@@ -76,10 +76,6 @@ class GirlScout(Analysis):
         # Start working!
         self._reconnoiter()
 
-    @property
-    def call_map(self):
-        return self.call_map
-
     def _get_next_addr_to_search(self, alignment=None):
         # TODO: Take care of those functions that are already generated
         curr_addr = self._next_addr
