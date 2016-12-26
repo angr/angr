@@ -8,9 +8,10 @@ l = logging.getLogger("tracer.cachemanager.LocalCacheManager")
 
 class LocalCacheManager(CacheManager):
 
-    def __init__(self):
+    def __init__(self, dump_cache=True):
         super(LocalCacheManager, self).__init__()
         self._cache_file = None
+        self._dump_cache = dump_cache
 
     def set_tracer(self, tracer):
         super(LocalCacheManager, self).set_tracer(tracer)
@@ -31,9 +32,8 @@ class LocalCacheManager(CacheManager):
                 return pickle.load(f)
 
     def cacher(self, simstate):
-
         cdata = self._prepare_cache_data(simstate)
-        if cdata is not None:
+        if self._dump_cache and cdata is not None:
             l.warning("caching state to %s", self._cache_file)
             with open(self._cache_file, 'wb') as f:
                 f.write(cdata)

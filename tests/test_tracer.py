@@ -5,11 +5,9 @@ import tracer
 import logging
 l = logging.getLogger("tracer.tests.test_tracer")
 
-bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
+bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries'))
 pov_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "povs"))
 test_data_location = str(os.path.dirname(os.path.realpath(__file__)))
-
-logging.getLogger("tracer").setLevel("DEBUG")
 
 def test_cgc_0b32aa01_01_raw():
     '''
@@ -17,7 +15,7 @@ def test_cgc_0b32aa01_01_raw():
     '''
 
     # test a valid palindrome
-    t = tracer.Tracer(os.path.join(bin_location, "cgc_scored_event_1/cgc/0b32aa01_01"), "racecar\n")
+    t = tracer.Tracer(os.path.join(bin_location, "tests/cgc/sc1_0b32aa01_01"), "racecar\n")
     result_path, crash_state = t.run()
 
     # make sure the heap base is correct and hasn't been altered from the default
@@ -38,7 +36,7 @@ def test_cgc_0b32aa01_01_raw():
     nose.tools.assert_false("Nope" in stdout_dump)
 
     # now test crashing input
-    t = tracer.Tracer(os.path.join(bin_location, "cgc_scored_event_1/cgc/0b32aa01_01"), "A" * 129)
+    t = tracer.Tracer(os.path.join(bin_location, "tests/cgc/sc1_0b32aa01_01"), "A" * 129)
     crash_path, crash_state = t.run()
 
     nose.tools.assert_not_equal(crash_path, None)
@@ -49,7 +47,7 @@ def test_symbolic_sized_receives():
     Make sure symbolic sized receives are correctly handled
     '''
 
-    binary_path = os.path.join(bin_location, "cgc_trials/CROMU_00070")
+    binary_path = os.path.join(bin_location, "tests/cgc/CROMU_00070")
     t = tracer.Tracer(binary_path, "hello")
 
     # will except if failed
