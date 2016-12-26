@@ -14,6 +14,7 @@ import simuvex
 import cle
 import pyvex
 
+from .cfg_fast import SegmentList
 from ..errors import AngrError
 from ..analysis import Analysis, register_analysis
 from ..surveyors import Explorer, Slicecutor
