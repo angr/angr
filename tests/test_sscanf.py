@@ -1,6 +1,7 @@
 import nose
 import angr
 import subprocess
+import sys
 
 import logging
 l = logging.getLogger('angr.tests.sscanf')
@@ -10,6 +11,9 @@ test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 
 def run_sscanf(threads):
+    if not sys.platform.startswith('linux'):
+        raise nose.SkipTest()
+
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/sscanf_test")
     b = angr.Project(test_bin)
 
