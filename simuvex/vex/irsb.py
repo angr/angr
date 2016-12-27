@@ -213,8 +213,8 @@ class SimIRSB(SimRun):
                 self.state.scratch.last_ins_addr = self.state.scratch.ins_addr
                 self.state.scratch.ins_addr = stmt.addr + stmt.delta
 
-                for subaddr in xrange(stmt.addr, stmt.addr + stmt.len):
-                    if subaddr in self.state.scratch.dirty_addrs:
+                for subaddr in xrange(stmt.len):
+                    if subaddr + stmt.addr in self.state.scratch.dirty_addrs:
                         raise SimReliftException(self.state)
                 self.state._inspect('instruction', BP_AFTER)
 
