@@ -371,7 +371,7 @@ class SimTypeFixedSizeArray(SimType):
         return view._deeper(addr=view._addr + k * self.elem_type.size, ty=self.elem_type)
 
     def extract(self, state, addr, concrete=False):
-        return [self.elem_type.extract(state, addr + i*self.elem_type.size, concrete) for i in xrange(self.length)]
+        return [self.elem_type.extract(state, addr + i*(self.elem_type.size/8), concrete) for i in xrange(self.length)]
 
     def store(self, state, addr, values):
         for i, val in enumerate(values):
