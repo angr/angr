@@ -775,7 +775,7 @@ class SimMemory(SimStatePlugin):
         Returns the address of bytes equal to 'what', starting from 'start'. Note that,  if you don't specify a default
         value, this search could cause the state to go unsat if no possible matching byte exists.
 
-        :param start:               The start address.
+        :param addr:               The start address.
         :param what:                What to search for;
         :param max_search:          Search at most this many bytes.
         :param max_symbolic_bytes:  Search through at most this many symbolic bytes.
