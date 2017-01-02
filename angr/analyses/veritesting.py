@@ -173,6 +173,15 @@ class Veritesting(Analysis):
         :param path_callback:            A callback function that takes a path as parameter. Veritesting will call this
                                          function on every single path after their next_run is created.
         """
+        block = self.project.factory.block(input_path.addr)
+        branches = block.vex.constant_jump_targets_and_jumpkinds
+
+        # if we are not at a conditional jump, just do a normal path.step
+        if not branches.values() == ['Ijk_Boring', 'Ijk_Boring']:
+            self.result, self.final_path_group = False, None
+            return
+        # otherwise do a veritesting step
+
         self._input_path = input_path.copy()
         self._boundaries = boundaries if boundaries is not None else [ ]
         self._loop_unrolling_limit = loop_unrolling_limit
