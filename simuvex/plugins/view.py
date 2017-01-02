@@ -103,7 +103,7 @@ class SimMemView(SimStatePlugin):
     def __getattr__(self, k):
         if k in ('deref', 'resolvable', 'resolved', 'state', '_addr', '_type') or k in dir(SimStatePlugin):
             return object.__getattribute__(self, k)
-        if self._type:
+        if self._type and k in self._type._refine_dir():
             return self._type._refine(self, k)
         if k in SimMemView.types:
             return self._deeper(ty=SimMemView.types[k].with_arch(self.state.arch))
