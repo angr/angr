@@ -1,4 +1,7 @@
 from collections import defaultdict
+
+from angr.exploration_techniques import afl_util
+
 from .afl_base import AFLBase
 import random
 
@@ -56,7 +59,7 @@ class AFL2(AFLBase):
                     transition_to_optimal_paths[t].append(path)
 
         # Reactivate all most running transition paths
-        for path in self._approximate_best_path_set_cover(transition_to_optimal_paths):
+        for path in afl_util.approximate_best_path_set_cover(transition_to_optimal_paths):
             active_paths.add(path)
 
         inactive = [p for p in pg.stashes[stash] if p not in active_paths]
