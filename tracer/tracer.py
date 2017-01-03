@@ -258,6 +258,7 @@ class Tracer(object):
                     # if so we need to take special care
                     r_plt = self._p.loader.main_bin.reverse_plt
                     if current.addr not in self._resolved \
+                            and self.previous is not None \
                             and self.previous.addr in r_plt:
                         self.bb_cnt += 2
                         self._resolved.add(current.addr)
@@ -1054,7 +1055,7 @@ class Tracer(object):
 
         self.remove_options |= so.simplification
         self.add_options |= options
-        entry_state = project.factory.entry_state(
+        entry_state = project.factory.full_init_state(
                 fs=fs,
                 concrete_fs=True,
                 chroot=self.chroot,
