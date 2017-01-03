@@ -169,10 +169,14 @@ class Tracer(object):
         # as their dynamic counterpart
         self._magic_content = None
 
-        # will set crash_mode correctly
+        # will set crash_mode correctly and also discover the QEMU base addr
         self.trace = self.dynamic_trace()
 
         l.info("trace consists of %d basic blocks", len(self.trace))
+
+        # Check if we need to rebase to QEMU's addr
+        if self.qemu_base_addr != self._p.loader.main_bin.get_min_addr():
+            l.warn("Our base address doesn't match QEMU's. Changing ours to 0x%x",self.qemu_base_addr)
 
         self.preconstraints = []
 
@@ -758,6 +762,9 @@ class Tracer(object):
                  for v in trace.split('\n')
                  if v.startswith('Trace')]
 
+        # Find where qemu loaded the binary. Primarily for PIE
+        self.qemu_base_addr = int(trace.split("start_code")[1].split("\n")[0],16)
+
         # grab the faulting address
         if self.crash_mode:
             self.crash_addr = int(
@@ -1023,7 +1030,7 @@ class Tracer(object):
         prepare the initial paths for Linux binaries
         '''
 
-        project = angr.Project(self.binary)
+        project = angr.Project(self.binary,load_options={'main_opts': {'custom_base_addr': self.qemu_base_addr }})
 
         if not self.crash_mode:
             self._set_linux_simprocedures(project)
