@@ -1030,7 +1030,11 @@ class Tracer(object):
         prepare the initial paths for Linux binaries
         '''
 
-        project = angr.Project(self.binary,load_options={'main_opts': {'custom_base_addr': self.qemu_base_addr }})
+        # Only requesting custom base if this is a PIE
+        if self._p.loader.main_bin.pic:
+            project = angr.Project(self.binary,load_options={'main_opts': {'custom_base_addr': self.qemu_base_addr }})
+        else:
+            project = angr.Project(self.binary)
 
         if not self.crash_mode:
             self._set_linux_simprocedures(project)
