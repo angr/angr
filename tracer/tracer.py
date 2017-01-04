@@ -855,8 +855,7 @@ class Tracer(object):
 
     def _set_linux_simprocedures(self, project):
         for symbol in self.simprocedures:
-            project.set_sim_procedure(
-                    project.loader.main_bin,
+            project.hook_symbol(
                     symbol,
                     self.simprocedures[symbol])
 
