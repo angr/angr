@@ -3403,7 +3403,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         n._show_progressbar = self._show_progressbar
 
         n._exec_mem_regions = self._exec_mem_regions[::]
-        n._exec_mem_region_size = self._exec_mem_region_size[::]
+        n._exec_mem_region_size = self._exec_mem_region_size
 
         n._memory_data = self._memory_data.copy()
 
