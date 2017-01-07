@@ -49,8 +49,9 @@ class SimEngineProcedure(SimEngine):
         # prepare and run!
         state._inspect('simprocedure',
                        BP_BEFORE,
-                       name=procedure.display_name,
-                       addr=successors.addr)
+                       simprocedure_name=procedure.display_name,
+                       simprocedure_addr=successors.addr
+                       )
         if procedure.is_syscall:
             state._inspect('syscall', BP_BEFORE, syscall_name=procedure.display_name)
 
@@ -70,8 +71,9 @@ class SimEngineProcedure(SimEngine):
             state._inspect('syscall', BP_AFTER, syscall_name=procedure.display_name)
         state._inspect('simprocedure',
                        BP_AFTER,
-                       name=procedure.display_name,
-                       addr=successors.addr)
+                       simprocedure_name=procedure.display_name,
+                       simprocedure_addr=successors.addr
+                       )
 
         successors.processed = True
 
