@@ -143,7 +143,7 @@ def test_unicorn_pickle():
 
     pg = p.factory.path_group(_uni_state())
     pg.one_active.state.options.update(simuvex.o.unicorn)
-    pg.step(until=lambda lpg: "SimUnicorn" in lpg.one_active.history._runstr)
+    pg.step(until=lambda lpg: "Unicorn" in lpg.one_active.history._runstr)
     assert len(pg.active) > 0
 
     pgp = pickle.dumps(pg, -1)
@@ -164,13 +164,13 @@ def test_unicorn_pickle():
     pg = p.factory.path_group(_uni_state())
     pg.step(n=2)
     pg.one_active.step()
-    assert isinstance(pg.one_active._run, simuvex.SimUnicorn)
+    assert pg.one_active._run.sort == 'Unicorn'
 
     pgp = pickle.dumps(pg, -1)
     del pg
     gc.collect()
     pg2 = pickle.loads(pgp)
-    assert isinstance(pg2.one_active._run, simuvex.SimUnicorn)
+    assert pg2.one_active._run.sort == 'Unicorn'
     pg2.explore()
 
     nose.tools.assert_equal(sorted(pg2.mp_deadended.state.posix.dumps(1).mp_items), sorted((
