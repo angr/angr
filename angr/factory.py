@@ -19,8 +19,8 @@ class AngrObjectFactory(object):
 
     def snippet(self, addr, jumpkind=None, **block_opts):
         if self._project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
-            _, kwargs = self._project._sim_procedures[addr]
-            size = kwargs.get('length', 0)
+            hook = self._project._sim_procedures[addr]
+            size = hook.kwargs.get('length', 0)
             return HookNode(addr, size, self._project.hooked_by(addr))
         else:
             return self.block(addr, **block_opts).codenode # pylint: disable=no-member
