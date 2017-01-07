@@ -72,8 +72,8 @@ class __libc_start_main(simuvex.SimProcedure):
         state = blank_state
         for b in blocks:
             # state.regs.ip = next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr
-            irsb = simuvex.SimIRSB(state, b,
-                        addr=next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr)
+            irsb = simuvex.SimEngineVEX().process(state, b,
+                    force_addr=next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr)
             if irsb.successors:
                 state = irsb.successors[0]
             else:
@@ -81,7 +81,7 @@ class __libc_start_main(simuvex.SimProcedure):
 
         cc = simuvex.DefaultCC[self.arch.name](self.arch)
         args = [ cc.arg(state, _) for _ in xrange(5) ]
-        main, _, _, init, fini = cls._extract_args(blank_state, *args)
+        main, _, _, init, fini = self._extract_args(blank_state, *args)
 
         all_exits = [
             (init, 'Ijk_Call'),
