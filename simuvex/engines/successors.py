@@ -48,22 +48,29 @@ class SimSuccessors(object):
 
         return '<%s from %#x: %s>' % (self.description, self.addr, result)
 
-    def add_successor(self, state, target, guard, jumpkind, add_guard=True, exit_stmt_idx=None, source=None):
+    @property
+    def is_empty(self):
+        return not self.all_successors and not self.flat_successors and not self.unsat_successors and \
+               not self.unconstrained_successors
+
+    def add_successor(self, state, target, guard, jumpkind, add_guard=True, exit_stmt_idx=None, exit_ins_addr=None,
+                      source=None):
         """
         Add a successor state of the SimRun.
         This procedure stores method parameters into state.scratch, does some housekeeping,
         and calls out to helper functions to prepare the state and categorize it into the appropriate
         successor lists.
 
-        :param state:          The successor state.
-        :param target:          The target (of the jump/call/ret).
-        :param guard:          The guard expression.
-        :param jumpkind:      The jumpkind (call, ret, jump, or whatnot).
-        :param add_guard:     Whether to add the guard constraint (default: True).
-        :param exit_stmt_idx: The ID of the exit statement, an integer by default. 'default'
-                              stands for the default exit, and None means it's not from a
-                              statement (for example, from a SimProcedure).
-        :param source:          The source of the jump (i.e., the address of the basic block).
+        :param SimState state:    The successor state.
+        :param target:            The target (of the jump/call/ret).
+        :param guard:             The guard expression.
+        :param str jumpkind:      The jumpkind (call, ret, jump, or whatnot).
+        :param bool add_guard:    Whether to add the guard constraint (default: True).
+        :param int exit_stmt_idx: The ID of the exit statement, an integer by default. 'default'
+                                  stands for the default exit, and None means it's not from a
+                                  statement (for example, from a SimProcedure).
+        :param int exit_ins_addr: The instruction pointer of this exit, which is an integer by default.
+        :param int source:        The source of the jump (i.e., the address of the basic block).
         """
 
         # First, trigger the SimInspect breakpoint
