@@ -241,14 +241,15 @@ class Tracer(object):
 
                 # angr steps through the same basic block twice when a syscall
                 # occurs
-                elif current.addr == self.previous_addr or self._p.is_hooked(self.previous_addr) and \
-                        self._p.hooked_by(self.previous_addr).IS_SYSCALL:
+                elif current.addr == self.previous_addr or \
+                        self._p._simos.syscall_table.get_by_addr(self.previous_addr) is not None:
                     pass
                 elif current.jumpkind.startswith("Ijk_Sys"):
                     self.bb_cnt += 1
 
                 # handle library calls and simprocedures
-                elif self._p.is_hooked(current.addr) \
+                elif self._p.is_hooked(current.addr) or \
+                        self._p._simos.syscall_table.get_by_addr(current.addr) is not None \
                         or not self._address_in_binary(current.addr):
                     # are we going to be jumping through the PLT stub?
                     # if so we need to take special care
