@@ -180,6 +180,13 @@ class SimEngineVEX(SimEngine):
                     exit_ins_addr=state.scratch.ins_addr
                 )
 
+        if whitelist and successors.is_empty:
+            # If statements of this block are white-listed and none of the exit statement (not even the default exit) is
+            # in the white-list, successors will be empty, and there is no way for us to get the final state.
+            # To this end, a final state is manually created
+            l.debug('Add an incomplete successor state as the result of an incomplete execution due to the white-list.')
+            successors.flat_successors.append(state)
+
     def _handle_statement(self, state, successors, stmt):
         """
         This function receives an initial state and imark and processes a list of pyvex.IRStmts
