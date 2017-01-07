@@ -841,7 +841,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # try to get a callstack from an existing node if it exists
             continue_at = None
             if self.project.is_hooked(ip) and \
-                    self.project.hooked_by(ip) is simuvex.s_procedure.SimProcedureContinuation and \
+                    self.project.hooked_by(ip).is_continuation and \
                     state.procedure_data.callstack:
                 continue_at = state.procedure_data.callstack[-1][0]
 

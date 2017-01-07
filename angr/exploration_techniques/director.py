@@ -72,7 +72,7 @@ class BaseGoal(object):
 
         continue_at = None
         if cfg.project.is_hooked(path.addr) and \
-                cfg.project.hooked_by(path.addr) is simuvex.s_procedure.SimProcedureContinuation:
+                cfg.project.hooked_by(path.addr).is_continuation:
             if path.state.procedure_data.callstack:
                 continue_at = path.state.procedure_data.callstack[-1][1]
             else:

@@ -1051,13 +1051,13 @@ class BinDiff(Analysis):
         # in the case of sim procedures the actual sim procedure might be in the interfunction graph, not the plt entry
         func_to_addr_a = dict()
         func_to_addr_b = dict()
-        for (k, v) in self.project._sim_procedures.items():
-            if "resolves" in v[1]:
-                func_to_addr_a[v[1]['resolves']] = k
+        for (k, hook) in self.project._sim_procedures.items():
+            if "resolves" in hook.kwargs:
+                func_to_addr_a[hook.kwargs['resolves']] = k
 
-        for (k, v) in self._p2._sim_procedures.items():
-            if "resolves" in v[1]:
-                func_to_addr_b[v[1]['resolves']] = k
+        for (k, hook) in self._p2._sim_procedures.items():
+            if "resolves" in hook.kwargs:
+                func_to_addr_b[hook.kwargs['resolves']] = k
 
         for name, addr in func_to_addr_a.items():
             if name in func_to_addr_b:

@@ -633,10 +633,10 @@ class DDG(Analysis):
                         if addr_tmp in temp_register_symbols:
                             # it must be a stack variable
                             sort, offset = temp_register_symbols[addr_tmp]
-                            variable = SimStackVariable(offset, a.data.ast.size() / 8, base=sort, base_addr=addr - offset)
+                            variable = SimStackVariable(offset, a.size.ast / 8, base=sort, base_addr=addr - offset)
 
                     if variable is None:
-                        variable = SimMemoryVariable(addr, a.data.ast.size() / 8)  # TODO: Properly unpack the SAO
+                        variable = SimMemoryVariable(addr, a.size.ast / 8)
 
                     pvs = [ ]
 

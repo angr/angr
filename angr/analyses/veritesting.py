@@ -132,7 +132,7 @@ class CallTracingFilter(object):
                 # Just skip it for now
                 continue
 
-            if self.project._sim_procedures[sp_node.addr][0] not in CallTracingFilter.whitelist:
+            if self.project._sim_procedures[sp_node.addr].procedure not in CallTracingFilter.whitelist:
                 self._skipped_targets.add(addr)
                 l.debug('Rejecting target 0x%x - contains SimProcedures outside whitelist', addr)
                 return REJECT
