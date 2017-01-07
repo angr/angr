@@ -2504,7 +2504,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         try:
             if not self._keep_state and \
-                    self.project.is_hooked(addr) and \
+                    (self.project.is_hooked(addr) or
+                        self.project._simos.syscall_table.get_by_addr(addr) is not None) and \
                     not self.project._sim_procedures[addr].is_continuation and \
                     not self.project._sim_procedures[addr].procedure.ADDS_EXITS and \
                     not self.project._sim_procedures[addr].procedure.NO_RET:
@@ -2521,7 +2522,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # been executed anyway. Hence it's reasonable for us to always simulate a SimProcedureContinuation
                 # instance.
 
-                old_proc = self.project._sim_procedures[addr].procedure
+                if self.project.is_hooked(addr):
+                    old_proc = self.project._sim_procedures[addr].procedure
+                else:
+                    old_proc = self.project._simos.syscall_table.get_by_addr(addr).simproc
                 old_name = None
 
                 if old_proc.IS_SYSCALL:

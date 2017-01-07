@@ -410,12 +410,18 @@ class Path(object):
                     block_size, jumpkind = block_addr_to_jumpkind[bbl_addr]
                 except KeyError:
                     if self._project.is_hooked(bbl_addr):
+                        # hooked by a SimProcedure or a user hook
                         if issubclass(self._project.hooked_by(bbl_addr), simuvex.SimProcedure):
                             block_size = None  # it will not be used
                             jumpkind = 'Ijk_Ret'
                         else:
                             block_size = None  # will not be used either
                             jumpkind = 'Ijk_Boring'
+
+                    elif self._project._simos.syscall_table.get_by_addr(bbl_addr) is not None:
+                        # it's a syscall
+                        block_size = None
+                        jumpkind = 'Ijk_Ret'
 
                     else:
                         block = self._project.factory.block(bbl_addr, backup_state=state)

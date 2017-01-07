@@ -1345,10 +1345,9 @@ class CFGBase(Analysis):
             f = blockaddr_to_function[addr]
         else:
             is_syscall = False
-            if self.project.is_hooked(addr):
-                hooker = self.project.hooked_by(addr)
-                if issubclass(hooker.procedure, simuvex.SimProcedure) and hooker.procedure.IS_SYSCALL:
-                    is_syscall = True
+            syscall = self.project._simos.syscall_table.get_by_addr(addr)
+            if syscall is not None:
+                is_syscall = True
 
             n = self.get_any_node(addr, is_syscall=is_syscall)
             if n is None: node = addr
