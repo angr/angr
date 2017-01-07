@@ -19,6 +19,7 @@ event_types = {
     'exit',
     'symbolic_variable',
     'call',
+    'simprocedure',
     'syscall',
     'path_step',
     'cfg_handle_entry',
@@ -73,6 +74,9 @@ inspect_attributes = {
     'address_concretization_add_constraints',
 
     'syscall_name',
+
+    'simprocedure_name',
+    'simprocedure_addr',
 
     'path',
     }
