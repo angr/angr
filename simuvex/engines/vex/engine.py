@@ -35,6 +35,7 @@ class SimEngineVEX(SimEngine):
                 force_addr=force_addr)
 
     def _process(self, state, successors, irsb, skip_stmts=0, last_stmt=99999999, whitelist=None):
+        successors.sort = 'IRSB'
         successors.description = 'IRSB'
         if irsb.size == 0:
             raise SimIRSBError("Empty IRSB passed to SimIRSB.")

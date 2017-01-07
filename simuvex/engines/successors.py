@@ -26,6 +26,7 @@ class SimSuccessors(object):
         self.engine = None
         self.processed = False
         self.description = 'SimSuccessors'
+        self.sort = None
 
     def __repr__(self):
         if self.processed:
