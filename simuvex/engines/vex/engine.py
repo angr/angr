@@ -137,7 +137,8 @@ class SimEngineVEX(SimEngine):
                     )
                     state.log.add_action(SimActionExit(state, target_ao, exit_type=SimActionExit.DEFAULT))
 
-                successors.add_successor(state, next_expr.expr, state.scratch.guard, irsb.jumpkind, 'default')
+                successors.add_successor(state, next_expr.expr, state.scratch.guard, irsb.jumpkind,
+                                         exit_stmt_idx='default', exit_ins_addr=state.scratch.ins_addr)
 
             except KeyError:
                 # For some reason, the temporary variable that the successor relies on does not exist.
@@ -174,7 +175,8 @@ class SimEngineVEX(SimEngine):
                 if ret_state.arch.call_pushes_ret:
                     ret_state.regs.sp = ret_state.regs.sp + ret_state.arch.bytes
                 successors.add_successor(
-                    ret_state, target, guard, 'Ijk_FakeRet', exit_stmt_idx='default'
+                    ret_state, target, guard, 'Ijk_FakeRet', exit_stmt_idx='default',
+                    exit_ins_addr=state.scratch.ins_addr
                 )
 
     def _handle_statement(self, state, successors, stmt):
@@ -208,7 +210,8 @@ class SimEngineVEX(SimEngine):
             # Produce our successor state!
             # Let SimSuccessors.add_successor handle the nitty gritty details
             exit_state = state.copy()
-            successors.add_successor(exit_state, s_stmt.target, s_stmt.guard, s_stmt.jumpkind, state.scratch.stmt_idx)
+            successors.add_successor(exit_state, s_stmt.target, s_stmt.guard, s_stmt.jumpkind,
+                                     exit_stmt_idx=state.scratch.stmt_idx, exit_ins_addr=state.scratch.ins_addr)
 
             # Do our bookkeeping on the continuing state
             cont_condition = claripy.Not(s_stmt.guard)
