@@ -172,7 +172,7 @@ class AngrObjectFactory(object):
 
         if r is None and self._project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
             hook = self._project._sim_procedures[addr]
-            procedure = hook.instanciate(addr, state.arch)
+            procedure = hook.instantiate(addr, state.arch)
             l.debug("Running %s (originally at %#x)", repr(procedure), addr)
             r = SimEngineProcedure().process(state, procedure, force_addr=addr)
 

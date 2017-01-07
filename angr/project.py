@@ -473,12 +473,12 @@ class Hook(object):
         self.is_continuation = False
         self._continuation_addr = None
 
-    def instanciate(self, *args, **kwargs):
+    def instantiate(self, *args, **kwargs):
         kwargs['sim_kwargs'] = self.kwargs
         kwargs['is_continuation'] = self.is_continuation
         kwargs['continuation_addr'] = self._continuation_addr
         return self.procedure(*args, **kwargs)
-    instanciate.__doc__ = simuvex.s_procedure.SimProcedure.__init__.__doc__
+    instantiate.__doc__ = simuvex.s_procedure.SimProcedure.__init__.__doc__
 
     def __repr__(self):
         try:
