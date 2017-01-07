@@ -30,6 +30,7 @@ class SimEngineProcedure(SimEngine):
                 force_addr=force_addr)
 
     def _process(self, state, successors, procedure, ret_to=None):
+        successors.sort = 'SimProcedure'
         successors.description = 'SimProcedure ' + procedure.display_name
         if procedure.is_syscall:
             successors.description += ' (syscall)'
