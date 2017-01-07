@@ -80,14 +80,14 @@ class BaseGoal(object):
                 # TODO: figure it out
                 continue_at = None
 
-        simrun_key = cfg._generate_simrun_key(call_stack_suffix, path.addr,
+        block_id = cfg._generate_block_id(call_stack_suffix, path.addr,
                                               is_syscall, continue_at=continue_at
                                               )
 
-        #if cfg.get_node(simrun_key) is None:
+        #if cfg.get_node(block_id) is None:
         #    import ipdb; ipdb.set_trace()
 
-        return cfg.get_node(simrun_key)
+        return cfg.get_node(block_id)
 
     @staticmethod
     def _dfs_edges(graph, source, max_steps=None):

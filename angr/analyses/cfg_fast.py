@@ -1207,9 +1207,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             if addr not in self._nodes:
                 cfg_node = CFGNode(addr, 0, self, function_address=current_function_addr,
-                                   simprocedure_name=hooker.__name__,
-                                   no_ret=hooker.NO_RET,
-                                   simrun_key=addr,
+                                   simprocedure_name=hooker.name,
+                                   no_ret=hooker.procedure.NO_RET,
+                                   block_id=addr,
                                    )
 
                 self._nodes[addr] = cfg_node
@@ -1221,7 +1221,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         except (AngrTranslationError, AngrMemoryError):
             return [ ]
 
-        self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_ins_addr, previous_src_stmt_idx)
+        self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_ins_addr,
+                             previous_src_stmt_idx
+                             )
         self._function_add_node(addr, current_function_addr)
         self._changed_functions.add(current_function_addr)
 
@@ -1234,17 +1236,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         entries = [ ]
 
-        if hooker.ADDS_EXITS:
+        if hooker.procedure.ADDS_EXITS:
             # Get two blocks ahead
             grandparent_nodes = self.graph.predecessors(previous_src_node)
             if not grandparent_nodes:
-                l.warning("%s is supposed to yield new exits, but it fails to do so.", hooker.__name__)
+                l.warning("%s is supposed to yield new exits, but it fails to do so.", hooker.name)
                 return [ ]
             blocks_ahead = [
                 self.project.factory.block(grandparent_nodes[0].addr).vex,
                 self.project.factory.block(previous_src_node.addr).vex,
             ]
-            new_exits = hooker.static_exits(self.project.arch, blocks_ahead)
+            new_exits = hooker.procedure(addr, self.project.arch, is_function=False).static_exits(blocks_ahead)
 
             for addr, jumpkind in new_exits:
                 if isinstance(addr, claripy.ast.BV) and not addr.symbolic:
@@ -1307,7 +1309,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 last_ins_addr = ins_addr
                 ins_addr = stmt.addr + stmt.delta
 
-        successors.append(('default', last_ins_addr if self.project.arch.branch_delay_slot else ins_addr, irsb_next, jumpkind))
+        successors.append(('default',
+                           last_ins_addr if self.project.arch.branch_delay_slot else ins_addr, irsb_next, jumpkind)
+                          )
 
         entries = [ ]
 
@@ -1317,7 +1321,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         for suc in successors:
             stmt_idx, ins_addr, target, jumpkind = suc
 
-            entries += self._create_entries(target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx)
+            entries += self._create_entries(target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr,
+                                            stmt_idx
+                                            )
 
         return entries
 
@@ -1342,8 +1348,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, current_function_addr)
             if resolved:
                 for t in resolved_targets:
-                    ent = self._create_entries(t, jumpkind, current_function_addr, irsb, addr,cfg_node, ins_addr, stmt_idx,
-                                               fast_indirect_jump_resolution=False)
+                    ent = self._create_entries(t, jumpkind, current_function_addr, irsb, addr,cfg_node, ins_addr,
+                                               stmt_idx, fast_indirect_jump_resolution=False)
                     entries.extend(ent)
                 return entries
 
@@ -1400,7 +1406,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if irsb:
                     # Test it on the initial state. Does it jump to a valid location?
                     # It will be resolved only if this is a .plt entry
-                    tmp_simirsb = simuvex.SimIRSB(self._initial_state, irsb, addr=addr)
+                    tmp_simirsb = simuvex.SimEngineVEX().process(self._initial_state, irsb, force_addr=addr)
                     if len(tmp_simirsb.successors) == 1:
                         tmp_ip = tmp_simirsb.successors[0].ip
                         if tmp_ip._model_concrete is not tmp_ip:
@@ -1480,7 +1486,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if is_syscall:
             # Fix the target_addr for syscalls
             tmp_path = self.project.factory.path(self.project.factory.blank_state(mode="fastpath",
-                                                                                  addr=cfg_node.addr))
+                                                                                  addr=cfg_node.addr
+                                                                                  )
+                                                 )
             tmp_path.step()
             succ = tmp_path.successors[0]
             _, syscall_addr, _, _ = self.project._simos.syscall_info(succ.state)
@@ -2065,7 +2073,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 src_node = self._nodes[jump.addr]
                 dst_node = CFGNode(self._unresolvable_target_addr, 0, self,
                                    function_address=self._unresolvable_target_addr,
-                                   simprocedure_name='UnresolvableTarget'
+                                   simprocedure_name='UnresolvableTarget',
                                    )
 
                 # add the dst_node to self._nodes
@@ -2168,25 +2176,25 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return False, None
 
         load_stmt_loc, load_stmt = None, None
-        past_stmts = [ stmt_loc ]
+        stmts_to_remove = [ ]
         while True:
             preds = b.slice.predecessors(stmt_loc)
             if len(preds) != 1:
                 return False, None
-            block_addr, stmt_idx = preds[0]
+            block_addr, stmt_idx = stmt_loc = preds[0]
             block = self.project.factory.block(block_addr).vex
             stmt = block.statements[stmt_idx]
             if isinstance(stmt, pyvex.IRStmt.WrTmp) or isinstance(stmt, pyvex.IRStmt.Put):
                 if isinstance(stmt.data, pyvex.IRExpr.Get) or isinstance(stmt.data, pyvex.IRExpr.RdTmp):
                     # data transferring
-                    past_stmts.append(stmt_loc)
+                    stmts_to_remove.append(stmt_loc)
                     stmt_loc = (block_addr, stmt_idx)
                     continue
                 elif isinstance(stmt.data, pyvex.IRExpr.Load):
                     # Got it!
                     stmt_loc = (block_addr, stmt_idx)
                     load_stmt, load_stmt_loc = stmt, stmt_loc
-                    past_stmts.append(stmt_loc)
+                    stmts_to_remove.append(stmt_loc)
             break
 
         if load_stmt_loc is None:
@@ -2194,7 +2202,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return False, None
 
         # skip all statements before the load statement
-        b.slice.remove_nodes_from(past_stmts)
+        b.slice.remove_nodes_from(stmts_to_remove)
 
         # Debugging output
         # for addr, stmt_idx in sorted(list(b.slice.nodes())):
@@ -2261,7 +2269,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             # Get the jumping targets
             for r in slicecutor.deadended:
-
                 all_states = r.next_run.unsat_successors
                 state = all_states[0] # Just take the first state
 
@@ -3261,8 +3268,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     self._seg_list.occupy(real_addr, irsb.size, "code")
 
                 # Create a CFG node, and add it to the graph
-                cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, simrun_key=addr,
-                                   irsb=irsb)
+                cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, block_id=addr,
+                                   irsb=irsb
+                                   )
 
                 self._nodes[addr] = cfg_node
                 self._nodes_by_addr[addr].append(cfg_node)

@@ -19,6 +19,9 @@ class BackwardSlice(Analysis):
     Represents a backward slice of the program.
     """
 
+    # FIXME: BackwardSlice does not work with the engines refactoring. It will be brought back to life after the
+    # FIXME: DDG refactoring, which will happen shortly.
+
     def __init__(self, cfg, cdg, ddg,
                  targets=None,
                  cfg_node=None,
@@ -64,7 +67,7 @@ class BackwardSlice(Analysis):
         if targets is not None:
             for t in targets:
                 if isinstance(t, CodeLocation):
-                    node = self._cfg.get_any_node(t.simrun_addr)
+                    node = self._cfg.get_any_node(t.block_addr)
                     self._targets.append((node, t.stmt_idx))
                 elif type(t) is tuple:
                     self._targets.append(t)
@@ -186,7 +189,7 @@ class BackwardSlice(Analysis):
 
             if run.addr in self.chosen_statements:
                 if self.chosen_statements[run.addr] is True:
-                    anno_cfg.add_simrun_to_whitelist(run.addr)
+                    anno_cfg.add_block_to_whitelist(run.addr)
                 else:
                     anno_cfg.add_statements_to_whitelist(run.addr, self.chosen_statements[run.addr])
 
