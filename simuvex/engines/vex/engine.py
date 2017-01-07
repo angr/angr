@@ -61,6 +61,14 @@ class SimEngineVEX(SimEngine):
         ss = irsb.statements
         num_stmts = len(ss)
 
+        # fill in artifacts
+        successors.artifacts['irsb'] = irsb
+        successors.artifacts['irsb_size'] = irsb.size
+        successors.artifacts['irsb_direct_next'] = irsb.direct_next
+        successors.artifacts['irsb_default_jumpkind'] = irsb.jumpkind
+
+        insn_addrs = [ ]
+
         # if we've told the block to truncate before it ends, it will definitely have a default
         # exit barring errors
         has_default_exit = num_stmts <= last_stmt
@@ -76,6 +84,9 @@ class SimEngineVEX(SimEngine):
                     break
 
         for stmt_idx, stmt in enumerate(ss):
+            if isinstance(stmt, pyvex.IRStmt.IMark):
+                insn_addrs.append(stmt.addr + stmt.delta)
+
             if stmt_idx < skip_stmts:
                 l.debug("Skipping statement %d", stmt_idx)
                 continue
@@ -105,6 +116,8 @@ class SimEngineVEX(SimEngine):
                 break
 
         state.scratch.stmt_idx = num_stmts
+
+        successors.artifacts['insn_addrs'] = insn_addrs
 
         # If there was an error, and not all the statements were processed,
         # then this block does not have a default exit. This can happen if

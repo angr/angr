@@ -35,6 +35,13 @@ class SimEngineProcedure(SimEngine):
         if procedure.is_syscall:
             successors.description += ' (syscall)'
 
+        # fill in artifacts
+        successors.artifacts['is_syscall'] = procedure.is_syscall
+        successors.artifacts['procedure'] = procedure
+        successors.artifacts['name'] = procedure.display_name
+        successors.artifacts['no_ret'] = procedure.NO_RET
+        successors.artifacts['adds_exits'] = procedure.ADDS_EXITS
+
         # Update state.scratch
         state.scratch.sim_procedure = procedure
         state.scratch.executed_block_count = 1
