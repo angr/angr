@@ -529,7 +529,9 @@ class SimMemory(SimStatePlugin):
                 # Special handling for files to keep compatibility
                 # We may use some refactoring later
                 region_type = self.id
-            action = SimActionData(self.state, region_type, 'write', addr=addr, data=data, size=ref_size, condition=condition)
+            action = SimActionData(self.state, region_type, 'write', addr=addr_e, data=data_e, size=ref_size,
+                                   condition=condition
+                                   )
             self.state.log.add_action(action)
 
         if request.completed and action is not None:
@@ -573,11 +575,13 @@ class SimMemory(SimStatePlugin):
         conditions_e = _raw_ast(conditions)
         fallback_e = _raw_ast(fallback)
 
-        max_bits = max(c.length for c in contents_e if isinstance(c, claripy.ast.Bits)) if fallback is None else fallback.length
+        max_bits = max(c.length for c in contents_e if isinstance(c, claripy.ast.Bits)) \
+            if fallback is None else fallback.length
 
         # if fallback is not provided by user, load it from memory
         # remember to specify the endianness!
-        fallback_e = self.load(addr, max_bits/8, add_constraints=add_constraints, endness=endness) if fallback_e is None else fallback_e
+        fallback_e = self.load(addr, max_bits/8, add_constraints=add_constraints, endness=endness) \
+            if fallback_e is None else fallback_e
 
         req = self._store_cases(addr_e, contents_e, conditions_e, fallback_e, endness=endness)
         add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
@@ -590,13 +594,16 @@ class SimMemory(SimStatePlugin):
                 # Special handling for files to keep compatibility
                 # We may use some refactoring later
                 region_type = self.id
-            action = SimActionData(self.state, region_type, 'write', addr=addr, data=req.stored_values[-1], size=max_bits/8, condition=self.state.se.Or(*conditions), fallback=fallback)
+            action = SimActionData(self.state, region_type, 'write', addr=addr_e, data=req.stored_values[-1],
+                                   size=max_bits/8, condition=self.state.se.Or(*conditions), fallback=fallback
+                                   )
             self.state.log.add_action(action)
 
         if req.completed and action is not None:
             action.actual_addrs = req.actual_addresses
             action.actual_value = action._make_object(req.stored_values[-1])
-            action.added_constraints = action._make_object(self.state.se.And(*req.constraints) if len(req.constraints) > 0 else self.state.se.true)
+            action.added_constraints = action._make_object(self.state.se.And(*req.constraints)
+                                                           if len(req.constraints) > 0 else self.state.se.true)
 
     def _store_cases(self, addr, contents, conditions, fallback, endness=None):
         extended_contents = [ ]
