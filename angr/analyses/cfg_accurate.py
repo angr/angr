@@ -2142,16 +2142,18 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return successors
 
-    def _resolve_indirect_jump(self, cfgnode, simirsb, current_function_addr):
+    def _resolve_indirect_jump(self, cfgnode, sim_successors, current_function_addr):
         """
         Try to resolve an indirect jump by slicing backwards
         """
 
-        l.debug("Resolving indirect jump at IRSB %s", simirsb)
+        irsb = sim_successors.artifacts['irsb']  # shorthand
+
+        l.debug("Resolving indirect jump at IRSB %s", irsb)
 
         # Let's slice backwards from the end of this exit
-        next_tmp = simirsb.irsb.next.tmp
-        stmt_id = [i for i, s in enumerate(simirsb.irsb.statements)
+        next_tmp = irsb.next.tmp
+        stmt_id = [i for i, s in enumerate(irsb.statements)
                    if isinstance(s, pyvex.IRStmt.WrTmp) and s.tmp == next_tmp][0]
 
         cdg = self.project.analyses.CDG(cfg=self)
@@ -2160,7 +2162,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         bc = self.project.analyses.BackwardSlice(self, cdg, ddg, targets=[(cfgnode, stmt_id)], same_function=True)
         taint_graph = bc.taint_graph
         # Find the correct taint
-        next_nodes = [cl for cl in taint_graph.nodes() if cl.block_addr == simirsb.addr]
+        next_nodes = [cl for cl in taint_graph.nodes() if cl.block_addr == sim_successors.addr]
 
         if not next_nodes:
             l.error('The target exit is not included in the slice. Something is wrong')
@@ -2240,7 +2242,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             if sc.cut or sc.deadended:
                 all_deadended_paths = sc.cut + sc.deadended
                 for p in all_deadended_paths:
-                    if p.addr == simirsb.addr:
+                    if p.addr == sim_successors.addr:
                         # We want to get its successors
                         successing_paths = p.step()
                         for sp in successing_paths:

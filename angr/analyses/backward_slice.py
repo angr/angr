@@ -383,7 +383,7 @@ class BackwardSlice(Analysis):
             l.debug("Checking taint %s...", tainted_cl)
 
             # Mark it as picked
-            self._pick_statement(tainted_cl.simrun_addr, tainted_cl.stmt_idx)
+            self._pick_statement(tainted_cl.block_addr, tainted_cl.stmt_idx)
 
             # Mark it as accessed
             accessed_taints.add(tainted_cl)
@@ -404,7 +404,7 @@ class BackwardSlice(Analysis):
                     self.taint_graph.add_edge(p, tainted_cl)
 
             # Handle the control dependence
-            for n in self._cfg.get_all_nodes(tainted_cl.simrun_addr):
+            for n in self._cfg.get_all_nodes(tainted_cl.block_addr):
                 new_taints = self._handle_control_dependence(n)
 
                 l.debug("Returned %d taints for %s from control dependence graph", len(new_taints), n)
