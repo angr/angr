@@ -79,7 +79,6 @@ class SimEngineVEX(SimEngine):
                 l.debug("Skipping statement %d", stmt_idx)
                 continue
             if stmt_idx > last_stmt:
-                import ipdb; ipdb.set_trace()
                 l.debug("Truncating statement %d", stmt_idx)
                 continue
             if whitelist is not None and stmt_idx not in whitelist:
