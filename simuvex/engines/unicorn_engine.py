@@ -39,6 +39,8 @@ class SimEngineUnicorn(SimEngine):
         if stop_points is not None and successors.addr in stop_points:
             raise SimUnicornError("trying to start unicorn execution on a stop point")
 
+        successors.sort = 'Unicorn'
+
         # initialize unicorn plugin
         state.unicorn.setup()
         try:
