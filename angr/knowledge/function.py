@@ -61,12 +61,12 @@ class Function(object):
         if name is None:
             if project.is_hooked(addr):
                 hooker = project.hooked_by(addr)
-                if hooker is simuvex.SimProcedures['stubs']['ReturnUnconstrained']:
-                    kwargs_dict = project._sim_procedures[addr][1]
+                if hooker.procedure is simuvex.SimProcedures['stubs']['ReturnUnconstrained']:
+                    kwargs_dict = project._sim_procedures[addr].kwargs
                     if 'resolves' in kwargs_dict:
                         name = kwargs_dict['resolves']
                 else:
-                    name = hooker.__name__.split('.')[-1]
+                    name = hooker.name
 
         # try to get the name from the symbols
         #if name is None:
