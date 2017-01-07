@@ -83,6 +83,7 @@ class SyscallTable(object):
         self.unknown_syscall_number = None
 
         self._table = { }
+        self._addr_to_syscall = { }
 
     def __setitem__(self, syscall_number, syscall):
         """
@@ -97,6 +98,7 @@ class SyscallTable(object):
             self.max_syscall_number = syscall_number
 
         self._table[syscall_number] = syscall
+        self._addr_to_syscall[syscall.pseudo_addr] = syscall
 
     def __getitem__(self, syscall_number):
         """
@@ -170,6 +172,17 @@ class SyscallTable(object):
             return False
 
         return self._table[syscall_number].supported
+
+    def get_by_addr(self, addr):
+        """
+        Get a syscall by the pseudo address.
+
+        :param int addr: The pseudo address assigned to the syscall.
+        :return:         The syscall instance if the pseudo address is assigned to a syscall, or None otherwise.
+        :rtype:          SyscallEntry or None
+        """
+
+        return self._addr_to_syscall.get(addr, None)
 
 
 class SimOS(object):
