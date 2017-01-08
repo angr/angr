@@ -101,7 +101,7 @@ class SimMemView(SimStatePlugin):
         return self._type._refine_dir() if self._type else SimMemView.types.keys()
 
     def __getattr__(self, k):
-        if k in ('deref', 'resolvable', 'resolved', 'state', '_addr', '_type') or k in dir(SimStatePlugin):
+        if k in ('concrete', 'deref', 'resolvable', 'resolved', 'state', 'array', 'store', '_addr', '_type') or k in dir(SimStatePlugin):
             return object.__getattribute__(self, k)
         if self._type and k in self._type._refine_dir():
             return self._type._refine(self, k)
@@ -154,19 +154,23 @@ class SimMemView(SimStatePlugin):
 
         return self._deeper(ty=None, addr=ptr)
 
+    def array(self, n):
+        if self._addr is None:
+            raise ValueError("Trying to produce array without specifying adddress")
+        if self._type is None:
+            raise ValueError("Trying to produce array without specifying type")
+        return self._deeper(ty=SimTypeFixedSizeArray(self._type, n))
+
     def store(self, value):
         if self._addr is None:
             raise ValueError("Trying to store to location without specifying address")
-
-        if isinstance(value, claripy.ast.BV):
-            return self.state.memory.store(self._addr, value)
 
         if self._type is None:
             raise ValueError("Trying to store to location without specifying type")
 
         return self._type.store(self.state, self._addr, value)
 
-from ..s_type import ALL_TYPES
+from ..s_type import ALL_TYPES, SimTypeFixedSizeArray
 SimMemView.types = ALL_TYPES # identity purposefully here
 
 SimStatePlugin.register_default('regs', SimRegNameView)

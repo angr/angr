@@ -64,8 +64,6 @@ class SimType(object):
         return []
 
     def _refine(self, view, k):
-        if k == 'array':
-            return lambda length: view._deeper(ty=SimTypeFixedSizeArray(self, length).with_arch(self._arch))
         raise KeyError("{} is not a valid refinement".format(k))
 
     @property
