@@ -16,6 +16,7 @@ import pyvex
 
 from ..errors import AngrError
 from ..analysis import Analysis, register_analysis
+from ..analyses.cfg_fast import SegmentList
 from ..surveyors import Explorer, Slicecutor
 from ..annocfg import AnnotatedCFG
 
@@ -76,9 +77,6 @@ class GirlScout(Analysis):
         # Start working!
         self._reconnoiter()
 
-    @property
-    def call_map(self):
-        return self.call_map
 
     def _get_next_addr_to_search(self, alignment=None):
         # TODO: Take care of those functions that are already generated
@@ -116,7 +114,7 @@ class GirlScout(Analysis):
 
     def _get_next_code_addr(self, initial_state):
         """
-        Besides calling _get_next_addr, we will check if data locates at that address seems to be code or not. If not, 
+        Besides calling _get_next_addr, we will check if data locates at that address seems to be code or not. If not,
         we'll move on to request for next valid address.
         """
         next_addr = self._get_next_addr_to_search()
