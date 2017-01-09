@@ -2360,8 +2360,10 @@ class Reassembler(Analysis):
 
         l.debug('Creating functions...')
         for f in cfg.kb.functions.values():
+            # Skip all SimProcedures
             if self.project.is_hooked(f.addr):
-                # Skip all SimProcedures
+                continue
+            elif self.project._simos.syscall_table.get_by_addr(f.addr) is not None:
                 continue
 
             # Check which section the start address belongs to
