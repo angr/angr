@@ -1261,11 +1261,11 @@ class CFGBase(Analysis):
                     suc_addr = b.successors[0].ip._model_concrete
                     if max(startpoint_addr, the_endpoint.addr - 0x40) <= suc_addr < the_endpoint.addr + the_endpoint.size:
                         # increment the endpoint_addr
-                        endpoint_addr = b.addr + b.irsb.size
+                        endpoint_addr = b.addr + b.artifacts['irsb_size']
                     else:
                         break
 
-                    last_addr = b.addr + b.irsb.size
+                    last_addr = b.addr + b.artifacts['irsb_size']
 
                 except (AngrTranslationError, AngrMemoryError, simuvex.SimIRSBError):
                     break
