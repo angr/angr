@@ -67,6 +67,10 @@ class Function(object):
                         name = kwargs_dict['resolves']
                 else:
                     name = hooker.name
+            else:
+                syscall = project._simos.syscall_table.get_by_addr(addr)
+                if syscall is not None:
+                    name = syscall.name
 
         # try to get the name from the symbols
         #if name is None:

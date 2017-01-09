@@ -746,14 +746,22 @@ class CFGBase(Analysis):
             # Let's first see if it's a known SimProcedure that does not return
             if self.project.is_hooked(func.addr):
                 hooker = self.project.hooked_by(func.addr)
-                if hasattr(hooker.procedure, 'NO_RET'):
-                    if hooker.procedure.NO_RET:
-                        func.returning = False
-                        changes['functions_do_not_return'].append(func)
-                    else:
-                        func.returning = True
-                        changes['functions_return'].append(func)
-                    continue
+                procedure = hooker.procedure
+            else:
+                syscall = self.project._simos.syscall_table.get_by_addr(func.addr)
+                if syscall is not None:
+                    procedure = syscall.simproc
+                else:
+                    procedure = None
+
+            if procedure is not None and hasattr(procedure, 'NO_RET'):
+                if procedure.NO_RET:
+                    func.returning = False
+                    changes['functions_do_not_return'].append(func)
+                else:
+                    func.returning = True
+                    changes['functions_return'].append(func)
+                continue
 
             tmp_graph = networkx.DiGraph(func.graph)
             # Remove all fakeret edges from a non-returning function
