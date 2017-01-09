@@ -72,15 +72,16 @@ class SyscallTable(object):
     :ivar int max_syscall_number:       The maximum syscall number of all supported syscalls in the platform.
     :ivar int unknown_syscall_number:   The syscall number of the "unknown" syscall used for unsupported syscalls.
     """
-    def __init__(self, max_syscall_number=None):
+    def __init__(self, max_syscall_number=None, unknown_syscall_number=None):
         """
         Constructor.
 
         :param int or None max_syscall_number: The maximum syscall number of all supported syscalls in the platform.
+        :param int unknown_syscall_number:     The syscall number to use for unknown/undefined syscalls.
         """
         self.max_syscall_number = max_syscall_number
 
-        self.unknown_syscall_number = None
+        self.unknown_syscall_number = unknown_syscall_number
 
         self._table = { }
         self._addr_to_syscall = { }
@@ -159,6 +160,16 @@ class SyscallTable(object):
 
         return self[self.unknown_syscall_number]
 
+    def clear(self):
+        """
+        Clear all defined syscalls.
+
+        :return: None
+        """
+
+        self._table = { }
+        self._addr_to_syscall = { }
+
     def supports(self, syscall_number):
         """
         Check if the syscall number is defined and supported.
@@ -196,7 +207,13 @@ class SimOS(object):
         self.name = name
         self.continue_addr = None
         self.return_deadend = None
-        self.syscall_table = SyscallTable()
+
+        unknown_syscall = SimProcedures['syscalls']['stub']
+        unknown_syscall_number = 1
+        self.syscall_table = SyscallTable(unknown_syscall_number=unknown_syscall_number)
+        self.syscall_table[unknown_syscall_number] = SyscallEntry('_unsupported', self.proj._syscall_obj.rebase_addr,
+                                                                  unknown_syscall
+                                                                  )
 
     def _load_syscalls(self, syscall_table, syscall_lib):
         """
@@ -207,6 +224,8 @@ class SimOS(object):
         :param str syscall_lib: Name of the syscall library
         :return: None
         """
+
+        self.syscall_table.clear()
 
         base_addr = self.proj._syscall_obj.rebase_addr
 
@@ -236,6 +255,7 @@ class SimOS(object):
         # Now here is the fallback syscall stub
         unknown_syscall_addr = base_addr + (syscall_entry_count + 1) * 8
         unknown_syscall_number = syscall_entry_count + 1
+        # set unknown_syscall_number
         self.syscall_table.unknown_syscall_number = unknown_syscall_number
         self.syscall_table[unknown_syscall_number] = SyscallEntry("_unknown", unknown_syscall_addr,
                                                                    SimProcedures["syscalls"]["stub"],
