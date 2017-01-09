@@ -323,22 +323,11 @@ class CFGBase(Analysis):
 
         return None
 
-    def _get_irsb(self, cfg_node):
-        if cfg_node is None:
-            return None
-
-        if cfg_node.input_state is None:
-            raise AngrCFGError(
-                'You should save the input state when generating the CFG if you want to retrieve the SimIRSB later.')
-
-        # Recreate the SimIRSB
-        return self.project.factory.sim_run(cfg_node.input_state, max_size=cfg_node.size, opt_level=self._iropt_level)
-
     def irsb_from_node(self, cfg_node):
         """
         Create an IRSB from a CFGNode object.
         """
-        return self._get_irsb(cfg_node)
+        raise DeprecationWarning('"irsb_from_node()" is deprecated since SimIRSB does not exist anymore.')
 
     def get_any_irsb(self, addr):
         """
@@ -350,9 +339,7 @@ class CFGBase(Analysis):
         :return:         An arbitrary IRSB located at `addr`.
         :rtype:          simuvex.IRSB
         """
-        cfg_node = self.get_any_node(addr)
-
-        return self._get_irsb(cfg_node)
+        raise DeprecationWarning('"get_any_irsb()" is deprecated since SimIRSB does not exist anymore.')
 
     def get_all_nodes(self, addr, is_syscall=None):
         """
@@ -389,24 +376,10 @@ class CFGBase(Analysis):
         """
         Returns all IRSBs of a certain address, without considering contexts.
         """
-
-        nodes = self.get_all_nodes(addr)
-
-        results = [ ]
-
-        for n in nodes:
-            results.append(self._get_irsb(n))
-
-        return results
+        raise DeprecationWarning('"get_all_irsbs()" is deprecated since SimIRSB does not exist anymore.')
 
     def get_loop_back_edges(self):
         return self._loop_back_edges
-
-    def get_irsb_addr_set(self):
-        irsb_addr_set = set()
-        for tpl, _ in self._nodes:
-            irsb_addr_set.add(tpl[-1]) # IRSB address
-        return irsb_addr_set
 
     def get_branching_nodes(self):
         """
