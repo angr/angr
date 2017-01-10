@@ -1,22 +1,56 @@
-import logging
-l = logging.getLogger("simuvex.engines.vex.engine")
+import sys
+import copy
+from cachetools import LRUCache
 
 import pyvex
 import claripy
+from archinfo import ArchARM
 from ..engine import SimEngine
 
+import logging
+l = logging.getLogger("simuvex.engines.vex.engine")
+
 #pylint: disable=arguments-differ
+
+VEX_IRSB_MAX_SIZE = 400
+VEX_IRSB_MAX_INST = 99
 
 class SimEngineVEX(SimEngine):
     """
     Execution engine based on VEX, Valgrind's IR.
     """
-    def process(self, state, irsb,
+
+    def __init__(self, stop_points=None,
+            use_cache=True,
+            cache_size=10000,
+            default_opt_level=1,
+            support_selfmodifying_code=False,
+            single_step=False):
+        self._stop_points = stop_points
+        self._use_cache = use_cache
+        self._default_opt_level = default_opt_level
+        self._support_selfmodifying_code = support_selfmodifying_code
+        self._single_step = single_step
+        self._cache_size = cache_size
+
+        self._block_cache = LRUCache(maxsize=self._cache_size)
+        self._cache_hit_count = 0
+        self._cache_miss_count = 0
+
+    def process(self, state,
+            irsb=None,
             skip_stmts=0,
             last_stmt=99999999,
             whitelist=None,
             inline=False,
-            force_addr=None):
+            force_addr=None,
+            insn_bytes=None,
+            max_size=None,
+            num_inst=None,
+            traceflags=0,
+            thumb=False,
+            opt_level=None,
+            **kwargs):
         """
         :param state:       The state with which to execute
         :param irsb:        The PyVEX IRSB object to use for execution. If not provided one will be lifted.
@@ -25,6 +59,13 @@ class SimEngineVEX(SimEngine):
         :param whitelist:   Only execute statements in this set
         :param inline:      This is an inline execution. Do not bother copying the state.
         :param force_addr:  Force execution to pretend that we're working at this concrete address
+
+        :param thumb:           Whether the block should be lifted in ARM's THUMB mode.
+        :param opt_level:       The VEX optimization level to use.
+        :param insn_bytes:      A string of bytes to use for the block instead of the project.
+        :param max_size:        The maximum size of the block, in bytes.
+        :param num_inst:        The maximum number of instructions.
+        :param traceflags:      traceflags to be passed to VEX. (default: 0)
         :returns:           A SimSuccessors object categorizing the block's successors
         """
         return super(SimEngineVEX, self).process(state, irsb,
@@ -32,26 +73,58 @@ class SimEngineVEX(SimEngine):
                 last_stmt=last_stmt,
                 whitelist=whitelist,
                 inline=inline,
-                force_addr=force_addr)
+                force_addr=force_addr,
+                insn_bytes=insn_bytes,
+                max_size=max_size,
+                num_inst=num_inst,
+                traceflags=traceflags,
+                thumb=thumb,
+                opt_level=opt_level)
 
-    def _process(self, state, successors, irsb, skip_stmts=0, last_stmt=99999999, whitelist=None):
+    def _process(self, state, successors, irsb=None, skip_stmts=0, last_stmt=99999999, whitelist=None, insn_bytes=None, max_size=None, num_inst=None, traceflags=0, thumb=False, opt_level=None):
         successors.sort = 'IRSB'
         successors.description = 'IRSB'
-        if irsb.size == 0:
-            raise SimIRSBError("Empty IRSB passed to SimIRSB.")
-
         state.scratch.executed_block_count = 1
         state.scratch.guard = claripy.true
         state.scratch.sim_procedure = None
-        state.scratch.tyenv = irsb.tyenv
-        state.scratch.irsb = irsb
+        addr = successors.addr
 
-        state._inspect('irsb', BP_BEFORE, address=successors.addr)
-        try:
-            self._handle_irsb(state, successors, irsb, skip_stmts, last_stmt, whitelist)
-        except SimError as e:
-            e.record_state(state)
-            raise
+        state._inspect('irsb', BP_BEFORE, address=addr)
+        while True:
+            if irsb is None:
+                irsb = self.lift(
+                    addr=addr,
+                    state=state,
+                    insn_bytes=insn_bytes,
+                    max_size=max_size,
+                    num_inst=num_inst,
+                    traceflags=traceflags,
+                    thumb=thumb,
+                    opt_level=opt_level)
+
+            if irsb.size == 0:
+                raise SimIRSBError("Empty IRSB passed to SimIRSB.")
+
+            state.scratch.tyenv = irsb.tyenv
+            state.scratch.irsb = irsb
+
+            try:
+                self._handle_irsb(state, successors, irsb, skip_stmts, last_stmt, whitelist)
+            except SimReliftException as e:
+                state = e.state
+                if insn_bytes is not None:
+                    raise SimError("You cannot pass self-modifying code as insn_bytes!!!")
+                new_ip = state.scratch.ins_addr
+                if max_size is not None:
+                    max_size -= new_ip - addr
+                if num_inst is not None:
+                    num_inst -= state.scratch.num_insns
+                addr = new_ip
+            except SimError as e:
+                e.record_state(state)
+                raise
+            else:
+                break
         state._inspect('irsb', BP_AFTER)
 
         successors.processed = True
@@ -226,10 +299,209 @@ class SimEngineVEX(SimEngine):
             state.add_constraints(cont_condition)
             state.scratch.guard = claripy.And(state.scratch.guard, cont_condition)
 
+    def lift(self,
+            state=None,
+            clemory=None,
+            insn_bytes=None,
+            arch=None,
+            addr=None,
+            max_size=None,
+            num_inst=None,
+            traceflags=0,
+            thumb=False,
+            opt_level=None):
+
+        """
+        Lift an IRSB.
+
+        There are many possible valid sets of parameters. You at the very least must pass some
+        source of data, some source of an architecture, and some source of an address.
+
+        Sources of data in order of priority: insn_bytes, clemory, state
+
+        Sources of an address, in order of priority: addr, state
+
+        Sources of an architecture, in order of priority: arch, clemory, state
+
+        :param state:           A state to use as a data source.
+        :param clemory:         A cle.memory.Clemory object to use as a data source.
+        :param addr:            The address at which to start the block.
+        :param thumb:           Whether the block should be lifted in ARM's THUMB mode.
+        :param opt_level:       The VEX optimization level to use.
+        :param insn_bytes:      A string of bytes to use as a data source.
+        :param max_size:        The maximum size of the block, in bytes.
+        :param num_inst:        The maximum number of instructions.
+        :param traceflags:      traceflags to be passed to VEX. (default: 0)
+        """
+        # phase 0: sanity check
+        if not state and not clemory and not insn_bytes:
+            raise ValueError("Must provide state or clemory or insn_bytes!")
+        if not state and not clemory and not arch:
+            raise ValueError("Must provide state or clemory or arch!")
+        if addr is None and not state:
+            raise ValueError("Must provide state or addr!")
+        if arch is None:
+            arch = clemory._arch if clemory else state.arch
+        if arch.name.startswith("MIPS") and self._single_step:
+            l.error("Cannot specify single-stepping on MIPS.")
+            self._single_step = False
+
+        # phase 1: parameter defaults
+        if addr is None:
+            addr = state.se.any_int(state.ip)
+        if max_size is not None:
+            max_size = min(max_size, VEX_IRSB_MAX_SIZE)
+        if max_size is None:
+            max_size = VEX_IRSB_MAX_SIZE
+        if num_inst is not None:
+            num_inst = min(num_inst, VEX_IRSB_MAX_INST)
+        if num_inst is None and self._single_step:
+            num_inst = 1
+        if opt_level is None:
+            opt_level = self._default_opt_level
+        if state and o.OPTIMIZE_IR in state.options:
+            opt_level = 1
+        if self._support_selfmodifying_code:
+            if opt_level > 0:
+                l.warning("Self-modifying code is not always correctly optimized by PyVEX. To guarantee correctness, VEX optimizations have been disabled.")
+                opt_level = 0
+                if state and o.OPTIMIZE_IR in state.options:
+                    state.options.remove(o.OPTIMIZE_IR)
+
+        # phase 2: permissions 
+        if state and o.STRICT_PAGE_ACCESS in state.options:
+            try:
+                perms = state.memory.permissions(addr)
+            except KeyError:
+                raise SimSegfaultError(addr, 'exec-miss')
+            else:
+                if not perms.symbolic:
+                    perms = perms.args[0]
+                    if not perms & 4:
+                        raise SimSegfaultError(addr, 'non-executable')
+
+        # phase 3: thumb normalization
+        thumb = int(thumb)
+        if isinstance(arch, ArchARM):
+            if addr % 1 == 1:
+                thumb = 1
+            if thumb:
+                addr &= ~1
+        elif thumb:
+            l.error("thumb=True passed on non-arm architecture!")
+            thumb = 0
+
+        # phase 4: check cache
+        cache_key = (addr, insn_bytes, max_size, num_inst, thumb, opt_level)
+        if self._use_cache and cache_key in self._block_cache is not None:
+            self._cache_hit_count += 1
+            return self._truncate(self._block_cache[cache_key])
+        else:
+            self._cache_miss_count += 1
+
+        # phase 5: get bytes
+        if insn_bytes is not None:
+            buff, size = insn_bytes, len(insn_bytes)
+        else:
+            buff, size = self._load_bytes(addr, max_size, state, clemory)
+
+        if not buff or size == 0:
+            raise SimMemoryError("No bytes in memory for block starting at %#x." % addr)
+
+        # phase 6: call into pyvex
+        l.debug("Creating pyvex.IRSB of arch %s at %#x", arch.name, addr)
+        pyvex.set_iropt_level(opt_level)
+
+        try:
+            irsb = pyvex.IRSB(buff, addr + thumb, arch,
+                              num_bytes=size,
+                              num_inst=num_inst,
+                              bytes_offset=thumb,
+                              traceflags=traceflags)
+            if self._use_cache:
+                self._block_cache[cache_key] = irsb
+            return self._truncate(irsb)
+
+        # phase x: error handling
+        except pyvex.PyVEXError:
+            l.debug("VEX translation error at %#x", addr)
+            if isinstance(buff, str):
+                l.debug('Using bytes: ' + buff)
+            else:
+                l.debug("Using bytes: " + str(pyvex.ffi.buffer(buff, size)).encode('hex'))
+            e_type, value, traceback = sys.exc_info()
+            raise SimTranslationError, ("Translation error", e_type, value), traceback
+
+    def _load_bytes(self, addr, max_size, state=None, clemory=None):
+        if not clemory:
+            clemory = state.memory.mem._memory_backer
+
+        buff, size = "", 0
+
+        # Load from the clemory if we can
+        if not self._support_selfmodifying_code or not state:
+            try:
+                buff, size = clemory.read_bytes_c(addr)
+            except KeyError:
+                pass
+
+        # If that didn't work, try to load from the state
+        if size == 0:
+            if addr in state.memory and addr + max_size - 1 in state.memory:
+                buff = state.se.any_str(state.memory.load(addr, max_size))
+                size = max_size
+            else:
+                good_addrs = []
+                for i in xrange(max_size):
+                    if addr + i in state.memory:
+                        good_addrs.append(addr + i)
+                    else:
+                        break
+
+                buff = ''.join(chr(state.se.any_int(state.memory.load(i, 1, inspect=False))) for i in good_addrs)
+                size = len(buff)
+
+        size = min(max_size, size)
+        return buff, size
+
+    def _truncate(self, irsb):
+        """
+        Enumerate the imarks in the block. If any of them (after the first one) are at a stop
+        point, clone the block and truncate it at that imark.
+        """
+        if self._stop_points is None:
+            return irsb
+
+        first_imark = True
+        for i, stmt in enumerate(irsb.statements):
+            if isinstance(stmt, pyvex.stmt.IMark):
+                addr = stmt.addr + stmt.delta
+                if not first_imark and addr in self._stop_points:
+                    # could this part be moved by pyvex?
+                    new_irsb = copy.copy(irsb)
+                    new_irsb.statements = irsb.statements[:i]
+                    new_irsb.jumpkind = 'Ijk_Boring'
+                    con_ty = 'Ico_U%d' % irsb.arch.bits
+                    con_cls = pyvex.const.tag_to_class[pyvex.enums_to_ints[con_ty]]
+                    new_irsb.next = pyvex.expr.Const(con_cls(addr))
+                    new_irsb._direct_next = True
+                    return new_irsb
+
+                first_imark = False
+        return irsb
+
+    def clear_cache(self):
+        self._block_cache = LRUCache(maxsize=self._cache_size)
+
+        self._cache_hit_count = 0
+        self._cache_miss_count = 0
+
+
+
 from .statements import translate_stmt
 from .expressions import translate_expr
 
 from ... import s_options as o
 from ...plugins.inspect import BP_AFTER, BP_BEFORE
-from ...s_errors import SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException, UnsupportedDirtyError
+from ...s_errors import SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException, UnsupportedDirtyError, SimTranslationError, SimMemoryError
 from ...s_action import SimActionExit, SimActionObject

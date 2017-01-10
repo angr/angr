@@ -13,7 +13,8 @@ class SimEngineProcedure(SimEngine):
     def process(self, state, procedure,
             ret_to=None,
             inline=None,
-            force_addr=None):
+            force_addr=None,
+            **kwargs):
         """
         Perform execution with a state.
 

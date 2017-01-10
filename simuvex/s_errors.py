@@ -137,6 +137,9 @@ class UnsupportedDirtyError(UnsupportedIRStmtError, SimUnsupportedError):
 class SimRunError(SimError):
     pass
 
+class SimTranslationError(SimRunError):
+    pass
+
 class SimIRSBError(SimRunError):
     pass
 

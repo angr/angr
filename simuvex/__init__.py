@@ -21,7 +21,7 @@ from . import concretization_strategies
 from . import s_options
 from . import s_type_backend
 
-from .engines import SimSuccessors, SimEngineVEX, SimEngineProcedure, SimEngineUnicorn
+from .engines import SimEngine, SimSuccessors, SimEngineVEX, SimEngineProcedure, SimEngineUnicorn
 from .engines.vex.statements import SimIRStmt
 from .engines.vex.irop import operations, all_operations, unsupported as unsupported_operations, unclassified as unclassified_operations
 
