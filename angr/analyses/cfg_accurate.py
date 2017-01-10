@@ -13,7 +13,7 @@ from simuvex import SimEngineProcedure
 from ..entry_wrapper import BlockID, EntryDesc
 from ..analysis import register_analysis
 from ..errors import AngrCFGError, AngrError, AngrSkipEntryNotice
-from ..path import make_path, Path
+from ..path import Path
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase
 from .forward_analysis import ForwardAnalysis
@@ -515,21 +515,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         fakeret_edges = [ (src, dst) for src, dst, data in self.graph.edges_iter(data=True)
                          if data['jumpkind'] == 'Ijk_FakeRet' ]
         self.graph.remove_edges_from(fakeret_edges)
-
-    def get_paths(self, begin, end, nb_max=0):
-        """
-        Get all the simple paths between @begin and @end.
-        :param nb_max: Threshold for a maximum of paths to handle
-        :return: a list of angr.Path instances.
-        """
-        paths = self._get_nx_paths(begin, end)
-        a_paths = []
-        if nb_max > 0:
-            paths = itertools.islice(paths, 0, nb_max)
-        for p in paths:
-            runs = map(self.irsb_from_node, p)
-            a_paths.append(make_path(self.project, runs))
-        return a_paths
 
     def get_topological_order(self, cfg_node):
         """
@@ -2527,6 +2512,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 else:
                     old_proc = self.project._simos.syscall_table.get_by_addr(addr).simproc
                 old_name = None
+
 
                 if old_proc.IS_SYSCALL:
                     new_stub = simuvex.procedures.SimProcedures["syscalls"]["stub"]
