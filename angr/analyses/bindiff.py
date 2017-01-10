@@ -5,7 +5,7 @@ import math
 import networkx
 import types
 
-from simuvex.s_errors import SimEngineError, SimTranslationError
+from simuvex.s_errors import SimEngineError, SimMemoryError
 
 from ..analysis import Analysis, register_analysis
 
@@ -548,7 +548,7 @@ class FunctionDiff(object):
                     self._project_b.loader.main_bin.contains_addr(c.value_b):
                 continue
             # if the difference is equal to the difference in block addr's or successor addr's we'll say it's also okay
-            if (c.value_b - c.value_a) in acceptable_differences:
+            if c.value_b - c.value_a in acceptable_differences:
                 continue
             # otherwise they probably are different
             return False
@@ -597,13 +597,6 @@ class FunctionDiff(object):
         """
         return networkx.single_source_shortest_path_length(function.graph,
                                                            function.startpoint)
-
-    @staticmethod
-    def _block_diff_constants(block_a, block_b):
-        diff_constants = []
-        for irsb_a, irsb_b in zip(block_a.blocks, block_b.blocks):
-            diff_constants += differing_constants(irsb_a, irsb_b)
-        return diff_constants
 
     @staticmethod
     def _distances_from_function_exit(function):
