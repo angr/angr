@@ -130,7 +130,10 @@ class Block(object):
     @property
     def bytes(self):
         if self._bytes is None:
-            self._bytes = ''.join(self._project.loader.memory.read_bytes(self.addr, self.size))
+            addr = self.addr
+            if self.thumb:
+                addr = (addr >> 1) << 1
+            self._bytes = ''.join(self._project.loader.memory.read_bytes(addr, self.size))
         return self._bytes
 
 
