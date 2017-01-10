@@ -11,12 +11,13 @@ import cffi
 import claripy
 import simuvex
 import pyvex
+from simuvex.s_errors import SimEngineError, SimMemoryError, SimTranslationError
 
 from ..blade import Blade
 from ..analysis import register_analysis
 from ..surveyors import Slicecutor
 from ..annocfg import AnnotatedCFG
-from ..errors import AngrTranslationError, AngrMemoryError, AngrCFGError
+from ..errors import AngrCFGError
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase, IndirectJump
 from .forward_analysis import ForwardAnalysis
@@ -1245,7 +1246,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 cfg_node = self._nodes[addr]
 
-        except (AngrTranslationError, AngrMemoryError):
+        except (SimMemoryError, SimEngineError):
             return [ ]
 
         self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_ins_addr,
@@ -1397,7 +1398,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                   target_addr
                                   )
                     else:
-                        l.debug("AngrTranslationError occurred when creating a new entry to %#x. "
+                        l.debug("SimTranslationError occurred when creating a new entry to %#x. "
                                   "Ignore this successor.",
                                   target_addr
                                   )
@@ -2575,7 +2576,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # this function might be created from linear sweeping
                     try:
                         block = self.project.factory.block(a.addr, max_size=0x10 - (a.addr % 0x10))
-                    except AngrTranslationError:
+                    except SimTranslationError:
                         continue
                     insns = block.capstone.insns
                     if insns and self._is_noop_insn(insns[0]):
@@ -2611,7 +2612,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             # make sure there is a function begins there
                             try:
                                 self.functions._add_node(next_node_addr, next_node_addr, size=next_node_size)
-                            except (AngrTranslationError, AngrMemoryError):
+                            except (SimEngineError, SimMemoryError):
                                 continue
 
         # append all new nodes to sorted nodes
@@ -2640,7 +2641,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 try:
                     block = self.project.factory.fresh_block(a.addr, b.addr - a.addr)
-                except AngrTranslationError:
+                except SimTranslationError:
                     a = b
                     continue
                 if block.capstone.insns and all([ self._is_noop_insn(insn) for insn in block.capstone.insns ]):
@@ -3001,7 +3002,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                                  stmt_idx=stmt_idx, ins_addr=ins_addr
                                                                  )
             return True
-        except (AngrMemoryError, AngrTranslationError):
+        except (SimMemoryError, SimEngineError):
             return False
 
     def _function_add_call_edge(self, addr, src_node, ret_addr, function_addr, syscall=False, stmt_idx=None,
@@ -3035,7 +3036,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                stmt_idx=stmt_idx, ins_addr=ins_addr,
                                                )
             return True
-        except (AngrMemoryError, AngrTranslationError):
+        except (SimMemoryError, SimEngineError):
             return False
 
     def _function_add_fakeret_edge(self, addr, src_node, function_addr, confirmed=None):
@@ -3272,7 +3273,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 irsb = None
                 try:
                     irsb = self.project.factory.block(addr, max_size=distance).vex
-                except AngrTranslationError:
+                except SimTranslationError:
                     nodecode = True
 
                 if (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode') and \
@@ -3292,7 +3293,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                     try:
                         irsb = self.project.factory.block(addr_0, max_size=distance).vex
-                    except AngrTranslationError:
+                    except SimTranslationError:
                         nodecode = True
 
                     if not (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode'):
@@ -3326,7 +3327,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             return addr, current_function_addr, cfg_node, irsb
 
-        except AngrMemoryError:
+        except (SimMemoryError, SimEngineError):
             return None, None, None, None
 
     def _process_block_arch_specific(self, addr, irsb, func_addr):  # pylint: disable=unused-argument

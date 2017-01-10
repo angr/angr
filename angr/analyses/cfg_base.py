@@ -9,7 +9,7 @@ import simuvex
 
 from ..knowledge import Function, HookNode, BlockNode, FunctionManager
 from ..analysis import Analysis
-from ..errors import AngrCFGError, AngrTranslationError, AngrMemoryError
+from ..errors import AngrCFGError
 from ..extern_obj import AngrExternObject
 
 from .cfg_node import CFGNode
@@ -1267,7 +1267,7 @@ class CFGBase(Analysis):
 
                     last_addr = b.addr + b.artifacts['irsb_size']
 
-                except (AngrTranslationError, AngrMemoryError, simuvex.SimIRSBError):
+                except (simuvex.SimTranslationError, simuvex.SimMemoryError, simuvex.SimIRSBError):
                     break
 
             # find all functions that are between [ startpoint, endpoint ]

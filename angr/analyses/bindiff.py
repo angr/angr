@@ -1,11 +1,13 @@
-from ..errors import AngrMemoryError, AngrTranslationError
-from ..analysis import Analysis, register_analysis
 
 from collections import deque
 import logging
 import math
 import networkx
 import types
+
+from simuvex.s_errors import SimEngineError, SimTranslationError
+
+from ..analysis import Analysis, register_analysis
 
 # todo include an explanation of the algorithm
 # todo include a method that detects any change other than constants
@@ -299,10 +301,9 @@ class NormalizedFunction(object):
             for node in self.graph.nodes():
                 try:
                     bl = self.project.factory.block(node.addr)
-                except AngrMemoryError:
+                except (SimMemoryError, SimEngineError):
                     continue
-                except AngrTranslationError:
-                    continue
+
                 # merge if it ends with a single call, and the successor has only one predecessor and succ is after
                 successors = self.graph.successors(node)
                 if bl.vex.jumpkind == "Ijk_Call" and len(successors) == 1 and \
@@ -448,16 +449,12 @@ class FunctionDiff(object):
 
         try:
             block_a = NormalizedBlock(block_a, self._function_a)
-        except AngrMemoryError:
-            block_a = None
-        except AngrTranslationError:
+        except (SimMemoryError, SimEngineError):
             block_a = None
 
         try:
             block_b = NormalizedBlock(block_b, self._function_b)
-        except AngrMemoryError:
-            block_b = None
-        except AngrTranslationError:
+        except (SimMemoryError, SimEngineError):
             block_b = None
 
         # if both were None then they are assumed to be the same, if only one was the same they are assumed to differ
@@ -507,16 +504,12 @@ class FunctionDiff(object):
 
         try:
             block_a = NormalizedBlock(block_a, self._function_a)
-        except AngrMemoryError:
-            block_a = None
-        except AngrTranslationError:
+        except (SimMemoryError, SimEngineError):
             block_a = None
 
         try:
             block_b = NormalizedBlock(block_b, self._function_b)
-        except AngrMemoryError:
-            block_b = None
-        except AngrTranslationError:
+        except (SimMemoryError, SimEngineError):
             block_b = None
 
         # if both were None then they are assumed to be the same, if only one was None they are assumed to differ
@@ -742,9 +735,7 @@ class FunctionDiff(object):
             for s in sorted(succ - set(ordered_succ), key=lambda x:x.addr):
                 ordered_succ.append(s)
             return ordered_succ
-        except AngrMemoryError:
-            return sorted(succ, key=lambda x:x.addr)
-        except AngrTranslationError:
+        except (SimMemoryError, SimEngineError):
             return sorted(succ, key=lambda x:x.addr)
 
     def _get_block_matches(self, attributes_a, attributes_b, filter_set_a=None, filter_set_b=None, delta=(0, 0, 0),

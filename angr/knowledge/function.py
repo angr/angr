@@ -6,6 +6,7 @@ from collections import defaultdict
 import simuvex
 import simuvex.s_cc
 import claripy
+from simuvex.s_errors import SimEngineError, SimMemoryError
 
 l = logging.getLogger(name="angr.knowledge.function")
 
@@ -138,7 +139,7 @@ class Function(object):
         for block in self._local_blocks:
             try:
                 yield self._get_block(block.addr)
-            except (AngrTranslationError, AngrMemoryError):
+            except (SimEngineError, SimMemoryError):
                 pass
 
     @property
@@ -909,4 +910,4 @@ class Function(object):
         return simuvex.s_cc.SimCCUnknown(arch, args, ret_vals, sp_delta)
 
 from .codenode import BlockNode
-from ..errors import AngrTranslationError, AngrValueError, AngrMemoryError
+from ..errors import AngrValueError
