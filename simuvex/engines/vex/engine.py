@@ -469,7 +469,14 @@ class SimEngineVEX(SimEngine):
 
     def _load_bytes(self, addr, max_size, state=None, clemory=None):
         if not clemory:
-            clemory = state.memory.mem._memory_backer
+            if state is None:
+                raise SimEngineError('state and clemory cannot both be None in _load_bytes().')
+            if o.ABSTRACT_MEMORY in state.options:
+                # abstract memory
+                clemory = state.memory.regions['global'].memory.mem._memory_backer
+            else:
+                # symbolic memory
+                clemory = state.memory.mem._memory_backer
 
         buff, size = "", 0
 
