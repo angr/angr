@@ -1403,7 +1403,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         depth_str = "(D:%s)" % self.get_node(job.block_id).depth if self.get_node(job.block_id).depth is not None \
             else ""
 
-        l.debug("Block %s%s %s", sim_successors.description, depth_str,
+        l.debug("%s [%#x%s | %s]", sim_successors.description, sim_successors.addr, depth_str,
                 "->".join([hex(i) for i in call_stack_suffix if i is not None])
                 )
         l.debug("(Function %s of binary %s)", function_name, module_name)
@@ -2552,8 +2552,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 jumpkind = state.scratch.jumpkind
                 jumpkind = 'Ijk_Boring' if jumpkind is None else jumpkind
                 sim_successors = self.project.factory.sim_run(state, jumpkind=jumpkind, max_size=block_size,
-                                                       opt_level=self._iropt_level
-                                                       )
+                                                              opt_level=self._iropt_level
+                                                              )
 
         except (simuvex.SimFastPathError, simuvex.SimSolverModeError) as ex:
 
