@@ -10,7 +10,8 @@ class Block(object):
 
     __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'instructions', 'instruction_addrs']
 
-    def __init__(self, project, addr, size=None, byte_string=None, vex=None, thumb=False, backup_state=None, opt_level=None):
+    def __init__(self, project, addr, size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
+                 opt_level=None, num_inst=None):
         if isinstance(project.arch, ArchARM):
             if addr & 1 == 1:
                 thumb = True
@@ -35,7 +36,8 @@ class Block(object):
                         insn_bytes=byte_string,
                         addr=addr,
                         thumb=thumb,
-                        opt_level=opt_level)
+                        opt_level=opt_level,
+                        num_inst=num_inst)
                 size = vex.size
 
         self._vex = vex

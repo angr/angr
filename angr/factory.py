@@ -266,9 +266,12 @@ class AngrObjectFactory(object):
                                   sp_delta=sp_delta,
                                   func_ty=func_ty)
 
-    def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None, opt_level=None):
+    def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
+              opt_level=None, num_inst=None):
         if max_size is not None: size = max_size
-        return Block(self._project, addr, size=size, byte_string=byte_string, vex=vex, thumb=thumb, backup_state=backup_state, opt_level=opt_level)
+        return Block(self._project, addr, size=size, byte_string=byte_string, vex=vex, thumb=thumb,
+                     backup_state=backup_state, opt_level=opt_level, num_inst=num_inst
+                     )
 
     def fresh_block(self, addr, size):
         return Block(self._project, addr, size)
