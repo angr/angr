@@ -783,7 +783,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             l.debug("0x%08x is beyond the ending point.", curr_addr)
             return None
 
-    def _next_code_addr(self):
+    def _next_code_addr_core(self):
         """
         Call _next_unscanned_addr() first to get the next address that is not scanned. Then check if data locates at
         that address seems to be code or not. If not, we'll continue to for the next un-scanned address.
@@ -834,10 +834,24 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         instr_alignment = self._initial_state.arch.instruction_alignment
         if start_addr % instr_alignment > 0:
+            # occupy those few bytes
+            self._seg_list.occupy(start_addr, instr_alignment - (start_addr % instr_alignment), 'alignment')
             start_addr = start_addr - start_addr % instr_alignment + \
                          instr_alignment
 
         return start_addr
+
+    def _next_code_addr(self):
+
+        while True:
+            addr = self._next_code_addr_core()
+            if addr is None:
+                return None
+
+            # if the new address is already occupied
+            if not self._seg_list.is_occupied(addr):
+                return addr
+
 
     # Overriden methods from ForwardAnalysis
 
@@ -1274,11 +1288,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._changed_functions.add(current_function_addr)
 
         # If we have traced it before, don't trace it anymore
-        if addr in self._traced_addresses:
+        aligned_addr = ((addr >> 1) << 1) if self.project.arch.name in ('ARMLE', 'ARMHF') else addr
+        if aligned_addr in self._traced_addresses:
             return [ ]
         else:
             # Mark the address as traced
-            self._traced_addresses.add(addr)
+            self._traced_addresses.add(aligned_addr)
 
         # irsb cannot be None here
         # assert irsb is not None
@@ -3241,22 +3256,37 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # TODO: handle segment information as well
 
                 # Let's try to create the pyvex IRSB directly, since it's much faster
-                irsb = self.project.factory.block(addr, max_size=distance).vex
+                nodecode = False
+                irsb = None
+                try:
+                    irsb = self.project.factory.block(addr, max_size=distance).vex
+                except AngrTranslationError:
+                    nodecode = True
 
-                if irsb.size == 0 and self.project.arch.name in ('ARMHF', 'ARMEL'):
+                if (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode') and \
+                        self.project.arch.name in ('ARMHF', 'ARMEL'):
                     # maybe the current mode is wrong?
+                    nodecode = False
                     if addr % 2 == 0:
                         addr_0 = addr + 1
                     else:
                         addr_0 = addr - 1
-                    irsb = self.project.factory.block(addr_0).vex
-                    if irsb.size > 0:
+
+                    try:
+                        irsb = self.project.factory.block(addr_0, max_size=distance).vex
+                    except AngrTranslationError:
+                        nodecode = True
+
+                    if not (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode'):
+                        # it is decodeable
                         if current_function_addr == addr:
                             current_function_addr = addr_0
                         addr = addr_0
 
-                if irsb.size == 0:
+                if nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode':
                     # decoding error
+                    # we still occupy that location since it cannot be decoded anyways
+                    self._seg_list.occupy(addr, 1, 'nodecode')
                     return None, None, None, None
 
                 # Occupy the block in segment list
@@ -3278,7 +3308,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             return addr, current_function_addr, cfg_node, irsb
 
-        except (AngrTranslationError, AngrMemoryError):
+        except AngrMemoryError:
             return None, None, None, None
 
     def _process_block_arch_specific(self, addr, irsb, func_addr):  # pylint: disable=unused-argument
