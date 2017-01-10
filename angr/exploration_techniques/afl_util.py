@@ -24,15 +24,15 @@ def find_least_covering_path(transition_to_path_mapping):
     return least_covering_path
 
 
-def approximate_best_path_set_cover(self, transition_to_covering_paths_mapping):
+def approximate_best_path_set_cover(transition_to_covering_paths_mapping):
     mapping = transition_to_covering_paths_mapping.copy()
 
     while len(mapping) > 0:
         # Add paths that have to be present
-        new_path = self._find_unique_transition_path(mapping)
+        new_path = find_unique_transition_path(mapping)
         if new_path is None:
             # Otherwise add the most effective path (greedy)
-            new_path = self._find_most_covering_path(mapping)
+            new_path = find_most_covering_path(mapping)
 
         # Remove any transitions that are already covered by this path
         mapping = {t: p_list for t, p_list in mapping.items() if new_path not in p_list}
