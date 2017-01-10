@@ -21,7 +21,7 @@ class SimEngineUnicorn(SimEngine):
         """
         :param state:               The state with which to execute
         :param step:                How many basic blocks we want to execute
-        :param extra_stop_points:   A list of addresses at which execution should halt
+        :param extra_stop_points:   A collection of addresses at which execution should halt
         :param inline:              This is an inline execution. Do not bother copying the state.
         :param force_addr:          Force execution to pretend that we're working at this concrete
                                     address
@@ -40,6 +40,9 @@ class SimEngineUnicorn(SimEngine):
         if extra_stop_points is None:
             extra_stop_points = set(self.base_stop_points)
         else:
+            # convert extra_stop_points to a set
+            if not isinstance(extra_stop_points, set):
+                extra_stop_points = set(extra_stop_points)
             extra_stop_points.update(self.base_stop_points)
         if successors.addr in extra_stop_points:
             return  # trying to start unicorn execution on a stop point
