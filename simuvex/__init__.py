@@ -28,7 +28,7 @@ from .engines.vex.irop import operations, all_operations, unsupported as unsuppo
 from .plugins import *
 from .s_errors import *
 from .s_action import *
-from .s_pcap import *
+from .s_pcap import PCAP
 from .s_variable import *
 
 options = s_options
