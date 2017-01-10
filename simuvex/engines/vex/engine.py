@@ -5,7 +5,16 @@ from cachetools import LRUCache
 import pyvex
 import claripy
 from archinfo import ArchARM
+
+from ... import s_options as o
+from ...plugins.inspect import BP_AFTER, BP_BEFORE
+from ...s_action import SimActionExit, SimActionObject
+from ...s_errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException,
+                         UnsupportedDirtyError, SimTranslationError, SimEngineError
+                         )
 from ..engine import SimEngine
+from .statements import translate_stmt
+from .expressions import translate_expr
 
 import logging
 l = logging.getLogger("simuvex.engines.vex.engine")
@@ -113,7 +122,7 @@ class SimEngineVEX(SimEngine):
             except SimReliftException as e:
                 state = e.state
                 if insn_bytes is not None:
-                    raise SimError("You cannot pass self-modifying code as insn_bytes!!!")
+                    raise SimEngineError("You cannot pass self-modifying code as insn_bytes!!!")
                 new_ip = state.scratch.ins_addr
                 if max_size is not None:
                     max_size -= new_ip - addr
@@ -125,8 +134,8 @@ class SimEngineVEX(SimEngine):
                 state.scratch.dirty_addrs.clear()
                 irsb = None
 
-            except SimError as e:
-                e.record_state(state)
+            except SimError as ex:
+                ex.record_state(state)
                 raise
             else:
                 break
@@ -423,7 +432,7 @@ class SimEngineVEX(SimEngine):
             buff, size = self._load_bytes(addr, max_size, state, clemory)
 
         if not buff or size == 0:
-            raise SimMemoryError("No bytes in memory for block starting at %#x." % addr)
+            raise SimEngineError("No bytes in memory for block starting at %#x." % addr)
 
         # phase 6: call into pyvex
         l.debug("Creating pyvex.IRSB of arch %s at %#x", arch.name, addr)
@@ -514,13 +523,3 @@ class SimEngineVEX(SimEngine):
 
         self._cache_hit_count = 0
         self._cache_miss_count = 0
-
-
-
-from .statements import translate_stmt
-from .expressions import translate_expr
-
-from ... import s_options as o
-from ...plugins.inspect import BP_AFTER, BP_BEFORE
-from ...s_errors import SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException, UnsupportedDirtyError, SimTranslationError, SimMemoryError
-from ...s_action import SimActionExit, SimActionObject
