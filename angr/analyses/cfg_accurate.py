@@ -2488,60 +2488,67 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     break
 
         try:
-            if not self._keep_state and \
-                    (self.project.is_hooked(addr) or
-                        self.project._simos.syscall_table.get_by_addr(addr) is not None) and \
-                    not self.project._sim_procedures[addr].is_continuation and \
-                    not self.project._sim_procedures[addr].procedure.ADDS_EXITS and \
-                    not self.project._sim_procedures[addr].procedure.NO_RET:
-                # DON'T CREATE USELESS SIMPROCEDURES if we don't care about the accuracy of states
-                # When generating CFG, a SimProcedure will not be created as it is but be created as a
-                # ReturnUnconstrained stub if it satisfies the following conditions:
-                # - It doesn't add any new exits.
-                # - It returns as normal.
-                # In this way, we can speed up the CFG generation by quite a lot as we avoid simulating
-                # those functions like read() and puts(), which has no impact on the overall control flow at all.
-                #
-                # Special notes about _SimProcedureContinuation_ instances. Any SimProcedure that corresponds to the
-                # SimProcedureContinuation we see here adds new exits, otherwise the original SimProcedure wouldn't have
-                # been executed anyway. Hence it's reasonable for us to always simulate a SimProcedureContinuation
-                # instance.
+            sim_successors = None
 
+            if not self._keep_state:
                 if self.project.is_hooked(addr):
-                    old_proc = self.project._sim_procedures[addr].procedure
-                else:
+                    hooker = self.project._sim_procedures[addr]
+                    old_proc = hooker.procedure
+                    is_continuation = hooker.is_continuation
+                elif self.project._simos.syscall_table.get_by_addr(addr) is not None:
                     old_proc = self.project._simos.syscall_table.get_by_addr(addr).simproc
-                old_name = None
-
-
-                if old_proc.IS_SYSCALL:
-                    new_stub = simuvex.procedures.SimProcedures["syscalls"]["stub"]
-                    ret_to = state.regs.ip_at_syscall
+                    is_continuation = False  # syscalls don't support continuation
                 else:
-                    new_stub = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"]
-                    ret_to = None
+                    old_proc = None
+                    is_continuation = None
 
-                if old_proc is new_stub:
-                    proc_kwargs = self.project._sim_procedures[addr].kwargs
-                    if 'resolves' in proc_kwargs:
-                        old_name = proc_kwargs['resolves']
+                if old_proc is not None and \
+                        not is_continuation and \
+                        not old_proc.ADDS_EXITS and \
+                        not old_proc.NO_RET:
+                    # DON'T CREATE USELESS SIMPROCEDURES if we don't care about the accuracy of states
+                    # When generating CFG, a SimProcedure will not be created as it is but be created as a
+                    # ReturnUnconstrained stub if it satisfies the following conditions:
+                    # - It doesn't add any new exits.
+                    # - It returns as normal.
+                    # In this way, we can speed up the CFG generation by quite a lot as we avoid simulating
+                    # those functions like read() and puts(), which has no impact on the overall control flow at all.
+                    #
+                    # Special notes about SimProcedure continuation: Any SimProcedure instance that is a continuation
+                    # will add new exits, otherwise the original SimProcedure wouldn't have been executed anyway. Hence
+                    # it's reasonable for us to always simulate a SimProcedure with continuation.
 
-                if old_name is None:
-                    old_name = old_proc.__name__.split('.')[-1]
+                    old_name = None
 
-                # instantiate the stub
-                new_stub_inst = new_stub(addr, self.project.arch,
-                                         sim_kwargs={'resolves': old_name}
-                                         )
+                    if old_proc.IS_SYSCALL:
+                        new_stub = simuvex.procedures.SimProcedures["syscalls"]["stub"]
+                        ret_to = state.regs.ip_at_syscall
+                    else:
+                        # normal SimProcedures
+                        new_stub = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"]
+                        ret_to = None
 
-                sim_successors = SimEngineProcedure().process(
-                    state,
-                    new_stub_inst,
-                    force_addr=addr,
-                    ret_to=ret_to,
-                )
+                    if old_proc is new_stub:
+                        proc_kwargs = self.project._sim_procedures[addr].kwargs
+                        if 'resolves' in proc_kwargs:
+                            old_name = proc_kwargs['resolves']
 
-            else:
+                    if old_name is None:
+                        old_name = old_proc.__name__.split('.')[-1]
+
+                    # instantiate the stub
+                    new_stub_inst = new_stub(addr, self.project.arch,
+                                             sim_kwargs={'resolves': old_name}
+                                             )
+
+                    sim_successors = SimEngineProcedure().process(
+                        state,
+                        new_stub_inst,
+                        force_addr=addr,
+                        ret_to=ret_to,
+                    )
+
+            if sim_successors is None:
                 jumpkind = state.scratch.jumpkind
                 jumpkind = 'Ijk_Boring' if jumpkind is None else jumpkind
                 sim_successors = self.project.factory.sim_run(state, jumpkind=jumpkind, max_size=block_size,
