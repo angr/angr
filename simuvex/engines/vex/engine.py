@@ -120,6 +120,11 @@ class SimEngineVEX(SimEngine):
                 if num_inst is not None:
                     num_inst -= state.scratch.num_insns
                 addr = new_ip
+
+                # clear the stage before creating the new IRSB
+                state.scratch.dirty_addrs.clear()
+                irsb = None
+
             except SimError as e:
                 e.record_state(state)
                 raise
