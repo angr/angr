@@ -151,7 +151,7 @@ class Project(object):
                 use_cache=translation_cache,
                 support_selfmodifying_code=support_selfmodifying_code)
         procedure_engine = SimEngineHook(self)
-        error_engine = SimEngineError(self)
+        failure_engine = SimEngineFailure(self)
         syscall_engine = SimEngineSyscall(self)
         unicorn_engine = simuvex.SimEngineUnicorn(self._sim_procedures)
 
@@ -160,7 +160,7 @@ class Project(object):
                 self,
                 vex_engine,
                 procedure_engine,
-                [error_engine, syscall_engine, procedure_engine, unicorn_engine, vex_engine])
+                [failure_engine, syscall_engine, procedure_engine, unicorn_engine, vex_engine])
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
         self.kb = KnowledgeBase(self, self.loader.main_bin)
@@ -565,4 +565,4 @@ from .extern_obj import AngrExternObject
 from .analysis import Analyses
 from .surveyor import Surveyors
 from .knowledge_base import KnowledgeBase
-from .engines import SimEngineError, SimEngineSyscall, SimEngineHook
+from .engines import SimEngineFailure, SimEngineSyscall, SimEngineHook

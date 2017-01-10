@@ -6,7 +6,7 @@ import logging
 l = logging.getLogger('angr.engines')
 
 
-class SimEngineError(SimEngine):
+class SimEngineFailure(SimEngine):
     def __init__(self, project):
         self.project = project
 
