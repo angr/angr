@@ -649,7 +649,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._insn_addr_to_memory_data = { }
 
         self._initial_state = None
-        self._next_addr = self._start
+        self._next_addr = None
 
         # Create the segment list
         self._seg_list = SegmentList()
@@ -749,10 +749,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         # TODO: Take care of those functions that are already generated
-        curr_addr = self._next_addr
+        if self._next_addr is None:
+            self._next_addr = self.project.loader.min_addr()
+            curr_addr = self._next_addr
+        else:
+            curr_addr = self._next_addr + 1
+
         if self._seg_list.has_blocks:
-            if self._seg_list.is_occupied(curr_addr):
-                curr_addr = self._seg_list.next_free_pos(curr_addr + 1)
+            curr_addr = self._seg_list.next_free_pos(curr_addr)
 
         if alignment is not None:
             if curr_addr % alignment > 0:
