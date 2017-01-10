@@ -323,13 +323,13 @@ class CFGBase(Analysis):
 
         return None
 
-    def irsb_from_node(self, cfg_node):
+    def irsb_from_node(self, cfg_node):  # pylint:disable=unused-argument
         """
         Create an IRSB from a CFGNode object.
         """
         raise DeprecationWarning('"irsb_from_node()" is deprecated since SimIRSB does not exist anymore.')
 
-    def get_any_irsb(self, addr):
+    def get_any_irsb(self, addr):  # pylint:disable=unused-argument
         """
         Returns an IRSB of a certain address. If there are many IRSBs with the same address in CFG, return an arbitrary
         one.
@@ -372,7 +372,7 @@ class CFGBase(Analysis):
 
         return self._graph.nodes_iter()
 
-    def get_all_irsbs(self, addr):
+    def get_all_irsbs(self, addr):  # pylint:disable=unused-argument
         """
         Returns all IRSBs of a certain address, without considering contexts.
         """
