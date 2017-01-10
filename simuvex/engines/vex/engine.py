@@ -400,7 +400,19 @@ class SimEngineVEX(SimEngine):
         cache_key = (addr, insn_bytes, max_size, num_inst, thumb, opt_level)
         if self._use_cache and cache_key in self._block_cache is not None:
             self._cache_hit_count += 1
-            return self._truncate(self._block_cache[cache_key])
+            irsb = self._block_cache[cache_key]
+            stop_point = self._first_stoppoint(irsb)
+            if stop_point is None:
+                return irsb
+            else:
+                max_size = stop_point - addr
+                # check the cache again
+                cache_key = (addr, insn_bytes, max_size, num_inst, thumb, opt_level)
+                if cache_key in self._block_cache:
+                    self._cache_hit_count += 1
+                    return self._block_cache[cache_key]
+                else:
+                    self._cache_miss_count += 1
         else:
             self._cache_miss_count += 1
 
@@ -418,14 +430,23 @@ class SimEngineVEX(SimEngine):
         pyvex.set_iropt_level(opt_level)
 
         try:
-            irsb = pyvex.IRSB(buff, addr + thumb, arch,
-                              num_bytes=size,
-                              num_inst=num_inst,
-                              bytes_offset=thumb,
-                              traceflags=traceflags)
-            if self._use_cache:
-                self._block_cache[cache_key] = irsb
-            return self._truncate(irsb)
+            for subphase in xrange(2):
+                irsb = pyvex.IRSB(buff, addr + thumb, arch,
+                                  num_bytes=size,
+                                  num_inst=num_inst,
+                                  bytes_offset=thumb,
+                                  traceflags=traceflags)
+
+                if subphase == 0:
+                    # check for possible stop points
+                    stop_point = self._first_stoppoint(irsb)
+                    if stop_point is not None:
+                        size = stop_point - addr
+                        continue
+
+                if self._use_cache:
+                    self._block_cache[cache_key] = irsb
+                return irsb
 
         # phase x: error handling
         except pyvex.PyVEXError:
@@ -469,13 +490,13 @@ class SimEngineVEX(SimEngine):
         size = min(max_size, size)
         return buff, size
 
-    def _truncate(self, irsb):
+    def _first_stoppoint(self, irsb):
         """
-        Enumerate the imarks in the block. If any of them (after the first one) are at a stop
-        point, clone the block and truncate it at that imark.
+        Enumerate the imarks in the block. If any of them (after the first one) are at a stop point, returns the address
+        of the stop point. None is returned otherwise.
         """
         if self._stop_points is None:
-            return irsb
+            return None
 
         first_imark = True
         for i, stmt in enumerate(irsb.statements):
@@ -483,17 +504,10 @@ class SimEngineVEX(SimEngine):
                 addr = stmt.addr + stmt.delta
                 if not first_imark and addr in self._stop_points:
                     # could this part be moved by pyvex?
-                    new_irsb = copy.copy(irsb)
-                    new_irsb.statements = irsb.statements[:i]
-                    new_irsb.jumpkind = 'Ijk_Boring'
-                    con_ty = 'Ico_U%d' % irsb.arch.bits
-                    con_cls = pyvex.const.tag_to_class[pyvex.enums_to_ints[con_ty]]
-                    new_irsb.next = pyvex.expr.Const(con_cls(addr))
-                    new_irsb._direct_next = True
-                    return new_irsb
+                    return addr
 
                 first_imark = False
-        return irsb
+        return None
 
     def clear_cache(self):
         self._block_cache = LRUCache(maxsize=self._cache_size)
