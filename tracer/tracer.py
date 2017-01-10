@@ -320,7 +320,7 @@ class Tracer(object):
                     target_to_jumpkind = bl.vex.constant_jump_targets_and_jumpkinds
                     if target_to_jumpkind[self.trace[self.bb_cnt]] == "Ijk_Boring":
                         bbl_max_bytes = 800
-            except angr.lifter.AngrMemoryError:
+            except (simuvex.s_errors.SimMemoryError, simuvex.s_errors.SimEngineError):
                 bbl_max_bytes = 800
 
             # if we're not in crash mode we don't care about the history
