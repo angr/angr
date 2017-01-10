@@ -3283,6 +3283,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     else:
                         addr_0 = addr - 1
 
+                    if addr_0 in self._nodes:
+                        # it has been analyzed before
+                        cfg_node = self._nodes[addr_0]
+                        irsb = cfg_node.irsb
+                        return addr_0, cfg_node.function_address, cfg_node, irsb
+
                     try:
                         irsb = self.project.factory.block(addr_0, max_size=distance).vex
                     except AngrTranslationError:
