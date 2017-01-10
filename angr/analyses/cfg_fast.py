@@ -1205,7 +1205,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if addr in self._function_addresses_from_symbols:
             current_function_addr = addr
 
-        if self.project.is_hooked(addr):
+        if self.project.is_hooked(addr) or self.project._simos.syscall_table.get_by_addr(addr) is not None:
             entries = self._scan_procedure(addr, current_function_addr, previous_jumpkind, previous_src_node,
                                            previous_src_ins_addr, previous_src_stmt_idx)
 
@@ -1218,12 +1218,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _scan_procedure(self, addr, current_function_addr, previous_jumpkind, previous_src_node, previous_src_ins_addr,
                         previous_src_stmt_idx):
         try:
-            hooker = self.project.hooked_by(addr)
+            if self.project.is_hooked(addr):
+                hooker = self.project.hooked_by(addr)
+                name = hooker.name
+                procedure = hooker.procedure
+            else:
+                syscall = self.project._simos.syscall_table.get_by_addr(addr)
+                name = syscall.name
+                procedure = syscall.simproc
 
             if addr not in self._nodes:
                 cfg_node = CFGNode(addr, 0, self, function_address=current_function_addr,
-                                   simprocedure_name=hooker.name,
-                                   no_ret=hooker.procedure.NO_RET,
+                                   simprocedure_name=name,
+                                   no_ret=procedure.NO_RET,
                                    block_id=addr,
                                    )
 
@@ -1251,17 +1258,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         entries = [ ]
 
-        if hooker.procedure.ADDS_EXITS:
+        if procedure.ADDS_EXITS:
             # Get two blocks ahead
             grandparent_nodes = self.graph.predecessors(previous_src_node)
             if not grandparent_nodes:
-                l.warning("%s is supposed to yield new exits, but it fails to do so.", hooker.name)
+                l.warning("%s is supposed to yield new exits, but it fails to do so.", name)
                 return [ ]
             blocks_ahead = [
                 self.project.factory.block(grandparent_nodes[0].addr).vex,
                 self.project.factory.block(previous_src_node.addr).vex,
             ]
-            new_exits = hooker.procedure(addr, self.project.arch, is_function=False).static_exits(blocks_ahead)
+            new_exits = procedure(addr, self.project.arch, is_function=False).static_exits(blocks_ahead)
 
             for addr, jumpkind in new_exits:
                 if isinstance(addr, claripy.ast.BV) and not addr.symbolic:
