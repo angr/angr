@@ -10,7 +10,7 @@ from ... import s_options as o
 from ...plugins.inspect import BP_AFTER, BP_BEFORE
 from ...s_action import SimActionExit, SimActionObject
 from ...s_errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException,
-                         UnsupportedDirtyError, SimTranslationError, SimEngineError
+                         UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError
                          )
 from ..engine import SimEngine
 from .statements import translate_stmt
@@ -407,7 +407,7 @@ class SimEngineVEX(SimEngine):
 
         # phase 4: check cache
         cache_key = (addr, insn_bytes, max_size, num_inst, thumb, opt_level)
-        if self._use_cache and cache_key in self._block_cache is not None:
+        if self._use_cache and cache_key in self._block_cache:
             self._cache_hit_count += 1
             irsb = self._block_cache[cache_key]
             stop_point = self._first_stoppoint(irsb)
