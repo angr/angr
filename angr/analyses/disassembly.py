@@ -3,7 +3,7 @@ from collections import defaultdict
 import logging
 
 from ..analysis import Analysis, register_analysis
-from ..lifter import CapstoneInsn
+from ..block import CapstoneInsn
 
 from .disassembly_utils import decode_instruction
 

@@ -145,8 +145,22 @@ class Project(object):
                 translation_cache = False
                 l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
 
+
+        vex_engine = simuvex.SimEngineVEX(
+                stop_points=self._sim_procedures,
+                use_cache=translation_cache,
+                support_selfmodifying_code=support_selfmodifying_code)
+        procedure_engine = SimEngineHook(self)
+        error_engine = SimEngineError(self)
+        syscall_engine = SimEngineSyscall(self)
+        unicorn_engine = simuvex.SimEngineUnicorn(self._sim_procedures)
+
         self.entry = self.loader.main_bin.entry
-        self.factory = AngrObjectFactory(self, translation_cache=translation_cache)
+        self.factory = AngrObjectFactory(
+                self,
+                vex_engine,
+                procedure_engine,
+                [error_engine, syscall_engine, procedure_engine, unicorn_engine, vex_engine])
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
         self.kb = KnowledgeBase(self, self.loader.main_bin)
@@ -433,15 +447,14 @@ class Project(object):
 
     def __getstate__(self):
         try:
-            factory, analyses, surveyors = self.factory, self.analyses, self.surveyors
-            self.factory, self.analyses, self.surveyors = None, None, None
+            analyses, surveyors = self.analyses, self.surveyors
+            self.analyses, self.surveyors = None, None
             return dict(self.__dict__)
         finally:
-            self.factory, self.analyses, self.surveyors = factory, analyses, surveyors
+            self.analyses, self.surveyors = analyses, surveyors
 
     def __setstate__(self, s):
         self.__dict__.update(s)
-        self.factory = AngrObjectFactory(self)
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
 
@@ -552,3 +565,4 @@ from .extern_obj import AngrExternObject
 from .analysis import Analyses
 from .surveyor import Surveyors
 from .knowledge_base import KnowledgeBase
+from .engines import SimEngineError, SimEngineSyscall, SimEngineHook

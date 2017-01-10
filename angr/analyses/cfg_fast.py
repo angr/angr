@@ -21,7 +21,8 @@ from .cfg_node import CFGNode
 from .cfg_base import CFGBase, IndirectJump
 from .forward_analysis import ForwardAnalysis
 from .cfg_arch_options import CFGArchOptions
-from ..lifter import VEX_IRSB_MAX_SIZE
+
+VEX_IRSB_MAX_SIZE = 400
 
 l = logging.getLogger("angr.analyses.cfg_fast")
 
