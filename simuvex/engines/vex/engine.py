@@ -446,7 +446,7 @@ class SimEngineVEX(SimEngine):
                 pass
 
         # If that didn't work, try to load from the state
-        if size == 0:
+        if size == 0 and state:
             if addr in state.memory and addr + max_size - 1 in state.memory:
                 buff = state.se.any_str(state.memory.load(addr, max_size))
                 size = max_size
