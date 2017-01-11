@@ -105,7 +105,9 @@ class Block(object):
                     clemory=self._project.loader.memory,
                     insn_bytes=self._bytes,
                     addr=self.addr,
-                    thumb=self.thumb)
+                    thumb=self.thumb,
+                    max_size=self.size,
+            )
             self._parse_vex_info()
 
         return self._vex
