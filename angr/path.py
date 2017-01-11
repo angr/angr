@@ -1,7 +1,6 @@
 from os import urandom
 import copy
 import sys
-import ipdb
 import logging
 l = logging.getLogger("angr.path")
 
@@ -756,6 +755,7 @@ class ErroredPath(Path):
         return super(ErroredPath, self).step(**kwargs)
 
     def debug(self):
+        import ipdb
         ipdb.post_mortem(self.traceback)
 
 
