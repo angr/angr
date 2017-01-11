@@ -2346,7 +2346,7 @@ class Reassembler(Analysis):
             # switch capstone to AT&T style
             self.project.arch.capstone_x86_syntax = "at&t"
             # clear the block cache in lifter!
-            self.project.factory._lifter.clear_cache()
+            self.project.factory.default_engine.clear_cache()
 
         # initialize symbol manager
         self.symbol_manager = SymbolManager(self, cfg)
@@ -2538,7 +2538,7 @@ class Reassembler(Analysis):
         # restore capstone X86 syntax at the end
         if self.project.arch.capstone_x86_syntax != old_capstone_syntax:
             self.project.arch.capstone_x86_syntax = old_capstone_syntax
-            self.project.factory._lifter.clear_cache()
+            self.project.factory.default_engine.clear_cache()
 
         l.debug('Initialized.')
 
