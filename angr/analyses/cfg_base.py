@@ -1024,6 +1024,8 @@ class CFGBase(Analysis):
 
         for func_addr in self.kb.functions.keys():
             function = self.kb.functions[func_addr]
+            if function.is_simprocedure or function.is_syscall:
+                continue
             if len(function.block_addrs_set) == 1:
                 block = next((b for b in function.blocks), None)
                 if block is None:
