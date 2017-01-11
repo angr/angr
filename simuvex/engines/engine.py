@@ -23,7 +23,7 @@ class SimEngine(object):
         addr = state.se.any_int(state.ip) if force_addr is None else force_addr
 
         # make a copy of the initial state for actual processing, if needed
-        if not inline and o.COW_STATES in state.options:
+        if (not inline and o.COW_STATES in state.options) and o.UNICORN not in state.options:
             new_state = state.copy()
         else:
             new_state = state
