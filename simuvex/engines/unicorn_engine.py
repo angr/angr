@@ -1,5 +1,5 @@
 import logging
-l = logging.getLogger('simuvex.s_unicorn')
+l = logging.getLogger('simuvex.engines.unicorn_engine')
 
 from ..engines import SimEngine
 
