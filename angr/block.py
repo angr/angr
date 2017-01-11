@@ -8,7 +8,7 @@ from archinfo import ArchARM
 class Block(object):
     BLOCK_MAX_SIZE = 4096
 
-    __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'instructions', 'instruction_addrs']
+    __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'instructions', '_instruction_addrs']
 
     def __init__(self, project, addr, size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
                  opt_level=None, num_inst=None):
@@ -45,7 +45,7 @@ class Block(object):
         self.size = size
 
         self.instructions = None
-        self.instruction_addrs = []
+        self._instruction_addrs = []
 
         self._parse_vex_info()
 
@@ -65,14 +65,14 @@ class Block(object):
         vex = self._vex
         if vex is not None:
             self.instructions = vex.instructions
-            self.instruction_addrs = []
+            self._instruction_addrs = []
 
             for stmt in vex.statements:
                 if stmt.tag != 'Ist_IMark':
                     continue
                 if self.addr is None:
                     self.addr = stmt.addr + stmt.delta
-                self.instruction_addrs.append(stmt.addr + stmt.delta)
+                self._instruction_addrs.append(stmt.addr + stmt.delta)
 
     def __repr__(self):
         return '<Block for %#x, %d bytes>' % (self.addr, self.size)
@@ -138,6 +138,13 @@ class Block(object):
             self._bytes = ''.join(self._project.loader.memory.read_bytes(addr, self.size))
         return self._bytes
 
+    @property
+    def instruction_addrs(self):
+        if not self._instruction_addrs and self._vex is None:
+            # initialize instruction addrs
+            _ = self.vex
+
+        return self._instruction_addrs
 
 class CapstoneBlock(object):
     """
