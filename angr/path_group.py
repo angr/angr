@@ -235,7 +235,7 @@ class PathGroup(ana.Storable):
         if len(self._hooks_filter) == 0:
             new_active.extend(successors)
         else:
-            for path in successors:
+            for i, path in enumerate([a] + successors):
                 for hook in self._hooks_filter:
                     goto = hook(path)
                     if goto is None:
@@ -251,6 +251,11 @@ class PathGroup(ana.Storable):
                         break
                 else:
                     new_active.append(path)
+                    continue
+
+                # If we found a solution on the pre-step path, return early.
+                if i == 0:
+                    return
 
         if self.save_unconstrained:
             new_stashes['unconstrained'] += unconstrained
