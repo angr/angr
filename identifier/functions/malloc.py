@@ -60,8 +60,8 @@ class malloc(Func):
             return False
 
         # if they are all multiples of 0x1000 it seems to be always calling allocate
-        if all(a % 0x1000 == returned_locs[0] % 0x1000 for a in returned_locs):
-            return False
+        #if all(a % 0x1000 == returned_locs[0] % 0x1000 for a in returned_locs):
+        #    return False
 
         # they all should be writable/readable
         try:
