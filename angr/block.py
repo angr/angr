@@ -3,16 +3,30 @@ l = logging.getLogger('angr.block')
 
 import pyvex
 from archinfo import ArchARM
+from simuvex import SimEngineVEX
 
+DEFAULT_VEX_ENGINE = SimEngineVEX()  # this is only used when Block is not initialized with a project
 
 class Block(object):
     BLOCK_MAX_SIZE = 4096
 
-    __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'instructions', '_instruction_addrs']
+    __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'arch', 'instructions',
+                 '_instruction_addrs'
+                 ]
 
-    def __init__(self, project, addr, size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
+    def __init__(self, addr, project=None, arch=None, size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
                  opt_level=None, num_inst=None):
-        if isinstance(project.arch, ArchARM):
+
+        # set up arch
+        if project is not None:
+            self.arch = project.arch
+        else:
+            self.arch = arch
+
+        if self.arch is None:
+            raise ValueError('Either "project" or "arch" has to be specified.')
+
+        if isinstance(self.arch, ArchARM):
             if addr & 1 == 1:
                 thumb = True
             if thumb:
@@ -24,13 +38,16 @@ class Block(object):
         self.thumb = thumb
         self.addr = addr
 
+        if self._project is None and byte_string is None:
+            raise ValueError('"byte_string" has to be specified if "project" is not provided.')
+
         if size is None:
             if byte_string is not None:
                 size = len(byte_string)
             elif vex is not None:
                 size = vex.size
             else:
-                vex = project.factory.default_engine.lift(
+                vex = self._vex_engine.lift(
                         clemory=project.loader.memory,
                         state=backup_state,
                         insn_bytes=byte_string,
@@ -99,10 +116,17 @@ class Block(object):
         return self.capstone.pp()
 
     @property
+    def _vex_engine(self):
+        if self._project is None:
+            return DEFAULT_VEX_ENGINE
+        else:
+            return self._project.factory.default_engine
+
+    @property
     def vex(self):
         if not self._vex:
-            self._vex = self._project.factory.default_engine.lift(
-                    clemory=self._project.loader.memory,
+            self._vex = self._vex_engine.lift(
+                    clemory=self._project.loader.memory if self._project is not None else None,
                     insn_bytes=self._bytes,
                     addr=self.addr,
                     thumb=self.thumb,
@@ -116,13 +140,13 @@ class Block(object):
     def capstone(self):
         if self._capstone: return self._capstone
 
-        cs = self._project.arch.capstone if not self.thumb else self._project.arch.capstone_thumb
+        cs = self.arch.capstone if not self.thumb else self.arch.capstone_thumb
 
         insns = []
 
         for cs_insn in cs.disasm(self.bytes, self.addr):
             insns.append(CapstoneInsn(cs_insn))
-        block = CapstoneBlock(self.addr, insns, self.thumb, self._project.arch)
+        block = CapstoneBlock(self.addr, insns, self.thumb, self.arch)
 
         self._capstone = block
         return block
