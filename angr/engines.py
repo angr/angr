@@ -15,7 +15,7 @@ class SimEngineFailure(SimEngine):
 
     def _check(self, state, **kwargs):
 
-        addr = state.se.any_int(state.ip)
+        addr = state.se.any_int(state._ip)
         jumpkind = state.scratch.jumpkind
 
         if jumpkind in ('Ijk_EmFail', 'Ijk_MapFail') or jumpkind.startswith('Ijk_Sig'):
@@ -27,7 +27,7 @@ class SimEngineFailure(SimEngine):
         return False
 
     def process(self, state, **kwargs):
-        addr = state.se.any_int(state.ip)
+        addr = state.se.any_int(state._ip)
 
         if state.scratch.jumpkind in ("Ijk_EmFail", "Ijk_MapFail") or "Ijk_Sig" in state.scratch.jumpkind:
             raise AngrExitError("Cannot execute following jumpkind %s" % state.scratch.jumpkind)
@@ -60,12 +60,12 @@ class SimEngineSyscall(SimEngine):
         return True
 
     def process(self, state, **kwargs):
-        addr = state.se.any_int(state.ip)
+        addr = state.se.any_int(state._ip)
 
         l.debug("Invoking system call handler")
 
         # The ip_at_syscall register is misused to save the return address for this syscall
-        ret_to = state.regs.ip_at_syscall
+        ret_to = state.regs._ip_at_syscall
 
         sys_procedure = self.project._simos.handle_syscall(state)
         return self.project.factory.procedure_engine.process(
@@ -120,11 +120,11 @@ class SimEngineHook(SimEngineProcedure):
         if state.scratch.jumpkind == 'Ijk_NoHook':
             return False
 
-        if state.ip.symbolic:
+        if state._ip.symbolic:
             # symbolic IP is not supported
             return False
 
-        addr = state.se.exactly_int(state.ip)
+        addr = state.se.exactly_int(state._ip)
 
         if procedure is None:
             if addr not in self.project._sim_procedures:
