@@ -1,5 +1,6 @@
 from simuvex import SimState
 from simuvex import s_cc
+from simuvex import s_options as options
 from .surveyors.caller import Callable
 
 import logging
@@ -30,14 +31,15 @@ class AngrObjectFactory(object):
     def sim_block(self, state, **run_opts):
         return self.default_engine.process(state, **run_opts)
 
-    def sim_run(self, state, addr=None, jumpkind=None, **kwargs):
+    def sim_run(self, state, addr=None, jumpkind=None, inline=False, **kwargs):
         """
         Perform execution using any applicable engine. Enumerate the current engines and use the
         first one that works. Return a SimSuccessors object classifying the results of the run.
 
         :param state:       The state to analyze
-        :param jumpkind:    optional, the jumpkind of the previous exit
         :param addr:        optional, an address to execute at instead of the state's ip
+        :param jumpkind:    optional, the jumpkind of the previous exit
+        :param inline:      This is an inline execution. Do not bother copying the state.
 
         Additional keyword arguments will be passed directly into each engine's process method.
         """
@@ -51,9 +53,17 @@ class AngrObjectFactory(object):
 
         r = None
         for engine in self.engines:
-            r = engine.process(state, **kwargs)
-            if r.processed:
-                break
+            if engine.check(state, inline=inline, **kwargs):
+
+                if not inline and options.COW_STATES in state.options:
+                    # make a copy of the initial state for actual processing, if needed
+                    new_state = state.copy()
+                else:
+                    new_state = state
+
+                r = engine.process(new_state, inline=inline,**kwargs)
+                if r.processed:
+                    break
 
         if r is None or not r.processed:
             raise AngrExitError("All engines failed to execute!")

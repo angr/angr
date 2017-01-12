@@ -8,7 +8,23 @@ l = logging.getLogger('angr.engines')
 
 class SimEngineFailure(SimEngine):
     def __init__(self, project):
+
+        super(SimEngineFailure, self).__init__()
+
         self.project = project
+
+    def _check(self, state, **kwargs):
+
+        addr = state.se.any_int(state.ip)
+        jumpkind = state.scratch.jumpkind
+
+        if jumpkind in ('Ijk_EmFail', 'Ijk_MapFail') or jumpkind.startswith('Ijk_Sig'):
+            return True
+        if jumpkind == 'Ijk_NoDecode' and not self.project.is_hooked(addr):
+            return True
+        if jumpkind == 'Ijk_Exit':
+            return True
+        return False
 
     def process(self, state, **kwargs):
         addr = state.se.any_int(state.ip)
@@ -33,13 +49,18 @@ class SimEngineFailure(SimEngine):
 
 class SimEngineSyscall(SimEngine):
     def __init__(self, project):
+        super(SimEngineSyscall, self).__init__()
+
         self.project = project
+
+    def _check(self, state, **kwargs):
+        if not state.scratch.jumpkind.startswith('Ijk_Sys'):
+            return False
+
+        return True
 
     def process(self, state, **kwargs):
         addr = state.se.any_int(state.ip)
-
-        if not state.scratch.jumpkind.startswith('Ijk_Sys'):
-            return SimSuccessors.failure()
 
         l.debug("Invoking system call handler")
 
@@ -56,7 +77,24 @@ class SimEngineSyscall(SimEngine):
 
 class SimEngineHook(SimEngineProcedure):
     def __init__(self, project):
+        super(SimEngineHook, self).__init__()
+
         self.project = project
+
+    def check(self, state,
+              procedure=None,
+              **kwargs):
+        """
+        Check if SimEngineHook can handle the current state or not.
+
+        :param simuvex.SimState state: The state to work with.
+        :param SimProcedure procedure: An instance of a SimProcedure to run. Optional.
+        :param kwargs:                 Other arguments.
+        :return:                       True or False.
+        :rtype:                        bool
+        """
+
+        return super(SimEngineHook, self).check(state, procedure, **kwargs)
 
     def process(self, state,
             procedure=None,
@@ -77,6 +115,22 @@ class SimEngineHook(SimEngineProcedure):
                 ret_to=ret_to,
                 inline=inline,
                 force_addr=force_addr)
+
+    def _check(self, state, procedure=None, **kwargs):
+        if state.scratch.jumpkind == 'Ijk_NoHook':
+            return False
+
+        if state.ip.symbolic:
+            # symbolic IP is not supported
+            return False
+
+        addr = state.se.exactly_int(state.ip)
+
+        if procedure is None:
+            if addr not in self.project._sim_procedures:
+                return False
+
+        return super(SimEngineHook, self)._check(state, procedure, **kwargs)
 
     def _process(self, state, successors, procedure=None, **kwargs):
         addr = successors.addr
