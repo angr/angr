@@ -10,6 +10,9 @@ class SimEngineUnicorn(SimEngine):
     Concrete exection in the Unicorn Engine, a fork of qemu.
     """
     def __init__(self, base_stop_points=None):
+
+        super(SimEngineUnicorn, self).__init__(check_failed=self._countdown)
+
         self.base_stop_points = base_stop_points
 
     def process(self, state,
@@ -34,8 +37,34 @@ class SimEngineUnicorn(SimEngine):
                 inline=inline,
                 force_addr=force_addr)
 
+    def _check(self, state, **kwargs):
+
+        if o.UNICORN not in state.options:
+            l.debug('Unicorn-engine is not enabled.')
+            return False
+
+        unicorn = state.unicorn  # shorthand
+        if state.regs.ip.symbolic:
+            l.debug("symbolic IP!")
+            return False
+        if unicorn.countdown_symbolic_registers > 0:
+            l.debug("not enough blocks since symbolic registers (%d more)", unicorn.countdown_symbolic_registers)
+            return False
+        if unicorn.countdown_symbolic_memory > 0:
+            l.info("not enough blocks since symbolic memory (%d more)", unicorn.countdown_symbolic_memory)
+            return False
+        if unicorn.countdown_nonunicorn_blocks > 0:
+            l.info("not enough runs since last unicorn (%d)", unicorn.countdown_nonunicorn_blocks)
+            return False
+        elif o.UNICORN_SYM_REGS_SUPPORT not in state.options and not unicorn._check_registers():
+            l.info("failed register check")
+            unicorn.countdown_symbolic_registers = unicorn.cooldown_symbolic_registers
+            return False
+
+        return True
+
     def _process(self, state, successors, step, extra_stop_points):
-        if o.UNICORN not in state.options or not state.unicorn.check():
+        if o.UNICORN not in state.options:
             return
         if extra_stop_points is None:
             extra_stop_points = set(self.base_stop_points)
@@ -80,6 +109,9 @@ class SimEngineUnicorn(SimEngine):
 
         successors.description = 'Unicorn (%s after %d steps)' % (STOP.name_stop(state.unicorn.stop_reason), state.unicorn.steps)
         successors.processed = True
+
+    def _countdown(self, state, *args, **kwargs):
+        state.unicorn.decrement_countdowns()
 
 from ..plugins.unicorn_engine import STOP
 from .. import s_options as o

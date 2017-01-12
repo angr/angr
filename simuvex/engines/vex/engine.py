@@ -35,6 +35,9 @@ class SimEngineVEX(SimEngine):
             default_opt_level=1,
             support_selfmodifying_code=False,
             single_step=False):
+
+        super(SimEngineVEX, self).__init__()
+
         self._stop_points = stop_points
         self._use_cache = use_cache
         self._default_opt_level = default_opt_level
@@ -89,6 +92,9 @@ class SimEngineVEX(SimEngine):
                 traceflags=traceflags,
                 thumb=thumb,
                 opt_level=opt_level)
+
+    def _check(self, state, *args, **kwargs):
+        return True
 
     def _process(self, state, successors, irsb=None, skip_stmts=0, last_stmt=99999999, whitelist=None, insn_bytes=None, max_size=None, num_inst=None, traceflags=0, thumb=False, opt_level=None):
         successors.sort = 'IRSB'
