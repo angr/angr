@@ -494,7 +494,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         size = max_size
         if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
-            return [ ], self.get_unconstrained_bytes("symbolic_read_" + ','.join(self.state.se.variables(dst)), size*8), [ ]
+            return [ ], self.get_unconstrained_bytes("symbolic_read_unconstrained", size*8), [ ]
 
         # get a concrete set of read addresses
         try:
@@ -502,7 +502,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         except SimMemoryError:
             if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
                 return [ ], self.get_unconstrained_bytes(
-                    "symbolic_read_" + ','.join(self.state.se.variables(dst)), size*8
+                    "symbolic_read_unconstrained", size*8
                 ), [ ]
             else:
                 raise
