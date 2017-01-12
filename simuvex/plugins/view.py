@@ -9,18 +9,54 @@ class SimRegNameView(SimStatePlugin):
         super(SimRegNameView, self).__init__()
 
     def __getattr__(self, k):
+        """
+        Get the value of a register.
+
+        :param str k: Name of the register. Prefix it with "_" prevents SimInspect being triggered and SimActions being
+                      created.
+        :param v:     Value to set to the register.
+        :return:      Value of the register.
+        :rtype:       claripy.ast.Base
+        """
+
         state = super(SimRegNameView, self).__getattribute__('state')
+
+        if isinstance(k, str) and k.startswith('_'):
+            k = k[1:]
+            inspect = False
+            disable_actions = True
+        else:
+            inspect = True
+            disable_actions = False
+
         try:
-            return state.registers.load(k)
+            return state.registers.load(k, inspect=inspect, disable_actions=disable_actions)
         except KeyError:
             return super(SimRegNameView, self).__getattribute__(k)
 
     def __setattr__(self, k, v):
+        """
+        Set value to a register.
+
+        :param str k: Name of the register. Prefix it with "_" prevents SimInspect being triggered and SimActions being
+                      created.
+        :param v:     Value to set to the register.
+        :return:      None
+        """
+
         if k == 'state' or k in dir(SimStatePlugin):
             return object.__setattr__(self, k, v)
 
+        if isinstance(k, str) and k.startswith('_'):
+            k = k[1:]
+            inspect = False
+            disable_actions = True
+        else:
+            inspect = True
+            disable_actions = False
+
         try:
-            return self.state.registers.store(k, v)
+            return self.state.registers.store(k, v, inspect=inspect, disable_actions=disable_actions)
         except KeyError:
             raise AttributeError(k)
 
