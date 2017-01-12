@@ -86,7 +86,7 @@ def test_inspect():
     nose.tools.assert_equals(counts.tmp_write, 1)
     nose.tools.assert_equals(counts.tmp_read, 1)
     nose.tools.assert_equals(counts.expr, 3) # one for the Put, one for the WrTmp, and one to get the next address to jump to
-    nose.tools.assert_equals(counts.statement, 26)
+    nose.tools.assert_equals(counts.statement, 11)
     nose.tools.assert_equals(counts.instruction, 2)
     nose.tools.assert_equals(counts.constraints, 0)
     nose.tools.assert_equals(counts.mem_write, 1)
