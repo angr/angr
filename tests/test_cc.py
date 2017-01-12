@@ -1,6 +1,8 @@
 import nose
 from simuvex import SimState, SimProcedures
 
+FAKE_ADDR = 0x100000
+
 def test_calling_conventions():
 
     #
@@ -26,9 +28,9 @@ def test_calling_conventions():
             s.registers.store(reg, val)
 
         if cc is not None:
-            manyargs = SimProcedures['testing']['manyargs'](s, inline=True, convention=cc(s.arch))
+            manyargs = SimProcedures['testing']['manyargs'](FAKE_ADDR, s.arch, convention=cc(s.arch)).execute(s)
         else:
-            manyargs = SimProcedures['testing']['manyargs'](s, inline=True)
+            manyargs = SimProcedures['testing']['manyargs'](FAKE_ADDR, s.arch).execute(s)
 
         # Simulate a call
         if s.arch.call_pushes_ret:
