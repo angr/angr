@@ -277,7 +277,15 @@ class AngrObjectFactory(object):
                                   func_ty=func_ty)
 
     def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
-              opt_level=None, num_inst=None):
+              opt_level=None, num_inst=None,
+              insn_bytes=None  # backward compatibility
+              ):
+
+        if insn_bytes is not None:
+            # raise a deprecation warning in the future
+            l.warning('Keyword argument "insn_bytes" has been deprecated for block(). Please use "byte_string" instead.')
+            byte_string = insn_bytes
+
         if max_size is not None: size = max_size
         return Block(addr, project=self._project, size=size, byte_string=byte_string, vex=vex, thumb=thumb,
                      backup_state=backup_state, opt_level=opt_level, num_inst=num_inst
