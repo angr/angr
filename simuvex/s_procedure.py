@@ -118,7 +118,7 @@ class SimProcedure(object):
             if arguments is None:
                 sim_args = [ self.arg(_) for _ in xrange(self.num_args) ]
             else:
-                sim_args = self.arguments
+                sim_args = self.arguments[:self.num_args]
 
             # handle if this is a continuation from a return
             if self.is_continuation:
