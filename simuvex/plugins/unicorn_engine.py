@@ -1267,7 +1267,12 @@ class Unicorn(SimStatePlugin):
         #l.debug('passed quick check')
         return True
 
-    def check(self):
+    def decrement_countdowns(self):
+        """
+        Decrement all cool-down counters. This method is called whenever a path is stepped forward.
+
+        :return: None
+        """
         if unicorn is None or _UC_NATIVE is None:
             global _install_warning
             if not _install_warning:
@@ -1279,24 +1284,6 @@ class Unicorn(SimStatePlugin):
         self.countdown_symbolic_registers -= 1
         self.countdown_symbolic_memory -= 1
 
-        if self.state.regs.ip.symbolic:
-            l.info("symbolic IP!")
-            return False
-        if self.countdown_symbolic_registers > 0:
-            l.info("not enough blocks since symbolic registers (%d more)", self.countdown_symbolic_registers)
-            return False
-        if self.countdown_symbolic_memory > 0:
-            l.info("not enough blocks since symbolic memory (%d more)", self.countdown_symbolic_memory)
-            return False
-        if self.countdown_nonunicorn_blocks > 0:
-            l.info("not enough runs since last unicorn (%d)", self.countdown_nonunicorn_blocks)
-            return False
-        elif options.UNICORN_SYM_REGS_SUPPORT not in self.state.options and not self._check_registers():
-            l.info("failed register check")
-            self.countdown_symbolic_registers = self.cooldown_symbolic_registers
-            return False
-
-        return True
 
 from ..engines.vex import ccall
 from .. import s_options as options

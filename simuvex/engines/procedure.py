@@ -10,6 +10,9 @@ class SimEngineProcedure(SimEngine):
     An engine for running SimProcedures
     """
 
+    def __init__(self):
+        super(SimEngineProcedure, self).__init__()
+
     def process(self, state, procedure,
             ret_to=None,
             inline=None,
@@ -29,6 +32,9 @@ class SimEngineProcedure(SimEngine):
                 ret_to=ret_to,
                 inline=inline,
                 force_addr=force_addr)
+
+    def _check(self, state, *args, **kwargs):
+        return True
 
     def _process(self, state, successors, procedure, ret_to=None):
         successors.sort = 'SimProcedure'
