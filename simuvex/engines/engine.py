@@ -25,7 +25,7 @@ class SimEngine(object):
         """
         inline = kwargs.pop('inline', False)
         force_addr = kwargs.pop('force_addr', None)
-        addr = new_state.se.any_int(new_state.ip) if force_addr is None else force_addr
+        addr = new_state.se.any_int(new_state._ip) if force_addr is None else force_addr
 
         # clear the log (unless we're inlining)
         if not inline:

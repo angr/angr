@@ -368,7 +368,7 @@ class SimEngineVEX(SimEngine):
 
         # phase 1: parameter defaults
         if addr is None:
-            addr = state.se.any_int(state.ip)
+            addr = state.se.any_int(state._ip)
         if max_size is not None:
             max_size = min(max_size, VEX_IRSB_MAX_SIZE)
         if max_size is None:
