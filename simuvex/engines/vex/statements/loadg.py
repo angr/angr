@@ -44,4 +44,3 @@ class SimIRStmt_LoadG(SimIRStmt):
 
             r = SimActionData(self.state, self.state.memory.id, SimActionData.READ, addr=addr_ao, data=data_ao, condition=guard_ao, size=size_ao, fallback=alt_ao)
             self.actions.append(r)
-
