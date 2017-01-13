@@ -7,6 +7,7 @@ from errors import IdentifierException
 from runner import Runner
 import simuvex
 import angr
+from simuvex.s_errors import SimEngineError, SimMemoryError
 import os
 
 from networkx import NetworkXError
@@ -92,10 +93,8 @@ class Identifier(object):
             try:
                 func_info = self.find_stack_vars_x86(f)
                 self.func_info[f] = func_info
-            except angr.AngrTranslationError as e:
-                l.debug("angr translation error: %s", e.message)
-            except angr.AngrMemoryError as e:
-                l.debug("angr translation error: %s", e.message)
+            except (SimEngineError, SimMemoryError) as ex:
+                l.debug("angr translation error: %s", ex.message)
             except IdentifierException as e:
                 l.debug("Identifier Exception: %s", e.message)
 
