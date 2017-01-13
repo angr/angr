@@ -69,5 +69,18 @@ class SimEngine(object):
     def _process(self, new_state, successors, *args, **kwargs):
         raise NotImplementedError
 
+    #
+    # Pickling
+    #
+
+    # CPython cannot pickle methods, which is why we have special handlers here to avoid pickling callback registered
+    # with SimEngine.
+
+    def __setstate__(self, state):
+        self._check_failed = None
+
+    def __getstate__(self):
+        return { }
+
 from simuvex import s_options as o
 from .successors import SimSuccessors

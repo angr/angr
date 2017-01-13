@@ -114,5 +114,20 @@ class SimEngineUnicorn(SimEngine):
     def _countdown(state, *args, **kwargs):  # pylint:disable=unused-argument
         state.unicorn.decrement_countdowns()
 
+    #
+    # Pickling
+    #
+
+    def __setstate__(self, state):
+        super(SimEngineUnicorn, self).__setstate__(state)
+
+        self.base_stop_points = state['base_stop_points']
+        self._check_failed = self._countdown
+
+    def __getstate__(self):
+        s = super(SimEngineUnicorn, self).__getstate__()
+        s['base_stop_points'] = self.base_stop_points
+        return s
+
 from ..plugins.unicorn_engine import STOP
 from .. import s_options as o

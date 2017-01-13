@@ -44,6 +44,14 @@ class SimEngineVEX(SimEngine):
         self._single_step = single_step
         self._cache_size = cache_size
 
+        self._block_cache = None
+        self._cache_hit_count = 0
+        self._cache_miss_count = 0
+
+        self._initialize_block_cache()
+
+
+    def _initialize_block_cache(self):
         self._block_cache = LRUCache(maxsize=self._cache_size)
         self._cache_hit_count = 0
         self._cache_miss_count = 0
@@ -535,3 +543,32 @@ class SimEngineVEX(SimEngine):
 
         self._cache_hit_count = 0
         self._cache_miss_count = 0
+
+    #
+    # Pickling
+    #
+
+    def __setstate__(self, state):
+        super(SimEngineVEX, self).__setstate__(state)
+
+        self._stop_points = state['_stop_points']
+        self._use_cache = state['_use_cache']
+        self._default_opt_level = state['_default_opt_level']
+        self._support_selfmodifying_code = state['_support_selfmodifying_code']
+        self._single_step = state['_single_step']
+        self._cache_size = state['_cache_size']
+
+        # rebuild block cache
+        self._initialize_block_cache()
+
+    def __getstate__(self):
+        s = super(SimEngineVEX, self).__getstate__()
+
+        s['_stop_points'] = self._stop_points
+        s['_use_cache'] = self._use_cache
+        s['_default_opt_level'] = self._default_opt_level
+        s['_support_selfmodifying_code'] = self._support_selfmodifying_code
+        s['_single_step'] = self._single_step
+        s['_cache_size'] = self._cache_size
+
+        return s
