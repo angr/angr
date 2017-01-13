@@ -56,7 +56,7 @@ class SimEngineVEX(SimEngine):
             inline=False,
             force_addr=None,
             insn_bytes=None,
-            max_size=None,
+            size=None,
             num_inst=None,
             traceflags=0,
             thumb=False,
@@ -74,7 +74,7 @@ class SimEngineVEX(SimEngine):
         :param thumb:           Whether the block should be lifted in ARM's THUMB mode.
         :param opt_level:       The VEX optimization level to use.
         :param insn_bytes:      A string of bytes to use for the block instead of the project.
-        :param max_size:        The maximum size of the block, in bytes.
+        :param size:            The maximum size of the block, in bytes.
         :param num_inst:        The maximum number of instructions.
         :param traceflags:      traceflags to be passed to VEX. (default: 0)
         :returns:           A SimSuccessors object categorizing the block's successors
@@ -86,7 +86,7 @@ class SimEngineVEX(SimEngine):
                 inline=inline,
                 force_addr=force_addr,
                 insn_bytes=insn_bytes,
-                max_size=max_size,
+                size=size,
                 num_inst=num_inst,
                 traceflags=traceflags,
                 thumb=thumb,
@@ -95,7 +95,7 @@ class SimEngineVEX(SimEngine):
     def _check(self, state, *args, **kwargs):
         return True
 
-    def _process(self, state, successors, irsb=None, skip_stmts=0, last_stmt=99999999, whitelist=None, insn_bytes=None, max_size=None, num_inst=None, traceflags=0, thumb=False, opt_level=None):
+    def _process(self, state, successors, irsb=None, skip_stmts=0, last_stmt=99999999, whitelist=None, insn_bytes=None, size=None, num_inst=None, traceflags=0, thumb=False, opt_level=None):
         successors.sort = 'IRSB'
         successors.description = 'IRSB'
         state.scratch.executed_block_count = 1
@@ -110,7 +110,7 @@ class SimEngineVEX(SimEngine):
                     addr=addr,
                     state=state,
                     insn_bytes=insn_bytes,
-                    max_size=max_size,
+                    size=size,
                     num_inst=num_inst,
                     traceflags=traceflags,
                     thumb=thumb,
@@ -129,8 +129,8 @@ class SimEngineVEX(SimEngine):
                 if insn_bytes is not None:
                     raise SimEngineError("You cannot pass self-modifying code as insn_bytes!!!")
                 new_ip = state.scratch.ins_addr
-                if max_size is not None:
-                    max_size -= new_ip - addr
+                if size is not None:
+                    size -= new_ip - addr
                 if num_inst is not None:
                     num_inst -= state.scratch.num_insns
                 addr = new_ip
@@ -324,7 +324,7 @@ class SimEngineVEX(SimEngine):
             insn_bytes=None,
             arch=None,
             addr=None,
-            max_size=None,
+            size=None,
             num_inst=None,
             traceflags=0,
             thumb=False,
@@ -348,7 +348,7 @@ class SimEngineVEX(SimEngine):
         :param thumb:           Whether the block should be lifted in ARM's THUMB mode.
         :param opt_level:       The VEX optimization level to use.
         :param insn_bytes:      A string of bytes to use as a data source.
-        :param max_size:        The maximum size of the block, in bytes.
+        :param size:            The maximum size of the block, in bytes.
         :param num_inst:        The maximum number of instructions.
         :param traceflags:      traceflags to be passed to VEX. (default: 0)
         """
@@ -368,10 +368,10 @@ class SimEngineVEX(SimEngine):
         # phase 1: parameter defaults
         if addr is None:
             addr = state.se.any_int(state._ip)
-        if max_size is not None:
-            max_size = min(max_size, VEX_IRSB_MAX_SIZE)
-        if max_size is None:
-            max_size = VEX_IRSB_MAX_SIZE
+        if size is not None:
+            size = min(size, VEX_IRSB_MAX_SIZE)
+        if size is None:
+            size = VEX_IRSB_MAX_SIZE
         if num_inst is not None:
             num_inst = min(num_inst, VEX_IRSB_MAX_INST)
         if num_inst is None and self._single_step:
@@ -411,7 +411,7 @@ class SimEngineVEX(SimEngine):
             thumb = 0
 
         # phase 4: check cache
-        cache_key = (addr, insn_bytes, max_size, num_inst, thumb, opt_level)
+        cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level)
         if self._use_cache and cache_key in self._block_cache:
             self._cache_hit_count += 1
             irsb = self._block_cache[cache_key]
@@ -419,9 +419,9 @@ class SimEngineVEX(SimEngine):
             if stop_point is None:
                 return irsb
             else:
-                max_size = stop_point - addr
+                size = stop_point - addr
                 # check the cache again
-                cache_key = (addr, insn_bytes, max_size, num_inst, thumb, opt_level)
+                cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level)
                 if cache_key in self._block_cache:
                     self._cache_hit_count += 1
                     return self._block_cache[cache_key]
@@ -434,7 +434,7 @@ class SimEngineVEX(SimEngine):
         if insn_bytes is not None:
             buff, size = insn_bytes, len(insn_bytes)
         else:
-            buff, size = self._load_bytes(addr, max_size, state, clemory)
+            buff, size = self._load_bytes(addr, size, state, clemory)
 
         if not buff or size == 0:
             raise SimEngineError("No bytes in memory for block starting at %#x." % addr)
