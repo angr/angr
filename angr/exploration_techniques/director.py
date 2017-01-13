@@ -72,7 +72,7 @@ class BaseGoal(object):
 
         continue_at = None
         if cfg.project.is_hooked(path.addr) and \
-                cfg.project.hooked_by(path.addr) is simuvex.s_procedure.SimProcedureContinuation:
+                cfg.project.hooked_by(path.addr).is_continuation:
             if path.state.procedure_data.callstack:
                 continue_at = path.state.procedure_data.callstack[-1][1]
             else:
@@ -80,14 +80,14 @@ class BaseGoal(object):
                 # TODO: figure it out
                 continue_at = None
 
-        simrun_key = cfg._generate_simrun_key(call_stack_suffix, path.addr,
+        block_id = cfg._generate_block_id(call_stack_suffix, path.addr,
                                               is_syscall, continue_at=continue_at
                                               )
 
-        #if cfg.get_node(simrun_key) is None:
+        #if cfg.get_node(block_id) is None:
         #    import ipdb; ipdb.set_trace()
 
-        return cfg.get_node(simrun_key)
+        return cfg.get_node(block_id)
 
     @staticmethod
     def _dfs_edges(graph, source, max_steps=None):

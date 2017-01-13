@@ -6,7 +6,7 @@ import simuvex
 
 class Blade(object):
     """
-    Blade is a light-weight program slicer that works with networkx DiGraph containing SimIRSBs.
+    Blade is a light-weight program slicer that works with networkx DiGraph containing CFGNodes.
     It is meant to be used in angr for small or on-the-fly analyses.
     """
     def __init__(self, graph, dst_run, dst_stmt_idx, direction='backward', project=None, cfg=None, ignore_sp=False,
@@ -75,21 +75,37 @@ class Blade(object):
     # Public methods
     #
 
-    def dbg_repr(self):
+    def dbg_repr(self, arch=None):
+
+        if arch is None and self.project is not None:
+            arch = self.project.arch
+
         s = ""
 
         block_addrs = list(set([ a for a, _ in self.slice.nodes_iter() ]))
 
         for block_addr in block_addrs:
-            block_str = "IRSB %08x\n" % block_addr
+            block_str = "IRSB %#x\n" % block_addr
 
             block = self.project.factory.block(block_addr).vex
 
             included_stmts = set([ stmt for _, stmt in self.slice.nodes_iter() if _ == block_addr ])
 
             for i, stmt in enumerate(block.statements):
+                if arch is not None:
+                    if isinstance(stmt, pyvex.IRStmt.Put):
+                        reg_name = arch.translate_register_name(stmt.offset)
+                        stmt_str =  stmt.__str__(reg_name=reg_name)
+                    elif isinstance(stmt, pyvex.IRStmt.WrTmp) and isinstance(stmt.data, pyvex.IRExpr.Get):
+                        reg_name = arch.translate_register_name(stmt.data.offset)
+                        stmt_str = stmt.__str__(reg_name=reg_name)
+                    else:
+                        stmt_str = str(stmt)
+                else:
+                    stmt_str = str(stmt)
+
                 block_str += "%02s: %s\n" % ("+" if i in included_stmts else "-",
-                                   str(stmt)
+                                   stmt_str
                                    )
 
             s += block_str
@@ -103,19 +119,13 @@ class Blade(object):
 
     def _get_irsb(self, v):
         """
-        Get the IRSB object from an address, a simuvex.SimProcedure, a simuvex.SimIRSB, or a CFGNode.
-        :param v: Can be one of the following: an address, a simuvex.SimProcedure, a simuvex.SimIRSB, or a CFGNode.
+        Get the IRSB object from an address, a simuvex.SimRun, or a CFGNode.
+        :param v: Can be one of the following: an address, or a CFGNode.
         :return: The IRSB instance.
         :rtype: pyvex.IRSB
         """
 
-        if isinstance(v, simuvex.SimProcedure):
-            raise AngrBladeSimProcError()
-
-        elif isinstance(v, simuvex.SimIRSB):
-            v = v.addr
-
-        elif isinstance(v, CFGNode):
+        if isinstance(v, CFGNode):
             v = v.addr
 
         if type(v) in (int, long):
@@ -148,17 +158,12 @@ class Blade(object):
     def _get_addr(self, v):
         """
         Get address of the basic block or CFG node specified by v.
-        :param v: Can be one of the following: a simuvex.SimIRSB, a simuvex.SimProcedure, a CFGNode, or an address.
+        :param v: Can be one of the following: a CFGNode, or an address.
         :return: The address.
         :rtype: int
         """
 
-        if isinstance(v, simuvex.SimIRSB) or isinstance(v, simuvex.SimProcedure):
-            if type(self._graph.nodes()[0]) in (int, long):
-                return v.addr
-            else:
-                return v
-        elif isinstance(v, CFGNode):
+        if isinstance(v, CFGNode):
             return v.addr
         elif type(v) in (int, long):
             return v

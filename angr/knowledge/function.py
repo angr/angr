@@ -6,6 +6,7 @@ from collections import defaultdict
 import simuvex
 import simuvex.s_cc
 import claripy
+from simuvex.s_errors import SimEngineError, SimMemoryError
 
 l = logging.getLogger(name="angr.knowledge.function")
 
@@ -61,12 +62,16 @@ class Function(object):
         if name is None:
             if project.is_hooked(addr):
                 hooker = project.hooked_by(addr)
-                if hooker is simuvex.SimProcedures['stubs']['ReturnUnconstrained']:
-                    kwargs_dict = project._sim_procedures[addr][1]
+                if hooker.procedure is simuvex.SimProcedures['stubs']['ReturnUnconstrained']:
+                    kwargs_dict = project._sim_procedures[addr].kwargs
                     if 'resolves' in kwargs_dict:
                         name = kwargs_dict['resolves']
                 else:
-                    name = hooker.__name__.split('.')[-1]
+                    name = hooker.name
+            else:
+                syscall_inst = project._simos.syscall_table.get_by_addr(addr)
+                if syscall_inst is not None:
+                    name = syscall_inst.name
 
         # try to get the name from the symbols
         #if name is None:
@@ -134,7 +139,7 @@ class Function(object):
         for block in self._local_blocks:
             try:
                 yield self._get_block(block.addr)
-            except (AngrTranslationError, AngrMemoryError):
+            except (SimEngineError, SimMemoryError):
                 pass
 
     @property
@@ -164,7 +169,7 @@ class Function(object):
             return self._block_cache[addr]
         else:
             if addr in self.block_addrs:
-                block = self._project.factory.block(addr, max_size=self._block_sizes[addr])
+                block = self._project.factory.block(addr, size=self._block_sizes[addr])
                 self._block_cache[addr] = block
                 return block
             block = self._project.factory.block(addr)
@@ -905,4 +910,4 @@ class Function(object):
         return simuvex.s_cc.SimCCUnknown(arch, args, ret_vals, sp_delta)
 
 from .codenode import BlockNode
-from ..errors import AngrTranslationError, AngrValueError, AngrMemoryError
+from ..errors import AngrValueError

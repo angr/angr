@@ -17,10 +17,9 @@ class CFGNode(object):
                  no_ret=False,
                  is_syscall=False,
                  syscall=None,
-                 simrun=None,
                  function_address=None,
                  final_states=None,
-                 simrun_key=None,
+                 block_id=None,
                  irsb=None,
                  instruction_addrs=None,
                  depth=None,
@@ -42,7 +41,7 @@ class CFGNode(object):
         self.syscall = syscall
         self._cfg = cfg
         self.function_address = function_address
-        self.simrun_key = simrun_key
+        self.block_id = block_id
         self.depth = depth
 
         self._callstack_key = self.callstack.stack_suffix(self._cfg.context_sensitivity_level) \
@@ -64,12 +63,6 @@ class CFGNode(object):
 
         if not instruction_addrs and not self.is_simprocedure:
             # We have to collect instruction addresses by ourselves
-
-            # Try to grab all instruction addresses out!
-            if simrun is not None:
-                # This is a SimIRSB
-                irsb = simrun.irsb
-
             if irsb is not None:
                 self.instruction_addrs = [ s.addr for s in irsb.statements if type(s) is pyvex.IRStmt.IMark ]  # pylint:disable=unidiomatic-typecheck
 
@@ -121,15 +114,15 @@ class CFGNode(object):
 
     def __repr__(self):
         if self.name is not None:
-            s = "<CFGNode %s (0x%x) [%d]>" % (self.name, self.addr, self.looping_times)
+            s = "<CFGNode %s (0x%x %d) [%d]>" % (self.name, self.addr, self.size, self.looping_times)
         else:
             s = "<CFGNode 0x%x (%d) [%d]>" % (self.addr, self.size, self.looping_times)
 
         return s
 
     def __eq__(self, other):
-        if isinstance(other, simuvex.SimIRSB) or isinstance(other, simuvex.SimProcedure):
-            raise ValueError("You do not want to be comparing a SimRun to a CFGNode.")
+        if isinstance(other, simuvex.SimSuccessors):
+            raise ValueError("You do not want to be comparing a SimSuccessors instance to a CFGNode.")
         if not isinstance(other, CFGNode):
             return False
         return (self.callstack_key == other.callstack_key and

@@ -9,11 +9,11 @@ test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '.
 def test_block_cache():
     p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), translation_cache=True)
     b = p.factory.block(p.entry)
-    assert p.factory.block(p.entry) is b
+    assert p.factory.block(p.entry).vex is b.vex
 
     p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), translation_cache=False)
     b = p.factory.block(p.entry)
-    assert p.factory.block(p.entry) is not b
+    assert p.factory.block(p.entry).vex is not b.vex
 
 if __name__ == "__main__":
     test_block_cache()

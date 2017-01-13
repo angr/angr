@@ -1,5 +1,6 @@
 from os import urandom
 import copy
+import sys
 import logging
 l = logging.getLogger("angr.path")
 
@@ -87,9 +88,10 @@ class Path(object):
         self.path_id = urandom(8).encode('hex')
 
         # actual analysis stuff
-        self._run_args = None       # sim_run args, to determine caching
+        self._run_args = None       # successors args, to determine caching
         self._run = None
         self._run_error = None
+        self._run_traceback = None
 
     @property
     def addr(self):
@@ -172,30 +174,37 @@ class Path(object):
 
     def step(self, throw=None, **run_args):
         """
-        Step a path forward. Optionally takes any argument applicable to project.factory.sim_run.
+        Step a path forward. Optionally takes any argument applicable to project.factory.successors.
 
         :param jumpkind:          the jumpkind of the previous exit.
-        :param addr an address:   to execute at instead of the state's ip.
+        :param addr address:      to execute at instead of the state's ip.
         :param stmt_whitelist:    a list of stmt indexes to which to confine execution.
         :param last_stmt:         a statement index at which to stop execution.
         :param thumb:             whether the block should be lifted in ARM's THUMB mode.
         :param backup_state:      a state to read bytes from instead of using project memory.
         :param opt_level:         the VEX optimization level to use.
         :param insn_bytes:        a string of bytes to use for the block instead of #the project.
-        :param max_size:          the maximum size of the block, in bytes.
+        :param size:              the maximum size of the block, in bytes.
         :param num_inst:          the maximum number of instructions.
         :param traceflags:        traceflags to be passed to VEX. Default: 0
 
         :returns:   An array of paths for the possible successors.
         """
+
+        # backward compatibility
+        if 'max_size' in run_args:
+            l.warning('"max_size" has been deprecated in Path.step(). Please use "size" instead.')
+            size = run_args.pop('max_size')
+            run_args['size'] = size
+
         if self._run_args != run_args or not self._run:
             self._run_args = run_args
-            self._make_sim_run(throw=throw)
+            self._make_successors(throw=throw)
 
         self.state._inspect('path_step', simuvex.BP_BEFORE)
 
         if self._run_error:
-            return [ self.copy(error=self._run_error) ]
+            return [ self.copy(error=self._run_error, traceback=self._run_traceback) ]
 
         out = [ Path(self._project, s, path=self) for s in self._run.flat_successors ]
         if 'insn_bytes' in run_args and 'addr' not in run_args and len(out) == 1 \
@@ -217,19 +226,22 @@ class Path(object):
         self._run = None
 
 
-    def _make_sim_run(self, throw=None):
+    def _make_successors(self, throw=None):
         self._run = None
         self._run_error = None
+        self._run_traceback = None
         try:
-            self._run = self._project.factory.sim_run(self.state, **self._run_args)
+            self._run = self._project.factory.successors(self.state, **self._run_args)
         except (AngrError, simuvex.SimError, claripy.ClaripyError) as e:
             l.debug("Catching exception", exc_info=True)
             self._run_error = e
+            self._run_traceback = sys.exc_info()[2]
             if throw:
                 raise
         except (TypeError, ValueError, ArithmeticError, MemoryError) as e:
             l.debug("Catching exception", exc_info=True)
             self._run_error = e
+            self._run_traceback = sys.exc_info()[2]
             if throw:
                 raise
 
@@ -404,12 +416,18 @@ class Path(object):
                     block_size, jumpkind = block_addr_to_jumpkind[bbl_addr]
                 except KeyError:
                     if self._project.is_hooked(bbl_addr):
+                        # hooked by a SimProcedure or a user hook
                         if issubclass(self._project.hooked_by(bbl_addr), simuvex.SimProcedure):
                             block_size = None  # it will not be used
                             jumpkind = 'Ijk_Ret'
                         else:
                             block_size = None  # will not be used either
                             jumpkind = 'Ijk_Boring'
+
+                    elif self._project._simos.syscall_table.get_by_addr(bbl_addr) is not None:
+                        # it's a syscall
+                        block_size = None
+                        jumpkind = 'Ijk_Ret'
 
                     else:
                         block = self._project.factory.block(bbl_addr, backup_state=state)
@@ -594,11 +612,11 @@ class Path(object):
         # and return
         return new_path
 
-    def copy(self, error=None):
+    def copy(self, error=None, traceback=None):
         if error is None:
             p = Path(self._project, self.state.copy())
         else:
-            p = ErroredPath(error, self._project, self.state.copy())
+            p = ErroredPath(error, traceback, self._project, self.state.copy())
 
         p.history = self.history.copy()
         p.callstack = self.callstack.copy()
@@ -724,9 +742,10 @@ class ErroredPath(Path):
 
     :ivar error:    The error that was encountered.
     """
-    def __init__(self, error, *args, **kwargs):
+    def __init__(self, error, traceback, *args, **kwargs):
         super(ErroredPath, self).__init__(*args, **kwargs)
         self.error = error
+        self.traceback = traceback
         self.errored = True
 
     def __repr__(self):
@@ -739,40 +758,13 @@ class ErroredPath(Path):
 
     def retry(self, **kwargs):
         self._run_args = kwargs
-        self._run = self._project.factory.sim_run(self.state, **self._run_args)
+        self._run = self._project.factory.successors(self.state, **self._run_args)
         return super(ErroredPath, self).step(**kwargs)
 
+    def debug(self):
+        import ipdb
+        ipdb.post_mortem(self.traceback)
 
-def make_path(project, runs):
-    """
-    A helper function to generate a correct angr.Path from a list of runs corresponding to a program path.
-
-    :param runs:    A list of SimRuns corresponding to a program path.
-    """
-
-    if len(runs) == 0:
-        raise AngrPathError("Cannot generate Path from empty set of runs")
-
-    # This creates a path which state is the the first run
-    a_p = Path(project, runs[0].initial_state)
-    # And records the first node's run
-    a_p.history = PathHistory(a_p.history)
-    a_p.history._record_run(runs[0])
-
-    # We then go through all the nodes except the last one
-    for r in runs[1:-1]:
-        a_p.history._record_state(r.initial_state)
-        a_p._manage_callstack(r.initial_state)
-        a_p.history = PathHistory(a_p.history)
-        a_p.history._record_run(r)
-
-    # We record the last state and set it as current (it is the initial
-    # state of the next run).
-    a_p.history._record_state(runs[-1].initial_state)
-    a_p._manage_callstack(runs[-1].initial_state)
-    a_p.state = runs[-1].initial_state
-
-    return a_p
 
 from .errors import AngrError, AngrPathError
 from .path_history import * #pylint:disable=wildcard-import,unused-wildcard-import

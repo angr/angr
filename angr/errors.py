@@ -4,12 +4,6 @@ class AngrError(Exception):
 class AngrValueError(AngrError, ValueError):
     pass
 
-class AngrMemoryError(AngrError):
-    pass
-
-class AngrTranslationError(AngrError):
-    pass
-
 class AngrLifterError(AngrError):
     pass
 

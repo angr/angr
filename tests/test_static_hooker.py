@@ -12,7 +12,7 @@ def test_static_hooker():
 
     nose.tools.assert_in(4197616, sh.results)
     nose.tools.assert_is(sh.results[4197616], simuvex.SimProcedures['libc.so.6']['__libc_start_main'])
-    nose.tools.assert_is(p.hooked_by(4197616), simuvex.SimProcedures['libc.so.6']['__libc_start_main'])
+    nose.tools.assert_is(p.hooked_by(4197616).procedure, simuvex.SimProcedures['libc.so.6']['__libc_start_main'])
 
 if __name__ == '__main__':
     test_static_hooker()

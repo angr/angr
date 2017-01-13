@@ -16,7 +16,7 @@ def test_stops():
     s_normal.unicorn.max_steps = 100
     pg_normal = p.factory.path_group(s_normal).run()
     p_normal = pg_normal.one_deadended
-    nose.tools.assert_equal(p_normal.trace.hardcopy, ['<SimUnicorn 0x8048340-0x8048320 with 2 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>', '<SimUnicorn 0x8048520-0x8048575 with 15 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>', '<SimUnicorn 0x80484b6-0x804844a with 100 steps (STOP_NORMAL)>', '<SimUnicorn 0x804844a-0x804850c with 8 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>'])
+    nose.tools.assert_equal(p_normal.trace.hardcopy, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_NORMAL after 100 steps) from 0x80484b6: 1 sat>', '<Unicorn (STOP_STOPPOINT after 8 steps) from 0x804844a: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>'])
 
     s_normal_angr = p.factory.entry_state(args=['a'])
     pg_normal_angr = p.factory.path_group(s_normal_angr).run()
@@ -27,7 +27,7 @@ def test_stops():
     s_symbolic = p.factory.entry_state(args=['a', 'a'], add_options=so.unicorn)
     pg_symbolic = p.factory.path_group(s_symbolic).run()
     p_symbolic = pg_symbolic.one_deadended
-    nose.tools.assert_equal(p_symbolic.trace.hardcopy, ['<SimUnicorn 0x8048340-0x8048320 with 2 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>', '<SimUnicorn 0x8048520-0x8048575 with 15 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>', '<SimUnicorn 0x80484b6-0x80484e3 with 3 steps (STOP_SYMBOLIC_MEM)>', '<SimIRSB 0x8048457>', '<SimIRSB 0x804848c>', '<SimIRSB 0x80484e8>', '<SimIRSB 0x804850c>', '<SimProcedure __libc_start_main>'])
+    nose.tools.assert_equal(p_symbolic.trace.hardcopy, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_SYMBOLIC_MEM after 3 steps) from 0x80484b6: 1 sat>', '<IRSB from 0x8048457: 1 sat 3 unsat>', '<IRSB from 0x804848c: 1 sat>', '<IRSB from 0x80484e8: 1 sat>', '<IRSB from 0x804850c: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>'])
 
     s_symbolic_angr = p.factory.entry_state(args=['a', 'a'])
     pg_symbolic_angr = p.factory.path_group(s_symbolic_angr).run()
@@ -40,7 +40,7 @@ def test_stops():
     p_segfault = pg_segfault.one_errored
     # TODO: fix the permissions segfault to commit if it's a MEM_FETCH
     # this will extend the last simunicorn one more block
-    nose.tools.assert_equal(p_segfault.trace.hardcopy, ['<SimUnicorn 0x8048340-0x8048320 with 2 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>', '<SimUnicorn 0x8048520-0x8048575 with 15 steps (STOP_STOPPOINT)>', '<SimProcedure __libc_start_main>', '<SimUnicorn 0x80484b6-0x8048506 with 3 steps (STOP_SEGFAULT)>', '<SimIRSB 0x80484a6>'])
+    nose.tools.assert_equal(p_segfault.trace.hardcopy, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_SEGFAULT after 3 steps) from 0x80484b6: 1 sat>', '<IRSB from 0x80484a6: 1 sat>'])
 
     s_segfault_angr = p.factory.entry_state(args=['a', 'a', 'a', 'a', 'a', 'a', 'a'], add_options={so.STRICT_PAGE_ACCESS})
     pg_segfault_angr = p.factory.path_group(s_segfault_angr).run()
@@ -71,7 +71,7 @@ def test_fauxware():
     pg = p.factory.path_group(s_unicorn)
     pg.explore()
 
-    assert all("SimUnicorn" in ''.join(p.trace.hardcopy) for p in pg.deadended)
+    assert all("Unicorn" in ''.join(p.trace.hardcopy) for p in pg.deadended)
     nose.tools.assert_equal(sorted(pg.mp_deadended.state.posix.dumps(1).mp_items), sorted((
         'Username: \nPassword: \nWelcome to the admin console, trusted user!\n',
         'Username: \nPassword: \nGo away!',
@@ -143,7 +143,7 @@ def test_unicorn_pickle():
 
     pg = p.factory.path_group(_uni_state())
     pg.one_active.state.options.update(simuvex.o.unicorn)
-    pg.step(until=lambda lpg: "SimUnicorn" in lpg.one_active.history._runstr)
+    pg.step(until=lambda lpg: "Unicorn" in lpg.one_active.history._runstr)
     assert len(pg.active) > 0
 
     pgp = pickle.dumps(pg, -1)
@@ -164,13 +164,13 @@ def test_unicorn_pickle():
     pg = p.factory.path_group(_uni_state())
     pg.step(n=2)
     pg.one_active.step()
-    assert isinstance(pg.one_active._run, simuvex.SimUnicorn)
+    assert pg.one_active._run.sort == 'Unicorn'
 
     pgp = pickle.dumps(pg, -1)
     del pg
     gc.collect()
     pg2 = pickle.loads(pgp)
-    assert isinstance(pg2.one_active._run, simuvex.SimUnicorn)
+    assert pg2.one_active._run.sort == 'Unicorn'
     pg2.explore()
 
     nose.tools.assert_equal(sorted(pg2.mp_deadended.state.posix.dumps(1).mp_items), sorted((

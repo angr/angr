@@ -30,6 +30,11 @@ class AngrExternObject(Backend):
             self._next_addr += size + ((self._granularity - size) % self._granularity)
         return self._lookup_table[ident] + self.rebase_addr
 
+    def anon_allocation(self, size=16):
+        out = self._next_addr + self.rebase_addr
+        self._next_addr += size + ((self._granularity - size) % self._granularity)
+        return out
+
     def contains_identifier(self, ident):
         return ident in self._lookup_table
 

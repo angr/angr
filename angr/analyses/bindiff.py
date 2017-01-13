@@ -1,11 +1,13 @@
-from ..errors import AngrMemoryError, AngrTranslationError
-from ..analysis import Analysis, register_analysis
 
 from collections import deque
 import logging
 import math
 import networkx
 import types
+
+from simuvex.s_errors import SimEngineError, SimMemoryError
+
+from ..analysis import Analysis, register_analysis
 
 # todo include an explanation of the algorithm
 # todo include a method that detects any change other than constants
@@ -299,10 +301,9 @@ class NormalizedFunction(object):
             for node in self.graph.nodes():
                 try:
                     bl = self.project.factory.block(node.addr)
-                except AngrMemoryError:
+                except (SimMemoryError, SimEngineError):
                     continue
-                except AngrTranslationError:
-                    continue
+
                 # merge if it ends with a single call, and the successor has only one predecessor and succ is after
                 successors = self.graph.successors(node)
                 if bl.vex.jumpkind == "Ijk_Call" and len(successors) == 1 and \
@@ -448,16 +449,12 @@ class FunctionDiff(object):
 
         try:
             block_a = NormalizedBlock(block_a, self._function_a)
-        except AngrMemoryError:
-            block_a = None
-        except AngrTranslationError:
+        except (SimMemoryError, SimEngineError):
             block_a = None
 
         try:
             block_b = NormalizedBlock(block_b, self._function_b)
-        except AngrMemoryError:
-            block_b = None
-        except AngrTranslationError:
+        except (SimMemoryError, SimEngineError):
             block_b = None
 
         # if both were None then they are assumed to be the same, if only one was the same they are assumed to differ
@@ -507,16 +504,12 @@ class FunctionDiff(object):
 
         try:
             block_a = NormalizedBlock(block_a, self._function_a)
-        except AngrMemoryError:
-            block_a = None
-        except AngrTranslationError:
+        except (SimMemoryError, SimEngineError):
             block_a = None
 
         try:
             block_b = NormalizedBlock(block_b, self._function_b)
-        except AngrMemoryError:
-            block_b = None
-        except AngrTranslationError:
+        except (SimMemoryError, SimEngineError):
             block_b = None
 
         # if both were None then they are assumed to be the same, if only one was None they are assumed to differ
@@ -555,7 +548,7 @@ class FunctionDiff(object):
                     self._project_b.loader.main_bin.contains_addr(c.value_b):
                 continue
             # if the difference is equal to the difference in block addr's or successor addr's we'll say it's also okay
-            if (c.value_b - c.value_a) in acceptable_differences:
+            if c.value_b - c.value_a in acceptable_differences:
                 continue
             # otherwise they probably are different
             return False
@@ -604,13 +597,6 @@ class FunctionDiff(object):
         """
         return networkx.single_source_shortest_path_length(function.graph,
                                                            function.startpoint)
-
-    @staticmethod
-    def _block_diff_constants(block_a, block_b):
-        diff_constants = []
-        for irsb_a, irsb_b in zip(block_a.blocks, block_b.blocks):
-            diff_constants += differing_constants(irsb_a, irsb_b)
-        return diff_constants
 
     @staticmethod
     def _distances_from_function_exit(function):
@@ -742,9 +728,7 @@ class FunctionDiff(object):
             for s in sorted(succ - set(ordered_succ), key=lambda x:x.addr):
                 ordered_succ.append(s)
             return ordered_succ
-        except AngrMemoryError:
-            return sorted(succ, key=lambda x:x.addr)
-        except AngrTranslationError:
+        except (SimMemoryError, SimEngineError):
             return sorted(succ, key=lambda x:x.addr)
 
     def _get_block_matches(self, attributes_a, attributes_b, filter_set_a=None, filter_set_b=None, delta=(0, 0, 0),
@@ -1051,13 +1035,13 @@ class BinDiff(Analysis):
         # in the case of sim procedures the actual sim procedure might be in the interfunction graph, not the plt entry
         func_to_addr_a = dict()
         func_to_addr_b = dict()
-        for (k, v) in self.project._sim_procedures.items():
-            if "resolves" in v[1]:
-                func_to_addr_a[v[1]['resolves']] = k
+        for (k, hook) in self.project._sim_procedures.items():
+            if "resolves" in hook.kwargs:
+                func_to_addr_a[hook.kwargs['resolves']] = k
 
-        for (k, v) in self._p2._sim_procedures.items():
-            if "resolves" in v[1]:
-                func_to_addr_b[v[1]['resolves']] = k
+        for (k, hook) in self._p2._sim_procedures.items():
+            if "resolves" in hook.kwargs:
+                func_to_addr_b[hook.kwargs['resolves']] = k
 
         for name, addr in func_to_addr_a.items():
             if name in func_to_addr_b:

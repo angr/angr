@@ -68,7 +68,7 @@ class FunctionManager(collections.Mapping):
 
     def _add_node(self, function_addr, node, syscall=None, size=None):
         if type(node) in (int, long):  # pylint: disable=unidiomatic-typecheck
-            node = self._kb._project.factory.snippet(node, max_size=size)
+            node = self._kb._project.factory.snippet(node, size=size)
         dst_func = self._function_map[function_addr]
         if syscall in (True, False):
             dst_func.is_syscall = syscall

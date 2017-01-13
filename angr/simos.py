@@ -5,12 +5,11 @@ Manage OS-level configuration.
 import logging
 
 from archinfo import ArchARM, ArchMIPS32, ArchMIPS64, ArchX86, ArchAMD64, ArchPPC32, ArchPPC64, ArchAArch64
-from simuvex import SimState, SimIRSB, SimStateSystem, SimActionData
+from simuvex import SimState, SimStateSystem, SimActionData
 from simuvex import s_options as o, s_cc
 from simuvex import SimProcedures
-from simuvex.s_procedure import SimProcedure, SimProcedureContinuation
+from simuvex.s_procedure import SimProcedure
 from cle import MetaELF, BackedCGC
-import pyvex
 import claripy
 
 from .errors import AngrSyscallError, AngrUnsupportedSyscallError, AngrCallableError, AngrSimOSError
@@ -73,17 +72,19 @@ class SyscallTable(object):
     :ivar int max_syscall_number:       The maximum syscall number of all supported syscalls in the platform.
     :ivar int unknown_syscall_number:   The syscall number of the "unknown" syscall used for unsupported syscalls.
     """
-    def __init__(self, max_syscall_number=None):
+    def __init__(self, max_syscall_number=None, unknown_syscall_number=None):
         """
         Constructor.
 
         :param int or None max_syscall_number: The maximum syscall number of all supported syscalls in the platform.
+        :param int unknown_syscall_number:     The syscall number to use for unknown/undefined syscalls.
         """
         self.max_syscall_number = max_syscall_number
 
-        self.unknown_syscall_number = None
+        self.unknown_syscall_number = unknown_syscall_number
 
         self._table = { }
+        self._addr_to_syscall = { }
 
     def __setitem__(self, syscall_number, syscall):
         """
@@ -98,6 +99,7 @@ class SyscallTable(object):
             self.max_syscall_number = syscall_number
 
         self._table[syscall_number] = syscall
+        self._addr_to_syscall[syscall.pseudo_addr] = syscall
 
     def __getitem__(self, syscall_number):
         """
@@ -158,6 +160,16 @@ class SyscallTable(object):
 
         return self[self.unknown_syscall_number]
 
+    def clear(self):
+        """
+        Clear all defined syscalls.
+
+        :return: None
+        """
+
+        self._table = { }
+        self._addr_to_syscall = { }
+
     def supports(self, syscall_number):
         """
         Check if the syscall number is defined and supported.
@@ -172,6 +184,17 @@ class SyscallTable(object):
 
         return self._table[syscall_number].supported
 
+    def get_by_addr(self, addr):
+        """
+        Get a syscall by the pseudo address.
+
+        :param int addr: The pseudo address assigned to the syscall.
+        :return:         The syscall instance if the pseudo address is assigned to a syscall, or None otherwise.
+        :rtype:          SyscallEntry or None
+        """
+
+        return self._addr_to_syscall.get(addr, None)
+
 
 class SimOS(object):
     """
@@ -184,7 +207,13 @@ class SimOS(object):
         self.name = name
         self.continue_addr = None
         self.return_deadend = None
-        self.syscall_table = SyscallTable()
+
+        unknown_syscall = SimProcedures['syscalls']['stub']
+        unknown_syscall_number = 1
+        self.syscall_table = SyscallTable(unknown_syscall_number=unknown_syscall_number)
+        self.syscall_table[unknown_syscall_number] = SyscallEntry('_unsupported', self.proj._syscall_obj.rebase_addr,
+                                                                  unknown_syscall
+                                                                  )
 
     def _load_syscalls(self, syscall_table, syscall_lib):
         """
@@ -195,6 +224,8 @@ class SimOS(object):
         :param str syscall_lib: Name of the syscall library
         :return: None
         """
+
+        self.syscall_table.clear()
 
         base_addr = self.proj._syscall_obj.rebase_addr
 
@@ -214,9 +245,6 @@ class SimOS(object):
 
                 self.syscall_table[syscall_number] = SyscallEntry(name, syscall_addr, simproc)
 
-                # Write it to the SimProcedure dict
-                self.proj._sim_procedures[syscall_addr] = (simproc, { })
-
             else:
                 # no syscall number available in the pre-defined syscall table
                 self.syscall_table[syscall_number] = SyscallEntry("_unsupported", syscall_addr,
@@ -224,19 +252,15 @@ class SimOS(object):
                                                                   supported=False
                                                                   )
 
-                # Write it to the SimProcedure dict
-                self.proj._sim_procedures[syscall_addr] = (SimProcedures["syscalls"]["stub"], { })
-
         # Now here is the fallback syscall stub
         unknown_syscall_addr = base_addr + (syscall_entry_count + 1) * 8
         unknown_syscall_number = syscall_entry_count + 1
+        # set unknown_syscall_number
         self.syscall_table.unknown_syscall_number = unknown_syscall_number
         self.syscall_table[unknown_syscall_number] = SyscallEntry("_unknown", unknown_syscall_addr,
                                                                    SimProcedures["syscalls"]["stub"],
                                                                    supported=False
                                                                    )
-
-        self.proj._sim_procedures[unknown_syscall_addr] = (SimProcedures["syscalls"]["stub"], { })
 
     def syscall_info(self, state):
         """
@@ -287,26 +311,20 @@ class SimOS(object):
         syscalls are not supported - the syscall number *must* have only one solution.
 
         :param simuvex.s_state.SimState state: the program state.
-        :return: a new SimRun instance.
+        :return: an instanciated, but not executed SimProcedure for this syscall
         :rtype: simuvex.s_procedure.SimProcedure
         """
 
         cc, syscall_addr, syscall_name, syscall_class = self.syscall_info(state)
 
-        # The ip_at_syscall register is misused to save the return address for this syscall
-        ret_to = state.regs.ip_at_syscall
         state.ip = syscall_addr
-
-        syscall = syscall_class(state, addr=syscall_addr, ret_to=ret_to, convention=cc, syscall_name=syscall_name)
-
+        syscall = syscall_class(syscall_addr, state.arch, convention=cc, display_name=syscall_name)
         return syscall
 
     def configure_project(self):
         """
         Configure the project to set up global settings (like SimProcedures).
         """
-        self.continue_addr = self.proj._extern_obj.get_pseudo_addr('angr##simproc_continue')
-        self.proj.hook(self.continue_addr, SimProcedureContinuation)
         self.return_deadend = self.proj._extern_obj.get_pseudo_addr('angr##return_deadend')
         self.proj.hook(self.return_deadend, CallReturn)
 
@@ -946,13 +964,14 @@ class IFuncResolver(SimProcedure):
             #import IPython; IPython.embed()
             raise
         self.state.memory.store(gotaddr, value, endness=self.state.arch.memory_endness)
-        self.add_successor(self.state, value, claripy.true, 'Ijk_Boring')
+        self.successors.add_successor(self.state, value, claripy.true, 'Ijk_Boring')
 
     def __repr__(self):
         return '<IFuncResolver %s>' % self.kwargs.get('funcname', None)
 
 class LinuxLoader(SimProcedure):
     NO_RET = True
+    IS_FUNCTION = True
 
     # pylint: disable=unused-argument,arguments-differ,attribute-defined-outside-init
     local_vars = ('initializers',)
@@ -997,22 +1016,12 @@ class _vsyscall(SimProcedure):
 
     # This is pretty much entirely copied from SimProcedure.ret
     def run(self):
-        if self.cleanup:
-            self.state.options.discard(o.AST_DEPS)
-            self.state.options.discard(o.AUTO_REFS)
-
-        ret_irsb = pyvex.IRSB(self.state.arch.ret_instruction, self.addr, self.state.arch)
-        ret_simirsb = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr)
-        if not ret_simirsb.flat_successors + ret_simirsb.unsat_successors:
-            ret_state = ret_simirsb.default_exit
+        if self.state.arch.call_pushes_ret:
+            ret_addr = self.state.stack_pop()
         else:
-            ret_state = (ret_simirsb.flat_successors + ret_simirsb.unsat_successors)[0]
+            ret_addr = self.state.registers.load(self.state.arch.lr_offset, self.state.arch.bytes)
 
-        if self.cleanup:
-            self.state.options.add(o.AST_DEPS)
-            self.state.options.add(o.AUTO_REFS)
-
-        self.add_successor(ret_state, ret_state.scratch.target, ret_state.scratch.guard, 'Ijk_Sys')
+        self.successors.add_successor(self.state, ret_addr, claripy.true, 'Ijk_Sys')
 
 class _kernel_user_helper_get_tls(SimProcedure):
     # pylint: disable=arguments-differ

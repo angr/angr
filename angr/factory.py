@@ -1,186 +1,86 @@
-from simuvex import SimIRSB, SimProcedures, SimUnicorn, SimState, BP_BEFORE, BP_AFTER, SimUnicornError
-from simuvex import s_options as o, s_cc
-from simuvex.s_errors import SimSegfaultError, SimReliftException
+from simuvex import SimState
+from simuvex import s_cc
 from .surveyors.caller import Callable
 
 import logging
 l = logging.getLogger('angr.factory')
 
+_deprecation_cache = set()
+def deprecate(name, replacement):
+    def wrapper(func):
+        def inner(*args, **kwargs):
+            if name not in _deprecation_cache:
+                l.warning("factory.%s is deprecated! Please use factory.%s instead.", name, replacement)
+                _deprecation_cache.add(name)
+            return func(*args, **kwargs)
+        return inner
+    return wrapper
+
 class AngrObjectFactory(object):
     """
     This factory provides access to important analysis elements.
     """
-    def __init__(self, project, translation_cache=False):
+    def __init__(self, project, default_engine, procedure_engine, engines):
+        # currently the default engine MUST be a vex engine... this assumption is hardcoded
+        # but this can totally be changed with some interface generalization
         self._project = project
-        self._lifter = Lifter(project, cache=translation_cache)
-        self.block = self._lifter.lift
-        self.fresh_block = self._lifter.fresh_block
         self._default_cc = s_cc.DefaultCC[project.arch.name]
+
+        self.default_engine = default_engine
+        self.procedure_engine = procedure_engine
+        self.engines = engines
 
     def snippet(self, addr, jumpkind=None, **block_opts):
         if self._project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
-            _, kwargs = self._project._sim_procedures[addr]
-            size = kwargs.get('length', 0)
+            hook = self._project._sim_procedures[addr]
+            size = hook.kwargs.get('length', 0)
             return HookNode(addr, size, self._project.hooked_by(addr))
         else:
             return self.block(addr, **block_opts).codenode # pylint: disable=no-member
 
-    def sim_block(self, state, stmt_whitelist=None, last_stmt=None,
-                  addr=None, opt_level=None, **block_opts):
+    def successors(self, state,
+            addr=None,
+            jumpkind=None,
+            inline=False,
+            default_engine=False,
+            engines=None,
+            **kwargs):
         """
-        Returns a SimIRSB object with execution based on state.
+        Perform execution using any applicable engine. Enumerate the current engines and use the
+        first one that works. Return a SimSuccessors object classifying the results of the run.
 
-        :param state:           The state to tick forward with this block.
+        :param state:           The state to analyze
+        :param addr:            optional, an address to execute at instead of the state's ip
+        :param jumpkind:        optional, the jumpkind of the previous exit
+        :param inline:          This is an inline execution. Do not bother copying the state.
+        :param default_engine   Whether we should only attempt to use the default engine
+                                (usually VEX)
+        :param engines:         A list of engines to try to use, instead of the default.
 
-        The following parameters are optional:
-
-        :param stmt_whitelist:  A list of stmt indexes to which to confine execution.
-        :param last_stmt:       A statement index at which to stop execution.
-        :param addr:            The address at which to start the block.
-        :param thumb:           Whether the block should be lifted in ARM's THUMB mode.
-        :param backup_state:    A state to read bytes from instead of using project memory.
-        :param opt_level:       The VEX optimization level to use.
-        :param insn_bytes:      A string of bytes to use for the block instead of the project.
-        :param max_size:        The maximum size of the block, in bytes.
-        :param num_inst:        The maximum number of instructions.
-        :param traceflags:      traceflags to be passed to VEX. Default: 0
-        """
-
-        if 'thumb' in block_opts:
-            raise AngrValueError('You are not allowed to pass in a thumb=x property to sim_block')
-
-        if addr is None:
-            addr = state.se.any_int(state.regs.ip)
-
-        if o.STRICT_PAGE_ACCESS in state.options:
-            try:
-                perms = state.memory.permissions(addr)
-            except KeyError:
-                raise SimSegfaultError(addr, 'exec-miss')
-            else:
-                if not perms.symbolic:
-                    perms = perms.args[0]
-                    if not perms & 4:
-                        raise SimSegfaultError(addr, 'non-executable')
-
-        thumb = False
-        if addr % state.arch.instruction_alignment != 0:
-            if state.thumb:
-                thumb = True
-            else:
-                raise AngrExitError("Address %#x does not align to alignment %d "
-                                    "for architecture %s." % (addr,
-                                    state.arch.instruction_alignment,
-                                    state.arch.name))
-
-        if self._project._support_selfmodifying_code:
-
-            if o.OPTIMIZE_IR in state.options:
-                state.options.remove(o.OPTIMIZE_IR)
-                l.warning("Disabling VEX optmizations (OPTIMIZE_IR) because support for self-modifying code is enabled.")
-
-            if opt_level > 0:
-                l.warning("Self-modifying code is not always correctly optimized by PyVEX. To guarantee correctness, VEX optimizations have been disabled.")
-                opt_level = 0
-
-        if opt_level is None:
-            opt_level = 1 if o.OPTIMIZE_IR in state.options else 0
-
-        force_bbl_addr = block_opts.pop('force_bbl_addr', None)
-
-        while True:
-            bb = self.block(addr,
-                            arch=state.arch,
-                            opt_level=opt_level,
-                            thumb=thumb,
-                            backup_state=state,
-                            **block_opts)
-
-            try:
-                return SimIRSB(state,
-                               bb.vex,
-                               addr=addr,
-                               whitelist=stmt_whitelist,
-                               last_stmt=last_stmt,
-                               force_bbl_addr=force_bbl_addr)
-            except SimReliftException as e:
-                state = e.state
-                force_bbl_addr = state.scratch.bbl_addr
-                if 'insn_bytes' in block_opts:
-                    raise AngrValueError("You cannot pass self-modifying code as insn_bytes!!!")
-                new_ip = state.scratch.ins_addr
-                if 'max_size' in block_opts:
-                    block_opts['max_size'] -= new_ip - addr
-                if 'num_inst' in block_opts:
-                    block_opts['num_inst'] -= state.scratch.num_insns
-                addr = new_ip
-
-    def sim_run(self, state, addr=None, jumpkind=None, extra_stop_points=None, **block_opts):
-        """
-        Returns a simuvex SimRun object (supporting refs() and exits()), automatically choosing whether to create a
-        SimIRSB or a SimProcedure.
-
-        :param state:       The state to analyze
-        :param jumpkind:    optional, the jumpkind of the previous exit
-        :param addr:        optional, an address to execute at instead of the state's ip
-
-        Additional keyword arguments will be passed directly into factory.sim_block if appropriate.
-
-        :param stmt_whitelist:    a list of stmt indexes to which to confine execution.
-        :param last_stmt:         a statement index at which to stop execution.
-        :param thumb:             whether the block should be lifted in ARM's THUMB mode.
-        :param backup_state:      a state to read bytes from instead of using project memory.
-        :param opt_level:         the VEX optimization level to use.
-        :param insn_bytes:        a string of bytes to use for the block instead of the project.
-        :param max_size:          the maximum size of the block, in bytes.
-        :param num_inst:          the maximum number of instructions.
-        :param extra_stop_points: addresses to stop at, other than hooked functions
-        :param traceflags:        traceflags to be passed to VEX. Default: 0
+        Additional keyword arguments will be passed directly into each engine's process method.
         """
 
-        if addr is None:
-            addr = state.se.any_int(state.regs.ip)
-        if jumpkind is None:
-            jumpkind = state.scratch.jumpkind
+        if default_engine:
+            engines = [self.default_engine]
+        if engines is None:
+            engines = self.engines
 
-        if jumpkind == 'Ijk_Exit':
-            l.debug('Execution hit exit at %#x', addr)
-            return SimProcedures['stubs']['PathTerminator'](state, addr=addr)
+        if addr is not None or jumpkind is not None:
+            state = state.copy()
+            if addr is not None:
+                state.ip = addr
+            if jumpkind is not None:
+                state.scratch.jumpkind = jumpkind
 
-        if jumpkind.startswith("Ijk_Sys"):
-            l.debug("Invoking system call handler")
-            return self._project._simos.handle_syscall(state)
+        r = None
+        for engine in engines:
+            if engine.check(state, inline=inline, **kwargs):
+                r = engine.process(state, inline=inline,**kwargs)
+                if r.processed:
+                    break
 
-        if jumpkind in ("Ijk_EmFail", "Ijk_MapFail") or "Ijk_Sig" in jumpkind:
-            raise AngrExitError("Cannot create run following jumpkind %s" % jumpkind)
-
-        if jumpkind == "Ijk_NoDecode" and not self._project.is_hooked(addr):
-            raise AngrExitError("IR decoding error at %#x. You can hook this instruction with a python replacement "
-                                "using project.hook(%#x, your_function, length=length_of_instruction)." % (addr, addr))
-
-        elif self._project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
-            sim_proc_class, kwargs = self._project._sim_procedures[addr]
-            l.debug("Creating SimProcedure %s (originally at %#x)",
-                    sim_proc_class.__name__, addr)
-            state._inspect('call', BP_BEFORE, function_name=sim_proc_class.__name__)
-            r = sim_proc_class(state, addr=addr, sim_kwargs=kwargs)
-            state._inspect('call', BP_AFTER, function_name=sim_proc_class.__name__)
-            l.debug("... %s created", r)
-
-        elif o.UNICORN in state.options and state.unicorn.check():
-            l.info('Creating SimUnicorn at %#x', addr)
-            stops = self._project._sim_procedures.keys()
-            if extra_stop_points is not None:
-                stops.extend(extra_stop_points)
-
-            try:
-                r = SimUnicorn(state, stop_points=stops)
-            except SimUnicornError:
-                r = self.sim_block(state, **block_opts)
-
-        else:
-            l.debug("Creating SimIRSB at 0x%x", addr)
-            r = self.sim_block(state, addr=addr, **block_opts)
+        if r is None or not r.processed:
+            raise AngrExitError("All engines failed to execute!")
 
         # Peek and fix the IP for syscalls
         if r.successors and r.successors[0].scratch.jumpkind.startswith('Ijk_Sys'):
@@ -294,7 +194,7 @@ class AngrObjectFactory(object):
         """
         return self._project._simos.state_call(addr, *args, **kwargs)
 
-    def path(self, state=None, **options):
+    def path(self, state=None, **kwargs):
         """
         Constructs a new path.
 
@@ -305,7 +205,7 @@ class AngrObjectFactory(object):
         :rtype:                 angr.path.Path
         """
         if state is None:
-            state = self.entry_state(**options)
+            state = self.entry_state(**kwargs)
 
         return Path(self._project, state)
 
@@ -390,6 +290,24 @@ class AngrObjectFactory(object):
                                   sp_delta=sp_delta,
                                   func_ty=func_ty)
 
+    def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
+              opt_level=None, num_inst=None,
+              insn_bytes=None  # backward compatibility
+              ):
+
+        if insn_bytes is not None:
+            byte_string = insn_bytes
+
+        if max_size is not None:
+            l.warning('Keyword argument "max_size" has been deprecated for block(). Please use "size" instead.')
+            size = max_size
+        return Block(addr, project=self._project, size=size, byte_string=byte_string, vex=vex, thumb=thumb,
+                     backup_state=backup_state, opt_level=opt_level, num_inst=num_inst
+                     )
+
+    def fresh_block(self, addr, size):
+        return Block(addr, project=self._project, size=size)
+
     cc.SimRegArg = s_cc.SimRegArg
     cc.SimStackArg = s_cc.SimStackArg
     _default_cc = None
@@ -420,8 +338,17 @@ class AngrObjectFactory(object):
             # the syscall is not supported. don't do anything
             pass
 
-from .lifter import Lifter
-from .errors import AngrExitError, AngrError, AngrValueError, AngrUnsupportedSyscallError
+    @deprecate('sim_run()', 'successors()')
+    def sim_run(self, *args, **kwargs):
+        return self.successors(*args, **kwargs)
+
+    @deprecate('sim_block()', 'successors(default_engine=True)')
+    def sim_block(self, *args, **kwargs):
+        kwargs['default_engine'] = True
+        return self.successors(*args, **kwargs)
+
+from .errors import AngrExitError, AngrError, AngrUnsupportedSyscallError
 from .path import Path
 from .path_group import PathGroup
 from .knowledge import HookNode
+from .block import Block
