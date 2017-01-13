@@ -2528,7 +2528,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         new_stub = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"]
                         ret_to = None
 
-                    if old_proc is new_stub:
+                    if old_proc is new_stub and self.project.is_hooked(addr):
                         proc_kwargs = self.project._sim_procedures[addr].kwargs
                         if 'resolves' in proc_kwargs:
                             old_name = proc_kwargs['resolves']
