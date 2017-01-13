@@ -100,7 +100,7 @@ setup(
     packages=packages,
     install_requires=[
         'bintrees',
-        'cachetoold',
+        'cachetools',
         'enum34',
         'dpkt-fix',
         'pyvex',
