@@ -1251,9 +1251,9 @@ class CFGBase(Analysis):
             tmp_state = self.project.factory.blank_state(mode='fastpath')
             while True:
                 try:
-                    # use sim_run is slow, but acceptable since we won't be creating millions of blocks here...
+                    # using successors is slow, but acceptable since we won't be creating millions of blocks here...
                     tmp_state.ip = last_addr
-                    b = self.project.factory.sim_run(tmp_state, jumpkind='Ijk_Boring')
+                    b = self.project.factory.successors(tmp_state, jumpkind='Ijk_Boring')
                     if len(b.successors) != 1:
                         break
                     if b.successors[0].scratch.jumpkind != 'Ijk_Boring':

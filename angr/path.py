@@ -88,7 +88,7 @@ class Path(object):
         self.path_id = urandom(8).encode('hex')
 
         # actual analysis stuff
-        self._run_args = None       # sim_run args, to determine caching
+        self._run_args = None       # successors args, to determine caching
         self._run = None
         self._run_error = None
         self._run_traceback = None
@@ -174,10 +174,10 @@ class Path(object):
 
     def step(self, throw=None, **run_args):
         """
-        Step a path forward. Optionally takes any argument applicable to project.factory.sim_run.
+        Step a path forward. Optionally takes any argument applicable to project.factory.successors.
 
         :param jumpkind:          the jumpkind of the previous exit.
-        :param addr an address:   to execute at instead of the state's ip.
+        :param addr address:      to execute at instead of the state's ip.
         :param stmt_whitelist:    a list of stmt indexes to which to confine execution.
         :param last_stmt:         a statement index at which to stop execution.
         :param thumb:             whether the block should be lifted in ARM's THUMB mode.
@@ -192,7 +192,7 @@ class Path(object):
         """
         if self._run_args != run_args or not self._run:
             self._run_args = run_args
-            self._make_sim_run(throw=throw)
+            self._make_successors(throw=throw)
 
         self.state._inspect('path_step', simuvex.BP_BEFORE)
 
@@ -219,12 +219,12 @@ class Path(object):
         self._run = None
 
 
-    def _make_sim_run(self, throw=None):
+    def _make_successors(self, throw=None):
         self._run = None
         self._run_error = None
         self._run_traceback = None
         try:
-            self._run = self._project.factory.sim_run(self.state, **self._run_args)
+            self._run = self._project.factory.successors(self.state, **self._run_args)
         except (AngrError, simuvex.SimError, claripy.ClaripyError) as e:
             l.debug("Catching exception", exc_info=True)
             self._run_error = e
@@ -751,7 +751,7 @@ class ErroredPath(Path):
 
     def retry(self, **kwargs):
         self._run_args = kwargs
-        self._run = self._project.factory.sim_run(self.state, **self._run_args)
+        self._run = self._project.factory.successors(self.state, **self._run_args)
         return super(ErroredPath, self).step(**kwargs)
 
     def debug(self):

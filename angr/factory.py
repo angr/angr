@@ -6,6 +6,17 @@ from .surveyors.caller import Callable
 import logging
 l = logging.getLogger('angr.factory')
 
+_deprecation_cache = set()
+def deprecate(name, replacement):
+    def wrapper(func):
+        def inner(*args, **kwargs):
+            if name not in _deprecation_cache:
+                l.warning("factory.%s is deprecated! Please use factory.%s instead.", name, replacement)
+                _deprecation_cache.add(name)
+            return func(*args, **kwargs)
+        return inner
+    return wrapper
+
 class AngrObjectFactory(object):
     """
     This factory provides access to important analysis elements.
@@ -28,10 +39,13 @@ class AngrObjectFactory(object):
         else:
             return self.block(addr, **block_opts).codenode # pylint: disable=no-member
 
-    def sim_block(self, state, **run_opts):
-        return self.default_engine.process(state, **run_opts)
-
-    def sim_run(self, state, addr=None, jumpkind=None, inline=False, **kwargs):
+    def successors(self, state,
+            addr=None,
+            jumpkind=None,
+            inline=False,
+            default_engine=False,
+            engines=None,
+            **kwargs):
         """
         Perform execution using any applicable engine. Enumerate the current engines and use the
         first one that works. Return a SimSuccessors object classifying the results of the run.
@@ -44,6 +58,11 @@ class AngrObjectFactory(object):
         Additional keyword arguments will be passed directly into each engine's process method.
         """
 
+        if default_engine:
+            engines = [self.default_engine]
+        if engines is None:
+            engines = self.engines
+
         if addr is not None or jumpkind is not None:
             state = state.copy()
             if addr is not None:
@@ -52,7 +71,7 @@ class AngrObjectFactory(object):
                 state.scratch.jumpkind = jumpkind
 
         r = None
-        for engine in self.engines:
+        for engine in engines:
             if engine.check(state, inline=inline, **kwargs):
 
                 if not inline and options.COW_STATES in state.options:
@@ -180,7 +199,7 @@ class AngrObjectFactory(object):
         """
         return self._project._simos.state_call(addr, *args, **kwargs)
 
-    def path(self, state=None, **options):
+    def path(self, state=None, **kwargs):
         """
         Constructs a new path.
 
@@ -191,7 +210,7 @@ class AngrObjectFactory(object):
         :rtype:                 angr.path.Path
         """
         if state is None:
-            state = self.entry_state(**options)
+            state = self.entry_state(**kwargs)
 
         return Path(self._project, state)
 
@@ -324,6 +343,15 @@ class AngrObjectFactory(object):
         except AngrUnsupportedSyscallError:
             # the syscall is not supported. don't do anything
             pass
+
+    @deprecate('sim_run()', 'successors()')
+    def sim_run(self, *args, **kwargs):
+        return self.successors(*args, **kwargs)
+
+    @deprecate('sim_block()', 'successors(default_engine=True)')
+    def sim_block(self, *args, **kwargs):
+        kwargs['default_engine'] = True
+        return self.successors(*args, **kwargs)
 
 from .errors import AngrExitError, AngrError, AngrUnsupportedSyscallError
 from .path import Path

@@ -344,7 +344,7 @@ class BackwardSlice(Analysis):
 
     def _construct_default(self, targets):
         """
-        Create a backward slice from a specific statement in a specific sim_run. This is done by traverse the CFG
+        Create a backward slice from a specific statement in a specific block. This is done by traverse the CFG
         backwards, and mark all tainted statements based on dependence graphs (CDG and DDG) provided initially. The
         traversal terminated when we reach the entry point, or when there is no unresolved dependencies.
 
