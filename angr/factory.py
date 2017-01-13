@@ -1,6 +1,5 @@
 from simuvex import SimState
 from simuvex import s_cc
-from simuvex import s_options as options
 from .surveyors.caller import Callable
 
 import logging
@@ -50,10 +49,13 @@ class AngrObjectFactory(object):
         Perform execution using any applicable engine. Enumerate the current engines and use the
         first one that works. Return a SimSuccessors object classifying the results of the run.
 
-        :param state:       The state to analyze
-        :param addr:        optional, an address to execute at instead of the state's ip
-        :param jumpkind:    optional, the jumpkind of the previous exit
-        :param inline:      This is an inline execution. Do not bother copying the state.
+        :param state:           The state to analyze
+        :param addr:            optional, an address to execute at instead of the state's ip
+        :param jumpkind:        optional, the jumpkind of the previous exit
+        :param inline:          This is an inline execution. Do not bother copying the state.
+        :param default_engine   Whether we should only attempt to use the default engine
+                                (usually VEX)
+        :param engines:         A list of engines to try to use, instead of the default.
 
         Additional keyword arguments will be passed directly into each engine's process method.
         """
@@ -73,14 +75,7 @@ class AngrObjectFactory(object):
         r = None
         for engine in engines:
             if engine.check(state, inline=inline, **kwargs):
-
-                if not inline and options.COW_STATES in state.options:
-                    # make a copy of the initial state for actual processing, if needed
-                    new_state = state.copy()
-                else:
-                    new_state = state
-
-                r = engine.process(new_state, inline=inline,**kwargs)
+                r = engine.process(state, inline=inline,**kwargs)
                 if r.processed:
                     break
 
