@@ -83,6 +83,7 @@ class Block(object):
         if vex is not None:
             self.instructions = vex.instructions
             self._instruction_addrs = []
+            self.size = vex.size
 
             for stmt in vex.statements:
                 if stmt.tag != 'Ist_IMark':

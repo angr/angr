@@ -296,7 +296,6 @@ class AngrObjectFactory(object):
               ):
 
         if insn_bytes is not None:
-            l.warning('Keyword argument "insn_bytes" has been deprecated for block(). Please use "byte_string" instead.')
             byte_string = insn_bytes
 
         if max_size is not None:
