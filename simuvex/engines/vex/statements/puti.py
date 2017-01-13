@@ -3,7 +3,6 @@ from .. import size_bytes
 from simuvex import s_options as o
 from simuvex.s_action_object import SimActionObject
 from simuvex.s_action import SimActionData
-from simuvex.s_variable import SimRegisterVariable
 
 class SimIRStmt_PutI(SimIRStmt):
     def _execute(self):

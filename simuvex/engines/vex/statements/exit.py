@@ -24,4 +24,3 @@ class SimIRStmt_Exit(SimIRStmt):
         if o.TRACK_JMP_ACTIONS in self.state.options:
             guard_ao = SimActionObject(self.guard, reg_deps=guard_irexpr.reg_deps(), tmp_deps=guard_irexpr.tmp_deps())
             self.actions.append(SimActionExit(self.state, target=self.target, condition=guard_ao, exit_type=SimActionExit.CONDITIONAL))
-

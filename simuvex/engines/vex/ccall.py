@@ -635,12 +635,10 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
 # Simplified CCalls
 #
 
-"""
-Simplified CCalls (whose names look like `pc_actions_<operation>_<condition>`) are a bunch of methods that generate
-straight-forward ASTs based on the operation and the condition, instead of blindly following the way that a CPU does
-the conditional flags calculation and generating messy and meaningless ASTs. It allows us to have a meaningful AST for
-each conditional flag, which greatly helps static analysis (like VSA).
-"""
+# Simplified CCalls (whose names look like `pc_actions_<operation>_<condition>`) are a bunch of methods that generate
+# straight-forward ASTs based on the operation and the condition, instead of blindly following the way that a CPU does
+# the conditional flags calculation and generating messy and meaningless ASTs. It allows us to have a meaningful AST
+# for each conditional flag, which greatly helps static analysis (like VSA).
 
 def _cond_flag(state, condition):
     return state.se.If(condition, state.se.BVV(1, 1), state.se.BVV(0, 1))
@@ -681,19 +679,19 @@ def pc_actions_cond_CondS(state, cc_expr):
 
 def pc_actions_cond_CondB(state, cc_expr):
     return _cond_flag(state, state.se.ULT(cc_expr, 0))
-    
+
 def pc_actions_cond_CondBE(state, cc_expr):
     return _cond_flag(state, state.se.ULE(cc_expr, 0))
-    
+
 def pc_actions_cond_CondNBE(state, cc_expr):
     return _cond_flag(state, state.se.UGT(cc_expr, 0))
 
 def pc_actions_cond_CondL(state, cc_expr):
     return _cond_flag(state, state.se.SLT(cc_expr, 0))
-    
+
 def pc_actions_cond_CondLE(state, cc_expr):
     return _cond_flag(state, state.se.SLE(cc_expr, 0))
-    
+
 def pc_actions_cond_CondNLE(state, cc_expr):
     return _cond_flag(state, state.se.SGT(cc_expr, 0))
 
@@ -738,7 +736,7 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
 
     # Extract the operation
     cc_op = flag_concretize(state, cc_op)
-    
+
     if cc_op == data[platform]['OpTypes']['G_CC_OP_COPY']:
         raise SimCCallError("G_CC_OP_COPY is not supported in pc_calculate_condition_simple(). Consider implementing.")
     if cc_op == data[platform]['OpTypes']['G_CC_OP_NUMBER']:
@@ -772,7 +770,7 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
         else:
             l.warning('Operation %s with condition %s is not supported in pc_calculate_condition_simple(). Consider implementing.', op, cond)
             raise KeyError('Operation %s with condition %s not found.' % (op, cond))
-        
+
     return state.se.Concat(state.se.BVV(0, state.arch.bits - 1), r), []
 
 

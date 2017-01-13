@@ -11,14 +11,14 @@ class close(simuvex.SimProcedure):
 
     def run(self, fd):
         fd = self.state.se.any_int(fd)
-        
+
         # Return error if file is already closed
-        if self.state.posix.files[fd].closed == True:
+        if self.state.posix.files[fd].closed is True:
             v = self.state.se.BVV(-1, self.state.arch.bits)
 
         # Otherwise close it and return good
         else:
             self.state.posix.close(fd)
             v = self.state.se.BVV(0, self.state.arch.bits)
-        
+
         return v

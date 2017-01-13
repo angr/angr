@@ -110,7 +110,8 @@ class SimEngineUnicorn(SimEngine):
         successors.description = 'Unicorn (%s after %d steps)' % (STOP.name_stop(state.unicorn.stop_reason), state.unicorn.steps)
         successors.processed = True
 
-    def _countdown(self, state, *args, **kwargs):
+    @staticmethod
+    def _countdown(state, *args, **kwargs):  # pylint:disable=unused-argument
         state.unicorn.decrement_countdowns()
 
 from ..plugins.unicorn_engine import STOP

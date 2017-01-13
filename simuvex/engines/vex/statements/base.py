@@ -43,11 +43,9 @@ class SimIRStmt(object):
 
     def _write_tmp(self, tmp, v, reg_deps, tmp_deps):
         """
-        Writes an expression to a tmp. 
+        Writes an expression to a tmp.
         """
         self.state.scratch.store_tmp(tmp, v, reg_deps, tmp_deps)
 
 
 from ..expressions import translate_expr
-from simuvex import s_options as o
-from simuvex.s_action import SimActionData, SimActionObject

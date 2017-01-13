@@ -2,7 +2,6 @@ from .base import SimIRExpr
 from .. import size_bytes
 from simuvex import s_options as o
 from simuvex.s_action import SimActionData
-from simuvex.s_variable import SimRegisterVariable
 
 class SimIRExpr_Get(SimIRExpr):
     def _execute(self):

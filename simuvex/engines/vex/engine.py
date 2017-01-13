@@ -1,5 +1,4 @@
 import sys
-import copy
 from cachetools import LRUCache
 
 import pyvex
@@ -388,7 +387,7 @@ class SimEngineVEX(SimEngine):
                 if state and o.OPTIMIZE_IR in state.options:
                     state.options.remove(o.OPTIMIZE_IR)
 
-        # phase 2: permissions 
+        # phase 2: permissions
         if state and o.STRICT_PAGE_ACCESS in state.options:
             try:
                 perms = state.memory.permissions(addr)
@@ -521,7 +520,7 @@ class SimEngineVEX(SimEngine):
             return None
 
         first_imark = True
-        for i, stmt in enumerate(irsb.statements):
+        for stmt in irsb.statements:
             if isinstance(stmt, pyvex.stmt.IMark):
                 addr = stmt.addr + stmt.delta
                 if not first_imark and addr in self._stop_points:
