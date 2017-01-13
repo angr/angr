@@ -1594,7 +1594,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             if empty_insn:
                 # make sure opt_level is 0
-                irsb = self.project.factory.block(addr=irsb_addr, max_size=irsb.size, opt_level=0).vex
+                irsb = self.project.factory.block(addr=irsb_addr, size=irsb.size, opt_level=0).vex
 
         # for each statement, collect all constants that are referenced or used.
         self._collect_data_references_core(irsb, irsb_addr)
@@ -2575,7 +2575,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # no one is calling it
                     # this function might be created from linear sweeping
                     try:
-                        block = self.project.factory.block(a.addr, max_size=0x10 - (a.addr % 0x10))
+                        block = self.project.factory.block(a.addr, size=0x10 - (a.addr % 0x10))
                     except SimTranslationError:
                         continue
                     insns = block.capstone.insns
@@ -3272,7 +3272,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 nodecode = False
                 irsb = None
                 try:
-                    irsb = self.project.factory.block(addr, max_size=distance).vex
+                    irsb = self.project.factory.block(addr, size=distance).vex
                 except SimTranslationError:
                     nodecode = True
 
@@ -3292,7 +3292,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         return addr_0, cfg_node.function_address, cfg_node, irsb
 
                     try:
-                        irsb = self.project.factory.block(addr_0, max_size=distance).vex
+                        irsb = self.project.factory.block(addr_0, size=distance).vex
                     except SimTranslationError:
                         nodecode = True
 

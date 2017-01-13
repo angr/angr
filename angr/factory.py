@@ -282,11 +282,12 @@ class AngrObjectFactory(object):
               ):
 
         if insn_bytes is not None:
-            # raise a deprecation warning in the future
             l.warning('Keyword argument "insn_bytes" has been deprecated for block(). Please use "byte_string" instead.')
             byte_string = insn_bytes
 
-        if max_size is not None: size = max_size
+        if max_size is not None:
+            l.warning('Keyword argument "max_size" has been deprecated for block(). Please use "size" instead.')
+            size = max_size
         return Block(addr, project=self._project, size=size, byte_string=byte_string, vex=vex, thumb=thumb,
                      backup_state=backup_state, opt_level=opt_level, num_inst=num_inst
                      )

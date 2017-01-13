@@ -2551,7 +2551,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             if sim_successors is None:
                 jumpkind = state.scratch.jumpkind
                 jumpkind = 'Ijk_Boring' if jumpkind is None else jumpkind
-                sim_successors = self.project.factory.sim_run(state, jumpkind=jumpkind, max_size=block_size,
+                sim_successors = self.project.factory.sim_run(state, jumpkind=jumpkind, size=block_size,
                                                               opt_level=self._iropt_level
                                                               )
 

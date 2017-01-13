@@ -422,7 +422,7 @@ class Veritesting(Analysis):
                     ip = path.addr
                     # FIXME: cfg._nodes should also be updated when calling cfg.normalize()
                     size_of_next_irsb = [ n for n in self._cfg.graph.nodes() if n.addr == ip ][0].size
-                    path.step(max_size=size_of_next_irsb)
+                    path.step(size=size_of_next_irsb)
             except (AngrError, SimError, ClaripyError) as ex:
                 l.debug('is_path_errored(): caxtching exception %s', ex)
                 path._error = ex

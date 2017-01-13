@@ -61,7 +61,7 @@ class Block(object):
         self._capstone = None
         self.size = size
 
-        self.instructions = None
+        self.instructions = num_inst
         self._instruction_addrs = []
 
         self._parse_vex_info()
@@ -131,6 +131,7 @@ class Block(object):
                     addr=self.addr,
                     thumb=self.thumb,
                     max_size=self.size,
+                    num_inst=self.instructions
             )
             self._parse_vex_info()
 

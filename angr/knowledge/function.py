@@ -169,7 +169,7 @@ class Function(object):
             return self._block_cache[addr]
         else:
             if addr in self.block_addrs:
-                block = self._project.factory.block(addr, max_size=self._block_sizes[addr])
+                block = self._project.factory.block(addr, size=self._block_sizes[addr])
                 self._block_cache[addr] = block
                 return block
             block = self._project.factory.block(addr)
