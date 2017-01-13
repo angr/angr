@@ -46,6 +46,19 @@ class SimEngineFailure(SimEngine):
         else:
             return SimSuccessors.failure()
 
+    #
+    # Pickling
+    #
+
+    def __setstate__(self, state):
+        super(SimEngineFailure, self).__setstate__(state)
+        self.project = state['project']
+
+    def __getstate__(self):
+        s = super(SimEngineFailure, self).__getstate__()
+        s['project'] = self.project
+        return s
+
 
 class SimEngineSyscall(SimEngine):
     def __init__(self, project):
@@ -73,6 +86,19 @@ class SimEngineSyscall(SimEngine):
                 sys_procedure,
                 force_addr=addr,
                 ret_to=ret_to)
+
+    #
+    # Pickling
+    #
+
+    def __setstate__(self, state):
+        super(SimEngineSyscall, self).__setstate__(state)
+        self.project = state['project']
+
+    def __getstate__(self):
+        s = super(SimEngineSyscall, self).__getstate__()
+        s['project'] = self.project
+        return s
 
 
 class SimEngineHook(SimEngineProcedure):
@@ -145,5 +171,18 @@ class SimEngineHook(SimEngineProcedure):
 
         l.debug("Running %s (originally at %#x)", repr(procedure), addr)
         return super(SimEngineHook, self)._process(state, successors, procedure, **kwargs)
+
+    #
+    # Pickling
+    #
+
+    def __setstate__(self, state):
+        super(SimEngineHook, self).__setstate__(state)
+        self.project = state['project']
+
+    def __getstate__(self):
+        s = super(SimEngineHook, self).__getstate__()
+        s['project'] = self.project
+        return s
 
 from .errors import AngrExitError
