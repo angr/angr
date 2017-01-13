@@ -33,12 +33,18 @@ def _build_sim_unicorn():
         raise LibError("You must install unicorn and pyvex before building simuvex")
 
     env = os.environ.copy()
-    env['UNICORN_INCLUDE_PATH'] = pkg_resources.resource_filename('unicorn', 'include')
-    env['UNICORN_LIB_PATH'] = pkg_resources.resource_filename('unicorn', 'lib')
-    env['UNICORN_LIB_FILE'] = pkg_resources.resource_filename('unicorn', 'lib\\unicorn.lib')
-    env['PYVEX_INCLUDE_PATH'] = pkg_resources.resource_filename('pyvex', 'include')
-    env['PYVEX_LIB_PATH'] = pkg_resources.resource_filename('pyvex', 'lib')
-    env['PYVEX_LIB_FILE'] = pkg_resources.resource_filename('pyvex', 'lib\\pyvex.lib')
+    env_data = (('UNICORN_INCLUDE_PATH', 'unicorn', 'include'),
+                ('UNICORN_LIB_PATH', 'unicorn', 'lib'),
+                ('UNICORN_LIB_FILE', 'unicorn', 'lib\\unicorn.lib'),
+                ('PYVEX_INCLUDE_PATH', 'pyvex', 'include'),
+                ('PYVEX_LIB_PATH', 'pyvex', 'lib'),
+                ('PYVEX_LIB_FILE', 'pyvex', 'lib\\pyvex.lib'))
+    for var, pkg, fnm in env_data:
+        try:
+            env[var] = pkg_resources.resource_filename(pkg, fnm)
+        except KeyError:
+            pass
+
     cmd1 = ['nmake', '/f', 'Makefile-win']
     cmd2 = ['make']
     for cmd in (cmd1, cmd2):
