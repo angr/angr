@@ -514,6 +514,19 @@ class PathGroup(ana.Storable):
         n = n if n is not None else 1 if until is None else 100000
         pg = self
 
+        # Check for found path in first block
+        for path in pg.stashes[stash]:
+            for hook in self._hooks_filter:
+                goto = hook(path)
+                if type(goto) is tuple and goto[0] == "found":
+                    goto, path2 = goto
+                    
+                    if goto in pg.stashes:
+                        pg.stashes[goto].append(path2)
+                    else:
+                        pg.stashes[goto] = [path2]
+                    pg.stashes[stash].remove(path)
+
         for i in range(n):
             l.debug("Round %d: stepping %s", i, pg)
 
