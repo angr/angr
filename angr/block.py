@@ -131,7 +131,7 @@ class Block(object):
                     insn_bytes=self._bytes,
                     addr=self.addr,
                     thumb=self.thumb,
-                    max_size=self.size,
+                    size=self.size,
                     num_inst=self.instructions
             )
             self._parse_vex_info()
