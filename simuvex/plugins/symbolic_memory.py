@@ -920,7 +920,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         else:
             merged_val = self.state.se.BVV(0, merged_size*8)
             for tm,fv in to_merge:
-                l.debug("In merge: %s if flag is %s", tm, fv)
                 merged_val = self.state.se.If(fv, tm, merged_val)
 
         return merged_val

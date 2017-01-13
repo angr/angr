@@ -14,18 +14,25 @@ class SimEngine(object):
     def __init__(self, check_failed=None):
         self._check_failed = check_failed
 
-    def process(self, new_state, *args, **kwargs):
+    def process(self, state, *args, **kwargs):
         """
         Perform execution with a state.
 
-        :param new_state:   The state with which to execute. This state will be modified during execution.
+        :param state:       The state with which to execute. This state will be copied before
+                            modification.
         :param inline:      This is an inline execution. Do not bother copying the state.
         :param force_addr:  Force execution to pretend that we're working at this concrete address
         :returns:           A SimSuccessors object categorizing the execution's successor states
         """
         inline = kwargs.pop('inline', False)
         force_addr = kwargs.pop('force_addr', None)
-        addr = new_state.se.any_int(new_state._ip) if force_addr is None else force_addr
+        addr = state.se.any_int(state._ip) if force_addr is None else force_addr
+
+        # make a copy of the initial state for actual processing, if needed
+        if not inline and o.COW_STATES in state.options:
+            new_state = state.copy()
+        else:
+            new_state = state
 
         # clear the log (unless we're inlining)
         if not inline:
@@ -33,7 +40,7 @@ class SimEngine(object):
             new_state.scratch.clear()
             new_state.scratch.bbl_addr = addr
 
-        successors = SimSuccessors(addr, new_state)
+        successors = SimSuccessors(addr, state)
         self._process(new_state, successors, *args, **kwargs)
         return successors
 
