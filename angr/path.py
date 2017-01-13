@@ -190,6 +190,13 @@ class Path(object):
 
         :returns:   An array of paths for the possible successors.
         """
+
+        # backward compatibility
+        if 'max_size' in run_args:
+            l.warning('"max_size" has been deprecated in Path.step(). Please use "size" instead.')
+            size = run_args.pop('max_size')
+            run_args['size'] = size
+
         if self._run_args != run_args or not self._run:
             self._run_args = run_args
             self._make_successors(throw=throw)
