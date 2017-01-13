@@ -1,10 +1,10 @@
 import nose
-from simuvex import SimState, SimIRSB
-import simuvex.vex.ccall as s_ccall
+from simuvex import SimState, SimEngineVEX
+import simuvex.engines.vex.ccall as s_ccall
 import pyvex
 import claripy
 import logging
-l = logging.getLogger('simuvex.test.vex')
+l = logging.getLogger('simuvex.tests.test_vex')
 
 #@nose.tools.timed(10)
 def test_ccall():
@@ -127,7 +127,7 @@ def test_ccall():
     nose.tools.assert_true(s.se.is_true(of == 0))
 
 def test_some_vector_ops():
-    from simuvex.vex.irop import translate
+    from simuvex.engines.vex.irop import translate
 
     s = SimState()
 
@@ -200,8 +200,8 @@ def test_store_simplification():
     state.regs.eax = state.se.BVS('base_eax', 32)
 
     irsb = pyvex.IRSB('PT]\xc2\x10\x00', 0x4000, state.arch)
-    sirsb = SimIRSB(state, irsb)
-    exit_state = sirsb.default_exit
+    sim_successors = SimEngineVEX().process(state.copy(), irsb)
+    exit_state = sim_successors.all_successors[0]
 
     nose.tools.assert_true(claripy.backends.z3.is_true(exit_state.regs.ebp == state.regs.esp - 4))
 

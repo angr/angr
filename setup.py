@@ -63,10 +63,7 @@ def _build_sim_unicorn():
 
 class build(_build):
     def run(self, *args):
-        try:
-            self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
-        except LibError:
-            print 'Failed to build unicorn engine support'
+        self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
         _build.run(self, *args)
 
 cmdclass = {
@@ -77,10 +74,7 @@ try:
     from setuptools.command.develop import develop as _develop
     class develop(_develop):
         def run(self, *args):
-            try:
-                self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
-            except LibError:
-                pass
+            self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
             _develop.run(self, *args)
 
     cmdclass['develop'] = develop
@@ -106,13 +100,17 @@ setup(
     packages=packages,
     install_requires=[
         'bintrees',
+        'cachetools',
+        'enum34',
         'dpkt-fix',
         'pyvex',
         'archinfo',
         'claripy',
         'cooldict',
-        'ana'
+        'ana',
+        'unicorn'
     ],
+    setup_requires=['unicorn', 'pyvex'],
     cmdclass=cmdclass,
     include_package_data=True,
     package_data={

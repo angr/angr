@@ -439,7 +439,8 @@ class SimMemory(SimStatePlugin):
                     return new_region_id
             raise SimMemoryError('Cannot allocate region ID for function %#08x - recursion too deep' % function_address)
 
-    def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None, inspect=True, priv=None):
+    def store(self, addr, data, size=None, condition=None, add_constraints=None, endness=None, action=None,
+              inspect=True, priv=None, disable_actions=False):
         """
         Stores content into memory.
 
@@ -453,6 +454,9 @@ class SimMemory(SimStatePlugin):
         :param add_constraints: Add constraints resulting from the merge (default: True).
         :param endness:         The endianness for the data.
         :param action:          A SimActionData to fill out with the final written value and constraints.
+        :param bool inspect:    Whether this store should trigger SimInspect breakpoints or not.
+        :param bool disable_actions: Whether this store should avoid creating SimActions or not. When set to False,
+                                     state options are respected.
         """
         if priv is not None: self.state.scratch.push_priv(priv)
 
@@ -522,23 +526,26 @@ class SimMemory(SimStatePlugin):
         if add_constraints and len(request.constraints) > 0:
             self.state.add_constraints(*request.constraints)
 
-        if request.completed and o.AUTO_REFS in self.state.options and action is None and not self._abstract_backer:
-            ref_size = size if size is not None else (data_e.size() / 8)
-            region_type = self.category
-            if region_type == 'file':
-                # Special handling for files to keep compatibility
-                # We may use some refactoring later
-                region_type = self.id
-            action = SimActionData(self.state, region_type, 'write', addr=addr, data=data, size=ref_size, condition=condition)
-            self.state.log.add_action(action)
+        if not disable_actions:
+            if request.completed and o.AUTO_REFS in self.state.options and action is None and not self._abstract_backer:
+                ref_size = size if size is not None else (data_e.size() / 8)
+                region_type = self.category
+                if region_type == 'file':
+                    # Special handling for files to keep compatibility
+                    # We may use some refactoring later
+                    region_type = self.id
+                action = SimActionData(self.state, region_type, 'write', addr=addr_e, data=data_e, size=ref_size,
+                                       condition=condition
+                                       )
+                self.state.log.add_action(action)
 
-        if request.completed and action is not None:
-            action.actual_addrs = request.actual_addresses
-            action.actual_value = action._make_object(request.stored_values[0]) # TODO
-            if len(request.constraints) > 0:
-                action.added_constraints = action._make_object(self.state.se.And(*request.constraints))
-            else:
-                action.added_constraints = action._make_object(self.state.se.true)
+            if request.completed and action is not None:
+                action.actual_addrs = request.actual_addresses
+                action.actual_value = action._make_object(request.stored_values[0]) # TODO
+                if len(request.constraints) > 0:
+                    action.added_constraints = action._make_object(self.state.se.And(*request.constraints))
+                else:
+                    action.added_constraints = action._make_object(self.state.se.true)
 
         if priv is not None: self.state.scratch.pop_priv()
 
@@ -573,11 +580,13 @@ class SimMemory(SimStatePlugin):
         conditions_e = _raw_ast(conditions)
         fallback_e = _raw_ast(fallback)
 
-        max_bits = max(c.length for c in contents_e if isinstance(c, claripy.ast.Bits)) if fallback is None else fallback.length
+        max_bits = max(c.length for c in contents_e if isinstance(c, claripy.ast.Bits)) \
+            if fallback is None else fallback.length
 
         # if fallback is not provided by user, load it from memory
         # remember to specify the endianness!
-        fallback_e = self.load(addr, max_bits/8, add_constraints=add_constraints, endness=endness) if fallback_e is None else fallback_e
+        fallback_e = self.load(addr, max_bits/8, add_constraints=add_constraints, endness=endness) \
+            if fallback_e is None else fallback_e
 
         req = self._store_cases(addr_e, contents_e, conditions_e, fallback_e, endness=endness)
         add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
@@ -590,13 +599,16 @@ class SimMemory(SimStatePlugin):
                 # Special handling for files to keep compatibility
                 # We may use some refactoring later
                 region_type = self.id
-            action = SimActionData(self.state, region_type, 'write', addr=addr, data=req.stored_values[-1], size=max_bits/8, condition=self.state.se.Or(*conditions), fallback=fallback)
+            action = SimActionData(self.state, region_type, 'write', addr=addr_e, data=req.stored_values[-1],
+                                   size=max_bits/8, condition=self.state.se.Or(*conditions), fallback=fallback
+                                   )
             self.state.log.add_action(action)
 
         if req.completed and action is not None:
             action.actual_addrs = req.actual_addresses
             action.actual_value = action._make_object(req.stored_values[-1])
-            action.added_constraints = action._make_object(self.state.se.And(*req.constraints) if len(req.constraints) > 0 else self.state.se.true)
+            action.added_constraints = action._make_object(self.state.se.And(*req.constraints)
+                                                           if len(req.constraints) > 0 else self.state.se.true)
 
     def _store_cases(self, addr, contents, conditions, fallback, endness=None):
         extended_contents = [ ]
@@ -637,7 +649,8 @@ class SimMemory(SimStatePlugin):
             req = MemoryStoreRequest(addr, data=ite, endness=endness)
             return self._store(req)
 
-    def load(self, addr, size=None, condition=None, fallback=None, add_constraints=None, action=None, endness=None, inspect=True):
+    def load(self, addr, size=None, condition=None, fallback=None, add_constraints=None, action=None, endness=None,
+             inspect=True, disable_actions=False):
         """
         Loads size bytes from dst.
 
@@ -648,6 +661,9 @@ class SimMemory(SimStatePlugin):
         :param add_constraints: Add constraints resulting from the merge (default: True).
         :param action:          A SimActionData to fill out with the constraints.
         :param endness:         The endness to load with.
+        :param bool inspect:    Whether this store should trigger SimInspect breakpoints or not.
+        :param bool disable_actions: Whether this store should avoid creating SimActions or not. When set to False,
+                                     state options are respected.
 
         There are a few possible return values. If no condition or fallback are passed in,
         then the return is the bytes at the address, in the form of a claripy expression.
@@ -731,22 +747,25 @@ class SimMemory(SimStatePlugin):
                 self.state._inspect('reg_read', BP_AFTER, reg_read_expr=r)
                 r = self.state._inspect_getattr("reg_read_expr", r)
 
-        if o.AST_DEPS in self.state.options and self.category == 'reg':
-            r = SimActionObject(r, reg_deps=frozenset((addr,)))
+        if not disable_actions:
+            if o.AST_DEPS in self.state.options and self.category == 'reg':
+                r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
-        if o.AUTO_REFS in self.state.options and action is None:
-            ref_size = size if size is not None else (r.size() / 8)
-            region_type = self.category
-            if region_type == 'file':
-                # Special handling for files to keep compatibility
-                # We may use some refactoring later
-                region_type = self.id
-            action = SimActionData(self.state, region_type, 'read', addr=addr, data=r, size=ref_size, condition=condition, fallback=fallback)
-            self.state.log.add_action(action)
+            if o.AUTO_REFS in self.state.options and action is None:
+                ref_size = size if size is not None else (r.size() / 8)
+                region_type = self.category
+                if region_type == 'file':
+                    # Special handling for files to keep compatibility
+                    # We may use some refactoring later
+                    region_type = self.id
+                action = SimActionData(self.state, region_type, 'read', addr=addr, data=r, size=ref_size,
+                                       condition=condition, fallback=fallback)
+                self.state.log.add_action(action)
 
-        if action is not None:
-            action.actual_addrs = a
-            action.added_constraints = action._make_object(self.state.se.And(*c) if len(c) > 0 else self.state.se.true)
+            if action is not None:
+                action.actual_addrs = a
+                action.added_constraints = action._make_object(self.state.se.And(*c)
+                                                               if len(c) > 0 else self.state.se.true)
 
         return r
 

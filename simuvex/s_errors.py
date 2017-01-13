@@ -131,28 +131,31 @@ class UnsupportedDirtyError(UnsupportedIRStmtError, SimUnsupportedError):
     pass
 
 #
-# SimIRSB errors
+# Engine-related errors
 #
 
-class SimRunError(SimError):
+class SimEngineError(SimError):
     pass
 
-class SimIRSBError(SimRunError):
+class SimIRSBError(SimEngineError):
     pass
 
-class SimProcedureError(SimRunError):
+class SimTranslationError(SimEngineError):
+    pass
+
+class SimProcedureError(SimEngineError):
     pass
 
 class SimProcedureArgumentError(SimProcedureError):
     pass
 
-class SimFastPathError(SimIRSBError):
+class SimFastPathError(SimEngineError):
     pass
 
 class UnsupportedSyscallError(SimProcedureError, SimUnsupportedError):
     pass
 
-class SimReliftException(SimIRSBError):
+class SimReliftException(SimEngineError):
     def __init__(self, state):
         super(SimReliftException, self).__init__()
         self.state = state

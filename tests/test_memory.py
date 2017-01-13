@@ -38,7 +38,8 @@ def test_copy():
     x = s.se.BVS('size', s.arch.bits)
     s.add_constraints(s.se.ULT(x, 10))
 
-    ret_x = SimProcedures['libc.so.6']['read'](s, inline=True, arguments=[0, 0x200, x]).ret_expr
+    read_proc = SimProcedures['libc.so.6']['read'](0x100000, s.arch)
+    ret_x = read_proc.execute(s, arguments=(0, 0x200, x)).ret_expr
     nose.tools.assert_equals(sorted(s.se.any_n_int(x, 100)), range(10))
     result = s.memory.load(0x200, 5)
     nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])
@@ -549,7 +550,9 @@ def test_concrete_memset():
     def _individual_test(state, base, val, size):
         # time it
         start = time.time()
-        memset = simuvex.SimProcedures['libc.so.6']['memset'](state, inline=True, arguments=[base, state.se.BVV(val, 8), size])
+        memset = simuvex.SimProcedures['libc.so.6']['memset'](0x100000, state.arch).execute(
+            state, arguments=[base, state.se.BVV(val, 8), size]
+        )
         elapsed = time.time() - start
 
         # should be done within 1 second

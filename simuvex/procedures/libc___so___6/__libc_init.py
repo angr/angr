@@ -15,6 +15,7 @@ class __libc_init(simuvex.SimProcedure):
 
     ADDS_EXITS = True
     NO_RET = True
+    IS_FUNCTION = True
     local_vars = ('main', 'argc', 'argv', 'envp')
 
     def run(self, raw_args, unused, slingshot, structors):
@@ -30,4 +31,4 @@ class __libc_init(simuvex.SimProcedure):
         self.call(self.main, (self.argc, self.argv, self.envp), 'after_slingshot')
 
     def after_slingshot(self, raw_args, unused, slingshot, structors, exit_addr=0):
-        self.inline_call(simuvex.SimProcedures['libc.so.6']['exit'], 0)
+        self.exit(0)

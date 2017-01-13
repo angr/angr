@@ -20,28 +20,27 @@ class pthread_create(simuvex.SimProcedure):
         # This is a stupid hack, but it should cause the simulated execution to halt on returning, which is correct
         new_state.stack_push(self.state.se.BVV(0, self.state.arch.bits))
 
-        self.add_successor(new_state, code_addr, new_state.se.true, jumpkind='Ijk_Call')
+        self.successors.add_successor(new_state, code_addr, new_state.se.true, 'Ijk_Call')
         return self.state.se.BVV(0, self.state.arch.bits)
 
-    @classmethod
-    def static_exits(cls, arch, blocks):
+    def static_exits(self, blocks):
         # Execute those blocks with a blank state, and then dump the arguments
-        blank_state = simuvex.SimState(arch=arch, mode="fastpath")
+        blank_state = simuvex.SimState(arch=self.arch, mode="fastpath")
 
         # Execute each block
         state = blank_state
         for b in blocks:
-            # state.regs.ip = next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr
-            irsb = simuvex.SimIRSB(state, b,
-                        addr=next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr)
+            irsb = simuvex.SimEngineVEX().process(state, b,
+                    force_addr=next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr
+                                                  )
             if irsb.successors:
                 state = irsb.successors[0]
             else:
                 break
 
-        cc = simuvex.DefaultCC[arch.name](arch)
+        cc = simuvex.DefaultCC[self.arch.name](self.arch)
         callfunc = cc.arg(state, 2)
-        retaddr = state.memory.load(state.regs.sp, arch.bytes)
+        retaddr = state.memory.load(state.regs.sp, self.arch.bytes)
 
         all_exits = [
             (callfunc, 'Ijk_Call'),

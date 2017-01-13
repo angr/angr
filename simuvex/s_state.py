@@ -136,7 +136,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
     @property
     def ip(self):
         """
-        Get the instruction pointer expression.
+        Get the instruction pointer expression, trigger SimInspect breakpoints, and generate SimActions.
 
         :return: an expression
         """
@@ -145,6 +145,26 @@ class SimState(ana.Storable): # pylint: disable=R0904
     @ip.setter
     def ip(self, val):
         self.regs.ip = val
+
+    @property
+    def _ip(self):
+        """
+        Get the instruction pointer expression without triggering SimInspect breakpoints or generating SimActions.
+
+        :return: an expression
+        """
+        return self.regs._ip
+
+    @_ip.setter
+    def _ip(self, val):
+        """
+        Set the instruction pointer without triggering SimInspect breakpoints or generating SimActions.
+
+        :param val: The new instruction pointer.
+        :return:    None
+        """
+
+        self.regs._ip = val
 
     #
     # Plugin accessors

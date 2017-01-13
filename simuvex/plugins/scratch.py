@@ -6,15 +6,13 @@ l = logging.getLogger("simuvex.plugins.scratch")
 import claripy
 
 from .plugin import SimStatePlugin
-from ..s_errors import SimValueError
-from .. import s_options as o
-from .inspect import BP_AFTER, BP_BEFORE
 
 class SimStateScratch(SimStatePlugin):
     def __init__(self, scratch=None):
         SimStatePlugin.__init__(self)
 
         # info on the current run
+        self.irsb = None
         self.bbl_addr = None
         self.stmt_idx = None
         self.last_ins_addr = None
@@ -37,6 +35,7 @@ class SimStateScratch(SimStatePlugin):
 
         # information on VEX temps of this IRSB
         self.temps = { }
+        self.tyenv = None
 
         # dirtied addresses, for dealing with self-modifying code
         self.dirty_addrs = set()
@@ -44,6 +43,7 @@ class SimStateScratch(SimStatePlugin):
 
         if scratch is not None:
             self.temps.update(scratch.temps)
+            self.tyenv = scratch.tyenv
             self.jumpkind = scratch.jumpkind
             self.guard = scratch.guard
             self.target = scratch.target
@@ -54,6 +54,7 @@ class SimStateScratch(SimStatePlugin):
             self.executed_syscall_count = scratch.executed_syscall_count
             self.executed_instruction_count = scratch.executed_instruction_count
 
+            self.irsb = scratch.irsb
             self.bbl_addr = scratch.bbl_addr
             self.stmt_idx = scratch.stmt_idx
             self.last_ins_addr = scratch.last_ins_addr
@@ -94,12 +95,15 @@ class SimStateScratch(SimStatePlugin):
         self.state._inspect('tmp_read', BP_AFTER, tmp_read_expr=v)
         return v
 
-    def store_tmp(self, tmp, content):
+    def store_tmp(self, tmp, content, reg_deps=None, tmp_deps=None):
         """
         Stores a Claripy expression in a VEX temp value.
+        If in symbolic mode, this involves adding a constraint for the tmp's symbolic variable.
 
         :param tmp: the number of the tmp
         :param content: a Claripy expression of the content
+        :param reg_deps: the register dependencies of the content
+        :param tmp_deps: the temporary value dependencies of the content
         """
         self.state._inspect('tmp_write', BP_BEFORE, tmp_write_num=tmp, tmp_write_expr=content)
         tmp = self.state._inspect_getattr('tmp_write_num', tmp)
@@ -112,8 +116,13 @@ class SimStateScratch(SimStatePlugin):
             # Symbolic
             self.state.add_constraints(self.temps[tmp] == content)
 
-        self.state._inspect('tmp_write', BP_AFTER)
+        # get the size, and record the write
+        if o.TRACK_TMP_ACTIONS in self.state.options:
+            data_ao = SimActionObject(content, reg_deps=reg_deps, tmp_deps=tmp_deps)
+            r = SimActionData(self.state, SimActionData.TMP, SimActionData.WRITE, tmp=tmp, data=data_ao, size=content.length)
+            self.state.log.events.append(r)
 
+        self.state._inspect('tmp_write', BP_AFTER)
 
     def copy(self):
         return SimStateScratch(scratch=self)
@@ -126,7 +135,13 @@ class SimStateScratch(SimStatePlugin):
 
     def clear(self):
         s = self.state
+        j = self.jumpkind
         self.__init__()
         self.state = s
+        self.jumpkind = j # preserve jumpkind - "what is the previous jumpkind" is an important question sometimes
 
+from ..s_action import SimActionObject, SimActionData
+from ..s_errors import SimValueError
+from .. import s_options as o
+from .inspect import BP_AFTER, BP_BEFORE
 SimStateScratch.register_default('scratch', SimStateScratch)
