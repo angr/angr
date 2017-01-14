@@ -51,7 +51,8 @@ class Tracer(object):
                  hooks=None, seed=None, preconstrain_input=True,
                  preconstrain_flag=True, resiliency=True, chroot=None,
                  add_options=None, remove_options=None, trim_history=True,
-                 project=None, dump_syscall=False, dump_cache=True):
+                 project=None, dump_syscall=False, dump_cache=True,
+                 max_size = None):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -73,6 +74,8 @@ class Tracer(object):
         :param trim_history: Trim the history of a path.
         :param project: The original project.
         :param dump_syscall: True if we want to dump the syscall information
+        :param max_size: Optionally set max size of input. Defaults to size
+            of preconstrained input.
         """
 
         self.binary = binary
@@ -82,6 +85,7 @@ class Tracer(object):
         self.preconstrain_flag = preconstrain_flag
         self.simprocedures = {} if simprocedures is None else simprocedures
         self._hooks = {} if hooks is None else hooks
+        self.input_max_size = max_size or len(input)
 
         for h in self._hooks:
             l.debug("Hooking %#x -> %s", h, self._hooks[h].__name__)
@@ -937,7 +941,7 @@ class Tracer(object):
         if not self.pov:
             fs = {'/dev/stdin': simuvex.storage.file.SimFile(
                 "/dev/stdin", "r",
-                size=len(self.input))}
+                size=self.input_max_size)}
 
         else:
             fs = self._prepare_dialogue()
@@ -989,7 +993,7 @@ class Tracer(object):
             entry_state = state
 
         if not self.pov:
-            entry_state.cgc.input_size = len(self.input)
+            entry_state.cgc.input_size = self.input_max_size
 
         if len(self._hooks):
             self._set_simproc_limits(entry_state)
@@ -1050,7 +1054,7 @@ class Tracer(object):
         # fix stdin to the size of the input being traced
         fs = {'/dev/stdin': simuvex.storage.file.SimFile(
             "/dev/stdin", "r",
-            size=len(self.input))}
+            size=self.input_max_size)}
 
         options = set()
         options.add(so.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
