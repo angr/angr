@@ -169,10 +169,14 @@ class Tracer(object):
         # as their dynamic counterpart
         self._magic_content = None
 
-        # will set crash_mode correctly
+        # will set crash_mode correctly and also discover the QEMU base addr
         self.trace = self.dynamic_trace()
 
         l.info("trace consists of %d basic blocks", len(self.trace))
+
+        # Check if we need to rebase to QEMU's addr
+        if self.qemu_base_addr != self._p.loader.main_bin.get_min_addr():
+            l.warn("Our base address doesn't match QEMU's. Changing ours to 0x%x",self.qemu_base_addr)
 
         self.preconstraints = []
 
@@ -255,6 +259,7 @@ class Tracer(object):
                     # if so we need to take special care
                     r_plt = self._p.loader.main_bin.reverse_plt
                     if current.addr not in self._resolved \
+                            and self.previous is not None \
                             and self.previous.addr in r_plt:
                         self.bb_cnt += 2
                         self._resolved.add(current.addr)
@@ -759,6 +764,9 @@ class Tracer(object):
                  for v in trace.split('\n')
                  if v.startswith('Trace')]
 
+        # Find where qemu loaded the binary. Primarily for PIE
+        self.qemu_base_addr = int(trace.split("start_code")[1].split("\n")[0],16)
+
         # grab the faulting address
         if self.crash_mode:
             self.crash_addr = int(
@@ -848,8 +856,7 @@ class Tracer(object):
 
     def _set_linux_simprocedures(self, project):
         for symbol in self.simprocedures:
-            project.set_sim_procedure(
-                    project.loader.main_bin,
+            project.hook_symbol(
                     symbol,
                     self.simprocedures[symbol])
 
@@ -1024,7 +1031,11 @@ class Tracer(object):
         prepare the initial paths for Linux binaries
         '''
 
-        project = angr.Project(self.binary)
+        # Only requesting custom base if this is a PIE
+        if self._p.loader.main_bin.pic:
+            project = angr.Project(self.binary,load_options={'main_opts': {'custom_base_addr': self.qemu_base_addr }})
+        else:
+            project = angr.Project(self.binary)
 
         if not self.crash_mode:
             self._set_linux_simprocedures(project)
@@ -1044,7 +1055,7 @@ class Tracer(object):
 
         self.remove_options |= so.simplification
         self.add_options |= options
-        entry_state = project.factory.entry_state(
+        entry_state = project.factory.full_init_state(
                 fs=fs,
                 concrete_fs=True,
                 chroot=self.chroot,
