@@ -732,7 +732,7 @@ class Path(object):
             ]
 
     def __repr__(self):
-        return "<Path with %d runs (at 0x%x)>" % (self.length, self.addr)
+        return "<Path with %d runs (at 0x%x : %s)>" % (self.length, self.addr, self._project.loader.addr_belongs_to_object(self.addr).binary)
 
 
 class ErroredPath(Path):
