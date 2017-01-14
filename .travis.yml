@@ -13,5 +13,5 @@ env:
 #  - PY=e ANGR_REPO=tracer NOSE_OPTIONS="-x" NOSE_PROCESSES=1
 #  - PY=p ANGR_REPO=rex NOSE_OPTIONS="-x" NOSE_PROCESSES=1
 #  - PY=e ANGR_REPO=patcherex NOSE_OPTIONS="-x" NOSE_PROCESSES=1
-install: (sudo apt-get update || true) && cd && git clone https://github.com/angr/angr-dev && cd angr-dev && bash -e ./setup.sh -i -w -v -$PY angr tracer fuzzer driller povsim compilerex rex colorguard fidget identifier patcherex
-script: cd ~/angr-dev && source ~/.virtualenvs/angr/bin/activate && ./travis-test.sh
+install: curl https://raw.githubusercontent.com/angr/angr-dev/$TRAVIS_BRANCH/travis-install.sh | bash
+script: ~/angr-dev/travis-test.sh
