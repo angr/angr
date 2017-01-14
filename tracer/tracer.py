@@ -219,8 +219,9 @@ class Tracer(object):
 
         :return: a path_group describing the possible paths at the next branch
                  branches which weren't taken by the dynamic trace are placed
-                 into the 'missed' stash and any preconstraints are removed
-                 from 'missed' branches.
+                 into the 'missed' stash. Paths in the 'missed' stash still
+                 have preconstraints which should be removed using the
+                 remove_preconstraints method.
         """
 
         while len(self.path_group.active) == 1:
