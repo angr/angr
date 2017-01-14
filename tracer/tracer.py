@@ -334,7 +334,7 @@ class Tracer(object):
                 current.trim_history()
 
             self.prev_path_group = self.path_group
-            self.path_group = self.path_group.step(max_size=bbl_max_bytes)
+            self.path_group = self.path_group.step(size=bbl_max_bytes)
             if self.crash_type == EXEC_STACK:
                 self.path_group = self.path_group.stash(from_stash='active',
                         to_stash='crashed')
