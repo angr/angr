@@ -10,8 +10,8 @@ env:
   - PY=e ANGR_REPO=driller
   - PY=p ANGR_REPO=colorguard
   - PY=e ANGR_REPO=fidget
+  - PY=e ANGR_REPO=patcherex
 #  - PY=e ANGR_REPO=tracer NOSE_OPTIONS="-x" NOSE_PROCESSES=1
 #  - PY=p ANGR_REPO=rex NOSE_OPTIONS="-x" NOSE_PROCESSES=1
-#  - PY=e ANGR_REPO=patcherex NOSE_OPTIONS="-x" NOSE_PROCESSES=1
 install: curl https://raw.githubusercontent.com/angr/angr-dev/$TRAVIS_BRANCH/travis-install.sh | bash
 script: ~/angr-dev/travis-test.sh
