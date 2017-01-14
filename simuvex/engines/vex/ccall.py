@@ -1147,9 +1147,9 @@ def armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
         flag = boolean_extend(state, state.se.UGE, cc_dep1, cc_dep2, 32)
     elif concrete_op == ARMG_CC_OP_ADC:
         res = cc_dep1 + cc_dep2 + cc_dep3
-        flag = state.se.If(cc_dep2 != 0, boolean_extend(state, state.se.ULE, res, cc_dep1, 32), boolean_extend(state, state.se.ULT, res, cc_dep1, 32))
+        flag = state.se.If(cc_dep3 != 0, boolean_extend(state, state.se.ULE, res, cc_dep1, 32), boolean_extend(state, state.se.ULT, res, cc_dep1, 32))
     elif concrete_op == ARMG_CC_OP_SBB:
-        flag = state.se.If(cc_dep2 != 0, boolean_extend(state, state.se.UGE, cc_dep1, cc_dep2, 32), boolean_extend(state, state.se.UGT, cc_dep1, cc_dep2, 32))
+        flag = state.se.If(cc_dep3 != 0, boolean_extend(state, state.se.UGE, cc_dep1, cc_dep2, 32), boolean_extend(state, state.se.UGT, cc_dep1, cc_dep2, 32))
     elif concrete_op == ARMG_CC_OP_LOGIC:
         flag = cc_dep2
     elif concrete_op == ARMG_CC_OP_MUL:
