@@ -503,7 +503,7 @@ class PathGroup(ana.Storable):
         :param backup_state:    A state to read bytes from instead of using project memory.
         :param opt_level:       The VEX optimization level to use.
         :param insn_bytes:      A string of bytes to use for the block instead of the project.
-        :param max_size:        The maximum size of the block, in bytes.
+        :param size:            The maximum size of the block, in bytes.
         :param num_inst:        The maximum number of instructions.
         :param traceflags:      traceflags to be passed to VEX. Default: 0
 
