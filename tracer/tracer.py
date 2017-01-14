@@ -834,6 +834,10 @@ class Tracer(object):
         if repair_entry_state_opts:
             entry_state.options |= {so.TRACK_ACTION_HISTORY}
 
+        # add the preconstraints to the actual constraints on the state if we aren't replacing
+        if so.REPLACEMENT_SOLVER not in entry_state.options:
+            entry_state.add_constraints(*self.preconstraints)
+
     def _preconstrain_flag_page(self, entry_state, flag_bytes):
         '''
         preconstrain the data in the flag page
@@ -1051,6 +1055,7 @@ class Tracer(object):
         options = set()
         options.add(so.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
         options.add(so.BYPASS_UNSUPPORTED_SYSCALL)
+        options.add(so.REPLACEMENT_SOLVER)
         if self.crash_mode:
             options.add(so.TRACK_ACTION_HISTORY)
 
