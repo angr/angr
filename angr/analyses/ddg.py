@@ -1,5 +1,4 @@
 import logging
-import re
 from collections import defaultdict
 
 import networkx
@@ -67,7 +66,7 @@ class LiveDefinitions(object):
         self._defs = defaultdict(set)
 
     #
-    # Overridend methods
+    # Overridden methods
     #
 
     def __contains__(self, variable):
@@ -569,282 +568,67 @@ class DDG(Analysis):
         Given all live definitions prior to this program point, track the changes, and return a new list of live
         definitions. We scan through the action list of the new state to track the changes.
 
-        :param state:       The input state at that program point.
-        :param live_defs:   A list of all live definitions prior to reaching this program point.
+        :param state:           The input state at that program point.
+        :param live_defs:       A list of all live definitions prior to reaching this program point.
         :param list statements: A list of VEX statements.
-        :returns:           A list of new live definitions.
+        :returns:               A list of new live definitions.
+        :rtype:                 list
         """
 
         # Make a copy of live_defs
-        live_defs = live_defs.copy()
+        self._live_defs = live_defs.copy()
 
         action_list = list(state.log.actions)
 
-        # Since all temporary variables are local, we simply track them in a local dict
-        temp_defs = { }
-        temp_variables = { }
-        temp_register_symbols = { }
+        # Since all temporary variables are local, we simply track them in a dict
+        self._temp_definitions = { }
+        self._temp_variables = { }
+        self._temp_register_symbols = { }
 
         # All dependence edges are added to the graph either at the end of this method, or when they are going to be
         # overwritten by a new edge. This is because we sometimes have to modify a previous edge (e.g. add new labels
         # to the edge)
-        temps_to_edges = defaultdict(list)
-        regs_to_edges = defaultdict(list)
+        self._temp_edges = defaultdict(list)
+        self._register_edges = defaultdict(list)
 
         last_statement_id = None
-        pv_read = None  # program variables read out in the same statement. we keep a copy of those variables here so
-                        # we can link it to the tmp_write action right afterwards
-        data_generated = None
-
-        # tracks stack pointer and base pointer
-        #sp = state.se.any_int(state.regs.sp) if not state.regs.sp.symbolic else None
-        #bp = state.se.any_int(state.regs.bp) if not state.regs.bp.symbolic else None
+        self._variables_per_statement = None  # program variables read out in the same statement. we keep a copy of those variables here so
+                                              # we can link it to the tmp_write action right afterwards
+        self._custom_data_per_statement = None
 
         for a in action_list:
-
             if last_statement_id is None or last_statement_id != a.stmt_idx:
-                pv_read = [ ]
-                data_generated = None
+                # update statement ID
                 last_statement_id = a.stmt_idx
+
+                # initialize all per-statement data structures
+                self._variables_per_statement = [ ]
+                self._custom_data_per_statement = None
 
             if a.sim_procedure is None:
                 current_code_location = CodeLocation(a.bbl_addr, a.stmt_idx, ins_addr=a.ins_addr)
             else:
                 current_code_location = CodeLocation(None, None, sim_procedure=a.sim_procedure)
 
-            if a.type == "mem":
-                if a.actual_addrs is None:
-                    # For now, mem reads don't necessarily have actual_addrs set properly
-                    try:
-                        addr_list = { state.se.any_int(a.addr.ast) }
-                    except (SimSolverModeError, SimUnsatError, ZeroDivisionError):
-                        # FIXME: ZeroDivisionError should have been caught by claripy and simuvex.
-                        # FIXME: see claripy issue #75. this is just a temporary workaround.
-                        # it's symbolic... just continue
-                        addr_list = { 0x60000000 }  # TODO: this is a random address that I pick. Fix it.
-                else:
-                    addr_list = set(a.actual_addrs)
-
-                for addr in addr_list:
-
-                    variable = None
-                    if len(addr_list) == 1 and len(a.addr.tmp_deps) == 1:
-                        addr_tmp = list(a.addr.tmp_deps)[0]
-                        if addr_tmp in temp_register_symbols:
-                            # it must be a stack variable
-                            sort, offset = temp_register_symbols[addr_tmp]
-                            variable = SimStackVariable(offset, a.size.ast / 8, base=sort, base_addr=addr - offset)
-
-                    if variable is None:
-                        variable = SimMemoryVariable(addr, a.size.ast / 8)
-
-                    pvs = [ ]
-
-                    if a.action == "read":
-                        # Create an edge between def site and use site
-
-                        prevdefs = self._def_lookup(live_defs, variable)
-
-                        # TODO: prevdefs should only contain location, not labels
-                        for prev_code_loc, labels in prevdefs.iteritems():
-                            self._stmt_graph_add_edge(prev_code_loc, current_code_location, **labels)
-
-                            pvs.append(ProgramVariable(variable, prev_code_loc))
-
-                        if not pvs:
-                            pvs.append(ProgramVariable(variable, current_code_location, initial=True))
-                            # make sure to put it into the killing set
-                            self._kill(live_defs, variable, current_code_location)
-
-                        for pv in pvs:
-                            pv_read.append(pv)
-
-                    if a.action == "write":
-                        # Kill the existing live def
-                        self._kill(live_defs, variable, current_code_location)
-
-                        pvs.append(ProgramVariable(variable, current_code_location))
-
-                    for pv in pvs:
-                        # For each of its register dependency and data dependency, we annotate the corresponding edge
-                        for reg_offset in a.addr.reg_deps:
-                            self._stmt_graph_annotate_edges(regs_to_edges[reg_offset], subtype='mem_addr')
-                            reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
-                            prev_defs = self._def_lookup(live_defs, reg_variable)
-                            for loc, _ in prev_defs.iteritems():
-                                v = ProgramVariable(reg_variable, loc)
-                                self._data_graph_add_edge(v, pv, type='mem_addr')
-
-                        for tmp in a.addr.tmp_deps:
-                            self._stmt_graph_annotate_edges(temps_to_edges[tmp], subtype='mem_addr')
-                            if tmp in temp_variables:
-                                self._data_graph_add_edge(temp_variables[tmp], pv, type='mem_addr')
-
-                        for reg_offset in a.data.reg_deps:
-                            self._stmt_graph_annotate_edges(regs_to_edges[reg_offset], subtype='mem_data')
-                            reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
-                            prev_defs = self._def_lookup(live_defs, reg_variable)
-                            for loc, _ in prev_defs.iteritems():
-                                v = ProgramVariable(reg_variable, loc)
-                                self._data_graph_add_edge(v, pv, type='mem_data')
-
-                        for tmp in a.data.tmp_deps:
-                            self._stmt_graph_annotate_edges(temps_to_edges[tmp], subtype='mem_data')
-                            if tmp in temp_variables:
-                                self._data_graph_add_edge(temp_variables[tmp], pv, type='mem_data')
-
-            elif a.type == 'reg':
-                # TODO: Support symbolic register offsets
-
-                reg_offset = a.offset
-                variable = SimRegisterVariable(reg_offset, a.data.ast.size() / 8)
-
-                if a.action == 'read':
-                    # What do we want to do?
-                    prevdefs = self._def_lookup(live_defs, variable)
-
-                    # add edges to the statement dependence graph
-                    for prev_code_loc, labels in prevdefs.iteritems():
-                        self._stmt_graph_add_edge(prev_code_loc, current_code_location, **labels)
-                        # record the edge
-                        edge_tuple = (prev_code_loc, current_code_location)
-                        regs_to_edges[reg_offset].append(edge_tuple)
-
-                        pv_read.append(ProgramVariable(variable, prev_code_loc))
-
-                    if not prevdefs:
-                        # the register was never defined before - it must be passed in as an argument
-                        pv_read.append(ProgramVariable(variable, current_code_location, initial=True))
-                        # make sure to put it into the killing set
-                        self._kill(live_defs, variable, current_code_location)
-
-                    if reg_offset == self.project.arch.sp_offset:
-                        data_generated = ('sp', 0)
-                    elif reg_offset == self.project.arch.bp_offset:
-                        data_generated = ('bp', 0)
-
-                else:
-                    # write
-                    self._kill(live_defs, variable, current_code_location)
-
-                    if reg_offset in regs_to_edges:
-                        # clear the existing edges definition
-                        del regs_to_edges[reg_offset]
-
-                    # add a node on the data dependence graph
-                    pv = ProgramVariable(variable, current_code_location)
-                    self._data_graph_add_node(pv)
-
-                    if not a.reg_deps and not a.tmp_deps:
-                        # moving a constant into the register
-                        # try to parse out the constant from statement
-                        const_variable = SimConstantVariable()
-                        if statements is not None:
-                            stmt = statements[a.stmt_idx]
-                            if isinstance(stmt.data, pyvex.IRExpr.Const):
-                                const_variable = SimConstantVariable(value=stmt.data.con.value)
-                        const_pv = ProgramVariable(const_variable, current_code_location)
-                        self._data_graph_add_edge(const_pv, pv)
-
-                    for tmp in a.tmp_deps:
-                        if tmp in temp_variables:
-                            self._data_graph_add_edge(temp_variables[tmp], pv)
-
-            elif a.type == 'tmp':
-                # tmp is definitely not symbolic
-                tmp = a.tmp
-                pv = ProgramVariable(SimTemporaryVariable(tmp), current_code_location)
-
-                if a.action == 'read':
-                    prev_code_loc = temp_defs[tmp]
-
-                    self._stmt_graph_add_edge(prev_code_loc, current_code_location, type='tmp', data=a.tmp)
-                    # record the edge
-                    edge_tuple = (prev_code_loc, current_code_location)
-                    temps_to_edges[a.tmp].append(edge_tuple)
-
-                    if tmp in temp_register_symbols:
-                        data_generated = temp_register_symbols[tmp]
-
-                else:
-                    # write
-                    temp_defs[tmp] = current_code_location
-                    temp_variables[tmp] = pv
-
-                    # clear existing edges
-                    if tmp in temps_to_edges:
-                        del temps_to_edges[tmp]
-
-                    for tmp_dep in a.tmp_deps:
-                        if tmp_dep in temp_variables:
-                            self._data_graph_add_edge(temp_variables[tmp_dep], pv)
-
-                    if data_generated:
-                        temp_register_symbols[tmp] = data_generated
-
-                    for data in pv_read:
-                        self._data_graph_add_edge(data, pv)
-
-                    if not a.tmp_deps and not pv_read:
-                        # read in a constant
-                        # try to parse out the constant from statement
-                        const_variable = SimConstantVariable()
-                        if statements is not None:
-                            stmt = statements[a.stmt_idx]
-                            if isinstance(stmt, pyvex.IRStmt.Dirty):
-                                l.warning('Dirty statements are not supported in DDG for now.')
-                            elif isinstance(stmt.data, pyvex.IRExpr.Const):
-                                const_variable = SimConstantVariable(value=stmt.data.con.value)
-                        const_pv = ProgramVariable(const_variable, current_code_location)
-                        self._data_graph_add_edge(const_pv, pv)
-
-            elif a.type == 'exit':
-                # exits should only depend on tmps
-                for tmp in a.tmp_deps:
-                    prev_code_loc = temp_defs[tmp]
-
-                    # add the edge to the graph
-                    self._stmt_graph_add_edge(prev_code_loc, current_code_location, type='exit', data='tmp')
-
-                    # log the edge
-                    edge_tuple = (prev_code_loc, current_code_location)
-                    temps_to_edges[tmp].append(edge_tuple)
-
+            if a.type == 'exit':
+                self._handle_exit(a, current_code_location, state, statements[last_statement_id])
             elif a.type == 'operation':
-                # FIXME: we should support a more complete range of operations
-
-                if a.op.endswith('Sub32') or a.op.endswith('Sub64'):
-                    # subtract
-                    expr_0, expr_1 = a.exprs
-
-                    if expr_0.tmp_deps and (not expr_1.tmp_deps and not expr_1.reg_deps):
-                        # tmp - const
-                        tmp = list(expr_0.tmp_deps)[0]
-                        if tmp in temp_register_symbols:
-                            sort, offset = temp_register_symbols[tmp]
-                            offset -= expr_1.ast.args[0]
-                            data_generated = (sort, offset)
-
-                elif a.op.endswith('Add32') or a.op.endswith('Add64'):
-                    # add
-                    expr_0, expr_1 = a.exprs
-
-                    if expr_0.tmp_deps and (not expr_1.tmp_deps and not expr_1.reg_deps):
-                        # tmp + const
-                        tmp = list(expr_0.tmp_deps)[0]
-                        if tmp in temp_register_symbols:
-                            sort, offset = temp_register_symbols[tmp]
-                            offset += expr_1.ast.args[0]
-                            data_generated = (sort, offset)
+                self._handle_operation(a, current_code_location, state, statements[last_statement_id])
+            else:
+                handler_name = "_handle_%s_%s" % (a.type, a.action)
+                if hasattr(self, handler_name):
+                    getattr(self, handler_name)(a, current_code_location, state, statements[last_statement_id])
+                else:
+                    l.debug("Skip an unsupported action %s.", a)
 
         #import pprint
         #pprint.pprint(self._data_graph.edges())
         #pprint.pprint(self.simplified_data_graph.edges())
         # import ipdb; ipdb.set_trace()
 
-        return live_defs
+        return self._live_defs
 
-    def _def_lookup(self, live_defs, variable):  # pylint:disable=no-self-use
+    def _def_lookup(self, variable):  # pylint:disable=no-self-use
         """
         This is a backward lookup in the previous defs. Note that, as we are using VSA, it is possible that `variable`
         is affected by several definitions.
@@ -857,7 +641,7 @@ class DDG(Analysis):
 
         prevdefs = {}
 
-        for code_loc in live_defs.lookup_defs(variable):
+        for code_loc in self._live_defs.lookup_defs(variable):
             # Label edges with cardinality or actual sets of addresses
             if isinstance(variable, SimMemoryVariable):
                 type_ = 'mem'
@@ -873,7 +657,7 @@ class DDG(Analysis):
 
         return prevdefs
 
-    def _kill(self, live_defs, variable, code_loc):  # pylint:disable=no-self-use
+    def _kill(self, variable, code_loc):  # pylint:disable=no-self-use
         """
         Kill previous defs. addr_list is a list of normalized addresses.
         """
@@ -884,12 +668,12 @@ class DDG(Analysis):
 
         # the previous definition is killed. mark it in data graph.
 
-        if variable in live_defs:
-            for loc in live_defs.lookup_defs(variable):
+        if variable in self._live_defs:
+            for loc in self._live_defs.lookup_defs(variable):
                 pv = ProgramVariable(variable, loc)
                 self._data_graph_add_edge(pv, ProgramVariable(variable, code_loc), type='kill')
 
-        live_defs.kill_def(variable, code_loc)
+        self._live_defs.kill_def(variable, code_loc)
 
     def _get_register_size(self, reg_offset):
         """
@@ -909,6 +693,286 @@ class DDG(Analysis):
         l.warning("_get_register_size(): unsupported register offset %d. Assum size 1. "
                   "More register name mappings should be implemented in archinfo.", reg_offset)
         return 1
+
+    #
+    # Action handling
+    #
+
+    def _get_actual_addrs(self, action, state):
+        """
+        For memory actions, get a list of addresses it operates on.
+
+        :param SimAction action: The action object to work with.
+        :return:                 A list of addresses that are accessed with that action.
+        :rtype:                  list
+        """
+
+        if action.actual_addrs is None:
+            # For now, mem reads don't necessarily have actual_addrs set properly
+            try:
+                addr_list = {state.se.any_int(action.addr.ast)}
+            except (SimSolverModeError, SimUnsatError, ZeroDivisionError):
+                # FIXME: ZeroDivisionError should have been caught by claripy and simuvex.
+                # FIXME: see claripy issue #75. this is just a temporary workaround.
+                # it's symbolic... just continue
+                addr_list = {0x60000000}  # TODO: this is a random address that I pick. Fix it.
+        else:
+            addr_list = set(action.actual_addrs)
+
+        return addr_list
+
+    def _create_memory_variable(self, action, addr, addrs):
+        """
+        Create a SimStackVariable or SimMemoryVariable based on action objects and its address.
+
+        :param SimAction action: The action to work with.
+        :param int addr:         The address of the memory variable in creation.
+        :param list addrs:       A list of all addresses that the action was effective on.
+        :return:
+        """
+
+        variable = None
+        if len(addrs) == 1 and len(action.addr.tmp_deps) == 1:
+            addr_tmp = list(action.addr.tmp_deps)[0]
+            if addr_tmp in self._temp_register_symbols:
+                # it must be a stack variable
+                sort, offset = self._temp_register_symbols[addr_tmp]
+                variable = SimStackVariable(offset, action.size.ast / 8, base=sort, base_addr=addr - offset)
+
+        if variable is None:
+            variable = SimMemoryVariable(addr, action.size.ast / 8)
+
+        return variable
+
+    def _make_edges(self, action, prog_var):
+        """
+
+        :param SimAction action:
+        :param ProgramVariable prog_var:
+        :return:
+        """
+
+        # For each of its register dependency and data dependency, we annotate the corresponding edge
+        for reg_offset in action.addr.reg_deps:
+            self._stmt_graph_annotate_edges(self._register_edges[reg_offset], subtype='mem_addr')
+            reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
+            prev_defs = self._def_lookup(reg_variable)
+            for loc, _ in prev_defs.iteritems():
+                v = ProgramVariable(reg_variable, loc)
+                self._data_graph_add_edge(v, prog_var, type='mem_addr')
+
+        for tmp in action.addr.tmp_deps:
+            self._stmt_graph_annotate_edges(self._temp_edges[tmp], subtype='mem_addr')
+            if tmp in self._temp_variables:
+                self._data_graph_add_edge(self._temp_variables[tmp], prog_var, type='mem_addr')
+
+        for reg_offset in action.data.reg_deps:
+            self._stmt_graph_annotate_edges(self._register_edges[reg_offset], subtype='mem_data')
+            reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
+            prev_defs = self._def_lookup(reg_variable)
+            for loc, _ in prev_defs.iteritems():
+                v = ProgramVariable(reg_variable, loc)
+                self._data_graph_add_edge(v, prog_var, type='mem_data')
+
+        for tmp in action.data.tmp_deps:
+            self._stmt_graph_annotate_edges(self._temp_edges[tmp], subtype='mem_data')
+            if tmp in self._temp_variables:
+                self._data_graph_add_edge(self._temp_variables[tmp], prog_var, type='mem_data')
+
+    def _handle_mem_read(self, action, code_location, state):
+
+        addrs = self._get_actual_addrs(action, state)
+
+        for addr in addrs:
+            variable = self._create_memory_variable(action, addr, addrs)
+
+            variables = [ ]
+
+            # get all definitions
+            defs = self._def_lookup(variable)
+            # for each definition, create an edge on the graph
+            for definition_location, labels in defs.iteritems():
+                self._stmt_graph_add_edge(definition_location, code_location, **labels)
+                variables.append(ProgramVariable(variable, definition_location))
+
+            if not variables:
+                # if no definition is found, then this is the first time this variable is accessed
+                # mark it as "initial"
+                variables.append(ProgramVariable(variable, code_location, initial=True))
+                # make sure to put it into the killing set
+                self._kill(variable, code_location)
+
+            for var in variables:
+                # record accessed variables in var_per_stmt
+                self._variables_per_statement.append(var)
+
+            for var in variables:
+                # make edges on the graph for each variable
+                self._make_edges(action, var)
+
+    def _handle_mem_write(self, action, code_location, state):
+
+        addrs = self._get_actual_addrs(action, state)
+
+        for addr in addrs:
+            variable = self._create_memory_variable(action, addr, addrs)
+
+            # kill all previous variables
+            self._kill(variable, code_location)
+
+            # create a new variable at current location
+            pv = ProgramVariable(variable, code_location)
+
+            # make edges
+            self._make_edges(action, pv)
+
+    def _handle_reg_read(self, action, location, state, statement):
+
+        reg_offset = action.offset
+        variable = SimRegisterVariable(reg_offset, action.data.ast.size() / 8)
+
+        # What do we want to do?
+        definitions = self._def_lookup(variable)
+
+        # add edges to the statement dependence graph
+        for definition_location, labels in definitions.iteritems():
+            self._stmt_graph_add_edge(definition_location, location, **labels)
+
+            # record the edge
+            self._register_edges[reg_offset].append((definition_location, location))
+
+            self._variables_per_statement.append(ProgramVariable(variable, definition_location))
+
+        if not definitions:
+            # the register was never defined before - it must be passed in as an argument
+            self._variables_per_statement.append(ProgramVariable(variable, location, initial=True))
+            # make sure to put it into the killing set
+            self._kill(variable, location)
+
+        if reg_offset == self.project.arch.sp_offset:
+            self._custom_data_per_statement = ('sp', 0)
+        elif reg_offset == self.project.arch.bp_offset:
+            self._custom_data_per_statement = ('bp', 0)
+
+    def _handle_reg_write(self, action, location, state, statement):
+
+        reg_offset = action.offset
+        variable = SimRegisterVariable(reg_offset, action.data.ast.size() / 8)
+
+        self._kill(variable, location)
+
+        if reg_offset in self._register_edges:
+            # clear the recoreded edge, since we don't need to alter that edge anymore
+            del self._register_edges[reg_offset]
+
+        # add a node on the data dependence graph
+        pv = ProgramVariable(variable, location)
+        self._data_graph_add_node(pv)
+
+        if not action.reg_deps and not action.tmp_deps:
+            # moving a constant into the register
+            # try to parse out the constant from statement
+            const_variable = SimConstantVariable()
+            if statement is not None:
+                if isinstance(statement.data, pyvex.IRExpr.Const):
+                    const_variable = SimConstantVariable(value=statement.data.con.value)
+            const_pv = ProgramVariable(const_variable, location)
+            self._data_graph_add_edge(const_pv, pv)
+
+        for tmp in action.tmp_deps:
+            if tmp in self._temp_variables:
+                self._data_graph_add_edge(self._temp_variables[tmp], pv)
+
+    def _handle_tmp_read(self, action, location, state, statement):
+
+        tmp = action.tmp
+
+        definition_location = self._temp_definitions[tmp]
+
+        self._stmt_graph_add_edge(definition_location, location, type='tmp', data=action.tmp)
+        # record the edge
+        edge_tuple = (definition_location, location)
+        self._temp_edges[action.tmp].append(edge_tuple)
+
+        if tmp in self._temp_register_symbols:
+            self._custom_data_per_statement = self._temp_register_symbols[tmp]
+
+    def _handle_tmp_write(self, action, location, state, statement):
+
+        tmp = action.tmp
+        pv = ProgramVariable(SimTemporaryVariable(tmp), location)
+
+        self._temp_definitions[tmp] = location
+        self._temp_variables[tmp] = pv
+
+        # clear existing edges
+        if tmp in self._temp_edges:
+            del self._temp_edges[tmp]
+
+        for tmp_dep in action.tmp_deps:
+            if tmp_dep in self._temp_variables:
+                self._data_graph_add_edge(self._temp_variables[tmp_dep], pv)
+
+        if self._custom_data_per_statement is not None:
+            self._temp_register_symbols[tmp] = self._custom_data_per_statement
+
+        for data in self._variables_per_statement:
+            self._data_graph_add_edge(data, pv)
+
+        if not action.tmp_deps and not self._variables_per_statement:
+            # read in a constant
+            # try to parse out the constant from statement
+            const_variable = SimConstantVariable()
+            if statement is not None:
+                if isinstance(statement, pyvex.IRStmt.Dirty):
+                    l.warning('Dirty statements are not supported in DDG for now.')
+                elif isinstance(statement.data, pyvex.IRExpr.Const):
+                    const_variable = SimConstantVariable(value=statement.data.con.value)
+            const_pv = ProgramVariable(const_variable, location)
+            self._data_graph_add_edge(const_pv, pv)
+
+    def _handle_exit(self, action, location, state, statement):
+
+        # exits should only depend on tmps
+        for tmp in action.tmp_deps:
+            prev_code_loc = self._temp_definitions[tmp]
+
+            # add the edge to the graph
+            self._stmt_graph_add_edge(prev_code_loc, location, type='exit', data='tmp')
+
+            # log the edge
+            edge_tuple = (prev_code_loc, location)
+            self._temp_edges[tmp].append(edge_tuple)
+
+    def _handle_operation(self, action, ocation, state, statement):
+
+        if action.op.endswith('Sub32') or action.op.endswith('Sub64'):
+            # subtract
+            expr_0, expr_1 = action.exprs
+
+            if expr_0.tmp_deps and (not expr_1.tmp_deps and not expr_1.reg_deps):
+                # tmp - const
+                tmp = list(expr_0.tmp_deps)[0]
+                if tmp in self._temp_register_symbols:
+                    sort, offset = self._temp_register_symbols[tmp]
+                    offset -= expr_1.ast.args[0]
+                    self._custom_data_per_statement = (sort, offset)
+
+        elif action.op.endswith('Add32') or action.op.endswith('Add64'):
+            # add
+            expr_0, expr_1 = action.exprs
+
+            if expr_0.tmp_deps and (not expr_1.tmp_deps and not expr_1.reg_deps):
+                # tmp + const
+                tmp = list(expr_0.tmp_deps)[0]
+                if tmp in self._temp_register_symbols:
+                    sort, offset = self._temp_register_symbols[tmp]
+                    offset += expr_1.ast.args[0]
+                    self._custom_data_per_statement = (sort, offset)
+
+    #
+    # Graph operations
+    #
 
     def _data_graph_add_node(self, node):
         """
