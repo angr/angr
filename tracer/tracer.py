@@ -335,6 +335,7 @@ class Tracer(object):
 
             self.prev_path_group = self.path_group
             self.path_group = self.path_group.step(size=bbl_max_bytes)
+        
             if self.crash_type == EXEC_STACK:
                 self.path_group = self.path_group.stash(from_stash='active',
                         to_stash='crashed')
@@ -1081,6 +1082,12 @@ class Tracer(object):
                 save_unsat=True,
                 hierarchy=False,
                 save_unconstrained=self.crash_mode)
+
+        # Step forward until we catch up with QEMU
+        if pg.active[0].addr != self.trace[0]:
+            pg = pg.explore(find=project.entry)
+            pg = pg.drop(stash="unsat")
+            pg = pg.unstash(from_stash="found",to_stash="active")
 
         # don't step here, because unlike CGC we aren't going to be starting
         # anywhere but the entry point
