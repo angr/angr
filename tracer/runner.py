@@ -147,16 +147,19 @@ class Runner(object):
         for binary in self.binaries:
             if not os.access(binary, os.X_OK):
                 if os.path.isfile(binary):
-                    l.error("\"%s\" binary is not executable", binary)
-                    raise TracerEnvironmentError
+                    error_msg = "\"%s\" binary is not executable" % binary
+                    l.error(error_msg)
+                    raise TracerEnvironmentError(error_msg)
                 else:
-                    l.error("\"%s\" binary does not exist", binary)
-                    raise TracerEnvironmentError
+                    error_msg = "\"%s\" binary does not exist" % binary
+                    l.error(error_msg)
+                    raise TracerEnvironmentError(error_msg)
 
         if self.is_multicb:
             if not os.access(self.fakeforksrv_path, os.X_OK):
-                l.error("fakeforksrv path %s is not executable", self.fakeforksrv_path)
-                raise TracerEnvironmentError
+                error_msg = "fakeforksrv path %s is not executable" % self.fakeforksrv_path
+                l.error(error_msg)
+                raise TracerEnvironmentError(error_msg)
 
         # hack for the OS
         with open(self.binaries[0], "rb") as f:
@@ -168,8 +171,9 @@ class Runner(object):
             self.os = None
 
         if self.os != "cgc":
-            l.error("\"%s\" runs on an OS not supported by the runner (only cgc at the moment)", self.binaries[0])
-            raise TracerEnvironmentError
+            error_msg = "\"%s\" runs on an OS not supported by the runner (only cgc at the moment)" % self.binaries[0]
+            l.error(error_msg)
+            raise TracerEnvironmentError(error_msg)
 
         # try to find the install base
         self.base = shellphish_qemu.qemu_base()
@@ -190,11 +194,13 @@ class Runner(object):
 
         if not os.access(self.tracer_qemu_path, os.X_OK):
             if os.path.isfile(self.tracer_qemu_path):
-                l.error("%s is not executable", self.tracer_qemu)
-                raise TracerEnvironmentError
+                error_msg = "%s is not executable" % self.tracer_qemu
+                l.error(error_msg)
+                raise TracerEnvironmentError(error_msg)
             else:
-                l.error("\"%s\" does not exist", self.tracer_qemu_path)
-                raise TracerEnvironmentError
+                error_msg = "\"%s\" does not exist" % self.tracer_qemu_path
+                l.error(error_msg)
+                raise TracerEnvironmentError(error_msg)
 
 ### DYNAMIC TRACING
 
