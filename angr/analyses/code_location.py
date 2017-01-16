@@ -36,8 +36,8 @@ class CodeLocation(object):
                     self.block_addr,
                 )
             else:
-                s = "<%s%#x(%d)" % (
-                    ("%#x " % self.ins_addr) if self.ins_addr else "",
+                s = "<%s%#x[%d]" % (
+                    ("%#x id=" % self.ins_addr) if self.ins_addr else "",
                     self.block_addr,
                     self.stmt_idx,
                 )
