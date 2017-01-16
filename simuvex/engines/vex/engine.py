@@ -354,7 +354,11 @@ class SimEngineVEX(SimEngine):
         :param clemory:         A cle.memory.Clemory object to use as a data source.
         :param addr:            The address at which to start the block.
         :param thumb:           Whether the block should be lifted in ARM's THUMB mode.
-        :param opt_level:       The VEX optimization level to use.
+        :param opt_level:       The VEX optimization level to use. The final IR optimization level is determined by
+                                (ordered by priority):
+                                - Argument opt_level
+                                - opt_level is set to 1 if OPTIMIZE_IR exists in state options
+                                - self._default_opt_level
         :param insn_bytes:      A string of bytes to use as a data source.
         :param size:            The maximum size of the block, in bytes.
         :param num_inst:        The maximum number of instructions.
@@ -385,9 +389,10 @@ class SimEngineVEX(SimEngine):
         if num_inst is None and self._single_step:
             num_inst = 1
         if opt_level is None:
-            opt_level = self._default_opt_level
-        if state and o.OPTIMIZE_IR in state.options:
-            opt_level = 1
+            if state and o.OPTIMIZE_IR in state.options:
+                opt_level = 1
+            else:
+                opt_level = self._default_opt_level
         if self._support_selfmodifying_code:
             if opt_level > 0:
                 l.warning("Self-modifying code is not always correctly optimized by PyVEX. To guarantee correctness, VEX optimizations have been disabled.")
