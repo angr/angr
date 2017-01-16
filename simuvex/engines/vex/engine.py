@@ -190,7 +190,7 @@ class SimEngineVEX(SimEngine):
             if stmt_idx < skip_stmts:
                 l.debug("Skipping statement %d", stmt_idx)
                 continue
-            if stmt_idx > last_stmt:
+            if last_stmt is not None and stmt_idx > last_stmt:
                 l.debug("Truncating statement %d", stmt_idx)
                 continue
             if whitelist is not None and stmt_idx not in whitelist:
