@@ -36,7 +36,7 @@ class ProgramVariable(object):
         return self.variable == other.variable and self.location == other.location
 
     def __repr__(self):
-        s = "<%s @ %s>" % (self.variable, self.location)
+        s = "{%s @ %s}" % (self.variable, self.location)
         return s
 
 
@@ -264,6 +264,111 @@ class LiveDefinitions(object):
         return self._defs.iterkeys()
 
 
+class DDGViewItem(object):
+    def __init__(self, ddg, variable, simplified=False):
+        self._ddg = ddg
+        self._variable = variable
+        self._simplified = simplified
+
+    @property
+    def depends_on(self):
+        graph = self._ddg.simplified_data_graph if self._simplified else self._ddg.data_graph
+        if self._variable in graph:
+            return [ self._to_viewitem(n) for n in graph.predecessors(self._variable) ]
+        return None
+
+    @property
+    def dependents(self):
+        graph = self._ddg.simplified_data_graph if self._simplified else self._ddg.data_graph
+        if self._variable in graph:
+            return [ self._to_viewitem(n) for n in graph.successors(self._variable) ]
+        return None
+
+    def __repr__(self):
+        s = "[%s, %d dependents, depends on %d]" % (
+            self._variable,
+            len(self.dependents),
+            len(self.depends_on),
+        )
+        return s
+
+    def _to_viewitem(self, prog_var):
+        """
+        Convert a ProgramVariable instance to a DDGViewItem object.
+
+        :param ProgramVariable prog_var: The ProgramVariable object to convert.
+        :return:                         The converted DDGViewItem object.
+        :rtype:                          DDGViewItem
+        """
+
+        return DDGViewItem(self._ddg, prog_var, simplified=self._simplified)
+
+
+class DDGViewInstruction(object):
+    def __init__(self, cfg, ddg, insn_addr, simplified=False):
+        self._cfg = cfg
+        self._ddg = ddg
+        self._insn_addr = insn_addr
+        self._simplified = simplified
+
+        # shorthand
+        self._project = self._ddg.project
+
+    def __getitem__(self, key):
+        arch = self._project.arch
+        if key in arch.registers:
+            # it's a register name
+            reg_offset, size = arch.registers[key]
+
+            # obtain the CFGNode
+            cfg_node = self._cfg.get_any_node(self._insn_addr, anyaddr=True)
+            if cfg_node is None:
+                # not found
+                raise KeyError('CFGNode for instruction %#x is not found.' % self._insn_addr)
+
+            # determine the statement ID
+            vex_block = self._project.factory.block(cfg_node.addr, size=cfg_node.size).vex
+            stmt_idx = None
+            insn_addr = cfg_node.addr
+            for i, stmt in enumerate(vex_block.statements):
+                if isinstance(stmt, pyvex.IRStmt.IMark):
+                    insn_addr = stmt.addr + stmt.delta
+                elif insn_addr == self._insn_addr:
+                    if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == reg_offset:
+                        stmt_idx = i
+                        break
+                elif insn_addr > self._insn_addr:
+                    break
+
+            if stmt_idx is None:
+                raise KeyError('Cannot find the statement.')
+
+            # create a program variable
+            variable = SimRegisterVariable(reg_offset, size)
+            location = CodeLocation(cfg_node.addr, stmt_idx, ins_addr=self._insn_addr)
+            pv = ProgramVariable(variable, location)
+
+            return DDGViewItem(self._ddg, pv, simplified=self._simplified)
+
+
+class DDGView(object):
+    """
+    A view of the data dependence graph.
+    """
+    def __init__(self, cfg, ddg, simplified=False):
+        self._cfg = cfg
+        self._ddg = ddg
+        self._simplified = simplified
+
+        # shorthand
+        self._project = self._ddg.project
+
+    def __getitem__(self, key):
+        if isinstance(key, (int, long)):
+            # instruction address
+            return DDGViewInstruction(self._cfg, self._ddg, key, simplified=self._simplified)
+
+
 class DDG(Analysis):
     """
     This is a fast data dependence graph directly generated from our CFG analysis result. The only reason for its
@@ -276,13 +381,15 @@ class DDG(Analysis):
     Also note that since we are using states from CFG, any improvement in analysis performed on CFG (like a points-to
     analysis) will directly benefit the DDG.
     """
-    def __init__(self, cfg, start=None, call_depth=None):
+    def __init__(self, cfg, start=None, call_depth=None, block_addrs=None):
         """
         :param cfg:         Control flow graph. Please make sure each node has an associated `state` with it. You may
                             want to generate your CFG with `keep_state=True`.
         :param start:       An address, Specifies where we start the generation of this data dependence graph.
         :param call_depth:  None or integers. A non-negative integer specifies how deep we would like to track in the
                             call tree. None disables call_depth limit.
+        :param iterable or None block_addrs: A collection of block addresses that the DDG analysis should be performed
+                                             on.
         """
 
         # Sanity check
@@ -292,7 +399,9 @@ class DDG(Analysis):
         self._cfg = cfg
         self._start = self.project.entry if start is None else start
         self._call_depth = call_depth
+        self._block_addrs = block_addrs
 
+        # analysis output
         self._stmt_graph = networkx.DiGraph()
         self._data_graph = networkx.DiGraph()
         self._simplified_data_graph = None
@@ -301,6 +410,9 @@ class DDG(Analysis):
 
         # Data dependency graph per function
         self._function_data_dependencies = None
+
+        self.view = DDGView(self._cfg, self, simplified=False)
+        self.simple_view = DDGView(self._cfg, self, simplified=True)
 
         # Begin construction!
         self._construct()
