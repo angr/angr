@@ -410,8 +410,10 @@ class Tracer(object):
             target = self.path_group.missed[0].addr
             if self._p.arch.name == 'X86' or self._p.arch.name == 'AMD64':
 
-                # does it looks like a rep?
-                if self._p.factory.block(target).bytes.startswith("\xf3"):
+                # does it looks like a rep? rep ret doesn't count!
+                if self._p.factory.block(target).bytes.startswith("\xf3") and \
+                   not self._p.factory.block(target).bytes.startswith("\xf3\xc3"):
+
                     l.info("rep discrepency detected, repairing...")
                     # swap the stashes
                     s = self.path_group.move('missed', 'chosen')
