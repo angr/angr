@@ -600,6 +600,7 @@ class DDG(Analysis):
             if last_statement_id is None or last_statement_id != a.stmt_idx:
                 # update statement ID
                 last_statement_id = a.stmt_idx
+                statement = statements[last_statement_id] if statements and last_statement_id < len(statements) else None
 
                 # initialize all per-statement data structures
                 self._variables_per_statement = [ ]
@@ -611,13 +612,15 @@ class DDG(Analysis):
                 current_code_location = CodeLocation(None, None, sim_procedure=a.sim_procedure)
 
             if a.type == 'exit':
-                self._handle_exit(a, current_code_location, state, statements[last_statement_id])
+                self._handle_exit(a, current_code_location, state, statement)
             elif a.type == 'operation':
-                self._handle_operation(a, current_code_location, state, statements[last_statement_id])
+                self._handle_operation(a, current_code_location, state, statement)
+            elif a.type == 'constraint':
+                pass
             else:
                 handler_name = "_handle_%s_%s" % (a.type, a.action)
                 if hasattr(self, handler_name):
-                    getattr(self, handler_name)(a, current_code_location, state, statements[last_statement_id])
+                    getattr(self, handler_name)(a, current_code_location, state, statement)
                 else:
                     l.debug("Skip an unsupported action %s.", a)
 
@@ -779,7 +782,7 @@ class DDG(Analysis):
             if tmp in self._temp_variables:
                 self._data_graph_add_edge(self._temp_variables[tmp], prog_var, type='mem_data')
 
-    def _handle_mem_read(self, action, code_location, state):
+    def _handle_mem_read(self, action, code_location, state, statement):
 
         addrs = self._get_actual_addrs(action, state)
 
@@ -810,7 +813,7 @@ class DDG(Analysis):
                 # make edges on the graph for each variable
                 self._make_edges(action, var)
 
-    def _handle_mem_write(self, action, code_location, state):
+    def _handle_mem_write(self, action, code_location, state, statement):
 
         addrs = self._get_actual_addrs(action, state)
 
@@ -1042,7 +1045,8 @@ class DDG(Analysis):
 
             for k, v in new_labels.iteritems():
                 if k in data:
-                    data[k] = data[k] + (v,)
+                    if v not in data[k]:
+                        data[k] = data[k] + (v,)
                 else:
                     # Construct a tuple
                     data[k] = (v,)
