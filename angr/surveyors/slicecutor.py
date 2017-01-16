@@ -156,8 +156,8 @@ class Slicecutor(Surveyor):
             addr = p.state.se.exactly_n_int(p.state.ip, 1)[0]
             whitelist = self._annotated_cfg.get_whitelisted_statements(addr)
             last_stmt = self._annotated_cfg.get_last_statement_index(addr)
-            p.stmt_whitelist = whitelist
-            p.last_stmt = last_stmt
+            p._whitelist = whitelist
+            p._last_stmt = last_stmt
 
         done_addrs = [ ]
         for addr, count in self._merge_countdowns.iteritems():
@@ -186,7 +186,7 @@ class Slicecutor(Surveyor):
         return (len(self.active) + len(self._merge_countdowns)) == 0
 
     def _step_path(self, p):  #pylint:disable=no-self-use
-        p.step(whitelist=p.stmt_whitelist, last_stmt=p.last_stmt)
+        p.step(whitelist=p._whitelist, last_stmt=p._last_stmt)
 
     def path_comparator(self, a, b):
         if a.weighted_length != b.weighted_length:

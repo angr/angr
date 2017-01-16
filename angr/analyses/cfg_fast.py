@@ -2205,7 +2205,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return False, None
 
         load_stmt_loc, load_stmt = None, None
-        stmts_to_remove = [ ]
+        stmts_to_remove = [ stmt_loc ]
         while True:
             preds = b.slice.predecessors(stmt_loc)
             if len(preds) != 1:
@@ -2297,8 +2297,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 continue
 
             # Get the jumping targets
-            for r in slicecutor.deadended:
-                all_states = r.next_run.unsat_successors
+            for r in slicecutor.reached_targets:
+                all_states = r.next_run.flat_successors
                 state = all_states[0] # Just take the first state
 
                 # Parse the memory load statement
