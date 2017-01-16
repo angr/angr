@@ -58,16 +58,16 @@ def perform_one(binary_path):
     data_src_1 = CodeLocation(0x400667, 19)
     nose.tools.assert_equal(len(in_edges), 3)
     nose.tools.assert_in(
-        (data_src_0, cl1, {'count': 0, 'type': 'mem'}), in_edges
+        (data_src_0, cl1), [ (src, dst) for src, dst, _ in in_edges ]
     )
     nose.tools.assert_in(
-        (data_src_1, cl1, {'count': 0, 'type': 'mem'}), in_edges
+        (data_src_1, cl1), [ (src, dst) for src, dst, _ in in_edges ]
     )
     nose.tools.assert_in(
         (memaddr_src, cl1, {'data': 14, 'type': 'tmp', 'subtype': ('mem_addr', )}), in_edges
     )
 
-def disabled_ddg_0():
+def test_ddg_0():
     binary_path = test_location + "/x86_64/datadep_test"
     perform_one(binary_path)
 
