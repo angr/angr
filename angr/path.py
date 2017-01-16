@@ -178,7 +178,7 @@ class Path(object):
 
         :param jumpkind:          the jumpkind of the previous exit.
         :param addr address:      to execute at instead of the state's ip.
-        :param stmt_whitelist:    a list of stmt indexes to which to confine execution.
+        :param whitelist:         a list of stmt indexes to which to confine execution.
         :param last_stmt:         a statement index at which to stop execution.
         :param thumb:             whether the block should be lifted in ARM's THUMB mode.
         :param backup_state:      a state to read bytes from instead of using project memory.
