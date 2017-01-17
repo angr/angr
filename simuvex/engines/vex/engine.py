@@ -415,7 +415,7 @@ class SimEngineVEX(SimEngine):
         # phase 3: thumb normalization
         thumb = int(thumb)
         if isinstance(arch, ArchARM):
-            if addr % 1 == 1:
+            if addr % 2 == 1:
                 thumb = 1
             if thumb:
                 addr &= ~1
