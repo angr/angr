@@ -1063,6 +1063,7 @@ class Tracer(object):
         options.add(so.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
         options.add(so.BYPASS_UNSUPPORTED_SYSCALL)
         options.add(so.REPLACEMENT_SOLVER)
+        options.add(so.UNICORN)
         if self.crash_mode:
             options.add(so.TRACK_ACTION_HISTORY)
 
