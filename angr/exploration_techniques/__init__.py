@@ -108,4 +108,5 @@ from .lengthlimiter import LengthLimiter
 from .veritesting import Veritesting
 from .oppologist import Oppologist
 from .director import Director, ExecuteAddressGoal, CallFunctionGoal
+from .spiller import Spiller
 from ..errors import AngrError, AngrExplorationTechniqueError
