@@ -985,7 +985,10 @@ DefaultCC = {
     'MIPS64': SimCCO64,
     'PPC32': SimCCPowerPC,
     'PPC64': SimCCPowerPC64,
-    'AARCH64': SimCCAArch64
+    'AARCH64': SimCCAArch64,
+    'AVR': SimCCUnknown,
+    'MSP': SimCCUnknown,
+    'BF': SimCCUnknown
 }
 
 SyscallCC = {
