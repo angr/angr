@@ -1,12 +1,33 @@
 import nose
 import angr
 import pickle
+import re
 
 import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../'))
 
 import simuvex
 from simuvex import s_options as so
+
+
+def _remove_addr_from_trace_item(trace_item_str):
+    m = re.match(r"(<\S+ \S+) from 0x[0-9a-f]+(:[\s\S]+)", trace_item_str)
+    if m is None:
+        return None
+    return m.group(1) + m.group(2)
+
+def _compare_trace(trace, expected):
+
+    nose.tools.assert_equal(len(trace), len(expected))
+
+    for trace_item, expected_str in zip(trace, expected):
+        trace_item_str = str(trace_item)
+        if trace_item_str.startswith('<SimProcedure'):
+            # we do not care if addresses of SimProcedures match, since they are not allocated in a deterministic way
+            trace_item_str = _remove_addr_from_trace_item(trace_item_str)
+            expected_str = _remove_addr_from_trace_item(expected_str)
+
+        nose.tools.assert_equal(trace_item_str, expected_str)
 
 def test_stops():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/uc_stop'))
@@ -16,7 +37,7 @@ def test_stops():
     s_normal.unicorn.max_steps = 100
     pg_normal = p.factory.path_group(s_normal).run()
     p_normal = pg_normal.one_deadended
-    nose.tools.assert_equal(p_normal.trace.hardcopy, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_NORMAL after 100 steps) from 0x80484b6: 1 sat>', '<Unicorn (STOP_STOPPOINT after 8 steps) from 0x804844a: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>'])
+    _compare_trace(p_normal.trace, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_NORMAL after 100 steps) from 0x80484b6: 1 sat>', '<Unicorn (STOP_STOPPOINT after 8 steps) from 0x804844a: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>'])
 
     s_normal_angr = p.factory.entry_state(args=['a'])
     pg_normal_angr = p.factory.path_group(s_normal_angr).run()
@@ -27,7 +48,7 @@ def test_stops():
     s_symbolic = p.factory.entry_state(args=['a', 'a'], add_options=so.unicorn)
     pg_symbolic = p.factory.path_group(s_symbolic).run()
     p_symbolic = pg_symbolic.one_deadended
-    nose.tools.assert_equal(p_symbolic.trace.hardcopy, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_SYMBOLIC_MEM after 3 steps) from 0x80484b6: 1 sat>', '<IRSB from 0x8048457: 1 sat 3 unsat>', '<IRSB from 0x804848c: 1 sat>', '<IRSB from 0x80484e8: 1 sat>', '<IRSB from 0x804850c: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>'])
+    _compare_trace(p_symbolic.trace, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_SYMBOLIC_MEM after 3 steps) from 0x80484b6: 1 sat>', '<IRSB from 0x8048457: 1 sat 3 unsat>', '<IRSB from 0x804848c: 1 sat>', '<IRSB from 0x80484e8: 1 sat>', '<IRSB from 0x804850c: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>'])
 
     s_symbolic_angr = p.factory.entry_state(args=['a', 'a'])
     pg_symbolic_angr = p.factory.path_group(s_symbolic_angr).run()
@@ -40,7 +61,7 @@ def test_stops():
     p_segfault = pg_segfault.one_errored
     # TODO: fix the permissions segfault to commit if it's a MEM_FETCH
     # this will extend the last simunicorn one more block
-    nose.tools.assert_equal(p_segfault.trace.hardcopy, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_SEGFAULT after 3 steps) from 0x80484b6: 1 sat>', '<IRSB from 0x80484a6: 1 sat>'])
+    _compare_trace(p_segfault.trace, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_SEGFAULT after 3 steps) from 0x80484b6: 1 sat>', '<IRSB from 0x80484a6: 1 sat>'])
 
     s_segfault_angr = p.factory.entry_state(args=['a', 'a', 'a', 'a', 'a', 'a', 'a'], add_options={so.STRICT_PAGE_ACCESS})
     pg_segfault_angr = p.factory.path_group(s_segfault_angr).run()
