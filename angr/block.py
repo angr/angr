@@ -11,7 +11,7 @@ class Block(object):
     BLOCK_MAX_SIZE = 4096
 
     __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'arch', 'instructions',
-                 '_instruction_addrs'
+                 '_instruction_addrs', '_vex_opt_level'
                  ]
 
     def __init__(self, addr, project=None, arch=None, size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
@@ -60,6 +60,7 @@ class Block(object):
         self._vex = vex
         self._capstone = None
         self.size = size
+        self._vex_opt_level = opt_level
 
         self.instructions = num_inst
         self._instruction_addrs = []
@@ -132,7 +133,8 @@ class Block(object):
                     addr=self.addr,
                     thumb=self.thumb,
                     size=self.size,
-                    num_inst=self.instructions
+                    num_inst=self.instructions,
+                    opt_level=self._vex_opt_level,
             )
             self._parse_vex_info()
 
