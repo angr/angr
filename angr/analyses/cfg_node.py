@@ -113,11 +113,15 @@ class CFGNode(object):
         return c
 
     def __repr__(self):
+        s = "<CFGNode "
         if self.name is not None:
-            s = "<CFGNode %s (0x%x %d) [%d]>" % (self.name, self.addr, self.size, self.looping_times)
-        else:
-            s = "<CFGNode 0x%x (%d) [%d]>" % (self.addr, self.size, self.looping_times)
-
+            s += self.name + " "
+        s += hex(self.addr)
+        if self.size is not None:
+            s += "[%d]" % self.size
+        if self.looping_times > 0:
+            s += " - %d" % self.looping_times
+        s += ">"
         return s
 
     def __eq__(self, other):
