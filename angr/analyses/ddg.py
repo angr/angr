@@ -356,6 +356,28 @@ class DDGViewInstruction(object):
 
             return DDGViewItem(self._ddg, pv, simplified=self._simplified)
 
+    @property
+    def definitions(self):
+        """
+        Get all definitions located at the current instruction address.
+
+        :return: A list of ProgramVariable instances.
+        :rtype:  list
+        """
+
+        defs = set()
+
+        if self._simplified:
+            graph = self._ddg.simplified_data_graph
+        else:
+            graph = self._ddg.data_graph
+
+        for n in graph.nodes():  # type: ProgramVariable
+            if n.location.ins_addr == self._insn_addr:
+                defs.add(n)
+
+        return list(defs)
+
 
 class DDGView(object):
     """
