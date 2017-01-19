@@ -1395,11 +1395,22 @@ class DDG(Analysis):
             return []
 
         sources = []
-        in_edges = graph.in_edges(var_def, data=True)
-        for src, _, data in in_edges:
-            if 'type' in data and data['type'] == 'kill':
-                continue
-            sources.append(src)
+        defs = [ var_def ]
+        traversed = set()
+
+        while defs:
+            definition = defs.pop()
+            in_edges = graph.in_edges(definition, data=True)
+            for src, _, data in in_edges:
+                if 'type' in data and data['type'] == 'kill':
+                    continue
+                if isinstance(src.variable, SimTemporaryVariable):
+                    if src not in traversed:
+                        defs.append(src)
+                        traversed.add(src)
+                else:
+                    if src not in sources:
+                        sources.append(src)
 
         return sources
 
