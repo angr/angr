@@ -341,7 +341,7 @@ class CFGBase(Analysis):
         """
         raise DeprecationWarning('"get_any_irsb()" is deprecated since SimIRSB does not exist anymore.')
 
-    def get_all_nodes(self, addr, is_syscall=None, anyaddr=True):
+    def get_all_nodes(self, addr, is_syscall=None, anyaddr=False):
         """
         Get all CFGNodes whose address is the specified one.
 
