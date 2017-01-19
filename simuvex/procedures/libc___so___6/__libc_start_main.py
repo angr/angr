@@ -14,6 +14,7 @@ class __libc_start_main(simuvex.SimProcedure):
 
     ADDS_EXITS = True
     NO_RET = True
+    IS_FUNCTION = True
     local_vars = ('main', 'argc', 'argv', 'init', 'fini')
 
     def _initialize_ctype_table(self):
@@ -63,25 +64,24 @@ class __libc_start_main(simuvex.SimProcedure):
     def after_main(self, main, argc, argv, init, fini, exit_addr=0):
         self.exit(0)
 
-    @classmethod
-    def static_exits(cls, arch, blocks):
+    def static_exits(self, blocks):
         # Execute those blocks with a blank state, and then dump the arguments
-        blank_state = simuvex.SimState(arch=arch, mode="fastpath")
+        blank_state = simuvex.SimState(arch=self.arch, mode="fastpath")
 
         # Execute each block
         state = blank_state
         for b in blocks:
             # state.regs.ip = next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr
-            irsb = simuvex.SimIRSB(state, b,
-                        addr=next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr)
+            irsb = simuvex.SimEngineVEX().process(state, b,
+                    force_addr=next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr)
             if irsb.successors:
                 state = irsb.successors[0]
             else:
                 break
 
-        cc = simuvex.DefaultCC[arch.name](arch)
+        cc = simuvex.DefaultCC[self.arch.name](self.arch)
         args = [ cc.arg(state, _) for _ in xrange(5) ]
-        main, _, _, init, fini = cls._extract_args(blank_state, *args)
+        main, _, _, init, fini = self._extract_args(blank_state, *args)
 
         all_exits = [
             (init, 'Ijk_Call'),

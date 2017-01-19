@@ -80,13 +80,13 @@ def test_inspect():
     s.inspect.b('instruction', when=simuvex.BP_AFTER, action=act_instruction, instruction=1000)
     irsb = pyvex.IRSB("\x90\x90\x90\x90\xeb\x0a", mem_addr=1000, arch=archinfo.ArchAMD64())
     irsb.pp()
-    simuvex.SimIRSB(s, irsb)
+    simuvex.SimEngineVEX().process(s, irsb)
     nose.tools.assert_equals(counts.reg_write, 7)
     nose.tools.assert_equals(counts.reg_read, 2)
     nose.tools.assert_equals(counts.tmp_write, 1)
     nose.tools.assert_equals(counts.tmp_read, 1)
     nose.tools.assert_equals(counts.expr, 3) # one for the Put, one for the WrTmp, and one to get the next address to jump to
-    nose.tools.assert_equals(counts.statement, 26)
+    nose.tools.assert_equals(counts.statement, 11)
     nose.tools.assert_equals(counts.instruction, 2)
     nose.tools.assert_equals(counts.constraints, 0)
     nose.tools.assert_equals(counts.mem_write, 1)
@@ -123,7 +123,7 @@ def test_inspect_exit():
     s.inspect.b('exit', simuvex.BP_AFTER, action=handle_exit_after)
 
     # step it
-    succ = simuvex.SimIRSB(s, irsb).successors
+    succ = simuvex.SimEngineVEX().process(s, irsb).flat_successors
 
     # check
     nose.tools.assert_equal( succ[0].se.any_int(succ[0].ip), 0x41414141)
@@ -156,7 +156,8 @@ def test_inspect_syscall():
     s.inspect.b('syscall', simuvex.BP_AFTER, action=handle_syscall_after)
 
     # step it
-    simuvex.SimProcedures['syscalls']['close'](s, addr=s.se.any_int(s.ip), ret_to=s.ip, syscall_name='close')
+    proc = simuvex.SimProcedures['syscalls']['close'](s.se.any_int(s.ip), archinfo.arch_from_id('AMD64'))
+    simuvex.SimEngineProcedure().process(s, proc, ret_to=s.ip)
 
     # check counts
     nose.tools.assert_equal(counts.exit_before, 1)

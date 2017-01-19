@@ -13,10 +13,12 @@ class stub(simuvex.SimProcedure):
 
         self.resolves = resolves  # pylint:disable=attribute-defined-outside-init
 
+        self.successors.artifacts['resolves'] = resolves
+
         return self.state.se.Unconstrained("syscall_stub", self.state.arch.bits)
 
     def __repr__(self):
-        if self.resolves:
-            return '<Syscall stub (%s)>' % self.resolves
+        if 'resolves' in self.kwargs:
+            return '<Syscall stub (%s)>' % self.kwargs['resolves']
         else:
             return '<Syscall stub>'

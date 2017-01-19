@@ -33,12 +33,18 @@ def _build_sim_unicorn():
         raise LibError("You must install unicorn and pyvex before building simuvex")
 
     env = os.environ.copy()
-    env['UNICORN_INCLUDE_PATH'] = pkg_resources.resource_filename('unicorn', 'include')
-    env['UNICORN_LIB_PATH'] = pkg_resources.resource_filename('unicorn', 'lib')
-    env['UNICORN_LIB_FILE'] = pkg_resources.resource_filename('unicorn', 'lib\\unicorn.lib')
-    env['PYVEX_INCLUDE_PATH'] = pkg_resources.resource_filename('pyvex', 'include')
-    env['PYVEX_LIB_PATH'] = pkg_resources.resource_filename('pyvex', 'lib')
-    env['PYVEX_LIB_FILE'] = pkg_resources.resource_filename('pyvex', 'lib\\pyvex.lib')
+    env_data = (('UNICORN_INCLUDE_PATH', 'unicorn', 'include'),
+                ('UNICORN_LIB_PATH', 'unicorn', 'lib'),
+                ('UNICORN_LIB_FILE', 'unicorn', 'lib\\unicorn.lib'),
+                ('PYVEX_INCLUDE_PATH', 'pyvex', 'include'),
+                ('PYVEX_LIB_PATH', 'pyvex', 'lib'),
+                ('PYVEX_LIB_FILE', 'pyvex', 'lib\\pyvex.lib'))
+    for var, pkg, fnm in env_data:
+        try:
+            env[var] = pkg_resources.resource_filename(pkg, fnm)
+        except KeyError:
+            pass
+
     cmd1 = ['nmake', '/f', 'Makefile-win']
     cmd2 = ['make']
     for cmd in (cmd1, cmd2):
@@ -57,10 +63,7 @@ def _build_sim_unicorn():
 
 class build(_build):
     def run(self, *args):
-        try:
-            self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
-        except LibError:
-            print 'Failed to build unicorn engine support'
+        self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
         _build.run(self, *args)
 
 cmdclass = {
@@ -71,10 +74,7 @@ try:
     from setuptools.command.develop import develop as _develop
     class develop(_develop):
         def run(self, *args):
-            try:
-                self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
-            except LibError:
-                pass
+            self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
             _develop.run(self, *args)
 
     cmdclass['develop'] = develop
@@ -94,19 +94,23 @@ if 'bdist_wheel' in sys.argv and '--plat-name' not in sys.argv:
 
 setup(
     name='simuvex',
-    version='5.6.12.3',
+    version='6.7.1.13.post2',
     description=' A symbolic execution engine for the VEX IR',
     url='https://github.com/angr/simuvex',
     packages=packages,
     install_requires=[
         'bintrees',
+        'cachetools',
+        'enum34',
         'dpkt-fix',
         'pyvex',
         'archinfo',
         'claripy',
         'cooldict',
-        'ana'
+        'ana',
+        'unicorn'
     ],
+    setup_requires=['unicorn', 'pyvex'],
     cmdclass=cmdclass,
     include_package_data=True,
     package_data={

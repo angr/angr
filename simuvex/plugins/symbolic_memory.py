@@ -12,8 +12,17 @@ from ..storage.memory_object import SimMemoryObject
 
 DEFAULT_MAX_SEARCH = 8
 
-def _multiwrite_filter(mem, ast):
-    return any("multiwrite" in var for var in mem.state.se.variables(ast))
+class MultiwriteAnnotation(claripy.Annotation):
+    @property
+    def eliminatable(self):
+        return False
+    @property
+    def relocateable(self):
+        return True
+
+def _multiwrite_filter(mem, ast): #pylint:disable=unused-argument
+    # this is a huge hack, but so is the whole multiwrite crap
+    return any(isinstance(a, MultiwriteAnnotation) for a in ast._uneliminatable_annotations)
 
 class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     _CONCRETIZATION_STRATEGIES = [ 'symbolic', 'symbolic_approx', 'any', 'any_approx', 'max', 'max_approx',
@@ -266,7 +275,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 concretization_strategies.SimConcretizationStrategyRange(128)
             )
         else:
-            # we try to find a range of values, but only for things named "multiwrite"
+            # we try to find a range of values, but only for ASTs annotated with the multiwrite annotation
             self.write_strategies.append(concretization_strategies.SimConcretizationStrategyRange(
                 128,
                 filter=_multiwrite_filter
@@ -485,7 +494,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         size = max_size
         if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
-            return [ ], self.get_unconstrained_bytes("symbolic_read_" + ','.join(self.state.se.variables(dst)), size*8), [ ]
+            return [ ], self.get_unconstrained_bytes("symbolic_read_unconstrained", size*8), [ ]
 
         # get a concrete set of read addresses
         try:
@@ -493,7 +502,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         except SimMemoryError:
             if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
                 return [ ], self.get_unconstrained_bytes(
-                    "symbolic_read_" + ','.join(self.state.se.variables(dst)), size*8
+                    "symbolic_read_unconstrained", size*8
                 ), [ ]
             else:
                 raise
@@ -911,7 +920,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         else:
             merged_val = self.state.se.BVV(0, merged_size*8)
             for tm,fv in to_merge:
-                l.debug("In merge: %s if flag is %s", tm, fv)
                 merged_val = self.state.se.If(fv, tm, merged_val)
 
         return merged_val

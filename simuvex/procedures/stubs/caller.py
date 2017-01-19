@@ -1,4 +1,3 @@
-
 import simuvex
 
 ######################################
@@ -12,6 +11,7 @@ class Caller(simuvex.SimProcedure):
     """
 
     NO_RET = True
+    IS_FUNCTION = True
 
     def run(self, target_addr=None):
         self.call(target_addr, [ ], 'after_call')
