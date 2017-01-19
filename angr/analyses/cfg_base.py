@@ -341,7 +341,7 @@ class CFGBase(Analysis):
         """
         raise DeprecationWarning('"get_any_irsb()" is deprecated since SimIRSB does not exist anymore.')
 
-    def get_all_nodes(self, addr, is_syscall=None):
+    def get_all_nodes(self, addr, is_syscall=None, anyaddr=True):
         """
         Get all CFGNodes whose address is the specified one.
 
@@ -352,7 +352,7 @@ class CFGBase(Analysis):
         results = [ ]
 
         for cfg_node in self._graph.nodes_iter():
-            if cfg_node.addr == addr:
+            if cfg_node.addr == addr or (anyaddr and cfg_node.addr <= addr < (cfg_node.addr + cfg_node.size)):
                 if is_syscall and cfg_node.is_syscall:
                     results.append(cfg_node)
                 elif is_syscall is False and not cfg_node.is_syscall:
