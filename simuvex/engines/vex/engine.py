@@ -206,7 +206,7 @@ class SimEngineVEX(SimEngine):
                 if o.BYPASS_UNSUPPORTED_IRDIRTY not in state.options:
                     raise
                 if stmt.tmp not in (0xffffffff, -1):
-                    retval_size = stmt.result_size/8
+                    retval_size = stmt.result_size(state.scratch.tyenv) / 8
                     retval = state.se.Unconstrained("unsupported_dirty_%s" % stmt.cee.name, retval_size)
                     state.scratch.store_tmp(stmt.tmp, retval, None, None)
                 state.log.add_event('resilience', resilience_type='dirty', dirty=stmt.cee.name,
