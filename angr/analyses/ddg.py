@@ -1288,7 +1288,7 @@ class DDG(Analysis):
                     self._function_data_dependencies[dst_target_func].add_edge(src, dst, **data)
 
 
-    def find_definitions(self, variable, simplified_graph=True):
+    def find_definitions(self, variable, location=None, simplified_graph=True):
         """
         Find all definitions of the given variable.
 
@@ -1303,13 +1303,18 @@ class DDG(Analysis):
         if simplified_graph:
             graph = self.simplified_data_graph
         else:
-            graph = self.graph
+            graph = self.data_graph
 
         defs = []
 
         for n in graph.nodes_iter():  # type: ProgramVariable
             if n.variable == variable:
-                defs.append(n)
+                if location is None:
+                    defs.append(n)
+                else:
+                    # TODO: finish this part
+                    if n.location.block_addr == location.block_addr:
+                        defs.append(n)
 
         return defs
 
@@ -1327,7 +1332,7 @@ class DDG(Analysis):
         if simplified_graph:
             graph = self.simplified_data_graph
         else:
-            graph = self.graph
+            graph = self.data_graph
 
         if var_def not in graph:
             return []
@@ -1356,7 +1361,7 @@ class DDG(Analysis):
         if simplified_graph:
             graph = self.simplified_data_graph
         else:
-            graph = self.graph
+            graph = self.data_graph
 
         if var_def not in graph:
             return []
@@ -1383,7 +1388,7 @@ class DDG(Analysis):
         if simplified_graph:
             graph = self.simplified_data_graph
         else:
-            graph = self.graph
+            graph = self.data_graph
 
         if var_def not in graph:
             return []
