@@ -20,10 +20,11 @@ class ProgramVariable(object):
     :ivar SimVariable variable: The variable.
     :ivar CodeLocation location: Location of the variable.
     """
-    def __init__(self, variable, location, initial=False):
+    def __init__(self, variable, location, initial=False, arch=None):
         self.variable = variable
         self.location = location
         self.initial = initial
+        self._arch = arch  # for pretty printing
 
     def __hash__(self):
         return hash((self.variable, self.location))
@@ -35,7 +36,10 @@ class ProgramVariable(object):
         return self.variable == other.variable and self.location == other.location
 
     def __repr__(self):
-        s = "{%s @ %s}" % (self.variable, self.location)
+        if self._arch is not None:
+            s = "{%s @ %s}" % (self.variable.pp(self._arch), self.location)
+        else:
+            s = "{%s @ %s}" % (self.variable, self.location)
         return s
 
 
@@ -326,7 +330,10 @@ class DDGViewInstruction(object):
                 raise KeyError('CFGNode for instruction %#x is not found.' % self._insn_addr)
 
             # determine the statement ID
-            vex_block = self._project.factory.block(cfg_node.addr, size=cfg_node.size).vex
+            vex_block = self._project.factory.block(cfg_node.addr,
+                                                    size=cfg_node.size,
+                                                    opt_level=self._cfg._iropt_level
+                                                    ).vex
             stmt_idx = None
             insn_addr = cfg_node.addr
             for i, stmt in enumerate(vex_block.statements):
@@ -345,7 +352,7 @@ class DDGViewInstruction(object):
             # create a program variable
             variable = SimRegisterVariable(reg_offset, size)
             location = CodeLocation(cfg_node.addr, stmt_idx, ins_addr=self._insn_addr)
-            pv = ProgramVariable(variable, location)
+            pv = ProgramVariable(variable, location, arch=self._project.arch)
 
             return DDGViewItem(self._ddg, pv, simplified=self._simplified)
 
@@ -784,8 +791,8 @@ class DDG(Analysis):
 
         if variable in self._live_defs:
             for loc in self._live_defs.lookup_defs(variable):
-                pv = ProgramVariable(variable, loc)
-                self._data_graph_add_edge(pv, ProgramVariable(variable, code_loc), type='kill')
+                pv = ProgramVariable(variable, loc, arch=self.project.arch)
+                self._data_graph_add_edge(pv, ProgramVariable(variable, code_loc, arch=self.project.arch), type='kill')
 
         self._live_defs.kill_def(variable, code_loc)
 
@@ -872,7 +879,7 @@ class DDG(Analysis):
             reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
             prev_defs = self._def_lookup(reg_variable)
             for loc, _ in prev_defs.iteritems():
-                v = ProgramVariable(reg_variable, loc)
+                v = ProgramVariable(reg_variable, loc, arch=self.project.arch)
                 self._data_graph_add_edge(v, prog_var, type='mem_addr')
 
         for tmp in action.addr.tmp_deps:
@@ -885,7 +892,7 @@ class DDG(Analysis):
             reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
             prev_defs = self._def_lookup(reg_variable)
             for loc, _ in prev_defs.iteritems():
-                v = ProgramVariable(reg_variable, loc)
+                v = ProgramVariable(reg_variable, loc, arch=self.project.arch)
                 self._data_graph_add_edge(v, prog_var, type='mem_data')
 
         for tmp in action.data.tmp_deps:
@@ -907,12 +914,12 @@ class DDG(Analysis):
             # for each definition, create an edge on the graph
             for definition_location, labels in defs.iteritems():
                 self._stmt_graph_add_edge(definition_location, code_location, **labels)
-                variables.append(ProgramVariable(variable, definition_location))
+                variables.append(ProgramVariable(variable, definition_location, arch=self.project.arch))
 
-            if not variables:
+            if not defs:
                 # if no definition is found, then this is the first time this variable is accessed
                 # mark it as "initial"
-                variables.append(ProgramVariable(variable, code_location, initial=True))
+                variables.append(ProgramVariable(variable, code_location, initial=True, arch=self.project.arch))
                 # make sure to put it into the killing set
                 self._kill(variable, code_location)
 
@@ -935,7 +942,7 @@ class DDG(Analysis):
             self._kill(variable, code_location)
 
             # create a new variable at current location
-            pv = ProgramVariable(variable, code_location)
+            pv = ProgramVariable(variable, code_location, arch=self.project.arch)
 
             # make edges
             self._make_edges(action, pv)
@@ -955,11 +962,11 @@ class DDG(Analysis):
             # record the edge
             self._register_edges[reg_offset].append((definition_location, location))
 
-            self._variables_per_statement.append(ProgramVariable(variable, definition_location))
+            self._variables_per_statement.append(ProgramVariable(variable, definition_location, arch=self.project.arch))
 
         if not definitions:
             # the register was never defined before - it must be passed in as an argument
-            self._variables_per_statement.append(ProgramVariable(variable, location, initial=True))
+            self._variables_per_statement.append(ProgramVariable(variable, location, initial=True, arch=self.project.arch))
             # make sure to put it into the killing set
             self._kill(variable, location)
 
@@ -980,7 +987,7 @@ class DDG(Analysis):
             del self._register_edges[reg_offset]
 
         # add a node on the data dependence graph
-        pv = ProgramVariable(variable, location)
+        pv = ProgramVariable(variable, location, arch=self.project.arch)
         self._data_graph_add_node(pv)
 
         if not action.reg_deps and not action.tmp_deps:
@@ -990,7 +997,7 @@ class DDG(Analysis):
             if statement is not None:
                 if isinstance(statement.data, pyvex.IRExpr.Const):
                     const_variable = SimConstantVariable(value=statement.data.con.value)
-            const_pv = ProgramVariable(const_variable, location)
+            const_pv = ProgramVariable(const_variable, location, arch=self.project.arch)
             self._data_graph_add_edge(const_pv, pv)
 
         for tmp in action.tmp_deps:
@@ -1014,7 +1021,7 @@ class DDG(Analysis):
     def _handle_tmp_write(self, action, location, state, statement):
 
         tmp = action.tmp
-        pv = ProgramVariable(SimTemporaryVariable(tmp), location)
+        pv = ProgramVariable(SimTemporaryVariable(tmp), location, arch=self.project.arch)
 
         self._temp_definitions[tmp] = location
         self._temp_variables[tmp] = pv
@@ -1042,7 +1049,7 @@ class DDG(Analysis):
                     l.warning('Dirty statements are not supported in DDG for now.')
                 elif isinstance(statement.data, pyvex.IRExpr.Const):
                     const_variable = SimConstantVariable(value=statement.data.con.value)
-            const_pv = ProgramVariable(const_variable, location)
+            const_pv = ProgramVariable(const_variable, location, arch=self.project.arch)
             self._data_graph_add_edge(const_pv, pv)
 
     def _handle_exit(self, action, location, state, statement):
