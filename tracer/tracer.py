@@ -52,7 +52,7 @@ class Tracer(object):
                  preconstrain_flag=True, resiliency=True, chroot=None,
                  add_options=None, remove_options=None, trim_history=True,
                  project=None, dump_syscall=False, dump_cache=True,
-                 max_size = None):
+                 max_size = None, exclude_sim_procedures_list=None):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -76,6 +76,8 @@ class Tracer(object):
         :param dump_syscall: True if we want to dump the syscall information
         :param max_size: Optionally set max size of input. Defaults to size
             of preconstrained input.
+        :param exclude_sim_procedures_list: What SimProcedures to hook or not
+            at load time. Defaults to ["malloc","free","calloc","realloc"]
         """
 
         self.binary = binary
@@ -86,6 +88,7 @@ class Tracer(object):
         self.simprocedures = {} if simprocedures is None else simprocedures
         self._hooks = {} if hooks is None else hooks
         self.input_max_size = max_size or len(input)
+        self.exclude_sim_procedures_list = exclude_sim_procedures_list or ["malloc","free","calloc","realloc"]
 
         for h in self._hooks:
             l.debug("Hooking %#x -> %s", h, self._hooks[h].__name__)
@@ -1045,9 +1048,9 @@ class Tracer(object):
 
         # Only requesting custom base if this is a PIE
         if self._p.loader.main_bin.pic:
-            project = angr.Project(self.binary,load_options={'main_opts': {'custom_base_addr': self.qemu_base_addr }})
+            project = angr.Project(self.binary,load_options={'main_opts': {'custom_base_addr': self.qemu_base_addr }},exclude_sim_procedures_list=self.exclude_sim_procedures_list)
         else:
-            project = angr.Project(self.binary)
+            project = angr.Project(self.binary,exclude_sim_procedures_list=self.exclude_sim_procedures_list)
 
         if not self.crash_mode:
             self._set_linux_simprocedures(project)
