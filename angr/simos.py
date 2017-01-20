@@ -611,6 +611,12 @@ class SimLinux(SimOS):
             if _rtld_global_ro is not None:
                 pass
 
+            _rtld_local = ld_obj.get_symbol('_rtld_local')
+            if _rtld_local is not None:
+                if isinstance(self.proj.arch, ArchAMD64):
+                    self.proj.loader.memory.write_addr_at(_rtld_local.rebased_addr + 0xF00, self._loader_lock_addr)
+
+
         tls_obj = self.proj.loader.tls_object
         if tls_obj is not None:
             if isinstance(self.proj.arch, ArchAMD64):
