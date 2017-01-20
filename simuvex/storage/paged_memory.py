@@ -105,10 +105,6 @@ class Page(object):
             self._storage[idx] = item
 
     def store_mo(self, new_mo, overwrite=True):
-        print "######### STORE ############"
-        print "S:", self._storage
-        print "NMO:", new_mo
-
         length = new_mo.length
         start =  new_mo.base - self._page_addr
         if start < 0:
@@ -117,9 +113,6 @@ class Page(object):
         length = min(length, self._page_size)
         if length <= 0:
             l.warning("Nothing left of the memory object to store in SimPage.")
-
-        print "ST:", start
-        print "L:", length
 
         try:
             _, floor_value = self._storage.floor_item(start)
@@ -183,21 +176,6 @@ class Page(object):
             next_idx - page_idx, # bytes until the next MO
             self._page_size - page_idx # remaining bytes in this page
         )
-
-        print (
-            max_bytes, # maximum bytes to read
-            mo.last_addr - self._page_addr - page_idx + 1, # remaining bytes in this MO
-            next_idx - page_idx, # bytes until the next MO
-            self._page_size - page_idx # remaining bytes in this page
-        )
-
-        print "######### LOAD ############"
-        print "S:", self._storage
-        print "SH:", self._sinkhole
-        print "I:", page_idx
-        print "MB:", max_bytes
-        print "MO:", mo
-        print "MR:", max_read
 
         return mo, max_read
 
@@ -803,8 +781,6 @@ class SimPagedMemory(object):
             return
 
         self._mark_updated_mapping(self._name_mapping, n)
-
-        print self._name_mapping[n]
 
         to_discard = set()
         for e in self._name_mapping[n]:
