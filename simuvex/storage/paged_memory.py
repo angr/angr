@@ -1,3 +1,4 @@
+import bintrees
 import cooldict
 import claripy
 import cffi
@@ -22,19 +23,30 @@ class Page(object):
     PROT_WRITE = 2
     PROT_EXEC = 4
 
-    def __init__(self, page_size, permissions=None, executable=False, storage=None, sinkhole=None):
+    def __init__(
+        self, page_addr, page_size, permissions=None,
+        executable=False, storage=None, sinkhole=None
+    ):
         """
-        Create a new page object. Carries permissions information. Permissions default to RW unless `executable` is True
+        Create a new page object. Carries permissions information.
+        Permissions default to RW unless `executable` is True,
         in which case permissions default to RWX.
 
-        :param executable:  Whether the page is executable, typically this will depend on whether the binary has an
+        :param int page_addr: The base address of the page.
+        :param int page_size: The size of the page.
+        :param bool executable: Whether the page is executable. Typically,
+                            this will depend on whether the binary has an
                             executable stack.
+        :param claripy.AST permissions: A 3-bit bitvector setting specific permissions
+                            for EXEC, READ, and WRITE
+        :param bintrees.AVLTree storage: A binary tree with the page data.
+        :param claripy.AST sinkhole: A "default" value for the page.
         """
 
+        self._page_addr = page_addr
         self._page_size = page_size
-        self._storage = { } if storage is None else storage
+        self._storage = bintrees.AVLTree() if storage is None else storage
         self._sinkhole = sinkhole
-        self._sorted_keys = None
 
         if permissions is None:
             perms = Page.PROT_READ|Page.PROT_WRITE
@@ -53,80 +65,144 @@ class Page(object):
 
     def sinkhole(self, v, wipe=False):
         if wipe:
-            self._storage = { }
-            self._sorted_keys = None
+            self._storage = bintrees.AVLTree()
         self._sinkhole = v
-
-    def sorted_storage_keys(self):
-        if self._sorted_keys is None:
-            self._sorted_keys = sorted(self._storage.keys())
-        return self._sorted_keys
 
     def keys(self):
         if self._sinkhole is not None:
             return range(self._page_size)
-        return self._storage.keys()
+        else:
+            n = 0
+            addrs = [ ]
+            while n < self._page_size:
+                try:
+                    page_idx, mo = self._storage.ceiling_item(n)
+                    addrs.extend(range(
+                        page_idx,
+                        min(page_idx+mo.length, self._page_size)
+                    ))
+                    n = page_idx+mo.length
+                except KeyError:
+                    break
+            return addrs
 
     def __contains__(self, item):
-        if not self._sinkhole:
-            return item in self._storage
-        else:
-            return item < self._page_size
+        return self.load_mo(item, 1)[0] is not None
 
     def __getitem__(self, idx):
-        try:
-            return self._storage[idx]
-        except KeyError:
-            if self._sinkhole and idx < self._page_size:
-                return self._sinkhole
-            else:
-                raise
+        i = self.load_mo(idx, 1)[0]
+        if i is None:
+            raise KeyError(idx)
+        else:
+            return i
 
     def __setitem__(self, idx, item):
         if idx is self._sinkhole:
             if idx in self._storage:
                 del self._storage[idx]
-                self._sorted_keys = None
             return
         else:
             self._storage[idx] = item
-            self._sorted_keys = None
 
-    def _get_object(self, page_idx, max_bytes):
-        actual_max = min(self._page_size, page_idx+max_bytes)
-        sorted_keys = [ k for k in self.sorted_storage_keys() if k >= page_idx and k < actual_max ]
+    def store_mo(self, new_mo, overwrite=True):
+        print "######### STORE ############"
+        print "S:", self._storage
+        print "NMO:", new_mo
 
-        # first, we handle the case where only the sinkhole (if set) can fulfill this request
-        if len(sorted_keys) == 0:
-            return (self._sinkhole, actual_max - page_idx)
+        length = new_mo.length
+        start =  new_mo.base - self._page_addr
+        if start < 0:
+            length = length + start
+            start = 0
+        length = min(length, self._page_size)
+        if length <= 0:
+            l.warning("Nothing left of the memory object to store in SimPage.")
 
-        # there are two options now:
-        # 1. there *is* a page index in range, but if we can't fulfill the request
-        # from the storage, it's still the sinkhole (if set)
-        # 2. we have an actual target and we'll step until we find that we're no longer
-        # on it
-        if sorted_keys[0] != page_idx:
-            what = self._sinkhole
+        print "ST:", start
+        print "L:", length
+
+        try:
+            _, floor_value = self._storage.floor_item(start)
+        except KeyError:
+            floor_value = None
+
+        after_items = list(self._storage.item_slice(start, start+length))
+        after_addrs, after_values = zip(*after_items) if len(after_items) else ([],[])
+
+        if overwrite:
+            # remove existing items, store it, then restore the last one if needed
+            if after_items:
+                self._storage.remove_items(after_addrs)
+            self._storage[start] = new_mo
+            last_mo = floor_value if not after_values else after_values[-1]
+            if (
+                last_mo is not None and last_mo.includes(new_mo.last_addr+1) and
+                start+length != self._page_size and start+length not in self._storage
+            ):
+                self._storage[start+length] = last_mo
         else:
-            what = self._storage[sorted_keys[0]]
+            # we need to find all the gaps, and fill them in
+            next_addr = start if floor_value is None else floor_value.last_addr + 1 - self._page_addr
+            while next_addr < start + length:
+                try:
+                    next_mo = self._storage.ceiling_item(next_addr)[1]
+                    if next_addr + self._page_addr < next_mo.base:
+                        self._storage[next_addr] = new_mo
+                    next_addr = next_mo.last_addr + 1 - self._page_addr
+                except KeyError:
+                    self._storage[next_addr] = new_mo
+                    break
 
-        last_key = sorted_keys[0] - 1
-        for j in sorted_keys:
-            if j != last_key + 1 and what is not self._sinkhole:
-                return (what, last_key + 1 - page_idx)
-            if self._storage[j] is not what:
-                return (what, j - page_idx)
-            last_key = j
+    def load_mo(self, page_idx, max_bytes):
+        """
+        Loads a memory object from memory.
 
-        # so everything through the last key matches. If the sinkhole matches as well,
-        # then the whole region is a match. Otherwise, just through the last key
-        if what is self._sinkhole:
-            return (what, actual_max - page_idx)
-        else:
-            return (what, sorted_keys[-1] + 1 - page_idx)
+        :param page_idx: the index into the page
+        :param max_bytes: the maximum bytes to read
+        :returns: a tuple of the object and the length that should be taken from it
+        """
+
+        try:
+            mo = self._storage.floor_item(page_idx)[1]
+            if not mo.includes(page_idx + self._page_addr):
+                mo = self._sinkhole
+        except KeyError:
+            mo = self._sinkhole
+
+        try:
+            next_idx = self._storage.ceiling_item(page_idx+1)[0]
+        except KeyError:
+            next_idx = self._page_size
+
+        if mo is None:
+            return None, min(next_idx - page_idx, max_bytes)
+
+        max_read = min(
+            max_bytes, # maximum bytes to read
+            mo.last_addr - self._page_addr - page_idx + 1, # remaining bytes in this MO
+            next_idx - page_idx, # bytes until the next MO
+            self._page_size - page_idx # remaining bytes in this page
+        )
+
+        print (
+            max_bytes, # maximum bytes to read
+            mo.last_addr - self._page_addr - page_idx + 1, # remaining bytes in this MO
+            next_idx - page_idx, # bytes until the next MO
+            self._page_size - page_idx # remaining bytes in this page
+        )
+
+        print "######### LOAD ############"
+        print "S:", self._storage
+        print "SH:", self._sinkhole
+        print "I:", page_idx
+        print "MB:", max_bytes
+        print "MO:", mo
+        print "MR:", max_read
+
+        return mo, max_read
 
     def copy(self):
-        return Page(self._page_size, storage=dict(self._storage), permissions=self.permissions, sinkhole=self._sinkhole)
+        return Page(self._page_addr, self._page_size, storage=bintrees.AVLTree(self._storage), permissions=self.permissions, sinkhole=self._sinkhole)
 
 #pylint:disable=unidiomatic-typecheck
 
@@ -269,7 +345,7 @@ class SimPagedMemory(object):
                     raise SimSegfaultError(actual_addr, 'non-readable')
 
             # get the next object out of the page
-            what, length = page._get_object(page_idx, num_bytes-bytes_read)
+            what, length = page.load_mo(page_idx, num_bytes-bytes_read)
             if what is None:
                 missing.append(bytes_read)
             else:
@@ -284,8 +360,11 @@ class SimPagedMemory(object):
     # Page management
     #
 
-    def _create_page(self): #pylint:disable=no-self-use,unused-argument
-        return Page(self._page_size, executable=self._executable_pages)
+    def _create_page(self, page_num, permissions=None):
+        return Page(
+            page_num*self._page_size, self._page_size,
+            executable=self._executable_pages, permissions=permissions
+        )
 
     def _initialize_page(self, n, new_page):
         if n in self._initialized:
@@ -365,7 +444,7 @@ class SimPagedMemory(object):
             if not (initialize or create or page_addr in self._preapproved_stack):
                 raise
 
-            page = self._create_page()
+            page = self._create_page(page_num)
             self._symbolic_addrs[page_num] = set()
             if initialize:
                 initialized = self._initialize_page(page_num, page)
@@ -516,9 +595,7 @@ class SimPagedMemory(object):
             # takes up the whole page
             page.sinkhole(mo, wipe=overwrite)
         else:
-            for a in range(max(mo.base, page_base), min(mo.base+mo.length, page_base+self._page_size)):
-                if overwrite or a%self._page_size not in page._storage:
-                    page[a%self._page_size] = mo
+            page.store_mo(mo, overwrite=overwrite)
             return True
 
     def store_memory_object(self, mo, overwrite=True):
@@ -727,6 +804,8 @@ class SimPagedMemory(object):
 
         self._mark_updated_mapping(self._name_mapping, n)
 
+        print self._name_mapping[n]
+
         to_discard = set()
         for e in self._name_mapping[n]:
             try:
@@ -834,7 +913,7 @@ class SimPagedMemory(object):
 
         for page in xrange(pages):
             page_id = base_page_num + page
-            self._pages[page_id] = Page(self._page_size, permissions)
+            self._pages[page_id] = self._create_page(page_id, permissions=permissions)
             self._symbolic_addrs[page_id] = set()
 
     def unmap_region(self, addr, length):

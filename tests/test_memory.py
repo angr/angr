@@ -608,6 +608,7 @@ def test_load_bytes():
     fdsa = s.se.BVV('fdsa')
     s.memory.store(0x4004, fdsa)
     the_bytes, missing, bytes_read = s.memory.mem.load_bytes(0x4000, 0x1000)
+    print the_bytes
     assert len(missing) == 0
     assert len(the_bytes) == 3
     assert bytes_read == 0x1000

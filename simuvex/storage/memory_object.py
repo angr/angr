@@ -30,6 +30,13 @@ class SimMemoryObject(object):
         return self._length
 
     @property
+    def last_addr(self):
+        return self._base + self._length - 1
+
+    def includes(self, x):
+        return 0 <= x - self._base < self._length
+
+    @property
     def object(self):
         return self._object
 
@@ -50,4 +57,3 @@ class SimMemoryObject(object):
 
     def __repr__(self):
         return "MO(%s)" % (self.object)
-
