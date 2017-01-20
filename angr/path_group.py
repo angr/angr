@@ -236,21 +236,7 @@ class PathGroup(ana.Storable):
             new_active.extend(successors)
         else:
             for path in successors:
-                for hook in self._hooks_filter:
-                    goto = hook(path)
-                    if goto is None:
-                        continue
-                    if type(goto) is tuple:
-                        goto, path = goto
-
-                    if goto in new_stashes:
-                        new_stashes[goto].append(path)
-                        break
-                    else:
-                        new_stashes[goto] = [path]
-                        break
-                else:
-                    new_active.append(path)
+                self._apply_filter_hooks(path,new_stashes,new_active)
 
         if self.save_unconstrained:
             new_stashes['unconstrained'] += unconstrained
@@ -261,6 +247,27 @@ class PathGroup(ana.Storable):
 
         if a not in pruned and a not in errored and len(successors) == 0:
             new_stashes['deadended'].append(a)
+
+    def _apply_filter_hooks(self,path,new_stashes,new_active):
+
+        for hook in self._hooks_filter:
+            goto = hook(path)
+            if goto is None:
+                continue
+            if type(goto) is tuple:
+                goto, path = goto
+
+            if goto in new_stashes:
+                new_stashes[goto].append(path)
+                break
+            else:
+                new_stashes[goto] = [path]
+                break
+        else:
+            new_active.append(path)
+
+        return new_active
+
 
     def _one_step(self, stash, selector_func=None, successor_func=None, check_func=None, **kwargs):
         """
@@ -513,6 +520,13 @@ class PathGroup(ana.Storable):
         stash = 'active' if stash is None else stash
         n = n if n is not None else 1 if until is None else 100000
         pg = self
+
+        # Check for found path in first block
+        new_active = []
+        for path in pg.stashes[stash]:
+            self._apply_filter_hooks(path,pg.stashes,new_active)
+        pg.stashes[stash] = new_active
+
 
         for i in range(n):
             l.debug("Round %d: stepping %s", i, pg)
