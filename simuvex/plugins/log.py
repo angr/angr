@@ -48,6 +48,7 @@ class SimStateLog(SimStatePlugin):
 
     @property
     def fresh_constraints(self):
+        # pylint: disable=no-member
         return [ev.constraint.ast for ev in self.events if isinstance(ev, SimActionConstraint)]
 
     def copy(self):
