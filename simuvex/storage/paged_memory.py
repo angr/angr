@@ -62,19 +62,10 @@ class Page(object):
             return self.permissions.args[0]
 
     def keys(self):
-        n = 0
-        addrs = [ ]
-        while n < self._page_size:
-            try:
-                page_idx, mo = self._storage.ceiling_item(n)
-                addrs.extend(range(
-                    max(0, mo.base - self._page_addr),
-                    min(mo.last_addr+1-self._page_addr, self._page_size)
-                ))
-                n = page_idx+mo.length
-            except KeyError:
-                break
-        return addrs
+        if len(self._storage) == 0:
+            return set()
+        else:
+            return set.union(*(set(range(*self._resolve_range(mo))) for mo in self._storage.values()))
 
     def __contains__(self, item):
         return self.load_mo(item, 1)[0] is not None
@@ -87,55 +78,55 @@ class Page(object):
             return i
 
     def _resolve_range(self, mo):
-        length = mo.length
-        start =  mo.base - self._page_addr
-        if start < 0:
-            length = length + start
-            start = 0
-        length = min(length, self._page_size)
-        if length <= 0:
+        start = max(mo.base, self._page_addr)
+        end = min(mo.last_addr + 1, self._page_addr + self._page_size)
+        if end <= start:
             l.warning("Nothing left of the memory object to store in SimPage.")
-
-        return start, length
+        return start, end
 
     def replace_mo(self, old_mo, new_mo):
-        start, length = self._resolve_range(old_mo)
-        possible_items = list(self._storage.item_slice(start, start+length))
+        start, end = self._resolve_range(old_mo)
+        possible_items = list(self._storage.item_slice(start, end))
         for a,v in possible_items:
             if v is old_mo:
+                #assert new_mo.includes(a)
                 self._storage[a] = new_mo
 
     def store_mo(self, new_mo, overwrite=True):
-        start, length = self._resolve_range(new_mo)
+        start, end = self._resolve_range(new_mo)
         try:
             _, floor_value = self._storage.floor_item(start)
         except KeyError:
             floor_value = None
 
-        after_items = list(self._storage.item_slice(start, start+length))
+        after_items = list(self._storage.item_slice(start, end))
         after_addrs, after_values = zip(*after_items) if len(after_items) else ([],[])
 
         if overwrite:
             # remove existing items, store it, then restore the last one if needed
             if after_items:
                 self._storage.remove_items(after_addrs)
+            #assert new_mo.includes(start)
             self._storage[start] = new_mo
             last_mo = floor_value if not after_values else after_values[-1]
             if (
-                last_mo is not None and last_mo.includes(new_mo.last_addr+1) and
-                start+length != self._page_size and start+length not in self._storage
+                last_mo is not None and last_mo.includes(end) and
+                end < self._page_addr + self._page_size and end not in self._storage
             ):
-                self._storage[start+length] = last_mo
+                #assert last_mo.includes(end)
+                self._storage[end] = last_mo
         else:
             # we need to find all the gaps, and fill them in
-            next_addr = start if floor_value is None else floor_value.last_addr + 1 - self._page_addr
-            while next_addr < start + length:
+            next_addr = start if floor_value is None else floor_value.last_addr + 1
+            while next_addr < end:
                 try:
                     next_mo = self._storage.ceiling_item(next_addr)[1]
-                    if next_addr + self._page_addr < next_mo.base:
+                    if not next_mo.includes(next_addr):
+                        #assert new_mo.includes(next_addr)
                         self._storage[next_addr] = new_mo
-                    next_addr = next_mo.last_addr + 1 - self._page_addr
+                    next_addr = next_mo.last_addr + 1
                 except KeyError:
+                    #assert new_mo.includes(next_addr)
                     self._storage[next_addr] = new_mo
                     break
 
@@ -156,16 +147,16 @@ class Page(object):
         try:
             next_idx = self._storage.ceiling_item(page_idx+1)[0]
         except KeyError:
-            next_idx = self._page_size
+            next_idx = self._page_addr + self._page_size
 
-        if mo is None or not mo.includes(page_idx + self._page_addr):
+        if mo is None or not mo.includes(page_idx):
             return None, min(next_idx - page_idx, max_bytes)
 
         max_read = min(
             max_bytes, # maximum bytes to read
-            mo.last_addr - self._page_addr - page_idx + 1, # remaining bytes in this MO
+            mo.last_addr - page_idx + 1, # remaining bytes in this MO
             next_idx - page_idx, # bytes until the next MO
-            self._page_size - page_idx # remaining bytes in this page
+            self._page_addr + self._page_size - page_idx # remaining bytes in this page
         )
 
         return mo, max_read
@@ -238,7 +229,7 @@ class SimPagedMemory(object):
 
     def __getitem__(self, addr):
         page_num = addr / self._page_size
-        page_idx = addr % self._page_size
+        page_idx = addr
         #print "GET", addr, page_num, page_idx
 
         try:
@@ -249,7 +240,7 @@ class SimPagedMemory(object):
 
     def __setitem__(self, addr, v):
         page_num = addr / self._page_size
-        page_idx = addr % self._page_size
+        page_idx = addr
         #print "SET", addr, page_num, page_idx
 
         self._get_page(page_num, write=True, create=True)[page_idx] = v
@@ -291,7 +282,7 @@ class SimPagedMemory(object):
         while bytes_read < num_bytes:
             actual_addr = addr + bytes_read
             page_num = actual_addr / self._page_size
-            page_idx = actual_addr % self._page_size
+            page_idx = actual_addr
 
             # grab the page, but if it's missing, add that to the missing list
             if old_page_num != page_num:
@@ -305,7 +296,7 @@ class SimPagedMemory(object):
                             break
                         raise SimSegfaultError(actual_addr, 'read-miss')
                     missing.append(bytes_read)
-                    bytes_read += self._page_size - page_idx
+                    bytes_read += self._page_size - page_idx % self._page_size
                     continue
 
                 if self.allow_segv and not page.concrete_permissions & Page.PROT_READ:
@@ -485,9 +476,9 @@ class SimPagedMemory(object):
 
         candidates = set()
         for p in their_additions:
-            candidates.update((p*self._page_size)+i for i in other._pages[p].keys())
+            candidates.update(other._pages[p].keys())
         for p in our_additions:
-            candidates.update((p*self._page_size)+i for i in self._pages[p].keys())
+            candidates.update(self._pages[p].keys())
 
         for p in common_pages:
             our_page = self._pages[p]
@@ -498,8 +489,10 @@ class SimPagedMemory(object):
 
             our_keys = set(our_page.keys())
             their_keys = set(their_page.keys())
-            changes = (our_keys - their_keys) | (their_keys - our_keys) | { i for i in (our_keys & their_keys) if our_page[i] is not their_page[i] }
-            candidates.update([ (p*self._page_size)+i for i in changes ])
+            changes = (our_keys - their_keys) | (their_keys - our_keys) | {
+                i for i in (our_keys & their_keys) if our_page[i] is not their_page[i]
+            }
+            candidates.update(changes)
 
         #both_changed = our_changes & their_changes
         #ours_changed_only = our_changes - both_changed
@@ -690,7 +683,7 @@ class SimPagedMemory(object):
     def _update_mappings(self, actual_addr, cnt):
         if options.MEMORY_SYMBOLIC_BYTES_MAP in self.state.options:
             page_num = actual_addr / self._page_size
-            page_idx = actual_addr % self._page_size
+            page_idx = actual_addr
             if self.state.se.symbolic(cnt):
                 self._symbolic_addrs[page_num].add(page_idx)
             else:
