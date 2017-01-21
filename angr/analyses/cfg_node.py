@@ -93,7 +93,6 @@ class CFGNode(object):
             if instr_addr in self._cfg.insn_addr_to_memory_data:
                 yield self._cfg.insn_addr_to_memory_data[instr_addr]
 
-
     @property
     def is_simprocedure(self):
         return self.simprocedure_name is not None
