@@ -162,7 +162,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                     from each start before pausing the recovery procedure.
         """
         ForwardAnalysis.__init__(self, order_entries=True if base_graph is not None else False)
-        CFGBase.__init__(self, context_sensitivity_level, normalize=normalize, iropt_level=iropt_level)
+        CFGBase.__init__(self, 'accurate', context_sensitivity_level, normalize=normalize, iropt_level=iropt_level)
 
         if start is not None:
             l.warning("`start` is deprecated. Please consider using `starts` instead in your code.")

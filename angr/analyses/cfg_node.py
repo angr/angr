@@ -1,6 +1,7 @@
 import pyvex
 import simuvex
 
+
 class CFGNode(object):
     """
     This class stands for each single node in CFG.
@@ -82,6 +83,15 @@ class CFGNode(object):
     @property
     def predecessors(self):
         return self._cfg.get_predecessors(self)
+
+    @property
+    def accessed_data_references(self):
+        if self._cfg.sort != 'fast':
+            raise ValueError("Memory data is currently only supported in CFGFast.")
+
+        for instr_addr in self.instruction_addrs:
+            if instr_addr in self._cfg.insn_addr_to_memory_data:
+                yield self._cfg.insn_addr_to_memory_data[instr_addr]
 
     @property
     def is_simprocedure(self):
