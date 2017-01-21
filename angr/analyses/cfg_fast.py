@@ -649,7 +649,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         ForwardAnalysis.__init__(self, allow_merging=False)
-        CFGBase.__init__(self, 0, normalize=normalize, binary=binary, force_segment=force_segment)
+        CFGBase.__init__(self, 'fast', 0, normalize=normalize, binary=binary, force_segment=force_segment)
 
         # necessary warnings
         if self.project.loader._auto_load_libs is True and end is None and len(self.project.loader.all_objects) > 3:

@@ -85,8 +85,8 @@ class CFGNode(object):
         return self._cfg.get_predecessors(self)
 
     @property
-    def accesssed_data_references(self):
-        if not isinstance(self._cfg, CFGFast):
+    def accessed_data_references(self):
+        if self._cfg.sort != 'fast':
             raise ValueError("Memory data is currently only supported in CFGFast.")
 
         for instr_addr in self.instruction_addrs:
@@ -157,4 +157,3 @@ class CFGNode(object):
             return BlockNode(self.addr, self.size)
 
 from ..knowledge.codenode import BlockNode, HookNode
-from .cfg_fast import CFGFast
