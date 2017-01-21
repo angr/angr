@@ -104,9 +104,9 @@ class Page(object):
         else:
             self._storage[idx] = item
 
-    def store_mo(self, new_mo, overwrite=True):
-        length = new_mo.length
-        start =  new_mo.base - self._page_addr
+    def _resolve_range(self, mo):
+        length = mo.length
+        start =  mo.base - self._page_addr
         if start < 0:
             length = length + start
             start = 0
@@ -114,6 +114,20 @@ class Page(object):
         if length <= 0:
             l.warning("Nothing left of the memory object to store in SimPage.")
 
+        return start, length
+
+    def replace_mo(self, old_mo, new_mo):
+        if old_mo is self._sinkhole:
+            self._sinkhole = new_mo
+
+        start, length = self._resolve_range(old_mo)
+        possible_items = list(self._storage.item_slice(start, start+length))
+        for a,v in possible_items:
+            if v is old_mo:
+                self._storage[a] = new_mo
+
+    def store_mo(self, new_mo, overwrite=True):
+        start, length = self._resolve_range(new_mo)
         try:
             _, floor_value = self._storage.floor_item(start)
         except KeyError:
@@ -576,6 +590,13 @@ class SimPagedMemory(object):
             page.store_mo(mo, overwrite=overwrite)
             return True
 
+    def _containing_pages(self, mo):
+        mo_start = mo.base
+        mo_end = mo.base + mo.length
+        page_start = mo_start - mo_start%self._page_size
+        page_end = mo_end + (self._page_size - mo_end%self._page_size) if mo_end % self._page_size else mo_end
+        return [ b for b in range(page_start, page_end, self._page_size) ]
+
     def store_memory_object(self, mo, overwrite=True):
         """
         This function optimizes a large store by storing a single reference to the :class:`SimMemoryObject` instead of
@@ -584,13 +605,7 @@ class SimPagedMemory(object):
         :param memory_object: the memory object to store
         """
 
-        mo_start = mo.base
-        mo_end = mo.base + mo.length
-        page_start = mo_start - mo_start%self._page_size
-        page_end = mo_end + (self._page_size - mo_end%self._page_size) if mo_end % self._page_size else mo_end
-        pages = [ b for b in range(page_start, page_end, self._page_size) ]
-
-        for p in pages:
+        for p in self._containing_pages(mo):
             self._apply_object_to_page(p, mo, overwrite=overwrite)
 
         self._update_range_mappings(mo.base, mo.object, mo.length)
@@ -609,17 +624,12 @@ class SimPagedMemory(object):
             raise SimMemoryError("memory objects can only be replaced by the same length content")
 
         new = SimMemoryObject(new_content, old.base)
-        for b in range(old.base, old.base+old.length):
-            try:
-                here = self[b]
-                if here is not old:
-                    continue
+        for p in self._containing_pages(old):
+            self._get_page(p/self._page_size, write=True).replace_mo(old, new)
 
-                self[b] = new
-                if isinstance(new.object, claripy.ast.BV):
-                    self._update_mappings(b, new.object)
-            except KeyError:
-                pass
+        if isinstance(new.object, claripy.ast.BV):
+            for b in range(old.base, old.base+old.length):
+                self._update_mappings(b, new.object)
         return new
 
     def replace_all(self, old, new):
