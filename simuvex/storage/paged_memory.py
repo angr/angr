@@ -25,7 +25,7 @@ class Page(object):
 
     def __init__(
         self, page_addr, page_size, permissions=None,
-        executable=False, storage=None, sinkhole=None
+        executable=False, storage=None
     ):
         """
         Create a new page object. Carries permissions information.
@@ -40,13 +40,11 @@ class Page(object):
         :param claripy.AST permissions: A 3-bit bitvector setting specific permissions
                             for EXEC, READ, and WRITE
         :param bintrees.AVLTree storage: A binary tree with the page data.
-        :param claripy.AST sinkhole: A "default" value for the page.
         """
 
         self._page_addr = page_addr
         self._page_size = page_size
         self._storage = bintrees.AVLTree() if storage is None else storage
-        self._sinkhole = sinkhole
 
         if permissions is None:
             perms = Page.PROT_READ|Page.PROT_WRITE
@@ -63,28 +61,20 @@ class Page(object):
         else:
             return self.permissions.args[0]
 
-    def sinkhole(self, v, wipe=False):
-        if wipe:
-            self._storage = bintrees.AVLTree()
-        self._sinkhole = v
-
     def keys(self):
-        if self._sinkhole is not None:
-            return range(self._page_size)
-        else:
-            n = 0
-            addrs = [ ]
-            while n < self._page_size:
-                try:
-                    page_idx, mo = self._storage.ceiling_item(n)
-                    addrs.extend(range(
-                        max(0, mo.base - self._page_addr),
-                        min(mo.last_addr+1-self._page_addr, self._page_size)
-                    ))
-                    n = page_idx+mo.length
-                except KeyError:
-                    break
-            return addrs
+        n = 0
+        addrs = [ ]
+        while n < self._page_size:
+            try:
+                page_idx, mo = self._storage.ceiling_item(n)
+                addrs.extend(range(
+                    max(0, mo.base - self._page_addr),
+                    min(mo.last_addr+1-self._page_addr, self._page_size)
+                ))
+                n = page_idx+mo.length
+            except KeyError:
+                break
+        return addrs
 
     def __contains__(self, item):
         return self.load_mo(item, 1)[0] is not None
@@ -109,9 +99,6 @@ class Page(object):
         return start, length
 
     def replace_mo(self, old_mo, new_mo):
-        if old_mo is self._sinkhole:
-            self._sinkhole = new_mo
-
         start, length = self._resolve_range(old_mo)
         possible_items = list(self._storage.item_slice(start, start+length))
         for a,v in possible_items:
@@ -163,17 +150,15 @@ class Page(object):
 
         try:
             mo = self._storage.floor_item(page_idx)[1]
-            if not mo.includes(page_idx + self._page_addr):
-                mo = self._sinkhole
         except KeyError:
-            mo = self._sinkhole
+            mo = None
 
         try:
             next_idx = self._storage.ceiling_item(page_idx+1)[0]
         except KeyError:
             next_idx = self._page_size
 
-        if mo is None:
+        if mo is None or not mo.includes(page_idx + self._page_addr):
             return None, min(next_idx - page_idx, max_bytes)
 
         max_read = min(
@@ -186,7 +171,7 @@ class Page(object):
         return mo, max_read
 
     def copy(self):
-        return Page(self._page_addr, self._page_size, storage=bintrees.AVLTree(self._storage), permissions=self.permissions, sinkhole=self._sinkhole)
+        return Page(self._page_addr, self._page_size, storage=bintrees.AVLTree(self._storage), permissions=self.permissions)
 
 #pylint:disable=unidiomatic-typecheck
 
@@ -555,7 +540,7 @@ class SimPagedMemory(object):
 
     def _apply_object_to_page(self, page_base, mo, page=None, overwrite=True):
         """
-        Writes a memory object to a `page`, sinkholing if appropriate.
+        Writes a memory object to a `page`
 
         :param page_base:   The base address of the page.
         :param mo:          The memory object.
@@ -575,12 +560,8 @@ class SimPagedMemory(object):
         if self.allow_segv and not page.concrete_permissions & Page.PROT_WRITE:
             raise SimSegfaultError(mo.base, 'non-writable')
 
-        if mo.base <= page_base and mo.base + mo.length >= page_base + self._page_size:
-            # takes up the whole page
-            page.sinkhole(mo, wipe=overwrite)
-        else:
-            page.store_mo(mo, overwrite=overwrite)
-            return True
+        page.store_mo(mo, overwrite=overwrite)
+        return True
 
     def _containing_pages(self, mo):
         mo_start = mo.base
