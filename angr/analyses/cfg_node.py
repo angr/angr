@@ -1,5 +1,7 @@
 import pyvex
 import simuvex
+from angr import CFGFast
+
 
 class CFGNode(object):
     """
@@ -82,6 +84,16 @@ class CFGNode(object):
     @property
     def predecessors(self):
         return self._cfg.get_predecessors(self)
+
+    @property
+    def accesssed_data_references(self):
+        if not isinstance(self._cfg, CFGFast):
+            raise ValueError("Memory data is currently only supported in CFGFast.")
+
+        for instr_addr in self.instruction_addrs:
+            if instr_addr in self._cfg.insn_addr_to_memory_data:
+                yield self._cfg.insn_addr_to_memory_data[instr_addr]
+
 
     @property
     def is_simprocedure(self):

@@ -691,7 +691,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # A mapping between address and the actual data in memory
         self._memory_data = { }
         # A mapping between address of the instruction that's referencing the memory data and the memory data itself
-        self._insn_addr_to_memory_data = { }
+        self.insn_addr_to_memory_data = { }
 
         self._initial_state = None
         self._next_addr = None
@@ -769,6 +769,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     @property
     def memory_data(self):
         return self._memory_data
+
+    @property
+    def _insn_addr_to_memory_data(self):
+        l.warning('_insn_addr_to_memory_data has been made public and is deprecated. Please fix your code accordingly.')
+        return self.insn_addr_to_memory_data
 
     #
     # Private methods
@@ -1848,7 +1853,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if self._extra_cross_references:
                 self._memory_data[data_addr].add_ref(irsb_addr, stmt_idx, insn_addr)
 
-        self._insn_addr_to_memory_data[insn_addr] = self._memory_data[data_addr]
+        self.insn_addr_to_memory_data[insn_addr] = self._memory_data[data_addr]
 
     def _tidy_data_references(self):
         """
