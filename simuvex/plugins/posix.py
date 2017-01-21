@@ -2,9 +2,9 @@ from collections import namedtuple
 
 from .plugin import SimStatePlugin
 from ..storage.file import SimFile
+from ..storage.file import Flags
 
 import os
-import simuvex
 import logging
 l = logging.getLogger('simuvex.plugins.posix')
 
@@ -89,12 +89,12 @@ class SimStateSystem(SimStatePlugin):
         if initialize:
             l.debug("Initializing files...")
             if inetd:
-                self.open("inetd", "r")
+                self.open("inetd", Flags.O_RDONLY)
                 self.add_socket(0)
             else:
-                self.open("/dev/stdin", "r") # stdin
-            self.open("/dev/stdout", "w") # stdout
-            self.open("/dev/stderr", "w") # stderr
+                self.open("/dev/stdin", Flags.O_RDONLY) # stdin
+            self.open("/dev/stdout", Flags.O_WRTONLY) # stdout
+            self.open("/dev/stderr", Flags.O_WRTONLY) # stderr
         else:
             if len(self.files) == 0:
                 l.debug("Not initializing files...")
@@ -178,7 +178,7 @@ class SimStateSystem(SimStatePlugin):
             # if we're in read mode get the file contents
             if not isinstance(mode, (int, long)):
                 mode = self.state.se.any_int(mode)
-            if mode == simuvex.storage.file.Flags.O_RDONLY or (mode & simuvex.storage.file.Flags.O_RDWR):
+            if mode == Flags.O_RDONLY or (mode & Flags.O_RDWR):
                 try:
                     with open(name, "r") as fp:
                         content = fp.read()
@@ -408,12 +408,17 @@ class SimStateSystem(SimStatePlugin):
         """
 
         :param fd:  A file descriptor.
-        :return:
+        :return: the file for the corresponding fd or None
+        If the fd does not exist, a new fd is created with a warning
+        If concrete_fs is set then accessing a non_existing fd will return None
         """
         fd = self.state.make_concrete_int(fd)
         if fd not in self.files:
+            if self.concrete_fs:
+                # concrete mode, do not try to create a new file
+                return None
             l.warning("Accessing non-existing file with fd %d. Creating a new file.", fd)
-            self.open("tmp_%d" % fd, "wr", preferred_fd=fd)
+            self.open("tmp_%d" % fd, Flags.O_RDWR, preferred_fd=fd)
         return self.files[fd]
 
     def _chrootize(self, name):
