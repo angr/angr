@@ -1,6 +1,5 @@
 import pyvex
 import simuvex
-from angr import CFGFast
 
 
 class CFGNode(object):
@@ -158,3 +157,4 @@ class CFGNode(object):
             return BlockNode(self.addr, self.size)
 
 from ..knowledge.codenode import BlockNode, HookNode
+from .cfg_fast import CFGFast
