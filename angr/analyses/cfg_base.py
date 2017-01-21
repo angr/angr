@@ -48,7 +48,7 @@ class CFGBase(Analysis):
     The base class for control flow graphs.
     """
     def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None):
-
+        self.sort = sort
         self._context_sensitivity_level=context_sensitivity_level
 
         # Sanity checks
