@@ -96,14 +96,6 @@ class Page(object):
         else:
             return i
 
-    def __setitem__(self, idx, item):
-        if idx is self._sinkhole:
-            if idx in self._storage:
-                del self._storage[idx]
-            return
-        else:
-            self._storage[idx] = item
-
     def _resolve_range(self, mo):
         length = mo.length
         start =  mo.base - self._page_addr
