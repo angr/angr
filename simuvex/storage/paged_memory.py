@@ -78,8 +78,8 @@ class Page(object):
                 try:
                     page_idx, mo = self._storage.ceiling_item(n)
                     addrs.extend(range(
-                        page_idx,
-                        min(page_idx+mo.length, self._page_size)
+                        max(0, mo.base - self._page_addr),
+                        min(mo.last_addr+1-self._page_addr, self._page_size)
                     ))
                     n = page_idx+mo.length
                 except KeyError:
