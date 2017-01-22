@@ -9,8 +9,8 @@ from ... import s_options as o
 from ...plugins.inspect import BP_AFTER, BP_BEFORE
 from ...s_action import SimActionExit, SimActionObject
 from ...s_errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException,
-                         UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError
-                         )
+                         UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
+                         SimMemoryError)
 from ..engine import SimEngine
 from .statements import translate_stmt
 from .expressions import translate_expr
@@ -404,7 +404,7 @@ class SimEngineVEX(SimEngine):
         if state and o.STRICT_PAGE_ACCESS in state.options:
             try:
                 perms = state.memory.permissions(addr)
-            except KeyError:
+            except (KeyError, SimMemoryError):  # TODO: can this still raise KeyError?
                 raise SimSegfaultError(addr, 'exec-miss')
             else:
                 if not perms.symbolic:
