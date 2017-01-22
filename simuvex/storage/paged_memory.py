@@ -117,7 +117,7 @@ class Page(object):
                 self._storage[end] = last_mo
         else:
             # we need to find all the gaps, and fill them in
-            next_addr = start if floor_value is None else floor_value.last_addr + 1
+            next_addr = start if floor_value is None or not floor_value.includes(start) else floor_value.last_addr + 1
             while next_addr < end:
                 try:
                     next_mo = self._storage.ceiling_item(next_addr)[1]
