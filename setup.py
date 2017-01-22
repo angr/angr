@@ -74,7 +74,7 @@ try:
     from setuptools.command.develop import develop as _develop
     class develop(_develop):
         def run(self, *args):
-            self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
+            #self.execute(_build_sim_unicorn, (), msg='Building sim_unicorn')
             _develop.run(self, *args)
 
     cmdclass['develop'] = develop

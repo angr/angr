@@ -296,8 +296,8 @@ class SimEngineVEX(SimEngine):
             state.scratch.ins_addr = stmt.addr + stmt.delta
 
             # Raise an exception if we're suddenly in self-modifying code
-            for subaddr in xrange(stmt.addr, stmt.addr + stmt.len):
-                if subaddr in state.scratch.dirty_addrs:
+            for subaddr in xrange(stmt.len):
+                if subaddr + stmt.addr in state.scratch.dirty_addrs:
                     raise SimReliftException(state)
             state._inspect('instruction', BP_AFTER)
 
