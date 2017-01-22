@@ -21,5 +21,8 @@ class CFGExplorer(ExplorationTechnique):
         avoid stepping in the middle of a block later """
         cfg_node = self.cfg.get_any_node(addr=path.addr)
 
+        if cfg_node is None:
+            return None
+
         successors = path.step(size=cfg_node.size)
         return successors, path.unconstrained_successors, path.unsat_successors, [], []
