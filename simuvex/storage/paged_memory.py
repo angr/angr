@@ -161,6 +161,24 @@ class Page(object):
 
         return mo, max_read
 
+    def load_slice(self, start, end):
+        """
+        Return the memory objects overlapping with the provided slice.
+
+        :param start: the start address
+        :param end: the end address (non-inclusive)
+        :returns: tuples of (starting_addr, memory_object)
+        """
+        items = list(self._storage.item_slice(start, end))
+        if not items or items[0][0] != start:
+            try:
+                _, floor_mo = self._storage.floor_item(start)
+                if floor_mo.includes(start):
+                    items.insert(0, (start, floor_mo))
+            except KeyError:
+                pass
+        return items
+
     def copy(self):
         return Page(self._page_addr, self._page_size, storage=bintrees.AVLTree(self._storage), permissions=self.permissions)
 
@@ -259,62 +277,44 @@ class SimPagedMemory(object):
     def allow_segv(self):
         return self._check_perms and not self.state.scratch.priv and options.STRICT_PAGE_ACCESS in self.state.options
 
-    def load_bytes(self, addr, num_bytes, ret_on_segv=False):
+    def load_objects(self, addr, num_bytes, ret_on_segv=False):
         """
-        Load bytes from paged memory.
+        Load memory objects from paged memory.
 
         :param addr: Address to start loading.
         :param num_bytes: Number of bytes to load.
         :param bool ret_on_segv: True if you want load_bytes to return directly when a SIGSEV is triggered, otherwise
                                  a SimSegfaultError will be raised.
-        :return: A 3-tuple of (a dict of pages loaded, a list of indices of missing pages, number of bytes scanned in
-                 all).
+        :return: list of tuples of (addr, memory_object)
         :rtype: tuple
         """
 
-        missing = [ ]
-        the_bytes = { }
-
-        l.debug("Reading %d bytes from memory at %#x", num_bytes, addr)
-        old_page_num = None
-        bytes_read = 0
-
-        while bytes_read < num_bytes:
-            actual_addr = addr + bytes_read
-            page_num = actual_addr / self._page_size
-            page_idx = actual_addr
-
-            # grab the page, but if it's missing, add that to the missing list
-            if old_page_num != page_num:
-                try:
-                    old_page_num = page_num
-                    page = self._get_page(page_num)
-                except KeyError:
-                    # missing page
-                    if self.allow_segv:
-                        if ret_on_segv:
-                            break
-                        raise SimSegfaultError(actual_addr, 'read-miss')
-                    missing.append(bytes_read)
-                    bytes_read += self._page_size - page_idx % self._page_size
-                    continue
-
-                if self.allow_segv and not page.concrete_permissions & Page.PROT_READ:
+        result = [ ]
+        end = addr + num_bytes
+        for page_addr in range(addr, end, self._page_size):
+            try:
+                #print "Getting page %x" % (page_addr / self._page_size)
+                page = self._get_page(page_addr / self._page_size)
+                #print "... got it"
+            except KeyError:
+                #print "... missing"
+                #print "... SEGV"
+                # missing page
+                if self.allow_segv:
                     if ret_on_segv:
                         break
-                    raise SimSegfaultError(actual_addr, 'non-readable')
+                    raise SimSegfaultError(page_addr, 'read-miss')
+                else:
+                    continue
 
-            # get the next object out of the page
-            what, length = page.load_mo(page_idx, num_bytes-bytes_read)
-            if what is None:
-                missing.append(bytes_read)
-            else:
-                the_bytes[bytes_read] = what
+            if self.allow_segv and not page.concrete_permissions & Page.PROT_READ:
+                #print "... SEGV"
+                if ret_on_segv:
+                    break
+                raise SimSegfaultError(page_addr, 'non-readable')
+            result.extend(page.load_slice(addr, end))
 
-            bytes_read += length
-
-        l.debug("... %d found, %d missing", len(the_bytes), len(missing))
-        return the_bytes, missing, bytes_read
+        return result
 
     #
     # Page management

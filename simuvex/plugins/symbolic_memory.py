@@ -429,54 +429,64 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     # Memory reading
     #
 
+    def _fill_missing(self, addr, num_bytes):
+        name = "%s_%x" % (self.id, addr)
+        all_missing = [
+            self.get_unconstrained_bytes(name, min(self.mem._page_size, num_bytes)*8, source=i)
+            for i in range(addr, addr+num_bytes, self.mem._page_size)
+        ]
+        if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
+            all_missing = [ a.reversed for a in all_missing ]
+        elif self.category != 'reg' and self.state.arch.memory_endness == 'Iend_LE':
+            all_missing = [ a.reversed for a in all_missing ]
+        b = self.state.se.Concat(*all_missing) if len(all_missing) > 1 else all_missing[0]
+
+        self.state.log.add_event('uninitialized', memory_id=self.id, addr=addr, size=num_bytes)
+        default_mo = SimMemoryObject(b, addr)
+        self.state.scratch.push_priv(True)
+        self.mem.store_memory_object(default_mo, overwrite=False)
+        self.state.scratch.pop_priv()
+        return default_mo
+
     def _read_from(self, addr, num_bytes):
-        the_bytes, missing, _ =  self.mem.load_bytes(addr, num_bytes)
+        items = self.mem.load_objects(addr, num_bytes)
 
-        if len(missing) > 0:
-            name = "%s_%x" % (self.id, addr)
-            all_missing = [ self.get_unconstrained_bytes(name, min(self.mem._page_size, num_bytes)*8, source=i) for i in range(addr, addr+num_bytes, self.mem._page_size) ]
-            if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
-                all_missing = [ a.reversed for a in all_missing ]
-            elif self.category != 'reg' and self.state.arch.memory_endness == 'Iend_LE':
-                all_missing = [ a.reversed for a in all_missing ]
-            b = self.state.se.Concat(*all_missing) if len(all_missing) > 1 else all_missing[0]
+        # optimize the case where we have a single object return
+        if len(items) == 1 and items[0][1].includes(addr) and items[0][1].includes(addr + num_bytes - 1):
+            return items[0][1].bytes_at(addr, num_bytes)
 
-            self.state.log.add_event('uninitialized', memory_id=self.id, addr=addr, size=num_bytes)
-            default_mo = SimMemoryObject(b, addr)
-            for m in missing:
-                the_bytes[m] = default_mo
-            #   self.mem[addr+m] = default_mo
-            self.state.scratch.push_priv(True)
-            self.mem.store_memory_object(default_mo, overwrite=False)
-            self.state.scratch.pop_priv()
+        missing_mo = None
+        def missing(missing_mo=missing_mo):
+            if missing_mo is None:
+                missing_mo = self._fill_missing(addr, num_bytes)
+            return missing_mo
 
-        if 0 in the_bytes and isinstance(the_bytes[0], SimMemoryObject) and len(the_bytes) == the_bytes[0].object.length/8:
-            for mo in the_bytes.itervalues():
-                if mo is not the_bytes[0]:
-                    break
-            else:
-                return the_bytes[0].object
+        segments = [ ]
+        last_missing = addr + num_bytes - 1
+        for mo_addr,mo in reversed(items):
+            if not mo.includes(last_missing):
+                # add missing bytes
+                segments.append(missing().bytes_at(mo.last_addr+1, last_missing - mo.last_addr))
+                last_missing = mo.last_addr
 
-        buf = [ ]
-        buf_size = 0
-        last_expr = None
-        for i,e in itertools.chain(sorted(list(the_bytes.iteritems()), key=lambda x: x[0]), [(num_bytes, None)]):
-            if not isinstance(e, SimMemoryObject) or e is not last_expr:
-                if isinstance(last_expr, claripy.Bits):
-                    buf.append(last_expr)
-                    buf_size += 1
-                elif isinstance(last_expr, SimMemoryObject):
-                    buf.append(last_expr.bytes_at(addr+buf_size, i-buf_size))
-                    buf_size = i
-            last_expr = e
+            # add the normal segment
+            segments.append(mo.bytes_at(mo_addr, last_missing - mo_addr + 1))
+            last_missing = mo_addr - 1
 
-        if len(buf) > 1:
-            r = buf[0].concat(*buf[1:])
-        elif len(buf) == 1:
-            r = buf[0]
+        # handle missing bytes at the beginning
+        if last_missing != addr - 1:
+            segments.append(missing().bytes_at(addr, last_missing - addr + 1))
+
+        # reverse the segments to put them in the right order
+        segments.reverse()
+
+        # and combine
+        if len(segments) > 1:
+            r = segments[0].concat(*segments[1:])
+        elif len(segments) == 1:
+            r = segments[0]
         else:
             r = self.state.se.BVV(0, 0)
-
         return r
 
     def _load(self, dst, size, condition=None, fallback=None):

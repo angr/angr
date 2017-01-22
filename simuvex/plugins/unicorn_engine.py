@@ -770,54 +770,57 @@ class Unicorn(SimStatePlugin):
 
         try:
             ret_on_segv = True if best_effort_read else False
-            the_bytes, _, bytes_read = self.state.memory.mem.load_bytes(start, length, ret_on_segv=ret_on_segv)
+            items = self.state.memory.mem.load_objects(start, length, ret_on_segv=ret_on_segv)
         except SimSegfaultError:
-            raise SegfaultError()
+            raise
 
-        length = bytes_read
-
-        if access == unicorn.UC_MEM_FETCH_UNMAPPED and len(the_bytes) == 0:
+        if access == unicorn.UC_MEM_FETCH_UNMAPPED and len(items) == 0:
             # we can not initialize an empty page then execute on it
             raise FetchingZeroPageError()
 
         data = bytearray(length)
+        taint = [ ] # this is a list to get around python's scoping craziness
 
-        taint = None
+        def _taint(pos, chunk_size):
+            if not taint:
+                taint.append(ctypes.create_string_buffer(length))
+            offset = ctypes.cast(ctypes.addressof(taint[0]) + pos - start, ctypes.POINTER(ctypes.c_char))
+            ctypes.memset(offset, 0x2, chunk_size) # mark them as TAINT_SYMBOLIC
 
-        offsets = sorted(the_bytes.keys())
-        offsets.append(length)
+        def _missing(pos, chunk_size, data=data):
+            if options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options:
+                _taint(pos, chunk_size)
+            else:
+                data[pos-start:pos-start+chunk_size] = "\0"*chunk_size
 
-        if offsets[0] != 0 and options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options:
-            taint = ctypes.create_string_buffer(length)
-            offset = ctypes.cast(ctypes.addressof(taint), ctypes.POINTER(ctypes.c_char))
-            ctypes.memset(offset, 0x2, offsets[0])
+        # fill out the data in reverse
+        last_missing = start + length - 1
+        for mo_addr,mo in reversed(items):
+            if not mo.includes(last_missing):
+                #print "MISSING: %x, %d" % (mo.last_addr+1, last_missing-mo.last_addr)
+                _missing(mo.last_addr+1, last_missing-mo.last_addr)
+                last_missing = mo.last_addr
 
-        for i in xrange(len(offsets)-1):
-            pos = offsets[i]
-            next_pos = offsets[i+1]
-            chunk = the_bytes[pos]
-            chunk_size = min((chunk.base + len(chunk) / 8) - (start + pos), next_pos - pos)
-            d = self._process_value(chunk.bytes_at(start + pos, chunk_size), 'mem')
-            # if not self.state.se.unique(d):
-
+            # investigate the chunk, taint if symbolic
+            chunk_size = last_missing - mo_addr + 1
+            chunk = mo.bytes_at(mo_addr, chunk_size)
+            d = self._process_value(chunk, 'mem')
             if d is None:
-                if taint is None:
-                    taint = ctypes.create_string_buffer(length)
-                offset = ctypes.cast(ctypes.addressof(taint) + pos, ctypes.POINTER(ctypes.c_char))
-                ctypes.memset(offset, 0x2, chunk_size) # mark them as TAINT_SYMBOLIC
+                #print "TAINT: %x, %d" % (mo_addr, chunk_size)
+                _taint(mo_addr, chunk_size)
             else:
                 s = self.state.se.any_str(d)
-                data[pos:pos + chunk_size] = s
+                data[mo_addr-start:mo_addr-start+chunk_size] = s
+            last_missing = mo_addr - 1
 
-            if pos + chunk_size < next_pos and options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY not in self.state.options:
-                if taint is None:
-                    taint = ctypes.create_string_buffer(length)
-                offset = ctypes.cast(ctypes.addressof(taint) + pos + chunk_size, ctypes.POINTER(ctypes.c_char))
-                ctypes.memset(offset, 0x2, next_pos - pos - chunk_size)
+        # handle missing bytes at the beginning
+        if last_missing != start - 1:
+            #print "MISSING START: %x, %d" % (start, last_missing - start + 1)
+            _missing(start, last_missing - start + 1)
 
-
+        # do the mapping
         l.info('mmap [%#x, %#x], %d%s', start, start + length - 1, perm, ' (symbolic)' if taint else '')
-        if taint is None and not perm & 2:
+        if not taint and not perm & 2:
             # page is non-writable, handle it with native code
             l.debug('caching non-writable page')
             return _UC_NATIVE.cache_page(self._uc_state, start, length, str(data), perm)
@@ -827,7 +830,7 @@ class Unicorn(SimStatePlugin):
             uc.mem_map(start, length, perm)
             uc.mem_write(start, str(data))
             self._mapped += 1
-            _UC_NATIVE.activate(self._uc_state, start, length, taint)
+            _UC_NATIVE.activate(self._uc_state, start, length, taint[0] if taint else None)
             return True
 
     def setup(self):
@@ -863,13 +866,17 @@ class Unicorn(SimStatePlugin):
             # does not refer to constructing the set of symbolic register
             # offsets, but rather to not having to lift each block etc.)
             if not self._check_registers(report=False):
-                symbolic_offsets = set()
                 highest_reg_offset, reg_size = max(self.state.arch.registers.values())
-                the_bytes, _, _ = self.state.registers.mem.load_bytes(0, highest_reg_offset+reg_size)
-                for a,v in the_bytes.iteritems():
+                symbolic_offsets = set(range(0, highest_reg_offset+reg_size))
+                items = self.state.registers.mem.load_objects(0, highest_reg_offset+reg_size)
+                for start,v in items:
+                    end = v.last_addr + 1
                     vv = self._symbolic_passthrough(v.object)
-                    if vv.symbolic:
-                        symbolic_offsets.update(b for b,vb in enumerate(vv.chop(8), a) if vb.symbolic)
+
+                    if not vv.symbolic:
+                        symbolic_offsets.difference_update(range(start, end))
+                    else:
+                        symbolic_offsets.difference_update(b for b,vb in enumerate(vv.chop(8), start) if not vb.symbolic)
 
                 # for register flagged systems, we should save off all CC regs together
                 if self.state.arch.name == 'X86' and symbolic_offsets & set(range(40, 56)):
