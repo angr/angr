@@ -18,7 +18,7 @@ class Labels(object):
     def __setitem__(self, k, v):
         self._labels[k] = v
         if k in self._kb.functions:
-            self._kb.functions[k] = v
+            self._kb.functions[k]._name = v
 
     def __delitem__(self, k):
         if k in self._labels:

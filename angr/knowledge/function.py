@@ -84,8 +84,7 @@ class Function(object):
         if name is None:
             name = 'sub_%x' % addr
 
-        self._name = None
-        self.name = name
+        self._name = name
 
         # Register offsets of those arguments passed in registers
         self._argument_registers = []
