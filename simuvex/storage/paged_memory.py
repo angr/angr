@@ -25,7 +25,7 @@ class Page(object):
 
     def __init__(
         self, page_addr, page_size, permissions=None,
-        executable=False, storage=None
+        executable=False, symbolic_storage=None
     ):
         """
         Create a new page object. Carries permissions information.
@@ -39,12 +39,12 @@ class Page(object):
                             executable stack.
         :param claripy.AST permissions: A 3-bit bitvector setting specific permissions
                             for EXEC, READ, and WRITE
-        :param bintrees.AVLTree storage: A binary tree with the page data.
+        :param bintrees.AVLTree symbolic_storage: A binary tree with symbolic storage data.
         """
 
         self._page_addr = page_addr
         self._page_size = page_size
-        self._storage = bintrees.AVLTree() if storage is None else storage
+        self._symbolic_storage = bintrees.AVLTree() if symbolic_storage is None else symbolic_storage
 
         if permissions is None:
             perms = Page.PROT_READ|Page.PROT_WRITE
@@ -62,10 +62,10 @@ class Page(object):
             return self.permissions.args[0]
 
     def keys(self):
-        if len(self._storage) == 0:
+        if len(self._symbolic_storage) == 0:
             return set()
         else:
-            return set.union(*(set(range(*self._resolve_range(mo))) for mo in self._storage.values()))
+            return set.union(*(set(range(*self._resolve_range(mo))) for mo in self._symbolic_storage.values()))
 
     def __contains__(self, item):
         return self.load_mo(item, 1)[0] is not None
@@ -86,48 +86,48 @@ class Page(object):
 
     def replace_mo(self, old_mo, new_mo):
         start, end = self._resolve_range(old_mo)
-        possible_items = list(self._storage.item_slice(start, end))
+        possible_items = list(self._symbolic_storage.item_slice(start, end))
         for a,v in possible_items:
             if v is old_mo:
                 #assert new_mo.includes(a)
-                self._storage[a] = new_mo
+                self._symbolic_storage[a] = new_mo
 
     def store_mo(self, new_mo, overwrite=True):
         start, end = self._resolve_range(new_mo)
         try:
-            _, floor_value = self._storage.floor_item(start)
+            _, floor_value = self._symbolic_storage.floor_item(start)
         except KeyError:
             floor_value = None
 
-        after_items = list(self._storage.item_slice(start, end))
+        after_items = list(self._symbolic_storage.item_slice(start, end))
         after_addrs, after_values = zip(*after_items) if len(after_items) else ([],[])
 
         if overwrite:
             # remove existing items, store it, then restore the last one if needed
             if after_items:
-                self._storage.remove_items(after_addrs)
+                self._symbolic_storage.remove_items(after_addrs)
             #assert new_mo.includes(start)
-            self._storage[start] = new_mo
+            self._symbolic_storage[start] = new_mo
             last_mo = floor_value if not after_values else after_values[-1]
             if (
                 last_mo is not None and last_mo.includes(end) and
-                end < self._page_addr + self._page_size and end not in self._storage
+                end < self._page_addr + self._page_size and end not in self._symbolic_storage
             ):
                 #assert last_mo.includes(end)
-                self._storage[end] = last_mo
+                self._symbolic_storage[end] = last_mo
         else:
             # we need to find all the gaps, and fill them in
             next_addr = start if floor_value is None or not floor_value.includes(start) else floor_value.last_addr + 1
             while next_addr < end:
                 try:
-                    next_mo = self._storage.ceiling_item(next_addr)[1]
+                    next_mo = self._symbolic_storage.ceiling_item(next_addr)[1]
                     if not next_mo.includes(next_addr):
                         #assert new_mo.includes(next_addr)
-                        self._storage[next_addr] = new_mo
+                        self._symbolic_storage[next_addr] = new_mo
                     next_addr = next_mo.last_addr + 1
                 except KeyError:
                     #assert new_mo.includes(next_addr)
-                    self._storage[next_addr] = new_mo
+                    self._symbolic_storage[next_addr] = new_mo
                     break
 
     def load_mo(self, page_idx, max_bytes):
@@ -140,12 +140,12 @@ class Page(object):
         """
 
         try:
-            mo = self._storage.floor_item(page_idx)[1]
+            mo = self._symbolic_storage.floor_item(page_idx)[1]
         except KeyError:
             mo = None
 
         try:
-            next_idx = self._storage.ceiling_item(page_idx+1)[0]
+            next_idx = self._symbolic_storage.ceiling_item(page_idx+1)[0]
         except KeyError:
             next_idx = self._page_addr + self._page_size
 
@@ -169,10 +169,10 @@ class Page(object):
         :param end: the end address (non-inclusive)
         :returns: tuples of (starting_addr, memory_object)
         """
-        items = list(self._storage.item_slice(start, end))
+        items = list(self._symbolic_storage.item_slice(start, end))
         if not items or items[0][0] != start:
             try:
-                _, floor_mo = self._storage.floor_item(start)
+                _, floor_mo = self._symbolic_storage.floor_item(start)
                 if floor_mo.includes(start):
                     items.insert(0, (start, floor_mo))
             except KeyError:
@@ -180,7 +180,11 @@ class Page(object):
         return items
 
     def copy(self):
-        return Page(self._page_addr, self._page_size, storage=bintrees.AVLTree(self._storage), permissions=self.permissions)
+        return Page(
+            self._page_addr, self._page_size,
+            symbolic_storage=bintrees.AVLTree(self._symbolic_storage),
+            permissions=self.permissions
+        )
 
 #pylint:disable=unidiomatic-typecheck
 
