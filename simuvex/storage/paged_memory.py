@@ -39,12 +39,12 @@ class Page(object):
                             executable stack.
         :param claripy.AST permissions: A 3-bit bitvector setting specific permissions
                             for EXEC, READ, and WRITE
-        :param bintrees.AVLTree symbolic_storage: A binary tree with symbolic storage data.
+        :param bintrees.RBTree symbolic_storage: A binary tree with symbolic storage data.
         """
 
         self._page_addr = page_addr
         self._page_size = page_size
-        self._symbolic_storage = bintrees.AVLTree() if symbolic_storage is None else symbolic_storage
+        self._symbolic_storage = bintrees.RBTree() if symbolic_storage is None else symbolic_storage
 
         if permissions is None:
             perms = Page.PROT_READ|Page.PROT_WRITE
@@ -67,15 +67,16 @@ class Page(object):
         else:
             return set.union(*(set(range(*self._resolve_range(mo))) for mo in self._symbolic_storage.values()))
 
-    def __contains__(self, item):
-        return self.load_mo(item, 1)[0] is not None
+    def __contains__(self, idx):
+        m = self.load_mo(idx)
+        return m is not None and m.includes(idx)
 
     def __getitem__(self, idx):
-        i = self.load_mo(idx, 1)[0]
-        if i is None:
+        m = self.load_mo(idx)
+        if m is None or not m.includes(idx):
             raise KeyError(idx)
         else:
-            return i
+            return m
 
     def _resolve_range(self, mo):
         start = max(mo.base, self._page_addr)
@@ -92,51 +93,83 @@ class Page(object):
                 #assert new_mo.includes(a)
                 self._symbolic_storage[a] = new_mo
 
-    def store_mo(self, new_mo, overwrite=True):
-        start, end = self._resolve_range(new_mo)
-        try:
-            _, floor_value = self._symbolic_storage.floor_item(start)
-        except KeyError:
-            floor_value = None
+    def _store_overwrite(self, new_mo, start, end):
+        # get a list of items that we will overwrite
+        current_items = list(self._symbolic_storage.item_slice(start, end + 1))
 
-        after_items = list(self._symbolic_storage.item_slice(start, end))
-        after_addrs, after_values = zip(*after_items) if len(after_items) else ([],[])
+        updates = { start: new_mo }
 
-        if overwrite:
-            # remove existing items, store it, then restore the last one if needed
-            if after_items:
-                self._symbolic_storage.remove_items(after_addrs)
-            #assert new_mo.includes(start)
-            self._symbolic_storage[start] = new_mo
-            last_mo = floor_value if not after_values else after_values[-1]
-            if (
-                last_mo is not None and last_mo.includes(end) and
-                end < self._page_addr + self._page_size and end not in self._symbolic_storage
-            ):
-                #assert last_mo.includes(end)
-                self._symbolic_storage[end] = last_mo
+        # remove the items we are overwriting
+        if not current_items:
+            # make sure we aren't overwriting an entire item that starts before
+            # the write range and extends past the end of it
+            try:
+                _, floor_value = self._symbolic_storage.floor_item(start)
+                if floor_value.includes(end):
+                    updates[end] = floor_value
+            except KeyError:
+                pass
         else:
-            # we need to find all the gaps, and fill them in
-            next_addr = start if floor_value is None or not floor_value.includes(start) else floor_value.last_addr + 1
-            while next_addr < end:
-                try:
-                    next_mo = self._symbolic_storage.ceiling_item(next_addr)[1]
-                    if not next_mo.includes(next_addr):
-                        #assert new_mo.includes(next_addr)
-                        self._symbolic_storage[next_addr] = new_mo
-                    next_addr = next_mo.last_addr + 1
-                except KeyError:
-                    #assert new_mo.includes(next_addr)
-                    self._symbolic_storage[next_addr] = new_mo
-                    break
+            # make sure we're not overwriting an entire item that starts inside
+            # the write range and extends past the end of it
+            if end < self._page_addr + self._page_size and current_items[-1][1].includes(end):
+                updates[end] = current_items[-1][1]
 
-    def load_mo(self, page_idx, max_bytes):
+            # remove existing items
+            del self._symbolic_storage[start:end]
+
+        #assert all(m.includes(i) for i,m in updates.items())
+
+        # store the new stuff
+        self._symbolic_storage.update(updates)
+
+    def _store_underwrite(self, new_mo, start, end):
+        # first, get the current items
+        current_items = list(self._symbolic_storage.item_slice(start, end + 1))
+
+        # go through them backwards and fill in the gaps
+        last_missing = end - 1
+        updates = { }
+        for _,mo in reversed(current_items):
+            if not mo.includes(last_missing) and not mo.base > last_missing:
+                # this mo does not cover up to the end; we need to fill it in
+                updates[mo.last_addr+1] = new_mo
+            last_missing = mo.base - 1
+
+        # if the beginning is missing, fill it in and make sure we're not
+        # overwriting something we shouldn't be
+        if last_missing >= start:
+            try:
+                _, floor_value = self._symbolic_storage.floor_item(start)
+                if not floor_value.includes(last_missing):
+                    updates[max(floor_value.last_addr+1, start)] = new_mo
+            except KeyError:
+                updates[start] = new_mo
+
+        #assert all(m.includes(i) for i,m in updates.items())
+
+        # apply it
+        self._symbolic_storage.update(updates)
+
+    def store_mo(self, new_mo, overwrite=True):
+        """
+        Stores a memory object.
+
+        :param new_mo: the memory object
+        :param overwrite: whether to overwrite objects already in memory (if false, just fill in the holes)
+        """
+        start, end = self._resolve_range(new_mo)
+        if overwrite:
+            self._store_overwrite(new_mo, start, end)
+        else:
+            self._store_underwrite(new_mo, start, end)
+
+    def load_mo(self, page_idx):
         """
         Loads a memory object from memory.
 
         :param page_idx: the index into the page
-        :param max_bytes: the maximum bytes to read
-        :returns: a tuple of the object and the length that should be taken from it
+        :returns: a tuple of the object
         """
 
         try:
@@ -144,22 +177,7 @@ class Page(object):
         except KeyError:
             mo = None
 
-        try:
-            next_idx = self._symbolic_storage.ceiling_item(page_idx+1)[0]
-        except KeyError:
-            next_idx = self._page_addr + self._page_size
-
-        if mo is None or not mo.includes(page_idx):
-            return None, min(next_idx - page_idx, max_bytes)
-
-        max_read = min(
-            max_bytes, # maximum bytes to read
-            mo.last_addr - page_idx + 1, # remaining bytes in this MO
-            next_idx - page_idx, # bytes until the next MO
-            self._page_addr + self._page_size - page_idx # remaining bytes in this page
-        )
-
-        return mo, max_read
+        return mo
 
     def load_slice(self, start, end):
         """
@@ -182,7 +200,7 @@ class Page(object):
     def copy(self):
         return Page(
             self._page_addr, self._page_size,
-            symbolic_storage=bintrees.AVLTree(self._symbolic_storage),
+            symbolic_storage=bintrees.RBTree(self._symbolic_storage),
             permissions=self.permissions
         )
 
