@@ -14,7 +14,7 @@ _ffi = cffi.FFI()
 import logging
 l = logging.getLogger('simuvex.storage.paged_memory')
 
-class Page(object):
+class BasePage(object):
     """
     Page object, allowing for more flexibility than just a raw dict.
     """
@@ -23,10 +23,7 @@ class Page(object):
     PROT_WRITE = 2
     PROT_EXEC = 4
 
-    def __init__(
-        self, page_addr, page_size, permissions=None,
-        executable=False, symbolic_storage=None
-    ):
+    def __init__(self, page_addr, page_size, permissions=None, executable=False):
         """
         Create a new page object. Carries permissions information.
         Permissions default to RW unless `executable` is True,
@@ -39,12 +36,10 @@ class Page(object):
                             executable stack.
         :param claripy.AST permissions: A 3-bit bitvector setting specific permissions
                             for EXEC, READ, and WRITE
-        :param bintrees.RBTree symbolic_storage: A binary tree with symbolic storage data.
         """
 
         self._page_addr = page_addr
         self._page_size = page_size
-        self._symbolic_storage = bintrees.RBTree() if symbolic_storage is None else symbolic_storage
 
         if permissions is None:
             perms = Page.PROT_READ|Page.PROT_WRITE
@@ -60,12 +55,6 @@ class Page(object):
             return 7
         else:
             return self.permissions.args[0]
-
-    def keys(self):
-        if len(self._symbolic_storage) == 0:
-            return set()
-        else:
-            return set.union(*(set(range(*self._resolve_range(mo))) for mo in self._symbolic_storage.values()))
 
     def __contains__(self, idx):
         m = self.load_mo(idx)
@@ -85,17 +74,91 @@ class Page(object):
             l.warning("Nothing left of the memory object to store in SimPage.")
         return start, end
 
+    def store_mo(self, new_mo, overwrite=True):
+        """
+        Stores a memory object.
+
+        :param new_mo: the memory object
+        :param overwrite: whether to overwrite objects already in memory (if false, just fill in the holes)
+        """
+        start, end = self._resolve_range(new_mo)
+        if overwrite:
+            self.store_overwrite(new_mo, start, end)
+        else:
+            self.store_underwrite(new_mo, start, end)
+
+    def copy(self):
+        return Page(
+            self._page_addr, self._page_size,
+            permissions=self.permissions,
+            **self._copy_args()
+        )
+
+    #
+    # Abstract functions
+    #
+
+    def load_mo(self, page_idx):
+        """
+        Loads a memory object from memory.
+
+        :param page_idx: the index into the page
+        :returns: a tuple of the object
+        """
+        raise NotImplementedError()
+
+    def keys(self):
+        raise NotImplementedError()
+
+    def replace_mo(self, old_mo, new_mo):
+        raise NotImplementedError()
+
+    def store_overwrite(self, new_mo, start, end):
+        raise NotImplementedError()
+
+    def store_underwrite(self, new_mo, start, end):
+        raise NotImplementedError()
+
+    def load_slice(self, start, end):
+        """
+        Return the memory objects overlapping with the provided slice.
+
+        :param start: the start address
+        :param end: the end address (non-inclusive)
+        :returns: tuples of (starting_addr, memory_object)
+        """
+        raise NotImplementedError()
+
+    def _copy_args(self):
+        raise NotImplementedError()
+
+class TreePage(BasePage):
+    """
+    Page object, implemented with a bintree.
+    """
+
+    def __init__(self, *args, **kwargs):
+        storage = kwargs.pop("storage", None)
+        super(TreePage, self).__init__(*args, **kwargs)
+        self._storage = bintrees.AVLTree() if storage is None else storage
+
+    def keys(self):
+        if len(self._storage) == 0:
+            return set()
+        else:
+            return set.union(*(set(range(*self._resolve_range(mo))) for mo in self._storage.values()))
+
     def replace_mo(self, old_mo, new_mo):
         start, end = self._resolve_range(old_mo)
-        possible_items = list(self._symbolic_storage.item_slice(start, end))
+        possible_items = list(self._storage.item_slice(start, end))
         for a,v in possible_items:
             if v is old_mo:
                 #assert new_mo.includes(a)
-                self._symbolic_storage[a] = new_mo
+                self._storage[a] = new_mo
 
-    def _store_overwrite(self, new_mo, start, end):
+    def store_overwrite(self, new_mo, start, end):
         # get a list of items that we will overwrite
-        current_items = list(self._symbolic_storage.item_slice(start, end + 1))
+        current_items = list(self._storage.item_slice(start, end + 1))
 
         updates = { start: new_mo }
 
@@ -104,7 +167,7 @@ class Page(object):
             # make sure we aren't overwriting an entire item that starts before
             # the write range and extends past the end of it
             try:
-                _, floor_value = self._symbolic_storage.floor_item(start)
+                _, floor_value = self._storage.floor_item(start)
                 if floor_value.includes(end):
                     updates[end] = floor_value
             except KeyError:
@@ -116,16 +179,16 @@ class Page(object):
                 updates[end] = current_items[-1][1]
 
             # remove existing items
-            del self._symbolic_storage[start:end]
+            del self._storage[start:end]
 
         #assert all(m.includes(i) for i,m in updates.items())
 
         # store the new stuff
-        self._symbolic_storage.update(updates)
+        self._storage.update(updates)
 
-    def _store_underwrite(self, new_mo, start, end):
+    def store_underwrite(self, new_mo, start, end):
         # first, get the current items
-        current_items = list(self._symbolic_storage.item_slice(start, end + 1))
+        current_items = list(self._storage.item_slice(start, end + 1))
 
         # go through them backwards and fill in the gaps
         last_missing = end - 1
@@ -140,7 +203,7 @@ class Page(object):
         # overwriting something we shouldn't be
         if last_missing >= start:
             try:
-                _, floor_value = self._symbolic_storage.floor_item(start)
+                _, floor_value = self._storage.floor_item(start)
                 if not floor_value.includes(last_missing):
                     updates[max(floor_value.last_addr+1, start)] = new_mo
             except KeyError:
@@ -149,20 +212,7 @@ class Page(object):
         #assert all(m.includes(i) for i,m in updates.items())
 
         # apply it
-        self._symbolic_storage.update(updates)
-
-    def store_mo(self, new_mo, overwrite=True):
-        """
-        Stores a memory object.
-
-        :param new_mo: the memory object
-        :param overwrite: whether to overwrite objects already in memory (if false, just fill in the holes)
-        """
-        start, end = self._resolve_range(new_mo)
-        if overwrite:
-            self._store_overwrite(new_mo, start, end)
-        else:
-            self._store_underwrite(new_mo, start, end)
+        self._storage.update(updates)
 
     def load_mo(self, page_idx):
         """
@@ -173,7 +223,7 @@ class Page(object):
         """
 
         try:
-            mo = self._symbolic_storage.floor_item(page_idx)[1]
+            mo = self._storage.floor_item(page_idx)[1]
         except KeyError:
             mo = None
 
@@ -187,22 +237,98 @@ class Page(object):
         :param end: the end address (non-inclusive)
         :returns: tuples of (starting_addr, memory_object)
         """
-        items = list(self._symbolic_storage.item_slice(start, end))
+        items = list(self._storage.item_slice(start, end))
         if not items or items[0][0] != start:
             try:
-                _, floor_mo = self._symbolic_storage.floor_item(start)
+                _, floor_mo = self._storage.floor_item(start)
                 if floor_mo.includes(start):
                     items.insert(0, (start, floor_mo))
             except KeyError:
                 pass
         return items
 
-    def copy(self):
-        return Page(
-            self._page_addr, self._page_size,
-            symbolic_storage=bintrees.RBTree(self._symbolic_storage),
-            permissions=self.permissions
-        )
+    def _copy_args(self):
+        return { 'storage': bintrees.AVLTree(self._storage) }
+
+class ListPage(BasePage):
+    """
+    Page object, implemented with a list.
+    """
+
+    def __init__(self, *args, **kwargs):
+        storage = kwargs.pop("storage", None)
+        self._sinkhole = kwargs.pop("sinkhole", None)
+
+        super(ListPage, self).__init__(*args, **kwargs)
+        self._storage = [ None ] * self._page_size if storage is None else storage
+
+    def keys(self):
+        if self._sinkhole is not None:
+            return range(self._page_addr, self._page_addr + self._page_size)
+        else:
+            return [ self._page_addr + i for i,v in enumerate(self._storage) if v is not None ]
+
+    def replace_mo(self, old_mo, new_mo):
+        if self._sinkhole is old_mo:
+            self._sinkhole = new_mo
+        else:
+            start, end = self._resolve_range(old_mo)
+            for i in range(start, end):
+                if self._storage[i-self._page_addr] is old_mo:
+                    self._storage[i-self._page_addr] = new_mo
+
+    def store_overwrite(self, new_mo, start, end):
+        if start == self._page_addr and end == self._page_addr + self._page_size:
+            self._sinkhole = new_mo
+            self._storage = [ None ] * self._page_size
+        else:
+            for i in range(start, end):
+                self._storage[i-self._page_addr] = new_mo
+
+    def store_underwrite(self, new_mo, start, end):
+        if start == self._page_addr and end == self._page_addr + self._page_size:
+            self._sinkhole = new_mo
+        else:
+            for i in range(start, end):
+                if self._storage[i-self._page_addr] is None:
+                    self._storage[i-self._page_addr] = new_mo
+
+    def load_mo(self, page_idx):
+        """
+        Loads a memory object from memory.
+
+        :param page_idx: the index into the page
+        :returns: a tuple of the object
+        """
+        mo = self._storage[page_idx-self._page_addr]
+        return self._sinkhole if mo is None else mo
+
+    def load_slice(self, start, end):
+        """
+        Return the memory objects overlapping with the provided slice.
+
+        :param start: the start address
+        :param end: the end address (non-inclusive)
+        :returns: tuples of (starting_addr, memory_object)
+        """
+        items = [ ]
+        if start > self._page_addr + self._page_size or end < self._page_addr:
+            l.warning("Calling load_slice on the wrong page.")
+            return items
+
+        for addr in range(max(start, self._page_addr), min(end, self._page_addr + self._page_size)):
+            i = addr - self._page_addr
+            mo = self._storage[i]
+            if mo is None:
+                mo = self._sinkhole
+            if mo is not None and (not items or items[-1][1] is not mo):
+                items.append((addr, mo))
+        return items
+
+    def _copy_args(self):
+        return { 'storage': list(self._storage), 'sinkhole': self._sinkhole }
+
+Page = ListPage
 
 #pylint:disable=unidiomatic-typecheck
 
