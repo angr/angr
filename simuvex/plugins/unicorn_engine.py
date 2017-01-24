@@ -229,9 +229,8 @@ def _load_native():
 
         return h
     except (OSError, AttributeError) as e:
-        l.warning('failed loading "%s", unicorn support disabled (%s)', libfile, e)
         e_type, value, traceback = sys.exc_info()
-        print e_type, value, traceback
+        l.warning('failed loading "%s", unicorn support disabled (%s: %s)', libfile, e, value)
         raise ImportError, ("Unable to import native SimUnicorn support.", e_type, value), traceback
 
 try:
