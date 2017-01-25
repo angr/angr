@@ -7,6 +7,7 @@ from . import s_type, s_action_object
 
 l = logging.getLogger("simuvex.s_cc")
 
+
 class PointerWrapper(object):
     def __init__(self, value):
         self.value = value
@@ -991,6 +992,10 @@ DefaultCC = {
     'BF': SimCCUnknown
 }
 
+
+def register_default_cc(arch, cc):
+    DefaultCC[arch] = cc
+
 SyscallCC = {
     'X86': {
         'default': SimCCX86LinuxSyscall,
@@ -1032,3 +1037,9 @@ SyscallCC = {
         'Linux': SimCCPowerPC64LinuxSyscall,
     },
 }
+
+
+def register_syscall_cc(arch, os, cc):
+    if not SyscallCC.has_key(arch):
+        SyscallCC[arch] = {}
+    SyscallCC[arch][os] = cc

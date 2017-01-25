@@ -177,16 +177,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
             raise AttributeError(v)
 
     @property
-    def memory(self):
-        return self.get_plugin('memory')
-
-    @property
-    def registers(self):
-        return self.get_plugin('registers')
-
-    @property
     def se(self):
-        return self.get_plugin('solver_engine')
+        # TODO: HACK: FIXME: Deprecate this, per zardus
+        return self.get_plugin('solver')
 
     @property
     def inspect(self):
@@ -366,7 +359,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             return self.se.satisfiable(**kwargs)
 
     def downsize(self):
-        if 'solver_engine' in self.plugins:
+        if 'solver' in self.plugins:
             self.se.downsize()
 
     #
@@ -482,7 +475,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         # plugins
         for p in self.plugins:
-            if p in ('solver_engine', 'unicorn'):
+            if p in ('solver', 'unicorn'):
                 continue
             plugin_state_widened = widened.plugins[p].widen([_.plugins[p] for _ in others])
             if plugin_state_widened:
