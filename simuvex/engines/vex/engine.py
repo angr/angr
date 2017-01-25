@@ -9,8 +9,8 @@ from ... import s_options as o
 from ...plugins.inspect import BP_AFTER, BP_BEFORE
 from ...s_action import SimActionExit, SimActionObject
 from ...s_errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException,
-                         UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError
-                         )
+                         UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
+                         SimMemoryError)
 from ..engine import SimEngine
 from .statements import translate_stmt
 from .expressions import translate_expr
@@ -206,7 +206,7 @@ class SimEngineVEX(SimEngine):
                 if o.BYPASS_UNSUPPORTED_IRDIRTY not in state.options:
                     raise
                 if stmt.tmp not in (0xffffffff, -1):
-                    retval_size = stmt.result_size/8
+                    retval_size = stmt.result_size(state.scratch.tyenv) / 8
                     retval = state.se.Unconstrained("unsupported_dirty_%s" % stmt.cee.name, retval_size)
                     state.scratch.store_tmp(stmt.tmp, retval, None, None)
                 state.log.add_event('resilience', resilience_type='dirty', dirty=stmt.cee.name,
@@ -296,8 +296,8 @@ class SimEngineVEX(SimEngine):
             state.scratch.ins_addr = stmt.addr + stmt.delta
 
             # Raise an exception if we're suddenly in self-modifying code
-            for subaddr in xrange(stmt.addr, stmt.addr + stmt.len):
-                if subaddr in state.scratch.dirty_addrs:
+            for subaddr in xrange(stmt.len):
+                if subaddr + stmt.addr in state.scratch.dirty_addrs:
                     raise SimReliftException(state)
             state._inspect('instruction', BP_AFTER)
 
@@ -404,7 +404,7 @@ class SimEngineVEX(SimEngine):
         if state and o.STRICT_PAGE_ACCESS in state.options:
             try:
                 perms = state.memory.permissions(addr)
-            except KeyError:
+            except (KeyError, SimMemoryError):  # TODO: can this still raise KeyError?
                 raise SimSegfaultError(addr, 'exec-miss')
             else:
                 if not perms.symbolic:

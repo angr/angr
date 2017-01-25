@@ -46,6 +46,11 @@ class SimStateLog(SimStatePlugin):
     def actions_of_type(self, action_type):
         return [ action for action in self.actions if action.type == action_type ]
 
+    @property
+    def fresh_constraints(self):
+        # pylint: disable=no-member
+        return [ev.constraint.ast for ev in self.events if isinstance(ev, SimActionConstraint)]
+
     def copy(self):
         return SimStateLog(log=self)
 
@@ -71,5 +76,6 @@ class SimStateLog(SimStatePlugin):
 
 from ..s_errors import SimEventError
 from ..s_event import SimEvent
-from ..s_action import SimAction
+from ..s_action import SimAction, SimActionConstraint
+
 SimStateLog.register_default('log', SimStateLog)
