@@ -204,7 +204,7 @@ public:
 			delete[] it->second;
 		}
 		active_pages.clear();
-		uc_context_free(saved_regs);
+		uc_free(saved_regs);
 	}
 
 	uc_err start(uint64_t pc, uint64_t step = 1) {
