@@ -33,7 +33,11 @@ def test_palindrome2():
 
     def pickle_callback(path): path.info['pickled'] = True
     def unpickle_callback(path): path.info['unpickled'] = True
-    spiller = angr.exploration_techniques.Spiller(pickle_callback=pickle_callback, unpickle_callback=unpickle_callback)
+    def priority_key(path): return hash(tuple(path.addr_trace)) # to help ensure determinism
+    spiller = angr.exploration_techniques.Spiller(
+        pickle_callback=pickle_callback, unpickle_callback=unpickle_callback,
+        priority_key=priority_key
+    )
     pg.use_technique(spiller)
     #pg.step(until=lambda lpg: len(lpg.active) == 10)
     #pg.step(until=lambda lpg: len(lpg.spill_stage) > 15)
