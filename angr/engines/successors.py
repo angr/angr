@@ -67,7 +67,11 @@ class SimSuccessors(object):
         else:
             result = 'failure'
 
-        return '<%s from %#x: %s>' % (self.description, self.addr, result)
+        if type(self.addr) in (int, long):
+            addr_str = "%#x" % self.addr
+        else:
+            addr_str = repr(self.addr)
+        return '<%s from %s: %s>' % (self.description, addr_str, result)
 
     @property
     def is_empty(self):

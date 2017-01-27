@@ -10,6 +10,7 @@ import angr # type annotations; pylint:disable=unused-import
 import claripy
 import archinfo
 
+from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
 
@@ -97,7 +98,11 @@ class SimState(PluginHub):
             if self.plugin_preset is None:
                 self.use_plugin_preset('default')
 
-            if o.ABSTRACT_MEMORY in self.options:
+            if isinstance(self.arch, ArchSoot):
+                sim_memory_cls = self.plugin_preset.request_plugin('javavm_memory')
+                sim_memory = sim_memory_cls(memory_id='mem')
+            
+            elif o.ABSTRACT_MEMORY in self.options:
                 # We use SimAbstractMemory in static mode.
                 # Convert memory_backer into 'global' region.
                 if memory_backer is not None:
@@ -124,7 +129,11 @@ class SimState(PluginHub):
             if self.plugin_preset is None:
                 self.use_plugin_preset('default')
 
-            if o.FAST_REGISTERS in self.options:
+            if isinstance(self.arch, ArchSoot):
+                sim_registers_cls = self.plugin_preset.request_plugin('keyvalue_memory')
+                sim_registers = sim_registers_cls(memory_id='reg')
+
+            elif o.FAST_REGISTERS in self.options:
                 sim_registers_cls = self.plugin_preset.request_plugin('fast_memory')
                 sim_registers = sim_registers_cls(memory_id="reg", endness=self.arch.register_endness)
             else:
@@ -166,7 +175,11 @@ class SimState(PluginHub):
 
     def __repr__(self):
         try:
-            ip_str = "%#x" % self.addr
+            addr = self.addr
+            if type(addr) in (int, long):
+                ip_str = "%#x" % addr
+            else:
+                ip_str = repr(addr)
         except (SimValueError, SimSolverModeError):
             ip_str = repr(self.regs.ip)
 
@@ -235,7 +248,10 @@ class SimState(PluginHub):
         :return: an int
         """
 
-        return self.solver.eval_one(self.regs._ip)
+        ip = self.regs._ip
+        if isinstance(ip, SootAddressDescriptor):
+            return ip
+        return self.se.eval_one(self.regs._ip)
 
     @property
     def options(self):

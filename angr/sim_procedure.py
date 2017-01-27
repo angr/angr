@@ -168,6 +168,7 @@ class SimProcedure:
                     inst.use_state_arguments = False
                     sim_args = arguments[:inst.num_args]
                     inst.arguments = arguments
+            sim_args = self._setup_args(inst, state, arguments)
 
             # run it
             l.debug("Executing %s%s%s%s%s with %s, %s", *(inst._describe_me() + (sim_args, inst.kwargs)))
@@ -314,25 +315,21 @@ class SimProcedure:
 
             self.ret_expr = expr
 
-        ret_addr = None
-        if self.use_state_arguments:
-            ret_addr = self.cc.teardown_callsite(
-                    self.state,
-                    expr,
-                    arg_types=[False]*self.num_args if self.cc.args is None else None)
-
-        if not self.should_add_successors:
-            l.debug("Returning without setting exits due to 'internal' call.")
-            return
-
-        if self.ret_to is not None:
-            ret_addr = self.ret_to
-
+        ret_addr = self._compute_ret_addr(expr)
         if ret_addr is None:
             raise SimProcedureError("No source for return address in ret() call!")
 
+        self._prepare_ret_state()
+
+        # Create an exit action
         self._exit_action(self.state, ret_addr)
+<<<<<<< f07f34e9d9880f64d93c17a3d0288a56c3be7cac
         self.successors.add_successor(self.state, ret_addr, self.state.solver.true, 'Ijk_Ret')
+=======
+
+        # Add a successor
+        self.successors.add_successor(self.state, ret_addr, self.state.se.true, 'Ijk_Ret')
+>>>>>>> Preliminary Java support.
 
     def call(self, addr, args, continue_at, cc=None):
         """
@@ -408,8 +405,63 @@ class SimProcedure:
     def ty_ptr(self, ty):
         return SimTypePointer(self.arch, ty)
 
+    #
+    # Private methods
+    #
+
+    def _setup_args(self, inst, state, arguments):
+
+        # handle if this is a continuation from a return
+        if inst.is_continuation:
+            if state.callstack.top.procedure_data is None:
+                raise SimProcedureError("Tried to return to a SimProcedure in an inapplicable stack frame!")
+
+            saved_sp, sim_args, saved_local_vars = state.callstack.top.procedure_data
+            state.regs.sp = saved_sp
+            inst.arguments = sim_args
+            inst.use_state_arguments = True
+            inst.call_ret_expr = state.registers.load(state.arch.ret_offset, state.arch.bytes,
+                                                      endness=state.arch.register_endness)
+            for name, val in saved_local_vars:
+                setattr(inst, name, val)
+        else:
+            if arguments is None:
+                inst.use_state_arguments = True
+                sim_args = [inst.arg(_) for _ in xrange(inst.num_args)]
+                inst.arguments = sim_args
+            else:
+                inst.use_state_arguments = False
+                sim_args = arguments[:inst.num_args]
+                inst.arguments = arguments
+
+        return sim_args
+
+    def _compute_ret_addr(self, expr):
+
+        # Computer return address
+        ret_addr = None
+        if self.use_state_arguments:
+            ret_addr = self.cc.teardown_callsite(
+                self.state,
+                return_val=expr,
+                arg_types=[False] * self.num_args if self.cc.args is None else None
+            )
+
+        if not self.should_add_successors:
+            l.debug("Returning without setting exits due to 'internal' call.")
+            return
+
+        if self.ret_to is not None:
+            ret_addr = self.ret_to
+
+        return ret_addr
+
+    def _prepare_ret_state(self):
+        pass
+
+
 from . import sim_options as o
-from angr.errors import SimProcedureError, SimProcedureArgumentError
-from angr.sim_type import SimTypePointer
-from angr.state_plugins.sim_action import SimActionExit
-from angr.calling_conventions import DEFAULT_CC
+from .errors import SimProcedureError, SimProcedureArgumentError
+from .sim_type import SimTypePointer
+from .state_plugins.sim_action import SimActionExit
+from .calling_conventions import DEFAULT_CC

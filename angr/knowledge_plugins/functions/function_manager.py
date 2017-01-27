@@ -16,17 +16,37 @@ class FunctionDict(SortedDict):
     FunctionDict is a dict where the keys are function starting addresses and
     map to the associated :class:`Function`.
     """
-    def __init__(self, backref, *args, **kwargs):
+    def __init__(self, backref, key_types=None, *args, **kwargs):
         self._backref = backref
+        self._avltree = bintrees.AVLTree()
+        self._key_types = key_types
+
+        if self._key_types is None:
+            self._key_types = (int, long)
+
         super(FunctionDict, self).__init__(*args, **kwargs)
 
+    def __missing__(self, key):
+        if isinstance(key, self._key_types):
+            addr = key
+        else:
+            raise ValueError("FunctionDict.__missing__ only supports the following types of keys: %s."
+                             % str(self._key_types))
+
+        t = Function(self._backref, addr)
+        self[addr] = t
+        return t
+
+    def __setitem__(self, addr, func):
+        self._avltree[addr] = func
+        super(FunctionDict, self).__setitem__(addr, func)
+  
     def __getitem__(self, addr):
         try:
             return super(FunctionDict, self).__getitem__(addr)
         except KeyError:
             if not isinstance(addr, int):
                 raise TypeError("FunctionDict only supports int as key type")
-
             t = Function(self._backref, addr)
             self[addr] = t
             self._backref._function_added(t)
@@ -56,7 +76,9 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
     def __init__(self, kb):
         super(FunctionManager, self).__init__()
         self._kb = kb
-        self._function_map = FunctionDict(self)
+        self.function_address_types = self._kb._project.arch.function_address_types
+        self.address_types = self._kb._project.arch.address_types
+        self._function_map = FunctionDict(self, key_types=self.function_address_types)
         self.callgraph = networkx.MultiDiGraph()
         self.block_map = {}
 
@@ -88,7 +110,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
                 f.write("%#x\tDirectEdge\t%#x\n" % (src, dst))
 
     def _add_node(self, function_addr, node, syscall=None, size=None):
-        if type(node) is int:  # pylint: disable=unidiomatic-typecheck
+        if isinstance(node, self.address_types):
             node = self._kb._project.factory.snippet(node, size=size)
         dst_func = self._function_map[function_addr]
         if syscall in (True, False):
@@ -99,9 +121,9 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
     def _add_call_to(self, function_addr, from_node, to_addr, retn_node=None, syscall=None, stmt_idx=None, ins_addr=None,
                      return_to_outside=False):
 
-        if type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
+        if isinstance(from_node, self.address_types):
             from_node = self._kb._project.factory.snippet(from_node)
-        if type(retn_node) is int:  # pylint: disable=unidiomatic-typecheck
+        if isinstance(retn_node, self.address_types):
             retn_node = self._kb._project.factory.snippet(retn_node)
         dest_func = self._function_map[to_addr]
         if syscall in (True, False):
@@ -126,9 +148,9 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
 
     def _add_fakeret_to(self, function_addr, from_node, to_node, confirmed=None, syscall=None, to_outside=False,
                         to_function_addr=None):
-        if type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
+        if isinstance(from_node, self.address_types):
             from_node = self._kb._project.factory.snippet(from_node)
-        if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
+        if isinstance(to_node, self.address_types):
             to_node = self._kb._project.factory.snippet(to_node)
         src_func = self._function_map[function_addr]
 
@@ -153,14 +175,14 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         self._function_map[function_addr]._remove_fakeret(from_node, to_node)
 
     def _add_return_from(self, function_addr, from_node, to_node=None): #pylint:disable=unused-argument
-        if type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
+        if isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
         self._function_map[function_addr]._add_return_site(from_node)
 
     def _add_transition_to(self, function_addr, from_node, to_node, ins_addr=None, stmt_idx=None):
-        if type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
+        if isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
+        if isinstance(to_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
         self._function_map[function_addr]._transit_to(from_node, to_node, ins_addr=ins_addr, stmt_idx=stmt_idx)
 
@@ -214,7 +236,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
             return False
 
     def __getitem__(self, k):
-        if type(k) is int:
+        if isinstance(k, self.function_address_types):
             f = self.function(addr=k)
         elif type(k) is str:
             f = self.function(name=k)
@@ -227,14 +249,14 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         return f
 
     def __setitem__(self, k, v):
-        if isinstance(k, int):
+        if isinstance(k, self.function_address_types):
             self._function_map[k] = v
             self._function_added(v)
         else:
             raise ValueError("FunctionManager.__setitem__ keys must be an int")
 
     def __delitem__(self, k):
-        if isinstance(k, int):
+        if isinstance(k, self.function_address_types):
             del self._function_map[k]
             if k in self.callgraph:
                 self.callgraph.remove_node(k)

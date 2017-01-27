@@ -1,6 +1,8 @@
 
 import networkx
 
+from archinfo.arch_soot import SootMethodDescriptor
+
 
 class SCCPlaceholder(object):
     __slots__ = ['scc_id']
@@ -20,6 +22,15 @@ class CFGUtils(object):
     A helper class with some static methods and algorithms implemented, that in fact, might take more than just normal
     CFGs.
     """
+
+    @staticmethod
+    def loc_to_str(location):
+        if isinstance(location, (int, long)):
+            return "%#x" % location
+        elif isinstance(location, SootMethodDescriptor):
+            return location.class_name + '.' + location.name
+        else:
+            return str(location)
 
     @staticmethod
     def find_merge_points(function_addr, function_endpoints, graph):  # pylint:disable=unused-argument
