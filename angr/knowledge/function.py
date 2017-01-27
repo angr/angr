@@ -716,7 +716,7 @@ class Function(object):
         """
         Returns a representation of the list of basic blocks in this function.
         """
-        return "[%s]" % (', '.join(('%#08x' % n) for n in self.transition_graph.nodes()))
+        return "[%s]" % (', '.join(('%#08x' % n.addr) for n in self.transition_graph.nodes()))
 
     def dbg_draw(self, filename):
         """
