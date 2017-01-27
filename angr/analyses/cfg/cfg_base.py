@@ -1379,7 +1379,8 @@ class CFGBase(Analysis):
                                                                )
 
         for n in self.graph.nodes():
-            if n.addr in tmp_functions or n.addr in removed_functions:
+            funcloc = self._loc_to_funcloc(n.addr)
+            if funcloc in tmp_functions or funcloc in removed_functions:
                 function_nodes.add(n)
 
         # traverse the graph starting from each node, not following call edges
@@ -1435,10 +1436,7 @@ class CFGBase(Analysis):
 
         # Remove all stubs after PLT entries
         if self.project.arch.name not in {'ARMEL', 'ARMHF'}:
-            for fn in self.kb.functions.values():
-                addr = fn.addr - (fn.addr % 16)
-                if addr != fn.addr and addr in self.kb.functions and self.kb.functions[addr].is_plt:
-                    to_remove.add(fn.addr)
+            to_remove |= set(self._get_plt_stubs(self.kb.functions))
 
         # remove empty functions
         for function in self.kb.functions.values():
@@ -1631,13 +1629,15 @@ class CFGBase(Analysis):
             if n is None: node = addr
             else: node = self._to_snippet(n)
 
-            self.kb.functions._add_node(addr, node, syscall=is_syscall)
-            f = self.kb.functions.function(addr=addr)
+            funcloc = self._loc_to_funcloc(addr)
+
+            self.kb.functions._add_node(funcloc, node, syscall=is_syscall)
+            f = self.kb.functions.function(addr=funcloc)
 
             blockaddr_to_function[addr] = f
 
-            if addr in known_functions:
-                f.returning = known_functions.function(addr).returning
+            if funcloc in known_functions:
+                f.returning = known_functions.function(funcloc).returning
             else:
                 # TODO:
                 pass
@@ -1840,6 +1840,23 @@ class CFGBase(Analysis):
     #
     # Other functions
     #
+
+    def _loc_to_funcloc(self, location):
+        """
+
+        :param int location:
+        :return:
+        """
+        return location
+
+    def _get_plt_stubs(self, functions):
+
+        plt_stubs = set()
+
+        for fn in functions.values():
+            addr = fn.addr - (fn.addr % 16)
+            if addr != fn.addr and addr in functions and functions[addr].is_plt:
+                plt_stubs.add(fn.addr)
 
     @staticmethod
     def _is_noop_block(vex_block):

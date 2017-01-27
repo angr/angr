@@ -7,6 +7,7 @@ from .unicorn import SimEngineUnicorn
 from .failure import SimEngineFailure
 from .syscall import SimEngineSyscall
 from .hook import SimEngineHook
+from .soot import SimEngineSoot
 
 from .hub import EngineHub, EnginePreset
 
@@ -31,3 +32,10 @@ vex_preset.add_default_plugin('vex', SimEngineVEX)
 
 vex_preset.order = 'unicorn', 'vex'
 vex_preset.default_engine = 'vex'
+
+# Soot engine preset.
+soot_preset = basic_preset.copy()
+EngineHub.register_preset('Soot', soot_preset)
+soot_preset.add_default_plugin('soot', SimEngineSoot)
+soot_preset.default_engine = 'soot'
+soot_preset.order = ['soot']

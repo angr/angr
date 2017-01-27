@@ -84,7 +84,10 @@ class Function(object):
 
         # generate an IDA-style sub_X name
         if name is None:
-            name = 'sub_%x' % addr
+            if isinstance(addr, (int, long)):
+                name = 'sub_%x' % addr
+            else:
+                name = str(addr)
 
         binary_name = None
         if self.is_simprocedure:
@@ -625,7 +628,7 @@ class Function(object):
             node._graph = self.transition_graph
             if node.addr not in self or self._block_sizes[node.addr] == 0:
                 self._block_sizes[node.addr] = node.size
-            if node.addr == self.addr:
+            if self._addr_to_funcloc(node.addr) == self.addr:
                 if self.startpoint is None or not self.startpoint.is_hook:
                     self.startpoint = node
             if is_local:
@@ -1069,6 +1072,14 @@ class Function(object):
         if self.calling_convention is not None:
             self.calling_convention.args = None
             self.calling_convention.func_ty = proto
+            
+    def _addr_to_funcloc(self, addr):
+
+        # FIXME
+        if isinstance(addr, tuple):
+            return addr[0]
+        else:  # int, long
+            return addr
 
 
 from ...codenode import BlockNode, HookNode

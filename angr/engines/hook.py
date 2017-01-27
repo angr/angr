@@ -13,7 +13,7 @@ class SimEngineHook(SimEngine):
         if state.history.jumpkind == 'Ijk_NoHook':
             return False
 
-        if state._ip.symbolic:
+        if not type(state._ip) in (int, long) and state._ip.symbolic:
             # symbolic IP is not supported
             return False
 

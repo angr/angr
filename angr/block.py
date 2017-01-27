@@ -136,6 +136,7 @@ class Block(object):
     def vex(self):
         if not self._vex:
             self._vex = self._vex_engine.lift(
+                    arch=self.arch,
                     clemory=self._project.loader.memory if self._project is not None else None,
                     insn_bytes=self._bytes,
                     addr=self.addr,
@@ -143,7 +144,6 @@ class Block(object):
                     size=self.size,
                     num_inst=self._instructions,
                     opt_level=self._opt_level,
-                    arch=self.arch,
             )
             self._parse_vex_info()
 
@@ -199,6 +199,30 @@ class Block(object):
             _ = self.vex
 
         return self._instruction_addrs
+
+
+class SootBlock(object):
+    def __init__(self, addr, project=None, arch=None):
+
+        self.addr = addr
+        self.arch = arch
+        self._project = project
+        self._the_binary = project.loader.main_object
+
+    @property
+    def _soot_engine(self):
+        if self._project is None:
+            raise Exception('SHIIIIIIIT')
+        else:
+            return self._project.factory.default_engine
+
+    @property
+    def soot(self):
+        return self._soot_engine.lift(self.addr, the_binary=self._the_binary)
+
+    @property
+    def codenode(self):
+        return BlockNode(self.addr, 0)
 
 
 class CapstoneBlock(object):

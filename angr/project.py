@@ -8,6 +8,7 @@ import string
 from collections import defaultdict
 
 import archinfo
+from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
 import cle
 
 from .misc.ux import once, deprecated
@@ -153,6 +154,7 @@ class Project(object):
         self._exclude_sim_procedures_func = exclude_sim_procedures_func
         self._exclude_sim_procedures_list = exclude_sim_procedures_list
         self._should_use_sim_procedures = use_sim_procedures
+        self._use_sim_procedures = use_sim_procedures
         self._ignore_functions = ignore_functions
         self._support_selfmodifying_code = support_selfmodifying_code
         self._translation_cache = translation_cache
@@ -310,10 +312,10 @@ class Project(object):
         Has symbol name `f` been marked for exclusion by any of the user
         parameters?
         """
-        return not self._should_use_sim_procedures or \
-            f in self._exclude_sim_procedures_list or \
-            f in self._ignore_functions or \
-            (self._exclude_sim_procedures_func is not None and self._exclude_sim_procedures_func(f))
+        return not self._use_sim_procedures or \
+               f in self._exclude_sim_procedures_list or \
+               f in self._ignore_functions or \
+               (self._exclude_sim_procedures_func is not None and self._exclude_sim_procedures_func(f))
 
     #
     # Public methods
@@ -358,13 +360,14 @@ class Project(object):
         l.debug('hooking %#x with %s', addr, hook)
 
         if self.is_hooked(addr):
+            addr_str = "%s" % repr(addr) if isinstance(addr, SootAddressDescriptor) else "%#x" % addr
             if replace is True:
                 pass
             elif replace is False:
-                l.warning("Address is already hooked, during hook(%#x, %s). Not re-hooking.", addr, hook)
+                l.warning("Address is already hooked, during hook(%s, %s). Not re-hooking.", addr_str, hook)
                 return
             else:
-                l.warning("Address is already hooked, during hook(%#x, %s). Re-hooking.", addr, hook)
+                l.warning("Address is already hooked, during hook(%s, %s). Re-hooking.", addr_str, hook)
 
         if isinstance(hook, type):
             if once("hook_instance_warning"):
@@ -619,6 +622,14 @@ class Project(object):
 
     def __repr__(self):
         return '<Project %s>' % (self.filename if self.filename is not None else 'loaded from stream')
+
+    #
+    # Properties
+    #
+
+    @property
+    def use_sim_procedures(self):
+        return self._use_sim_procedures
 
     #
     # Compatibility

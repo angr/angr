@@ -40,6 +40,15 @@ class SimStateScratch(SimStatePlugin):
         self.dirty_addrs = set()
         self.num_insns = 0
 
+        #
+        # Java VM related variables
+        #
+        self.invoke = None
+        self.invoke_target = None
+        self.invoke_return_variable = None
+        self.invoke_return_target = None
+        self.invoke_expr = None
+
         if scratch is not None:
             self.temps.update(scratch.temps)
             self.tyenv = scratch.tyenv
@@ -62,6 +71,12 @@ class SimStateScratch(SimStatePlugin):
             self.sim_procedure = scratch.sim_procedure
             self.bbl_addr_list = scratch.bbl_addr_list
             self.stack_pointer_list = scratch.stack_pointer_list
+
+            self.invoke = scratch.invoke
+            self.invoke_target = scratch.invoke_target
+            self.invoke_return_variable = scratch.invoke_return_variable
+            self.invoke_return_target = scratch.invoke_return_target
+            self.invoke_expr = scratch.invoke_expr
 
         # priveleges
         self._priv_stack = [False]

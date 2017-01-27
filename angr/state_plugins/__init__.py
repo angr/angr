@@ -6,6 +6,7 @@ from .inspect import *
 from .solver import *
 from .symbolic_memory import SimSymbolicMemory
 from .abstract_memory import *
+from .keyvalue_memory import SimKeyValueMemory
 from .fast_memory import *
 from .log import *
 from .history import *

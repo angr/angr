@@ -4,6 +4,7 @@ from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
 from .callable import Callable
 from .errors import AngrAssemblyError
+from archinfo import ArchSoot
 
 
 l = logging.getLogger("angr.factory")
@@ -270,23 +271,27 @@ class AngrObjectFactory(object):
         if insn_bytes is not None and insn_text is not None:
             raise AngrError("You cannot provide both 'insn_bytes' and 'insn_text'!")
 
-        if insn_bytes is not None:
-            byte_string = insn_bytes
+        if isinstance(self.project.arch, ArchSoot):
+            return SootBlock(addr, arch=self.project.arch, project=self.project)
+        
+        else:
+            if insn_bytes is not None:
+                byte_string = insn_bytes
 
-        if insn_text is not None:
-            byte_string = self.project.arch.asm(insn_text, addr=addr, as_bytes=True, thumb=thumb)
-            if byte_string is None:
-                # assembly failed
-                raise AngrAssemblyError("Assembling failed. Please make sure keystone is installed, and the assembly"
-                                        " string is correct.")
+            if insn_text is not None:
+                byte_string = self.project.arch.asm(insn_text, addr=addr, as_bytes=True, thumb=thumb)
+                if byte_string is None:
+                    # assembly failed
+                    raise AngrAssemblyError("Assembling failed. Please make sure keystone is installed, and the assembly"
+                                            " string is correct.")
 
-        if max_size is not None:
-            l.warning('Keyword argument "max_size" has been deprecated for block(). Please use "size" instead.')
-            size = max_size
-        return Block(addr, project=self.project, size=size, byte_string=byte_string, vex=vex, thumb=thumb,
-                     backup_state=backup_state, opt_level=opt_level, num_inst=num_inst, traceflags=traceflags,
-                     strict_block_end=strict_block_end
-                     )
+            if max_size is not None:
+                l.warning('Keyword argument "max_size" has been deprecated for block(). Please use "size" instead.')
+                size = max_size
+            return Block(addr, project=self.project, size=size, byte_string=byte_string, vex=vex, thumb=thumb,
+                        backup_state=backup_state, opt_level=opt_level, num_inst=num_inst, traceflags=traceflags,
+                        strict_block_end=strict_block_end
+                        )
 
     def fresh_block(self, addr, size, backup_state=None):
         return Block(addr, project=self.project, size=size, backup_state=backup_state)
@@ -329,4 +334,4 @@ class AngrObjectFactory(object):
 from .errors import AngrError
 from .sim_manager import SimulationManager
 from .codenode import HookNode
-from .block import Block
+from .block import Block, SootBlock
