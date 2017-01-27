@@ -20,7 +20,7 @@ class SimIRExpr(object):
         self._expr = expr
 
         self.expr = None
-        if expr.tag in ('Iex_BBPTR', 'Iex_VECRET'):
+        if expr.tag in ('Iex_GSPTR', 'Iex_VECRET'):
             self.type = None
         else:
             self.type = expr.result_type(state.scratch.tyenv)

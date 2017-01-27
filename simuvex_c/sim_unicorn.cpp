@@ -571,7 +571,7 @@ public:
 				break;
 			case Iex_VECRET:
 				break;
-			case Iex_BBPTR:
+			case Iex_GSPTR:
 				break;
 			case Iex_GetI:
 				// we can't handle this for the same reasons as PutI (see below)

@@ -22,7 +22,7 @@ l = logging.getLogger('simuvex.vex.expressions')
 
 from .base import SimIRExpr
 
-from .bbptr import SimIRExpr_BBPTR
+from .gsptr import SimIRExpr_GSPTR
 from .vecret import SimIRExpr_VECRET
 from .rdtmp import SimIRExpr_RdTmp
 from .get import SimIRExpr_Get

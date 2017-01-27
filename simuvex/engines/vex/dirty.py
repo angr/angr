@@ -252,7 +252,7 @@ def x86g_dirtyhelper_LGDT_LIDT(state, addr, op):
 
     return None, [ ]
 
-def x86g_dirtyhelper_FINIT(state, bbptr): #pylint:disable=unused-argument
+def x86g_dirtyhelper_FINIT(state, gsptr): #pylint:disable=unused-argument
     state.regs.fpu_tags = 0
     state.regs.fpround = 0
     state.regs.fc3210 = 0x0300
