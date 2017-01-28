@@ -514,6 +514,7 @@ class SimLinux(SimOS):
             14: ('sigprocmask', 'sigprocmask'),
             39: ('getpid', 'getpid'),
             60: ('exit', 'exit'),
+            101: ('ptrace', 'ptrace'),
             158: ('arch_prctl','arch_prctl'),
             186: ('gettid', 'gettid'),
             231: ('exit_group', 'exit'),  # really exit_group, but close enough
@@ -525,6 +526,7 @@ class SimLinux(SimOS):
             4: ('write', 'write'),
             5: ('open', 'open'),
             6: ('close', 'close'),
+            26: ('ptrace', 'ptrace'),
             45: ('brk', 'brk'),
             252: ('exit_group', 'exit'),  # really exit_group, but close enough
         },
