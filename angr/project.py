@@ -10,21 +10,53 @@ import weakref
 import cle
 import simuvex
 import archinfo
-
+from cle.backends import ELF, ELFCore, PE, BackedCGC, CGC
+from simuvex.engines import SimEngineVex
 l = logging.getLogger("angr.project")
 
+# This holds the default SimuVEX engine for a given CLE loader backend.
+# All the builtins right now use SimEngineVEX.  This may not hold for long.
+default_engines = {ELF: SimEngineVEX,
+                   ELFCore: SimEngineVex,
+                   CGC: SimEngineVex,
+                   BackedCGC: SimEngineVex,
+                   PE: SimEngineVex
+                   }
+
+
+def register_default_engine(loader_backend, engine):
+    """
+    Register the default SimuVEX engine to be used with a given CLE backend.
+    Usually this is the SimEngineVEX, but if you're operating on something that isn't
+    going to be lifted to VEX, you'll need to make sure the desired engine is registered here.
+
+    :param loader_backend: The loader backend (a type)
+    :param engine type: The engine to use for the loader backend (a type)
+    :return:
+    """
+    if not isinstance(loader_backend, type):
+        raise TypeError("loader_backend must be a type")
+    if not isinstance(engine, type):
+        raise TypeError("engine must be a type")
+    default_engines[loader_backend] = engine
+
+
 projects = weakref.WeakValueDictionary()
+
+
 def fake_project_unpickler(name):
     if name not in projects:
         raise AngrError("Project %s has not been opened." % name)
     return projects[name]
 fake_project_unpickler.__safe_for_unpickling__ = True
 
+
 def deprecated(f):
     def deprecated_wrapper(*args, **kwargs):
         print "ERROR: FUNCTION %s IS DEPRECATED. PLEASE UPDATE YOUR CODE." % f
         return f(*args, **kwargs)
     return deprecated_wrapper
+
 
 class Project(object):
     """
@@ -108,7 +140,7 @@ class Project(object):
 
         # Step 2: determine its CPU architecture, ideally falling back to CLE's guess
         if isinstance(arch, str):
-            self.arch = archinfo.arch_from_id(arch) # may raise ArchError, let the user see this
+            self.arch = archinfo.arch_from_id(arch)  # may raise ArchError, let the user see this
         elif isinstance(arch, archinfo.Arch):
             self.arch = arch
         elif arch is None:
@@ -145,8 +177,12 @@ class Project(object):
                 translation_cache = False
                 l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
 
-
-        vex_engine = simuvex.SimEngineVEX(
+        # Look up the default engine.
+        try:
+            engine_cls = default_engines(type(self.loader.main_bin))
+        except:
+            raise AngrError("No engine associated with loader %s" % str(type(self.loader.main_bin)))
+        engine = engine_cls(
                 stop_points=self._sim_procedures,
                 use_cache=translation_cache,
                 support_selfmodifying_code=support_selfmodifying_code)
@@ -158,7 +194,7 @@ class Project(object):
         self.entry = self.loader.main_bin.entry
         self.factory = AngrObjectFactory(
                 self,
-                vex_engine,
+                engine,
                 procedure_engine,
                 [failure_engine, syscall_engine, procedure_engine, unicorn_engine, vex_engine])
         self.analyses = Analyses(self)
