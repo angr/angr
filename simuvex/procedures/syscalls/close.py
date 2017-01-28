@@ -12,8 +12,8 @@ class close(simuvex.SimProcedure):
     def run(self, fd):
         fd = self.state.se.any_int(fd)
 
-        # Return error if file is already closed
-        if self.state.posix.files[fd].closed is True:
+        # Return error if file descriptor does not exist or file is already closed
+        if fd not in self.state.posix.files or self.state.posix.files[fd].closed is True:
             v = self.state.se.BVV(-1, self.state.arch.bits)
 
         # Otherwise close it and return good
