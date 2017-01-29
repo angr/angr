@@ -507,6 +507,7 @@ class SimLinux(SimOS):
             4: ('stat', 'stat'),
             5: ('fstat', 'fstat'),
             6: ('stat', 'stat'),
+            8: ('lseek', 'lseek'),
             9: ('mmap', 'mmap'),
             10: ('mprotect', 'mprotect'),
             11: ('munmap', 'munmap'),
