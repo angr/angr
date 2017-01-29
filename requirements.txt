@@ -1,6 +1,6 @@
 capstone
 cachetools
-networkx==1.11
+networkx
 rpyc
 futures
 progressbar
@@ -12,4 +12,3 @@ pyvex
 claripy
 simuvex
 cle
-pygraphviz
