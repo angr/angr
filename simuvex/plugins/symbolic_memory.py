@@ -1034,14 +1034,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         """
         return self.mem.memory_objects_for_hash(n)
 
-    def permissions(self, addr):
+    def permissions(self, addr, permissions=None):
         """
         Retrieve the permissions of the page at address `addr`.
 
-        :param addr: address to get the page permissions
-        :return: AST representing the permissions on the page
+        :param addr:        address to get the page permissions
+        :param permissions: Integer or BVV to optionally set page permissions to
+        :return:            AST representing the permissions on the page
         """
-        return self.mem.permissions(addr)
+        return self.mem.permissions(addr, permissions)
 
     def map_region(self, addr, length, permissions):
         """
