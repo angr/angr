@@ -600,8 +600,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
         """
 
         var_size = self.arch.bits / 8
-        sp_sim = self.regs.sp
-        bp_sim = self.regs.bp
+        sp_sim = self.regs._sp
+        bp_sim = self.regs._bp
         if self.se.symbolic(sp_sim) and sp is None:
             result = "SP is SYMBOLIC"
         elif self.se.symbolic(bp_sim) and depth is None:
@@ -623,7 +623,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 stack_values = [ ]
 
                 if o.ABSTRACT_MEMORY in self.options:
-                    sp = self.regs.sp
+                    sp = self.regs._sp
                     segment_sizes = self.memory.get_segments(sp + i * var_size, var_size)
 
                     pos = i * var_size
