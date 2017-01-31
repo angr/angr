@@ -11,16 +11,15 @@ import cle
 import simuvex
 import archinfo
 from cle.backends import ELF, ELFCore, PE, BackedCGC, CGC
-from simuvex.engines import SimEngineVex
 l = logging.getLogger("angr.project")
 
 # This holds the default SimuVEX engine for a given CLE loader backend.
 # All the builtins right now use SimEngineVEX.  This may not hold for long.
-default_engines = {ELF: SimEngineVEX,
-                   ELFCore: SimEngineVex,
-                   CGC: SimEngineVex,
-                   BackedCGC: SimEngineVex,
-                   PE: SimEngineVex
+default_engines = {ELF: simuvex.engines.SimEngineVEX,
+                   ELFCore: simuvex.engines.SimEngineVEX,
+                   CGC: simuvex.engines.SimEngineVEX,
+                   BackedCGC: simuvex.engines.SimEngineVEX,
+                   PE: SimEngineVEX
                    }
 
 
