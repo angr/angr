@@ -61,6 +61,7 @@ def amd64g_dirtyhelper_CPUID_baseline(state, _):
     return None, [ ]
 
 amd64g_dirtyhelper_CPUID_avx_and_cx16 = amd64g_dirtyhelper_CPUID_baseline
+amd64g_dirtyhelper_CPUID_avx2 = amd64g_dirtyhelper_CPUID_baseline
 
 def CORRECT_amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _):
     old_eax = state.regs.rax[31:0]
