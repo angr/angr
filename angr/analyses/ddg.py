@@ -14,6 +14,35 @@ from .code_location import CodeLocation
 l = logging.getLogger("angr.analyses.ddg")
 
 
+class AST(object):
+    """
+    A mini implementation for AST
+    """
+
+    def __init__(self, op, *operands):
+        self.op = op
+        self.operands = tuple(operands)
+
+    def __hash__(self):
+        return hash((self.op, self.operands))
+
+    def __eq__(self, other):
+        return type(other) is AST and \
+                other.op == self.op and \
+                other.operands == self.operands
+
+    def __repr__(self):
+
+        _short_repr = lambda a: a.short_repr
+
+        if len(self.operands) == 1:
+            return "%s%s" % (self.op, _short_repr(self.operands[0]))
+        elif len(self.operands) == 2:
+            return "%s %s %s" % (_short_repr(self.operands[0]), self.op, _short_repr(self.operands[1]))
+        else:
+            return "%s (%s)" % (self.op, self.operands)
+
+
 class ProgramVariable(object):
     """
     Describes a variable in the program at a specific location.
@@ -450,6 +479,8 @@ class DDG(Analysis):
         self._data_graph = networkx.DiGraph()
         self._simplified_data_graph = None
 
+        self._ast_graph = networkx.DiGraph()  # A mapping of ProgramVariable to ASTs
+
         self._symbolic_mem_ops = set()
 
         # Data dependency graph per function
@@ -496,6 +527,11 @@ class DDG(Analysis):
             self._simplified_data_graph = self._simplify_data_graph(self.data_graph)
 
         return self._simplified_data_graph
+
+    @property
+    def ast_graph(self):
+
+        return self._ast_graph
 
     #
     # Public methods
@@ -924,18 +960,25 @@ class DDG(Analysis):
             if tmp in self._temp_variables:
                 self._data_graph_add_edge(self._temp_variables[tmp], prog_var, type='mem_addr')
 
-        for reg_offset in action.data.reg_deps:
-            self._stmt_graph_annotate_edges(self._register_edges[reg_offset], subtype='mem_data')
-            reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
-            prev_defs = self._def_lookup(reg_variable)
-            for loc, _ in prev_defs.iteritems():
-                v = ProgramVariable(reg_variable, loc, arch=self.project.arch)
-                self._data_graph_add_edge(v, prog_var, type='mem_data')
+        if not action.data.reg_deps and not action.data.tmp_deps:
+            # constant assignment
+            v = action.data.ast
+            const_var = ProgramVariable(SimConstantVariable(v._model_concrete.value), prog_var.location)
+            self._data_graph_add_edge(const_var, prog_var, type='mem_data')
 
-        for tmp in action.data.tmp_deps:
-            self._stmt_graph_annotate_edges(self._temp_edges[tmp], subtype='mem_data')
-            if tmp in self._temp_variables:
-                self._data_graph_add_edge(self._temp_variables[tmp], prog_var, type='mem_data')
+        else:
+            for reg_offset in action.data.reg_deps:
+                self._stmt_graph_annotate_edges(self._register_edges[reg_offset], subtype='mem_data')
+                reg_variable = SimRegisterVariable(reg_offset, self._get_register_size(reg_offset))
+                prev_defs = self._def_lookup(reg_variable)
+                for loc, _ in prev_defs.iteritems():
+                    v = ProgramVariable(reg_variable, loc, arch=self.project.arch)
+                    self._data_graph_add_edge(v, prog_var, type='mem_data')
+
+            for tmp in action.data.tmp_deps:
+                self._stmt_graph_annotate_edges(self._temp_edges[tmp], subtype='mem_data')
+                if tmp in self._temp_variables:
+                    self._data_graph_add_edge(self._temp_variables[tmp], prog_var, type='mem_data')
 
     def _handle_mem_read(self, action, code_location, state, statement):
 
@@ -964,11 +1007,7 @@ class DDG(Analysis):
                 # record accessed variables in var_per_stmt
                 self._variables_per_statement.append(var)
 
-            for var in variables:
-                # make edges on the graph for each variable
-                self._make_edges(action, var)
-
-    def _handle_mem_write(self, action, code_location, state, statement):
+    def _handle_mem_write(self, action, location, state, statement):
 
         addrs = self._get_actual_addrs(action, state)
 
@@ -976,13 +1015,25 @@ class DDG(Analysis):
             variable = self._create_memory_variable(action, addr, addrs)
 
             # kill all previous variables
-            self._kill(variable, code_location)
+            self._kill(variable, location)
 
             # create a new variable at current location
-            pv = ProgramVariable(variable, code_location, arch=self.project.arch)
+            pv = ProgramVariable(variable, location, arch=self.project.arch)
 
             # make edges
             self._make_edges(action, pv)
+
+            if isinstance(statement, pyvex.IRStmt.Store) and self._variables_per_statement:
+                if isinstance(statement.data, pyvex.IRExpr.RdTmp):
+                    # assignment
+                    src_tmp_idx = statement.data.tmp
+                    src_tmp_def = next(s for s in self._variables_per_statement if
+                                       isinstance(s.variable, SimTemporaryVariable) and s.variable.tmp_id == src_tmp_idx)
+                    self._ast_graph.add_edge(src_tmp_def, pv)
+                elif isinstance(statement.data, pyvex.IRExpr.Const):
+                    # assignment
+                    const = statement.data.con.value
+                    self._ast_graph.add_edge(ProgramVariable(SimConstantVariable(const), location), pv)
 
     def _handle_reg_read(self, action, location, state, statement):
 
@@ -1056,12 +1107,25 @@ class DDG(Analysis):
         if tmp in self._temp_register_symbols:
             self._custom_data_per_statement = self._temp_register_symbols[tmp]
 
+        self._variables_per_statement.append(tmp_var)
+
     def _handle_tmp_write(self, action, location, state, statement):
+
+        ast = None
+
+        for a in action.subactions:
+            if a.type == 'operation':
+                ast = self._process_operation(a, location, state, statement)
+                break
 
         tmp = action.tmp
         pv = ProgramVariable(SimTemporaryVariable(tmp), location, arch=self.project.arch)
 
-        self._temp_definitions[tmp] = location
+        if ast is not None:
+            for operand in ast.operands:
+                self._ast_graph.add_edge(operand, ast)
+            self._ast_graph.add_edge(ast, pv)
+
         self._temp_variables[tmp] = pv
 
         # clear existing edges
@@ -1078,7 +1142,21 @@ class DDG(Analysis):
         for data in self._variables_per_statement:
             self._data_graph_add_edge(data, pv)
 
-        if not action.tmp_deps and not self._variables_per_statement:
+        if isinstance(statement, pyvex.IRStmt.WrTmp) and self._variables_per_statement:
+            if isinstance(statement.data, pyvex.IRExpr.RdTmp):
+                # assignment: dst_tmp = src_tmp
+                for s in filter(lambda x: isinstance(x.variable, SimTemporaryVariable) and x.variable.tmp_id != tmp, self._variables_per_statement):
+                    self._ast_graph.add_edge(s, pv)
+            elif isinstance(statement.data, pyvex.IRExpr.Get):
+                # assignment: dst_tmp = src_reg
+                for s in filter(lambda x: isinstance(x.variable, SimRegisterVariable), self._variables_per_statement):
+                    self._ast_graph.add_edge(s, pv)
+            elif isinstance(statement.data, pyvex.IRExpr.Load):
+                # assignment: dst_tmp = [ src_mem ]
+                for s in filter(lambda x: isinstance(x.variable, SimMemoryVariable), self._variables_per_statement):
+                    self._ast_graph.add_edge(s, pv)
+
+        if not action.tmp_deps and not self._variables_per_statement and not ast:
             # read in a constant
             # try to parse out the constant from statement
             const_variable = SimConstantVariable()
@@ -1103,7 +1181,7 @@ class DDG(Analysis):
             edge_tuple = (prev_code_loc, location)
             self._temp_edges[tmp].append(edge_tuple)
 
-    def _handle_operation(self, action, ocation, state, statement):
+    def _handle_operation(self, action, location, state, statement):
 
         if action.op.endswith('Sub32') or action.op.endswith('Sub64'):
             # subtract
@@ -1111,23 +1189,62 @@ class DDG(Analysis):
 
             if expr_0.tmp_deps and (not expr_1.tmp_deps and not expr_1.reg_deps):
                 # tmp - const
-                tmp = list(expr_0.tmp_deps)[0]
+
+                const_value = expr_1.ast.args[0]
+
+                tmp = next(iter(expr_0.tmp_deps))
                 if tmp in self._temp_register_symbols:
                     sort, offset = self._temp_register_symbols[tmp]
-                    offset -= expr_1.ast.args[0]
+                    offset -= const_value
                     self._custom_data_per_statement = (sort, offset)
 
         elif action.op.endswith('Add32') or action.op.endswith('Add64'):
             # add
+
             expr_0, expr_1 = action.exprs
 
             if expr_0.tmp_deps and (not expr_1.tmp_deps and not expr_1.reg_deps):
                 # tmp + const
-                tmp = list(expr_0.tmp_deps)[0]
+                const_value = expr_1.ast.args[0]
+
+                tmp = next(iter(expr_0.tmp_deps))
                 if tmp in self._temp_register_symbols:
                     sort, offset = self._temp_register_symbols[tmp]
-                    offset += expr_1.ast.args[0]
+                    offset += const_value
                     self._custom_data_per_statement = (sort, offset)
+
+    def _process_operation(self, action, location, state, statement):
+
+        if action.op.endswith('Sub32') or action.op.endswith('Sub64'):
+            # subtract
+            expr_0, expr_1 = action.exprs
+
+            if expr_0.tmp_deps and (not expr_1.tmp_deps and not expr_1.reg_deps):
+                # tmp - const
+                const_value = expr_1.ast.args[0]
+                tmp = next(iter(expr_0.tmp_deps))
+
+                const_def = ProgramVariable(SimConstantVariable(const_value), location)
+                tmp_def = self._temp_variables[tmp]
+                ast = AST('-', tmp_def, const_def)
+                return ast
+
+        elif action.op.endswith('Add32') or action.op.endswith('Add64'):
+            # add
+
+            expr_0, expr_1 = action.exprs
+
+            if expr_0.tmp_deps and (not expr_1.tmp_deps and not expr_1.reg_deps):
+                # tmp + const
+                const_value = expr_1.ast.args[0]
+                tmp = next(iter(expr_0.tmp_deps))
+
+                const_def = ProgramVariable(SimConstantVariable(const_value), location)
+                tmp_def = self._temp_variables[tmp]
+                ast = AST('+', tmp_def, const_def)
+                return ast
+
+        return None
 
     #
     # Graph operations
