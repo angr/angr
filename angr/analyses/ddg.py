@@ -43,6 +43,14 @@ class ProgramVariable(object):
             s = "{%s @ %s}" % (self.variable, self.location)
         return s
 
+    @property
+    def short_repr(self):
+        if self._arch is not None:
+            s = "{%s@%s}" % (self.variable.pp(self._arch), self.location.short_repr)
+        else:
+            s = "{%s@%s}" % (self.variable, self.location.short_repr)
+        return s
+
 
 class DDGJob(object):
     def __init__(self, cfg_node, call_depth):
