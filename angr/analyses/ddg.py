@@ -289,14 +289,14 @@ class DDGViewItem(object):
     def depends_on(self):
         graph = self._ddg.simplified_data_graph if self._simplified else self._ddg.data_graph
         if self._variable in graph:
-            return [ self._to_viewitem(n) for n in graph.predecessors(self._variable) ]
+            return [ self._to_viewitem(n) for n, _, data in graph.in_edges(self._variable, data=True) if data.get('type', None) != 'kill' ]
         return None
 
     @property
     def dependents(self):
         graph = self._ddg.simplified_data_graph if self._simplified else self._ddg.data_graph
         if self._variable in graph:
-            return [ self._to_viewitem(n) for n in graph.successors(self._variable) ]
+            return [ self._to_viewitem(n) for _, n, data in graph.in_edges(self._variable, data=True) if data.get('type', None) != 'kill' ]
         return None
 
     def __repr__(self):
