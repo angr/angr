@@ -36,6 +36,9 @@ class ProgramVariable(object):
 
         return self.variable == other.variable and self.location == other.location
 
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def __repr__(self):
         if self._arch is not None:
             s = "{%s @ %s}" % (self.variable.pp(self._arch), self.location)
