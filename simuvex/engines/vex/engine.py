@@ -454,15 +454,14 @@ class SimEngineVEX(SimEngine):
 
         # phase 6: call into pyvex
         l.debug("Creating pyvex.IRSB of arch %s at %#x", arch.name, addr)
-        pyvex.set_iropt_level(opt_level)
-
         try:
             for subphase in xrange(2):
                 irsb = pyvex.IRSB(buff, addr + thumb, arch,
                                   num_bytes=size,
                                   num_inst=num_inst,
                                   bytes_offset=thumb,
-                                  traceflags=traceflags)
+                                  traceflags=traceflags,
+                                  opt_level=opt_level)
 
                 if subphase == 0:
                     # check for possible stop points
