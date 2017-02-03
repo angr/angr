@@ -736,7 +736,6 @@ class DDG(Analysis):
         action_list = list(state.history.recent_actions)
 
         # Since all temporary variables are local, we simply track them in a dict
-        self._temp_definitions = { }
         self._temp_variables = { }
         self._temp_register_symbols = { }
 
@@ -1044,12 +1043,13 @@ class DDG(Analysis):
     def _handle_tmp_read(self, action, location, state, statement):
 
         tmp = action.tmp
+        tmp_var = self._temp_variables[tmp]
 
-        definition_location = self._temp_definitions[tmp]
+        def_loc = tmp_var.location
 
-        self._stmt_graph_add_edge(definition_location, location, type='tmp', data=action.tmp)
+        self._stmt_graph_add_edge(def_loc, location, type='tmp', data=action.tmp)
         # record the edge
-        edge_tuple = (definition_location, location)
+        edge_tuple = (def_loc, location)
         self._temp_edges[action.tmp].append(edge_tuple)
 
         if tmp in self._temp_register_symbols:
@@ -1093,7 +1093,7 @@ class DDG(Analysis):
 
         # exits should only depend on tmps
         for tmp in action.tmp_deps:
-            prev_code_loc = self._temp_definitions[tmp]
+            prev_code_loc = self._temp_variables[tmp].location
 
             # add the edge to the graph
             self._stmt_graph_add_edge(prev_code_loc, location, type='exit', data='tmp')
