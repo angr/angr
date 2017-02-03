@@ -1350,9 +1350,10 @@ class DDG(Analysis):
             for pred, _, data_in in in_edges:
                 for _, suc, data_out in out_edges:
                     if pred is not tmp_node and suc is not tmp_node:
-                        data = data_in.copy()
-                        data.update(data_out)
-                        graph.add_edge(pred, suc, **data)
+                        if suc not in graph[pred]:
+                            data = data_in.copy()
+                            data.update(data_out)
+                            graph.add_edge(pred, suc, **data)
 
             graph.remove_node(tmp_node)
 
