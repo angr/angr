@@ -708,15 +708,15 @@ class DDG(Analysis):
                         live_defs_per_node[successing_node] = defs_for_next_node
 
                     for var, code_loc_set in new_defs.iteritems():
-                        l.debug("Adding %d new defitions for variable %s.", len(code_loc_set), var)
+                        l.debug("Adding %d new definitions for variable %s.", len(code_loc_set), var)
                         changed |= defs_for_next_node.add_defs(var, code_loc_set)
 
                 if changed:
                     if (self._call_depth is None) or \
                             (self._call_depth is not None and 0 <= new_call_depth <= self._call_depth):
-                        # Put all reachable successors back to our worklist again
-                        for successing_node in successing_nodes:
-                            nw = DDGJob(successing_node, new_call_depth)
+                        # Put all reachable successors back to our work-list again
+                        for successor in self._cfg.get_all_successors(node):
+                            nw = DDGJob(successor, new_call_depth)
                             self._worklist_append(nw, worklist, worklist_set)
 
     def _track(self, state, live_defs, statements):
