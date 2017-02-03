@@ -306,6 +306,10 @@ class DDGViewItem(object):
         )
         return s
 
+    def __eq__(self, other):
+        return isinstance(other, DDGViewItem) and self._variable == other._variable and \
+               self._simplified == other._simplified
+
     def _to_viewitem(self, prog_var):
         """
         Convert a ProgramVariable instance to a DDGViewItem object.
@@ -385,7 +389,7 @@ class DDGViewInstruction(object):
 
         for n in graph.nodes():  # type: ProgramVariable
             if n.location.ins_addr == self._insn_addr:
-                defs.add(n)
+                defs.add(DDGViewItem(self._ddg, n, simplified=self._simplified))
 
         return list(defs)
 
