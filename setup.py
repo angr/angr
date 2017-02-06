@@ -41,7 +41,7 @@ def _build_sim_unicorn():
                 ('PYVEX_LIB_FILE', 'pyvex', 'lib\\pyvex.lib'))
     for var, pkg, fnm in env_data:
         try:
-            env[var] = pkg_resources.resource_filename(pkg, fnm)
+            env[var] = pkg_resources.resource_filename(pkg, fnm).encode('ascii', 'ignore')
         except KeyError:
             pass
 
@@ -94,7 +94,7 @@ if 'bdist_wheel' in sys.argv and '--plat-name' not in sys.argv:
 
 setup(
     name='simuvex',
-    version='6.7.1.13.post2',
+    version='6.7.1.31',
     description=' A symbolic execution engine for the VEX IR',
     url='https://github.com/angr/simuvex',
     packages=packages,

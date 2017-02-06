@@ -771,9 +771,11 @@ class SimPagedMemory(object):
         """
         return set([ self[i] for i in self.addrs_for_hash(n)])
 
-    def permissions(self, addr):
+    def permissions(self, addr, permissions=None):
         """
         Returns the permissions for a page at address `addr`.
+
+        If optional arugment permissions is given, set page permissions to that prior to returning permissions.
         """
 
         if self.state.se.symbolic(addr):
@@ -788,6 +790,16 @@ class SimPagedMemory(object):
             page = self._get_page(page_num)
         except KeyError:
             raise SimMemoryError("page does not exist at given address")
+
+        # Set permissions for the page
+        if permissions is not None:
+            if isinstance(permissions, (int, long)):
+                permissions = claripy.BVV(permissions, 3)
+
+            if not isinstance(permissions,claripy.ast.bv.BV):
+                raise SimMemoryError("Unknown permissions argument type of {0}.".format(type(permissions)))
+
+            page.permissions = permissions
 
         return page.permissions
 

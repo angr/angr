@@ -300,7 +300,7 @@ class SimProcedure(object):
                             Default is to use the current convention.
         """
         if not self.is_function:
-            raise ValueError("%s called self.call() without IS_FUNCTION = True")
+            raise ValueError("%s called self.call() without IS_FUNCTION = True" % self)
         if cc is None:
             cc = self.cc
 

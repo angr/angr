@@ -12,7 +12,7 @@ class pthread_create(simuvex.SimProcedure):
 
         # Get main pc from arguments
         code_addr = self.arg(2)
-        func_arg = self.arg(0)
+        func_arg = self.arg(3)
 
         # Create the new state as well
         new_state=self.state.copy()

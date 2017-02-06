@@ -745,16 +745,32 @@ def do_preprocess(defn):
     tf = tempfile.NamedTemporaryFile(delete=False)
     tf.write(defn)
     tf.close()
-    cmd1 = ['cl', tf.name, '-E']
-    cmd2 = ['cpp', tf.name]
-    for cmd in (cmd1, cmd2):
+
+    cpplist = ['cl', 'cpp']
+    cpp = os.getenv("CPP")
+    if cpp:
+        cpplist.insert(0, cpp)
+    errs = []
+    for cpp in cpplist:
+        cmd = [cpp, tf.name]
+        if cpp == 'cl':
+            cmd.append("-E")
         try:
-            defn, error = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
-            break
+            p = subprocess.Popen(cmd,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+            defn, error = p.communicate()
+            if p.returncode != 0 or error:
+                errs.append((" ".join(cmd), error))
+                continue
+            else:
+                break
         except OSError:
             continue
     else:
-        l.error("Unable to preprocess struct")
+        l.error("Unable to preprocess struct (tried running: {})"
+                .format(", ".join(e[0] for e in errs)))
+
     os.remove(tf.name)
 
     defn = '\n'.join(x for x in defn.replace('\r\n', '\n').split('\n') if not x.startswith('#line'))
