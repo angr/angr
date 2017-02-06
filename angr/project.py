@@ -10,7 +10,6 @@ from collections import defaultdict
 import cle
 import simuvex
 import archinfo
-from cle.backends import ELF, ELFCore, PE, BackedCGC, CGC
 l = logging.getLogger("angr.project")
 
 # This holds the default SimuVEX engine for a given CLE loader backend.
