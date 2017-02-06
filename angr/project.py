@@ -6,7 +6,7 @@ import os
 import types
 import logging
 import weakref
-
+from collections import defaultdict
 import cle
 import simuvex
 import archinfo
@@ -15,15 +15,13 @@ l = logging.getLogger("angr.project")
 
 # This holds the default SimuVEX engine for a given CLE loader backend.
 # All the builtins right now use SimEngineVEX.  This may not hold for long.
-default_engines = {ELF: simuvex.engines.SimEngineVEX,
-                   ELFCore: simuvex.engines.SimEngineVEX,
-                   CGC: simuvex.engines.SimEngineVEX,
-                   BackedCGC: simuvex.engines.SimEngineVEX,
-                   PE: SimEngineVEX
-                   }
 
 
-def register_default_engine(loader_backend, engine):
+def global_default(): return {'any': simuvex.engines.SimEngineVEX}
+default_engines = defaultdict(global_default)
+
+
+def register_default_engine(loader_backend, engine, arch='any'):
     """
     Register the default SimuVEX engine to be used with a given CLE backend.
     Usually this is the SimEngineVEX, but if you're operating on something that isn't
@@ -37,8 +35,22 @@ def register_default_engine(loader_backend, engine):
         raise TypeError("loader_backend must be a type")
     if not isinstance(engine, type):
         raise TypeError("engine must be a type")
-    default_engines[loader_backend] = engine
+    default_engines[loader_backend][arch] = engine
 
+
+def get_default_engine(loader_backend, arch='any'):
+    """
+    Get some sort of sane default for a given loader and/or arch.
+    Can be set with register_default_engine()
+    :param loader_backend:
+    :param arch:
+    :return:
+    """
+    matches = default_engines[loader_backend]
+    for k,v in matches.items():
+        if k == arch or k == 'any':
+            return v
+    return None
 
 projects = weakref.WeakValueDictionary()
 
@@ -177,9 +189,8 @@ class Project(object):
                 l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
 
         # Look up the default engine.
-        try:
-            engine_cls = default_engines(type(self.loader.main_bin))
-        except:
+        engine_cls = get_default_engine(type(self.loader.main_bin))
+        if not engine_cls:
             raise AngrError("No engine associated with loader %s" % str(type(self.loader.main_bin)))
         engine = engine_cls(
                 stop_points=self._sim_procedures,
@@ -195,7 +206,7 @@ class Project(object):
                 self,
                 engine,
                 procedure_engine,
-                [failure_engine, syscall_engine, procedure_engine, unicorn_engine, vex_engine])
+                [failure_engine, syscall_engine, procedure_engine, unicorn_engine, engine])
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
         self.kb = KnowledgeBase(self, self.loader.main_bin)

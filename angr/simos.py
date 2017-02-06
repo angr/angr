@@ -3,7 +3,7 @@ Manage OS-level configuration.
 """
 
 import logging
-
+from collections import defaultdict
 from archinfo import ArchARM, ArchMIPS32, ArchMIPS64, ArchX86, ArchAMD64, ArchPPC32, ArchPPC64, ArchAArch64
 from simuvex import SimState, SimStateSystem, SimActionData
 from simuvex import s_options as o, s_cc
@@ -1038,9 +1038,13 @@ class CallReturn(SimProcedure):
         l.info("A factory.call_state-created path returned!")
         return
 
-os_mapping = {
-    'unix': SimLinux,
-    'unknown': SimOS,
-    'windows': SimOS,
-    'cgc': SimCGC,
-}
+
+os_mapping = defaultdict(SimOS)
+
+
+def register_simos(name, cls):
+    os_mapping[name] = cls
+
+register_simos('unix', SimLinux)
+register_simos('windows', SimOS)
+register_simos('cgc', SimCGC)
