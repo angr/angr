@@ -11,8 +11,8 @@ class SimEngine(object):
     :ivar callable check_failed: A callback that is called after _check() returns False.
     """
 
-    def __init__(self, check_failed=None):
-        self._check_failed = check_failed
+    def __init__(self, **kwargs):
+        self._check_failed = kwargs.get('check_failed')
 
     def process(self, state, *args, **kwargs):
         """
