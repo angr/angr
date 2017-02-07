@@ -113,7 +113,7 @@ def test_explore_with_cfg():
     cfg = p.analyses.CFGAccurate()
 
     pg = p.factory.path_group()
-    pg.use_technique(angr.exploration_techniques.Explorer(find=0x4006ED, cfg=cfg, num_find=3))
+    pg.add_technique(angr.exploration_techniques.Explorer(find=0x4006ED, cfg=cfg, num_find=3))
     pg.run()
 
     nose.tools.assert_equal(len(pg.active), 0)

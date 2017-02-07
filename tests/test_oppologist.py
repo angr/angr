@@ -12,7 +12,7 @@ def _ultra_oppologist(p, s):
         simuvex.engines.vex.irop.operations['Iop_Add32'] = old_ops['Iop_Add32']
 
         pg = p.factory.path_group(s)
-        pg.use_technique(angr.exploration_techniques.Oppologist())
+        pg.add_technique(angr.exploration_techniques.Oppologist())
         pg.explore()
 
         return pg
@@ -43,7 +43,7 @@ def test_cromu_70():
 
     #import traceit
     pg = p.factory.path_group(s)
-    pg.use_technique(angr.exploration_techniques.Oppologist())
+    pg.add_technique(angr.exploration_techniques.Oppologist())
     pg.explore()
     assert pg.one_deadended.weighted_length > 1500
 
