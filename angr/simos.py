@@ -236,9 +236,12 @@ class SimOS(object):
 
             if syscall_number in syscall_table:
                 name, simproc_name = syscall_table[syscall_number]
-
-                if simproc_name in SimProcedures[syscall_lib]:
+                if isinstance(simproc_name, str) and simproc_name in SimProcedures[syscall_lib]:
+                    # They give us a string, do resolution
                     simproc = SimProcedures[syscall_lib][simproc_name]
+                elif isinstance(simproc_name, type):
+                    # If they give us the type, just take it
+                    simproc = simproc_name
                 else:
                     # no SimProcedure is implemented for this syscall
                     simproc = SimProcedures["syscalls"]["stub"]
