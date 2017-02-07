@@ -1039,7 +1039,7 @@ class CallReturn(SimProcedure):
         return
 
 
-os_mapping = defaultdict(SimOS)
+os_mapping = defaultdict(lambda: SimOS)
 
 
 def register_simos(name, cls):
