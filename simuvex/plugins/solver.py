@@ -237,8 +237,8 @@ class SimSolver(SimStatePlugin):
 
     def BVS(self, name, size, min=None, max=None, stride=None, uninitialized=False, explicit_name=None, **kwargs): #pylint:disable=redefined-builtin
         """
-        Creates a bit-vector symbol (i.e., a variable). Other **kwargs are passed directly on to the constructor of
-        claripy.ast.BV.
+        Creates a bit-vector symbol (i.e., a variable). Other keyword parameters are passed directly on to the
+        constructor of claripy.ast.BV.
 
         :param name:            The name of the symbol.
         :param size:            The size (in bits) of the bit-vector.
@@ -465,8 +465,8 @@ class SimSolver(SimStatePlugin):
         Evaluate an expression, using the solver if necessary. Returns an integer.
 
         :param e: the expression
-        :param **extra_constraints: extra constraints to apply to the solver
-        :param **exact: if False, returns approximate solutions
+        :param extra_constraints: extra constraints to apply to the solver
+        :param exact: if False, returns approximate solutions
         :return: a single integer solution, in the form of a Python primitive
         :rtype: int
         """
@@ -479,8 +479,8 @@ class SimSolver(SimStatePlugin):
         Evaluate an expression, using the solver if necessary. Returns a string.
 
         :param e: the expression
-        :param **extra_constraints: extra constraints to apply to the solver
-        :param **exact: if False, returns approximate solutions
+        :param extra_constraints: extra constraints to apply to the solver
+        :param exact: if False, returns approximate solutions
         :return: a single string solution, in the form of a Python primitive
         :rtype: string
         """

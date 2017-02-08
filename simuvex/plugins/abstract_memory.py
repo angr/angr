@@ -179,12 +179,13 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     This is an implementation of the abstract store in paper [TODO].
 
     Some differences:
-    # For stack variables, we map the absolute stack address to each region so
-      that we can effectively trace stack accesses. When tracing into a new
-      function, you should call set_stack_address_mapping() to create a new mapping.
-      When exiting from a function, you should cancel the previous mapping by
-      calling unset_stack_address_mapping().
-      Currently this is only used for stack!
+
+        - For stack variables, we map the absolute stack address to each region so
+          that we can effectively trace stack accesses. When tracing into a new
+          function, you should call set_stack_address_mapping() to create a new mapping.
+          When exiting from a function, you should cancel the previous mapping by
+          calling unset_stack_address_mapping().
+          Currently this is only used for stack!
     """
     def __init__(self, memory_backer=None, memory_id="mem", endness=None, stack_region_map=None,
                  generic_region_map=None):

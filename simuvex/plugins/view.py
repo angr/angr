@@ -78,6 +78,40 @@ class SimRegNameView(SimStatePlugin):
         return self.__getattr__(reg_name)
 
 class SimMemView(SimStatePlugin):
+    """
+    This is a convenient interface with which you can access a program's memory.
+
+    The interface works like this:
+
+        - You first use [array index notation] to specify the address you'd like to load from
+        - If at that address is a pointer, you may access the ``deref`` property to return a SimMemView at the
+          address present in memory.
+        - You then specify a type for the data by simply accesing a property of that name. For a list of supported
+          types, look at ``state.mem.types``.
+        - You can then *refine* the type. Any type may support any refinement it likes. Right now the only refinements
+          supported are that you may access any member of a struct by its member name, and you may index into a
+          string or array to access that element.
+        - If the address you specified initially points to an array of that type, you can say `.array(n)` to view the
+          data as an array of n elements.
+        - Finally, extract the structured data with ``.resolved`` or ``.concrete``. ``.resolved`` will return bitvector
+          values, while ``.concrete`` will return integer, string, array, etc values, whatever best represents the
+          data.
+        - Alternately, you may store a value to memory, by assigning to the chain of properties that you've
+          constructed. Note that because of the way python works, ``x = s.mem[...].prop; x = val`` will NOT work,
+          you must say ``s.mem[...].prop = val``.
+
+    For example:
+
+        >>> s.mem[0x601048].long
+        <long (64 bits) <BV64 0x4008d0> at 0x601048>
+        >>> s.mem[0x601048].long.resolved
+        <BV64 0x4008d0>
+        >>> s.mem[0x601048].deref
+        <<untyped> <unresolvable> at 0x4008d0>
+        >>> s.mem[0x601048].deref.string.concrete
+        'SOSNEAKY'
+    """
+
     def __init__(self, ty=None, addr=None, state=None):
         super(SimMemView, self).__init__()
         self._type = ty

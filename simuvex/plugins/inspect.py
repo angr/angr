@@ -178,7 +178,8 @@ from .plugin import SimStatePlugin
 
 class SimInspector(SimStatePlugin):
     """
-    SimInspector.
+    The breakpoint interface, used to instrument execution. For usage information, look here:
+    https://docs.angr.io/docs/simuvex.html#breakpoints
     """
     BP_AFTER = BP_AFTER
     BP_BEFORE = BP_BEFORE

@@ -7,11 +7,13 @@ class SimProcedureData(SimStatePlugin):
 
         self.hook_addr = 0
         self.callstack = []
+        self.global_variables = {}
 
     def copy(self):
         out = SimProcedureData()
         out.hook_addr = self.hook_addr
         out.callstack = list(self.callstack)
+        out.global_variables = dict(self.global_variables)
         return out
 
     def merge(self, others, merge_conditions, common_ancestor=None):

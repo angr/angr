@@ -7,12 +7,29 @@ class SimSuccessors(object):
     """
     This class serves as a categorization of all the kinds of result states that can come from a
     SimEngine run.
+
+    :ivar int addr:         The address at which execution is taking place, as a python int
+    :ivar initial_state:    The initial state for which execution produced these successors
+    :ivar engine:           The engine that produced these successors
+    :ivar sort:             A string identifying the type of engine that produced these successors
+    :ivar bool processed:   Whether or not the processing succeeded
+    :ivar str description:  A textual description of the execution step
+
+    The successor states produced by this run are categorized into several lists:
+
+    :ivar dict artifacts:   Any analysis byproducts (for example, an IRSB) that were produced during execution
+    :ivar successors:       The "normal" successors. IP may be symbolic, but must have reasonable number of solutions
+    :ivar unsat_successors: Any successor which is unsatisfiable after its guard condition is added.
+    :ivar all_successors:   successors + unsat_successors
+    :ivar flat_successors:  The normal successors, but any symbolic IPs have been concretized. There is one state in
+                            this list for each possible value an IP may be concretized to for each successor state.
+    :ivar unconstrained_successors:
+                            Any state for which during the flattening process we find too many solutions.
+
+    A more detailed description of the successor lists may be found here: https://docs.angr.io/docs/simuvex.html
     """
 
     def __init__(self, addr, initial_state):
-        """
-        :param addr:    The source address that produced the successors. Cosmetic.
-        """
         self.addr = addr
         self.initial_state = initial_state
 

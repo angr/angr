@@ -5,10 +5,7 @@ l = logging.getLogger('simuvex.engines.engine')
 
 class SimEngine(object):
     """
-    How to actually execute stuff.
-    Abstracts over VEX, Python (simprocedures), Unicorn, LLVM, and hopefully more in the future.
-
-    :ivar callable check_failed: A callback that is called after _check() returns False.
+    A SimEngine is a class which understands how to perform execution on a state. This is a base class.
     """
 
     def __init__(self, **kwargs):
@@ -17,6 +14,9 @@ class SimEngine(object):
     def process(self, state, *args, **kwargs):
         """
         Perform execution with a state.
+
+        You should only override this method in a subclass in order to provide the correct method signature and
+        docstring. You should override the ``_process`` method to do your actual execution.
 
         :param state:       The state with which to execute. This state will be copied before
                             modification.
@@ -48,6 +48,9 @@ class SimEngine(object):
         """
         Check if this engine can be used for execution on the current state. A callback `check_failure` is called upon
         failed checks. Note that the execution can still fail even if check() returns True.
+
+        You should only override this method in a subclass in order to provide the correct method signature and
+        docstring. You should override the ``_check`` method to do your actual execution.
 
         :param simuvex.SimState state: The state with which to execute.
         :param args:                   Positional arguments that will be passed to process().
