@@ -1042,11 +1042,12 @@ class CFGBase(Analysis):
 
         Although Function objects are crated during the CFG recovery, they are neither sound nor accurate. With a
         pre-constructed CFG, this method rebuilds all functions bearing the following rules:
-        - A block may only belong to one function.
-        - Small functions lying inside the startpoint and the endpoint of another function will be merged with the
-          other function
-        - Tail call optimizations are detected.
-        - PLT stubs are aligned by 16.
+
+            - A block may only belong to one function.
+            - Small functions lying inside the startpoint and the endpoint of another function will be merged with the
+              other function
+            - Tail call optimizations are detected.
+            - PLT stubs are aligned by 16.
 
         :return: None
         """

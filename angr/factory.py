@@ -53,8 +53,7 @@ class AngrObjectFactory(object):
         :param addr:            optional, an address to execute at instead of the state's ip
         :param jumpkind:        optional, the jumpkind of the previous exit
         :param inline:          This is an inline execution. Do not bother copying the state.
-        :param default_engine   Whether we should only attempt to use the default engine
-                                (usually VEX)
+        :param default_engine:  Whether we should only attempt to use the default engine (usually VEX)
         :param engines:         A list of engines to try to use, instead of the default.
 
         Additional keyword arguments will be passed directly into each engine's process method.
