@@ -210,6 +210,7 @@ class Project(object):
         # If it's blacklisted, don't process it
         # If it matches a simprocedure we have, replace it
         already_resolved = set()
+        pending_hooks = {}
         for obj in self.loader.all_objects:
             unresolved = []
             for reloc in obj.imports.itervalues():
@@ -229,7 +230,7 @@ class Project(object):
                         simfuncs = simuvex.procedures.SimProcedures[lib]
                         if func.name in simfuncs:
                             l.info("Providing %s from %s with SimProcedure", func.name, lib)
-                            self.hook_symbol(func.name, simfuncs[func.name])
+                            pending_hooks[func.name] = Hook(simfuncs[func.name])
                             already_resolved.add(func.name)
                             break
                     else: # we could not find a simprocedure for this function
@@ -251,8 +252,10 @@ class Project(object):
                 procedure = simuvex.SimProcedures['stubs']['NoReturnUnconstrained']
                 if func.name not in procedure.use_cases:
                     procedure = simuvex.SimProcedures['stubs']['ReturnUnconstrained']
-                self.hook_symbol(func.name, Hook(procedure, resolves=func.name))
+                pending_hooks[func.name] = Hook(procedure, resolves=func.name)
                 already_resolved.add(func.name)
+
+        self.hook_symbol_batch(pending_hooks)
 
     def _should_exclude_sim_procedure(self, f):
         """
@@ -420,6 +423,30 @@ class Project(object):
         self.loader.provide_symbol(self._extern_obj, symbol_name, pseudo_vaddr)
 
         return pseudo_addr
+
+    def hook_symbol_batch(self, hooks):
+        """
+        Hook many symbols at once.
+
+        :param dict provisions:     A mapping from symbol name to hook
+        """
+
+        provisions = {}
+
+        for name, obj in hooks.iteritems():
+            ident = self._symbol_name_to_ident(name, None)
+
+            pseudo_addr = self._simos.prepare_function_symbol(ident)
+            pseudo_vaddr = pseudo_addr - self._extern_obj.rebase_addr
+
+            if self.is_hooked(pseudo_addr):
+                l.warning("Re-hooking symbol " + name)
+                self.unhook(pseudo_addr)
+
+            self.hook(pseudo_addr, obj)
+            provisions[name] = (pseudo_vaddr, 0, None)
+
+        self.loader.provide_symbol_batch(self._extern_obj, provisions)
 
     #
     # Private methods related to hooking
