@@ -30,6 +30,20 @@ merge_counter = itertools.count()
 class SimState(ana.Storable): # pylint: disable=R0904
     """
     The SimState represents the state of a program, including its memory, registers, and so forth.
+
+    :ivar regs:         A convenient view of the state's registers, where each register is a property
+    :ivar mem:          A convenient view of the state's memory, a :class:`simuvex.plugins.view.SimMemView`
+    :ivar registers:    The state's register file as a flat memory region
+    :ivar memory:       The state's memory as a flat memory region
+    :ivar se:           The solver engine for this state
+    :ivar inspect:      The breakpoint manager, a :class:`simuvex.plugins.inspect.SimInspector`
+    :ivar log:          Information about the state's history
+    :ivar scratch:      Information about the current execution step
+    :ivar posix:        MISNOMER: information about the operating system or environment model
+    :ivar libc:         Information about the standard library we are emulating
+    :ivar cgc:          Information about the cgc environment
+    :ivar uc_manager:   Control of under-constrained symbolic execution
+    :ivar unicorn:      Control of the Unicorn Engine
     """
 
     def __init__(self, arch="AMD64", plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
@@ -137,6 +151,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def ip(self):
         """
         Get the instruction pointer expression, trigger SimInspect breakpoints, and generate SimActions.
+        Use ``_ip`` to not trigger breakpoints or generate actions.
 
         :return: an expression
         """
@@ -276,9 +291,18 @@ class SimState(ana.Storable): # pylint: disable=R0904
     # Constraint pass-throughs
     #
 
-    def simplify(self, *args): return self.se.simplify(*args)
+    def simplify(self, *args):
+        """
+        Simplify this state's constraints.
+        """
+        return self.se.simplify(*args)
 
     def add_constraints(self, *args, **kwargs):
+        """
+        Add some constraints to the state.
+
+        You may pass in any number of symbolic booleans as variadic positional arguments.
+        """
         if len(args) > 0 and isinstance(args[0], (list, tuple)):
             raise Exception("Tuple or list passed to add_constraints!")
 
@@ -355,6 +379,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
                     return
 
     def satisfiable(self, **kwargs):
+        """
+        Whether the state's constraints are satisfiable
+        """
         if o.ABSTRACT_SOLVER in self.options or o.SYMBOLIC not in self.options:
             extra_constraints = kwargs.pop('extra_constraints', ())
             for e in extra_constraints:
@@ -366,6 +393,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
             return self.se.satisfiable(**kwargs)
 
     def downsize(self):
+        """
+        Clean up after the solver engine. Calling this when a state no longer needs to be solved on will reduce memory
+        usage.
+        """
         if 'solver_engine' in self.plugins:
             self.se.downsize()
 
