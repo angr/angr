@@ -569,9 +569,9 @@ class Path(object):
 
     def merge(*all_paths, **kwargs): #pylint:disable=no-self-argument,no-method-argument
         """
-        Returns a merger of this path with `*others`.
+        Returns a merger of this path with all the paths provided as varargs.
 
-        :param *paths: the paths to merge
+        :param all_paths: the paths to merge (variadic positional args)
         :param common_history: a PathHistory node shared by all the paths. When this is provided, the
                                merging becomes more efficient, and actions and such are merged.
         :returns: the merged Path

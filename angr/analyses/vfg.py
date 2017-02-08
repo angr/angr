@@ -225,13 +225,14 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
     the beginning (or the end) of each basic block.
 
     Steps:
-    # Generate a CFG first if CFG is not provided.
-    # Identify all merge points (denote the set of merge points as Pw) in the CFG.
-    # Cut those loop back edges (can be derived from Pw) so that we gain an acyclic CFG.
-    # Identify all variables that are 1) from memory loading 2) from initial values, or 3) phi functions. Denote
-        the set of those variables as S_{var}.
-    # Start real AI analysis and try to compute a fix point of each merge point. Perform widening/narrowing only on
-        variables \\in S_{var}.
+
+        - Generate a CFG first if CFG is not provided.
+        - Identify all merge points (denote the set of merge points as Pw) in the CFG.
+        - Cut those loop back edges (can be derived from Pw) so that we gain an acyclic CFG.
+        - Identify all variables that are 1) from memory loading 2) from initial values, or 3) phi functions. Denote
+            the set of those variables as S_{var}.
+        - Start real AI analysis and try to compute a fix point of each merge point. Perform widening/narrowing only on
+            variables \\in S_{var}.
     """
 
     # TODO: right now the graph traversal method is not optimal. A new solution is needed to minimize the iteration we

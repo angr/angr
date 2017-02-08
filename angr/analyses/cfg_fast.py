@@ -572,14 +572,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     is followed:
 
     # Active scanning
-    - If the binary has "function symbols" (TODO: this term is not accurate enough), they are starting points of
-        the code scanning
-    - If the binary does not have any "function symbol", we will first perform a function prologue scanning on the
-        entire binary, and start from those places that look like function beginnings
-    - Otherwise, the binary's entry point will be the starting point for scanning
+
+        - If the binary has "function symbols" (TODO: this term is not accurate enough), they are starting points of
+            the code scanning
+        - If the binary does not have any "function symbol", we will first perform a function prologue scanning on the
+            entire binary, and start from those places that look like function beginnings
+        - Otherwise, the binary's entry point will be the starting point for scanning
 
     # Passive scanning
-    - After all active scans are done, we will go through the whole image and scan all code pieces
+
+        - After all active scans are done, we will go through the whole image and scan all code pieces
 
     Due to the nature of those techniques that are used here, a base address is often not required to use this analysis
     routine. However, with a correct base address, CFG recovery will almost always yield a much better result. A custom
