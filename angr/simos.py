@@ -986,7 +986,8 @@ class LinuxLoader(SimProcedure):
             project._simos.set_entry_register_values(self.state)
             self.jump(project.entry)
         else:
-            addr = self.initializers.pop(0)
+            addr = self.initializers[0]
+            self.initializers = self.initializers[1:]
             self.call(addr, (self.state.posix.argc, self.state.posix.argv, self.state.posix.environ), 'run_initializer')
 
 class _tls_get_addr(SimProcedure):
