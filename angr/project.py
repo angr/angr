@@ -501,14 +501,16 @@ class Hook(object):
     This class is a bit of a hack to deal with the fact that SimProcedures need to hold state but
     having them do so makes them not thread-safe.
     """
-    def __init__(self, procedure, **kwargs):
+    def __init__(self, procedure, cc=None, **kwargs):
         """
         :param procedure:   The class of the procedure to use
+        :param cc:          The calling convention to use
         :param kwargs:      Any additional keyword arguments will be eventually passed to the
                             `run` method of the procedure on its execution, via the `sim_kwargs`
                             SimProcedure constructor parameter.
         """
         self.procedure = procedure
+        self.cc = cc
         self.kwargs = kwargs
         self.is_continuation = False
         self._continuation_addr = None
@@ -517,6 +519,7 @@ class Hook(object):
         kwargs['sim_kwargs'] = self.kwargs
         kwargs['is_continuation'] = self.is_continuation
         kwargs['continuation_addr'] = self._continuation_addr
+        if self.cc: kwargs['cc'] = self.cc
         return self.procedure(*args, **kwargs)
     instantiate.__doc__ = simuvex.s_procedure.SimProcedure.__init__.__doc__
 
