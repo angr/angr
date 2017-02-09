@@ -289,6 +289,14 @@ class AngrObjectFactory(object):
                                   sp_delta=sp_delta,
                                   func_ty=func_ty)
 
+    def cc_from_arg_kinds(self, fp_args, ret_fp=None, sizes=None, sp_delta=None, func_ty=None):
+        return self._default_cc.from_arg_kinds(arch=self._project.arch,
+                fp_args=fp_args,
+                ret_fp=ret_fp,
+                sizes=sizes,
+                sp_delta=sp_delta,
+                func_ty=func_ty)
+
     def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
               opt_level=None, num_inst=None,
               insn_bytes=None  # backward compatibility
