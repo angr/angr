@@ -54,14 +54,19 @@ class memset(simuvex.SimProcedure):
         else:
             max_size = self.state.se.any_int(num)
             if max_size == 0:
-                return 0
+                return dst_addr
 
-            # Concatenating many bytes is slow, so some sort of optimization is required
-            if char._model_concrete.value == 0:
-                write_bytes = self.state.se.BVV(0, max_size * 8)
+            if self.state.se.symbolic(char):
+                l.debug("symbolic char")
+                write_bytes = self.state.se.Concat(*([char] * max_size))
             else:
-                rb = memset._repeat_bytes(char._model_concrete.value, max_size)
-                write_bytes = self.state.se.BVV(rb, max_size * 8)
+                # Concatenating many bytes is slow, so some sort of optimization is required
+                if char._model_concrete.value == 0:
+                    write_bytes = self.state.se.BVV(0, max_size * 8)
+                else:
+                    rb = memset._repeat_bytes(char._model_concrete.value, max_size)
+                    write_bytes = self.state.se.BVV(rb, max_size * 8)
+
             self.state.memory.store(dst_addr, write_bytes)
 
             l.debug("memset writing %d bytes", max_size)
