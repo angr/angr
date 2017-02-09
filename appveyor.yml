@@ -13,6 +13,6 @@ install:
 test_script:
 - cmd: |
     cd \angr-dev
-    appveyor_test.bat angr
+    tests\appveyor_test.bat angr
 
 build: off
