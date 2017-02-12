@@ -8,6 +8,9 @@ import itertools
 import pkg_resources
 
 import logging
+
+from ..s_options import UNICORN_HANDLE_TRANSMIT_SYSCALL
+
 l = logging.getLogger('simuvex.plugins.unicorn')
 
 try:
@@ -832,7 +835,7 @@ class Unicorn(SimStatePlugin):
         self.set_regs()
         # tricky: using unicorn handle form unicorn.Uc object
         self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key)
-        if self.state.has_plugin('cgc'):
+        if UNICORN_HANDLE_TRANSMIT_SYSCALL in self.state.options and self.state.has_plugin('cgc'):
             if self.transmit_addr is None:
                 l.error("You haven't set the address for concrete transmits!!!!!!!!!!!")
                 self.transmit_addr = 0
