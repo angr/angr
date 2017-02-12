@@ -27,13 +27,13 @@ class calloc(simuvex.SimProcedure):
         else:
             size = self.state.se.any_int(sim_size)
 
-        final_size = size * nmemb * 8
+        final_size = size * nmemb
         if final_size > plugin.max_variable_size:
             final_size = plugin.max_variable_size
 
         addr = plugin.heap_location
         plugin.heap_location += final_size
-        v = self.state.se.BVV(0, final_size)
+        v = self.state.se.BVV(0, final_size * 8)
         self.state.memory.store(addr, v)
 
         return addr
