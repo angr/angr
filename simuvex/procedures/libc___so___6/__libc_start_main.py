@@ -17,7 +17,7 @@ class __libc_start_main(simuvex.SimProcedure):
     IS_FUNCTION = True
     local_vars = ('main', 'argc', 'argv', 'init', 'fini')
 
-    def _initialize_ctype_table(self):
+    def _initialize_b_loc_table(self):
         """
         Initialize ptable for ctype
 
@@ -35,7 +35,53 @@ class __libc_start_main(simuvex.SimProcedure):
                                 endness=self.state.arch.memory_endness
                                 )
 
-        self.state.libc.ctype_table_ptr = table_ptr
+        self.state.libc.ctype_b_loc_table_ptr = table_ptr
+
+    def _initialize_tolower_loc_table(self):
+        """
+        Initialize ptable for ctype
+
+        See __ctype_tolower_loc.c in libc implementation
+        """
+        malloc = simuvex.SimProcedures['libc.so.6']['malloc']
+        table = self.inline_call(malloc, 384).ret_expr
+        table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
+
+        for pos, c in enumerate(self.state.libc.TOLOWER_LOC_ARRAY):
+            self.state.memory.store(table + pos, self.state.se.BVV(c, 8))
+        self.state.memory.store(table_ptr,
+                                table,
+                                size=self.state.arch.bits / 8,
+                                endness=self.state.arch.memory_endness
+                                )
+
+        self.state.libc.ctype_tolower_loc_table_ptr = table_ptr
+
+    def _initialize_toupper_loc_table(self):
+        """
+        Initialize ptable for ctype
+
+        See __ctype_toupper_loc.c in libc implementation
+        """
+        malloc = simuvex.SimProcedures['libc.so.6']['malloc']
+        table = self.inline_call(malloc, 384).ret_expr
+        table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
+
+        for pos, c in enumerate(self.state.libc.TOUPPER_LOC_ARRAY):
+            self.state.memory.store(table + pos, self.state.se.BVV(c, 8))
+        self.state.memory.store(table_ptr,
+                                table,
+                                size=self.state.arch.bits / 8,
+                                endness=self.state.arch.memory_endness
+                                )
+
+        self.state.libc.ctype_toupper_loc_table_ptr = table_ptr
+
+    def _initialize_ctype_table(self):
+        self._initialize_b_loc_table()
+        self._initialize_tolower_loc_table()
+        self._initialize_toupper_loc_table()
+
 
     @property
     def envp(self):
