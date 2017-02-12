@@ -964,6 +964,7 @@ class Tracer(object):
             try:
                 options.add(so.UNICORN)
                 options.add(so.UNICORN_SYM_REGS_SUPPORT)
+                options.add(so.UNICORN_HANDLE_TRANSMIT_SYSCALL)
                 self.unicorn_enabled = True
                 l.debug("unicorn tracing enabled")
             except AttributeError:
@@ -1067,6 +1068,7 @@ class Tracer(object):
         options.add(so.BYPASS_UNSUPPORTED_SYSCALL)
         options.add(so.REPLACEMENT_SOLVER)
         options.add(so.UNICORN)
+        options.add(so.UNICORN_HANDLE_TRANSMIT_SYSCALL)
         if self.crash_mode:
             options.add(so.TRACK_ACTION_HISTORY)
 
