@@ -186,6 +186,10 @@ class PathGroup(ana.Storable):
         :returns:               A tuple of lists: successors, unconstrained, unsat, pruned, errored.
         """
 
+        # we keep a strong reference here since the hierarchy handles trimming it
+        if self._hierarchy:
+            kwargs["strong_reference"] = True
+
         for hook in self._hooks_step_path:
             out = hook(a, **kwargs)
             if out is not None:
