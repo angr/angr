@@ -2,18 +2,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// gcc ctype_toupper_loc.c -o ../bin/ctype_toupper_loc.run
+
 int main(int argc, char *argv[]) {
     const int ** upper_loc = __ctype_toupper_loc();
 
     for(int i = -128; i < 256; i++) {
-        if (i == -1)
-            // Special case where it normally outputs 0xffffffff
-            // but this won't pass our testing because we want to try
-            // to lessen the amoutn of space allocated by only
-            // using 1-byte values
-            printf("-1->0xff\n");
-        else
-            printf("%d->0x%x\n", i, (*upper_loc)[i]);
+        printf("%d->0x%x\n", i, (*upper_loc)[i]);
     }
 
     return 0;

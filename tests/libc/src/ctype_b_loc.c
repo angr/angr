@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// gcc ctype_b_loc.c -o ../bin/ctype_b_loc.run
+
 int main(int argc, char *argv[]) {
     const unsigned short int ** b_loc = __ctype_b_loc();
 

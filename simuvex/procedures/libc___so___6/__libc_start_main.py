@@ -29,7 +29,9 @@ class __libc_start_main(simuvex.SimProcedure):
 
         for pos, c in enumerate(self.state.libc.LOCALE_ARRAY):
             # Each entry is 2 bytes
-            self.state.memory.store(table + (pos*2), self.state.se.BVV(c, 16))
+            self.state.memory.store(table + (pos*2),
+                                    self.state.se.BVV(c, 16),
+                                    endness=self.state.arch.memory_endness)
         # Offset for negative chars
         # 256 because 2 bytes each, -128 * 2
         table += 256
@@ -48,14 +50,17 @@ class __libc_start_main(simuvex.SimProcedure):
         See __ctype_tolower_loc.c in libc implementation
         """
         malloc = simuvex.SimProcedures['libc.so.6']['malloc']
-        table = self.inline_call(malloc, 384).ret_expr
+        # 384 entries, 4 bytes each
+        table = self.inline_call(malloc, 384*4).ret_expr
         table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
 
         for pos, c in enumerate(self.state.libc.TOLOWER_LOC_ARRAY):
-            self.state.memory.store(table + pos, self.state.se.BVV(c, 8))
+            self.state.memory.store(table + (pos * 4),
+                                    self.state.se.BVV(c, 32),
+                                    endness=self.state.arch.memory_endness)
 
-        # Offset for negative chars: -128
-        table += 128
+        # Offset for negative chars: -128 index (4 bytes per index)
+        table += (128 * 4)
         self.state.memory.store(table_ptr,
                                 table,
                                 size=self.state.arch.bits / 8,
@@ -71,14 +76,17 @@ class __libc_start_main(simuvex.SimProcedure):
         See __ctype_toupper_loc.c in libc implementation
         """
         malloc = simuvex.SimProcedures['libc.so.6']['malloc']
-        table = self.inline_call(malloc, 384).ret_expr
+        # 384 entries, 4 bytes each
+        table = self.inline_call(malloc, 384*4).ret_expr
         table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
 
         for pos, c in enumerate(self.state.libc.TOUPPER_LOC_ARRAY):
-            self.state.memory.store(table + pos, self.state.se.BVV(c, 8))
+            self.state.memory.store(table + (pos * 4),
+                                    self.state.se.BVV(c, 32),
+                                    endness=self.state.arch.memory_endness)
 
-        # Offset for negative chars: -128
-        table += 128
+        # Offset for negative chars: -128 index (4 bytes per index)
+        table += (128 * 4)
         self.state.memory.store(table_ptr,
                                 table,
                                 size=self.state.arch.bits / 8,

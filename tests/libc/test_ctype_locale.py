@@ -15,17 +15,6 @@ ctype_b_loc = lambda state, arguments: simuvex.SimProcedures['libc.so.6']['__cty
 ctype_tolower_loc = lambda state, arguments: simuvex.SimProcedures['libc.so.6']['__ctype_tolower_loc'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
 ctype_toupper_loc = lambda state, arguments: simuvex.SimProcedures['libc.so.6']['__ctype_toupper_loc'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
 
-# Just load a binary so that we can do the initialization steps from
-# libc_start_main
-file_path = os.path.dirname(os.path.abspath(__file__))
-t_path = os.path.join(file_path, 'bin/ctype_b_loc.run')
-b = angr.Project(t_path)
-p = b.factory.full_init_state()
-pg = b.factory.path_group(p)
-
-# Find main located at 0x400596 to let libc_start_main do its thing
-main = pg.explore(find=0x400596)
-
 
 def test_ctype_b_loc():
     '''
@@ -45,6 +34,17 @@ def test_ctype_b_loc():
     This interface is not in the source standard; it is only in the binary
     standard.
     '''
+    # Just load a binary so that we can do the initialization steps from
+    # libc_start_main
+    file_path = os.path.dirname(os.path.abspath(__file__))
+    t_path = os.path.join(file_path, 'bin/ctype_b_loc.run')
+
+    b = angr.Project(t_path)
+    p = b.factory.full_init_state()
+    pg = b.factory.path_group(p)
+
+    # Find main located at 0x400596 to let libc_start_main do its thing
+    main = pg.explore(find=0x400596)
 
     state = main.found[0].state
     b_loc_array_ptr = ctype_b_loc(state, []).ret_expr
@@ -55,7 +55,7 @@ def test_ctype_b_loc():
         # Each entry is 2 bytes
         result += "%d->0x%x\n" % (i, state.se.any_int(state.memory.load(table_ptr + (i*2),
                                                                         2,
-                                                                        endness=state.arch.memory_endness)))
+                                                                        endness='Iend_BE')))
 
     # Check output of compiled C program that uses ctype_b_loc()
 
@@ -85,6 +85,17 @@ def test_ctype_tolower_loc():
     The __ctype_tolower_loc() function shall return a pointer to the array of
     characters to be used for the ctype() family of functions (see <ctype.h>).
     '''
+    # Just load a binary so that we can do the initialization steps from
+    # libc_start_main
+    file_path = os.path.dirname(os.path.abspath(__file__))
+    t_path = os.path.join(file_path, 'bin/ctype_b_loc.run')
+
+    b = angr.Project(t_path)
+    p = b.factory.full_init_state()
+    pg = b.factory.path_group(p)
+
+    # Find main located at 0x400596 to let libc_start_main do its thing
+    main = pg.explore(find=0x400596)
 
     state = main.found[0].state
     tolower_loc_array_ptr = ctype_tolower_loc(state, []).ret_expr
@@ -92,8 +103,8 @@ def test_ctype_tolower_loc():
 
     result = ''
     for i in range(-128, 256):
-        result += "%d->0x%x\n" % (i, state.se.any_int(state.memory.load(table_ptr + i,
-                                                                        1,
+        result += "%d->0x%x\n" % (i, state.se.any_int(state.memory.load(table_ptr + (i*4),
+                                                                        4,
                                                                         endness=state.arch.memory_endness)))
 
     # Check output of compiled C program that uses ctype_tolower_loc()
@@ -123,6 +134,17 @@ def test_ctype_toupper_loc():
     The __ctype_toupper_loc() function shall return a pointer to the array of
     characters to be used for the ctype() family of functions (see <ctype.h>).
     '''
+    # Just load a binary so that we can do the initialization steps from
+    # libc_start_main
+    file_path = os.path.dirname(os.path.abspath(__file__))
+    t_path = os.path.join(file_path, 'bin/ctype_b_loc.run')
+
+    b = angr.Project(t_path)
+    p = b.factory.full_init_state()
+    pg = b.factory.path_group(p)
+
+    # Find main located at 0x400596 to let libc_start_main do its thing
+    main = pg.explore(find=0x400596)
 
     state = main.found[0].state
     toupper_loc_array_ptr = ctype_toupper_loc(state, []).ret_expr
@@ -130,8 +152,8 @@ def test_ctype_toupper_loc():
 
     result = ''
     for i in range(-128, 256):
-        result += "%d->0x%x\n" % (i, state.se.any_int(state.memory.load(table_ptr + i,
-                                                                        1,
+        result += "%d->0x%x\n" % (i, state.se.any_int(state.memory.load(table_ptr + (i*4),
+                                                                        4,
                                                                         endness=state.arch.memory_endness)))
 
     # Check output of compiled C program that uses ctype_toupper_loc()
