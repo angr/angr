@@ -24,11 +24,15 @@ class __libc_start_main(simuvex.SimProcedure):
         See __ctype_b_loc.c in libc implementation
         """
         malloc = simuvex.SimProcedures['libc.so.6']['malloc']
-        table = self.inline_call(malloc, 384).ret_expr
+        table = self.inline_call(malloc, 768).ret_expr
         table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
 
         for pos, c in enumerate(self.state.libc.LOCALE_ARRAY):
-            self.state.memory.store(table + pos, self.state.se.BVV(c, 8))
+            # Each entry is 2 bytes
+            self.state.memory.store(table + (pos*2), self.state.se.BVV(c, 16))
+        # Offset for negative chars
+        # 256 because 2 bytes each, -128 * 2
+        table += 256
         self.state.memory.store(table_ptr,
                                 table,
                                 size=self.state.arch.bits / 8,
@@ -49,6 +53,9 @@ class __libc_start_main(simuvex.SimProcedure):
 
         for pos, c in enumerate(self.state.libc.TOLOWER_LOC_ARRAY):
             self.state.memory.store(table + pos, self.state.se.BVV(c, 8))
+
+        # Offset for negative chars: -128
+        table += 128
         self.state.memory.store(table_ptr,
                                 table,
                                 size=self.state.arch.bits / 8,
@@ -69,6 +76,9 @@ class __libc_start_main(simuvex.SimProcedure):
 
         for pos, c in enumerate(self.state.libc.TOUPPER_LOC_ARRAY):
             self.state.memory.store(table + pos, self.state.se.BVV(c, 8))
+
+        # Offset for negative chars: -128
+        table += 128
         self.state.memory.store(table_ptr,
                                 table,
                                 size=self.state.arch.bits / 8,
