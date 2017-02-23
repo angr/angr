@@ -211,8 +211,9 @@ class Project(object):
         # If it matches a simprocedure we have, replace it
         already_resolved = set()
         pending_hooks = {}
+        unresolved = set()
+
         for obj in self.loader.all_objects:
-            unresolved = []
             for reloc in obj.imports.itervalues():
                 func = reloc.symbol
                 if func.name in already_resolved:
@@ -220,7 +221,7 @@ class Project(object):
                 if not func.is_function:
                     continue
                 elif func.name in self._ignore_functions:
-                    unresolved.append(func)
+                    unresolved.add(func)
                     continue
                 elif self._should_exclude_sim_procedure(func.name):
                     continue
@@ -235,25 +236,29 @@ class Project(object):
                             break
                     else: # we could not find a simprocedure for this function
                         if not func.resolved:   # the loader couldn't find one either
-                            unresolved.append(func)
+                            unresolved.add(func)
+                        else:
+                            # mark it as resolved
+                            already_resolved.add(func.name)
                 # in the case that simprocedures are off and an object in the PLT goes
-                # unresolved, we still want to replace it with a retunconstrained.
+                # unresolved, we still want to replace it with a ReturnUnconstrained.
                 elif not func.resolved and func.name in obj.jmprel:
-                    unresolved.append(func)
+                    unresolved.add(func)
 
-            # Step 3: Stub out unresolved symbols
-            # This is in the form of a SimProcedure that either doesn't return
-            # or returns an unconstrained value
-            for func in unresolved:
-                # Don't touch weakly bound symbols, they are allowed to go unresolved
-                if func.is_weak:
-                    continue
-                l.info("[U] %s", func.name)
-                procedure = simuvex.SimProcedures['stubs']['NoReturnUnconstrained']
-                if func.name not in procedure.use_cases:
-                    procedure = simuvex.SimProcedures['stubs']['ReturnUnconstrained']
-                pending_hooks[func.name] = Hook(procedure, resolves=func.name)
-                already_resolved.add(func.name)
+        # Step 3: Stub out unresolved symbols
+        # This is in the form of a SimProcedure that either doesn't return
+        # or returns an unconstrained value
+        for func in unresolved:
+            if func.name in already_resolved:
+                continue
+            # Don't touch weakly bound symbols, they are allowed to go unresolved
+            if func.is_weak:
+                continue
+            l.info("[U] %s", func.name)
+            procedure = simuvex.SimProcedures['stubs']['NoReturnUnconstrained']
+            if func.name not in procedure.use_cases:
+                procedure = simuvex.SimProcedures['stubs']['ReturnUnconstrained']
+            self.hook_symbol(func.name, Hook(procedure, resolves=func.name))
 
         self.hook_symbol_batch(pending_hooks)
 
