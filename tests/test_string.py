@@ -897,12 +897,58 @@ def test_scanf():
     scanf(s, arguments=[0x2000, 0x1000])
     assert s.se.any_n_str(s.memory.load(0x1000, 2), 2) == [ "H\x00" ]
 
+def test_strcmp():
+    l.info("concrete a, concrete b")
+    s = SimState(arch="AMD64", mode="symbolic")
+    a_addr = s.se.BVV(0x10, 64)
+    b_addr = s.se.BVV(0xb0, 64)
+
+    s.memory.store(a_addr, "heck\x00")
+    s.memory.store(b_addr, "heck\x00")
+
+    r = strcmp(s, arguments=[a_addr, b_addr]).ret_expr
+    nose.tools.assert_equal(s.se.any_n_int(r, 2), [0])
+
+    l.info("concrete a, empty b")
+    s = SimState(arch="AMD64", mode="symbolic")
+    a_addr = s.se.BVV(0x10, 64)
+    b_addr = s.se.BVV(0xb0, 64)
+
+    s.memory.store(a_addr, "heck\x00")
+    s.memory.store(b_addr, "\x00")
+
+    r = strcmp(s, arguments=[a_addr, b_addr]).ret_expr
+    nose.tools.assert_equal(s.se.any_n_int(r, 2), [1])
+
+    l.info("empty a, concrete b")
+    s = SimState(arch="AMD64", mode="symbolic")
+    a_addr = s.se.BVV(0x10, 64)
+    b_addr = s.se.BVV(0xb0, 64)
+
+    s.memory.store(a_addr, "\x00")
+    s.memory.store(b_addr, "heck\x00")
+
+    r = strcmp(s, arguments=[a_addr, b_addr]).ret_expr
+    nose.tools.assert_equal(s.se.any_n_int(r, 2), [0xffffffffffffffff])
+
+    l.info("empty a, empty b")
+    s = SimState(arch="AMD64", mode="symbolic")
+    a_addr = s.se.BVV(0x10, 64)
+    b_addr = s.se.BVV(0xb0, 64)
+
+    s.memory.store(a_addr, "\x00")
+    s.memory.store(b_addr, "\x00")
+
+    r = strcmp(s, arguments=[a_addr, b_addr]).ret_expr
+    nose.tools.assert_equal(s.se.any_n_int(r, 2), [0])
+
 
 if __name__ == '__main__':
     test_scanf()
     test_getc()
     test_fgetc()
     test_getchar()
+    test_strcmp()
     test_inline_strcmp()
     test_inline_strlen()
     test_inline_strncmp()

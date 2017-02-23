@@ -51,8 +51,24 @@ class strncmp(simuvex.SimProcedure):
             match_constraints.append(self.state.se.Or(a_len == b_len, self.state.se.And(self.state.se.UGE(a_len, limit), self.state.se.UGE(b_len, limit))))
 
         if maxlen == 0:
-            l.debug("returning equal for 0-length maximum strings")
-            return self.state.se.BVV(0, self.state.arch.bits, variables=variables)
+            # there is a corner case: if a or b are not both empty string, and limit is greater than 0, we should return
+            # non-equal. Basically we only return equal when limit is 0, or a_len == b_len == 0
+            if self.state.se.single_valued(limit) and self.state.se.any_int(limit) == 0:
+                # limit is 0
+                l.debug("returning equal for 0-limit")
+                return self.state.se.BVV(0, self.state.arch.bits, variables=variables)
+            elif self.state.se.single_valued(a_len) and self.state.se.single_valued(b_len) and \
+                    self.state.se.any_int(a_len) == self.state.se.any_int(b_len) == 0:
+                # two empty strings
+                l.debug("returning equal for two empty strings")
+                return self.state.se.BVV(0, self.state.arch.bits, variables=variables)
+            else:
+                # all other cases fall into this branch
+                l.debug("returning non-equal for comparison of an empty string and a non-empty string")
+                if a_strlen.max_null_index == 0:
+                    return self.state.se.BVV(-1, self.state.arch.bits, variables=variables)
+                else:
+                    return self.state.se.BVV(1, self.state.arch.bits, variables=variables)
 
         # the bytes
         a_bytes = self.state.memory.load(a_addr, maxlen, endness='Iend_BE')
