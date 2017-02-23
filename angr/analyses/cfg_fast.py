@@ -6,8 +6,6 @@ import struct
 import itertools
 from collections import defaultdict
 
-import cffi
-
 import claripy
 import simuvex
 import pyvex
@@ -722,8 +720,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._function_exits = None
 
         self._graph = None
-
-        self._ffi = cffi.FFI()
 
         # Start working!
         self._analyze()

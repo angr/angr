@@ -1,5 +1,7 @@
 
 import logging
+import struct
+import cffi
 from collections import defaultdict
 
 import networkx
@@ -101,6 +103,8 @@ class CFGBase(Analysis):
         # TODO: A segment tree to speed up CFG node lookups
         self._node_lookup_index = None
         self._node_lookup_index_warned = False
+
+        self._ffi = cffi.FFI()
 
     def __contains__(self, cfg_node):
         return cfg_node in self._graph
@@ -660,6 +664,34 @@ class CFGBase(Analysis):
 
         except KeyError:
             return None
+
+    def _fast_memory_load_pointer(self, addr):
+        """
+        Perform a fast memory loading of a pointer.
+
+        :param int addr: Address to read from.
+        :return:         A pointer.
+        :rtype:          int
+        """
+
+        pointer_size = self.project.arch.bits / 8
+        buf = self._fast_memory_load(addr)
+
+        if self.project.arch.memory_endness == 'Iend_LE':
+            fmt = "<"
+        else:
+            fmt = ">"
+        if pointer_size == 8:
+            fmt += "Q"
+        elif pointer_size == 4:
+            fmt += "I"
+        else:
+            raise AngrCFGError("Pointer size of %d is not supported", pointer_size)
+
+        ptr_str = self._ffi.unpack(self._ffi.cast('char*', buf), pointer_size)
+        ptr = struct.unpack(fmt, ptr_str)[0]  # type:int
+
+        return ptr
 
     #
     # Analyze function features
