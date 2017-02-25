@@ -1270,7 +1270,7 @@ class CFGBase(Analysis):
 
                     last_addr = b.addr + b.artifacts['irsb_size']
 
-                except (simuvex.SimTranslationError, simuvex.SimMemoryError, simuvex.SimIRSBError):
+                except (simuvex.SimTranslationError, simuvex.SimMemoryError, simuvex.SimIRSBError, simuvex.SimEngineError):
                     break
 
             # find all functions that are between [ startpoint, endpoint ]
