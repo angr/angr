@@ -13,7 +13,7 @@ class DataGraphMeta(object):
         """
         We expect a VSA state here.
         """
-        return self._p.factory.sim_run(in_state)
+        return self._p.factory.successors(in_state)
 
     def _vfg_node(self, addr):
         """

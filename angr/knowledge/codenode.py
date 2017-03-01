@@ -95,4 +95,4 @@ class HookNode(CodeNode):
     def __setstate__(self, dat):
         self.__init__(*dat)
 
-from ..lifter import Block
+from ..block import Block

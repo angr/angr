@@ -6,22 +6,22 @@ import struct
 import itertools
 from collections import defaultdict
 
-import cffi
-
 import claripy
 import simuvex
 import pyvex
+from simuvex.s_errors import SimEngineError, SimMemoryError, SimTranslationError
 
 from ..blade import Blade
 from ..analysis import register_analysis
 from ..surveyors import Slicecutor
 from ..annocfg import AnnotatedCFG
-from ..errors import AngrTranslationError, AngrMemoryError, AngrCFGError
+from ..errors import AngrCFGError
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase, IndirectJump
 from .forward_analysis import ForwardAnalysis
 from .cfg_arch_options import CFGArchOptions
-from ..lifter import VEX_IRSB_MAX_SIZE
+
+VEX_IRSB_MAX_SIZE = 400
 
 l = logging.getLogger("angr.analyses.cfg_fast")
 
@@ -50,9 +50,21 @@ class Segment(object):
 
     @property
     def size(self):
+        """
+        Calculate the size of the Segment.
+
+        :return: Size of the Segment.
+        :rtype: int
+        """
         return self.end - self.start
 
     def copy(self):
+        """
+        Make a copy of the Segment.
+
+        :return: A copy of the Segment instance.
+        :rtype: angr.analyses.cfg_fast.Segment
+        """
         return Segment(self.start, self.end, self.sort)
 
 class SegmentList(object):
@@ -263,6 +275,12 @@ class SegmentList(object):
         return merged, new_pos, bytes_changed
 
     def _dbg_output(self):
+        """
+        Returns a string representation of the segments that form this SegmentList
+
+        :return: String representation of contents
+        :rtype: str
+        """
         s = "["
         lst = []
         for segment in self._list:
@@ -272,6 +290,11 @@ class SegmentList(object):
         return s
 
     def _debug_check(self):
+        """
+        Iterates over list checking segments with same sort do not overlap
+
+        :raise: Exception: if segments overlap space with same sort
+        """
         # old_start = 0
         old_end = 0
         old_sort = ""
@@ -372,6 +395,12 @@ class SegmentList(object):
         # self._debug_check()
 
     def copy(self):
+        """
+        Make a copy of the SegmentList.
+
+        :return: A copy of the SegmentList instance.
+        :rtype: angr.analyses.cfg_fast.SegmentList
+        """
         n = SegmentList()
 
         n._list = [ a.copy() for a in self._list ]
@@ -403,6 +432,10 @@ class SegmentList(object):
 
 
 class FunctionReturn(object):
+    """
+    FunctionReturn describes a function call in a specific location and its return location. Hashable and equatable
+    """
+
     def __init__(self, callee_func_addr, caller_func_addr, call_site_addr, return_to):
         self.callee_func_addr = callee_func_addr
         self.caller_func_addr = caller_func_addr
@@ -426,6 +459,10 @@ class FunctionReturn(object):
 
 
 class MemoryData(object):
+    """
+    MemoryData describes the syntactic contents of single address of memory along with a set of references to this
+    address (when not from previous instruction).
+    """
     def __init__(self, address, size, sort, irsb, irsb_addr, stmt, stmt_idx, pointer_addr=None, max_size=None,
                  insn_addr=None):
         self.address = address
@@ -453,6 +490,12 @@ class MemoryData(object):
                                    )
 
     def copy(self):
+        """
+        Make a copy of the MemoryData.
+
+        :return: A copy of the MemoryData instance.
+        :rtype: angr.analyses.cfg_fast.MemoryData
+        """
         s = MemoryData(self.address, self.size, self.sort, self.irsb, self.irsb_addr, self.stmt, self.stmt_idx,
                        pointer_addr=self.pointer_addr, max_size=self.max_size, insn_addr=self.insn_addr
                        )
@@ -527,14 +570,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     is followed:
 
     # Active scanning
-    - If the binary has "function symbols" (TODO: this term is not accurate enough), they are starting points of
-        the code scanning
-    - If the binary does not have any "function symbol", we will first perform a function prologue scanning on the
-        entire binary, and start from those places that look like function beginnings
-    - Otherwise, the binary's entry point will be the starting point for scanning
+
+        - If the binary has "function symbols" (TODO: this term is not accurate enough), they are starting points of
+            the code scanning
+        - If the binary does not have any "function symbol", we will first perform a function prologue scanning on the
+            entire binary, and start from those places that look like function beginnings
+        - Otherwise, the binary's entry point will be the starting point for scanning
 
     # Passive scanning
-    - After all active scans are done, we will go through the whole image and scan all code pieces
+
+        - After all active scans are done, we will go through the whole image and scan all code pieces
 
     Due to the nature of those techniques that are used here, a base address is often not required to use this analysis
     routine. However, with a correct base address, CFG recovery will almost always yield a much better result. A custom
@@ -604,7 +649,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         ForwardAnalysis.__init__(self, allow_merging=False)
-        CFGBase.__init__(self, 0, normalize=normalize, binary=binary, force_segment=force_segment)
+        CFGBase.__init__(self, 'fast', 0, normalize=normalize, binary=binary, force_segment=force_segment)
 
         # necessary warnings
         if self.project.loader._auto_load_libs is True and end is None and len(self.project.loader.all_objects) > 3:
@@ -646,10 +691,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # A mapping between address and the actual data in memory
         self._memory_data = { }
         # A mapping between address of the instruction that's referencing the memory data and the memory data itself
-        self._insn_addr_to_memory_data = { }
+        self.insn_addr_to_memory_data = { }
 
         self._initial_state = None
-        self._next_addr = self._start
+        self._next_addr = None
 
         # Create the segment list
         self._seg_list = SegmentList()
@@ -675,8 +720,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._function_exits = None
 
         self._graph = None
-
-        self._ffi = cffi.FFI()
 
         # Start working!
         self._analyze()
@@ -713,11 +756,22 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     #
     @property
     def functions(self):
+        """
+        A collection of all functions in current CFG via FunctionManager
+
+        :return: FunctionManager with all functions
+        :rtype: angr.knowedge.function_manager.FunctionManager
+        """
         return self.kb.functions
 
     @property
     def memory_data(self):
         return self._memory_data
+
+    @property
+    def _insn_addr_to_memory_data(self):
+        l.warning('_insn_addr_to_memory_data has been made public and is deprecated. Please fix your code accordingly.')
+        return self.insn_addr_to_memory_data
 
     #
     # Private methods
@@ -749,9 +803,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         # TODO: Take care of those functions that are already generated
-        curr_addr = self._next_addr
+        if self._next_addr is None:
+            self._next_addr = self.project.loader.min_addr()
+            curr_addr = self._next_addr
+        else:
+            curr_addr = self._next_addr + 1
+
         if self._seg_list.has_blocks:
-            curr_addr = self._seg_list.next_free_pos(curr_addr + 1)
+            curr_addr = self._seg_list.next_free_pos(curr_addr)
 
         if alignment is not None:
             if curr_addr % alignment > 0:
@@ -782,7 +841,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             l.debug("0x%08x is beyond the ending point.", curr_addr)
             return None
 
-    def _next_code_addr(self):
+    def _next_code_addr_core(self):
         """
         Call _next_unscanned_addr() first to get the next address that is not scanned. Then check if data locates at
         that address seems to be code or not. If not, we'll continue to for the next un-scanned address.
@@ -833,10 +892,24 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         instr_alignment = self._initial_state.arch.instruction_alignment
         if start_addr % instr_alignment > 0:
+            # occupy those few bytes
+            self._seg_list.occupy(start_addr, instr_alignment - (start_addr % instr_alignment), 'alignment')
             start_addr = start_addr - start_addr % instr_alignment + \
                          instr_alignment
 
         return start_addr
+
+    def _next_code_addr(self):
+
+        while True:
+            addr = self._next_code_addr_core()
+            if addr is None:
+                return None
+
+            # if the new address is already occupied
+            if not self._seg_list.is_occupied(addr):
+                return addr
+
 
     # Overriden methods from ForwardAnalysis
 
@@ -1076,7 +1149,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if f.returning is None:
                     f.returning = len(f.endpoints) > 0
 
-        if self.project.arch.name in ('X86', 'AMD64'):
+        if self.project.arch.name in ('X86', 'AMD64', 'MIPS32'):
             self._remove_redundant_overlapping_blocks()
 
         if self._normalize:
@@ -1175,10 +1248,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
         Scan a basic block starting at a specific address
 
-        :param addr: The address to begin scanning
-        :param current_function_addr: Address of the current function
-        :param previous_jumpkind: The jumpkind of the edge going to this node
-        :param previous_src_node: The previous CFGNode
+        :param int addr: The address to begin scanning
+        :param int current_function_addr: Address of the current function
+        :param str previous_jumpkind: The jumpkind of the edge going to this node
+        :param CFGNode previous_src_node: The previous CFGNode
         :return: a list of successors
         :rtype: list
         """
@@ -1190,7 +1263,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if addr in self._function_addresses_from_symbols:
             current_function_addr = addr
 
-        if self.project.is_hooked(addr):
+        if self.project.is_hooked(addr) or self.project._simos.syscall_table.get_by_addr(addr) is not None:
             entries = self._scan_procedure(addr, current_function_addr, previous_jumpkind, previous_src_node,
                                            previous_src_ins_addr, previous_src_stmt_idx)
 
@@ -1202,14 +1275,35 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _scan_procedure(self, addr, current_function_addr, previous_jumpkind, previous_src_node, previous_src_ins_addr,
                         previous_src_stmt_idx):
+        """
+        Checks the hooking procedure for this address searching for new static
+        exit points to add to successors (generating entries for them)
+        if this address has not been traced before. Updates previous CFG nodes
+        with edges.
+
+        :param int addr: The address to begin scanning
+        :param int current_function_addr: Address of the current function
+        :param str previous_jumpkind: The jumpkind of the edge going to this node
+        :param CFGNode previous_src_node: The previous CFGNode
+        :param int previous_src_stmt_idx: The previous ID of the statement.
+        :return: List of successors
+        :rtype: list
+        """
         try:
-            hooker = self.project.hooked_by(addr)
+            if self.project.is_hooked(addr):
+                hooker = self.project.hooked_by(addr)
+                name = hooker.name
+                procedure = hooker.procedure
+            else:
+                syscall = self.project._simos.syscall_table.get_by_addr(addr)
+                name = syscall.name
+                procedure = syscall.simproc
 
             if addr not in self._nodes:
                 cfg_node = CFGNode(addr, 0, self, function_address=current_function_addr,
-                                   simprocedure_name=hooker.__name__,
-                                   no_ret=hooker.NO_RET,
-                                   simrun_key=addr,
+                                   simprocedure_name=name,
+                                   no_ret=procedure.NO_RET,
+                                   block_id=addr,
                                    )
 
                 self._nodes[addr] = cfg_node
@@ -1218,50 +1312,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 cfg_node = self._nodes[addr]
 
-        except (AngrTranslationError, AngrMemoryError):
-            return [ ]
-
-        self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_ins_addr, previous_src_stmt_idx)
-        self._function_add_node(addr, current_function_addr)
-        self._changed_functions.add(current_function_addr)
-
-        # If we have traced it before, don't trace it anymore
-        if addr in self._traced_addresses:
-            return [ ]
-        else:
-            # Mark the address as traced
-            self._traced_addresses.add(addr)
-
-        entries = [ ]
-
-        if hooker.ADDS_EXITS:
-            # Get two blocks ahead
-            grandparent_nodes = self.graph.predecessors(previous_src_node)
-            if not grandparent_nodes:
-                l.warning("%s is supposed to yield new exits, but it fails to do so.", hooker.__name__)
-                return [ ]
-            blocks_ahead = [
-                self.project.factory.block(grandparent_nodes[0].addr).vex,
-                self.project.factory.block(previous_src_node.addr).vex,
-            ]
-            new_exits = hooker.static_exits(self.project.arch, blocks_ahead)
-
-            for addr, jumpkind in new_exits:
-                if isinstance(addr, claripy.ast.BV) and not addr.symbolic:
-                    addr = addr._model_concrete.value
-                if not isinstance(addr, (int, long)):
-                    continue
-                entries += self._create_entries(addr, jumpkind, current_function_addr, None, addr, cfg_node, None, None)
-
-        return entries
-
-    def _scan_irsb(self, addr, current_function_addr, previous_jumpkind, previous_src_node, previous_src_ins_addr,
-                   previous_src_stmt_idx):
-
-        addr, current_function_addr, cfg_node, irsb = self._generate_cfgnode(addr, current_function_addr)
-
-        if cfg_node is None:
-            # exceptions occurred, or we cannot get a CFGNode for other reasons
+        except (SimMemoryError, SimEngineError):
             return [ ]
 
         self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_ins_addr,
@@ -1276,6 +1327,64 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         else:
             # Mark the address as traced
             self._traced_addresses.add(addr)
+
+        entries = [ ]
+
+        if procedure.ADDS_EXITS:
+            # Get two blocks ahead
+            grandparent_nodes = self.graph.predecessors(previous_src_node)
+            if not grandparent_nodes:
+                l.warning("%s is supposed to yield new exits, but it fails to do so.", name)
+                return [ ]
+            blocks_ahead = [
+                self.project.factory.block(grandparent_nodes[0].addr).vex,
+                self.project.factory.block(previous_src_node.addr).vex,
+            ]
+            new_exits = procedure(addr, self.project.arch, is_function=False).static_exits(blocks_ahead)
+
+            for addr, jumpkind in new_exits:
+                if isinstance(addr, claripy.ast.BV) and not addr.symbolic:
+                    addr = addr._model_concrete.value
+                if not isinstance(addr, (int, long)):
+                    continue
+                entries += self._create_entries(addr, jumpkind, current_function_addr, None, addr, cfg_node, None, None)
+
+        return entries
+
+    def _scan_irsb(self, addr, current_function_addr, previous_jumpkind, previous_src_node, previous_src_ins_addr,
+                   previous_src_stmt_idx):
+        """
+        Generate list of sucessors (generating them each as entries) to IRSB.
+        Updates previous CFG nodes with edges.
+
+        :param int addr: The address to begin scanning
+        :param int current_function_addr: Address of the current function
+        :param str previous_jumpkind: The jumpkind of the edge going to this node
+        :param CFGNode previous_src_node: The previous CFGNode
+        :param int previous_src_stmt_idx: The previous ID of the statement
+        :return: a list of successors
+        :rtype: list
+        """
+
+        addr, current_function_addr, cfg_node, irsb = self._generate_cfgnode(addr, current_function_addr)
+
+        if cfg_node is None:
+            # exceptions occurred, or we cannot get a CFGNode for other reasons
+            return [ ]
+
+        self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_ins_addr,
+                             previous_src_stmt_idx
+                             )
+        self._function_add_node(addr, current_function_addr)
+        self._changed_functions.add(current_function_addr)
+
+        # If we have traced it before, don't trace it anymore
+        aligned_addr = ((addr >> 1) << 1) if self.project.arch.name in ('ARMLE', 'ARMHF') else addr
+        if aligned_addr in self._traced_addresses:
+            return [ ]
+        else:
+            # Mark the address as traced
+            self._traced_addresses.add(aligned_addr)
 
         # irsb cannot be None here
         # assert irsb is not None
@@ -1307,7 +1416,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 last_ins_addr = ins_addr
                 ins_addr = stmt.addr + stmt.delta
 
-        successors.append(('default', last_ins_addr if self.project.arch.branch_delay_slot else ins_addr, irsb_next, jumpkind))
+        successors.append(('default',
+                           last_ins_addr if self.project.arch.branch_delay_slot else ins_addr, irsb_next, jumpkind)
+                          )
 
         entries = [ ]
 
@@ -1317,12 +1428,29 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         for suc in successors:
             stmt_idx, ins_addr, target, jumpkind = suc
 
-            entries += self._create_entries(target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx)
+            entries += self._create_entries(target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr,
+                                            stmt_idx
+                                            )
 
         return entries
 
     def _create_entries(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx,
                         fast_indirect_jump_resolution=True):
+        """
+        Given a node and details of a successor, makes a list of CFGEntrys
+        and if it is a call or exit marks it appropriately so in the CFG
+
+        :param int target: The resultant entry's statement destination
+        :param str jumpkind: The jumpkind of the edge going to this node
+        :param int current_function_addr: Address of the current function
+        :param pyvex.IRSB irsb: IRSB of the predecessor node
+        :param int addr: The predecessor address
+        :param CFGNode cfg_node: The CFGNode of the predecessor node
+        :param int ins_addr: The resultant entry's address
+        :param int stmt_idx: The resultant entry's ID of their statement
+        :return: a list of CFGEntrys
+        :rtype: list
+        """
 
         if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
             target_addr = target.con.value
@@ -1342,8 +1470,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, current_function_addr)
             if resolved:
                 for t in resolved_targets:
-                    ent = self._create_entries(t, jumpkind, current_function_addr, irsb, addr,cfg_node, ins_addr, stmt_idx,
-                                               fast_indirect_jump_resolution=False)
+                    ent = self._create_entries(t, jumpkind, current_function_addr, irsb, addr,cfg_node, ins_addr,
+                                               stmt_idx, fast_indirect_jump_resolution=False)
                     entries.extend(ent)
                 return entries
 
@@ -1363,7 +1491,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                   target_addr
                                   )
                     else:
-                        l.debug("AngrTranslationError occurred when creating a new entry to %#x. "
+                        l.debug("SimTranslationError occurred when creating a new entry to %#x. "
                                   "Ignore this successor.",
                                   target_addr
                                   )
@@ -1400,7 +1528,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if irsb:
                     # Test it on the initial state. Does it jump to a valid location?
                     # It will be resolved only if this is a .plt entry
-                    tmp_simirsb = simuvex.SimIRSB(self._initial_state, irsb, addr=addr)
+                    tmp_simirsb = simuvex.SimEngineVEX().process(self._initial_state, irsb, force_addr=addr)
                     if len(tmp_simirsb.successors) == 1:
                         tmp_ip = tmp_simirsb.successors[0].ip
                         if tmp_ip._model_concrete is not tmp_ip:
@@ -1474,13 +1602,29 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _create_entry_call(self, addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, target_addr, jumpkind,
                            is_syscall=False):
+        """
+        Generate a CFGEntry for target address, also adding to _pending_entries
+        if returning to succeeding position (if irsb arg is populated)
 
+        :param int addr: The predecessor address
+        :param pyvex.IRSB irsb: IRSB of the predecessor node
+        :param CFGNode cfg_node: The CFGNode of the predecessor node
+        :param int stmt_idx: The ID of statement of resultant entry
+        :param int current_function_addr: Address of the entry function
+        :param int target_addr: The statement destination of resultant entry
+        :param str jumpkind: The jumpkind of the edge going to this node
+        :param bool is_syscall: is the jump kind (and thus this) a system call
+        :return: a list of CFGEntrys
+        :rtype: list
+        """
         entries = [ ]
 
         if is_syscall:
             # Fix the target_addr for syscalls
             tmp_path = self.project.factory.path(self.project.factory.blank_state(mode="fastpath",
-                                                                                  addr=cfg_node.addr))
+                                                                                  addr=cfg_node.addr
+                                                                                  )
+                                                 )
             tmp_path.step()
             succ = tmp_path.successors[0]
             _, syscall_addr, _, _ = self.project._simos.syscall_info(succ.state)
@@ -1536,8 +1680,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _collect_data_references(self, irsb, irsb_addr):
         """
+        Unoptimises IRSB and _add_data_reference's for individual statements or
+        for parts of statements (e.g. Store)
 
-        :return:
+        :param pyvex.IRSB irsb: Block to scan for data references
+        :param int irsb_addr: Address of block
+        :return: None
         """
 
         if self.project.arch.name in ('X86', 'AMD64'):
@@ -1557,7 +1705,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             if empty_insn:
                 # make sure opt_level is 0
-                irsb = self.project.factory.block(addr=irsb_addr, max_size=irsb.size, opt_level=0).vex
+                irsb = self.project.factory.block(addr=irsb_addr, size=irsb.size, opt_level=0).vex
 
         # for each statement, collect all constants that are referenced or used.
         self._collect_data_references_core(irsb, irsb_addr)
@@ -1566,6 +1714,20 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # helper methods
         def _process(irsb_, stmt_, stmt_idx_, data_, insn_addr, next_insn_addr, data_size=None, data_type=None):
+            """
+            Helper method used for calling _add_data_reference after checking
+            for manipulation of constants
+
+            :param pyvex.IRSB irsb_: Edited block (as might be de-optimised)
+            :param pyvex.IRStmt.* stmt_: Statement
+            :param int stmt_idx_: Statement ID
+            :param data_: data manipulated by statement
+            :param int insn_addr: instruction address
+            :param int next_insn_addr: next instruction address
+            :param data_size: Size of the data being manipulated
+            :param str data_type: Type of the data being manipulated
+            :return: None
+            """
             if type(data_) is pyvex.expr.Const:  # pylint: disable=unidiomatic-typecheck
                 val = data_.con.value
             elif type(data_) in (int, long):
@@ -1642,11 +1804,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _add_data_reference(self, irsb, irsb_addr, stmt, stmt_idx, insn_addr, data_addr,  # pylint: disable=unused-argument
                             data_size=None, data_type=None):
         """
+        Checks addresses are in the correct segments and creates or updates
+        MemoryData in _memory_data as appropriate, labelling as segment
+        boundaries or data type
 
-        :param irsb:
-        :param stmt:
-        :param data_addr:
-        :return:
+        :param pyvex.IRSB irsb: irsb
+        :param int irsb_addr: irsb address
+        :param pyvex.IRStmt.* stmt: Statement
+        :param int stmt_idx: Statement ID
+        :param int insn_addr: instruction address
+        :param data_addr: address of data manipulated by statement
+        :param data_size: Size of the data being manipulated
+        :param str data_type: Type of the data being manipulated
+        :return: None
         """
 
         # Make sure data_addr is within a valid memory range
@@ -1681,7 +1851,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if self._extra_cross_references:
                 self._memory_data[data_addr].add_ref(irsb_addr, stmt_idx, insn_addr)
 
-        self._insn_addr_to_memory_data[insn_addr] = self._memory_data[data_addr]
+        self.insn_addr_to_memory_data[insn_addr] = self._memory_data[data_addr]
 
     def _tidy_data_references(self):
         """
@@ -1941,7 +2111,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     # Indirect jumps processing
 
     def _resolve_indirect_jump_timelessly(self, addr, block, func_addr):
+        """
+        Checks if MIPS32 and calls MIPS32 check, otherwise false
 
+        :param int addr: irsb address
+        :param pyvex.IRSB block: irsb
+        :param int func_addr: instruction address
+        :return: If it was resolved and targets alongside it
+        :rtype: tuple
+        """
         if self.project.arch.name == "MIPS32":
             # Prudently search for indirect jump target
             return self._resolve_indirect_jump_timelessly_mips32(addr, block, func_addr)
@@ -1949,7 +2127,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         return False, [ ]
 
     def _resolve_indirect_jump_timelessly_mips32(self, addr, block, func_addr):  # pylint: disable=unused-argument
+        """
+        Attempts to execute any potential paths forward through jump returning
+        a sucess boolean and list of sucessors
 
+        :param int addr: irsb address
+        :param pyvex.IRSB block: irsb
+        :param int func_addr: instruction address
+        :return: If it was resolved and targets alongside it
+        :rtype: tuple
+        """
         b = Blade(self._graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True,
                   ignored_regs=('gp',))
 
@@ -2065,7 +2252,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 src_node = self._nodes[jump.addr]
                 dst_node = CFGNode(self._unresolvable_target_addr, 0, self,
                                    function_address=self._unresolvable_target_addr,
-                                   simprocedure_name='UnresolvableTarget'
+                                   simprocedure_name='UnresolvableTarget',
                                    )
 
                 # add the dst_node to self._nodes
@@ -2168,25 +2355,25 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return False, None
 
         load_stmt_loc, load_stmt = None, None
-        past_stmts = [ stmt_loc ]
+        stmts_to_remove = [ stmt_loc ]
         while True:
             preds = b.slice.predecessors(stmt_loc)
             if len(preds) != 1:
                 return False, None
-            block_addr, stmt_idx = preds[0]
+            block_addr, stmt_idx = stmt_loc = preds[0]
             block = self.project.factory.block(block_addr).vex
             stmt = block.statements[stmt_idx]
             if isinstance(stmt, pyvex.IRStmt.WrTmp) or isinstance(stmt, pyvex.IRStmt.Put):
                 if isinstance(stmt.data, pyvex.IRExpr.Get) or isinstance(stmt.data, pyvex.IRExpr.RdTmp):
                     # data transferring
-                    past_stmts.append(stmt_loc)
+                    stmts_to_remove.append(stmt_loc)
                     stmt_loc = (block_addr, stmt_idx)
                     continue
                 elif isinstance(stmt.data, pyvex.IRExpr.Load):
                     # Got it!
                     stmt_loc = (block_addr, stmt_idx)
                     load_stmt, load_stmt_loc = stmt, stmt_loc
-                    past_stmts.append(stmt_loc)
+                    stmts_to_remove.append(stmt_loc)
             break
 
         if load_stmt_loc is None:
@@ -2194,7 +2381,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return False, None
 
         # skip all statements before the load statement
-        b.slice.remove_nodes_from(past_stmts)
+        b.slice.remove_nodes_from(stmts_to_remove)
 
         # Debugging output
         # for addr, stmt_idx in sorted(list(b.slice.nodes())):
@@ -2260,9 +2447,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 continue
 
             # Get the jumping targets
-            for r in slicecutor.deadended:
-
-                all_states = r.next_run.unsat_successors
+            for r in slicecutor.reached_targets:
+                all_states = r.next_run.flat_successors
                 state = all_states[0] # Just take the first state
 
                 # Parse the memory load statement
@@ -2514,7 +2700,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _remove_redundant_overlapping_blocks(self):
         """
-        On X86 and AMD64 there are sometimes garbage bytes (usually nops) between functions in order to properly
+        On some architectures there are sometimes garbage bytes (usually nops) between functions in order to properly
         align the succeeding function. CFGFast does a linear sweeping which might create duplicated blocks for
         function epilogues where one block starts before the garbage bytes and the other starts after the garbage bytes.
 
@@ -2539,8 +2725,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # no one is calling it
                     # this function might be created from linear sweeping
                     try:
-                        block = self.project.factory.block(a.addr, max_size=0x10 - (a.addr % 0x10))
-                    except AngrTranslationError:
+                        block = self.project.factory.block(a.addr, size=0x10 - (a.addr % 0x10))
+                    except SimTranslationError:
                         continue
                     insns = block.capstone.insns
                     if insns and self._is_noop_insn(insns[0]):
@@ -2576,7 +2762,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             # make sure there is a function begins there
                             try:
                                 self.functions._add_node(next_node_addr, next_node_addr, size=next_node_size)
-                            except (AngrTranslationError, AngrMemoryError):
+                            except (SimEngineError, SimMemoryError):
                                 continue
 
         # append all new nodes to sorted nodes
@@ -2605,7 +2791,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 try:
                     block = self.project.factory.fresh_block(a.addr, b.addr - a.addr)
-                except AngrTranslationError:
+                except SimTranslationError:
                     a = b
                     continue
                 if block.capstone.insns and all([ self._is_noop_insn(insn) for insn in block.capstone.insns ]):
@@ -2867,6 +3053,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     #
 
     def _graph_add_edge(self, cfg_node, src_node, src_jumpkind, src_ins_addr, src_stmt_idx):
+        """
+        Add edge between nodes, or add node if entry point
+
+        :param CFGNode cfg_node: node which is jumped to
+        :param CFGNode src_node: node which is jumped from none if entry point
+        :param str src_jumpkind: what type of jump the edge takes
+        :param int src_stmt_idx: source statements ID
+        :return: None
+        """
         if src_node is None:
             self.graph.add_node(cfg_node)
         else:
@@ -2926,6 +3121,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     #
 
     def _function_add_node(self, addr, function_addr):
+        """
+        Adds node to function manager, converting address to CodeNode if
+        possible
+
+        :param int addr: node address
+        :param int function_addr: address of function
+        :return: None
+        """
         try:
             node = self._to_snippet(self._nodes[addr])
         except KeyError:
@@ -2966,7 +3169,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                                  stmt_idx=stmt_idx, ins_addr=ins_addr
                                                                  )
             return True
-        except (AngrMemoryError, AngrTranslationError):
+        except (SimMemoryError, SimEngineError):
             return False
 
     def _function_add_call_edge(self, addr, src_node, ret_addr, function_addr, syscall=False, stmt_idx=None,
@@ -3000,10 +3203,20 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                stmt_idx=stmt_idx, ins_addr=ins_addr,
                                                )
             return True
-        except (AngrMemoryError, AngrTranslationError):
+        except (SimMemoryError, SimEngineError):
             return False
 
     def _function_add_fakeret_edge(self, addr, src_node, function_addr, confirmed=None):
+        """
+        Generate CodeNodes for target and source, if no source node add node
+        for function, otherwise creates fake return to in function manager
+
+        :param int addr: target address
+        :param angr.analyses.CFGNode src_node: source node
+        :param int function_addr: address of function
+        :param confirmed: used as attribute on eventual digraph
+        :return: None
+        """
 
         try:
             target = self._to_snippet(self._nodes[addr])
@@ -3017,7 +3230,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self.kb.functions._add_fakeret_to(function_addr, src_node, target, confirmed=confirmed)
 
     def _function_add_return_site(self, addr, function_addr):
+        """
+        Generate CodeNodes for target address, registers node for function to
+        function manager as return site
 
+        :param int addr: target address
+        :param int function_addr: address of function
+        :return: None
+        """
         try:
             target = self._to_snippet(self._nodes[addr])
         except KeyError:
@@ -3026,6 +3246,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self.kb.functions._add_return_from(function_addr, target)
 
     def _function_add_return_edge(self, return_from_addr, return_to_addr, function_addr):
+        """
+        Generate CodeNodes for return_to_addr, add this node for function to
+        function manager generating new edge
+
+        :param int return_from_addr: target address
+        :param int return_to_addr: target address
+        :param int function_addr: address of function
+        :return: None
+        """
         try:
             return_to_ = self._to_snippet(self._nodes[return_to_addr])
         except KeyError:
@@ -3233,22 +3462,43 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # TODO: handle segment information as well
 
                 # Let's try to create the pyvex IRSB directly, since it's much faster
-                irsb = self.project.factory.block(addr, max_size=distance).vex
+                nodecode = False
+                irsb = None
+                try:
+                    irsb = self.project.factory.block(addr, size=distance).vex
+                except SimTranslationError:
+                    nodecode = True
 
-                if irsb.size == 0 and self.project.arch.name in ('ARMHF', 'ARMEL'):
+                if (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode') and \
+                        self.project.arch.name in ('ARMHF', 'ARMEL'):
                     # maybe the current mode is wrong?
+                    nodecode = False
                     if addr % 2 == 0:
                         addr_0 = addr + 1
                     else:
                         addr_0 = addr - 1
-                    irsb = self.project.factory.block(addr_0).vex
-                    if irsb.size > 0:
+
+                    if addr_0 in self._nodes:
+                        # it has been analyzed before
+                        cfg_node = self._nodes[addr_0]
+                        irsb = cfg_node.irsb
+                        return addr_0, cfg_node.function_address, cfg_node, irsb
+
+                    try:
+                        irsb = self.project.factory.block(addr_0, size=distance).vex
+                    except SimTranslationError:
+                        nodecode = True
+
+                    if not (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode'):
+                        # it is decodeable
                         if current_function_addr == addr:
                             current_function_addr = addr_0
                         addr = addr_0
 
-                if irsb.size == 0:
+                if nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode':
                     # decoding error
+                    # we still occupy that location since it cannot be decoded anyways
+                    self._seg_list.occupy(addr, 1, 'nodecode')
                     return None, None, None, None
 
                 # Occupy the block in segment list
@@ -3261,19 +3511,35 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     self._seg_list.occupy(real_addr, irsb.size, "code")
 
                 # Create a CFG node, and add it to the graph
-                cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, simrun_key=addr,
-                                   irsb=irsb)
+                cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, block_id=addr,
+                                   irsb=irsb
+                                   )
 
                 self._nodes[addr] = cfg_node
                 self._nodes_by_addr[addr].append(cfg_node)
 
             return addr, current_function_addr, cfg_node, irsb
 
-        except (AngrTranslationError, AngrMemoryError):
+        except (SimMemoryError, SimEngineError):
             return None, None, None, None
 
     def _process_block_arch_specific(self, addr, irsb, func_addr):  # pylint: disable=unused-argument
+        """
+        According to arch types ['ARMEL', 'ARMHF', 'MIPS32'] does different
+        fixes
 
+        For ARM deals with link register on the stack
+        (see _arm_track_lr_on_stack)
+        For MIPS32 simulates a new state where the global pointer is 0xffffffff
+        from current address after three steps if the first successor does not
+        adjust this value updates this function address (in function manager)
+        to use a conrete global pointer
+
+        :param int addr: irsb address
+        :param pyvex.IRSB irsb: irsb
+        :param func_addr: function address
+        :return: None
+        """
         if self.project.arch.name in ('ARMEL', 'ARMHF'):
             if self._arch_options.ret_jumpkind_heuristics:
                 if addr == func_addr:
@@ -3345,7 +3611,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         n._show_progressbar = self._show_progressbar
 
         n._exec_mem_regions = self._exec_mem_regions[::]
-        n._exec_mem_region_size = self._exec_mem_region_size[::]
+        n._exec_mem_region_size = self._exec_mem_region_size
 
         n._memory_data = self._memory_data.copy()
 

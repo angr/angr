@@ -382,8 +382,8 @@ class CallStack(object):
         for i, frame in enumerate(reversed(self._callstack)):
             s = "%d | %s -> %s, returning to %s" % (
                 i,
-                "None" if frame.call_site is None else "%#x" % frame.call_site,
-                "None" if frame.function_address is None else "%#x" % frame.function_address,
+                "None" if frame.call_site_addr is None else "%#x" % frame.call_site_addr,
+                "None" if frame.func_addr is None else "%#x" % frame.func_addr,
                 "None" if frame.return_target is None else "%#x" % frame.return_target,
             )
             stack.append(s)

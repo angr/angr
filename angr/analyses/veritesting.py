@@ -132,7 +132,7 @@ class CallTracingFilter(object):
                 # Just skip it for now
                 continue
 
-            if self.project._sim_procedures[sp_node.addr][0] not in CallTracingFilter.whitelist:
+            if self.project._sim_procedures[sp_node.addr].procedure not in CallTracingFilter.whitelist:
                 self._skipped_targets.add(addr)
                 l.debug('Rejecting target 0x%x - contains SimProcedures outside whitelist', addr)
                 return REJECT
@@ -173,6 +173,15 @@ class Veritesting(Analysis):
         :param path_callback:            A callback function that takes a path as parameter. Veritesting will call this
                                          function on every single path after their next_run is created.
         """
+        block = self.project.factory.block(input_path.addr)
+        branches = block.vex.constant_jump_targets_and_jumpkinds
+
+        # if we are not at a conditional jump, just do a normal path.step
+        if not branches.values() == ['Ijk_Boring', 'Ijk_Boring']:
+            self.result, self.final_path_group = False, None
+            return
+        # otherwise do a veritesting step
+
         self._input_path = input_path.copy()
         self._boundaries = boundaries if boundaries is not None else [ ]
         self._loop_unrolling_limit = loop_unrolling_limit
@@ -422,7 +431,7 @@ class Veritesting(Analysis):
                     ip = path.addr
                     # FIXME: cfg._nodes should also be updated when calling cfg.normalize()
                     size_of_next_irsb = [ n for n in self._cfg.graph.nodes() if n.addr == ip ][0].size
-                    path.step(max_size=size_of_next_irsb)
+                    path.step(size=size_of_next_irsb)
             except (AngrError, SimError, ClaripyError) as ex:
                 l.debug('is_path_errored(): caxtching exception %s', ex)
                 path._error = ex
@@ -458,7 +467,7 @@ class Veritesting(Analysis):
         size_of_next_irsb = [ n for n in self._cfg.graph.nodes() if n.addr == ip ][0].size
         # It has been called by is_path_errored before, but I'm doing it here anyways. Who knows how the logic in
         # PathGroup will change in the future...
-        path.step(max_size=size_of_next_irsb)
+        path.step(size=size_of_next_irsb)
 
         # Now it's safe to call anything that may access Path.next_run
         if self._path_callback:

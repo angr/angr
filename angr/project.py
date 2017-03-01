@@ -139,18 +139,28 @@ class Project(object):
         self._syscall_obj.provides = 'angr syscalls'
         self.loader.add_object(self._syscall_obj)
 
-        self._cfg = None
-        self._vfg = None
-        self._cdg = None
-
         if self._support_selfmodifying_code:
 
             if translation_cache is True:
                 translation_cache = False
                 l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
 
+
+        vex_engine = simuvex.SimEngineVEX(
+                stop_points=self._sim_procedures,
+                use_cache=translation_cache,
+                support_selfmodifying_code=support_selfmodifying_code)
+        procedure_engine = SimEngineHook(self)
+        failure_engine = SimEngineFailure(self)
+        syscall_engine = SimEngineSyscall(self)
+        unicorn_engine = simuvex.SimEngineUnicorn(self._sim_procedures)
+
         self.entry = self.loader.main_bin.entry
-        self.factory = AngrObjectFactory(self, translation_cache=translation_cache)
+        self.factory = AngrObjectFactory(
+                self,
+                vex_engine,
+                procedure_engine,
+                [failure_engine, syscall_engine, procedure_engine, unicorn_engine, vex_engine])
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
         self.kb = KnowledgeBase(self, self.loader.main_bin)
@@ -200,8 +210,10 @@ class Project(object):
         # If it's blacklisted, don't process it
         # If it matches a simprocedure we have, replace it
         already_resolved = set()
+        pending_hooks = {}
+        unresolved = set()
+
         for obj in self.loader.all_objects:
-            unresolved = []
             for reloc in obj.imports.itervalues():
                 func = reloc.symbol
                 if func.name in already_resolved:
@@ -209,7 +221,7 @@ class Project(object):
                 if not func.is_function:
                     continue
                 elif func.name in self._ignore_functions:
-                    unresolved.append(func)
+                    unresolved.add(func)
                     continue
                 elif self._should_exclude_sim_procedure(func.name):
                     continue
@@ -219,30 +231,36 @@ class Project(object):
                         simfuncs = simuvex.procedures.SimProcedures[lib]
                         if func.name in simfuncs:
                             l.info("Providing %s from %s with SimProcedure", func.name, lib)
-                            self.hook_symbol(func.name, simfuncs[func.name])
+                            pending_hooks[func.name] = Hook(simfuncs[func.name])
                             already_resolved.add(func.name)
                             break
                     else: # we could not find a simprocedure for this function
                         if not func.resolved:   # the loader couldn't find one either
-                            unresolved.append(func)
+                            unresolved.add(func)
+                        else:
+                            # mark it as resolved
+                            already_resolved.add(func.name)
                 # in the case that simprocedures are off and an object in the PLT goes
-                # unresolved, we still want to replace it with a retunconstrained.
+                # unresolved, we still want to replace it with a ReturnUnconstrained.
                 elif not func.resolved and func.name in obj.jmprel:
-                    unresolved.append(func)
+                    unresolved.add(func)
 
-            # Step 3: Stub out unresolved symbols
-            # This is in the form of a SimProcedure that either doesn't return
-            # or returns an unconstrained value
-            for func in unresolved:
-                # Don't touch weakly bound symbols, they are allowed to go unresolved
-                if func.is_weak:
-                    continue
-                l.info("[U] %s", func.name)
-                procedure = simuvex.SimProcedures['stubs']['NoReturnUnconstrained']
-                if func.name not in procedure.use_cases:
-                    procedure = simuvex.SimProcedures['stubs']['ReturnUnconstrained']
-                self.hook_symbol(func.name, procedure, {'resolves': func.name})
-                already_resolved.add(func.name)
+        # Step 3: Stub out unresolved symbols
+        # This is in the form of a SimProcedure that either doesn't return
+        # or returns an unconstrained value
+        for func in unresolved:
+            if func.name in already_resolved:
+                continue
+            # Don't touch weakly bound symbols, they are allowed to go unresolved
+            if func.is_weak:
+                continue
+            l.info("[U] %s", func.name)
+            procedure = simuvex.SimProcedures['stubs']['NoReturnUnconstrained']
+            if func.name not in procedure.use_cases:
+                procedure = simuvex.SimProcedures['stubs']['ReturnUnconstrained']
+            self.hook_symbol(func.name, Hook(procedure, resolves=func.name))
+
+        self.hook_symbol_batch(pending_hooks)
 
     def _should_exclude_sim_procedure(self, f):
         """
@@ -259,46 +277,49 @@ class Project(object):
     # They're all related to hooking!
     #
 
-    def hook(self, addr, func, length=0, kwargs=None):
+    def hook(self, addr, hook, length=0, kwargs=None):
         """
-        Hook a section of code with a custom function.
-
-        If `func` is a function, it takes a :class:`SimState` and the given `kwargs`. It can return None, in which case
-        it will generate a single exit to the instruction at ``addr+length``, or it can return an array of successor
-        states.
-
-        If func is a :class:`SimProcedure`, it will be run instead of a :class:`SimBlock` at that address.
-
-        If `length` is zero the block at the hooked address will be executed immediately after the hook function.
+        Hook a section of code with a custom function. This is used internally to provide symbolic
+        summaries of library functions, and can be used to instrument execution or to modify
+        control flow.
 
         :param addr:        The address to hook.
-        :param func:        The function that will perform an action when execution reaches the hooked address.
-        :param length:      How many bytes you'd like to skip over with your hook. Can be zero.
-        :param kwargs:      Any additional keyword arguments will be passed to your function or your
-                            :class:`SimProcedure`'s run function.
+        :param hook:        A :class:`angr.project.Hook` describing a procedure to run at the
+                            given address. You may also pass in a SimProcedure class or a function
+                            directly and it will be wrapped in a Hook object for you.
+        :param length:      If you provide a function for the hook, this is the number of bytes
+                            that will be skipped by executing the hook by default.
+        :param kwargs:      If you provide a SimProcedure for the hook, these are the keyword
+                            arguments that will be passed to the procedure's `run` method
+                            eventually.
         """
-
-        l.debug('hooking %#x with %s', addr, func)
-        if kwargs is None: kwargs = {}
+        l.debug('hooking %#x with %s', addr, hook)
 
         if self.is_hooked(addr):
-            l.warning("Address is already hooked [hook(%#x, %s, %s()]", addr, func, kwargs.get('funcname', func.__name__))
+            l.warning("Address is already hooked [hook(%#x, %s)]", addr, hook)
             return
 
-        if isinstance(func, type):
-            proc = func
-        elif hasattr(func, '__call__'):
-            proc = simuvex.procedures.stubs.UserHook.UserHook
-            kwargs = {
-                'user_func': func,
-                'user_kwargs': kwargs,
-                'default_return_addr': addr+length,
-                'length': length,
-            }
-        else:
-            raise AngrError("%s is not a valid object to execute in a hook", func)
+        if not isinstance(hook, Hook):
+            if kwargs is None: kwargs = {}
 
-        self._sim_procedures[addr] = (proc, kwargs)
+            if isinstance(hook, type) and issubclass(hook, simuvex.s_procedure.SimProcedure):
+                hook = Hook(hook, **kwargs)
+            elif callable(hook):
+                hook = Hook(simuvex.procedures.stubs.UserHook.UserHook,
+                            user_func=hook,
+                            length=length)
+            else:
+                raise AngrError("%s is not a valid object to execute in a hook", hook)
+
+        self._sim_procedures[addr] = hook
+
+        # set up a continuation if necessary
+        cont = hook.make_continuation()
+        if cont is not None:
+            cont_addr = self._extern_obj.anon_allocation()
+            self.hook(cont_addr, cont)
+            hook.set_continuation_addr(cont_addr)
+            cont.set_continuation_addr(cont_addr)
 
     def is_hooked(self, addr):
         """
@@ -359,7 +380,6 @@ class Project(object):
         """
         Returns the current hook for `addr`.
 
-
         :param addr: An address.
 
         :returns:    None if the address is not hooked.
@@ -369,24 +389,27 @@ class Project(object):
             l.warning("Address %#x is not hooked", addr)
             return None
 
-        return self._sim_procedures[addr][0]
+        return self._sim_procedures[addr]
 
     def hook_symbol(self, symbol_name, obj, kwargs=None):
         """
-        Resolve a dependency in a binary. Uses the "externs object" (project._extern_obj) to provide addresses for
-        hook functions.
-
+        Resolve a dependency in a binary. Uses the "externs object" (project._extern_obj) to
+        allocate an address for a new symbol in the binary, and then tells the loader to reperform
+        the relocation process, taking into account the new symbol.
 
         :param symbol_name: The name of the dependency to resolve.
-        :param obj:         The thing with which to satisfy the dependency. May be a SimProcedure class or a python
-                            function (as an appropriate argument to hook()), or a python integer/long.
-        :param kwargs:      Any additional keyword arguments will be passed to the SimProcedure's run() method.
-        :returns:           The pseudo address of this new symbol.
+        :param obj:         The thing with which to satisfy the dependency. May be a python integer
+                            or anything that may be passed to `project.hook()`.
+        :param length:      If you provide a function for the hook, this is the number of bytes
+                            that will be skipped by executing the hook by default.
+        :param kwargs:      If you provide a SimProcedure for the hook, these are the keyword
+                            arguments that will be passed to the procedure's `run` method
+                            eventually.
+        :returns:           The address of the new symbol.
         :rtype:             int
         """
         if kwargs is None: kwargs = {}
         ident = self._symbol_name_to_ident(symbol_name, kwargs)
-
 
         if not isinstance(obj, (int, long)):
             pseudo_addr = self._simos.prepare_function_symbol(ident)
@@ -405,6 +428,30 @@ class Project(object):
         self.loader.provide_symbol(self._extern_obj, symbol_name, pseudo_vaddr)
 
         return pseudo_addr
+
+    def hook_symbol_batch(self, hooks):
+        """
+        Hook many symbols at once.
+
+        :param dict provisions:     A mapping from symbol name to hook
+        """
+
+        provisions = {}
+
+        for name, obj in hooks.iteritems():
+            ident = self._symbol_name_to_ident(name, None)
+
+            pseudo_addr = self._simos.prepare_function_symbol(ident)
+            pseudo_vaddr = pseudo_addr - self._extern_obj.rebase_addr
+
+            if self.is_hooked(pseudo_addr):
+                l.warning("Re-hooking symbol " + name)
+                self.unhook(pseudo_addr)
+
+            self.hook(pseudo_addr, obj)
+            provisions[name] = (pseudo_vaddr, 0, None)
+
+        self.loader.provide_symbol_batch(self._extern_obj, provisions)
 
     #
     # Private methods related to hooking
@@ -432,17 +479,119 @@ class Project(object):
 
     def __getstate__(self):
         try:
-            factory, analyses, surveyors = self.factory, self.analyses, self.surveyors
-            self.factory, self.analyses, self.surveyors = None, None, None
+            analyses, surveyors = self.analyses, self.surveyors
+            self.analyses, self.surveyors = None, None
             return dict(self.__dict__)
         finally:
-            self.factory, self.analyses, self.surveyors = factory, analyses, surveyors
+            self.analyses, self.surveyors = analyses, surveyors
 
     def __setstate__(self, s):
         self.__dict__.update(s)
-        self.factory = AngrObjectFactory(self)
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
+
+
+class Hook(object):
+    """
+    An object describing an action to be taken at a given address instead of executing binary code.
+    An instance of this class may be passed to `angr.Project.hook` along with the address at which
+    to hook.
+
+    More specifically, a hook is a wrapper for a SimProcedure, a simuvex object that contains a lot
+    of logic for how to mutate a state in common ways. The SimProcedure base class is subclassed
+    to produce a SimProcedure that may be used for hooking. If the SimProcedure class is too heavy
+    for your use case, there is a class method `wrap` on this class that can be used to wrap a
+    simple function into a SimProcedure, and then further into a `Hook` directly.
+
+    This class is a bit of a hack to deal with the fact that SimProcedures need to hold state but
+    having them do so makes them not thread-safe.
+    """
+    def __init__(self, procedure, cc=None, **kwargs):
+        """
+        :param procedure:   The class of the procedure to use
+        :param cc:          The calling convention to use
+        :param kwargs:      Any additional keyword arguments will be eventually passed to the
+                            `run` method of the procedure on its execution, via the `sim_kwargs`
+                            SimProcedure constructor parameter.
+        """
+        self.procedure = procedure
+        self.cc = cc
+        self.kwargs = kwargs
+        self.is_continuation = False
+        self._continuation_addr = None
+
+    def instantiate(self, *args, **kwargs):
+        kwargs['sim_kwargs'] = self.kwargs
+        kwargs['is_continuation'] = self.is_continuation
+        kwargs['continuation_addr'] = self._continuation_addr
+        if self.cc: kwargs['cc'] = self.cc
+        return self.procedure(*args, **kwargs)
+    instantiate.__doc__ = simuvex.s_procedure.SimProcedure.__init__.__doc__
+
+    def __repr__(self):
+        try:
+            resolves_str = ' (resolves %s)' % self.kwargs['resolves']
+        except KeyError:
+            resolves_str = ''
+
+        if len(self.kwargs) == 0:
+            args_str = ''
+        elif len(self.kwargs) == 1:
+            args_str = ' (1 arg)'
+        else:
+            args_str = ' (%d args)' % len(self.kwargs)
+
+        cont_str = ' (continuation)' if self.is_continuation else ''
+
+        return '<Hook for %s%s%s%s>' % (self.name, resolves_str, args_str, cont_str)
+
+    def make_continuation(self):
+        if self.is_continuation or not self.procedure.IS_FUNCTION or self._continuation_addr is not None:
+            return None
+        hook = Hook(self.procedure, **self.kwargs)
+        hook.is_continuation = True
+        return hook
+
+    def set_continuation_addr(self, addr):
+        self._continuation_addr = addr
+
+    @property
+    def name(self):
+        return self.procedure.__name__
+
+    @classmethod
+    def wrap(cls, length=0):
+        """
+        Call this function to return a decorator you can use to turn a function into a Hook. This
+        specific kind of hook is called a "User Hook".
+
+        For example:
+
+        >>> @Hook.wrap(length=5)
+        >>> def set_rax(state):
+        >>>     state.regs.rax = 1
+        >>>
+        >>> project.hook(0x1234, set_rax)
+
+        The function may modify the state in any way it sees fit. In order to produce successors
+        from a user hook, you have two options.
+
+            1. Return nothing. In this case, execution will resume at `length` bytes after the hook
+               address.
+            2. Return a list of successor states. Each of the states should have the following
+               attributes set:
+
+                - `state.scratch.guard`: a symbolic boolean describing the condition necessary for
+                  this successor to be taken. A shortcut to the symbolic `True` value is
+                  `state.se.true`.
+                - `state.scratch.jumpkind`: The type of the jump to be taken, as a VEX enum string.
+                  This will usually be `Ijk_Boring`, which signifies an ordinary jump or branch.
+        """
+        def inner(function):
+            return Hook(simuvex.procedures.stubs.UserHook.UserHook,
+                        user_func=function,
+                        length=length)
+        return inner
 
 from .errors import AngrError
 from .factory import AngrObjectFactory
@@ -451,3 +600,4 @@ from .extern_obj import AngrExternObject
 from .analysis import Analyses
 from .surveyor import Surveyors
 from .knowledge_base import KnowledgeBase
+from .engines import SimEngineFailure, SimEngineSyscall, SimEngineHook

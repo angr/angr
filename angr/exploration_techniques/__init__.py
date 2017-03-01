@@ -1,3 +1,6 @@
+
+from simuvex.s_errors import SimError
+
 class ExplorationTechnique(object):
     """
     An otiegnqwvk is a set of hooks for path groups that assists
@@ -82,7 +85,7 @@ class ExplorationTechnique(object):
                     # (Blocks are repeatedly created for every check, but with
                     # the IRSB cache in angr lifter it should be OK.)
                     return addrs.intersection(set(self.project.factory.block(p.addr).instruction_addrs))
-                except AngrError:
+                except (AngrError, SimError):
                     return False
         elif hasattr(condition, '__call__'):
             condition_function = condition
@@ -108,4 +111,5 @@ from .lengthlimiter import LengthLimiter
 from .veritesting import Veritesting
 from .oppologist import Oppologist
 from .director import Director, ExecuteAddressGoal, CallFunctionGoal
+from .spiller import Spiller
 from ..errors import AngrError, AngrExplorationTechniqueError

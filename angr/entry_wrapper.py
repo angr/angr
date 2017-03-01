@@ -7,10 +7,10 @@ from .call_stack import CallStack
 
 l = logging.getLogger(name="angr.entry_wrapper")
 
-# TODO: Make callsite an object and use it in SimRunKey and FunctionKey
+# TODO: Make callsite an object and use it in BlockID and FunctionKey
 
 
-class SimRunKey(object):
+class BlockID(object):
     """
     A context-sensitive key for a SimRun object.
     """
@@ -35,7 +35,7 @@ class SimRunKey(object):
         return " -> ".join(s)
 
     def __repr__(self):
-        return "<SRKey %#08x (%s) %% %s%s>" % (self.addr, self.callsite_repr(), self.jump_type,
+        return "<BlockID %#08x (%s) %% %s%s>" % (self.addr, self.callsite_repr(), self.jump_type,
                                                "" if self.continue_at is None else "-" + self.continue_at
                                                )
 
@@ -45,7 +45,7 @@ class SimRunKey(object):
         return self._hash
 
     def __eq__(self, other):
-        return isinstance(other, SimRunKey) and \
+        return isinstance(other, BlockID) and \
                self.addr == other.addr and self.callsite_tuples == other.callsite_tuples and \
                self.jump_type == other.jump_type and \
                self.continue_at == other.continue_at
@@ -61,7 +61,7 @@ class SimRunKey(object):
             jump_type = 'exit'
         else:
             jump_type = "normal"
-        return SimRunKey(addr, callstack_suffix, jump_type, continue_at=continue_at)
+        return BlockID(addr, callstack_suffix, jump_type, continue_at=continue_at)
 
     @property
     def func_addr(self):
@@ -111,21 +111,21 @@ class FunctionKey(object):
         return FunctionKey(addr, callsite_tuples)
 
 
-class EntryWrapper(object):
+class EntryDesc(object):
     """
     Describes an entry in CFG or VFG. Only used internally by the analysis.
     """
-    def __init__(self, addr, path, context_sensitivity_level, simrun_key=None, src_simrun_key=None,
+    def __init__(self, addr, state, context_sensitivity_level, block_id=None, src_block_id=None,
                  src_exit_stmt_idx=None, src_ins_addr=None, jumpkind=None, call_stack=None, is_narrowing=False,
                  skip=False, final_return_address=None, continue_at=None):
-        self.addr = addr  # Note that addr may not always be equal to self.path.addr (for syscalls, for example)
-        self._path = path
+        self.addr = addr  # Note that addr may not always be equal to self.state.ip (for syscalls, for example)
+        self.state = state
         self.jumpkind = jumpkind
-        self.src_simrun_key = src_simrun_key
+        self.src_block_id = src_block_id
         self.src_exit_stmt_idx = src_exit_stmt_idx
         self.src_ins_addr = src_ins_addr
         self.skip = skip
-        self._simrun_key = simrun_key
+        self._block_id = block_id
         self.continue_at = continue_at
 
         # Other parameters
@@ -136,8 +136,8 @@ class EntryWrapper(object):
             self._call_stack = CallStack()
 
             # Added the function address of the current exit to callstack
-            se = self._path.state.se
-            sp_expr = self._path.state.regs.sp
+            se = self.state.se
+            sp_expr = self.state.regs.sp
 
             # If the sp_expr cannot be concretized, the stack pointer cannot be traced anymore.
             try:
@@ -148,14 +148,10 @@ class EntryWrapper(object):
                 # Set the stack pointer to None
                 sp = None
 
-            self._call_stack.call(None, self._path.addr, retn_target=final_return_address, stack_pointer=sp)
+            self._call_stack.call(None, self.addr, retn_target=final_return_address, stack_pointer=sp)
 
         else:
             self._call_stack = call_stack
-
-    @property
-    def path(self):
-        return self._path
 
     @property
     def call_stack(self):

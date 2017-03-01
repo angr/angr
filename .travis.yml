@@ -3,7 +3,15 @@ python: 2.7
 sudo: required
 dist: xenial
 env:
-  - PY="e" ANGR_REPO=angr
-  - PY="e" ANGR_REPO=angr-doc
-install: (sudo apt-get update || true) && cd && git clone https://github.com/angr/angr-dev && cd angr-dev && bash -ex ./setup.sh -i -w -v -$PY angr
-script: cd ~/angr-dev && source ~/.virtualenvs/angr/bin/activate && ./travis-test.sh
+  - PY=e ANGR_REPO=angr
+  - PY=e ANGR_REPO=angr-doc
+  - PY=e ANGR_REPO=angrop
+  - PY=e ANGR_REPO=fuzzer
+  - PY=e ANGR_REPO=driller
+  - PY=p ANGR_REPO=colorguard
+  - PY=e ANGR_REPO=fidget
+  - PY=e ANGR_REPO=patcherex
+#  - PY=e ANGR_REPO=tracer NOSE_OPTIONS="-x" NOSE_PROCESSES=1
+#  - PY=p ANGR_REPO=rex NOSE_OPTIONS="-x" NOSE_PROCESSES=1
+install: ( curl https://raw.githubusercontent.com/angr/angr-dev/$TRAVIS_BRANCH/tests/travis-install.sh | grep -v 404 || curl https://raw.githubusercontent.com/angr/angr-dev/master/tests/travis-install.sh ) | bash
+script: ~/angr-dev/tests/travis-test.sh

@@ -19,6 +19,9 @@ class BackwardSlice(Analysis):
     Represents a backward slice of the program.
     """
 
+    # FIXME: BackwardSlice does not work with the engines refactoring. It will be brought back to life after the
+    # FIXME: DDG refactoring, which will happen shortly.
+
     def __init__(self, cfg, cdg, ddg,
                  targets=None,
                  cfg_node=None,
@@ -64,7 +67,7 @@ class BackwardSlice(Analysis):
         if targets is not None:
             for t in targets:
                 if isinstance(t, CodeLocation):
-                    node = self._cfg.get_any_node(t.simrun_addr)
+                    node = self._cfg.get_any_node(t.block_addr)
                     self._targets.append((node, t.stmt_idx))
                 elif type(t) is tuple:
                     self._targets.append(t)
@@ -186,7 +189,7 @@ class BackwardSlice(Analysis):
 
             if run.addr in self.chosen_statements:
                 if self.chosen_statements[run.addr] is True:
-                    anno_cfg.add_simrun_to_whitelist(run.addr)
+                    anno_cfg.add_block_to_whitelist(run.addr)
                 else:
                     anno_cfg.add_statements_to_whitelist(run.addr, self.chosen_statements[run.addr])
 
@@ -341,7 +344,7 @@ class BackwardSlice(Analysis):
 
     def _construct_default(self, targets):
         """
-        Create a backward slice from a specific statement in a specific sim_run. This is done by traverse the CFG
+        Create a backward slice from a specific statement in a specific block. This is done by traverse the CFG
         backwards, and mark all tainted statements based on dependence graphs (CDG and DDG) provided initially. The
         traversal terminated when we reach the entry point, or when there is no unresolved dependencies.
 
@@ -380,7 +383,7 @@ class BackwardSlice(Analysis):
             l.debug("Checking taint %s...", tainted_cl)
 
             # Mark it as picked
-            self._pick_statement(tainted_cl.simrun_addr, tainted_cl.stmt_idx)
+            self._pick_statement(tainted_cl.block_addr, tainted_cl.stmt_idx)
 
             # Mark it as accessed
             accessed_taints.add(tainted_cl)
@@ -401,7 +404,7 @@ class BackwardSlice(Analysis):
                     self.taint_graph.add_edge(p, tainted_cl)
 
             # Handle the control dependence
-            for n in self._cfg.get_all_nodes(tainted_cl.simrun_addr):
+            for n in self._cfg.get_all_nodes(tainted_cl.block_addr):
                 new_taints = self._handle_control_dependence(n)
 
                 l.debug("Returned %d taints for %s from control dependence graph", len(new_taints), n)

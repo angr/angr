@@ -101,9 +101,7 @@ class PathHistory(object):
 
         # record constraints, added constraints, and satisfiability
         self._all_constraints = state.se.constraints
-        self._fresh_constraints = [
-            ev.constraint.ast for ev in state.log.events if isinstance(ev, simuvex.SimActionConstraint)
-        ]
+        self._fresh_constraints = state.log.fresh_constraints
 
         if isinstance(state.se._solver, claripy.frontend_mixins.SatCacheMixin):
             self._satisfiable = state.se._solver._cached_satness
@@ -250,7 +248,7 @@ class TreeIter(object):
         return list(reversed(tuple(reversed(self))))
 
     def __len__(self):
-        return len(self.hardcopy)
+        return self._start.length
 
     def __getitem__(self, k):
         if isinstance(k, slice):

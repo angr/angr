@@ -7,9 +7,10 @@ import simuvex
 import claripy
 import angr
 import archinfo
+from simuvex import SimEngineProcedure
 
 from ..call_stack import CallStack
-from ..entry_wrapper import SimRunKey, FunctionKey, EntryWrapper
+from ..entry_wrapper import BlockID, FunctionKey, EntryDesc
 from ..analysis import Analysis, register_analysis
 from ..errors import AngrVFGError, AngrError, AngrVFGRestartAnalysisNotice, AngrJobMergingFailureNotice
 from .forward_analysis import ForwardAnalysis, AngrSkipEntryNotice, AngrDelayEntryNotice
@@ -18,7 +19,7 @@ from .cfg_utils import CFGUtils
 l = logging.getLogger(name="angr.analyses.vfg")
 
 
-class VFGJob(EntryWrapper):
+class VFGJob(EntryDesc):
     """
     An EntryWrapper that contains vfg local variables
     """
@@ -26,12 +27,13 @@ class VFGJob(EntryWrapper):
         super(VFGJob, self).__init__(*args, **kwargs)
 
         self.call_stack_suffix = None
-        self.simrun = None
         self.vfg_node = None
         self.is_call_jump = None
         self.call_target = None
         self.dbg_exit_status = {}
         self.is_return_jump = None
+
+        self.sim_successors = None
 
         # if this job has a call successor, do we plan to skip the call successor or not
         self.call_skipped = False
@@ -41,16 +43,8 @@ class VFGJob(EntryWrapper):
         self.call_task = None  # type: CallAnalysis
 
     @property
-    def state(self):
-        return self.path.state
-
-    @state.setter
-    def state(self, state):
-        self.path.state = state
-
-    @property
-    def simrun_key(self):
-        return self._simrun_key
+    def block_id(self):
+        return self._block_id
 
     def callstack_repr(self, kb=None):
         s = [ ]
@@ -175,7 +169,7 @@ class VFGNode(object):
         Constructor.
 
         :param int addr:
-        :param SimRunKey key:
+        :param BlockID key:
         :param simuvex.SimState state:
         """
         self.key = key
@@ -231,13 +225,14 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
     the beginning (or the end) of each basic block.
 
     Steps:
-    # Generate a CFG first if CFG is not provided.
-    # Identify all merge points (denote the set of merge points as Pw) in the CFG.
-    # Cut those loop back edges (can be derived from Pw) so that we gain an acyclic CFG.
-    # Identify all variables that are 1) from memory loading 2) from initial values, or 3) phi functions. Denote
-        the set of those variables as S_{var}.
-    # Start real AI analysis and try to compute a fix point of each merge point. Perform widening/narrowing only on
-        variables \\in S_{var}.
+
+        - Generate a CFG first if CFG is not provided.
+        - Identify all merge points (denote the set of merge points as Pw) in the CFG.
+        - Cut those loop back edges (can be derived from Pw) so that we gain an acyclic CFG.
+        - Identify all variables that are 1) from memory loading 2) from initial values, or 3) phi functions. Denote
+            the set of those variables as S_{var}.
+        - Start real AI analysis and try to compute a fix point of each merge point. Perform widening/narrowing only on
+            variables \\in S_{var}.
     """
 
     # TODO: right now the graph traversal method is not optimal. A new solution is needed to minimize the iteration we
@@ -303,7 +298,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         self._record_function_final_states = record_function_final_states
 
-        self._nodes = {}            # all the vfg nodes, keyed on simrun keys
+        self._nodes = {}            # all the vfg nodes, keyed on block IDs
         self._normal_states = { }   # Last available state for each program point without widening
         self._widened_states = { }  # States on which widening has occurred
 
@@ -403,7 +398,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 return n
 
     def irsb_from_node(self, node):
-        return self.project.factory.sim_run(node.state, addr=node.addr, num_inst=len(node.instruction_addrs))
+        return self.project.factory.successors(node.state, addr=node.addr, num_inst=len(node.instruction_addrs))
 
     def get_paths(self, begin, end):
         """
@@ -495,12 +490,12 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             call_stack = CallStack()
             call_stack.call(None, self._function_start, retn_target=self._final_address)
 
-        job = VFGJob(entry_path.addr, entry_path, self._context_sensitivity_level,
+        job = VFGJob(entry_path.addr, entry_path.state, self._context_sensitivity_level,
                      jumpkind='Ijk_Boring', final_return_address=self._final_address,
                      call_stack=call_stack
                      )
-        simrun_key = SimRunKey.new(entry_path.addr, job.get_call_stack_suffix(), job.jumpkind)
-        job._simrun_key = simrun_key
+        block_id = BlockID.new(entry_path.addr, job.get_call_stack_suffix(), job.jumpkind)
+        job._block_id = block_id
 
         self._insert_entry(job)
 
@@ -540,18 +535,18 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return block_in_function_pos + MAX_ENTRIES_PER_FUNCTION * function_pos
 
-        # return self._cfg.get_topological_order(self._cfg.get_node(job.simrun_key))
+        # return self._cfg.get_topological_order(self._cfg.get_node(job.block_id))
 
     def _entry_key(self, job):
         """
-        Return the SimRun key of the job. Two or more jobs owning the same SimRun key will be merged together.
+        Return the block ID of the job. Two or more jobs owning the same block ID will be merged together.
 
         :param VFGJob job: The VFGJob instance.
-        :return: The SimRun key to the job
-        :rtype: SimRunKey
+        :return:           The block ID of the job
+        :rtype:            BlockID
         """
 
-        return job.simrun_key
+        return job.block_id
 
     def _pre_entry_handling(self, job):
         """
@@ -622,108 +617,106 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # set up some essential variables and parameters
         job.call_stack_suffix = job.get_call_stack_suffix()
-        job.jumpkind = 'Ijk_Boring' if job.path.state.scratch.jumpkind is None else \
-            job.path.state.scratch.jumpkind
+        job.jumpkind = 'Ijk_Boring' if job.state.scratch.jumpkind is None else \
+            job.state.scratch.jumpkind
 
-        current_path = job.path
-        src_simrun_key = job.src_simrun_key
+        src_block_id = job.src_block_id
         src_exit_stmt_idx = job.src_exit_stmt_idx
 
-        addr = current_path.addr
-        input_state = current_path.state
-        simrun_key = SimRunKey.new(addr, job.call_stack_suffix, job.jumpkind)
+        addr = job.state.se.any_int(job.state.regs.ip)
+        input_state = job.state
+        block_id = BlockID.new(addr, job.call_stack_suffix, job.jumpkind)
 
-        if self._tracing_times[simrun_key] > self._max_iterations:
+        if self._tracing_times[block_id] > self._max_iterations:
             l.debug('%s has been traced too many times. Skip', job)
             raise AngrSkipEntryNotice()
 
-        self._tracing_times[simrun_key] += 1
+        self._tracing_times[block_id] += 1
 
-        if simrun_key not in self._nodes:
-            vfg_node = VFGNode(addr, simrun_key, state=input_state)
-            self._nodes[simrun_key] = vfg_node
+        if block_id not in self._nodes:
+            vfg_node = VFGNode(addr, block_id, state=input_state)
+            self._nodes[block_id] = vfg_node
 
         else:
-            vfg_node = self._nodes[simrun_key]
+            vfg_node = self._nodes[block_id]
 
         job.vfg_node = vfg_node
         # log the current state
         vfg_node.state = input_state
 
-        current_path.state = input_state
-
-        # Execute this basic block with input state, and get a new SimRun object
+        # Execute this basic block with input state, and get a new SimSuccessors instance
         # unused result var is `error_occured`
-        job.simrun, _, restart_analysis = self._get_simrun(input_state, current_path, addr)
+        job.sim_successors, _, restart_analysis = self._get_simsuccessors(input_state, addr)
 
         if restart_analysis:
             # We should restart the analysis because of something must be changed in the very initial state
             raise AngrVFGRestartAnalysisNotice()
 
-        if job.simrun is None:
-            # Ouch, we cannot get the simrun for some reason
+        if job.sim_successors is None:
+            # Ouch, we cannot get the SimSuccessors for some reason
             # Skip this guy
-            l.debug('Cannot create a SimRun instance for %s. Skip.', job)
+            l.debug('Cannot create SimSuccessors for %s. Skip.', job)
             raise AngrSkipEntryNotice()
 
-        self._graph_add_edge(src_simrun_key,
-                             simrun_key,
+        self._graph_add_edge(src_block_id,
+                             block_id,
                              jumpkind=job.jumpkind,
-                             src_exit_stmt_idx=src_exit_stmt_idx)
+                             src_exit_stmt_idx=src_exit_stmt_idx
+                             )
 
-    def _get_successors(self, entry):
+    def _get_successors(self, job):
         # Extract initial values
-        current_path = entry.path
-        addr = entry.addr
+        state = job.state
+        addr = job.addr
 
         # Obtain successors
         if addr not in self._avoid_runs:
-            all_successors = entry.simrun.successors + entry.simrun.unconstrained_successors
+            all_successors = job.sim_successors.flat_successors + job.sim_successors.unconstrained_successors
         else:
             all_successors = []
 
         # save those states
-        entry.vfg_node.final_states = all_successors[:]
+        job.vfg_node.final_states = all_successors[:]
 
         # Update thumb_addrs
-        if isinstance(entry.simrun, simuvex.SimIRSB) and current_path.state.thumb:
-            self._thumb_addrs.update(entry.simrun.imark_addrs())
+        if job.sim_successors.sort == 'IRSB' and state.thumb:
+            self._thumb_addrs.update(job.sim_successors.artifacts['instruction_addrs'])
 
         if len(all_successors) == 0:
-            if isinstance(entry.simrun,
-                          simuvex.procedures.SimProcedures["stubs"]["PathTerminator"]):
+            if job.sim_successors.sort == 'SimProcedure' and isinstance(job.sim_successors.artifacts['procedure'],
+                    simuvex.procedures.SimProcedures["stubs"]["PathTerminator"]):
                 # If there is no valid exit in this branch and it's not
                 # intentional (e.g. caused by a SimProcedure that does not
                 # do_return) , we should make it return to its callsite.
                 # However, we don't want to use its state as it might be
                 # corrupted. Just create a link in the exit_targets map.
-                retn_target = entry.call_stack.current_return_target
+                retn_target = job.call_stack.current_return_target
                 if retn_target is not None:
-                    new_call_stack = entry.call_stack_copy()
+                    new_call_stack = job.call_stack_copy()
                     exit_target_tpl = new_call_stack.stack_suffix(self._context_sensitivity_level) + (retn_target,)
-                    self._exit_targets[entry.call_stack_suffix + (addr,)].append(
+                    self._exit_targets[job.call_stack_suffix + (addr,)].append(
                         (exit_target_tpl, 'Ijk_Ret'))
             else:
                 # This is intentional. We shall remove all the pending returns generated before along this path.
-                self._remove_pending_return(entry, self._pending_returns)
+                self._remove_pending_return(job, self._pending_returns)
 
         # If this is a call exit, we shouldn't put the default exit (which
         # is artificial) into the CFG. The exits will be Ijk_Call and
         # Ijk_FakeRet, and Ijk_Call always goes first
-        entry.is_call_jump = any([self._is_call_jumpkind(i.scratch.jumpkind) for i in all_successors])
+        job.is_call_jump = any([self._is_call_jumpkind(i.scratch.jumpkind) for i in all_successors])
         call_targets = [i.se.exactly_int(i.ip) for i in all_successors if self._is_call_jumpkind(i.scratch.jumpkind)]
-        entry.call_target = None if not call_targets else call_targets[0]
+        job.call_target = None if not call_targets else call_targets[0]
 
-        entry.is_return_jump = len(all_successors) and all_successors[0].scratch.jumpkind == 'Ijk_Ret'
+        job.is_return_jump = len(all_successors) and all_successors[0].scratch.jumpkind == 'Ijk_Ret'
 
-        if entry.is_call_jump:
+        if job.is_call_jump:
             # create the call task
 
             # TODO: correctly fill the return address
-            call_task = CallAnalysis(entry.addr, None, [ ])
+            call_task = CallAnalysis(job.addr, None, [ ])
             self._task_stack.append(call_task)
 
-            entry.call_task = call_task
+            job.call_task = call_task
 
         return all_successors
 
@@ -739,7 +732,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         """
 
         # Initialize parameters
-        addr = job.path.addr
+        addr = job.addr
         jumpkind = successor.scratch.jumpkind
 
         #
@@ -829,8 +822,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             new_call_stack = job.call_stack
             new_call_stack_suffix = job.call_stack_suffix
 
-        # Generate the new SimRun key
-        new_simrun_key = SimRunKey.new(successor_addr, new_call_stack_suffix, jumpkind)
+        # Generate the new block ID
+        new_block_id = BlockID.new(successor_addr, new_call_stack_suffix, jumpkind)
 
         #
         # Generate new VFG jobs
@@ -843,23 +836,23 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             self._return_target_sources[successor_addr].append(job.call_stack_suffix + (addr,))
 
             # Check if this return is inside our pending returns list
-            if new_simrun_key in self._pending_returns:
-                del self._pending_returns[new_simrun_key]
+            if new_block_id in self._pending_returns:
+                del self._pending_returns[new_block_id]
 
         # Check if we have reached a fixpoint
         if jumpkind != 'Ijk_FakeRet' and \
-                new_simrun_key in self._nodes:
-            last_state = self._nodes[new_simrun_key].state
+                new_block_id in self._nodes:
+            last_state = self._nodes[new_block_id].state
 
             _, _, merged = last_state.merge(successor)
 
             if merged:
-                l.debug("%s didn't reach a fix-point", new_simrun_key)
+                l.debug("%s didn't reach a fix-point", new_block_id)
             else:
-                l.debug("%s reaches a fix-point.", new_simrun_key)
+                l.debug("%s reaches a fix-point.", new_block_id)
                 return [ ]
 
-        new_jobs = self._create_new_jobs(job, successor, new_simrun_key, new_call_stack)
+        new_jobs = self._create_new_jobs(job, successor, new_block_id, new_call_stack)
 
         return new_jobs
 
@@ -974,10 +967,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # there should not be more than two entries being merged at the same time
         assert len(entries) == 2
 
-        addr = entries[0].path.addr
+        addr = entries[0].addr
 
         if self.project.is_hooked(addr) and \
-                self.project.hooked_by(addr) is simuvex.s_procedure.SimProcedureContinuation:
+                self.project.hooked_by(addr).is_continuation:
             raise AngrJobMergingFailureNotice()
 
         # update jobs
@@ -985,15 +978,13 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             if entry in self._top_function_analysis_task.jobs:
                 self._top_function_analysis_task.jobs.remove(entry)
 
-        path_0 = entries[0].path
-        path_1 = entries[1].path
+        state_0 = entries[0].state
+        state_1 = entries[1].state
 
-        merged_state, _ = self._merge_states(path_0.state, path_1.state)
+        merged_state, _ = self._merge_states(state_0, state_1)
 
-        path = self.project.factory.path(merged_state)
-
-        new_job = VFGJob(entries[0].addr, path, self._context_sensitivity_level, jumpkind=entries[0].jumpkind,
-                         simrun_key=entries[0].simrun_key, call_stack=entries[0].call_stack
+        new_job = VFGJob(entries[0].addr, merged_state, self._context_sensitivity_level, jumpkind=entries[0].jumpkind,
+                         block_id=entries[0].block_id, call_stack=entries[0].call_stack
                          )
 
         self._top_function_analysis_task.jobs.append(new_job)
@@ -1015,7 +1006,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         if not addr in self._widening_points(job_0.func_addr):
             return False
 
-        tracing_times = self._tracing_times[job_0.simrun_key]
+        tracing_times = self._tracing_times[job_0.block_id]
         if tracing_times > self._max_iterations_before_widening and tracing_times % self._widening_interval == 0:
             return True
 
@@ -1043,9 +1034,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # import ipdb; ipdb.set_trace()
 
-        path = self.project.factory.path(new_state)
-        new_job = VFGJob(jobs[0].addr, path, self._context_sensitivity_level, jumpkind=jobs[0].jumpkind,
-                         simrun_key=jobs[0].simrun_key, call_stack=jobs[0].call_stack
+        new_job = VFGJob(jobs[0].addr, new_state, self._context_sensitivity_level, jumpkind=jobs[0].jumpkind,
+                         block_id=jobs[0].block_id, call_stack=jobs[0].call_stack
                          )
         self._top_function_analysis_task.jobs.append(new_job)
 
@@ -1266,126 +1256,126 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
     # DiGraph manipulation
     #
 
-    def _graph_get_node(self, node_key, terminator_for_nonexistent_node=False):
+    def _graph_get_node(self, block_id, terminator_for_nonexistent_node=False):
         """
         Get an existing VFGNode instance from the graph.
 
-        :param SimRunKey node_key: The SimRun key for the node to get.
+        :param BlockID block_id:                     The block ID for the node to get.
         :param bool terminator_for_nonexistent_node: True if a Terminator (which is a SimProcedure stub) should be
                                                      created when there is no existing node available for the given
-                                                     SimRun key.
-        :return: A node in the graph, or None.
-        :rtype: VFGNode
+                                                     block ID.
+        :return:                                     A node in the graph, or None.
+        :rtype:                                      VFGNode
         """
 
-        if node_key not in self._nodes:
-            l.error("Trying to look up a node that we don't have yet. is this okay????")
+        if block_id not in self._nodes:
+            l.error("Trying to look up a node that we don't have yet. Is this okay????")
             if not terminator_for_nonexistent_node:
                 return None
             # Generate a PathTerminator node
-            addr = node_key.addr
-            func_addr = node_key.func_addr
+            addr = block_id.addr
+            func_addr = block_id.func_addr
             if func_addr is None:
-                # We'll have to use the current SimRun address instead
+                # We'll have to use the current block address instead
                 # TODO: Is it really OK?
                 func_addr = addr
 
             input_state = self.project.factory.entry_state()
             input_state.ip = addr
-            pt = VFGNode(addr, node_key, input_state)
-            self._nodes[node_key] = pt
+            pt = VFGNode(addr, block_id, input_state)
+            self._nodes[block_id] = pt
 
             if isinstance(self.project.arch, archinfo.ArchARM) and addr % 2 == 1:
                 self._thumb_addrs.add(addr)
                 self._thumb_addrs.add(addr - 1)
 
-            l.debug("SimRun key %s does not exist. Create a PathTerminator instead.",
-                    repr(node_key))
+            l.debug("Block ID %s does not exist. Create a PathTerminator instead.",
+                    repr(block_id))
 
-        return self._nodes[node_key]
+        return self._nodes[block_id]
 
-    def _graph_add_edge(self, src_node_key, dst_node_key, **kwargs):
+    def _graph_add_edge(self, src_block_id, dst_block_id, **kwargs):
         """
         Add an edge onto the graph.
 
-        :param SimRunKey src_node_key: The SimRun key for source node.
-        :param SimRunKey dst_node_key: The SimRun key for destination node.
-        :param str jumpkind: The jumpkind of the edge.
-        :param exit_stmt_idx: ID of the statement in the source IRSB where this edge is created from. 'default' refers
-                              to the default exit.
+        :param BlockID src_block_id: The block ID for source node.
+        :param BlockID dst_block_id: The block Id for destination node.
+        :param str jumpkind:         The jumpkind of the edge.
+        :param exit_stmt_idx:        ID of the statement in the source IRSB where this edge is created from. 'default'
+                                     refers to the default exit.
         :return: None
         """
 
-        dst_node = self._graph_get_node(dst_node_key, terminator_for_nonexistent_node=True)
+        dst_node = self._graph_get_node(dst_block_id, terminator_for_nonexistent_node=True)
 
-        if src_node_key is None:
+        if src_block_id is None:
             self.graph.add_node(dst_node)
 
         else:
-            src_node = self._graph_get_node(src_node_key, terminator_for_nonexistent_node=True)
+            src_node = self._graph_get_node(src_block_id, terminator_for_nonexistent_node=True)
             self.graph.add_edge(src_node, dst_node, **kwargs)
 
     #
     # Other methods
     #
 
-    def _get_simrun(self, state, current_path, addr):
+    def _get_simsuccessors(self, state, addr):
         error_occured = False
         restart_analysis = False
 
         jumpkind = 'Ijk_Boring'
-        if current_path.state.scratch.jumpkind:
-            jumpkind = current_path.state.scratch.jumpkind
+        if state.scratch.jumpkind:
+            jumpkind = state.scratch.jumpkind
 
         try:
-            node = self._cfg.get_any_node(current_path.addr)
+            node = self._cfg.get_any_node(addr)
             num_inst = None if node is None else len(node.instruction_addrs)
-            sim_run = self.project.factory.sim_run(current_path.state, jumpkind=jumpkind, num_inst=num_inst)
+            sim_successors = self.project.factory.successors(state, jumpkind=jumpkind, num_inst=num_inst)
         except simuvex.SimIRSBError as ex:
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
             l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
             error_occured = True
-            sim_run = \
-                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                    state, addr=addr)
-        except claripy.ClaripyError as ex:
+            inst = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                state, self.project.arch)
+            sim_successors = SimEngineProcedure().process(state, inst)
+        except claripy.ClaripyError:
             l.error("ClaripyError: ", exc_info=True)
             error_occured = True
             # Generate a PathTerminator to terminate the current path
-            sim_run = \
-                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                    state, addr=addr)
-        except simuvex.SimError as ex:
+            inst = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                state, self.project.arch)
+            sim_successors = SimEngineProcedure().process(state, inst)
+        except simuvex.SimError:
             l.error("SimError: ", exc_info=True)
 
             error_occured = True
             # Generate a PathTerminator to terminate the current path
-            sim_run = \
-                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                    state, addr=addr)
+            inst = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
+                    state, self.project.arch)
+            sim_successors = SimEngineProcedure().process(state, inst)
         except AngrError as ex:
             #segment = self.project.loader.main_bin.in_which_segment(addr)
-            l.error("AngrError %s when creating SimRun at %#x",
-                    ex, addr)
+            l.error("AngrError %s when generating SimSuccessors at %#x",
+                    ex, addr, exc_info=True)
             # We might be on a wrong branch, and is likely to encounter the
             # "No bytes in memory xxx" exception
             # Just ignore it
             error_occured = True
-            sim_run = None
+            sim_successors = None
 
-        return sim_run, error_occured, restart_analysis
+        return sim_successors, error_occured, restart_analysis
 
-    def _create_new_jobs(self, job, successor, new_simrun_key, new_call_stack):
+    def _create_new_jobs(self, job, successor, new_block_id, new_call_stack):
         """
         Create a list of new VFG jobs for the successor state.
 
-        :param VFGJob job: The VFGJob instance.
-        :param simuvex.SimState successor: THe succeeding state.
-        :param SimRunKey new_simrun_key: SimRunKey for the new VFGJob
-        :param new_call_stack: The new callstack.
-        :return: A list of newly created VFG jobs.
-        :rtype: list
+        :param VFGJob job:                 The VFGJob instance.
+        :param simuvex.SimState successor: The succeeding state.
+        :param BlockID new_block_id:       Block ID for the new VFGJob
+        :param new_call_stack:             The new callstack.
+        :return:                           A list of newly created VFG jobs.
+        :rtype:                            list
         """
 
         # TODO: basic block stack is probably useless
@@ -1393,6 +1383,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         jumpkind = successor.scratch.jumpkind
         # Make a copy of the state in case we use it later
         successor_state = successor.copy()
+        successor_addr = successor_state.se.any_int(successor_state.ip)
 
         new_jobs = [ ]
 
@@ -1427,11 +1418,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 #if self.project.arch.name == 'X86':
                 #    successor_state.regs.eax = successor_state.se.BVS('ret_val', 32, min=0, max=0xffffffff, stride=1)
 
-                successor_path = self.project.factory.path(successor_state)
-                new_job = VFGJob(successor_path.addr,
-                                 successor_path,
+                new_job = VFGJob(successor_addr,
+                                 successor_state,
                                  self._context_sensitivity_level,
-                                 simrun_key=new_simrun_key,
+                                 block_id=new_block_id,
                                  jumpkind='Ijk_Ret',
                                  call_stack=new_call_stack,
                                  )
@@ -1442,29 +1432,28 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 job.dbg_exit_status[successor] = "Pending"
 
             else:
-                self._pending_returns[new_simrun_key] = \
+                self._pending_returns[new_block_id] = \
                     (successor_state, new_call_stack)
                 job.dbg_exit_status[successor] = "Pending"
 
         else:
-            successor_path = self.project.factory.path(successor_state)
             if simuvex.o.ABSTRACT_MEMORY in successor.options:
                 if self._is_call_jumpkind(successor.scratch.jumpkind):
                     # If this is a call, we create a new stack address mapping
-                    reg_sp_si = self._create_stack_region(successor_path.state, successor_path.addr)
+                    reg_sp_si = self._create_stack_region(successor_state, successor_addr)
 
                     # Save the new sp register
-                    new_reg_sp_expr = successor_path.state.se.ValueSet(successor_state.arch.bits,
+                    new_reg_sp_expr = successor_state.se.ValueSet(successor_state.arch.bits,
                                                                        'global',
                                                                        0,
                                                                        reg_sp_si
                                                                        )
-                    successor_path.state.regs.sp = new_reg_sp_expr
+                    successor_state.regs.sp = new_reg_sp_expr
 
                 elif successor.scratch.jumpkind == "Ijk_Ret":
                     # Remove the existing stack address mapping
                     # FIXME: Now we are assuming the sp is restored to its original value
-                    reg_sp_expr = successor_path.state.regs.sp
+                    reg_sp_expr = successor_state.regs.sp
 
                     if isinstance(reg_sp_expr._model_vsa, claripy.vsa.StridedInterval):
                         reg_sp_si = reg_sp_expr._model_vsa
@@ -1474,11 +1463,11 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                         reg_sp_val = reg_sp_si.min
                         # TODO: Finish it!
 
-            new_job = VFGJob(successor_path.addr,
-                             successor_path,
+            new_job = VFGJob(successor_addr,
+                             successor_state,
                              self._context_sensitivity_level,
-                             simrun_key=new_simrun_key,
-                             jumpkind=successor_path.state.scratch.jumpkind,
+                             block_id=new_block_id,
+                             jumpkind=successor_state.scratch.jumpkind,
                              call_stack=new_call_stack,
                              )
             # r = self._worklist_append_entry(new_exit_wrapper)
@@ -1526,10 +1515,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 job.dbg_exit_status[successor] = "Appended"
 
         if not job.is_call_jump or jumpkind != "Ijk_FakeRet":
-            new_target = (new_simrun_key, jumpkind)
+            new_target = (new_block_id, jumpkind)
         else:
-            new_target = (new_simrun_key, "Ijk_FakeRet")  # This is the fake return!
-        self._exit_targets[job.call_stack_suffix + (job.path.addr,)].append(new_target)
+            new_target = (new_block_id, "Ijk_FakeRet")  # This is the fake return!
+        self._exit_targets[job.call_stack_suffix + (job.addr,)].append(new_target)
 
         return new_jobs
 
@@ -1626,11 +1615,11 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return reg_sp_si
 
-    def _create_callstack(self, entry_wrapper, successor_ip, jumpkind, fakeret_successor):
-        addr = entry_wrapper.path.addr
+    def _create_callstack(self, job, successor_ip, jumpkind, fakeret_successor):
+        addr = job.addr
 
         if self._is_call_jumpkind(jumpkind):
-            new_call_stack = entry_wrapper.call_stack_copy()
+            new_call_stack = job.call_stack_copy()
             # Notice that in ARM, there are some freaking instructions
             # like
             # BLEQ <address>
@@ -1647,12 +1636,12 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                                 retn_target=retn_target_addr)
 
         elif jumpkind == "Ijk_Ret":
-            new_call_stack = entry_wrapper.call_stack_copy()
+            new_call_stack = job.call_stack_copy()
             new_call_stack.ret(successor_ip)
 
         else:
             # Normal control flow transition
-            new_call_stack = entry_wrapper.call_stack
+            new_call_stack = job.call_stack
 
         return new_call_stack
 
@@ -1709,16 +1698,15 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # Unlike CFG, we will still trace those blocks that have been traced before. In other words, we don't
         # remove fake returns even if they have been traced - otherwise we cannot come to a fixpoint.
 
-        new_path = self.project.factory.path(state)
-        simrun_key = SimRunKey.new(addr,
-                                   call_stack.stack_suffix(self._context_sensitivity_level),
-                                   'Ijk_Ret'
-                                   )
-        job = VFGJob(new_path.addr,
-                     new_path,
+        block_id = BlockID.new(addr,
+                               call_stack.stack_suffix(self._context_sensitivity_level),
+                               'Ijk_Ret'
+                               )
+        job = VFGJob(addr,
+                     state,
                      self._context_sensitivity_level,
-                     simrun_key=simrun_key,
-                     jumpkind=new_path.state.scratch.jumpkind,
+                     block_id=block_id,
+                     jumpkind=state.scratch.jumpkind,
                      call_stack=call_stack,
                      )
         self._insert_entry(job)
@@ -1727,7 +1715,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
     def _get_pending_job(self, func_addr):
 
         pending_ret_key = None
-        for k in self._pending_returns.iterkeys():  # type: SimRunKey
+        for k in self._pending_returns.iterkeys():  # type: BlockID
             if k.func_addr == func_addr:
                 pending_ret_key = k
                 break
@@ -1735,9 +1723,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         return pending_ret_key
 
     def _get_block_addr(self, b): #pylint:disable=R0201
-        if isinstance(b, simuvex.SimIRSB):
-            return b.first_imark.addr
-        elif isinstance(b, simuvex.SimProcedure):
+        if isinstance(b, simuvex.SimSuccessors):
             return b.addr
         else:
             raise Exception("Unsupported block type %s" % type(b))

@@ -1,5 +1,7 @@
 
 import logging
+import struct
+import cffi
 from collections import defaultdict
 
 import networkx
@@ -9,7 +11,7 @@ import simuvex
 
 from ..knowledge import Function, HookNode, BlockNode, FunctionManager
 from ..analysis import Analysis
-from ..errors import AngrCFGError, AngrTranslationError, AngrMemoryError
+from ..errors import AngrCFGError
 from ..extern_obj import AngrExternObject
 
 from .cfg_node import CFGNode
@@ -47,8 +49,8 @@ class CFGBase(Analysis):
     """
     The base class for control flow graphs.
     """
-    def __init__(self, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None):
-
+    def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None):
+        self.sort = sort
         self._context_sensitivity_level=context_sensitivity_level
 
         # Sanity checks
@@ -67,9 +69,9 @@ class CFGBase(Analysis):
         self._thumb_addrs = set()
 
         # Traverse all the IRSBs, and put the corresponding CFGNode objects to a dict
-        # CFGNodes dict indexed by SimRun key
+        # CFGNodes dict indexed by block ID
         self._nodes = None
-        # Lists of CFGNodes indexed by addresses of each SimRun
+        # Lists of CFGNodes indexed by addresses of each block
         self._nodes_by_addr = None
 
         # Store all the functions analyzed before the set is cleared
@@ -101,6 +103,8 @@ class CFGBase(Analysis):
         # TODO: A segment tree to speed up CFG node lookups
         self._node_lookup_index = None
         self._node_lookup_index_warned = False
+
+        self._ffi = cffi.FFI()
 
     def __contains__(self, cfg_node):
         return cfg_node in self._graph
@@ -257,16 +261,16 @@ class CFGBase(Analysis):
     def get_all_successors(self, basic_block):
         return networkx.dfs_successors(self._graph, basic_block)
 
-    def get_node(self, node_key):
+    def get_node(self, block_id):
         """
         Get a single node from node key.
 
-        :param SimRunKey node_key: The node key
-        :return: The CFGNode
-        :rtype: CFGNode.
+        :param BlockID block_id: Block ID of the node.
+        :return:                 The CFGNode
+        :rtype:                  CFGNode
         """
-        if node_key in self._nodes:
-            return self._nodes[node_key]
+        if block_id in self._nodes:
+            return self._nodes[block_id]
         else:
             return None
 
@@ -323,34 +327,25 @@ class CFGBase(Analysis):
 
         return None
 
-    def _get_irsb(self, cfg_node):
-        if cfg_node is None:
-            return None
-
-        if cfg_node.input_state is None:
-            raise AngrCFGError(
-                'You should save the input state when generating the CFG if you want to retrieve the SimIRSB later.')
-
-        # Recreate the SimIRSB
-        return self.project.factory.sim_run(cfg_node.input_state, max_size=cfg_node.size, opt_level=self._iropt_level)
-
-    def irsb_from_node(self, cfg_node):
+    def irsb_from_node(self, cfg_node):  # pylint:disable=unused-argument
         """
-        Create SimRun from a CFGNode object.
+        Create an IRSB from a CFGNode object.
         """
-        return self._get_irsb(cfg_node)
+        raise DeprecationWarning('"irsb_from_node()" is deprecated since SimIRSB does not exist anymore.')
 
-    def get_any_irsb(self, addr):
+    def get_any_irsb(self, addr):  # pylint:disable=unused-argument
         """
-        Returns a SimRun of a certain address. If there are many SimRuns with the same address in CFG,
-        return an arbitrary one.
-        You should never assume this method returns a specific one.
+        Returns an IRSB of a certain address. If there are many IRSBs with the same address in CFG, return an arbitrary
+        one.
+        You should never assume this method returns a specific IRSB.
+
+        :param int addr: Address of the IRSB to get.
+        :return:         An arbitrary IRSB located at `addr`.
+        :rtype:          simuvex.IRSB
         """
-        cfg_node = self.get_any_node(addr)
+        raise DeprecationWarning('"get_any_irsb()" is deprecated since SimIRSB does not exist anymore.')
 
-        return self._get_irsb(cfg_node)
-
-    def get_all_nodes(self, addr, is_syscall=None):
+    def get_all_nodes(self, addr, is_syscall=None, anyaddr=False):
         """
         Get all CFGNodes whose address is the specified one.
 
@@ -361,7 +356,7 @@ class CFGBase(Analysis):
         results = [ ]
 
         for cfg_node in self._graph.nodes_iter():
-            if cfg_node.addr == addr:
+            if cfg_node.addr == addr or (anyaddr and cfg_node.addr <= addr < (cfg_node.addr + cfg_node.size)):
                 if is_syscall and cfg_node.is_syscall:
                     results.append(cfg_node)
                 elif is_syscall is False and not cfg_node.is_syscall:
@@ -381,28 +376,14 @@ class CFGBase(Analysis):
 
         return self._graph.nodes_iter()
 
-    def get_all_irsbs(self, addr):
+    def get_all_irsbs(self, addr):  # pylint:disable=unused-argument
         """
-        Returns all SimRuns of a certain address, without considering contexts.
+        Returns all IRSBs of a certain address, without considering contexts.
         """
-
-        nodes = self.get_all_nodes(addr)
-
-        results = [ ]
-
-        for n in nodes:
-            results.append(self._get_irsb(n))
-
-        return results
+        raise DeprecationWarning('"get_all_irsbs()" is deprecated since SimIRSB does not exist anymore.')
 
     def get_loop_back_edges(self):
         return self._loop_back_edges
-
-    def get_irsb_addr_set(self):
-        irsb_addr_set = set()
-        for tpl, _ in self._nodes:
-            irsb_addr_set.add(tpl[-1]) # IRSB address
-        return irsb_addr_set
 
     def get_branching_nodes(self):
         """
@@ -432,8 +413,8 @@ class CFGBase(Analysis):
     def graph(self):
         return self._graph
 
-    def remove_edge(self, simrun_from, simrun_to):
-        edge = (simrun_from, simrun_to)
+    def remove_edge(self, block_from, block_to):
+        edge = (block_from, block_to)
 
         if edge in self._graph:
             self._graph.remove_edge(*edge)
@@ -450,9 +431,9 @@ class CFGBase(Analysis):
         addr = cfg_node.addr
 
         if self.project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
-            _, kwargs = self.project._sim_procedures[addr]
-            size = kwargs.get('length', 0)
-            return HookNode(addr, size, self.project.hooked_by(addr))
+            hooker = self.project._sim_procedures[addr]
+            size = hooker.kwargs.get('length', 0)
+            return HookNode(addr, size, hooker.procedure)
         else:
             return BlockNode(cfg_node.addr, cfg_node.size)  # pylint: disable=no-member
 
@@ -684,6 +665,34 @@ class CFGBase(Analysis):
         except KeyError:
             return None
 
+    def _fast_memory_load_pointer(self, addr):
+        """
+        Perform a fast memory loading of a pointer.
+
+        :param int addr: Address to read from.
+        :return:         A pointer.
+        :rtype:          int
+        """
+
+        pointer_size = self.project.arch.bits / 8
+        buf = self._fast_memory_load(addr)
+
+        if self.project.arch.memory_endness == 'Iend_LE':
+            fmt = "<"
+        else:
+            fmt = ">"
+        if pointer_size == 8:
+            fmt += "Q"
+        elif pointer_size == 4:
+            fmt += "I"
+        else:
+            raise AngrCFGError("Pointer size of %d is not supported", pointer_size)
+
+        ptr_str = self._ffi.unpack(self._ffi.cast('char*', buf), pointer_size)
+        ptr = struct.unpack(fmt, ptr_str)[0]  # type:int
+
+        return ptr
+
     #
     # Analyze function features
     #
@@ -742,14 +751,22 @@ class CFGBase(Analysis):
             # Let's first see if it's a known SimProcedure that does not return
             if self.project.is_hooked(func.addr):
                 hooker = self.project.hooked_by(func.addr)
-                if hasattr(hooker, 'NO_RET'):
-                    if hooker.NO_RET:
-                        func.returning = False
-                        changes['functions_do_not_return'].append(func)
-                    else:
-                        func.returning = True
-                        changes['functions_return'].append(func)
-                    continue
+                procedure = hooker.procedure
+            else:
+                syscall = self.project._simos.syscall_table.get_by_addr(func.addr)
+                if syscall is not None:
+                    procedure = syscall.simproc
+                else:
+                    procedure = None
+
+            if procedure is not None and hasattr(procedure, 'NO_RET'):
+                if procedure.NO_RET:
+                    func.returning = False
+                    changes['functions_do_not_return'].append(func)
+                else:
+                    func.returning = True
+                    changes['functions_return'].append(func)
+                continue
 
             tmp_graph = networkx.DiGraph(func.graph)
             # Remove all fakeret edges from a non-returning function
@@ -819,7 +836,7 @@ class CFGBase(Analysis):
                                     endpoint
                                     )
                         else:
-                            all_endpoints_returning.append((transition_type, not hooker.NO_RET))
+                            all_endpoints_returning.append((transition_type, not hooker.procedure.NO_RET))
 
                     else:
                         successors = [ dst for _, dst in func.transition_graph.out_edges(endpoint) ]
@@ -968,7 +985,7 @@ class CFGBase(Analysis):
             if new_node is None:
                 # Create a new one
                 new_node = CFGNode(n.addr, new_size, self, callstack_key=callstack_key,
-                                   function_address=n.function_address, simrun_key=n.simrun_key,
+                                   function_address=n.function_address, block_id=n.block_id,
                                    instruction_addrs=[i for i in n.instruction_addrs
                                                       if n.addr <= i <= n.addr + new_size
                                                       ]
@@ -1000,7 +1017,7 @@ class CFGBase(Analysis):
             graph.remove_node(n)
 
             # Update nodes dict
-            self._nodes[n.simrun_key] = new_node
+            self._nodes[n.block_id] = new_node
             if n in self._nodes_by_addr[n.addr]:
                 self._nodes_by_addr[n.addr] = filter(lambda x,the_node=n: x is not the_node,
                                                      self._nodes_by_addr[n.addr]
@@ -1039,6 +1056,8 @@ class CFGBase(Analysis):
 
         for func_addr in self.kb.functions.keys():
             function = self.kb.functions[func_addr]
+            if function.is_simprocedure or function.is_syscall:
+                continue
             if len(function.block_addrs_set) == 1:
                 block = next((b for b in function.blocks), None)
                 if block is None:
@@ -1055,11 +1074,12 @@ class CFGBase(Analysis):
 
         Although Function objects are crated during the CFG recovery, they are neither sound nor accurate. With a
         pre-constructed CFG, this method rebuilds all functions bearing the following rules:
-        - A block may only belong to one function.
-        - Small functions lying inside the startpoint and the endpoint of another function will be merged with the
-          other function
-        - Tail call optimizations are detected.
-        - PLT stubs are aligned by 16.
+
+            - A block may only belong to one function.
+            - Small functions lying inside the startpoint and the endpoint of another function will be merged with the
+              other function
+            - Tail call optimizations are detected.
+            - PLT stubs are aligned by 16.
 
         :return: None
         """
@@ -1264,9 +1284,9 @@ class CFGBase(Analysis):
             tmp_state = self.project.factory.blank_state(mode='fastpath')
             while True:
                 try:
-                    # use simrun is slow, but acceptable since we won't be creating millions of blocks here...
+                    # using successors is slow, but acceptable since we won't be creating millions of blocks here...
                     tmp_state.ip = last_addr
-                    b = self.project.factory.sim_run(tmp_state, jumpkind='Ijk_Boring')
+                    b = self.project.factory.successors(tmp_state, jumpkind='Ijk_Boring')
                     if len(b.successors) != 1:
                         break
                     if b.successors[0].scratch.jumpkind != 'Ijk_Boring':
@@ -1276,13 +1296,13 @@ class CFGBase(Analysis):
                     suc_addr = b.successors[0].ip._model_concrete
                     if max(startpoint_addr, the_endpoint.addr - 0x40) <= suc_addr < the_endpoint.addr + the_endpoint.size:
                         # increment the endpoint_addr
-                        endpoint_addr = b.addr + b.irsb.size
+                        endpoint_addr = b.addr + b.artifacts['irsb_size']
                     else:
                         break
 
-                    last_addr = b.addr + b.irsb.size
+                    last_addr = b.addr + b.artifacts['irsb_size']
 
-                except (AngrTranslationError, AngrMemoryError, simuvex.SimIRSBError):
+                except (simuvex.SimTranslationError, simuvex.SimMemoryError, simuvex.SimIRSBError):
                     break
 
             # find all functions that are between [ startpoint, endpoint ]
@@ -1341,10 +1361,9 @@ class CFGBase(Analysis):
             f = blockaddr_to_function[addr]
         else:
             is_syscall = False
-            if self.project.is_hooked(addr):
-                hooker = self.project.hooked_by(addr)
-                if isinstance(hooker, simuvex.SimProcedure) and hooker.IS_SYSCALL:
-                    is_syscall = True
+            syscall = self.project._simos.syscall_table.get_by_addr(addr)
+            if syscall is not None:
+                is_syscall = True
 
             n = self.get_any_node(addr, is_syscall=is_syscall)
             if n is None: node = addr

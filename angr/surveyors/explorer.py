@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 
-from ..surveyor import Surveyor
-import simuvex
-
 import collections
 import networkx
 import logging
+
+import simuvex
+from simuvex.s_errors import SimMemoryError, SimEngineError
+
+from ..surveyor import Surveyor
+
 l = logging.getLogger("angr.surveyors.explorer")
 
 class Explorer(Surveyor):
@@ -220,7 +223,7 @@ class Explorer(Surveyor):
         if not self._project.is_hooked(p.addr):
             try:
                 imark_set = set(self._project.factory.block(p.addr).instruction_addrs)
-            except (AngrMemoryError, AngrTranslationError):
+            except (SimMemoryError, SimEngineError):
                 l.debug("Cutting path because there is no code at address 0x%x", p.addr)
                 self.errored.append(p)
                 return False
@@ -263,8 +266,6 @@ class Explorer(Surveyor):
         return "<Explorer with paths: %s, %d found, %d avoided, %d deviating, %d looping, %d lost>" % (
         Surveyor.__repr__(self), len(self.found), len(self.avoided), len(self.deviating), len(self.looping),
         len(self.lost))
-
-from ..errors import AngrMemoryError, AngrTranslationError
 
 from . import all_surveyors
 all_surveyors['Explorer'] = Explorer

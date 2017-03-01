@@ -13,6 +13,7 @@ import progressbar
 import simuvex
 import cle
 import pyvex
+from simuvex.s_errors import SimMemoryError, SimEngineError
 
 from ..errors import AngrError
 from ..analysis import Analysis, register_analysis
@@ -254,7 +255,7 @@ class GirlScout(Analysis):
 
             # Occupy the block
             self._seg_list.occupy(addr, irsb.size)
-        except (AngrTranslationError, AngrMemoryError):
+        except (SimEngineError, SimMemoryError):
             return
 
         # Get all possible successors
@@ -810,4 +811,4 @@ class GirlScout(Analysis):
 register_analysis(GirlScout, 'GirlScout')
 
 from ..blade import Blade
-from ..errors import AngrGirlScoutError, AngrTranslationError, AngrMemoryError
+from ..errors import AngrGirlScoutError

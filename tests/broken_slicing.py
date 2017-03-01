@@ -129,7 +129,7 @@ def test_last_branching_statement():
     target_path.step()
     target = target_path.next_run
     l.debug("IRSB:")
-    for line in target.irsb._pp_str().split('\n'):
+    for line in target.artifacts['irsb']._pp_str().split('\n'):
         l.debug(line)
 
     bs = slicing_test.analyses.BackwardSlice(None, None, None, targets=[ (target, -1) ], no_construct=True)

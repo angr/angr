@@ -8,11 +8,12 @@ import pyvex
 import simuvex
 import claripy
 from archinfo import ArchARM
+from simuvex import SimEngineProcedure
 
-from ..entry_wrapper import SimRunKey, EntryWrapper
+from ..entry_wrapper import BlockID, EntryDesc
 from ..analysis import register_analysis
 from ..errors import AngrCFGError, AngrError, AngrSkipEntryNotice
-from ..path import make_path, Path
+from ..path import Path
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase
 from .forward_analysis import ForwardAnalysis
@@ -20,51 +21,49 @@ from .cfg_utils import CFGUtils
 
 l = logging.getLogger(name="angr.analyses.cfg_accurate")
 
-class CFGJob(EntryWrapper):
+class CFGJob(EntryDesc):
     def __init__(self, *args, **kwargs):
         super(CFGJob, self).__init__(*args, **kwargs)
 
         #
         # local variables used during analysis
         #
+
         if self.jumpkind is None:
             # load jumpkind from path.state.scratch
-            self.jumpkind = 'Ijk_Boring' if self.path.state.scratch.jumpkind is None else \
-                self.path.state.scratch.jumpkind
+            self.jumpkind = 'Ijk_Boring' if self.state.scratch.jumpkind is None else \
+                self.state.scratch.jumpkind
 
         self.call_stack_suffix = None
         self.current_function = None
 
-        self.simrun = None
         self.cfg_node = None
+        self.sim_successors = None
         self.error_occurred = None
         self.successor_status = None
 
         self.extra_info = None
 
     @property
-    def simrun_key(self):
-        if self._simrun_key is None:
-            self._simrun_key = CFGAccurate._generate_simrun_key(
+    def block_id(self):
+        if self._block_id is None:
+            # generate a new block ID
+            self._block_id = CFGAccurate._generate_block_id(
                 self.call_stack.stack_suffix(self._context_sensitivity_level), self.addr, self.is_syscall,
                 continue_at=self.continue_at
             )
-        return self._simrun_key
+        return self._block_id
 
     @property
     def is_syscall(self):
         return self.jumpkind is not None and self.jumpkind.startswith('Ijk_Sys')
 
-    @property
-    def state(self):
-        return self.path.state
-
     def __hash__(self):
-        return hash(self.simrun_key)
+        return hash(self.block_id)
 
 
 class PendingExit(object):
-    def __init__(self, returning_source, state, src_simrun_key, src_exit_stmt_idx, src_exit_ins_addr, call_stack):
+    def __init__(self, returning_source, state, src_block_id, src_exit_stmt_idx, src_exit_ins_addr, call_stack):
         """
         PendingExit is whatever will be put into our pending_exit list. A pending exit is an entry that created by the
         returning of a call or syscall. It is "pending" since we cannot immediately figure out whether this entry will
@@ -84,7 +83,7 @@ class PendingExit(object):
 
         self.returning_source = returning_source
         self.state = state
-        self.src_simrun_key = src_simrun_key
+        self.src_block_id = src_block_id
         self.src_exit_stmt_idx = src_exit_stmt_idx
         self.src_exit_ins_addr = src_exit_ins_addr
         self.call_stack = call_stack
@@ -163,7 +162,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                     from each start before pausing the recovery procedure.
         """
         ForwardAnalysis.__init__(self, order_entries=True if base_graph is not None else False)
-        CFGBase.__init__(self, context_sensitivity_level, normalize=normalize, iropt_level=iropt_level)
+        CFGBase.__init__(self, 'accurate', context_sensitivity_level, normalize=normalize, iropt_level=iropt_level)
 
         if start is not None:
             l.warning("`start` is deprecated. Please consider using `starts` instead in your code.")
@@ -223,7 +222,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         self._nodes = {}
         self._nodes_by_addr = defaultdict(list)
-        self._start_keys = [ ]  # a list of SimRun keys of all starts
+        self._start_keys = [ ]  # a list of block IDs of all starts
 
         # For each call, we are always getting two exits: an Ijk_Call that
         # stands for the real call exit, and an Ijk_Ret that is a simulated exit
@@ -238,8 +237,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # Counting how many times a basic block is traced into
         self._traced_addrs = defaultdict(lambda: defaultdict(int))
 
-        # A dict that collects essential parameters to properly reconstruct initial state for a SimRun
-        self._simrun_info_collection = {}
+        # A dict that collects essential parameters to properly reconstruct initial state for a block
+        self._block_artifacts = {}
         self._analyzed_addrs = set()
         self._non_returning_functions = set()
 
@@ -517,21 +516,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                          if data['jumpkind'] == 'Ijk_FakeRet' ]
         self.graph.remove_edges_from(fakeret_edges)
 
-    def get_paths(self, begin, end, nb_max=0):
-        """
-        Get all the simple paths between @begin and @end.
-        :param nb_max: Threshold for a maximum of paths to handle
-        :return: a list of angr.Path instances.
-        """
-        paths = self._get_nx_paths(begin, end)
-        a_paths = []
-        if nb_max > 0:
-            paths = itertools.islice(paths, 0, nb_max)
-        for p in paths:
-            runs = map(self.irsb_from_node, p)
-            a_paths.append(make_path(self.project, runs))
-        return a_paths
-
     def get_topological_order(self, cfg_node):
         """
         Get the topological order of a CFG Node.
@@ -776,14 +760,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     def _entry_key(self, entry):
         """
-        Get the key for a specific CFG job. THe key is a context-sensitive SimRun key.
+        Get the key for a specific CFG job. The key is a context-sensitive block ID.
 
         :param CFGJob entry: The CFGJob instance.
-        :return: The SimRun key of the specific CFG job.
-        :rtype: SimRunKey
+        :return:             The block ID of the specific CFG job.
+        :rtype:              BlockID
         """
 
-        return entry.simrun_key
+        return entry.block_id
 
     def _entry_sorting_key(self, entry):
         """
@@ -842,14 +826,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # try to get a callstack from an existing node if it exists
             continue_at = None
             if self.project.is_hooked(ip) and \
-                    self.project.hooked_by(ip) is simuvex.s_procedure.SimProcedureContinuation and \
+                    self.project.hooked_by(ip).is_continuation and \
                     state.procedure_data.callstack:
-                continue_at = state.procedure_data.callstack[-1][1]
+                continue_at = state.procedure_data.callstack[-1][0]
 
-            path_wrapper = CFGJob(ip, entry_path, self._context_sensitivity_level, None, None, call_stack=callstack,
+            path_wrapper = CFGJob(ip, entry_path.state, self._context_sensitivity_level, None, None, call_stack=callstack,
                                   continue_at=continue_at,
                                   )
-            key = path_wrapper.simrun_key
+            key = path_wrapper.block_id
             if key not in self._start_keys:
                 self._start_keys.append(key)
 
@@ -950,19 +934,19 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         pending_entry = self._pending_entries.pop(pending_entry_key)
         pending_entry_state = pending_entry.state
         pending_entry_call_stack = pending_entry.call_stack
-        pending_entry_src_simrun_key = pending_entry.src_simrun_key
+        pending_entry_src_block_id = pending_entry.src_block_id
         pending_entry_src_exit_stmt_idx = pending_entry.src_exit_stmt_idx
 
         # Let's check whether this address has been traced before.
         if pending_entry_key in self._nodes:
             node = self._nodes[pending_entry_key]
             if node in self.graph:
-                pending_exit_addr = self._simrun_key_addr(pending_entry_key)
+                pending_exit_addr = self._block_id_addr(pending_entry_key)
                 # That block has been traced before. Let's forget about it
                 l.debug("Target 0x%08x has been traced before. " + "Trying the next one...", pending_exit_addr)
 
                 # However, we should still create the FakeRet edge
-                self._graph_add_edge(pending_entry_src_simrun_key, pending_entry_key, jumpkind="Ijk_FakeRet",
+                self._graph_add_edge(pending_entry_src_block_id, pending_entry_key, jumpkind="Ijk_FakeRet",
                                      stmt_idx=pending_entry_src_exit_stmt_idx, ins_addr=pending_entry.src_exit_ins_addr)
 
                 return None
@@ -971,14 +955,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         path = self.project.factory.path(pending_entry_state)
         entry = CFGJob(path.addr,
-                       path,
+                       path.state,
                        self._context_sensitivity_level,
-                       src_simrun_key=pending_entry_src_simrun_key,
+                       src_block_id=pending_entry_src_block_id,
                        src_exit_stmt_idx=pending_entry_src_exit_stmt_idx,
                        src_ins_addr=pending_entry.src_exit_ins_addr,
                        call_stack=pending_entry_call_stack,
         )
-        l.debug("Tracing a missing return exit %s", self._simrun_key_repr(pending_entry_key))
+        l.debug("Tracing a missing return exit %s", self._block_id_repr(pending_entry_key))
 
         return entry
 
@@ -1002,11 +986,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     # Properly set t9
                     new_state.registers.store('t9', f)
 
-                new_path = self.project.factory.path(new_state)
                 new_path_wrapper = CFGJob(f,
-                                           new_path,
-                                           self._context_sensitivity_level
-                )
+                                          new_state,
+                                          self._context_sensitivity_level
+                                          )
                 remaining_entries.append(new_path_wrapper)
                 l.debug('Picking a function 0x%x from pending function hints.', f)
                 self.kb.functions.function(new_path_wrapper.func_addr, create=True)
@@ -1038,79 +1021,80 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     # Entry handling
 
-    def _pre_entry_handling(self, entry):
+    def _pre_entry_handling(self, job):
         """
         Before processing an entry.
-        Right now each SimRun is traced at most once. If it is traced more than once, we will mark it as "should_skip"
+        Right now each block is traced at most once. If it is traced more than once, we will mark it as "should_skip"
         before tracing it.
         An AngrForwardAnalysisSkipEntry exception is raised in order to skip analyzing the entry.
 
-        :param CFGJob entry: The entry object
+        :param CFGJob job: The CFG job object.
         :param dict _locals: A bunch of local variables that will be kept around when handling this entry and its
                         corresponding successors.
         :return: None
         """
 
         # Extract initial info from entry_wrapper
-        entry.call_stack_suffix = entry.get_call_stack_suffix()
-        entry.current_function = self.kb.functions.function(entry.func_addr, create=True,
-                                                                 syscall=entry.jumpkind.startswith("Ijk_Sys"))
-        src_simrun_key = entry.src_simrun_key
-        src_exit_stmt_idx = entry.src_exit_stmt_idx
-        src_ins_addr = entry.src_ins_addr
-        addr = entry.addr
+        job.call_stack_suffix = job.get_call_stack_suffix()
+        job.current_function = self.kb.functions.function(job.func_addr, create=True,
+                                                          syscall=job.jumpkind.startswith("Ijk_Sys"))
+        src_block_id = job.src_block_id
+        src_exit_stmt_idx = job.src_exit_stmt_idx
+        src_ins_addr = job.src_ins_addr
+        addr = job.addr
 
         # Log this address
         if l.level == logging.DEBUG:
             self._analyzed_addrs.add(addr)
 
-        if addr == entry.func_addr:
+        if addr == job.func_addr:
             # Store the input state of this function
-            self._function_input_states[entry.func_addr] = entry.path.state
+            self._function_input_states[job.func_addr] = job.state
 
-        # Generate a unique key for this SimRun
-        simrun_key = entry.simrun_key
+        # Generate a unique key for this job
+        block_id = job.block_id
 
-        # Should we skip tracing this SimRun?
+        # Should we skip tracing this block?
         should_skip = False
-        if self._traced_addrs[entry.call_stack_suffix][addr] > self._max_iterations:
+        if self._traced_addrs[job.call_stack_suffix][addr] > self._max_iterations:
             should_skip = True
-        elif self._is_call_jumpkind(entry.jumpkind) and \
+        elif self._is_call_jumpkind(job.jumpkind) and \
              self._call_depth is not None and \
-             len(entry.call_stack) > self._call_depth and \
-             (self._call_tracing_filter is None or self._call_tracing_filter(entry.path.state, entry.jumpkind)):
+             len(job.call_stack) > self._call_depth and \
+             (self._call_tracing_filter is None or self._call_tracing_filter(job.state, job.jumpkind)):
             should_skip = True
 
         # SimInspect breakpoints support
-        entry.state._inspect('cfg_handle_entry', simuvex.BP_BEFORE)
+        job.state._inspect('cfg_handle_entry', simuvex.BP_BEFORE)
 
-        # Get a SimRun out of current SimExit
-        simrun, error_occurred, _ = self._get_simrun(addr, entry.path, current_function_addr=entry.func_addr)
-        if simrun is None or should_skip:
-            # We cannot retrieve the SimRun, or we should skip the analysis of this node
+        # Get a SimSuccessors out of current job
+        sim_successors, error_occurred, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
 
-            # But we create the edge anyway. If the simrun does not exist, it will be an edge from the previous node to
+        if sim_successors is None or should_skip:
+            # We cannot retrieve the block, or we should skip the analysis of this node
+
+            # But we create the edge anyway. If the sim_successors does not exist, it will be an edge from the previous node to
             # a PathTerminator
-            self._graph_add_edge(src_simrun_key, simrun_key, jumpkind=entry.jumpkind, stmt_idx=src_exit_stmt_idx,
+            self._graph_add_edge(src_block_id, block_id, jumpkind=job.jumpkind, stmt_idx=src_exit_stmt_idx,
                                  ins_addr=src_ins_addr
                                  )
-            self._update_function_transition_graph(src_simrun_key, simrun_key, jumpkind=entry.jumpkind,
+            self._update_function_transition_graph(src_block_id, block_id, jumpkind=job.jumpkind,
                                                    ins_addr=src_ins_addr, stmt_idx=src_exit_stmt_idx)
 
             # If this entry cancels another FakeRet entry, we should also create the FakeRet edge
 
             # This is the real return exit
             # Check if this retn is inside our pending_exits set
-            if (entry.jumpkind == 'Ijk_Call' or entry.is_syscall) and simrun_key in self._pending_entries:
+            if (job.jumpkind == 'Ijk_Call' or job.is_syscall) and block_id in self._pending_entries:
                 # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
                 # in the graph.
 
-                pending_entry = self._pending_entries.pop(simrun_key)
-                self._graph_add_edge(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet',
+                pending_entry = self._pending_entries.pop(block_id)
+                self._graph_add_edge(pending_entry.src_block_id, block_id, jumpkind='Ijk_FakeRet',
                                      stmt_idx=pending_entry.src_exit_stmt_idx,
                                      ins_addr=pending_entry.src_exit_ins_addr
                                      )
-                self._update_function_transition_graph(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet',
+                self._update_function_transition_graph(pending_entry.src_block_id, block_id, jumpkind='Ijk_FakeRet',
                                                        ins_addr=pending_entry.src_exit_ins_addr,
                                                        stmt_idx=pending_entry.src_exit_stmt_idx
                                                        )
@@ -1118,44 +1102,45 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # We are good. Raise the exception and leave
             raise AngrSkipEntryNotice()
 
-        self._update_thumb_addrs(simrun, entry.path.state)
+        self._update_thumb_addrs(sim_successors, job.state)
 
         # We store the function hints first. Function hints will be checked at the end of the analysis to avoid
         # any duplication with existing jumping targets
         if self._enable_function_hints:
-            function_hints = self._search_for_function_hints(simrun)
-            for f in function_hints:
-                self._pending_function_hints.add(f)
+            if sim_successors.sort == 'IRSB':
+                function_hints = self._search_for_function_hints(sim_successors.all_successors[0])
+                for f in function_hints:
+                    self._pending_function_hints.add(f)
 
-        # Increment tracing count for this SimRun
-        self._traced_addrs[entry.call_stack_suffix][addr] += 1
+        # Increment tracing count for this block
+        self._traced_addrs[job.call_stack_suffix][addr] += 1
 
         # determine the depth of this basic block
         if self._max_steps is None:
             # it's unnecessary to track depth when we are not limiting max_steps
             depth = None
         else:
-            if src_simrun_key is None:
+            if src_block_id is None:
                 # oh this is the very first basic block on this path
                 depth = 0
             else:
-                src_cfgnode = self._nodes[src_simrun_key]
+                src_cfgnode = self._nodes[src_block_id]
                 depth = src_cfgnode.depth + 1
                 # the depth will not be updated later on even if this block has a greater depth on another path.
                 # consequently, the `max_steps` limit is not veyr precise - I didn't see a need to make it precise
                 # though.
 
-        if simrun_key not in self._nodes:
+        if block_id not in self._nodes:
             # Create the CFGNode object
-            cfg_node = self._create_cfgnode(simrun, entry.call_stack, entry.func_addr, simrun_key=simrun_key,
+            cfg_node = self._create_cfgnode(sim_successors, job.call_stack, job.func_addr, block_id=block_id,
                                             depth=depth
                                             )
 
-            self._nodes[simrun_key] = cfg_node
+            self._nodes[block_id] = cfg_node
             self._nodes_by_addr[cfg_node.addr].append(cfg_node)
 
         else:
-            # each simrun_key should only correspond to one CFGNode
+            # each block_id should only correspond to one CFGNode
             # use the existing CFGNode object
             # note that since we reuse existing CFGNodes, we may miss the following cases:
             #
@@ -1169,49 +1154,49 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             #
             # Since the basic block "call eax" will only be traced once, either label_0 or label_1 will be missed in
             # this case. Indirect jump resolution might be able to get it, but that's another story. Ideally,
-            # "call eax" should be traced twice with *different* simrun keys, which requires SimRun Key being flow
+            # "call eax" should be traced twice with *different* sim_successors keys, which requires block ID being flow
             # sensitive, but it is way too expensive.
 
-            cfg_node = self._nodes[simrun_key]
+            cfg_node = self._nodes[block_id]
 
         if self._keep_state:
             # TODO: if we are reusing an existing CFGNode, we will be overwriting the original input state here. we
             # TODO: should save them all, which, unfortunately, requires some redesigning :-(
-            cfg_node.input_state = simrun.initial_state
+            cfg_node.input_state = sim_successors.initial_state
 
-        self._graph_add_edge(src_simrun_key, simrun_key, jumpkind=entry.jumpkind, stmt_idx=src_exit_stmt_idx,
+        self._graph_add_edge(src_block_id, block_id, jumpkind=job.jumpkind, stmt_idx=src_exit_stmt_idx,
                              ins_addr=src_ins_addr)
-        self._update_function_transition_graph(src_simrun_key, simrun_key, jumpkind=entry.jumpkind,
+        self._update_function_transition_graph(src_block_id, block_id, jumpkind=job.jumpkind,
                                                ins_addr=src_ins_addr, stmt_idx=src_exit_stmt_idx)
 
-        if simrun_key in self._pending_edges:
+        if block_id in self._pending_edges:
             # there are some edges waiting to be created. do it here.
-            for src_key, dst_key, data in self._pending_edges[simrun_key]:
+            for src_key, dst_key, data in self._pending_edges[block_id]:
                 self._graph_add_edge(src_key, dst_key, **data)
-            del self._pending_edges[simrun_key]
+            del self._pending_edges[block_id]
 
         # See if this entry cancels another FakeRet
-        if (entry.jumpkind == 'Ijk_Call' or entry.is_syscall) and simrun_key in self._pending_entries:
+        if (job.jumpkind == 'Ijk_Call' or job.is_syscall) and block_id in self._pending_entries:
             # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
             # in the graph.
 
-            pending_entry = self._pending_entries.pop(simrun_key)
-            self._graph_add_edge(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet',
+            pending_entry = self._pending_entries.pop(block_id)
+            self._graph_add_edge(pending_entry.src_block_id, block_id, jumpkind='Ijk_FakeRet',
                                  stmt_idx=pending_entry.src_exit_stmt_idx, ins_addr=src_ins_addr
                                  )
-            self._update_function_transition_graph(pending_entry.src_simrun_key, simrun_key, jumpkind='Ijk_FakeRet',
+            self._update_function_transition_graph(pending_entry.src_block_id, block_id, jumpkind='Ijk_FakeRet',
                                                    ins_addr=src_ins_addr, stmt_idx=pending_entry.src_exit_stmt_idx
                                                    )
 
-        simrun_info = self.project.arch.gather_info_from_state(simrun.initial_state)
-        self._simrun_info_collection[addr] = simrun_info
+        block_info = self.project.arch.gather_info_from_state(sim_successors.initial_state)
+        self._block_artifacts[addr] = block_info
 
-        entry.simrun = simrun
-        entry.cfg_node = cfg_node
-        entry.error_occurred = error_occurred
+        job.cfg_node = cfg_node
+        job.sim_successors = sim_successors
+        job.error_occurred = error_occurred
 
         # For debugging purposes!
-        entry.successor_status = {}
+        job.successor_status = {}
 
     def _get_successors(self, entry):
         """
@@ -1223,7 +1208,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
 
         addr = entry.addr
-        simrun = entry.simrun
+        sim_successors = entry.sim_successors
+        input_state = entry.state
 
         # check step limit
         if self._max_steps is not None:
@@ -1231,28 +1217,28 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             if depth >= self._max_steps:
                 return [ ]
 
-        # Get all successors of this SimRun
-        successors = (simrun.flat_successors + simrun.unsat_successors) if addr not in self._avoid_runs else []
+        # Get all successors of this block
+        successors = (sim_successors.flat_successors + sim_successors.unsat_successors) if addr not in self._avoid_runs else []
 
         # Post-process successors
-        successors, entry.extra_info = self._post_process_successors(simrun, successors)
+        successors, entry.extra_info = self._post_process_successors(input_state, sim_successors, successors)
 
-        all_successors = successors + simrun.unconstrained_successors
+        all_successors = successors + sim_successors.unconstrained_successors
 
         if self._keep_state:
             entry.cfg_node.final_states = all_successors[::]
 
         # Try to resolve indirect jumps
-        successors = self._resolve_indirect_jumps(simrun,
+        successors = self._resolve_indirect_jumps(sim_successors,
                                                   entry.cfg_node,
                                                   entry.func_addr,
                                                   successors,
                                                   entry.error_occurred,
-                                                  self._simrun_info_collection
+                                                  self._block_artifacts
         )
 
         # Ad additional edges supplied by the user
-        successors = self._add_additional_edges(simrun, entry.cfg_node, successors)
+        successors = self._add_additional_edges(input_state, sim_successors, entry.cfg_node, successors)
 
         # if base graph is used, add successors implied from the graph
         if self._base_graph:
@@ -1280,8 +1266,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # Log it first
             self._push_unresolvable_run(addr)
 
-            if isinstance(simrun,
-                          simuvex.procedures.SimProcedures["stubs"]["PathTerminator"]):
+            if sim_successors.sort == 'SimProcedure' and isinstance(sim_successors.artifacts['procedure'],
+                    simuvex.procedures.SimProcedures["stubs"]["PathTerminator"]):
                 # If there is no valid exit in this branch and it's not
                 # intentional (e.g. caused by a SimProcedure that does not
                 # do_return) , we should make it return to its call-site. However,
@@ -1290,7 +1276,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 return_target = entry.call_stack.current_return_target
                 if return_target is not None:
                     new_call_stack = entry.call_stack_copy()
-                    return_target_key = self._generate_simrun_key(
+                    return_target_key = self._generate_block_id(
                         new_call_stack.stack_suffix(self.context_sensitivity_level),
                         return_target,
                         False
@@ -1312,10 +1298,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     # the return target node may not exist yet. If that's the case, we will put it into a "delayed edge
                     # list", and add this edge later when the return target CFGNode is created.
                     if return_target_key in self._nodes:
-                        self._graph_add_edge(entry.simrun_key, return_target_key, jumpkind='Ijk_Ret', stmt_id='default',
+                        self._graph_add_edge(entry.block_id, return_target_key, jumpkind='Ijk_Ret', stmt_id='default',
                                              ins_addr=ret_ins_addr)
                     else:
-                        self._pending_edges[return_target_key].append((entry.simrun_key, return_target_key,
+                        self._pending_edges[return_target_key].append((entry.block_id, return_target_key,
                                                                        {
                                                                            'jumpkind': 'Ijk_Ret',
                                                                            'stmt_id': 'default',
@@ -1332,7 +1318,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # handle all actions
         if successors:
             self._handle_actions(successors[0],
-                                 simrun,
+                                 sim_successors,
                                  entry.current_function,
                                  entry.current_stack_pointer,
                                  set(),
@@ -1361,18 +1347,20 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # SimInspect breakpoints support
         entry.state._inspect('cfg_handle_entry', simuvex.BP_AFTER)
 
-    def _post_process_successors(self, simrun, successors):
+    def _post_process_successors(self, input_state, sim_successors, successors):
         """
         Filter the list of successors
 
-        :param simuvex.SimIRSB simrun: The SimRun instance.
-        :param list successors: A list of successors generated by the simrun.
-        :return: A list of successors
-        :rtype: list
+        :param simuvex.SimState      input_state:    Input state.
+        :param simuvex.SimSuccessors sim_successors: The SimSuccessors instance.
+        :param list successors:                      A list of successors generated after processing the current block.
+        :return:                                     A list of successors.
+        :rtype:                                      list
         """
 
-        if isinstance(simrun, simuvex.SimIRSB) and simrun.initial_state.thumb:
-            successors = self._arm_thumb_filter_jump_successors(simrun.addr, successors,
+        if sim_successors.sort == 'IRSB' and input_state.thumb:
+            successors = self._arm_thumb_filter_jump_successors(sim_successors.addr,
+                                                                successors,
                                                                 lambda state: state.scratch.ins_addr,
                                                                 lambda state: state.scratch.exit_stmt_idx
                                                                 )
@@ -1395,25 +1383,31 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return successors, extra_info
 
-    def _post_handle_entry_debug(self, entry, successors):
+    def _post_handle_entry_debug(self, job, successors):
+        """
+        Post job handling: print debugging information regarding the current entry.
+
+        :param CFGJob job:      The current CFGJob instance.
+        :param list successors: All successors of the analysis job.
+        :return: None
         """
 
-        :return:
-        """
+        sim_successors = job.sim_successors
+        call_stack_suffix = job.call_stack_suffix
+        extra_info = job.extra_info
+        successor_status = job.successor_status
 
-        simrun = entry.simrun
-        call_stack_suffix = entry.call_stack_suffix
-        extra_info = entry.extra_info
-        successor_status = entry.successor_status
+        function_name = self.project.loader.find_symbol_name(job.addr)
+        module_name = self.project.loader.find_module_name(job.addr)
 
-        function_name = self.project.loader.find_symbol_name(simrun.addr)
-        module_name = self.project.loader.find_module_name(simrun.addr)
+        depth_str = "(D:%s)" % self.get_node(job.block_id).depth if self.get_node(job.block_id).depth is not None \
+            else ""
 
-        l.debug("Basic block %s(%s) %s", simrun, self.get_node(entry.simrun_key).depth,
+        l.debug("%s [%#x%s | %s]", sim_successors.description, sim_successors.addr, depth_str,
                 "->".join([hex(i) for i in call_stack_suffix if i is not None])
                 )
         l.debug("(Function %s of binary %s)", function_name, module_name)
-        l.debug("|    Call jump: %s", extra_info['is_call_jump'])
+        l.debug("|    Call jump: %s", extra_info['is_call_jump'] if extra_info is not None else 'unknown')
 
         for suc in successors:
             jumpkind = suc.scratch.jumpkind
@@ -1442,7 +1436,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         pending_exits_to_remove = []
 
-        for simrun_key, pe in pending_exits.iteritems():
+        for block_id, pe in pending_exits.iteritems():
 
             if pe.returning_source is None:
                 # The original call failed. This pending exit must be followed.
@@ -1458,27 +1452,27 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             if func.returning is False:
                 # Oops, it's not returning
                 # Remove this pending exit
-                pending_exits_to_remove.append(simrun_key)
+                pending_exits_to_remove.append(block_id)
 
                 # We want to mark that call as not returning in the current function
-                current_function_addr = self._simrun_key_current_func_addr(simrun_key)
+                current_function_addr = self._block_id_current_func_addr(block_id)
                 if current_function_addr is not None:
                     current_function = self.kb.functions.function(current_function_addr)
                     if current_function is not None:
-                        call_site_addr = self._simrun_key_addr(pe.src_simrun_key)
+                        call_site_addr = self._block_id_addr(pe.src_block_id)
                         current_function._call_sites[call_site_addr] = (func.addr, None)
                     else:
                         l.warning('An expected function at %#x is not found. Please report it to Fish.',
                                   current_function_addr
                                   )
 
-        for simrun_key in pending_exits_to_remove:
+        for block_id in pending_exits_to_remove:
             l.debug('Removing a pending exit to 0x%x since the target function 0x%x does not return',
-                    self._simrun_key_addr(simrun_key),
-                    pending_exits[simrun_key].returning_source,
+                    self._block_id_addr(block_id),
+                    pending_exits[block_id].returning_source,
                     )
 
-            del pending_exits[simrun_key]
+            del pending_exits[block_id]
 
     # Entry successor handling
 
@@ -1526,10 +1520,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             entry.successor_status[state] = "Skipped"
             return [ ]
 
-        if suc_jumpkind == "Ijk_FakeRet" and entry.extra_info['call_target'] is not None:
+        call_target = entry.extra_info['call_target']
+        if suc_jumpkind == "Ijk_FakeRet" and call_target is not None:
             # if the call points to a SimProcedure that doesn't return, we don't follow the fakeret anymore
-            if self.project.is_hooked(entry.extra_info['call_target']):
-                sim_proc = self.project._sim_procedures[entry.extra_info['call_target']][0]
+            if self.project.is_hooked(call_target):
+                sim_proc = self.project._sim_procedures[call_target].procedure
                 if sim_proc.NO_RET:
                     return [ ]
 
@@ -1605,28 +1600,27 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # Tuple that will be used to index this exit
         continue_at = None
         if self.project.is_hooked(target_addr) and \
-                self.project.hooked_by(target_addr) is simuvex.s_procedure.SimProcedureContinuation and \
+                self.project.hooked_by(target_addr).is_continuation and \
                 successor.procedure_data.callstack:
-            continue_at = successor.procedure_data.callstack[-1][1]  # TODO: Use a named tuple or a class in simuvex instead
-        new_tpl = self._generate_simrun_key(new_call_stack_suffix, target_addr, suc_jumpkind.startswith('Ijk_Sys'),
+            continue_at = successor.procedure_data.callstack[-1][0]  # TODO: Use a named tuple or a class in simuvex instead
+        new_tpl = self._generate_block_id(new_call_stack_suffix, target_addr, suc_jumpkind.startswith('Ijk_Sys'),
                                             continue_at=continue_at
                                             )
 
-        new_path = self.project.factory.path(new_state)
         # We might have changed the mode for this basic block
         # before. Make sure it is still running in 'fastpath' mode
         # new_exit.state = self.project.simos.prepare_call_state(new_exit.state, initial_state=saved_state)
-        new_path.state.set_mode('fastpath')
+        new_state.set_mode('fastpath')
         pw = CFGJob(target_addr,
-                    new_path,
+                    new_state,
                     self._context_sensitivity_level,
-                    src_simrun_key=entry.simrun_key,
+                    src_block_id=entry.block_id,
                     src_exit_stmt_idx=suc_exit_stmt_idx,
                     src_ins_addr=suc_exit_ins_addr,
                     call_stack=new_call_stack,
                     continue_at=continue_at,
                     jumpkind=suc_jumpkind,
-        )
+                    )
 
         # Generate new exits
         if suc_jumpkind == "Ijk_Ret":
@@ -1644,7 +1638,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             pw = None # clear the EntryWrapper
             pe = PendingExit(entry.extra_info['call_target'],
                              st,
-                             entry.simrun_key,
+                             entry.block_id,
                              suc_exit_stmt_idx,
                              suc_exit_ins_addr,
                              new_call_stack)
@@ -1671,10 +1665,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             return [ ]
 
         if self._base_graph is not None:
-            # remove all exising entries that has the same simrun key
-            if next((en for en in self.entries if en.simrun_key == pw.simrun_key), None):
+            # remove all exising entries that has the same block ID
+            if next((en for en in self.entries if en.block_id == pw.block_id), None):
                 # TODO: this is very hackish. Reimplement this logic later
-                self._entries = [ entry_info for entry_info in self._entries if entry_info.entry.simrun_key != pw.simrun_key ]
+                self._entries = [entry_info for entry_info in self._entries if entry_info.entry.block_id != pw.block_id]
 
         return [ pw ]
 
@@ -1725,21 +1719,21 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             if not terminator_for_nonexistent_node:
                 return None
             # Generate a PathTerminator node
-            addr = self._simrun_key_addr(node_key)
-            func_addr = self._simrun_key_current_func_addr(node_key)
+            addr = self._block_id_addr(node_key)
+            func_addr = self._block_id_current_func_addr(node_key)
             if func_addr is None:
-                # We'll have to use the current SimRun address instead
+                # We'll have to use the current block address instead
                 # TODO: Is it really OK?
-                func_addr = self._simrun_key_addr(node_key)
+                func_addr = self._block_id_addr(node_key)
 
-            pt = CFGNode(self._simrun_key_addr(node_key),
+            pt = CFGNode(self._block_id_addr(node_key),
                          None,
                          self,
                          callstack=None,  # getting a callstack here is difficult, so we pass in a callstack key instead
                          input_state=None,
                          simprocedure_name="PathTerminator",
                          function_address=func_addr,
-                         callstack_key=self._simrun_key_callstack_key(node_key),
+                         callstack_key=self._block_id_callstack_key(node_key),
                          )
             if self._keep_state:
                 # We don't have an input state available for it (otherwise we won't have to create a
@@ -1753,8 +1747,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 self._thumb_addrs.add(addr)
                 self._thumb_addrs.add(addr - 1)
 
-            l.debug("SimRun key %s does not exist. Create a PathTerminator instead.",
-                    self._simrun_key_repr(node_key))
+            l.debug("Block ID %s does not exist. Create a PathTerminator instead.",
+                    self._block_id_repr(node_key))
 
         return self._nodes[node_key]
 
@@ -1883,20 +1877,20 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     stmt_idx=stmt_idx,
                 )
 
-    def _add_additional_edges(self, simrun, cfg_node, successors):
+    def _add_additional_edges(self, input_state, sim_successors, cfg_node, successors):
         """
 
         :return:
         """
 
-        # If we have additional edges for this SimRun, add them in
+        # If we have additional edges for this block, add them in
         addr = cfg_node.addr
 
         if addr in self._additional_edges:
             dests = self._additional_edges[addr]
             for dst in dests:
-                if isinstance(simrun, simuvex.SimIRSB):
-                    base_state = simrun.default_exit.copy()
+                if sim_successors.sort == 'IRSB':
+                    base_state = sim_successors.all_successors[0].copy()
                 else:
                     if successors:
                         # We try to use the first successor.
@@ -1904,11 +1898,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     else:
                         # The SimProcedure doesn't have any successor (e.g. it's a PathTerminator)
                         # We'll use its input state instead
-                        base_state = simrun.initial_state
+                        base_state = input_state
                 base_state.ip = dst
                 # TODO: Allow for sp adjustments
                 successors.append(base_state)
-                l.debug("Additional jump target 0x%x for simrun %s is appended.", dst, simrun)
+                l.debug("Additional jump target %#x for block %s is appended.", dst, sim_successors.description)
 
         return successors
 
@@ -1951,16 +1945,23 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     # Private methods - resolving indirect jumps
 
-    def _resolve_indirect_jumps(self, simrun, cfg_node, func_addr, successors, error_occurred, simrun_info_collection):
+    def _resolve_indirect_jumps(self, sim_successors, cfg_node, func_addr, successors, error_occurred, artifacts):
         """
+        Resolve indirect jumps specified by sim_successors.addr.
 
+        :param simuvex.SimSuccessors sim_successors: The SimSuccessors instance.
+        :param CFGNode cfg_node:                     The CFGNode instance.
+        :param int func_addr:                        Current function address.
+        :param list successors:                      A list of successors.
+        :param bool error_occurred:                  If an error has occurred or not.
+        :param artifacts:                      A container of collected information.
         :return:
         """
 
         # Try to resolve indirect jumps with advanced backward slicing (if enabled)
-        if isinstance(simrun, simuvex.SimIRSB) and \
-                self._is_indirect_jump(cfg_node, simrun):
-            l.debug('IRSB 0x%x has an indirect jump as its default exit', simrun.addr)
+        if sim_successors.sort == 'IRSB' and \
+                self._is_indirect_jump(cfg_node, sim_successors):
+            l.debug('IRSB %#x has an indirect jump as its default exit', cfg_node.addr)
 
             # Throw away all current paths whose target doesn't make sense
             old_successors = successors[::]
@@ -2018,7 +2019,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     l.debug("This might not be an indirect jump that has multiple targets. Skipped.")
 
                 else:
-                    more_successors = self._resolve_indirect_jump(cfg_node, simrun, func_addr)
+                    more_successors = self._resolve_indirect_jump(cfg_node, sim_successors, func_addr)
 
                     if len(more_successors):
                         # Remove the symbolic successor
@@ -2029,25 +2030,25 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         # We insert new successors in the beginning of all_successors list so that we don't break the
                         # assumption that Ijk_FakeRet is always the last element in the list
                         for suc_addr in more_successors:
-                            a = simrun.default_exit.copy()
+                            a = sim_successors.all_successors[0].copy()
                             a.ip = suc_addr
                             all_successors.insert(0, a)
 
                         l.debug('The indirect jump is successfully resolved.')
 
-                        self.kb._resolved_indirect_jumps.add(simrun.addr)
+                        self.kb._resolved_indirect_jumps.add(cfg_node.addr)
 
                     else:
-                        l.debug('We failed to resolve the indirect jump.')
-                        self.kb._unresolved_indirect_jumps.add(simrun.addr)
+                        l.debug('Failed to resolve the indirect jump.')
+                        self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
 
             else:
                 if not successors:
-                    l.debug('We cannot resolve the indirect jump without advanced backward slicing enabled: %s',
+                    l.debug('Cannot resolve the indirect jump without advanced backward slicing enabled: %s',
                             cfg_node)
 
         # Try to find more successors if we failed to resolve the indirect jump before
-        if not error_occurred and (cfg_node.is_simprocedure or self._is_indirect_jump(cfg_node, simrun)):
+        if not error_occurred and (cfg_node.is_simprocedure or self._is_indirect_jump(cfg_node, sim_successors)):
             has_call_jumps = any(suc_state.scratch.jumpkind == 'Ijk_Call' for suc_state in successors)
             if has_call_jumps:
                 concrete_successors = [suc_state for suc_state in successors if
@@ -2075,33 +2076,33 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             if not resolved and (
                         (len(symbolic_successors) > 0 and len(concrete_successors) == 0) or
-                        (not cfg_node.is_simprocedure and self._is_indirect_jump(cfg_node, simrun))
+                        (not cfg_node.is_simprocedure and self._is_indirect_jump(cfg_node, sim_successors))
             ):
                 l.debug("%s has an indirect jump. See what we can do about it.", cfg_node)
 
-                if isinstance(simrun, simuvex.SimProcedure) and \
-                        simrun.ADDS_EXITS:
+                if sim_successors.sort == 'SimProcedure' and \
+                        sim_successors.artifacts['adds_exits']:
                     # Skip those SimProcedures that don't create new SimExits
-                    l.debug('We got a SimProcedure %s in fastpath mode that creates new exits.', simrun)
+                    l.debug('We got a SimProcedure %s in fastpath mode that creates new exits.', sim_successors.description)
                     if self._enable_symbolic_back_traversal:
-                        successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
+                        successors = self._symbolically_back_traverse(sim_successors, artifacts, cfg_node)
                         # mark jump as resolved if we got successors
                         if len(successors):
-                            self.kb._resolved_indirect_jumps.add(simrun.addr)
+                            self.kb._resolved_indirect_jumps.add(cfg_node.addr)
                         else:
-                            self.kb._unresolved_indirect_jumps.add(simrun.addr)
+                            self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
                         l.debug("Got %d concrete exits in symbolic mode.", len(successors))
                     else:
-                        self.kb._unresolved_indirect_jumps.add(simrun.addr)
+                        self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
                         # keep fake_rets
                         successors = [s for s in successors if s.scratch.jumpkind == "Ijk_FakeRet"]
 
-                elif isinstance(simrun, simuvex.SimIRSB) and \
+                elif sim_successors.sort == 'IRSB'and \
                         any([ex.scratch.jumpkind != 'Ijk_Ret' for ex in successors]):
                     # We cannot properly handle Return as that requires us start execution from the caller...
                     l.debug("Try traversal backwards in symbolic mode on %s.", cfg_node)
                     if self._enable_symbolic_back_traversal:
-                        successors = self._symbolically_back_traverse(simrun, simrun_info_collection, cfg_node)
+                        successors = self._symbolically_back_traverse(sim_successors, artifacts, cfg_node)
 
                         # Remove successors whose IP doesn't make sense
                         successors = [suc for suc in successors
@@ -2109,33 +2110,35 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                         # mark jump as resolved if we got successors
                         if len(successors):
-                            self.kb._resolved_indirect_jumps.add(simrun.addr)
+                            self.kb._resolved_indirect_jumps.add(cfg_node.addr)
                         else:
-                            self.kb._unresolved_indirect_jumps.add(simrun.addr)
+                            self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
                         l.debug('Got %d concrete exits in symbolic mode', len(successors))
                     else:
-                        self.kb._unresolved_indirect_jumps.add(simrun.addr)
+                        self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
                         successors = []
 
                 elif len(successors) > 0 and all([ex.scratch.jumpkind == 'Ijk_Ret' for ex in successors]):
                     l.debug('All exits are returns (Ijk_Ret). It will be handled by pending exits.')
 
                 else:
-                    l.debug('It seems that we cannot resolve this indirect jump: %s', cfg_node)
-                    self.kb._unresolved_indirect_jumps.add(simrun.addr)
+                    l.debug('Cannot resolve this indirect jump: %s', cfg_node)
+                    self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
 
         return successors
 
-    def _resolve_indirect_jump(self, cfgnode, simirsb, current_function_addr):
+    def _resolve_indirect_jump(self, cfgnode, sim_successors, current_function_addr):
         """
         Try to resolve an indirect jump by slicing backwards
         """
 
-        l.debug("Resolving indirect jump at IRSB %s", simirsb)
+        irsb = sim_successors.artifacts['irsb']  # shorthand
+
+        l.debug("Resolving indirect jump at IRSB %s", irsb)
 
         # Let's slice backwards from the end of this exit
-        next_tmp = simirsb.irsb.next.tmp
-        stmt_id = [i for i, s in enumerate(simirsb.irsb.statements)
+        next_tmp = irsb.next.tmp
+        stmt_id = [i for i, s in enumerate(irsb.statements)
                    if isinstance(s, pyvex.IRStmt.WrTmp) and s.tmp == next_tmp][0]
 
         cdg = self.project.analyses.CDG(cfg=self)
@@ -2144,7 +2147,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         bc = self.project.analyses.BackwardSlice(self, cdg, ddg, targets=[(cfgnode, stmt_id)], same_function=True)
         taint_graph = bc.taint_graph
         # Find the correct taint
-        next_nodes = [cl for cl in taint_graph.nodes() if cl.simrun_addr == simirsb.addr]
+        next_nodes = [cl for cl in taint_graph.nodes() if cl.block_addr == sim_successors.addr]
 
         if not next_nodes:
             l.error('The target exit is not included in the slice. Something is wrong')
@@ -2161,7 +2164,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # FIXME: This is an over-approximation. We should try to limit the starts more
                 nodes = [n for n in subgraph.nodes() if subgraph.in_degree(n) == 0]
                 for n in nodes:
-                    starts.add(n.simrun_addr)
+                    starts.add(n.block_addr)
 
         # Execute the slice
         successing_addresses = set()
@@ -2182,13 +2185,13 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 initial_nodes = [n for n in bc.taint_graph.nodes() if bc.taint_graph.in_degree(n) == 0]
                 for cl in initial_nodes:
                     # Iterate in all actions of this node, and pick corresponding actions
-                    cfg_nodes = self.get_all_nodes(cl.simrun_addr)
+                    cfg_nodes = self.get_all_nodes(cl.block_addr)
                     for n in cfg_nodes:
                         if not n.final_states:
                             continue
                         actions = [ac for ac in n.final_states[0].log.actions
                                    # Normally it's enough to only use the first final state
-                                   if ac.bbl_addr == cl.simrun_addr and
+                                   if ac.bbl_addr == cl.block_addr and
                                    ac.stmt_idx == cl.stmt_idx
                                    ]
                         for ac in actions:
@@ -2224,7 +2227,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             if sc.cut or sc.deadended:
                 all_deadended_paths = sc.cut + sc.deadended
                 for p in all_deadended_paths:
-                    if p.addr == simirsb.addr:
+                    if p.addr == sim_successors.addr:
                         # We want to get its successors
                         successing_paths = p.step()
                         for sp in successing_paths:
@@ -2237,7 +2240,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return list(successing_addresses)
 
-    def _symbolically_back_traverse(self, current_simrun, simrun_info_collection, cfg_node):
+    def _symbolically_back_traverse(self, current_block, block_artifacts, cfg_node):
 
         class register_protector(object):
             def __init__(self, reg_offset, info_collection):
@@ -2260,7 +2263,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                             self._info_collection[current_run][self._reg_offset]
                         )
 
-        l.debug("Start back traversal from %s", current_simrun)
+        l.debug("Start back traversal from %s", current_block)
 
         # Create a partial CFG first
         temp_cfg = networkx.DiGraph(self.graph)
@@ -2307,11 +2310,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # TODO: test case is needed for this option
 
                 # Set initial values of persistent regs
-                if n.addr in simrun_info_collection:
+                if n.addr in block_artifacts:
                     for reg in state.arch.persistent_regs:
-                        state.registers.store(reg, simrun_info_collection[n.addr][reg])
+                        state.registers.store(reg, block_artifacts[n.addr][reg])
                 for reg in state.arch.persistent_regs:
-                    reg_protector = register_protector(reg, simrun_info_collection)
+                    reg_protector = register_protector(reg, block_artifacts)
                     state.inspect.add_breakpoint('reg_write',
                                                  simuvex.BP(
                                                      simuvex.BP_AFTER,
@@ -2321,7 +2324,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                  )
                 result = self.project.surveyors.Explorer(
                     start=self.project.factory.path(state),
-                    find=(current_simrun.addr,),
+                    find=(current_block.addr,),
                     avoid=avoid,
                     max_repeats=10,
                     max_depth=path_length
@@ -2340,7 +2343,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # TODO: It works for jumptables, but not for calls. We should also handle changes in sp
         new_concrete_successors = []
         for c in concrete_exits:
-            unsat_state = current_simrun.unsat_successors[0].copy()
+            unsat_state = current_block.unsat_successors[0].copy()
             unsat_state.scratch.jumpkind = c.scratch.jumpkind
             for reg in unsat_state.arch.persistent_regs + ['ip']:
                 unsat_state.registers.store(reg, c.registers.load(reg))
@@ -2386,14 +2389,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         symbolic_initial_state.ip = function_addr
         path = self.project.factory.path(symbolic_initial_state)
         try:
-            simrun = self.project.factory.sim_run(path.state, num_inst=num_instr)
+            sim_successors = self.project.factory.successors(path.state, num_inst=num_instr)
         except (simuvex.SimError, AngrError):
             return None
 
         # We execute all but the last instruction in this basic block, so we have a cleaner
         # state
         # Start execution!
-        exits = simrun.flat_successors + simrun.unsat_successors
+        exits = sim_successors.flat_successors + sim_successors.unsat_successors
 
         if exits:
             final_st = None
@@ -2410,126 +2413,149 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     # Private methods - function hints
 
-    def _search_for_function_hints(self, simrun):
+    def _search_for_function_hints(self, successor_state):
         """
-        Scan for constants that might be used as exit targets later, and add
-        them into pending_exits
+        Scan for constants that might be used as exit targets later, and add them into pending_exits.
+
+        :param simuvex.SimState successor_state: A successing state.
+        :return:                                 A list of discovered code addresses.
+        :rtype:                                  list
         """
 
         function_hints = []
-        if isinstance(simrun, simuvex.SimIRSB) and simrun.successors:
-            successor = simrun.successors[0]
-            for action in successor.log.actions:
-                if action.type == 'reg' and action.offset == self.project.arch.ip_offset:
-                    # Skip all accesses to IP registers
-                    continue
-                elif action.type == 'exit':
-                    # only consider read/write actions
+
+        for action in successor_state.log.actions:
+            if action.type == 'reg' and action.offset == self.project.arch.ip_offset:
+                # Skip all accesses to IP registers
+                continue
+            elif action.type == 'exit':
+                # only consider read/write actions
+                continue
+
+            # Enumerate actions
+            data = action.data
+            if data is not None:
+                # TODO: Check if there is a proper way to tell whether this const falls in the range of code
+                # TODO: segments
+                # Now let's live with this big hack...
+                try:
+                    const = successor_state.se.exactly_n_int(data.ast, 1)[0]
+                except:  # pylint: disable=bare-except
                     continue
 
-                # Enumerate actions
-                data = action.data
-                if data is not None:
-                    # TODO: Check if there is a proper way to tell whether this const falls in the range of code
-                    # TODO: segments
-                    # Now let's live with this big hack...
-                    try:
-                        const = successor.se.exactly_n_int(data.ast, 1)[0]
-                    except:  # pylint: disable=bare-except
+                if self._is_address_executable(const):
+                    if self._pending_function_hints is not None and const in self._pending_function_hints:
                         continue
 
-                    if self._is_address_executable(const):
-                        if self._pending_function_hints is not None and const in self._pending_function_hints:
-                            continue
+                    # target = const
+                    # tpl = (None, None, target)
+                    # st = self.project.simos.prepare_call_state(self.project.initial_state(mode='fastpath'),
+                    #                                           initial_state=saved_state)
+                    # st = self.project.initial_state(mode='fastpath')
+                    # exits[tpl] = (st, None, None)
 
-                        # target = const
-                        # tpl = (None, None, target)
-                        # st = self.project.simos.prepare_call_state(self.project.initial_state(mode='fastpath'),
-                        #                                           initial_state=saved_state)
-                        # st = self.project.initial_state(mode='fastpath')
-                        # exits[tpl] = (st, None, None)
+                    function_hints.append(const)
 
-                        function_hints.append(const)
-
-            l.info('Got %d possible exits from %s, including: %s', len(function_hints), simrun,
-                   ", ".join(["0x%x" % f for f in function_hints]))
+        l.debug('Got %d possible exits, including: %s', len(function_hints),
+               ", ".join(["0x%x" % f for f in function_hints])
+               )
 
         return function_hints
 
-    # Private methods - creation of stuff (SimRun, CFGNode, call-stack, etc.)
+    # Private methods - creation of stuff (SimSuccessors, CFGNode, call-stack, etc.)
 
-    def _get_simrun(self, addr, current_entry, current_function_addr=None):
+    def _get_simsuccessors(self, addr, job, current_function_addr=None):
         """
-        Create the correct SimRun instance.
+        Create the SimSuccessors instance for a block.
 
-        :param int addr: Address of the SimRun
-        :param angr.Path current_entry: The Path object, with a state inside
-        :param int current_function_addr: Address of the current function
-        :return: A SimRun instance
-        :rtype: simuvex.SimRun
+        :param int addr:                  Address of the block.
+        :param CFGJob job:                The CFG job instance with an input state inside.
+        :param int current_function_addr: Address of the current function.
+        :return:                          A SimSuccessors instance
+        :rtype:                           simuvex.SimSuccessors
         """
 
         error_occurred = False
-        state = current_entry.state
-        saved_state = current_entry.state  # We don't have to make a copy here
+        state = job.state
+        saved_state = job.state  # We don't have to make a copy here
 
         # respect the basic block size from base graph
-        simrun_size = None
+        block_size = None
         if self._base_graph is not None:
             for n in self._base_graph.nodes_iter():
                 if n.addr == addr:
-                    simrun_size = n.size
+                    block_size = n.size
                     break
 
         try:
-            if not self._keep_state and \
-                    self.project.is_hooked(addr) and \
-                    not self.project._sim_procedures[addr][0] is simuvex.s_procedure.SimProcedureContinuation and \
-                    not self.project._sim_procedures[addr][0].ADDS_EXITS and \
-                    not self.project._sim_procedures[addr][0].NO_RET:
-                # DON'T CREATE USELESS SIMPROCEDURES if we don't care about the accuracy of states
-                # When generating CFG, a SimProcedure will not be created as it is but be created as a
-                # ReturnUnconstrained stub if it satisfies the following conditions:
-                # - It doesn't add any new exits.
-                # - It returns as normal.
-                # In this way, we can speed up the CFG generation by quite a lot as we avoid simulating
-                # those functions like read() and puts(), which has no impact on the overall control flow at all.
-                #
-                # Special notes about _SimProcedureContinuation_ instances. Any SimProcedure that corresponds to the
-                # SimProcedureContinuation we see here adds new exits, otherwise the original SimProcedure wouldn't have
-                # been executed anyway. Hence it's reasonable for us to always simulate a SimProcedureContinuation
-                # instance.
+            sim_successors = None
 
-                old_proc = self.project._sim_procedures[addr][0]
-                old_name = None
-
-                if old_proc.IS_SYSCALL:
-                    new_stub = simuvex.procedures.SimProcedures["syscalls"]["stub"]
-                    ret_to = current_entry.state.regs.ip_at_syscall
+            if not self._keep_state:
+                if self.project.is_hooked(addr):
+                    hooker = self.project._sim_procedures[addr]
+                    old_proc = hooker.procedure
+                    is_continuation = hooker.is_continuation
+                elif self.project._simos.syscall_table.get_by_addr(addr) is not None:
+                    old_proc = self.project._simos.syscall_table.get_by_addr(addr).simproc
+                    is_continuation = False  # syscalls don't support continuation
                 else:
-                    new_stub = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"]
-                    ret_to = None
+                    old_proc = None
+                    is_continuation = None
 
-                if old_proc is new_stub:
-                    proc_kwargs = self.project._sim_procedures[addr][1]
-                    if 'resolves' in proc_kwargs:
-                        old_name = proc_kwargs['resolves']
+                if old_proc is not None and \
+                        not is_continuation and \
+                        not old_proc.ADDS_EXITS and \
+                        not old_proc.NO_RET:
+                    # DON'T CREATE USELESS SIMPROCEDURES if we don't care about the accuracy of states
+                    # When generating CFG, a SimProcedure will not be created as it is but be created as a
+                    # ReturnUnconstrained stub if it satisfies the following conditions:
+                    # - It doesn't add any new exits.
+                    # - It returns as normal.
+                    # In this way, we can speed up the CFG generation by quite a lot as we avoid simulating
+                    # those functions like read() and puts(), which has no impact on the overall control flow at all.
+                    #
+                    # Special notes about SimProcedure continuation: Any SimProcedure instance that is a continuation
+                    # will add new exits, otherwise the original SimProcedure wouldn't have been executed anyway. Hence
+                    # it's reasonable for us to always simulate a SimProcedure with continuation.
 
-                if old_name is None:
-                    old_name = old_proc.__name__.split('.')[-1]
+                    old_name = None
 
-                sim_run = new_stub(
-                    state,
-                    addr=addr,
-                    ret_to=ret_to,
-                    sim_kwargs={'resolves': "%s" % old_name}
-                )
-            else:
+                    if old_proc.IS_SYSCALL:
+                        new_stub = simuvex.procedures.SimProcedures["syscalls"]["stub"]
+                        ret_to = state.regs.ip_at_syscall
+                    else:
+                        # normal SimProcedures
+                        new_stub = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"]
+                        ret_to = None
+
+                    if old_proc is new_stub and self.project.is_hooked(addr):
+                        proc_kwargs = self.project._sim_procedures[addr].kwargs
+                        if 'resolves' in proc_kwargs:
+                            old_name = proc_kwargs['resolves']
+
+                    if old_name is None:
+                        old_name = old_proc.__name__.split('.')[-1]
+
+                    # instantiate the stub
+                    new_stub_inst = new_stub(addr, self.project.arch,
+                                             sim_kwargs={'resolves': old_name}
+                                             )
+
+                    sim_successors = SimEngineProcedure().process(
+                        state,
+                        new_stub_inst,
+                        force_addr=addr,
+                        ret_to=ret_to,
+                    )
+
+            if sim_successors is None:
                 jumpkind = state.scratch.jumpkind
                 jumpkind = 'Ijk_Boring' if jumpkind is None else jumpkind
-                sim_run = self.project.factory.sim_run(current_entry.state, jumpkind=jumpkind, max_size=simrun_size,
-                                                       opt_level=self._iropt_level
-                                                       )
+                sim_successors = self.project.factory.successors(
+                        state,
+                        jumpkind=jumpkind,
+                        size=block_size,
+                        opt_level=self._iropt_level)
 
         except (simuvex.SimFastPathError, simuvex.SimSolverModeError) as ex:
 
@@ -2546,7 +2572,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     new_state = self._get_symbolic_function_initial_state(current_function_addr)
 
                 if new_state is None:
-                    new_state = current_entry.state.copy()
+                    new_state = state.copy()
                     new_state.set_mode('symbolic')
                 new_state.options.add(simuvex.o.DO_RET_EMULATION)
                 # Remove bad constraints
@@ -2555,43 +2581,43 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                     c.op != 'I' or c.args[0] is not False]
                 new_state.se._solver._result = None
                 # Swap them
-                saved_state, current_entry.state = current_entry.state, new_state
-                sim_run, error_occurred, _ = self._get_simrun(addr, current_entry)
+                saved_state, job.state = job.state, new_state
+                sim_successors, error_occurred, _ = self._get_simsuccessors(addr, job)
 
             else:
                 # Got a SimSolverModeError in symbolic mode. We are screwed.
                 # Skip this IRSB
                 l.debug("Caught a SimIRSBError %s. Don't panic, this is usually expected.", ex)
                 error_occurred = True
-                sim_run = \
-                    simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                        state, addr=addr)
+                inst = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](addr, self.project.arch)
+                sim_successors = SimEngineProcedure().process(state, inst)
+
 
         except simuvex.SimIRSBError:
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
             l.debug("Caught a SimIRSBError during CFG recovery. Creating a PathTerminator.", exc_info=True)
             error_occurred = True
-            sim_run = \
-                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                    state, addr=addr)
+            inst = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](addr, self.project.arch)
+            sim_successors = SimEngineProcedure().process(state, inst)
 
         except claripy.ClaripyError:
             l.debug("Caught a ClaripyError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             error_occurred = True
             # Generate a PathTerminator to terminate the current path
-            sim_run = \
-                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                    state, addr=addr)
+            inst = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](addr, self.project.arch)
+            sim_successors = SimEngineProcedure().process(state, inst)
 
         except simuvex.SimError:
             l.debug("Caught a SimError when during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
 
             error_occurred = True
             # Generate a PathTerminator to terminate the current path
-            sim_run = \
-                simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](
-                    state, addr=addr)
+            inst = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](addr, self.project.arch)
+            sim_successors = SimEngineProcedure().process(state,
+                                                          inst
+                                                          )
+
 
         except AngrError:
             section = self.project.loader.main_bin.find_section_containing(addr)
@@ -2606,9 +2632,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # "No bytes in memory xxx" exception
             # Just ignore it
             error_occurred = True
-            sim_run = None
+            sim_successors = None
 
-        return sim_run, error_occurred, saved_state
+        return sim_successors, error_occurred, saved_state
 
     def _create_new_call_stack(self, addr, all_entries, entry_wrapper, exit_target, jumpkind):
         if self._is_call_jumpkind(jumpkind):
@@ -2697,37 +2723,42 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return new_call_stack
 
-    def _create_cfgnode(self, simrun, call_stack, func_addr, simrun_key=None, depth=None):
+    def _create_cfgnode(self, sim_successors, call_stack, func_addr, block_id=None, depth=None):
         """
-        Create a context-sensitive CFGNode instance for a specific SimRun.
+        Create a context-sensitive CFGNode instance for a specific block.
 
-        :param simuvex.SimRun simrun:       The SimRun object.
-        :param CallStack call_stack_suffix: The call stack.
-        :param int func_addr:               Address of the current function.
-        :param simrun_key:                  The SimRun key of this CFGNode.
-        :param int or None depth:           Depth of this CFGNode.
-        :return:                            The CFGNode instance
-        :rtype:                             CFGNode
+        :param simuvex.SimSuccessors sim_successors: The SimSuccessors object.
+        :param CallStack call_stack_suffix:          The call stack.
+        :param int func_addr:                        Address of the current function.
+        :param BlockID block_id:                     The block ID of this CFGNode.
+        :param int or None depth:                    Depth of this CFGNode.
+        :return:                                     A CFGNode instance.
+        :rtype:                                      CFGNode
         """
 
-        # Determine whether this is a syscall
-        if isinstance(simrun, simuvex.SimProcedure) and simrun.IS_SYSCALL is True:
-            is_syscall = True
-            syscall = simrun.__class__.__name__
+        sa = sim_successors.artifacts  # shorthand
+
+        # Determine if this is a SimProcedure, and further, if this is a syscall
+        syscall = None
+        is_syscall = False
+        if sim_successors.sort == 'SimProcedure':
+            is_simprocedure = True
+            if sa['is_syscall'] is True:
+                is_syscall = True
+                syscall = sim_successors.artifacts['procedure']
         else:
-            is_syscall = False
-            syscall = None
+            is_simprocedure = False
 
-        if isinstance(simrun, simuvex.SimProcedure):
-            simproc_name = simrun.__class__.__name__.split('.')[-1]
-            if simproc_name == "ReturnUnconstrained" and simrun.resolves is not None:
-                simproc_name = simrun.resolves
+        if is_simprocedure:
+            simproc_name = sa['name'].split('.')[-1]
+            if simproc_name == "ReturnUnconstrained" and sa['resolves'] is not None:
+                simproc_name = sa['resolves']
 
             no_ret = False
-            if syscall is not None and simrun.NO_RET:
+            if syscall is not None and sa['no_ret']:
                 no_ret = True
 
-            cfg_node = CFGNode(simrun.addr,
+            cfg_node = CFGNode(sim_successors.addr,
                                None,
                                self,
                                callstack=call_stack,
@@ -2737,23 +2768,23 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                no_ret=no_ret,
                                is_syscall=is_syscall,
                                syscall=syscall,
-                               function_address=simrun.addr,
-                               simrun_key=simrun_key,
-                               depth=depth
+                               function_address=sim_successors.addr,
+                               block_id=block_id,
+                               depth=depth,
                                )
 
         else:
-            cfg_node = CFGNode(simrun.addr,
-                               simrun.irsb.size,
+            cfg_node = CFGNode(sim_successors.addr,
+                               sa['irsb_size'],
                                self,
                                callstack=call_stack,
                                input_state=None,
                                is_syscall=is_syscall,
                                syscall=syscall,
-                               simrun=simrun,
                                function_address=func_addr,
-                               simrun_key=simrun_key,
-                               depth=depth
+                               block_id=block_id,
+                               depth=depth,
+                               irsb=sim_successors.artifacts['irsb'],
                                )
 
         return cfg_node
@@ -2950,50 +2981,53 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     #
 
     @staticmethod
-    def _is_indirect_jump(_, simirsb):
+    def _is_indirect_jump(_, sim_successors):
         """
         Determine if this SimIRSB has an indirect jump as its exit
         """
 
-        if simirsb.irsb.direct_next:
+        if sim_successors.artifacts['irsb_direct_next']:
             # It's a direct jump
             return False
 
-        if not (simirsb.irsb.jumpkind == 'Ijk_Call' or simirsb.irsb.jumpkind == 'Ijk_Boring'):
+        default_jumpkind = sim_successors.artifacts['irsb_default_jumpkind']
+        if not (default_jumpkind == 'Ijk_Call' or default_jumpkind == 'Ijk_Boring'):
             # It's something else, like a ret of a syscall... we don't care about it
             return False
 
         return True
 
     @staticmethod
-    def _generate_simrun_key(call_stack_suffix, simrun_addr, is_syscall, continue_at=None):
+    def _generate_block_id(call_stack_suffix, block_addr, is_syscall, continue_at=None):
         if not is_syscall:
-            return SimRunKey.new(simrun_addr, call_stack_suffix, 'normal', continue_at=continue_at)
+            return BlockID.new(block_addr, call_stack_suffix, 'normal', continue_at=continue_at)
         else:
-            return SimRunKey.new(simrun_addr, call_stack_suffix, 'syscall', continue_at=continue_at)
+            return BlockID.new(block_addr, call_stack_suffix, 'syscall', continue_at=continue_at)
 
     @staticmethod
-    def _simrun_key_repr(simrun_key):
-        return repr(simrun_key)
+    def _block_id_repr(block_id):
+        return repr(block_id)
 
     @staticmethod
-    def _simrun_key_callstack_key(simrun_key):
-        return simrun_key.callsite_tuples
+    def _block_id_callstack_key(block_id):
+        return block_id.callsite_tuples
 
     @staticmethod
-    def _simrun_key_addr(simrun_key):
-        return simrun_key.addr
+    def _block_id_addr(block_id):
+        return block_id.addr
 
     @staticmethod
-    def _simrun_key_current_func_addr(simrun_key):
+    def _block_id_current_func_addr(block_id):
         """
         If we don't have any information about the caller, we have no way to get the address of the current function.
 
-        :param simrun_key: SimRun key
-        :return: The function address if there is one, or None if it's not possible to get
+        :param BlockID block_id: The block ID.
+        :return:                 The function address if there is one, or None if it's not possible to get.
+        :rtype:                  int or None
         """
-        if simrun_key.callsite_tuples:
-            return simrun_key.callsite_tuples[-1]
+
+        if block_id.callsite_tuples:
+            return block_id.callsite_tuples[-1]
         else:
             return None
 
@@ -3007,8 +3041,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             return True
         return False
 
-    def _push_unresolvable_run(self, simrun_address):
-        self._unresolvable_runs.add(simrun_address)
+    def _push_unresolvable_run(self, block_address):
+        self._unresolvable_runs.add(block_address)
 
     def _is_address_executable(self, address):
         """
@@ -3023,16 +3057,17 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 return True
         return False
 
-    def _update_thumb_addrs(self, simrun, state):
+    def _update_thumb_addrs(self, simsuccessors, state):
         """
 
         :return:
         """
 
         # For ARM THUMB mode
-        if isinstance(simrun, simuvex.SimIRSB) and state.thumb:
-            self._thumb_addrs.update(simrun.imark_addrs())
-            self._thumb_addrs.update(map(lambda x: x + 1, simrun.imark_addrs()))
+        if simsuccessors.sort == 'IRSB' and state.thumb:
+            insn_addrs = simsuccessors.artifacts['insn_addrs']
+            self._thumb_addrs.update(insn_addrs)
+            self._thumb_addrs.update(map(lambda x: x + 1, insn_addrs))
 
     def _get_callsites(self, function_address):
         """
