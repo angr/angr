@@ -3,7 +3,7 @@ python: 2.7
 sudo: required
 dist: xenial
 env:
-  - PY=e ANGR_REPO=tracer
+  - PY=e ANGR_REPO=tracer NOSE_OPTIONS="--process-timeout=900"
   - PY=e ANGR_REPO=fuzzer
   - PY=e ANGR_REPO=driller
   - PY=p ANGR_REPO=colorguard
