@@ -9,4 +9,4 @@ env:
   - PY=p ANGR_REPO=colorguard
 #  - PY=p ANGR_REPO=rex NOSE_OPTIONS="-x" NOSE_PROCESSES=1
 install: ( curl https://raw.githubusercontent.com/angr/angr-dev/$TRAVIS_BRANCH/tests/travis-install.sh | grep -v 404 || curl https://raw.githubusercontent.com/angr/angr-dev/master/tests/travis-install.sh ) | bash
-script: ~/angr-dev/travis-test.sh
+script: ~/angr-dev/tests/travis-test.sh
