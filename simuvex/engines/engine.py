@@ -8,8 +8,8 @@ class SimEngine(object):
     A SimEngine is a class which understands how to perform execution on a state. This is a base class.
     """
 
-    def __init__(self, check_failed=None):
-        self._check_failed = check_failed
+    def __init__(self, **kwargs):
+        self._check_failed = kwargs.get('check_failed')
 
     def process(self, state, *args, **kwargs):
         """
