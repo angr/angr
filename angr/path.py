@@ -47,7 +47,7 @@ class Path(object):
             # case. We should catch exceptions here.
             try:
                 stack_ptr = self.state.se.any_int(self.state.regs.sp)
-            except (simuvex.SimSolverModeError, simuvex.SimUnsatError):
+            except (simuvex.SimSolverModeError, simuvex.SimUnsatError, AttributeError):
                 stack_ptr = None
 
             # generate a base callframe

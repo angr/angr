@@ -3,7 +3,7 @@ Manage OS-level configuration.
 """
 
 import logging
-
+from collections import defaultdict
 from archinfo import ArchARM, ArchMIPS32, ArchMIPS64, ArchX86, ArchAMD64, ArchPPC32, ArchPPC64, ArchAArch64
 from simuvex import SimState, SimStateSystem, SimActionData
 from simuvex import s_options as o, s_cc
@@ -236,9 +236,12 @@ class SimOS(object):
 
             if syscall_number in syscall_table:
                 name, simproc_name = syscall_table[syscall_number]
-
-                if simproc_name in SimProcedures[syscall_lib]:
+                if isinstance(simproc_name, str) and simproc_name in SimProcedures[syscall_lib]:
+                    # They give us a string, do resolution
                     simproc = SimProcedures[syscall_lib][simproc_name]
+                elif isinstance(simproc_name, type):
+                    # If they give us the type, just take it
+                    simproc = simproc_name
                 else:
                     # no SimProcedure is implemented for this syscall
                     simproc = SimProcedures["syscalls"]["stub"]
@@ -390,8 +393,8 @@ class SimOS(object):
             highest_reg_offset, reg_size = max(state.arch.registers.values())
             for i in range(0, highest_reg_offset + reg_size, state.arch.bytes):
                 state.registers.store(i, state.se.BVV(0, state.arch.bits))
-
-        state.regs.sp = stack_end
+        if hasattr(state.regs,"sp"):
+            state.regs.sp = stack_end
 
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
@@ -1039,9 +1042,13 @@ class CallReturn(SimProcedure):
         l.info("A factory.call_state-created path returned!")
         return
 
-os_mapping = {
-    'unix': SimLinux,
-    'unknown': SimOS,
-    'windows': SimOS,
-    'cgc': SimCGC,
-}
+
+os_mapping = defaultdict(lambda: SimOS)
+
+
+def register_simos(name, cls):
+    os_mapping[name] = cls
+
+register_simos('unix', SimLinux)
+register_simos('windows', SimOS)
+register_simos('cgc', SimCGC)
