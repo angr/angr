@@ -17,25 +17,89 @@ class __libc_start_main(simuvex.SimProcedure):
     IS_FUNCTION = True
     local_vars = ('main', 'argc', 'argv', 'init', 'fini')
 
-    def _initialize_ctype_table(self):
+    def _initialize_b_loc_table(self):
         """
         Initialize ptable for ctype
 
         See __ctype_b_loc.c in libc implementation
         """
         malloc = simuvex.SimProcedures['libc.so.6']['malloc']
-        table = self.inline_call(malloc, 384).ret_expr
+        table = self.inline_call(malloc, 768).ret_expr
         table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
 
         for pos, c in enumerate(self.state.libc.LOCALE_ARRAY):
-            self.state.memory.store(table + pos, self.state.se.BVV(c, 8))
+            # Each entry is 2 bytes
+            self.state.memory.store(table + (pos*2),
+                                    self.state.se.BVV(c, 16),
+                                    endness=self.state.arch.memory_endness)
+        # Offset for negative chars
+        # 256 because 2 bytes each, -128 * 2
+        table += 256
         self.state.memory.store(table_ptr,
                                 table,
                                 size=self.state.arch.bits / 8,
                                 endness=self.state.arch.memory_endness
                                 )
 
-        self.state.libc.ctype_table_ptr = table_ptr
+        self.state.libc.ctype_b_loc_table_ptr = table_ptr
+
+    def _initialize_tolower_loc_table(self):
+        """
+        Initialize ptable for ctype
+
+        See __ctype_tolower_loc.c in libc implementation
+        """
+        malloc = simuvex.SimProcedures['libc.so.6']['malloc']
+        # 384 entries, 4 bytes each
+        table = self.inline_call(malloc, 384*4).ret_expr
+        table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
+
+        for pos, c in enumerate(self.state.libc.TOLOWER_LOC_ARRAY):
+            self.state.memory.store(table + (pos * 4),
+                                    self.state.se.BVV(c, 32),
+                                    endness=self.state.arch.memory_endness)
+
+        # Offset for negative chars: -128 index (4 bytes per index)
+        table += (128 * 4)
+        self.state.memory.store(table_ptr,
+                                table,
+                                size=self.state.arch.bits / 8,
+                                endness=self.state.arch.memory_endness
+                                )
+
+        self.state.libc.ctype_tolower_loc_table_ptr = table_ptr
+
+    def _initialize_toupper_loc_table(self):
+        """
+        Initialize ptable for ctype
+
+        See __ctype_toupper_loc.c in libc implementation
+        """
+        malloc = simuvex.SimProcedures['libc.so.6']['malloc']
+        # 384 entries, 4 bytes each
+        table = self.inline_call(malloc, 384*4).ret_expr
+        table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
+
+        for pos, c in enumerate(self.state.libc.TOUPPER_LOC_ARRAY):
+            self.state.memory.store(table + (pos * 4),
+                                    self.state.se.BVV(c, 32),
+                                    endness=self.state.arch.memory_endness)
+
+        # Offset for negative chars: -128 index (4 bytes per index)
+        table += (128 * 4)
+        self.state.memory.store(table_ptr,
+                                table,
+                                size=self.state.arch.bits / 8,
+                                endness=self.state.arch.memory_endness
+                                )
+
+        self.state.libc.ctype_toupper_loc_table_ptr = table_ptr
+
+    def _initialize_ctype_table(self):
+        self._initialize_b_loc_table()
+        self._initialize_tolower_loc_table()
+        self._initialize_toupper_loc_table()
+
 
     @property
     def envp(self):

@@ -282,15 +282,19 @@ class SimStateSystem(SimStatePlugin):
             f.seek(new_pos)
             return 0
 
-        else: # whence == 2
+        elif whence == 2:
             # SEEK_END
             size = f.size
             if size is None:
                 # The file is not seekable
                 l.error('File with fd %d is not seekable.', fd)
                 return -1
-            f.seek(size - seek)
+            f.seek(size + seek)
             return 0
+
+        else:
+            l.error("Unknown whence for file seek of \"%s\". Note, GNU extensions are not supported right now.",whence)
+            return -1
 
     def set_pos(self, fd, pos):
         """

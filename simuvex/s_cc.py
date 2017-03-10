@@ -216,7 +216,7 @@ class SimCC(object):
     """
     def __init__(self, arch, args=None, ret_val=None, sp_delta=None, func_ty=None):
         """
-        :param arch:        The Archinfo arch for this binary
+        :param arch:        The Archinfo arch for this CC
         :param args:        A list of SimFunctionArguments describing where the arguments go
         :param ret_val:     A SimFunctionArgument describing where the return value goes
         :param sp_delta:    The amount the stack pointer changes over the course of this function - CURRENTLY UNUSED
@@ -231,6 +231,25 @@ class SimCC(object):
         self.ret_val = ret_val
         self.sp_delta = sp_delta
         self.func_ty = func_ty if func_ty is None else func_ty.with_arch(arch)
+
+    @classmethod
+    def from_arg_kinds(cls, arch, fp_args, ret_fp=False, sizes=None, sp_delta=None, func_ty=None):
+        """
+        Get an instance of the class that will extract floating-point/integral args correctly.
+
+        :param arch:        The Archinfo arch for this CC
+        :param fp_args:     A list, with one entry for each argument the function can take. True if the argument is fp,
+                            false if it is integral.
+        :param ret_fp:      True if the return value for the function is fp.
+        :param sizes:       Optional: A list, with one entry for each argument the function can take. Each entry is the
+                            size of the corresponding argument in bytes.
+        :param sp_delta:    The amount the stack pointer changes over the course of this function - CURRENTLY UNUSED
+        :parmm func_ty:     A SimType for the function itself
+        """
+        basic = cls(arch, sp_delta=sp_delta, func_ty=func_ty)
+        basic.args = basic.arg_locs(fp_args, sizes)
+        basic.ret_val = basic.fp_return_val if ret_fp else basic.return_val
+        return basic
 
     #
     # Here are all the things a subclass needs to specify!
@@ -341,6 +360,10 @@ class SimCC(object):
         return self.RETURN_VAL if self.ret_val is None else self.ret_val
 
     @property
+    def fp_return_val(self):
+        return self.FP_RETURN_VAL if self.ret_val is None else self.ret_val
+
+    @property
     def return_addr(self):
         """
         The location the return address is stored.
@@ -350,11 +373,6 @@ class SimCC(object):
     #
     # Useful functions!
     #
-
-    @property
-    def fp_return_val(self):
-        return self.FP_RETURN_VAL if self.ret_val is None else self.ret_val
-
 
     @staticmethod
     def is_fp_value(val):
