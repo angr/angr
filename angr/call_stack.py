@@ -27,7 +27,7 @@ class CallFrame(object):
             try:
                 self.func_addr = state.se.any_int(state.ip)
                 self.stack_ptr = state.se.any_int(state.regs.sp)
-            except (simuvex.SimUnsatError, simuvex.SimSolverModeError):
+            except (simuvex.SimUnsatError, simuvex.SimSolverModeError, AttributeError):
                 self.func_addr = None
                 self.stack_ptr = None
 
