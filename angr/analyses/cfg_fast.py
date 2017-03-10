@@ -6,8 +6,6 @@ import struct
 import itertools
 from collections import defaultdict
 
-import cffi
-
 import claripy
 import simuvex
 import pyvex
@@ -723,8 +721,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._graph = None
 
-        self._ffi = cffi.FFI()
-
         # Start working!
         self._analyze()
 
@@ -1153,7 +1149,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if f.returning is None:
                     f.returning = len(f.endpoints) > 0
 
-        if self.project.arch.name in ('X86', 'AMD64'):
+        if self.project.arch.name in ('X86', 'AMD64', 'MIPS32'):
             self._remove_redundant_overlapping_blocks()
 
         if self._normalize:
@@ -2704,7 +2700,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _remove_redundant_overlapping_blocks(self):
         """
-        On X86 and AMD64 there are sometimes garbage bytes (usually nops) between functions in order to properly
+        On some architectures there are sometimes garbage bytes (usually nops) between functions in order to properly
         align the succeeding function. CFGFast does a linear sweeping which might create duplicated blocks for
         function epilogues where one block starts before the garbage bytes and the other starts after the garbage bytes.
 

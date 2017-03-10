@@ -255,8 +255,10 @@ class Project(object):
         # If it's blacklisted, don't process it
         # If it matches a simprocedure we have, replace it
         already_resolved = set()
+        pending_hooks = {}
+        unresolved = set()
+
         for obj in self.loader.all_objects:
-            unresolved = []
             for reloc in obj.imports.itervalues():
                 func = reloc.symbol
                 if func.name in already_resolved:
@@ -264,7 +266,7 @@ class Project(object):
                 if not func.is_function:
                     continue
                 elif func.name in self._ignore_functions:
-                    unresolved.append(func)
+                    unresolved.add(func)
                     continue
                 elif self._should_exclude_sim_procedure(func.name):
                     continue
@@ -274,30 +276,36 @@ class Project(object):
                         simfuncs = simuvex.procedures.SimProcedures[lib]
                         if func.name in simfuncs:
                             l.info("Providing %s from %s with SimProcedure", func.name, lib)
-                            self.hook_symbol(func.name, simfuncs[func.name])
+                            pending_hooks[func.name] = Hook(simfuncs[func.name])
                             already_resolved.add(func.name)
                             break
                     else: # we could not find a simprocedure for this function
                         if not func.resolved:   # the loader couldn't find one either
-                            unresolved.append(func)
+                            unresolved.add(func)
+                        else:
+                            # mark it as resolved
+                            already_resolved.add(func.name)
                 # in the case that simprocedures are off and an object in the PLT goes
-                # unresolved, we still want to replace it with a retunconstrained.
+                # unresolved, we still want to replace it with a ReturnUnconstrained.
                 elif not func.resolved and func.name in obj.jmprel:
-                    unresolved.append(func)
+                    unresolved.add(func)
 
-            # Step 3: Stub out unresolved symbols
-            # This is in the form of a SimProcedure that either doesn't return
-            # or returns an unconstrained value
-            for func in unresolved:
-                # Don't touch weakly bound symbols, they are allowed to go unresolved
-                if func.is_weak:
-                    continue
-                l.info("[U] %s", func.name)
-                procedure = simuvex.SimProcedures['stubs']['NoReturnUnconstrained']
-                if func.name not in procedure.use_cases:
-                    procedure = simuvex.SimProcedures['stubs']['ReturnUnconstrained']
-                self.hook_symbol(func.name, Hook(procedure, resolves=func.name))
-                already_resolved.add(func.name)
+        # Step 3: Stub out unresolved symbols
+        # This is in the form of a SimProcedure that either doesn't return
+        # or returns an unconstrained value
+        for func in unresolved:
+            if func.name in already_resolved:
+                continue
+            # Don't touch weakly bound symbols, they are allowed to go unresolved
+            if func.is_weak:
+                continue
+            l.info("[U] %s", func.name)
+            procedure = simuvex.SimProcedures['stubs']['NoReturnUnconstrained']
+            if func.name not in procedure.use_cases:
+                procedure = simuvex.SimProcedures['stubs']['ReturnUnconstrained']
+            self.hook_symbol(func.name, Hook(procedure, resolves=func.name))
+
+        self.hook_symbol_batch(pending_hooks)
 
     def _should_exclude_sim_procedure(self, f):
         """
@@ -466,6 +474,30 @@ class Project(object):
 
         return pseudo_addr
 
+    def hook_symbol_batch(self, hooks):
+        """
+        Hook many symbols at once.
+
+        :param dict provisions:     A mapping from symbol name to hook
+        """
+
+        provisions = {}
+
+        for name, obj in hooks.iteritems():
+            ident = self._symbol_name_to_ident(name, None)
+
+            pseudo_addr = self._simos.prepare_function_symbol(ident)
+            pseudo_vaddr = pseudo_addr - self._extern_obj.rebase_addr
+
+            if self.is_hooked(pseudo_addr):
+                l.warning("Re-hooking symbol " + name)
+                self.unhook(pseudo_addr)
+
+            self.hook(pseudo_addr, obj)
+            provisions[name] = (pseudo_vaddr, 0, None)
+
+        self.loader.provide_symbol_batch(self._extern_obj, provisions)
+
     #
     # Private methods related to hooking
     #
@@ -519,14 +551,16 @@ class Hook(object):
     This class is a bit of a hack to deal with the fact that SimProcedures need to hold state but
     having them do so makes them not thread-safe.
     """
-    def __init__(self, procedure, **kwargs):
+    def __init__(self, procedure, cc=None, **kwargs):
         """
         :param procedure:   The class of the procedure to use
+        :param cc:          The calling convention to use
         :param kwargs:      Any additional keyword arguments will be eventually passed to the
                             `run` method of the procedure on its execution, via the `sim_kwargs`
                             SimProcedure constructor parameter.
         """
         self.procedure = procedure
+        self.cc = cc
         self.kwargs = kwargs
         self.is_continuation = False
         self._continuation_addr = None
@@ -535,6 +569,7 @@ class Hook(object):
         kwargs['sim_kwargs'] = self.kwargs
         kwargs['is_continuation'] = self.is_continuation
         kwargs['continuation_addr'] = self._continuation_addr
+        if self.cc: kwargs['cc'] = self.cc
         return self.procedure(*args, **kwargs)
     instantiate.__doc__ = simuvex.s_procedure.SimProcedure.__init__.__doc__
 

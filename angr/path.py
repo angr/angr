@@ -23,11 +23,13 @@ class Path(object):
     """
     A Path represents a sequence of basic blocks for an execution of the program.
 
-    :ivar name:     A string to identify the path.
-    :ivar state:    The state of the program.
-    :type state:    simuvex.SimState
+    :ivar name:              A string to identify the path.
+    :ivar state:             The state of the program.
+    :type state:             simuvex.SimState
+    :ivar strong_reference:  Whether or not to keep a strong reference to the previous state in path_history
+    :
     """
-    def __init__(self, project, state, path=None):
+    def __init__(self, project, state, path=None, strong_reference=False):
         # this is the state of the path
         self.state = state
         self.errored = False
@@ -74,7 +76,7 @@ class Path(object):
 
             # the previous run
             self.previous_run = path._run
-            self.history._record_state(state)
+            self.history._record_state(state, strong_reference)
             self.history._record_run(path._run)
             self._manage_callstack(state)
 
@@ -187,6 +189,7 @@ class Path(object):
         :param size:              the maximum size of the block, in bytes.
         :param num_inst:          the maximum number of instructions.
         :param traceflags:        traceflags to be passed to VEX. Default: 0
+        :param strong_reference   whether or not to keep a strong reference to the previous state. Default: False
 
         :returns:   An array of paths for the possible successors.
         """
@@ -206,7 +209,8 @@ class Path(object):
         if self._run_error:
             return [ self.copy(error=self._run_error, traceback=self._run_traceback) ]
 
-        out = [ Path(self._project, s, path=self) for s in self._run.flat_successors ]
+        strong_reference = run_args.get("strong_reference", False)
+        out = [Path(self._project, s, path=self, strong_reference=strong_reference) for s in self._run.flat_successors]
         if 'insn_bytes' in run_args and 'addr' not in run_args and len(out) == 1 \
                 and isinstance(self._run, simuvex.SimIRSB) \
                 and self.addr + self._run.irsb.size == out[0].state.se.any_int(out[0].state.regs.ip):
