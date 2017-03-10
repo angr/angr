@@ -1006,8 +1006,7 @@ DefaultCC = {
     'PPC64': SimCCPowerPC64,
     'AARCH64': SimCCAArch64,
     'AVR': SimCCUnknown,
-    'MSP': SimCCUnknown,
-    'BF': SimCCUnknown
+    'MSP': SimCCUnknown
 }
 
 
