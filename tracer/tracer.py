@@ -230,7 +230,6 @@ class Tracer(object):
                  have preconstraints which should be removed using the
                  remove_preconstraints method.
         """
-
         while len(self.path_group.active) == 1:
             current = self.path_group.active[0]
 
@@ -588,7 +587,12 @@ class Tracer(object):
         for con in self.preconstraints:
             precon_cache_keys.add(con.cache_key)
 
-        new_constraints = filter(lambda x: x.cache_key not in precon_cache_keys, path.state.se.constraints)
+        # if we used the replacement solver we didn't add constraints we need to remove so keep all constraints
+        if so.REPLACEMENT_SOLVER in path.state.options:
+            new_constraints = path.state.se.constraints
+        else:
+            new_constraints = filter(lambda x: x.cache_key not in precon_cache_keys, path.state.se.constraints)
+
 
         if path.state.has_plugin("zen_plugin"):
             new_constraints = path.state.get_plugin("zen_plugin").filter_constraints(new_constraints)
@@ -604,7 +608,6 @@ class Tracer(object):
             l.debug("simplifying solver")
             path.state.se.simplify()
             l.debug("simplification done")
-
 
         path.state.se._solver.result = None
 
