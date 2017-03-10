@@ -393,8 +393,8 @@ class SimOS(object):
             highest_reg_offset, reg_size = max(state.arch.registers.values())
             for i in range(0, highest_reg_offset + reg_size, state.arch.bytes):
                 state.registers.store(i, state.se.BVV(0, state.arch.bits))
-
-        state.regs.sp = stack_end
+        if hasattr(state.regs,"sp"):
+            state.regs.sp = stack_end
 
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
