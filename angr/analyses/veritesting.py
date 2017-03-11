@@ -18,6 +18,10 @@ class VeritestingError(Exception):
 
 
 class CallTracingFilter(object):
+    """
+    Filter to apply during CFG creation on a given path and jumpkind to determine if it should be skipped at a certain
+    depth
+    """
     whitelist = {
         SimProcedures['cgc']['receive'],
         SimProcedures['cgc']['transmit'],
@@ -149,6 +153,10 @@ class CallTracingFilter(object):
 
 
 class Veritesting(Analysis):
+    """
+    An exploration technique made for condensing chunks of code to single (nested) if-then-else constraints via CFG
+    accurate to conduct Static Symbolic Execution SSE (conversion to single constraint)
+    """
     # A cache for CFG we generated before
     cfg_cache = { }
     # Names of all stashes we will return from Veritesting
@@ -212,6 +220,8 @@ class Veritesting(Analysis):
     def _veritesting(self):
         """
         Perform static symbolic execution starting from the given point.
+        returns (bool, PathGroup): tuple of the success/failure of veritesting and the subsequent path group after 
+                                   execution
         """
 
         p = self._input_path.copy()
@@ -248,8 +258,8 @@ class Veritesting(Analysis):
         A basic block will not be executed for more than *loop_unrolling_limit* times. If that is the case, a new state
         will be returned.
 
-        :param path: The initial path to start the execution.
-        :returns:    A list of new states.
+        :param Path path: The initial path to start the execution.
+        :returns:         A list of new states.
         """
 
         # Remove path._run
@@ -333,76 +343,7 @@ class Veritesting(Analysis):
 
             # Try to merge a set of previously stashed paths, and then unstash them
             if not path_group.active:
-                merged_anything = False
-
-                for merge_point_addr, merge_point_looping_times in merge_points:
-                    if merged_anything:
-                        break
-
-                    stash_name = "_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
-                    if stash_name not in path_group.stashes:
-                        continue
-
-                    stash_size = len(path_group.stashes[stash_name])
-                    if stash_size == 0:
-                        continue
-                    if stash_size == 1:
-                        l.info("Skipping merge of 1 path in stash %s.", stash_size)
-                        path_group.move(stash_name, 'active')
-                        continue
-
-                    # let everyone know of the impending disaster
-                    l.info("Merging %d paths in stash %s", stash_size, stash_name)
-
-                    # Try to prune the stash, so unsatisfiable paths will be thrown away
-                    path_group.prune(from_stash=stash_name, to_stash='pruned')
-                    if 'pruned' in path_group.stashes and len(path_group.pruned):
-                        l.debug('... pruned %d paths from stash %s', len(path_group.pruned), stash_name)
-                    # Remove the pruned stash to save memory
-                    path_group.drop(stash='pruned')
-
-                    # merge things callstack by callstack
-                    while len(path_group.stashes[stash_name]):
-                        r = path_group.stashes[stash_name][0]
-                        path_group.move(
-                            stash_name, 'merge_tmp',
-                            lambda p: p.callstack == r.callstack #pylint:disable=cell-var-from-loop
-                        )
-
-                        old_count = len(path_group.merge_tmp)
-                        l.debug("... trying to merge %d paths.", old_count)
-
-                        # merge the loop_ctrs
-                        new_loop_ctrs = defaultdict(int)
-                        for m in path_group.merge_tmp:
-                            for head_addr, looping_times in m.info['loop_ctrs'].iteritems():
-                                new_loop_ctrs[head_addr] = max(
-                                    looping_times,
-                                    m.info['loop_ctrs'][head_addr]
-                                )
-
-                        path_group.merge(stash='merge_tmp')
-                        for m in path_group.merge_tmp:
-                            m.info['loop_ctrs'] = new_loop_ctrs
-
-                        new_count = len(path_group.stashes['merge_tmp'])
-                        l.debug("... after merge: %d paths.", new_count)
-
-                        merged_anything |= new_count != old_count
-
-                        if len(path_group.merge_tmp) > 1:
-                            l.warning("More than 1 path after Veritesting merge.")
-                            path_group.move('merge_tmp', 'active')
-                        elif any(
-                            loop_ctr >= self._loop_unrolling_limit + 1 for loop_ctr in
-                            path_group.one_merge_tmp.info['loop_ctrs'].itervalues()
-                        ):
-                            l.debug("... merged path is overlooping")
-                            path_group.move('merge_tmp', 'deadended')
-                        else:
-                            l.debug('... merged path going to active stash')
-                            path_group.move('merge_tmp', 'active')
-
+                path_goup = _join_merge_points(path_group, merge_points)
         if any(len(path_group.stashes[stash_name]) for stash_name in self.all_stashes):
             # Remove all stashes other than errored or deadended
             path_group.stashes = {
@@ -415,11 +356,97 @@ class Veritesting(Analysis):
 
         return path_group
 
+    def _join_merge_points(self, path_group, merge_points):
+        """
+        Merges together the appropriate execution points and unstashes them from the intermidiate merge_x_y stashes to
+        pruned (dropped), deadend or active stashes
+
+        param PathGroup path_group:      current path group being stepped through
+        param [(int, int)] merge_points: list of address and loop counters of execution points to merge
+        returns PathGroup:               new path_group with edited stashes
+        """
+        merged_anything = False
+        for merge_point_addr, merge_point_looping_times in merge_points:
+            if merged_anything:
+                break
+
+            stash_name = "_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
+            if stash_name not in path_group.stashes:
+                continue
+
+            stash_size = len(path_group.stashes[stash_name])
+            if stash_size == 0:
+                continue
+            if stash_size == 1:
+                l.info("Skipping merge of 1 path in stash %s.", stash_size)
+                path_group.move(stash_name, 'active')
+                continue
+
+            # let everyone know of the impending disaster
+            l.info("Merging %d paths in stash %s", stash_size, stash_name)
+
+            # Try to prune the stash, so unsatisfiable paths will be thrown away
+            path_group.prune(from_stash=stash_name, to_stash='pruned')
+            if 'pruned' in path_group.stashes and len(path_group.pruned):
+                l.debug('... pruned %d paths from stash %s', len(path_group.pruned), stash_name)
+            # Remove the pruned stash to save memory
+            path_group.drop(stash='pruned')
+
+            # merge things callstack by callstack
+            while len(path_group.stashes[stash_name]):
+                r = path_group.stashes[stash_name][0]
+                path_group.move(
+                    stash_name, 'merge_tmp',
+                    lambda p: p.callstack == r.callstack #pylint:disable=cell-var-from-loop
+                )
+
+                old_count = len(path_group.merge_tmp)
+                l.debug("... trying to merge %d paths.", old_count)
+
+                # merge the loop_ctrs
+                new_loop_ctrs = defaultdict(int)
+                for m in path_group.merge_tmp:
+                    for head_addr, looping_times in m.info['loop_ctrs'].iteritems():
+                        new_loop_ctrs[head_addr] = max(
+                            looping_times,
+                            m.info['loop_ctrs'][head_addr]
+                        )
+
+                path_group.merge(stash='merge_tmp')
+                for m in path_group.merge_tmp:
+                    m.info['loop_ctrs'] = new_loop_ctrs
+
+                new_count = len(path_group.stashes['merge_tmp'])
+                l.debug("... after merge: %d paths.", new_count)
+
+                merged_anything |= new_count != old_count
+
+                if len(path_group.merge_tmp) > 1:
+                    l.warning("More than 1 path after Veritesting merge.")
+                    path_group.move('merge_tmp', 'active')
+                elif any(
+                    loop_ctr >= self._loop_unrolling_limit + 1 for loop_ctr in
+                    path_group.one_merge_tmp.info['loop_ctrs'].itervalues()
+                ):
+                    l.debug("... merged path is overlooping")
+                    path_group.move('merge_tmp', 'deadended')
+                else:
+                    l.debug('... merged path going to active stash')
+                    path_group.move('merge_tmp', 'active')
+                    
+        return path_group
+
     #
     # Path management
     #
 
     def is_path_errored(self, path):
+        """
+        Returns true if the path has errored, most recent jump was error/signal, or if exeception caught on step forward
+        
+        param Path path: The Path instance to test
+        returns bool:    True if path instance has errored
+        """
         if path.errored:
             return True
         elif len(path.jumpkinds) > 0 and path.jumpkinds[-1] in Path._jk_all_bad:
@@ -433,7 +460,7 @@ class Veritesting(Analysis):
                     size_of_next_irsb = [ n for n in self._cfg.graph.nodes() if n.addr == ip ][0].size
                     path.step(size=size_of_next_irsb)
             except (AngrError, SimError, ClaripyError) as ex:
-                l.debug('is_path_errored(): caxtching exception %s', ex)
+                l.debug('is_path_errored(): catching exception %s', ex)
                 path._error = ex
             except (TypeError, ValueError, ArithmeticError, MemoryError) as ex:
                 l.debug("is_path_errored(): catching exception %s", ex)
@@ -445,8 +472,8 @@ class Veritesting(Analysis):
         """
         Returns if p.addr is not a proper node in our CFG.
 
-        :param p: The Path instance to test.
-        :returns: False if our CFG contains p.addr, True otherwise.
+        :param Path p: The Path instance to test.
+        :returns bool: False if our CFG contains p.addr, True otherwise.
         """
 
         n = self._cfg.get_any_node(p.addr, is_syscall=p.jumpkinds[-1].startswith('Ijk_Sys'))
@@ -459,6 +486,14 @@ class Veritesting(Analysis):
         return False
 
     def generate_successors(self, path, path_group):
+        """
+        Gets the successors to the current path by step, saves copy of path and finally stashes new unconstrained paths
+        to path_group
+        
+        param PathGroup path_group: PathGroup to used to stash
+        param Path path:            current path to step on from
+        returns [Path]:             List of sucession paths
+        """
         ip = path.addr
 
         l.debug("Pushing 0x%x one step forward...", ip)
@@ -489,6 +524,9 @@ class Veritesting(Analysis):
     def is_path_overbound(self, path):
         """
         Filter out all paths that run out of boundaries or loop too many times.
+
+        param Path path: Path instance to check
+        returns bool:    True if outside of mem/loop_ctr boundary
         """
 
         ip = path.addr
@@ -511,6 +549,12 @@ class Veritesting(Analysis):
 
     @staticmethod
     def _unfuck(p):
+        """
+        Deletes the loop counter from path's information dictionary
+        
+        param Path p: Path instance to update
+        returns Path: same path with deleted loop counter
+        """
         del p.info['loop_ctrs']
         return p
 
@@ -521,6 +565,9 @@ class Veritesting(Analysis):
     def _make_cfg(self):
         """
         Builds a CFG from the current function.
+        Saved in cfg_cache.
+
+        returns (CFGAccurate, networkx.DiGraph): Tuple of the CFG and networkx representation of it 
         """
 
         path = self._input_path
@@ -568,10 +615,10 @@ class Veritesting(Analysis):
         """
         Checks whether `n1` post-dominates `n2` in the *original* (not reversed) graph.
 
-        :param reversed_graph:  The reversed networkx.DiGraph instance.
-        :param n1:              Node 1.
-        :param n2:              Node 2.
-        :returns:               True/False.
+        :param networkx.DiGraph reversed_graph:  The reversed networkx.DiGraph instance.
+        :param networkx.Node n1:                 Node 1.
+        :param networkx.Node n2:                 Node 2.
+        :returns bool:                           True/False.
         """
 
         ds = networkx.dominating_set(reversed_graph, n1)
@@ -581,8 +628,8 @@ class Veritesting(Analysis):
         """
         Return all possible merge points in this CFG.
 
-        :param cfg: The control flow graph, which must be acyclic.
-        :returns:   A list of merge points.
+        :param CFGAccurate cfg: The control flow graph, which must be acyclic.
+        :returns [(int, int)]:  A list of merge points (address and number of times looped).
         """
 
         graph = networkx.DiGraph(cfg.graph)
