@@ -302,6 +302,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._analyze()
 
     def remove_cycles(self):
+        """
+        Forces graph to become acyclic, removes all loop back edges and edges between overlapped loop headers and their
+        successors.
+        """
         l.debug("Removing cycles...")
         l.debug("There are %d loop back edges.", len(self._loop_back_edges))
         l.debug("And there are %d overlapping loop headers.", len(self._overlapped_loop_headers))
@@ -501,9 +505,27 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._graph = graph_copy
 
     def immediate_dominators(self, start, target_graph=None):
+        """
+        Get all immediate dominators of sub graph from given node upwards.
+
+        :param str start: id of the node to navigate forwards from.
+        :param networkx.classes.digraph.DiGraph target_graph: graph to analyse, default is self.graph.
+
+        :return: each node of graph as index values, with element as respective node's immediate dominator.
+        :rtype: dict
+        """
         return self._immediate_dominators(start, target_graph=target_graph, reverse_graph=False)
 
     def immediate_postdominators(self, end, target_graph=None):
+        """
+        Get all immediate postdominators of sub graph from given node upwards.
+
+        :param str start: id of the node to navigate forwards from.
+        :param networkx.classes.digraph.DiGraph target_graph: graph to analyse, default is self.graph.
+
+        :return: each node of graph as index values, with element as respective node's immediate dominator.
+        :rtype: dict
+        """
         return self._immediate_dominators(end, target_graph=target_graph, reverse_graph=True)
 
     def remove_fakerets(self):
@@ -1675,6 +1697,16 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     # SimAction handling
 
     def _handle_actions(self, state, current_run, func, sp_addr, accessed_registers):
+        """
+        For a given state and current location of of execution, will update a function by adding the offets of 
+        appropriate actions to the stack variable or argument registers for the fnc.
+        
+        :param simuvex.s_state.SimState state: upcoming state.
+        :param simuvex.SimSuccessors current_run: possible result states.
+        :param knowledge.Function func: current function.
+        :param int sp_addr: stack pointer address.
+        :param set accessed_registers: set of before accessed registers.
+        """
         se = state.se
 
         if func is not None and sp_addr is not None:
@@ -1955,7 +1987,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param list successors:                      A list of successors.
         :param bool error_occurred:                  If an error has occurred or not.
         :param artifacts:                      A container of collected information.
-        :return:
+        :return:                                     Resolved successors
+        :rtype:                                      list
         """
 
         # Try to resolve indirect jumps with advanced backward slicing (if enabled)
@@ -2241,13 +2274,33 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         return list(successing_addresses)
 
     def _symbolically_back_traverse(self, current_block, block_artifacts, cfg_node):
+        """
+        Symbolically executes from ancestor nodes (2-5 times removed) finding paths of execution through the given
+        CFGNode.
 
+        :param simuvex.SimSuccessors current_block: SimSuccessor with address to attempt to navigate to.
+        :param dict block_artifacts:  Container of IRSB data - specifically used for known persistant register values.
+        :param CFGNode cfg_node:      Current node interested around.
+        :returns:                     Double checked concrete successors.
+        :rtype: List
+        """
         class register_protector(object):
             def __init__(self, reg_offset, info_collection):
+                """
+                Class to overwrite registers.
+
+                :param int reg_offest:       Register offset to overwrite from.
+                :param dict info_collection: New register offsets to use (in container).
+                """
                 self._reg_offset = reg_offset
                 self._info_collection = info_collection
 
             def write_persistent_register(self, state_):
+                """
+                Writes over given registers from self._info_coollection (taken from block_artifacts)
+
+                :param simuvex.SimSuccessors state_: state to update registers for
+                """
                 if state_.inspect.address is None:
                     l.error('state.inspect.address is None. It will be fixed by Yan later.')
                     return
@@ -2637,6 +2690,18 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         return sim_successors, error_occurred, saved_state
 
     def _create_new_call_stack(self, addr, all_entries, entry_wrapper, exit_target, jumpkind):
+        """
+        Creates a new call stack, and according to the jumpkind performs appropriate actions.
+        
+        :param int addr:                          Address to create at.
+        :param simuvex.Simsuccessors all_entries: Entries to get stack pointer from or retn address.
+        :param EntryDesc entry_wrapper:           EntryDesc to copy current call stack from.
+        :param int exit_target:                   Address of exit target.
+        :param str jumpkind:                      The type of jump performed.
+        :returns:                                 New call stack for target block.
+        :rtype:                                   CallStack
+        """
+        
         if self._is_call_jumpkind(jumpkind):
             new_call_stack = entry_wrapper.call_stack_copy()
             # Notice that in ARM, there are some freaking instructions
@@ -2936,6 +3001,16 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     # Private methods - dominators and post-dominators
 
     def _immediate_dominators(self, node, target_graph=None, reverse_graph=False):
+        """
+        Get all immediate dominators of sub graph from given node upwards.
+
+        :param str node: id of the node to navigate forwards from.
+        :param networkx.classes.digraph.DiGraph target_graph: graph to analyse, default is self.graph.
+        :param bool reverse_graph: Whether the target graph should be reversed before analysation.
+
+        :return: each node of graph as index values, with element as respective node's immediate dominator.
+        :rtype: dict
+        """
         if target_graph is None:
             target_graph = self.graph
 
@@ -2958,6 +3033,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         order.reverse()
 
         def intersect(u_, v_):
+            """
+            Finds the highest (in postorder valuing) point of intersection above two node arguments.
+
+            :param str u_: nx node id.
+            :param str v_: nx node id.
+            :return: intersection of paths.
+            :rtype: str
+            """
             while u_ != v_:
                 while dfn[u_] < dfn[v_]:
                     u_ = idom[u_]
@@ -3042,6 +3125,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         return False
 
     def _push_unresolvable_run(self, block_address):
+        """
+        Adds this block to the list of unresolvable runs.
+
+        :param dict block_address: container of IRSB data from run.
+        """
         self._unresolvable_runs.add(block_address)
 
     def _is_address_executable(self, address):
