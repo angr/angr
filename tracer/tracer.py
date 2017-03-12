@@ -201,10 +201,6 @@ class Tracer(object):
         # whether we should follow the qemu trace
         self.no_follow = False
 
-        # set of resolved dynamic functions which have been resolved
-        # useful for handling PLT stubs
-        self._resolved = set()
-
         # this will be set by _prepare_paths
         self.unicorn_enabled = False
 
@@ -262,14 +258,10 @@ class Tracer(object):
                 elif self._p.is_hooked(current.addr) or \
                         self._p._simos.syscall_table.get_by_addr(current.addr) is not None \
                         or not self._address_in_binary(current.addr):
-                    # are we going to be jumping through the PLT stub?
-                    # if so we need to take special care
-                    r_plt = self._p.loader.main_bin.reverse_plt
-                    if current.addr not in self._resolved \
-                            and self.previous is not None \
-                            and self.previous.addr in r_plt:
-                        self.bb_cnt += 2
-                        self._resolved.add(current.addr)
+
+                    # If dynamic trace is in the PLT stub, update bb_cnt until it's out
+                    while self._addr_in_plt(self.trace[self.bb_cnt]):
+                        self.bb_cnt += 1
 
                 # handle hooked functions
                 # we use current._project since it seems to be different than self._p
@@ -1107,3 +1099,10 @@ class Tracer(object):
         # don't step here, because unlike CGC we aren't going to be starting
         # anywhere but the entry point
         return pg
+
+    def _addr_in_plt(self,addr):
+        """
+        Check if an address is inside the ptt section
+        """
+        plt = self._p.loader.main_bin.sections_map['.plt']
+        return addr >= plt.min_addr and addr <= plt.max_addr
