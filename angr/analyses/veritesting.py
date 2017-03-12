@@ -343,7 +343,7 @@ class Veritesting(Analysis):
 
             # Try to merge a set of previously stashed paths, and then unstash them
             if not path_group.active:
-                path_goup = _join_merge_points(path_group, merge_points)
+                path_group = self._join_merge_points(path_group, merge_points)
         if any(len(path_group.stashes[stash_name]) for stash_name in self.all_stashes):
             # Remove all stashes other than errored or deadended
             path_group.stashes = {
