@@ -87,7 +87,7 @@ class CFGBase(Analysis):
         self.indirect_jumps = {}
 
         # Get all executable memory regions
-        self._exec_mem_regions = self._executable_memory_regions(self._binary, self._force_segment)
+        self._exec_mem_regions = self._executable_memory_regions(None, self._force_segment)
         self._exec_mem_region_size = sum([(end - start) for start, end in self._exec_mem_regions])
 
         # initialize an UnresolvableTarget SimProcedure
