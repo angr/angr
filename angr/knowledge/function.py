@@ -409,6 +409,19 @@ class Function(object):
     def callout_sites(self):
         return list(self._callout_sites)
 
+    @property
+    def size(self):
+        return sum([ b.size for b in self.blocks ])
+
+    @property
+    def binary(self):
+        """
+        Get the object this function belongs to.
+        :return: The object this function belongs to.
+        """
+
+        return self._project.loader.addr_belongs_to_object(self.addr)
+
     def _clear_transition_graph(self):
         self._block_cache = {}
         self._block_sizes = {}
