@@ -6,6 +6,7 @@ import struct
 import itertools
 from collections import defaultdict
 
+import cle
 import claripy
 import simuvex
 import pyvex
@@ -20,6 +21,7 @@ from .cfg_node import CFGNode
 from .cfg_base import CFGBase, IndirectJump
 from .forward_analysis import ForwardAnalysis
 from .cfg_arch_options import CFGArchOptions
+from ..extern_obj import AngrExternObject
 
 VEX_IRSB_MAX_SIZE = 400
 
@@ -595,8 +597,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def __init__(self,
                  binary=None,
-                 start=None,
-                 end=None,
+                 regions=None,
                  pickle_intermediate_results=False,
                  symbols=True,
                  function_prologues=True,
@@ -611,12 +612,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  extra_memory_regions=None,
                  data_type_guessing_handlers=None,
                  arch_options=None,
+                 start=None,  # deprecated
+                 end=None,  # deprecated
                  **extra_arch_options
                  ):
         """
         :param binary:                  The binary to recover CFG on. By default the main binary is used.
-        :param int start:               The beginning address of CFG recovery.
-        :param int end:                 The end address of CFG recovery.
+        :param iterable regions:        A list of tuples in the form of (start address, end address) describing memory
+                                        regions that the CFG should cover.
         :param bool pickle_intermediate_results: If we want to store the intermediate results or not.
         :param bool symbols:            Get function beginnings from symbols in the binary.
         :param bool function_prologues: Scan the binary for function prologues, and use those positions as function
@@ -637,6 +640,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                         from each address in the list.
         :param list extra_memory_regions: A list of 2-tuple (start-address, end-address) that shows extra memory
                                           regions. Integers falling inside will be considered as pointers.
+        :param int start:               (Deprecated) The beginning address of CFG recovery.
+        :param int end:                 (Deprecated) The end address of CFG recovery.
         :param CFGArchOptions arch_options: Architecture-specific options.
         :param dict extra_arch_options: Any key-value pair in kwargs will be seen as an arch-specific option and will
                                         be used to set the option value in self._arch_options.
@@ -655,12 +660,21 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if self.project.loader._auto_load_libs is True and end is None and len(self.project.loader.all_objects) > 3:
             l.warning('"auto_load_libs" is enabled. With libraries loaded in project, CFGFast will cover libraries, '
                       'which may take significantly more time than expected. You may reload the binary with '
-                      '"auto_load_libs" disabled, or specify "start" and "end" paramenters to limit the scope of CFG '
-                      'recovery.'
+                      '"auto_load_libs" disabled, or specify "regions" to limit the scope of CFG recovery.'
                       )
 
-        self._start = start if start is not None else self._binary.get_min_addr()
-        self._end = end if end is not None else self._binary.get_max_addr()
+        if start is not None or end is not None:
+            l.warning('"start" and "end" are deprecated and will be removed soon. Please use "regions" to specify one '
+                      'or more memory regions instead.'
+                      )
+            if regions is None:
+                regions = [ (start, end) ]
+            else:
+                l.warning('"regions", "start", and "end" are all specified. Ignoring "start" and "end".')
+
+        self._regions = regions if regions is not None else self._executable_memory_regions(None, force_segment)
+        # sort it
+        self._regions = sorted(self._regions, key=lambda x: x[0])
 
         self._pickle_intermediate_results = pickle_intermediate_results
         self._indirect_jump_target_limit = indirect_jump_target_limit
@@ -686,7 +700,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._data_type_guessing_handlers = [ ] if data_type_guessing_handlers is None else data_type_guessing_handlers
 
-        l.debug("Starts at %#x and ends at %#x.", self._start, self._end)
+        l.debug("CFG recovery covers %d regions:", len(self._regions))
+        for start_addr, end_addr in self._regions:
+            l.debug("... %#x - %#x", start_addr, end_addr)
 
         # A mapping between address and the actual data in memory
         self._memory_data = { }
@@ -792,6 +808,56 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         }
         return s
 
+    # Methods for determining scanning scope
+
+    def _inside_regions(self, address):
+        """
+        Check if the address is inside any existing region.
+
+        :param int address: Address to check.
+        :return:            True if the address is within one of the memory regions, False otherwise.
+        :rtype:             bool
+        """
+
+        for start_addr, end_addr in self._regions:
+            if start_addr <= address < end_addr:
+                return True
+            if start_addr > address:  # the region list is sorted
+                break
+
+        return False
+
+    def _get_min_addr(self):
+        """
+        Get the minimum address out of all regions. We assume self._regions is sorted.
+
+        :return: The minimum address.
+        :rtype:  int
+        """
+
+        if not self._regions:
+            l.error("self._regions is empty or not properly set.")
+            return None
+
+        return self._regions[0][0]
+
+    def _next_address_in_regions(self, address):
+        """
+        Return the next immediate address that is inside any of the regions.
+
+        :param int address: The address to start scanning.
+        :return:            The next address that is inside one of the memory regions.
+        :rtype:             int
+        """
+
+        for start_addr, end_addr in self._regions:
+            if start_addr <= address < end_addr:
+                return address
+            elif start_addr > address:
+                return start_addr
+
+        return None
+
     # Methods for scanning the entire image
 
     def _next_unscanned_addr(self, alignment=None):
@@ -804,10 +870,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # TODO: Take care of those functions that are already generated
         if self._next_addr is None:
-            self._next_addr = self.project.loader.min_addr()
+            self._next_addr = self._get_min_addr()
             curr_addr = self._next_addr
         else:
             curr_addr = self._next_addr + 1
+
+        if not self._inside_regions(curr_addr):
+            curr_addr = self._next_address_in_regions(curr_addr)
+
+        if curr_addr is None:
+            l.debug("All addresses within memory regions have been scanned.")
+            return None
 
         if self._seg_list.has_blocks:
             curr_addr = self._seg_list.next_free_pos(curr_addr)
@@ -834,11 +907,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return None
 
         self._next_addr = curr_addr
-        if self._end is None or curr_addr < self._end:
-            l.debug("Returning new recon address: 0x%08x", curr_addr)
+        if self._inside_regions(curr_addr):
+            l.debug("Returning a new recon address: %#x", curr_addr)
             return curr_addr
         else:
-            l.debug("0x%08x is beyond the ending point.", curr_addr)
+            l.debug("%#x is beyond the ending point. Returning None.", curr_addr)
             return None
 
     def _next_code_addr_core(self):
@@ -954,7 +1027,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Sort it
         starting_points = sorted(list(starting_points), reverse=True)
 
-        if self.project.entry is not None and self._start <= self.project.entry < self._end:
+        if self.project.entry is not None and self._inside_regions(self.project.entry):
             # make sure self.project.entry is the first entry
             starting_points += [ self.project.entry ]
 
@@ -1001,10 +1074,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         src_ins_addr = job.src_ins_addr
 
         if current_function_addr != -1:
-            l.debug("Tracing new exit 0x%08x in function %#08x",
+            l.debug("Tracing new exit %#x in function %#x",
                     addr, current_function_addr)
         else:
-            l.debug("Tracing new exit %#08x", addr)
+            l.debug("Tracing new exit %#x", addr)
 
         return self._scan_block(addr, current_function_addr, jumpkind, src_node, src_ins_addr, src_stmt_idx)
 
@@ -1219,8 +1292,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         for ins_regex in self.project.arch.function_prologs:
             r = re.compile(ins_regex)
             regexes.append(r)
-
-        # TODO: Make sure self._start is aligned
 
         # Construct the binary blob first
         # TODO: We shouldn't directly access the _memory of main_bin. An interface
@@ -3596,8 +3667,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         super(CFGFast, self).make_copy(n)
 
         n._binary = self._binary
-        n._start = self._start
-        n._end = self._end
+        n._regions = self._regions
         n._pickle_intermediate_results = self._pickle_intermediate_results
         n._indirect_jump_target_limit = self._indirect_jump_target_limit
         n._collect_data_ref = self._collect_data_ref
