@@ -52,7 +52,8 @@ class Tracer(object):
                  preconstrain_flag=True, resiliency=True, chroot=None,
                  add_options=None, remove_options=None, trim_history=True,
                  project=None, dump_syscall=False, dump_cache=True,
-                 max_size = None, exclude_sim_procedures_list=None):
+                 max_size = None, exclude_sim_procedures_list=None,
+                 argv = None):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -78,6 +79,8 @@ class Tracer(object):
             of preconstrained input.
         :param exclude_sim_procedures_list: What SimProcedures to hook or not
             at load time. Defaults to ["malloc","free","calloc","realloc"]
+        :param argv: Optionally specify argv params (i,e,: ['./calc', 'parm1'])
+            defaults to binary name with no params.
         """
 
         self.binary = binary
@@ -89,6 +92,7 @@ class Tracer(object):
         self._hooks = {} if hooks is None else hooks
         self.input_max_size = max_size or len(input)
         self.exclude_sim_procedures_list = exclude_sim_procedures_list or ["malloc","free","calloc","realloc"]
+        self.argv = argv or [binary]
 
         for h in self._hooks:
             l.debug("Hooking %#x -> %s", h, self._hooks[h].__name__)
@@ -1074,7 +1078,8 @@ class Tracer(object):
                 concrete_fs=True,
                 chroot=self.chroot,
                 add_options=self.add_options,
-                remove_options=self.remove_options)
+                remove_options=self.remove_options,
+                args=self.argv)
 
         if self.preconstrain_input:
             self._preconstrain_state(entry_state)
