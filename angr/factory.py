@@ -310,7 +310,7 @@ class AngrObjectFactory(object):
                 func_ty=func_ty)
 
     def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
-              opt_level=None, num_inst=None,
+              opt_level=None, num_inst=None, traceflags=0,
               insn_bytes=None  # backward compatibility
               ):
 
@@ -321,7 +321,7 @@ class AngrObjectFactory(object):
             l.warning('Keyword argument "max_size" has been deprecated for block(). Please use "size" instead.')
             size = max_size
         return Block(addr, project=self._project, size=size, byte_string=byte_string, vex=vex, thumb=thumb,
-                     backup_state=backup_state, opt_level=opt_level, num_inst=num_inst
+                     backup_state=backup_state, opt_level=opt_level, num_inst=num_inst, traceflags=traceflags
                      )
 
     def fresh_block(self, addr, size):

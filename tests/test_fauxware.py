@@ -93,6 +93,7 @@ def run_nodecode(arch):
 def run_merge(arch):
     p = angr.Project(os.path.join(test_location, arch, "fauxware"))
     pg = p.factory.path_group()
+    #pg.active[0].state.inspect.b('reg_read', reg_read_offset=0x48, action='ipdb')
     pg.explore()
     pg.merge(stash='deadended')
 
@@ -103,6 +104,7 @@ def run_merge(arch):
     assert 'SOSNEAKY' not in path.state.se.any_str(inp, extra_constraints=(no,))
 
 def test_merge():
+    yield run_merge, 'armel'
     for arch in target_addrs:
         yield run_merge, arch
 
@@ -128,7 +130,9 @@ def test_nodecode():
         yield run_nodecode, arch
 
 if __name__ == "__main__":
-    #for r,a in test_fauxware():
-    #   r(a)
+    for r,a in test_merge():
+        r(a)
+    for r,a in test_fauxware():
+        r(a)
     for r,a in test_pickling():
         r(a)
