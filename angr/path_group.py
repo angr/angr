@@ -682,6 +682,7 @@ class PathGroup(ana.Storable):
         :rtype:             PathGroup
         """
         stash = 'active' if stash is None else stash
+        self.prune(from_stash=stash)
         to_merge = self.stashes[stash]
         not_to_merge = [ ]
 
