@@ -78,7 +78,7 @@ def test_inspect():
     s.inspect.b('statement', when=simuvex.BP_AFTER, action=act_statement)
     s.inspect.b('instruction', when=simuvex.BP_AFTER, action=act_instruction, instruction=1001)
     s.inspect.b('instruction', when=simuvex.BP_AFTER, action=act_instruction, instruction=1000)
-    irsb = pyvex.IRSB("\x90\x90\x90\x90\xeb\x0a", mem_addr=1000, arch=archinfo.ArchAMD64())
+    irsb = pyvex.IRSB("\x90\x90\x90\x90\xeb\x0a", mem_addr=1000, arch=archinfo.ArchAMD64(), opt_level=0)
     irsb.pp()
     simuvex.SimEngineVEX().process(s, irsb)
     nose.tools.assert_equals(counts.reg_write, 7)
