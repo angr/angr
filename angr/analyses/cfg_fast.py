@@ -1027,13 +1027,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Sort it
         starting_points = sorted(list(starting_points), reverse=True)
 
-        if self.project.entry is not None and self._inside_regions(self.project.entry):
+        if self.project.entry is not None and self._inside_regions(self.project.entry) and \
+                self.project.entry not in starting_points:
             # make sure self.project.entry is the first entry
             starting_points += [ self.project.entry ]
 
-        # Create entries for all starting points
+        # Create jobs for all starting points
         for sp in starting_points:
-            self._insert_entry(CFGJob(sp, sp, 'Ijk_Boring'))
+            job = CFGJob(sp, sp, 'Ijk_Boring')
+            self._insert_entry(job)
+            # register the job to function `sp`
+            self._jobs_to_analyze_per_function[sp].add(job)
 
         self._changed_functions = set()
 
@@ -1050,7 +1054,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # make function_prologue_addrs a set for faster lookups
             self._function_prologue_addrs = set(self._function_prologue_addrs)
 
-    def _pre_entry_handling(self, entry):
+    def _pre_entry_handling(self, job):
+        """
+        Some pre job-processing tasks, like update progress bar.
+
+        :param CFGJob job: The CFGJob instance.
+        :return: None
+        """
+
+        # a new entry is picked. Deregister it
+        self._jobs_to_analyze_per_function[job.func_addr].remove(job)
 
         # Do not calculate progress if the user doesn't care about the progress at all
         if self._show_progressbar or self._progress_callback:
@@ -1079,7 +1092,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         else:
             l.debug("Tracing new exit %#x", addr)
 
-        return self._scan_block(addr, current_function_addr, jumpkind, src_node, src_ins_addr, src_stmt_idx)
+        jobs = self._scan_block(addr, current_function_addr, jumpkind, src_node, src_ins_addr, src_stmt_idx)
+
+        for job in jobs:  # type: CFGJob
+            # register those jobs
+            self._jobs_to_analyze_per_function[job.func_addr].add(job)
+
+        return jobs
 
     def _handle_successor(self, entry, successor, successors):
         return [ successor ]
@@ -1125,11 +1144,24 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 del self._pending_entries[entry_index]
                 return
 
+        # did we finish analyzing any function?
+        just_finished = [ ]
+        for func_addr, all_jobs in self._jobs_to_analyze_per_function.iteritems():
+            if not all_jobs:
+                # great! we have finished analyzing this function!
+                just_finished.append(func_addr)
+
+        # add addresses of all "just finished" functions to _completed_functions
+        for func_addr in just_finished:
+            # remove it from _jobs_to_analyze_per_function
+            del self._jobs_to_analyze_per_function[func_addr]
+            # add it to _completed_functions
+            self._completed_functions.add(func_addr)
+
+        self._analyze_all_function_features()
+
         if self._pending_entries:
-
-            self._analyze_all_function_features()
-
-            self._clean_pending_exits(self._pending_entries)
+            self._clean_pending_exits()
 
         # Clear _changed_functions set
         self._changed_functions = set()
@@ -1146,7 +1178,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if self._seg_list.is_occupied(prolog_addr):
                     continue
 
-                self._insert_entry(CFGJob(prolog_addr, prolog_addr, 'Ijk_Boring'))
+                job = CFGJob(prolog_addr, prolog_addr, 'Ijk_Boring')
+                self._insert_entry(job)
+                self._jobs_to_analyze_per_function[prolog_addr].add(job)
                 return
 
         # Try to see if there is any indirect jump left to be resolved
@@ -1165,11 +1199,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if r:
                     # TODO: get a better estimate of the function address
                     target_func_addr = func_addr if not to_outside else addr
-                    self._insert_entry(CFGJob(addr, target_func_addr, "Ijk_Boring", last_addr=source_addr,
-                                              src_node=self._nodes[source_addr],
-                                              src_stmt_idx=None,
-                                              )
-                                       )
+                    job = CFGJob(addr, target_func_addr, "Ijk_Boring", last_addr=source_addr,
+                                 src_node=self._nodes[source_addr],
+                                 src_stmt_idx=None,
+                                 )
+                    self._insert_entry(job)
+                    self._jobs_to_analyze_per_function[target_func_addr].add(job)
 
             if self._entries:
                 return
@@ -1178,7 +1213,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             addr = self._next_code_addr()
 
             if addr is not None:
-                self._insert_entry(CFGJob(addr, addr, "Ijk_Boring", last_addr=None))
+                job = CFGJob(addr, addr, "Ijk_Boring", last_addr=None)
+                self._insert_entry(job)
+                self._jobs_to_analyze_per_function[addr].add(job)
 
     def _post_analysis(self):
 
@@ -1220,7 +1257,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Scan all functions, and make sure .returning for all functions are either True or False
         for f in self.functions.values():
             if f.returning is None:
-                    f.returning = len(f.endpoints) > 0
+                f.returning = len(f.endpoints) > 0
 
         if self.project.arch.name in ('X86', 'AMD64', 'MIPS32'):
             self._remove_redundant_overlapping_blocks()
@@ -1541,7 +1578,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, current_function_addr)
             if resolved:
                 for t in resolved_targets:
-                    ent = self._create_entries(t, jumpkind, current_function_addr, irsb, addr,cfg_node, ins_addr,
+                    ent = self._create_entries(t, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr,
                                                stmt_idx, fast_indirect_jump_resolution=False)
                     entries.extend(ent)
                 return entries
@@ -1725,6 +1762,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         src_stmt_idx=stmt_idx, src_ins_addr=ins_addr, returning_source=new_function_addr,
                         syscall=is_syscall)
             self._pending_entries.append(ce)
+            # register this job to this function
+            self._jobs_to_analyze_per_function[current_function_addr].add(ce)
 
         if new_function_addr is not None:
             callee_function = self.kb.functions.function(addr=new_function_addr, syscall=is_syscall)
@@ -3085,20 +3124,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                     del self._function_returns[not_returning_function.addr]
 
-    def _clean_pending_exits(self, pending_exits):
+    def _clean_pending_exits(self):
         """
         Remove those pending exits if:
         a) they are the return exits of non-returning SimProcedures
         b) they are the return exits of non-returning syscalls
         b) they are the return exits of non-returning functions
 
-        :param pending_exits: A list of all pending exits
         :return: None
         """
 
         pending_exits_to_remove = []
 
-        for i, pe in enumerate(pending_exits):
+        for i, pe in enumerate(self._pending_entries):
 
             if pe.returning_source is None:
                 # The original call failed. This pending exit must be followed.
@@ -3117,7 +3155,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 pending_exits_to_remove.append(i)
 
         for index in reversed(pending_exits_to_remove):
-            del pending_exits[index]
+            job = self._pending_entries[index]
+            # deregister the job
+            self._jobs_to_analyze_per_function[job.func_addr].remove(job)
+            del self._pending_entries[index]
 
     #
     # Graph utils
