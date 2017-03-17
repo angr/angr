@@ -543,7 +543,7 @@ class CFGJob(object):
         self.syscall = syscall
 
     def __repr__(self):
-        return "<CFGEntry%s %#08x @ func %#08x>" % (" syscall" if self.syscall else "", self.addr, self.func_addr)
+        return "<CFGJob%s %#08x @ func %#08x>" % (" syscall" if self.syscall else "", self.addr, self.func_addr)
 
     def __eq__(self, other):
         return self.addr == other.addr and \
