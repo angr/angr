@@ -1587,8 +1587,18 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if jumpkind == 'Ijk_Boring':
             if target_addr is not None:
 
+                # if the target address is at another section, it has to be jumping to a new function
+                source_section = self._addr_belongs_to_section(addr)
+                target_section = self._addr_belongs_to_section(target_addr)
+                if source_section != target_section:
+                    target_func_addr = target_addr
+                    to_outside = True
+                else:
+                    target_func_addr = current_function_addr
+                    to_outside = False
+
                 r = self._function_add_transition_edge(target_addr, cfg_node, current_function_addr, ins_addr=ins_addr,
-                                                       stmt_idx=stmt_idx
+                                                       stmt_idx=stmt_idx, to_outside=to_outside
                                                        )
 
                 if not r:
@@ -1604,14 +1614,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                   target_addr
                                   )
                     return []
-
-                # if the target address is at another section, it has to be jumping to a new function
-                source_section = self._addr_belongs_to_section(addr)
-                target_section = self._addr_belongs_to_section(target_addr)
-                if source_section != target_section:
-                    target_func_addr = target_addr
-                else:
-                    target_func_addr = current_function_addr
 
                 ce = CFGJob(target_addr, target_func_addr, jumpkind, last_addr=addr, src_node=cfg_node,
                             src_ins_addr=ins_addr, src_stmt_idx=stmt_idx)
@@ -1647,7 +1649,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                     or self.project.is_hooked(tmp_addr):
 
                                 r = self._function_add_transition_edge(tmp_addr, cfg_node, current_function_addr,
-                                                                       ins_addr=ins_addr, stmt_idx=stmt_idx
+                                                                       ins_addr=ins_addr, stmt_idx=stmt_idx,
+                                                                       to_outside=True
                                                                        )
                                 if r:
                                     ce = CFGJob(tmp_addr, tmp_function_addr, jumpkind, last_addr=tmp_addr,
