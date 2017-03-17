@@ -100,6 +100,18 @@ class CFGBase(Analysis):
             ut_addr = self.project.hooked_symbol_addr('UnresolvableTarget')
         self._unresolvable_target_addr = ut_addr
 
+        # partially and fully analyzed functions
+        # this is implemented as a state machine: jobs (CFGJob instances) of each function are put into
+        # _jobs_to_analyze_per_function, which essentially makes the keys of this dict being all partially analyzed
+        # functions so far. And then when a function does not have any more job to analyze in the future, it will be
+        # put in to _completed_functions.
+
+        # a dict of mapping between function addresses and sets of jobs (include both future jobs and pending jobs)
+        # a set is used to speed up the job removal procedure
+        self._jobs_to_analyze_per_function = defaultdict(set)
+        # addresses of functions that have been completely recovered (i.e. all of its blocks are identified) so far
+        self._completed_functions = set()
+
         # TODO: A segment tree to speed up CFG node lookups
         self._node_lookup_index = None
         self._node_lookup_index_warned = False
@@ -124,6 +136,9 @@ class CFGBase(Analysis):
         self._graph = networkx.DiGraph()
 
         self.kb.functions = FunctionManager(self.kb)
+
+        self._jobs_to_analyze_per_function = defaultdict(set)
+        self._completed_functions = set()
 
     def _post_analysis(self):
 
