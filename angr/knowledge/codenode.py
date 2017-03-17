@@ -16,7 +16,7 @@ class CodeNode(object):
         return self.size
 
     def __eq__(self, other):
-        if isinstance(other, Block):
+        if type(other) is Block:  # pylint: disable=unidiomatic-typecheck
             raise TypeError("You do not want to be comparing a CodeNode to a Block")
         return type(self) is type(other) and \
             self.addr == other.addr and \
