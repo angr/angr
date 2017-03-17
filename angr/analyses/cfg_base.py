@@ -718,12 +718,15 @@ class CFGBase(Analysis):
         it calls another function that is known to be not returning, and this function does not have other exits.
 
         We might as well analyze other features of functions in the future.
-        """
 
-        # TODO: This implementation is slow as f*ck. Some optimizations should be useful, like:
-        # TODO: - Building a call graph before performing such an analysis. With the call dependency information, we
-        # TODO:   don't have to revisit functions unnecessarily
-        # TODO: - Create less temporary graphs, or reuse previously-created graphs
+        A function does not return if
+        a) it is a SimProcedure that has NO_RET being True,
+        or
+        b) it is completely recovered (i.e. every block of this function has been recovered, and no future block will
+           be added to it), and it does not have a ret or any equivalent instruction.
+
+        A function returns if any of its block contains a ret instruction or any equivalence.
+        """
 
         changes = {
             'functions_return': [],
@@ -749,13 +752,14 @@ class CFGBase(Analysis):
             all_functions = self.kb.functions.values()
 
         # pylint: disable=too-many-nested-blocks
-        for func in all_functions:
+        for func in all_functions:  # type: Function
+
             if func.returning is not None:
                 # It has been determined before. Skip it
                 continue
 
-            # If there is at least one endpoint, then this function is definitely returning
-            if func.endpoints:
+            # If there is at least one return site, then this function is definitely returning
+            if func.has_return:
                 changes['functions_return'].append(func)
                 func.returning = True
                 continue
@@ -783,114 +787,44 @@ class CFGBase(Analysis):
                     changes['functions_return'].append(func)
                 continue
 
-            tmp_graph = networkx.DiGraph(func.graph)
-            # Remove all fakeret edges from a non-returning function
-            edges_to_remove = [ ]
-            for src, dst, data in tmp_graph.edges_iter(data=True):
-                if data['type'] == 'fake_return':
-                    edges = [ edge for edge in func.transition_graph.edges(
-                                                nbunch=[src], data=True
-                                                ) if edge[2]['type'] != 'fake_return'
-                              ]
-                    if not edges:
-                        # We don't know which function it's supposed to call
-                        # skip
-                        continue
-                    target_addr = edges[0][1].addr
-                    target_func = self.kb.functions.function(addr=target_addr)
-                    if target_func is not None and target_func.returning is False:
-                        edges_to_remove.append((src, dst))
-
-            for src, dst in edges_to_remove:
-                tmp_graph.remove_edge(src, dst)
-
-            # We check all its current nodes in transition graph whose out degree is 0 (call them
-            # temporary endpoints)
-            temporary_local_endpoints = [a for a in tmp_graph.nodes()
-                                         if tmp_graph.out_degree(a) == 0]
-
-            if not temporary_local_endpoints:
-                # It might be empty if our transition graph is fucked up (for example, the freaking
-                # SimProcedureContinuation can be used in any SimProcedure and almost always creates loops in its
-                # transition graph). Just ignore it.
+            # did we finish analyzing this function?
+            if func.addr not in self._completed_functions:
                 continue
 
-            all_endpoints_returning = []
-            temporary_endpoints = []
+            bail_out = False
 
-            for local_endpoint in temporary_local_endpoints:
+            # if this function has jump out sites, it returns as long as any of the target function returns
+            for jump_out_site in func.jumpout_sites:
 
-                if local_endpoint in func.transition_graph.nodes():
+                if func.returning:
+                    # if there are multiple jump out sites and we have determined the "returning status" from one of
+                    # the jump out sites, we can exit the loop early
+                    continue
 
-                    in_edges = func.transition_graph.in_edges([local_endpoint], data=True)
-                    transition_type = None if not in_edges else in_edges[0][2]['type']
+                if not jump_out_site.successors():
+                    # not sure where it jumps to. bail out
+                    bail_out = True
+                    continue
+                jump_out_target = jump_out_site.successors()[0]
+                target_func = self.kb.functions.get(jump_out_target.addr, None)
+                if target_func is None:
+                    # wait it does not jump to a function?
+                    bail_out = True
+                    continue
+                if target_func.returning is True:
+                    func.returning = True
+                    bail_out = True
+                elif target_func.returning is None:
+                    # the returning status of at least one of the target functions is not decided yet.
+                    bail_out = True
 
-                    out_edges = func.transition_graph.out_edges([local_endpoint], data=True)
+            if bail_out:
+                # bail out
+                continue
 
-                    if not out_edges:
-                        temporary_endpoints.append((transition_type, local_endpoint))
-
-                    else:
-                        for src, dst, data in out_edges:
-                            t = data['type']
-
-                            if t != 'fake_return':
-                                temporary_endpoints.append((transition_type, dst))
-
-            for transition_type, endpoint in temporary_endpoints:
-                if endpoint in func.nodes:
-                    # Somehow analysis terminated here (e.g. an unsupported instruction, or it doesn't generate an exit)
-
-                    if isinstance(endpoint, Function):
-                        all_endpoints_returning.append((transition_type, endpoint.returning))
-
-                    elif isinstance(endpoint, HookNode):
-                        hooker = self.project.hooked_by(endpoint.addr)
-                        if hooker is None:
-                            l.error('CFGBase._analyze_function_features(): Cannot find the hooking object for %s',
-                                    endpoint
-                                    )
-                        else:
-                            all_endpoints_returning.append((transition_type, not hooker.procedure.NO_RET))
-
-                    else:
-                        successors = [ dst for _, dst in func.transition_graph.out_edges(endpoint) ]
-                        all_noret = True
-                        for suc in successors:
-                            if isinstance(suc, Function):
-                                if suc.returning is not False:
-                                    all_noret = False
-                            else:
-                                n = self.get_any_node(endpoint.addr, is_syscall=func.is_syscall)
-                                if n:
-                                    # It might be a SimProcedure or a syscall, or even a normal block
-                                    if n.no_ret is not True:
-                                        all_noret = False
-
-                        if all_noret:
-                            all_endpoints_returning.append((transition_type, True))
-                        else:
-                            all_endpoints_returning.append((transition_type, None))
-
-                else:
-                    # This block is not a member of the current function
-                    call_target = endpoint
-
-                    call_target_func = self.kb.functions.function(call_target)
-                    if call_target_func is None:
-                        all_endpoints_returning.append(None)
-                        continue
-
-                    all_endpoints_returning.append(call_target_func.returning)
-
-            if all_endpoints_returning and all([i is False for _, i in all_endpoints_returning]):
-                # All target functions that this function calls is not returning
-                func.returning = False
-                changes['functions_do_not_return'].append(func)
-
-            if all_endpoints_returning and all([ tpl == ("transition", True) for tpl in all_endpoints_returning ]):
-                func.returning = True
-                changes['functions_return'].append(func)
+            # well this function does not return then
+            func.returning = False
+            changes['functions_return'].append(func)
 
         return changes
 
