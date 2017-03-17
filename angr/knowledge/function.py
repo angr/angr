@@ -1,6 +1,7 @@
 import logging
 import networkx
 import string
+import itertools
 from collections import defaultdict
 
 import simuvex
@@ -35,7 +36,7 @@ class Function(object):
         self._callout_sites = set()
         # block nodes (basic block nodes) at whose ends the function terminates
         # in theory, if everything works fine, endpoints == ret_sites | jumpout_sites | callout_sites
-        self._endpoints = set()
+        self._endpoints = defaultdict(set)
 
         self._call_sites = {}
         self.addr = addr
@@ -101,7 +102,7 @@ class Function(object):
         self.calling_convention = None
 
         # Whether this function returns or not. `None` means it's not determined yet
-        self.returning = None
+        self._returning = None
 
         self.prepared_registers = set()
         self.prepared_stack_variables = set()
@@ -126,6 +127,14 @@ class Function(object):
     def name(self, v):
         self._name = v
         self._function_manager._kb.labels[self.addr] = v
+
+    @property
+    def returning(self):
+        return self._returning
+
+    @returning.setter
+    def returning(self, v):
+        self._returning = v
 
     @property
     def blocks(self):
@@ -395,7 +404,11 @@ class Function(object):
 
     @property
     def endpoints(self):
-        return list(self._endpoints)
+        return list(itertools.chain(*self._endpoints.values()))
+
+    @property
+    def endpoints_with_type(self):
+        return self._endpoints
 
     @property
     def ret_sites(self):
@@ -472,7 +485,7 @@ class Function(object):
 
         if outside:
             # this node is an endpoint of the current function
-            self._endpoints.add(from_node)
+            self._add_endpoint(from_node, 'transition')
 
         # clear the cache
         self._local_transition_graph = None
@@ -568,7 +581,7 @@ class Function(object):
         self._ret_sites.add(return_site)
         # A return site must be an endpoint of the function - you cannot continue execution of the current function
         # after returning
-        self._endpoints.add(return_site)
+        self._add_endpoint(return_site, 'return')
 
     def _add_call_site(self, call_site_addr, call_target_addr, retn_addr):
         """
@@ -579,6 +592,24 @@ class Function(object):
         :param retn_addr:            The address that said call will return to.
         """
         self._call_sites[call_site_addr] = (call_target_addr, retn_addr)
+
+    def _add_endpoint(self, endpoint_node, sort):
+        """
+        Registers an endpoint with a type of `sort`. The type can be one of the following:
+        - call: calling a function that does not return
+        - return: returning from the current function
+        - transition: a jump/branch targeting a different function
+
+        :param endpoint_node:       The endpoint node.
+        :param sort:                Type of the endpoint.
+        :return:                    None
+        """
+
+        for tmp_sort in { 'call', 'return', 'transition' } - { sort }:
+            if endpoint_node in self._endpoints[tmp_sort]:
+                raise AngrValueError('%s is already added as an endpoint with a different type.' % endpoint_node)
+
+        self._endpoints[sort].add(endpoint_node)
 
     def mark_nonreturning_calls_endpoints(self):
         """
@@ -600,7 +631,7 @@ class Function(object):
                         # the target function does not return
                         the_node = self.get_node(src.addr)
                         self._callout_sites.add(the_node)
-                        self._endpoints.add(the_node)
+                        self._add_endpoint(the_node, 'call')
 
     def get_call_sites(self):
         """
