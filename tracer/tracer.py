@@ -751,7 +751,8 @@ class Tracer(object):
                         args,
                         stdin=subprocess.PIPE,
                         stdout=stdout_f,
-                        stderr=devnull)
+                        stderr=devnull,
+                        env=os.environ)
                 _, _ = p.communicate(self.input)
             else:
                 l.info("tracing as pov file")
@@ -760,7 +761,8 @@ class Tracer(object):
                         args,
                         stdin=in_s,
                         stdout=stdout_f,
-                        stderr=devnull)
+                        stderr=devnull,
+                        env=os.environ)
                 for write in self.pov_file.writes:
                     out_s.send(write)
                     time.sleep(.01)
