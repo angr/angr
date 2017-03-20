@@ -402,8 +402,12 @@ class Tracer(object):
         # something weird... maybe we hit a rep instruction?
         # qemu and vex have slightly different behaviors...
         if not self.path_group.active[0].state.se.satisfiable():
-            l.warning("detected small discrepency between qemu and angr, "
+            l.info("detected small discrepancy between qemu and angr, "
                     "attempting to fix known cases")
+
+            # Have we corrected it?
+            corrected = False
+
             # did our missed branch try to go back to a rep?
             target = self.path_group.missed[0].addr
             if self._p.arch.name == 'X86' or self._p.arch.name == 'AMD64':
@@ -418,6 +422,11 @@ class Tracer(object):
                     s = s.move('active', 'missed')
                     s = s.move('chosen', 'active')
                     self.path_group = s
+
+                    corrected = True
+
+            if not corrected:
+                l.warning("Unable to correct discrepancy between qemu and angr.")
 
         self.path_group = self.path_group.drop(stash='missed')
 
