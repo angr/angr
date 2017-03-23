@@ -737,7 +737,8 @@ class Tracer(object):
             mname = tempfile.mktemp(dir="/dev/shm/", prefix="tracer-magic-")
             args += ["-magicdump", mname]
 
-        args += ["-d", "exec", "-D", lname, self.binary]
+        args += ["-d", "exec", "-D", lname]
+        args += self.argv
 
         with open('/dev/null', 'wb') as devnull:
             stdout_f = devnull
