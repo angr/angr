@@ -1,3 +1,4 @@
+import inspect
 import logging
 import itertools
 
@@ -191,6 +192,11 @@ class PathGroup(ana.Storable):
             kwargs["strong_reference"] = True
 
         for hook in self._hooks_step_path:
+            # FIXME hack to handle some hooks not expecting strong_reference
+            argspec = inspect.getargspec(hook)
+            if argspec.keywords is None and "strong_reference" not in argspec.args:
+                del kwargs["strong_reference"]
+
             out = hook(a, **kwargs)
             if out is not None:
                 return out
