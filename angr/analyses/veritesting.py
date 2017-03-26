@@ -220,7 +220,7 @@ class Veritesting(Analysis):
     def _veritesting(self):
         """
         Perform static symbolic execution starting from the given point.
-        returns (bool, PathGroup): tuple of the success/failure of veritesting and the subsequent path group after 
+        returns (bool, PathGroup): tuple of the success/failure of veritesting and the subsequent path group after
                                    execution
         """
 
@@ -433,7 +433,7 @@ class Veritesting(Analysis):
                 else:
                     l.debug('... merged path going to active stash')
                     path_group.move('merge_tmp', 'active')
-                    
+
         return path_group
 
     #
@@ -443,7 +443,7 @@ class Veritesting(Analysis):
     def is_path_errored(self, path):
         """
         Returns true if the path has errored, most recent jump was error/signal, or if exeception caught on step forward
-        
+
         param Path path: The Path instance to test
         returns bool:    True if path instance has errored
         """
@@ -489,7 +489,7 @@ class Veritesting(Analysis):
         """
         Gets the successors to the current path by step, saves copy of path and finally stashes new unconstrained paths
         to path_group
-        
+
         param PathGroup path_group: PathGroup to used to stash
         param Path path:            current path to step on from
         returns [Path]:             List of sucession paths
@@ -551,7 +551,7 @@ class Veritesting(Analysis):
     def _unfuck(p):
         """
         Deletes the loop counter from path's information dictionary
-        
+
         param Path p: Path instance to update
         returns Path: same path with deleted loop counter
         """
@@ -567,7 +567,7 @@ class Veritesting(Analysis):
         Builds a CFG from the current function.
         Saved in cfg_cache.
 
-        returns (CFGAccurate, networkx.DiGraph): Tuple of the CFG and networkx representation of it 
+        returns (CFGAccurate, networkx.DiGraph): Tuple of the CFG and networkx representation of it
         """
 
         path = self._input_path
