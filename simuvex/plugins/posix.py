@@ -195,6 +195,7 @@ class SimStateSystem(SimStatePlugin):
             f.set_state(self.state)
 
         self.files[fd] = f
+        self.fs[name] = f
 
         return fd
 
@@ -229,6 +230,14 @@ class SimStateSystem(SimStatePlugin):
 
         fd = self.state.se.any_int(fd)
         retval = self.get_file(fd).close()
+
+        # Remove from file descriptor table
+        flush = self.files.pop(fd, None)
+        if flush is not None:
+            # flush the file changes to the fs
+            self.fs[flush.name] = flush
+        else:
+            raise SimPosixError("Tried to flush a non-existent file")
 
         # Return this as a proper sized value for this arch
         return self.state.se.BVV(retval, self.state.arch.bits)
