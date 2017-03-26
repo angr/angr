@@ -1698,9 +1698,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     def _handle_actions(self, state, current_run, func, sp_addr, accessed_registers):
         """
-        For a given state and current location of of execution, will update a function by adding the offets of 
+        For a given state and current location of of execution, will update a function by adding the offets of
         appropriate actions to the stack variable or argument registers for the fnc.
-        
+
         :param simuvex.s_state.SimState state: upcoming state.
         :param simuvex.SimSuccessors current_run: possible result states.
         :param knowledge.Function func: current function.
@@ -2692,7 +2692,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     def _create_new_call_stack(self, addr, all_entries, entry_wrapper, exit_target, jumpkind):
         """
         Creates a new call stack, and according to the jumpkind performs appropriate actions.
-        
+
         :param int addr:                          Address to create at.
         :param simuvex.Simsuccessors all_entries: Entries to get stack pointer from or retn address.
         :param EntryDesc entry_wrapper:           EntryDesc to copy current call stack from.
@@ -2701,7 +2701,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :returns:                                 New call stack for target block.
         :rtype:                                   CallStack
         """
-        
+
         if self._is_call_jumpkind(jumpkind):
             new_call_stack = entry_wrapper.call_stack_copy()
             # Notice that in ARM, there are some freaking instructions
