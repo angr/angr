@@ -3641,7 +3641,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode':
                     # decoding error
                     # we still occupy that location since it cannot be decoded anyways
-                    self._seg_list.occupy(addr, 1, 'nodecode')
+                    irsb_size = irsb.size if irsb.size > 0 else 1
+                    self._seg_list.occupy(addr, irsb_size, 'nodecode')
                     return None, None, None, None
 
                 # Occupy the block in segment list
