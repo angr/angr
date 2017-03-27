@@ -242,6 +242,12 @@ class SimStateSystem(SimStatePlugin):
         # Return this as a proper sized value for this arch
         return self.state.se.BVV(retval, self.state.arch.bits)
 
+    def remove(self, path):
+        # TODO remove file specified by `path` in the fs
+
+        # TODO handle fds that point to file after removal
+        #       they should not write their contents back
+        return 0
 
     def fstat(self, fd): #pylint:disable=unused-argument
         # sizes are AMD64-specific for now
