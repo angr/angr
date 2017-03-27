@@ -4,9 +4,9 @@ import simuvex
 # unlink
 ######################################
 
-class unlink(simuvex.SimProcedure): #pylint:disable=W0622
+class unlink(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, path):
-        unlink = simuvex.SimProcedures['syscalls']['unlink']
-        return self.inline_call(unlink, path).ret_expr
+        unlink_sys = simuvex.SimProcedures['syscalls']['unlink']
+        return self.inline_call(unlink_sys, path).ret_expr

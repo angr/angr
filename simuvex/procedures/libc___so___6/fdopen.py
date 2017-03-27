@@ -31,13 +31,14 @@ class fdopen(simuvex.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, fd_int, m_addr):
+        #pylint:disable=unused-variable
         strlen = simuvex.SimProcedures['libc.so.6']['strlen']
 
         m_strlen = self.inline_call(strlen, m_addr)
         m_expr = self.state.memory.load(m_addr, m_strlen.max_null_index, endness='Iend_BE')
         mode = self.state.se.any_str(m_expr)
 
-        # TODO: handle append
+        # TODO: handle append and other mode subtleties
 
         fd = self.state.se.any_int(fd_int)
         if fd not in self.state.posix.files:
