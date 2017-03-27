@@ -1094,6 +1094,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         jobs = self._scan_block(addr, current_function_addr, jumpkind, src_node, src_ins_addr, src_stmt_idx)
 
+        l.debug("... got %d jobs: %s", len(jobs), jobs)
+
         for job in jobs:  # type: CFGJob
             # register those jobs
             self._jobs_to_analyze_per_function[job.func_addr].add(job)
@@ -1633,36 +1635,62 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 else:
                     ij = self.indirect_jumps[addr]
 
-                self._indirect_jumps_to_resolve.add(ij)
+                # TODO: revisit the logic here
+                # TODO: - make sure it only resolves PLT entries
+                # TODO: - put the corresponding logic into a separate method
+                # TODO: - put the indirect jump reusing logic into a separate method
 
-                if irsb:
-                    # Test it on the initial state. Does it jump to a valid location?
-                    # It will be resolved only if this is a .plt entry
-                    tmp_simirsb = simuvex.SimEngineVEX().process(self._initial_state, irsb, force_addr=addr)
-                    if len(tmp_simirsb.successors) == 1:
-                        tmp_ip = tmp_simirsb.successors[0].ip
-                        if tmp_ip._model_concrete is not tmp_ip:
-                            tmp_addr = tmp_ip._model_concrete.value
-                            tmp_function_addr = tmp_addr # TODO: FIX THIS
-                            if (self.project.loader.addr_belongs_to_object(tmp_addr) is not
-                                    self.project.loader.main_bin) \
-                                    or self.project.is_hooked(tmp_addr):
+                if ij.resolved_targets:
+                    # has been resolved before
+                    # directly create CFGJobs
+                    for target in ij.resolved_targets:
+                        ce = CFGJob(target, target, jumpkind, last_addr=target,
+                                    src_node=cfg_node, src_stmt_idx=stmt_idx, src_ins_addr=ins_addr)
+                        entries.append(ce)
 
-                                r = self._function_add_transition_edge(tmp_addr, cfg_node, current_function_addr,
-                                                                       ins_addr=ins_addr, stmt_idx=stmt_idx,
-                                                                       to_outside=True
-                                                                       )
-                                if r:
-                                    ce = CFGJob(tmp_addr, tmp_function_addr, jumpkind, last_addr=tmp_addr,
-                                                src_node=cfg_node, src_stmt_idx=stmt_idx, src_ins_addr=ins_addr)
-                                    entries.append(ce)
+                        self._function_add_call_edge(target, None, None, target,
+                                                     stmt_idx=stmt_idx, ins_addr=ins_addr
+                                                     )
+                else:
+                    is_plt = False
 
-                                    # Fill the IndirectJump object
-                                    ij.resolved_targets.add(tmp_addr)
+                    if irsb:
+                        # Test it on the initial state. Does it jump to a valid location?
+                        # It will be resolved only if this is a .plt entry
+                        tmp_simirsb = simuvex.SimEngineVEX().process(self._initial_state, irsb, force_addr=addr)
+                        if len(tmp_simirsb.successors) == 1:
+                            tmp_ip = tmp_simirsb.successors[0].ip
+                            if tmp_ip._model_concrete is not tmp_ip:
+                                tmp_addr = tmp_ip._model_concrete.value
+                                tmp_function_addr = tmp_addr # TODO: FIX THIS
+                                if (self.project.loader.addr_belongs_to_object(tmp_addr) is not
+                                        self.project.loader.main_bin) \
+                                        or self.project.is_hooked(tmp_addr):
 
-                                    self._function_add_call_edge(tmp_addr, None, None, tmp_function_addr,
-                                                                 stmt_idx=stmt_idx, ins_addr=ins_addr
-                                                                 )
+                                    r = self._function_add_transition_edge(tmp_addr, cfg_node, current_function_addr,
+                                                                           ins_addr=ins_addr, stmt_idx=stmt_idx,
+                                                                           to_outside=True
+                                                                           )
+                                    if r:
+                                        ce = CFGJob(tmp_addr, tmp_function_addr, jumpkind, last_addr=tmp_addr,
+                                                    src_node=cfg_node, src_stmt_idx=stmt_idx, src_ins_addr=ins_addr)
+                                        entries.append(ce)
+
+                                        # Fill the IndirectJump object
+                                        ij.resolved_targets.add(tmp_addr)
+
+                                        self._function_add_call_edge(tmp_addr, None, None, tmp_function_addr,
+                                                                     stmt_idx=stmt_idx, ins_addr=ins_addr
+                                                                     )
+                                        is_plt = True
+
+                    if is_plt:
+                        # has been resolved as a PLT entry. Remove it from indirect_jumps_to_resolve
+                        if ij.addr in self._indirect_jumps_to_resolve:
+                            self._indirect_jumps_to_resolve.remove(ij.addr)
+                    else:
+                        # add it to indirect_jumps_to_resolve
+                        self._indirect_jumps_to_resolve.add(ij)
 
         elif jumpkind == 'Ijk_Call' or jumpkind.startswith("Ijk_Sys"):
             is_syscall = jumpkind.startswith("Ijk_Sys")
