@@ -412,6 +412,16 @@ class SimStateSystem(SimStatePlugin):
 
         return merging_occurred
 
+    def dump_file_by_path(self, path, **kwargs):
+        """
+        Returns the concrete content for a file by path.
+
+        :param path: file path as string
+        :param kwargs: passed to state.se.any_str
+        :return: file contents as string
+        """
+        return self.state.se.any_str(self.fs[path].all_bytes(), **kwargs)
+
     def dumps(self, fd, **kwargs):
         """
         Returns the concrete content for a file descriptor.
