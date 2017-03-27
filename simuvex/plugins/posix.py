@@ -384,12 +384,13 @@ class SimStateSystem(SimStatePlugin):
 
     def copy(self):
         sockets = {}
+        fs = {path:f.copy() for path,f in self.fs.iteritems()}
         files = { fd:f.copy() for fd,f in self.files.iteritems() }
         for f in self.files:
             if f in self.sockets:
                 sockets[f] = files[f]
 
-        return SimStateSystem(initialize=False, files=files, concrete_fs=self.concrete_fs, chroot=self.chroot, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, auxv=self.auxv, tls_modules=self.tls_modules, fs=self.fs, queued_syscall_returns=list(self.queued_syscall_returns), sigmask=self._sigmask, pid=self.pid)
+        return SimStateSystem(initialize=False, files=files, concrete_fs=self.concrete_fs, chroot=self.chroot, sockets=sockets, pcap_backer=self.pcap, argv=self.argv, argc=self.argc, environ=self.environ, auxv=self.auxv, tls_modules=self.tls_modules, fs=fs, queued_syscall_returns=list(self.queued_syscall_returns), sigmask=self._sigmask, pid=self.pid)
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         all_files = set.union(*(set(o.files.keys()) for o in [ self ] + others))
