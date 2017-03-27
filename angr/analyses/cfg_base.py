@@ -8,6 +8,7 @@ import networkx
 
 from cle import ELF, PE
 import simuvex
+from claripy.utils.orderedset import OrderedSet
 
 from ..knowledge import Function, HookNode, BlockNode, FunctionManager
 from ..analysis import Analysis
@@ -1346,12 +1347,11 @@ class CFGBase(Analysis):
         :return: None
         """
 
-        stack = list(starts)
+        stack = OrderedSet(starts)
         traversed = set() if traversed_cfg_nodes is None else set(traversed_cfg_nodes)
 
         while stack:
-            n = stack[0]  # type: CFGNode
-            stack = stack[1:]
+            n = stack.pop(last=False)  # type: CFGNode
 
             if n in traversed:
                 continue
@@ -1372,7 +1372,8 @@ class CFGBase(Analysis):
                     jumpkind = data.get('jumpkind', "")
                     if not (jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys')):
                         # Only follow none call edges
-                        stack.extend([m for m in g.successors(n) if m not in traversed])
+                        if dst not in stack and dst not in traversed:
+                            stack.add(dst)
 
         if traversed_cfg_nodes is not None:
             traversed_cfg_nodes |= traversed
