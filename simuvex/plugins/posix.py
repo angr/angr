@@ -141,6 +141,15 @@ class SimStateSystem(SimStatePlugin):
             if self.state is not f.state:
                 raise SimError("states somehow differ")
 
+        # Do this for the filesystem also
+        for fd, f in self.fs.iteritems():
+            l.debug("... file %s with fd %s", f, fd)
+            f.set_state(state)
+
+            if self.state is not f.state:
+                raise SimError("states somehow differ")
+
+
     def open(self, name, mode, preferred_fd=None):
         """
         Open a symbolic file.
