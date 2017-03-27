@@ -520,6 +520,7 @@ class SimLinux(SimOS):
             39: ('getpid', 'getpid'),
             60: ('exit', 'exit'),
             63: ('uname', 'uname'),
+            87: ('unlink', 'unlink'),
             158: ('arch_prctl','arch_prctl'),
             186: ('gettid', 'gettid'),
             201: ('time', 'time'),
