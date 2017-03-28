@@ -193,5 +193,4 @@ class PathHierarchy(object):
                 )
 
         # didn't find any?
-        import ipdb; ipdb.set_trace()
         return set(), None, paths
