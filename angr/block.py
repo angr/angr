@@ -7,6 +7,7 @@ from simuvex import SimEngineVEX
 
 DEFAULT_VEX_ENGINE = SimEngineVEX()  # this is only used when Block is not initialized with a project
 
+
 class Block(object):
     BLOCK_MAX_SIZE = 4096
 

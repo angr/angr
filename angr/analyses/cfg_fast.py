@@ -1464,7 +1464,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _scan_irsb(self, addr, current_function_addr, previous_jumpkind, previous_src_node, previous_src_ins_addr,
                    previous_src_stmt_idx):
         """
-        Generate list of sucessors (generating them each as entries) to IRSB.
+        Generate a list of successors (generating them each as entries) to IRSB.
         Updates previous CFG nodes with edges.
 
         :param int addr: The address to begin scanning
