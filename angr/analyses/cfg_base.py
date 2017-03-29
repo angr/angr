@@ -793,6 +793,14 @@ class CFGBase(Analysis):
             if func.addr not in self._completed_functions:
                 continue
 
+            if not func.block_addrs_set:
+                # there is no block inside this function
+                # it might happen if the function has been incorrectly identified as part of another function
+                # the error will be corrected during post-processing. In fact at this moment we cannot say anything
+                # about whether this function returns or not. We always assume it returns.
+                func.returning = True
+                continue
+
             bail_out = False
 
             # if this function has jump out sites, it returns as long as any of the target function returns
