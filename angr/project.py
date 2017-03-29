@@ -303,7 +303,7 @@ class Project(object):
             procedure = simuvex.SimProcedures['stubs']['NoReturnUnconstrained']
             if func.name not in procedure.use_cases:
                 procedure = simuvex.SimProcedures['stubs']['ReturnUnconstrained']
-            self.hook_symbol(func.name, Hook(procedure, resolves=func.name))
+            pending_hooks[func.name] = Hook(procedure, resolves=func.name)
 
         self.hook_symbol_batch(pending_hooks)
 
