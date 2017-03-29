@@ -932,7 +932,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             while next_addr in self._initial_state.memory:
                 try:
                     l.debug("Searching address %x", next_addr)
-                    val = self._initial_state.mem_concrete(next_addr, 1)
+                    val = self._initial_state.mem_concrete(next_addr, 1, inspect=False, disable_actions=True)
                     if val == 0:
                         if len(sz) < 4:
                             is_sz = False
