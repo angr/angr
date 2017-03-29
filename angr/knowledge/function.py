@@ -565,10 +565,9 @@ class Function(object):
             if isinstance(node, BlockNode):
                 if node.addr not in self._addr_to_block_node:
                     self._addr_to_block_node[node.addr] = node
-                else:
-                    # FIXME remove this assert once we know everything is good
-                    # checks that we don't have multiple block nodes at a single address
-                    assert node == self._addr_to_block_node[node.addr]
+                #else:
+                #    # checks that we don't have multiple block nodes at a single address
+                #    assert node == self._addr_to_block_node[node.addr]
 
     def _add_return_site(self, return_site):
         """
