@@ -600,14 +600,47 @@ class Function(object):
         - return: returning from the current function
         - transition: a jump/branch targeting a different function
 
+        It is possible for a block to act as two different sorts of endpoints. For example, consider the following
+        block:
+
+        .text:0000000000024350                 mov     eax, 1
+        .text:0000000000024355                 lock xadd [rdi+4], eax
+        .text:000000000002435A                 retn
+
+        VEX code:
+           00 | ------ IMark(0x424350, 5, 0) ------
+           01 | PUT(rax) = 0x0000000000000001
+           02 | PUT(rip) = 0x0000000000424355
+           03 | ------ IMark(0x424355, 5, 0) ------
+           04 | t11 = GET:I64(rdi)
+           05 | t10 = Add64(t11,0x0000000000000004)
+           06 | t0 = LDle:I32(t10)
+           07 | t2 = Add32(t0,0x00000001)
+           08 | t(4,4294967295) = CASle(t10 :: (t0,None)->(t2,None))
+           09 | t14 = CasCmpNE32(t4,t0)
+           10 | if (t14) { PUT(rip) = 0x424355; Ijk_Boring }
+           11 | PUT(cc_op) = 0x0000000000000003
+           12 | t15 = 32Uto64(t0)
+           13 | PUT(cc_dep1) = t15
+           14 | PUT(cc_dep2) = 0x0000000000000001
+           15 | t17 = 32Uto64(t0)
+           16 | PUT(rax) = t17
+           17 | PUT(rip) = 0x000000000042435a
+           18 | ------ IMark(0x42435a, 1, 0) ------
+           19 | t6 = GET:I64(rsp)
+           20 | t7 = LDle:I64(t6)
+           21 | t8 = Add64(t6,0x0000000000000008)
+           22 | PUT(rsp) = t8
+           23 | t18 = Sub64(t8,0x0000000000000080)
+           24 | ====== AbiHint(0xt18, 128, t7) ======
+           NEXT: PUT(rip) = t7; Ijk_Ret
+
+        This block acts as both a return endpoint and a transition endpoint (transitioning to 0x424355).
+
         :param endpoint_node:       The endpoint node.
         :param sort:                Type of the endpoint.
         :return:                    None
         """
-
-        for tmp_sort in { 'call', 'return', 'transition' } - { sort }:
-            if endpoint_node in self._endpoints[tmp_sort]:
-                raise AngrValueError('%s is already added as an endpoint with a different type.' % endpoint_node)
 
         self._endpoints[sort].add(endpoint_node)
 
