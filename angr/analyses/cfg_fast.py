@@ -1476,7 +1476,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype: list
         """
 
-        addr, current_function_addr, cfg_node, irsb = self._generate_cfgnode(addr, current_function_addr)
+        addr, function_addr, cfg_node, irsb = self._generate_cfgnode(addr, current_function_addr)
+
+        # function_addr and current_function_addr can be different. e.g. when tracing an optimized tail-call that jumps
+        # into another function that has been identified before.
 
         if cfg_node is None:
             # exceptions occurred, or we cannot get a CFGNode for other reasons
@@ -1485,12 +1488,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._graph_add_edge(cfg_node, previous_src_node, previous_jumpkind, previous_src_ins_addr,
                              previous_src_stmt_idx
                              )
-        self._function_add_node(addr, current_function_addr)
+        self._function_add_node(addr, function_addr)
         self._changed_functions.add(current_function_addr)
 
         # If we have traced it before, don't trace it anymore
         aligned_addr = ((addr >> 1) << 1) if self.project.arch.name in ('ARMLE', 'ARMHF') else addr
         if aligned_addr in self._traced_addresses:
+            # the address has been traced before
             return [ ]
         else:
             # Mark the address as traced
@@ -1502,7 +1506,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # IRSB is only used once per CFGNode. We should be able to clean up the CFGNode here in order to save memory
         cfg_node.irsb = None
 
-        self._process_block_arch_specific(addr, irsb, current_function_addr)
+        self._process_block_arch_specific(addr, irsb, function_addr)
 
         # Scan the basic block to collect data references
         if self._collect_data_ref:
@@ -1538,7 +1542,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         for suc in successors:
             stmt_idx, ins_addr, target, jumpkind = suc
 
-            entries += self._create_entries(target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr,
+            entries += self._create_entries(target, jumpkind, function_addr, irsb, addr, cfg_node, ins_addr,
                                             stmt_idx
                                             )
 
@@ -1596,8 +1600,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     target_func_addr = target_addr
                     to_outside = True
                 else:
-                    target_func_addr = current_function_addr
-                    to_outside = False
+                    # it might be a jumpout
+                    target_func_addr = None
+                    if target_addr in self._traced_addresses:
+                        node = self.get_any_node(target_addr)
+                        if node is not None:
+                            target_func_addr = node.function_address
+                    if target_func_addr is None:
+                        target_func_addr = current_function_addr
+
+                    to_outside = target_func_addr == current_function_addr
 
                 r = self._function_add_transition_edge(target_addr, cfg_node, current_function_addr, ins_addr=ins_addr,
                                                        stmt_idx=stmt_idx, to_outside=to_outside
@@ -3617,7 +3629,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 irsb = cfg_node.irsb
 
                 if cfg_node.function_address != current_function_addr:
-                    cfg_node.function_address = current_function_addr
+                    # the node has been assigned to another function before.
+                    # we should update the function address.
+                    current_function_addr = cfg_node.function_address
 
             else:
 
