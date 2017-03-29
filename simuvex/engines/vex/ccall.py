@@ -922,9 +922,12 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     if state.se.is_true(seg_selector & ~0xFFFF != 0):
         return bad("invalid selector (" + str(seg_selector) + ")")
 
+    if virtual_addr.length == 16:
+        virtual_addr = virtual_addr.zero_extend(16)
+
     # are we in real mode?
     if state.arch.vex_archinfo['x86_cr0'] & 1 == 0:
-        return ((seg_selector << 4) + virtual_addr.zero_extend(16)).zero_extend(32), ()
+        return ((seg_selector << 4) + virtual_addr).zero_extend(32), ()
 
 
     seg_selector &= 0x0000FFFF
@@ -975,9 +978,6 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
 
     base = get_segdescr_base(state, descriptor)
     limit = get_segdescr_limit(state, descriptor)
-
-    if virtual_addr.length == 16:
-        virtual_addr = virtual_addr.zero_extend(16)
 
     if state.se.is_true(virtual_addr >= limit):
         return bad("virtual_addr >= limit")
