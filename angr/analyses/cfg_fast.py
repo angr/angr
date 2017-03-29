@@ -2879,6 +2879,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         sorted_nodes = sorted(self.graph.nodes(), key=lambda n: n.addr if n is not None else 0)
 
+        all_plt_stub_addrs = set(*itertools.chain(obj.reverse_plt.keys() for obj in self.project.loader.all_objects if isinstance(obj, cle.MetaELF)))
+
         # go over the list. for each node that is the beginning of a function and is not properly aligned, if its
         # leading instruction is a single-byte or multi-byte nop, make sure there is another CFGNode starts after the
         # nop instruction
@@ -2886,51 +2888,58 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         nodes_to_append = {}
         # pylint:disable=too-many-nested-blocks
         for a in sorted_nodes:
-            if a.addr in self.functions:
+            if a.addr in self.functions and a.addr not in all_plt_stub_addrs and not self.project.is_hooked(a.addr):
                 all_in_edges = self.graph.in_edges(a, data=True)
                 if not any([data['jumpkind'] == 'Ijk_Call' for _, _, data in all_in_edges]):
                     # no one is calling it
                     # this function might be created from linear sweeping
                     try:
                         block = self.project.factory.block(a.addr, size=0x10 - (a.addr % 0x10))
+                        vex_block = block.vex
                     except SimTranslationError:
                         continue
-                    insns = block.capstone.insns
-                    if insns and self._is_noop_insn(insns[0]):
-                        # see where those nop instructions terminate
-                        nop_length = 0
-                        for insn in insns:
-                            if self._is_noop_insn(insn):
-                                nop_length += insn.size
-                            else:
-                                break
-                        if nop_length <= 0:
+
+                    nop_length = None
+
+                    if self._is_noop_block(vex_block):
+                        # fast path: in most cases, the entire block is a single byte or multi-byte nop, which VEX
+                        # optimizer is able to tell
+                        nop_length = block.size
+
+                    else:
+                        # this is not a no-op block. Determine where nop instructions terminate.
+                        insns = block.capstone.insns
+                        if insns:
+                            nop_length = self._get_nop_length(insns)
+
+                    if nop_length <= 0:
+                        continue
+
+                    # leading nop for alignment.
+                    next_node_addr = a.addr + nop_length
+                    if nop_length < a.size and \
+                            not (next_node_addr in self._nodes or next_node_addr in nodes_to_append):
+                        # create a new CFGNode that starts there
+                        next_node_size = a.size - nop_length
+                        next_node = CFGNode(next_node_addr, next_node_size, self,
+                                            function_address=next_node_addr,
+                                            instruction_addrs=[i for i in a.instruction_addrs
+                                                               if next_node_addr <= i
+                                                                < next_node_addr + next_node_size
+                                                               ]
+                                            )
+                        # create edges accordingly
+                        all_out_edges = self.graph.out_edges(a, data=True)
+                        for _, dst, data in all_out_edges:
+                            self.graph.add_edge(next_node, dst, **data)
+
+                        nodes_to_append[next_node_addr] = next_node
+
+                        # make sure there is a function begins there
+                        try:
+                            self.functions._add_node(next_node_addr, next_node_addr, size=next_node_size)
+                        except (SimEngineError, SimMemoryError):
                             continue
-                        # leading nop for alignment.
-                        next_node_addr = a.addr + nop_length
-                        if nop_length < a.size and \
-                                not (next_node_addr in self._nodes or next_node_addr in nodes_to_append):
-                            # create a new CFGNode that starts there
-                            next_node_size = a.size - nop_length
-                            next_node = CFGNode(next_node_addr, next_node_size, self,
-                                                function_address=next_node_addr,
-                                                instruction_addrs=[i for i in a.instruction_addrs
-                                                                   if next_node_addr <= i
-                                                                    < next_node_addr + next_node_size
-                                                                   ]
-                                                )
-                            # create edges accordingly
-                            all_out_edges = self.graph.out_edges(a, data=True)
-                            for _, dst, data in all_out_edges:
-                                self.graph.add_edge(next_node, dst, **data)
-
-                            nodes_to_append[next_node_addr] = next_node
-
-                            # make sure there is a function begins there
-                            try:
-                                self.functions._add_node(next_node_addr, next_node_addr, size=next_node_size)
-                            except (SimEngineError, SimMemoryError):
-                                continue
 
         # append all new nodes to sorted nodes
         if nodes_to_append:

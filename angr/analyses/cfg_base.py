@@ -7,6 +7,7 @@ from collections import defaultdict
 import networkx
 
 from cle import ELF, PE
+import pyvex
 import simuvex
 from claripy.utils.orderedset import OrderedSet
 
@@ -1529,6 +1530,23 @@ class CFGBase(Analysis):
     #
 
     @staticmethod
+    def _is_noop_block(vex_block):
+        """
+        Check if the block is a no-op block by checking VEX statements.
+
+        :param vex_block: The VEX block instance.
+        :return: True if the entire block is a single-byte or multi-byte nop instruction, False otherwise.
+        :rtype: bool
+        """
+
+        # the block is a noop block if it only has IMark statements
+
+        if all((type(stmt) is pyvex.IRStmt.IMark) for stmt in vex_block.statements):
+            return True
+        return False
+
+
+    @staticmethod
     def _is_noop_insn(insn):
         """
         Check if the instruction does nothing.
@@ -1551,3 +1569,25 @@ class CFGBase(Analysis):
         # add more types of no-op instructions here :-)
 
         return False
+
+    @classmethod
+    def _get_nop_length(cls, insns):
+        """
+        Calculate the total size of leading nop instructions.
+
+        :param insns: A list of capstone insn objects.
+        :return: Number of bytes of leading nop instructions.
+        :rtype: int
+        """
+
+        nop_length = 0
+
+        if insns and cls._is_noop_insn(insns[0]):
+            # see where those nop instructions terminate
+            for insn in insns:
+                if cls._is_noop_insn(insn):
+                    nop_length += insn.size
+                else:
+                    break
+
+        return nop_length
