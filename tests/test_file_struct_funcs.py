@@ -2,12 +2,13 @@ import nose
 import angr
 
 import logging
-l = logging.getLogger('angr.tests.test_signed_div')
+l = logging.getLogger('angr.tests.test_file_struct_funcs')
 
 import os
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 def check_state_1(state):
+    # Need to dump file.txt by path because program closes it
     return state.posix.dump_file_by_path('file.txt') == "testing abcdef" and \
            state.posix.dumps(0)[:4] == "xyz\n" and \
            state.posix.dumps(1) == "good1\n" and \
