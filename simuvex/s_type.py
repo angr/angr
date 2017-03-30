@@ -733,7 +733,7 @@ _C_TYPE_TO_SIMTYPE = {
     ('uintptr_t',) : SimTypeLong(False),
     ('float',): SimTypeFloat(),
     ('double',): SimTypeDouble(),
-    ('void',): None
+    ('void',): SimTypeBottom(),
 }
 
 def define_struct(defn):
