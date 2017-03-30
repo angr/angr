@@ -133,9 +133,9 @@ class SimProcedure(object):
                 if len(state.procedure_data.callstack) == 0:
                     raise SimProcedureError("Tried to run simproc continuation with empty stack")
 
-                continue_at, stack_space, saved_local_vars = state.procedure_data.callstack.pop()
+                continue_at, saved_sp, saved_local_vars = state.procedure_data.callstack.pop()
                 run_func = getattr(self, continue_at)
-                state.regs.sp += stack_space
+                state.regs.sp = saved_sp
                 for name, val in saved_local_vars:
                     setattr(self, name, val)
             else:
@@ -144,7 +144,7 @@ class SimProcedure(object):
             # run it
             r = run_func(*sim_args, **self.kwargs)
 
-        if self.returns:
+        if self.returns and (not self.successors or len(self.successors.successors) == 0):
             self.ret(r)
 
         # TODO: remove this once we're done plastering over the metaclass embarassment
@@ -315,7 +315,7 @@ class SimProcedure(object):
         call_state = self.state.copy()
         ret_addr = self.continuation_addr
         saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
-        simcallstack_entry = (continue_at, cc.stack_space(args), saved_local_vars)
+        simcallstack_entry = (continue_at, self.state.regs.sp, saved_local_vars)
         cc.setup_callsite(call_state, ret_addr, args)
         call_state.procedure_data.callstack.append(simcallstack_entry)
 
