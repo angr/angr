@@ -1,0 +1,6 @@
+sudo: required
+dist: xenial
+env:
+  - PY=e ANGR_REPO=identifier
+install: ( curl https://raw.githubusercontent.com/angr/angr-dev/$TRAVIS_BRANCH/travis-install.sh | grep -v 404 || curl https://raw.githubusercontent.com/angr/angr-dev/master/travis-install.sh ) | bash
+script: ~/angr-dev/travis-test.sh
