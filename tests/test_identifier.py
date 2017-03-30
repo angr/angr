@@ -3,7 +3,7 @@ import nose
 import identifier
 
 import os
-bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
+bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries'))
 
 import logging
 logging.getLogger("identifier").setLevel("DEBUG")
