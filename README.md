@@ -1,4 +1,4 @@
-A function identifier for cgc
+# A function identifier for cgc
 
 
 The identifier uses test cases to identify common library functions in CGC binaries.
