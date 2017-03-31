@@ -1193,9 +1193,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 to_outside = addr in self.functions
 
                 if not to_outside:
-                    src_section = self._addr_belongs_to_section(source_addr)
-                    dst_section = self._addr_belongs_to_section(addr)
-                    to_outside = src_section != dst_section
+                    to_outside = not self._addrs_belong_to_same_section(source_addr, addr)
 
                 r = self._function_add_transition_edge(addr, self._nodes[source_addr], func_addr, to_outside=to_outside)
                 if r:
@@ -1594,9 +1592,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if target_addr is not None:
 
                 # if the target address is at another section, it has to be jumping to a new function
-                source_section = self._addr_belongs_to_section(addr)
-                target_section = self._addr_belongs_to_section(target_addr)
-                if source_section != target_section:
+                if not self._addrs_belong_to_same_section(addr, target_addr):
                     target_func_addr = target_addr
                     to_outside = True
                 else:
