@@ -666,7 +666,7 @@ class PathGroup(ana.Storable):
         if len(optimal) < 2:
             raise AngrPathGroupError("unable to find merge candidates")
         o = optimal.pop()
-        m = o.merge(*optimal, common_history=common_history)
+        m = o.merge(optimal, common_history)
         if self._hierarchy:
             self._hierarchy.add_path(m)
 

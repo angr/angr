@@ -571,21 +571,18 @@ class Path(object):
     # Merging and splitting
     #
 
-    def merge(*all_paths, **kwargs): #pylint:disable=no-self-argument,no-method-argument
+    def merge(self, other_paths, common_history):
         """
-        Returns a merger of this path with all the paths provided as varargs.
+        Returns a merger of this path with all the paths in other_paths.
 
-        :param all_paths: the paths to merge (variadic positional args)
-        :param common_history: a PathHistory node shared by all the paths. When this is provided, the
-                               merging becomes more efficient, and actions and such are merged.
+        :param other_paths: list of paths to merge together with self
+        :param common_history: a PathHistory node shared by all the paths. Must be provided; causes
+                               merging to be more efficient, and actions and such are merged.
         :returns: the merged Path
         :rtype: Path
         """
 
-        common_history = kwargs.pop('common_history')
-        if len(kwargs) != 0:
-            raise ValueError("invalid arguments: %s" % kwargs.keys())
-
+        all_paths = other_paths + [self]
         if len(set(( o.addr for o in all_paths))) != 1:
             raise AngrPathError("Unable to merge paths.")
 
