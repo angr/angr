@@ -601,14 +601,7 @@ class CFGBase(Analysis):
             # the address is from a section allocated by angr.
             return None
 
-        for section in obj.sections:
-            start = section.vaddr + obj.rebase_addr
-            end = section.vaddr + section.memsize + obj.rebase_addr
-
-            if start <= addr < end:
-                return section
-
-        return None
+        return obj.find_section_containing(addr)
 
     def _addr_next_section(self, addr):
         """
@@ -656,14 +649,7 @@ class CFGBase(Analysis):
             # the address is from a section allocated by angr.
             return None
 
-        for segment in obj.segments:
-            start = segment.vaddr + obj.rebase_addr
-            end = segment.vaddr + segment.memsize + obj.rebase_addr
-
-            if start <= addr < end:
-                return segment
-
-        return None
+        return obj.find_segment_containing(addr)
 
     def _fast_memory_load(self, addr):
         """
