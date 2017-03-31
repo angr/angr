@@ -603,6 +603,36 @@ class CFGBase(Analysis):
 
         return obj.find_section_containing(addr)
 
+    def _addrs_belong_to_same_section(self, addr_a, addr_b):
+        """
+        Test if two addresses belong to the same section.
+
+        :param int addr_a:  The first address to test.
+        :param int addr_b:  The second address to test.
+        :return:            True if the two addresses belong to the same section or both of them do not belong to any
+                            section, False otherwise.
+        :rtype:             bool
+        """
+
+        obj = self.project.loader.addr_belongs_to_object(addr_a)
+
+        if obj is None:
+            # test if addr_b also does not belong to any object
+            obj_b = self.project.loader.addr_belongs_to_object(addr_b)
+            if obj_b is None:
+                return True
+            return False
+
+        src_section = obj.find_section_containing(addr_a)
+        if src_section is None:
+            # test if addr_b also does not belong to any section
+            dst_section = obj.find_section_containing(addr_b)
+            if dst_section is None:
+                return True
+            return False
+
+        return src_section.contains_addr(addr_b - obj.rebase_addr)
+
     def _addr_next_section(self, addr):
         """
         Return the next section object after the given address.
@@ -1461,9 +1491,7 @@ class CFGBase(Analysis):
 
             # pre-check: if source and destination do not belong to the same section, it must be jumping to another
             # function
-            src_section = self._addr_belongs_to_section(src_addr)
-            dst_section = self._addr_belongs_to_section(dst_addr)
-            if src_section != dst_section:
+            if not self._addrs_belong_to_same_section(src_addr, dst_addr):
                 _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
 
             # is it a jump to another function?
