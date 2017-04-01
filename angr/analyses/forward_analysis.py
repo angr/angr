@@ -231,10 +231,10 @@ class ForwardAnalysis(object):
                 continue
             except AngrSkipEntryNotice:
                 # consume and skip this job
-                self._entries = self._entries[1:]
+                self._entries.pop(0)
                 continue
 
-            self._entries = self._entries[1:]
+            self._entries.pop(0)
 
             self._handle_entry(entry_info)
 
