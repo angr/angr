@@ -210,9 +210,8 @@ class SegmentList(object):
                 new_end = max(previous_segment.end, segment.start + segment.size)
                 new_start = min(previous_segment.start, segment.start)
                 new_size = new_end - new_start
-                self._list = self._list[ : previous_segment_pos] + \
-                            [ Segment(new_start, new_end, segment.sort) ] + \
-                            self._list[ segment_pos + 1: ]
+                self._list[segment_pos] = Segment(new_start, new_end, segment.sort)
+                self._list.pop(previous_segment_pos)
                 bytes_changed = -(segment.size + previous_segment.size - new_size)
 
                 merged = True
