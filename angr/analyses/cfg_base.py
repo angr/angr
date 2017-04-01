@@ -1227,6 +1227,9 @@ class CFGBase(Analysis):
             if not has_unresolved_jumps:
                 continue
 
+            if function.startpoint is None:
+                continue
+
             startpoint_addr = function.startpoint.addr
             if not function.endpoints:
                 # Function should have at least one endpoint
