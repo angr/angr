@@ -826,17 +826,17 @@ class CFGBase(Analysis):
                     # if there are multiple jump out sites and we have determined the "returning status" from one of
                     # the jump out sites, we can exit the loop early
                     continue
-
-                if not jump_out_site.successors():
+                jump_out_site_successors = jump_out_site.successors()
+                if not jump_out_site_successors:
                     # not sure where it jumps to. bail out
                     bail_out = True
                     continue
-                jump_out_target = jump_out_site.successors()[0]
-                target_func = self.kb.functions.get(jump_out_target.addr, None)
-                if target_func is None:
+                jump_out_target = jump_out_site_successors[0]
+                if not self.kb.functions.contains_addr(jump_out_target.addr):
                     # wait it does not jump to a function?
                     bail_out = True
                     continue
+                target_func = self.kb.functions[jump_out_target.addr]
                 if target_func.returning is True:
                     func.returning = True
                     bail_out = True
