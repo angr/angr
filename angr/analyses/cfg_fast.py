@@ -2353,8 +2353,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         # is the address identified by CLE as a PLT stub?
-        if not any([ addr in obj.reverse_plt for obj in self.project.loader.all_objects if isinstance(obj, cle.MetaELF) ]):
-            return False
+        if len(self.project.loader.all_elf_objects) > 0:
+            # restrict this heuristics to ELF files only
+            if not any([ addr in obj.reverse_plt for obj in self.project.loader.all_elf_objects ]):
+                return False
 
         # try to resolve the jump target
         simsucc = simuvex.SimEngineVEX().process(self._initial_state, irsb, force_addr=addr)
