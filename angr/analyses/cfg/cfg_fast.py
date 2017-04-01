@@ -806,6 +806,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._graph = None
 
+        # stores the last looked up returning pending entry to speed up _entry_list_empty processing
+        self._last_returning_job_index = 0
+
         # Start working!
         self._analyze()
 
@@ -1232,22 +1235,46 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _post_job_handling(self, job, new_jobs, successors):
         pass
 
-    def _job_queue_empty(self):
+    def _lookup_returning_pending_job(self, start_index, end_index):
+        """
+            Look for a job that comes from a function that must return, 
+            in the specified range of pending jobs
 
+            :param int start_index: beginning of the range we scan for the lookup
+            :param int end_index: end of the range we scan for lookup
+        """
+        job_index = None
+        for i in range(start_index, end_index):
+            job = self._pending_jobs[i]
+            src_func_addr = job.returning_source
+            if src_func_addr is None or src_func_addr not in self.kb.functions:
+                continue
+            function = self.kb.functions[src_func_addr]
+            if function.returning is True:
+                job_index = i
+                break
+
+        return job_index
+
+    def _job_queue_empty(self):
         if self._pending_jobs:
             # look for a job that comes from a function that must return
             # if we can find one, just use it
-            job_index = None
-            for i, job in enumerate(self._pending_jobs):
-                src_func_addr = job.returning_source
-                if src_func_addr is None or src_func_addr not in self.kb.functions:
-                    continue
-                function = self.kb.functions[src_func_addr]
-                if function.returning is True:
-                    job_index = i
-                    break
 
-            if job_index is not None:
+            # The function _lookup_returning_pending_job runs worst case in O(n), but job_queue_empty is called also O(n) times,
+            # so in worst case this will end up in O(n^2) complexity, causing a slow-down for binaries with lots functions
+            # We apply some heuristics here, and start the job lookup, with the last job found, which will reduce the
+            # complexity in most of the cases.
+            job_index = self._lookup_returning_pending_job(self._last_returning_job_index, len(self._pending_jobs))
+
+            # If no jobs were found in the previous range, we scan the first part of the pending_jobs list.
+            if job_index is None:
+                job_index = self._lookup_returning_pending_job(0, self._last_returning_job_index)
+
+            # We need to reset _last_returning_job_index if no jobs found
+            self._last_returning_job_index = job_index if job_index else 0
+
+            if job_index:
                 self._insert_job(self._pending_jobs[job_index])
                 del self._pending_jobs[job_index]
                 return
