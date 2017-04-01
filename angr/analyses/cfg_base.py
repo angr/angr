@@ -1376,7 +1376,7 @@ class CFGBase(Analysis):
         """
 
         stack = OrderedSet(starts)
-        traversed = set() if traversed_cfg_nodes is None else set(traversed_cfg_nodes)
+        traversed = set() if traversed_cfg_nodes is None else traversed_cfg_nodes
 
         while stack:
             n = stack.pop(last=False)  # type: CFGNode
@@ -1402,9 +1402,6 @@ class CFGBase(Analysis):
                         # Only follow none call edges
                         if dst not in stack and dst not in traversed:
                             stack.add(dst)
-
-        if traversed_cfg_nodes is not None:
-            traversed_cfg_nodes |= traversed
 
     def _graph_traversal_handler(self, src, dst, data, blockaddr_to_function, known_functions):
         """
