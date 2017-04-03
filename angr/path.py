@@ -586,9 +586,6 @@ class Path(object):
         if len(set(( o.addr for o in all_paths))) != 1:
             raise AngrPathError("Unable to merge paths.")
 
-        if common_history is None:
-            raise AngrPathError("TODO: implement mergining without a provided common history")
-
         # get the different constraints
         constraints = [ p.history.constraints_since(common_history) for p in all_paths ]
 
