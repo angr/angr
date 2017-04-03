@@ -1000,7 +1000,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         while self._pending_function_hints:
             f = self._pending_function_hints.pop()
             if f not in analyzed_addrs:
-                new_state = self.project.factory.entry_state('fastpath')
+                new_state = self.project.factory.entry_state(mode='fastpath')
                 new_state.ip = new_state.se.BVV(f, self.project.arch.bits)
 
                 # TOOD: Specially for MIPS
@@ -1012,7 +1012,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                           new_state,
                                           self._context_sensitivity_level
                                           )
-                remaining_entries.append(new_path_wrapper)
+                self._insert_entry(new_path_wrapper)
+
                 l.debug('Picking a function 0x%x from pending function hints.', f)
                 self.kb.functions.function(new_path_wrapper.func_addr, create=True)
                 break
@@ -2488,28 +2489,29 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 continue
 
             # Enumerate actions
-            data = action.data
-            if data is not None:
-                # TODO: Check if there is a proper way to tell whether this const falls in the range of code
-                # TODO: segments
-                # Now let's live with this big hack...
-                try:
-                    const = successor_state.se.exactly_n_int(data.ast, 1)[0]
-                except:  # pylint: disable=bare-except
-                    continue
-
-                if self._is_address_executable(const):
-                    if self._pending_function_hints is not None and const in self._pending_function_hints:
+            if isinstance(action, simuvex.s_action.SimActionData):
+                data = action.data
+                if data is not None:
+                    # TODO: Check if there is a proper way to tell whether this const falls in the range of code
+                    # TODO: segments
+                    # Now let's live with this big hack...
+                    try:
+                        const = successor_state.se.exactly_n_int(data.ast, 1)[0]
+                    except:  # pylint: disable=bare-except
                         continue
 
-                    # target = const
-                    # tpl = (None, None, target)
-                    # st = self.project.simos.prepare_call_state(self.project.initial_state(mode='fastpath'),
-                    #                                           initial_state=saved_state)
-                    # st = self.project.initial_state(mode='fastpath')
-                    # exits[tpl] = (st, None, None)
+                    if self._is_address_executable(const):
+                        if self._pending_function_hints is not None and const in self._pending_function_hints:
+                            continue
 
-                    function_hints.append(const)
+                        # target = const
+                        # tpl = (None, None, target)
+                        # st = self.project.simos.prepare_call_state(self.project.initial_state(mode='fastpath'),
+                        #                                           initial_state=saved_state)
+                        # st = self.project.initial_state(mode='fastpath')
+                        # exits[tpl] = (st, None, None)
+
+                        function_hints.append(const)
 
         l.debug('Got %d possible exits, including: %s', len(function_hints),
                ", ".join(["0x%x" % f for f in function_hints])
