@@ -335,6 +335,7 @@ class CFGBase(Analysis):
         #              'speed the node lookup.')
         #    self._node_lookup_index_warned = True
 
+        print "SLOWPATH", hex(addr), len(self._nodes_by_addr)
         for n in self.graph.nodes_iter():
             cond = n.looping_times == 0
             if anyaddr and n.size is not None:
@@ -346,7 +347,8 @@ class CFGBase(Analysis):
                     return n
                 if n.is_syscall == is_syscall:
                     return n
-
+        import traceback
+        traceback.print_stack()
         return None
 
     def irsb_from_node(self, cfg_node):  # pylint:disable=unused-argument
@@ -1380,8 +1382,16 @@ class CFGBase(Analysis):
 
         secondary_function_nodes = set()
         # add all function chunks ("functions" that are not called from anywhere)
+        import time
+        before = time.time()
+        from bintrees import RBTree
+        tree = RBTree()
+        for n in self._graph.nodes():
+            tree[n.addr] = n
+        print "built in ", time.time()-before
         for func_addr in tmp_functions:
-            node = self.get_any_node(func_addr)
+            #node = self.get_any_node(func_addr)
+            node = tree.get(func_addr, None)
             if node is None:
                 continue
             if node.addr not in blockaddr_to_function:
