@@ -2051,6 +2051,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # TODO: Handle those successors
                 if not should_resolve:
                     l.debug("This might not be an indirect jump that has multiple targets. Skipped.")
+                    self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
 
                 else:
                     more_successors = self._resolve_indirect_jump(cfg_node, sim_successors, func_addr)
