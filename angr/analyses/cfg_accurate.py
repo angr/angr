@@ -1398,10 +1398,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                       }
 
         # Post-process jumpkind before touching all_successors
-        for suc in successors:
+        for suc in sim_successors.all_successors:  # we process all successors here to include potential unsat successors
             suc_jumpkind = suc.scratch.jumpkind
             if self._is_call_jumpkind(suc_jumpkind):
                 extra_info['is_call_jump'] = True
+                break
 
         return successors, extra_info
 
