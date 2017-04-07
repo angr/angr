@@ -2,8 +2,8 @@ import collections
 import claripy
 
 class SimVariable(object):
-    def __init__(self):
-        pass
+    def __init__(self, name=None):
+        self.name = name
 
 class SimConstantVariable(SimVariable):
     def __init__(self, value=None):
@@ -51,19 +51,19 @@ class SimTemporaryVariable(SimVariable):
             return False
 
 class SimRegisterVariable(SimVariable):
-    def __init__(self, reg_offset, size):
-        SimVariable.__init__(self)
+    def __init__(self, reg_offset, size, name=None):
+        SimVariable.__init__(self, name=name)
 
         self.reg = reg_offset
         self.size = size
 
     def __repr__(self):
-        s = "<Reg %s %d>" % (self.reg, self.size)
+        s = "<Reg %s %s>" % (self.reg, self.size)
 
         return s
 
     def __hash__(self):
-        return hash('reg_%s_%d' % (self.reg, self.size))
+        return hash('reg_%s_%s' % (self.reg, self.size))
 
     def __eq__(self, other):
         if isinstance(other, SimRegisterVariable):
@@ -73,8 +73,8 @@ class SimRegisterVariable(SimVariable):
             return False
 
 class SimMemoryVariable(SimVariable):
-    def __init__(self, addr, size):
-        SimVariable.__init__(self)
+    def __init__(self, addr, size, name=None):
+        SimVariable.__init__(self, name=name)
 
         self.addr = addr
 
@@ -121,8 +121,7 @@ class SimMemoryVariable(SimVariable):
 
 
 class SimStackVariable(SimMemoryVariable):
-    def __init__(self, offset, size, base='sp', base_addr=None):
-
+    def __init__(self, offset, size, base='sp', base_addr=None, name=None):
         if offset > 0x1000000 and isinstance(offset, (int, long)):
             # I don't think any positive stack offset will be greater than that...
             # convert it to a negative number
@@ -135,7 +134,7 @@ class SimStackVariable(SimMemoryVariable):
             # TODO: this is not optimal
             addr = offset
 
-        super(SimStackVariable, self).__init__(addr, size)
+        super(SimStackVariable, self).__init__(addr, size, name=name)
 
         self.base = base
         self.offset = offset
@@ -146,6 +145,8 @@ class SimStackVariable(SimMemoryVariable):
         else:
             size = '%s' % self.size
 
+        prefix = "%s(stack)" % self.name if self.name is not None else "Stack"
+
         if type(self.offset) in (int, long):
             if self.offset < 0:
                 offset = "%#x" % self.offset
@@ -154,9 +155,9 @@ class SimStackVariable(SimMemoryVariable):
             else:
                 offset = ""
 
-            s = "<Stack %s%s, %s bytes>" % (self.base, offset, size)
+            s = "<%s %s%s, %s bytes>" % (prefix, self.base, offset, size)
         else:
-            s = "<Stack %s%s, %s bytes>" % (self.base, self.addr, size)
+            s = "<%s %s%s, %s bytes>" % (prefix, self.base, self.addr, size)
 
         return s
 
