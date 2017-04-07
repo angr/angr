@@ -1,10 +1,208 @@
 import networkx
 
+from claripy.utils.orderedset import OrderedSet
+
 # errors
 from ..errors import AngrForwardAnalysisError
 # notices
 from ..errors import AngrSkipEntryNotice, AngrDelayEntryNotice, AngrJobMergingFailureNotice, \
     AngrJobWideningFailureNotice
+from .cfg_utils import CFGUtils
+
+
+#
+# Graph traversal
+#
+
+class GraphVisitor(object):
+    """
+    A graph visitor takes a node in the graph and returns its successors. Typically it visits a control flow graph, and
+    returns successors of a CFGNode each time. This is the base class of all graph visitors.
+    """
+    def __init__(self):
+
+        self._sorted_nodes = OrderedSet()
+        self._reached_fixedpoint = set()
+
+    #
+    # Interfaces
+    #
+
+    def startpoints(self):
+        """
+        Get all start points to begin the traversal.
+
+        :return: A list of startpoints that the traversal should begin with.
+        """
+
+        raise NotImplementedError()
+
+    def successors(self, node):
+        """
+        Get successors of a node. The node should be in the graph.
+
+        :param node: The node to work with.
+        :return:     A list of successors.
+        :rtype:      list
+        """
+
+        raise NotImplementedError()
+
+    def predecessors(self, node):
+        """
+        Get predecessors of a node. The node should be in the graph.
+
+        :param node: The node to work with.
+        :return:     A list of predecessors.
+        :rtype:      list
+        """
+
+        raise NotImplementedError()
+
+    def sort_nodes(self, nodes=None):
+        """
+        Get a list of all nodes sorted in an optimal traversal order.
+
+        :param iterable nodes: A collection of nodes to sort. If none, all nodes in the graph will be used to sort.
+        :return:               A list of sorted nodes.
+        :rtype:                list
+        """
+
+        raise NotImplementedError()
+
+    #
+    # Public methods
+    #
+
+    def nodes_iter(self):
+        """
+        Return an iterator of nodes following an optimal traversal order.
+
+        :return:
+        """
+
+        sorted_nodes = self.sort_nodes()
+
+        return iter(sorted_nodes)
+
+    # Traversal
+
+    def reset(self):
+        """
+        Reset the internal node traversal state. Must be called prior to visiting future nodes.
+
+        :return: None
+        """
+
+        self._sorted_nodes.clear()
+        self._reached_fixedpoint.clear()
+
+        for n in self.sort_nodes():
+            self._sorted_nodes.add(n)
+
+    def next_node(self):
+        """
+        Get the next node to visit.
+
+        :return: A node in the graph.
+        """
+
+        if not self._sorted_nodes:
+            return None
+
+        return self._sorted_nodes.pop(last=False)
+
+    def all_successors(self, node, skip_reached_fixedpoint=False):
+        """
+        Returns all successors to the specific node.
+
+        :param node: A node in the graph.
+        :return:     A set of nodes that are all successors to the given node.
+        :rtype:      set
+        """
+
+        successors = set()
+
+        stack = [ node ]
+        while stack:
+            n = stack.pop()
+            successors.add(n)
+            stack.extend(succ for succ in self.successors(n) if
+                         succ not in successors and
+                            (not skip_reached_fixedpoint or succ not in self._reached_fixedpoint)
+                         )
+
+        return successors
+
+    def revisit(self, node, include_self=True):
+        """
+        Revisit a node in the future. As a result, the successors to this node will be revisited as well.
+
+        :param node: The node to revisit in the future.
+        :return:     None
+        """
+
+        successors = self.successors(node) #, skip_reached_fixedpoint=True)
+
+        if include_self:
+            self._sorted_nodes.add(node)
+
+        for succ in successors:
+            self._sorted_nodes.add(succ)
+
+        # reorder it
+        self._sorted_nodes = OrderedSet(self.sort_nodes(self._sorted_nodes))
+
+    def reached_fixedpoint(self, node):
+        """
+        Mark a node as reached fixed-point. This node as well as all its successors will not be visited in the future.
+
+        :param node: The node to mark as reached fixed-point.
+        :return:     None
+        """
+
+        self._reached_fixedpoint.add(node)
+
+
+class FunctionGraphVisitor(GraphVisitor):
+    def __init__(self, function):
+        """
+
+        :param knowledge.Function function:
+        """
+
+        super(FunctionGraphVisitor, self).__init__()
+
+        self.function = function
+
+        self.reset()
+
+    def startpoints(self):
+
+        return [ self.function.startpoint ]
+
+    def successors(self, node):
+
+        return self.function.graph.successors(node)
+
+    def predecessors(self, node):
+
+        return self.function.graph.predecessors(node)
+
+    def sort_nodes(self, nodes=None):
+
+        sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.function.graph)
+
+        if nodes is not None:
+            sorted_nodes = [ n for n in sorted_nodes if n in set(nodes) ]
+
+        return sorted_nodes
+
+
+#
+# Job info
+#
+
 
 class EntryInfo(object):
     """
@@ -79,13 +277,17 @@ class ForwardAnalysis(object):
     Feel free to discuss with me (Fish) if you have any suggestion or complaint!
     """
 
-    def __init__(self, order_entries=False, allow_merging=False, allow_widening=False, status_callback=None):
+    def __init__(self, order_entries=False, allow_merging=False, allow_widening=False, status_callback=None,
+                 graph_visitor=None
+                 ):
         """
         Constructor
 
         :param bool order_entries: If all entries should be ordered or not.
         :param bool allow_merging: If entry merging is allowed.
         :param bool allow_widening: If entry widening is allowed.
+        :param graph_visitor:       A graph visitor to provide successors.
+        :type graph_visitor: GraphVisitor or None
         :return: None
         """
 
@@ -96,6 +298,8 @@ class ForwardAnalysis(object):
 
         self._status_callback = status_callback
 
+        self._graph_visitor = graph_visitor
+
         # sanity checks
         if self._allow_widening and not self._allow_merging:
             raise AngrForwardAnalysisError('Merging must be allowed if widening is allowed.')
@@ -104,10 +308,13 @@ class ForwardAnalysis(object):
         self._should_abort = False
 
         # All remaining entries
-        self._entries = [ ]
+        self._job_info_list = [ ]
 
         # A map between entry key to entry. Entries with the same key will be merged by calling _merge_entries()
         self._entries_map = { }
+
+        # A mapping between node and abstract state
+        self._state_map = { }
 
         # The graph!
         # Analysis results (nodes) are stored here
@@ -132,7 +339,7 @@ class ForwardAnalysis(object):
 
     @property
     def entries(self):
-        for entry_info in self._entries:
+        for entry_info in self._job_info_list:
             yield entry_info.entry
 
     #
@@ -178,8 +385,20 @@ class ForwardAnalysis(object):
     def _entry_list_empty(self):
         raise NotImplementedError('_entry_list_empty() is not implemented.')
 
+    def _get_initial_abstract_state(self, node):
+        raise NotImplementedError('_get_initial_abstract_state() is not implemented.')
+
     def _merge_entries(self, *entries):
         raise NotImplementedError('_merge_entries() is not implemented.')
+
+    def _merge_states(self, *states):
+        """
+
+        :param states: Abstract states to merge.
+        :return:       A merged abstract state.
+        """
+
+        raise NotImplementedError('_merge_states() is not implemented.')
 
     def _should_widen_entries(self, *entries):
         raise NotImplementedError('_should_widen_entries() is not implemented.')
@@ -187,8 +406,14 @@ class ForwardAnalysis(object):
     def _widen_entries(self, *entries):
         raise NotImplementedError('_widen_entries() is not implemented.')
 
+    def _widen_states(self, *states):
+        raise NotImplementedError('_widen_states() is not implemented.')
+
     def _entry_sorting_key(self, entry):
         raise NotImplementedError('_entry_sorting_key() is not implemented.')
+
+    def _run_on_node(self, node, state):
+        raise NotImplementedError('_run_on_node() is not implemented.')
 
     #
     # Private methods
@@ -203,7 +428,71 @@ class ForwardAnalysis(object):
 
         self._pre_analysis()
 
-        if not self._entries:
+        if self._graph_visitor is None:
+            # There is no base graph that we can rely on. The analysis itself should generate successors for the
+            # current job.
+            # An example is the CFG recovery.
+
+            self._analysis_core_baremetal()
+
+        else:
+            # We have a base graph to follow. Just handle the current job.
+
+            self._analysis_core_graph()
+
+        self._post_analysis()
+
+    def _analysis_core_graph(self):
+
+        while not self.should_abort:
+
+            self._intra_analysis()
+
+            n = self._graph_visitor.next_node()
+
+            if n is None:
+                # all done!
+                break
+
+            entry_state = self._merge_state_from_predecessors(n)
+            if entry_state is None:
+                entry_state = self._get_initial_abstract_state(n)
+
+            if n is None:
+                break
+
+            changed, output_state = self._run_on_node(n, entry_state)
+
+            if not changed:
+                # reached a fixed point
+                continue
+
+            # record the new state
+            self._state_map[n] = output_state
+
+            # add all successors
+            self._graph_visitor.revisit(n, include_self=False)
+
+    def _merge_state_from_predecessors(self, node):
+        """
+        Get abstract states for all predecessors of the node, merge them, and return the merged state.
+
+        :param node: The node in graph.
+        :return:     A merged state, or None if no predecessor is available.
+        """
+
+        preds = self._graph_visitor.predecessors(node)
+
+        states = [ self._state_map[n] for n in preds ]
+
+        if not states:
+            return None
+
+        return reduce(lambda s0, s1: self._merge_states(s0, s1), states[1:], states[0])
+
+    def _analysis_core_baremetal(self):
+
+        if not self._job_info_list:
             self._entry_list_empty()
 
         while not self.should_abort:
@@ -215,28 +504,28 @@ class ForwardAnalysis(object):
             if self.should_abort:
                 return
 
-            if not self._entries:
+            if not self._job_info_list:
                 self._entry_list_empty()
 
-            if not self._entries:
+            if not self._job_info_list:
                 # still no job available
                 break
 
-            entry_info = self._entries[0]
+            job_info = self._job_info_list[0]
 
             try:
-                self._pre_entry_handling(entry_info.entry)
+                self._pre_entry_handling(job_info.entry)
             except AngrDelayEntryNotice:
                 # delay the handling of this job
                 continue
             except AngrSkipEntryNotice:
                 # consume and skip this job
-                self._entries.pop(0)
+                self._job_info_list = self._job_info_list[1:]
                 continue
 
-            self._entries.pop(0)
+            self._job_info_list = self._job_info_list[1:]
 
-            self._handle_entry(entry_info)
+            self._process_job_and_get_successors(job_info)
 
             # Short-cut for aborting the analysis
             if self.should_abort:
@@ -244,23 +533,22 @@ class ForwardAnalysis(object):
 
             self._intra_analysis()
 
-        self._post_analysis()
-
-    def _handle_entry(self, entry_info):
+    def _process_job_and_get_successors(self, job_info):
         """
-        Process an entry, get all successors, and call _handle_successor() to handle each successor.
+        Process a job, get all successors of this job, and call _handle_successor() to handle each successor.
+
         :param EntryInfo entry: The EntryInfo instance
         :return: None
         """
 
-        entry = entry_info.entry
+        job = job_info.entry
 
-        successors = self._get_successors(entry)
+        successors = self._get_successors(job)
 
         all_new_entries = [ ]
 
         for successor in successors:
-            new_entries = self._handle_successor(entry, successor, successors)
+            new_entries = self._handle_successor(job, successor, successors)
 
             if new_entries:
                 all_new_entries.extend(new_entries)
@@ -268,7 +556,7 @@ class ForwardAnalysis(object):
                 for new_entry in new_entries:
                     self._insert_entry(new_entry)
 
-        self._post_entry_handling(entry, all_new_entries, successors)
+        self._post_entry_handling(job, all_new_entries, successors)
 
     def _insert_entry(self, entry):
         """
@@ -293,8 +581,8 @@ class ForwardAnalysis(object):
                     try:
                         widened_entry = self._widen_entries(entry_info.entry, entry)
                         # remove the old job since now we have a widened one
-                        if entry_info in self._entries:
-                            self._entries.remove(entry_info)
+                        if entry_info in self._job_info_list:
+                            self._job_info_list.remove(entry_info)
                         entry_info.add_entry(widened_entry, widened=True)
                         entry_added = True
                     except AngrJobWideningFailureNotice:
@@ -306,8 +594,8 @@ class ForwardAnalysis(object):
                     try:
                         merged_entry = self._merge_entries(entry_info.entry, entry)
                         # remove the old job since now we have a merged one
-                        if entry_info in self._entries:
-                            self._entries.remove(entry_info)
+                        if entry_info in self._job_info_list:
+                            self._job_info_list.remove(entry_info)
                         entry_info.add_entry(merged_entry, merged=True)
                     except AngrJobMergingFailureNotice:
                         # merging failed
@@ -323,10 +611,10 @@ class ForwardAnalysis(object):
             entry_info = EntryInfo(key, entry)
 
         if self._order_entries:
-            self._binary_insert(self._entries, entry_info, lambda elem: self._entry_sorting_key(elem.entry))
+            self._binary_insert(self._job_info_list, entry_info, lambda elem: self._entry_sorting_key(elem.entry))
 
         else:
-            self._entries.append(entry_info)
+            self._job_info_list.append(entry_info)
 
     def _peek_entry(self, pos):
         """
@@ -337,8 +625,8 @@ class ForwardAnalysis(object):
         :return: The entry
         """
 
-        if pos < len(self._entries):
-            return self._entries[pos].entry
+        if pos < len(self._job_info_list):
+            return self._job_info_list[pos].entry
 
         raise IndexError()
 
