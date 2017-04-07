@@ -465,19 +465,27 @@ class VariableRecoveryState(object):
 
         def _parse(addr):
             if addr.op == '__add__':
-                left_annotated, left_offset = _parse(addr.args[0])
-                right_annotated, right_offset = _parse(addr.args[1])
-                if (left_annotated and not right_annotated) or (not left_annotated and right_annotated):
-                    offset = left_offset + right_offset
-                    return True, offset
-                raise ValueError()
+                # __add__ might have multiple arguments
+                parsed = [ _parse(arg) for arg in addr.args ]
+                annotated = [ True for annotated, _ in parsed if annotated is True ]
+                if len(annotated) != 1:
+                    # either nothing is annotated, or more than one element is annotated
+                    raise ValueError()
+
+                return True, sum([ offset for _, offset in parsed ])
             elif addr.op == '__sub__':
-                left_annotated, left_offset = _parse(addr.args[0])
-                right_annotated, right_offset = _parse(addr.args[1])
-                if left_annotated and not right_annotated:
-                    offset = left_offset - right_offset
-                    return True, offset
-                raise ValueError()
+                # __sub__ might have multiple arguments
+
+                parsed = [ _parse(arg) for arg in addr.args ]
+                first_annotated, first_offset = parsed[0]
+                if first_annotated is False:
+                    # the first argument is not annotated. we don't support it.
+                    raise ValueError()
+                if any([ annotated for annotated, _ in parsed[1:] ]):
+                    # more than one argument is annotated. we don't support it.
+                    raise ValueError()
+
+                return True, first_offset - sum([ offset for _, offset in parsed[1:] ])
             else:
                 anno = next(iter(anno for anno in addr.annotations if isinstance(anno, StackLocationAnnotation)), None)
                 if anno is None:
