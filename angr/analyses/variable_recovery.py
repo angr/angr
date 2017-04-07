@@ -398,7 +398,7 @@ class VariableRecoveryState(object):
         else:
             if stack_offset not in self._stack_variables:
                 variable = SimStackVariable(stack_offset, mem_read_length, base='bp',
-                                            name=self.variable_manager.next_variable_name('stack')
+                                            name=self.variable_manager.next_variable_name('argument')
                                             )
                 self._stack_variables.add_variable(stack_offset, variable)
 
@@ -542,6 +542,7 @@ class VariableRecovery(ForwardAnalysis, Analysis):
         self._variable_counters = {
             'register': count(),
             'stack': count(),
+            'argument': count(),
         }
 
         self._analyze()
@@ -558,6 +559,8 @@ class VariableRecovery(ForwardAnalysis, Analysis):
             prefix = "regvar"
         elif sort == 'stack':
             prefix = "var"
+        elif sort == 'argument':
+            prefix = 'arg'
         else:
             prefix = "memvar"
 
