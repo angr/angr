@@ -1574,8 +1574,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                         suc.scratch.jumpkind, job.dbg_exit_status[suc])
             except simuvex.SimValueError:
                 l.debug("-  target cannot be concretized. %s [%s]", job.dbg_exit_status[suc], suc.scratch.jumpkind)
-        l.debug("Remaining/pending jobs: %d/%d", len(self._entries), len(self._pending_returns))
-        l.debug("Remaining jobs: %s", [ "%s %d" % (ent.entry, id(ent.entry)) for ent in self._entries ])
+        l.debug("Remaining/pending jobs: %d/%d", len(self._job_info_list), len(self._pending_returns))
+        l.debug("Remaining jobs: %s", [ "%s %d" % (ent.entry, id(ent.entry)) for ent in self._job_info_list])
         l.debug("Task stack: %s", self._task_stack)
 
     @staticmethod
