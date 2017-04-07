@@ -15,3 +15,4 @@ from .static_hooker import StaticHooker
 from .reassembler import Reassembler
 from .binary_optimizer import BinaryOptimizer
 from .disassembly import Disassembly
+from .variable_recovery import VariableRecovery
