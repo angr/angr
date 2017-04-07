@@ -9,6 +9,7 @@ from .disassembly_utils import decode_instruction
 
 l = logging.getLogger('angr.analyses.disassembly')
 
+
 class DisassemblyPiece(object):
     addr = None
     ident = float('nan')
@@ -52,6 +53,7 @@ class DisassemblyPiece(object):
     def __eq__(self, other):
         return False
 
+
 class FunctionStart(DisassemblyPiece):
     def __init__(self, func):
         """
@@ -75,6 +77,7 @@ class FunctionStart(DisassemblyPiece):
     def height(self, formatting):
         return len(self.vars)
 
+
 class Label(DisassemblyPiece):
     def __init__(self, addr, name):
         self.addr = addr
@@ -82,6 +85,7 @@ class Label(DisassemblyPiece):
 
     def _render(self, formatting):  # pylint:disable=unused-argument
         return [self.name + ':']
+
 
 class BlockStart(DisassemblyPiece):
     def __init__(self, block, parentfunc, project):
@@ -92,6 +96,7 @@ class BlockStart(DisassemblyPiece):
 
     def _render(self, formatting):
         return []
+
 
 class Hook(DisassemblyPiece):
     def __init__(self, addr, parentblock):
@@ -105,6 +110,7 @@ class Hook(DisassemblyPiece):
 
     def __eq__(self, other):
         return type(other) is Hook and self.name == other.name
+
 
 class Instruction(DisassemblyPiece):
     def __init__(self, insn, parentblock):
@@ -208,7 +214,12 @@ class Instruction(DisassemblyPiece):
         self.operands.reverse()
         for i, o in enumerate(self.operands):
             o.reverse()
-            self.operands[i] = Operand(i, o, self)
+            self.operands[i] = Operand.build(
+                self.insn.operands[i].type,
+                i,
+                o,
+                self
+            )
 
     @staticmethod
     def split_op_string(insn_str):
@@ -263,6 +274,7 @@ class Operand(DisassemblyPiece):
         self.children = children
         self.parentinsn = parentinsn
         self.op_num = op_num
+        self.ident = (self.addr, 'operand', self.op_num)
 
         for i, c in enumerate(self.children):
             if type(c) not in (str, unicode):
@@ -275,6 +287,113 @@ class Operand(DisassemblyPiece):
 
     def _render(self, formatting):
         return [''.join(x if type(x) in (str, unicode) else x.render(formatting)[0] for x in self.children)]
+
+    @staticmethod
+    def build(operand_type, *args, **kwargs):
+
+        # Maps capstone operand types to operand classes
+        MAPPING = {
+            1: RegisterOperand,
+            2: ConstantOperand,
+            3: MemoryOperand,
+        }
+
+        cls = MAPPING.get(operand_type, None)
+        if cls is None:
+            raise ValueError('Unknown capstone operand type %s.' % operand_type)
+
+        return cls(*args, **kwargs)
+
+
+class ConstantOperand(Operand):
+    pass
+
+
+class RegisterOperand(Operand):
+    pass
+
+
+class MemoryOperand(Operand):
+    def __init__(self, op_num, children, parentinsn):
+        super(MemoryOperand, self).__init__(op_num, children, parentinsn)
+
+        # a typical "children" looks like the following:
+        # [ 'dword', 'ptr', '[', Register, Value, ']' ]
+        # or
+        # [ '[', Register, ']' ]
+
+        # it will be converted into more meaningful and Pythonic properties
+
+        try:
+            if self.children[0] != '[':
+                try: square_bracket_pos = self.children.index('[')
+                except ValueError: raise
+
+                self.prefix = self.children[ : square_bracket_pos]
+
+                # take out segment selector
+                if len(self.prefix) == 3:
+                    self.segment_selector = self.prefix[-1]
+                    self.prefix = self.prefix[ : -1]
+                else:
+                    self.segment_selector = None
+
+            else:
+                # empty
+                square_bracket_pos = 0
+                self.prefix = [ ]
+                self.segment_selector = None
+
+            if self.children[-1] != ']':
+                raise ValueError()
+
+            self.values = self.children[ square_bracket_pos + 1 : len(self.children) - 1 ]
+
+        except ValueError:
+            l.error("Failed to parse operand children %s. Please report to Fish.", self.children)
+
+            # setup all dummy properties
+            self.prefix = None
+            self.values = None
+
+    def _render(self, formatting):
+        if self.prefix is None:
+            # we failed in parsing. use the default rendering
+            return super(MemoryOperand, self)._render(formatting)
+        else:
+            values_style = "square"
+            show_prefix = False
+            custom_values_str = None
+
+            if formatting is not None:
+                try: values_style = formatting['values_style'][self.ident]
+                except KeyError: pass
+
+                try:
+                    show_prefix_str = formatting['show_prefix'][self.ident]
+                    if show_prefix_str in ('true', 'True'):
+                        show_prefix = True
+                except KeyError:
+                    pass
+
+                try: custom_values_str = formatting['custom_values_str'][self.ident]
+                except KeyError: pass
+
+            prefix_str = " ".join(self.prefix) + " " if show_prefix else ""
+            if custom_values_str is not None:
+                value_str = custom_values_str
+            else:
+                value_str = ''.join(x.render(formatting)[0] for x in self.values)
+
+            segment_selector_str = "" if self.segment_selector is None else self.segment_selector
+
+            if segment_selector_str and prefix_str:
+                prefix_str += ' '
+
+            if values_style == 'curly':
+                return [ '%s%s{%s}' % (prefix_str, segment_selector_str, value_str) ]
+            else:
+                return [ '%s%s[%s]' % (prefix_str, segment_selector_str, value_str) ]
 
 
 class OperandPiece(DisassemblyPiece): # pylint: disable=abstract-method
@@ -360,6 +479,7 @@ class FuncComment(DisassemblyPiece):
 
     def _render(self, formatting=None):
         return ['##', '## Function ' + self.func.name, '##']
+
 
 class Disassembly(Analysis):
     def __init__(self, function=None, ranges=None):  # pylint:disable=unused-argument
