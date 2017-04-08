@@ -12,7 +12,7 @@ class Block(object):
     BLOCK_MAX_SIZE = 4096
 
     __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'arch', 'instructions',
-                 '_instruction_addrs'
+                 '_instruction_addrs', '_opt_level'
                  ]
 
     def __init__(self, addr, project=None, arch=None, size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
@@ -38,6 +38,7 @@ class Block(object):
         self._project = project
         self.thumb = thumb
         self.addr = addr
+        self._opt_level = opt_level
 
         if self._project is None and byte_string is None:
             raise ValueError('"byte_string" has to be specified if "project" is not provided.')
@@ -134,7 +135,8 @@ class Block(object):
                     addr=self.addr,
                     thumb=self.thumb,
                     size=self.size,
-                    num_inst=self.instructions
+                    num_inst=self.instructions,
+                    opt_level=self._opt_level
             )
             self._parse_vex_info()
 
