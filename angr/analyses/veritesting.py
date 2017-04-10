@@ -5,6 +5,7 @@ import networkx
 
 from simuvex import SimProcedures, o
 
+from .. import KnowledgeBase
 from ..errors import AngrError, AngrCFGError
 from ..analysis import Analysis, register_analysis
 from ..path_group import PathGroup
@@ -107,7 +108,8 @@ class CallTracingFilter(object):
                                                     context_sensitivity_level=0,
                                                     call_depth=1,
                                                     call_tracing_filter=tracing_filter.filter,
-                                                    normalize=True
+                                                    normalize=True,
+                                                    kb=KnowledgeBase(self.project, self.project.loader.main_bin)
                                                     )
             self.cfg_cache[cfg_key] = (cfg, tracing_filter)
 
@@ -603,6 +605,7 @@ class Veritesting(Analysis):
                 call_tracing_filter=filter,
                 initial_state=cfg_initial_state,
                 normalize=True,
+                kb=KnowledgeBase(self.project, self.project.loader.main_bin)
             )
             cfg_graph_with_loops = networkx.DiGraph(cfg.graph)
             cfg.force_unroll_loops(self._loop_unrolling_limit)
