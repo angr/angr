@@ -522,6 +522,7 @@ class SimLinux(SimOS):
             63: ('uname', 'uname'),
             158: ('arch_prctl','arch_prctl'),
             186: ('gettid', 'gettid'),
+            201: ('time', 'time'),
             231: ('exit_group', 'exit'),  # really exit_group, but close enough
             234: ('tgkill', 'tgkill'),
         },
@@ -531,6 +532,7 @@ class SimLinux(SimOS):
             4: ('write', 'write'),
             5: ('open', 'open'),
             6: ('close', 'close'),
+            13: ('time', 'time'),
             45: ('brk', 'brk'),
             122: ('uname', 'uname'),
             252: ('exit_group', 'exit'),  # really exit_group, but close enough
