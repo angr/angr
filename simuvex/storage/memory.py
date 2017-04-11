@@ -528,7 +528,7 @@ class SimMemory(SimStatePlugin):
 
         if not disable_actions:
             if request.completed and o.AUTO_REFS in self.state.options and action is None and not self._abstract_backer:
-                ref_size = size if size is not None else (data_e.size() / 8)
+                ref_size = size * 8 if size is not None else data_e.size()
                 region_type = self.category
                 if region_type == 'file':
                     # Special handling for files to keep compatibility
@@ -600,7 +600,7 @@ class SimMemory(SimStatePlugin):
                 # We may use some refactoring later
                 region_type = self.id
             action = SimActionData(self.state, region_type, 'write', addr=addr_e, data=req.stored_values[-1],
-                                   size=max_bits/8, condition=self.state.se.Or(*conditions), fallback=fallback
+                                   size=max_bits, condition=self.state.se.Or(*conditions), fallback=fallback
                                    )
             self.state.log.add_action(action)
 
@@ -752,7 +752,7 @@ class SimMemory(SimStatePlugin):
                 r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
             if o.AUTO_REFS in self.state.options and action is None:
-                ref_size = size if size is not None else (r.size() / 8)
+                ref_size = size * 8 if size is not None else r.size()
                 region_type = self.category
                 if region_type == 'file':
                     # Special handling for files to keep compatibility
