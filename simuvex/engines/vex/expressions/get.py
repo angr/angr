@@ -1,11 +1,12 @@
 from .base import SimIRExpr
-from .. import size_bytes
+from .. import size_bytes, size_bits
 from simuvex import s_options as o
 from simuvex.s_action import SimActionData
 
 class SimIRExpr_Get(SimIRExpr):
     def _execute(self):
         size = size_bytes(self._expr.type)
+        size_in_bits = size_bits(self._expr.type)
         self.type = self._expr.type
 
         # get it!
@@ -18,6 +19,6 @@ class SimIRExpr_Get(SimIRExpr):
         self._post_process()
         if o.TRACK_REGISTER_ACTIONS in self.state.options:
             r = SimActionData(self.state, self.state.registers.id, SimActionData.READ, addr=self._expr.offset,
-                              size=size, data=self.expr
+                              size=size_in_bits, data=self.expr
                               )
             self.actions.append(r)
