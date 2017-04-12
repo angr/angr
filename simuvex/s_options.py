@@ -245,6 +245,9 @@ KEEP_MEMORY_READS_DISCRETE = "KEEP_MEMORY_READS_DISCRETE"
 # Raise a SigSegfaultError on illegal memory accesses
 STRICT_PAGE_ACCESS = "STRICT_PAGE_ACCESS"
 
+# Track variables in state.solver.all_variables
+TRACK_SOLVER_VARIABLES = "TRACK_SOLVER_VARIABLES"
+
 #
 # CGC specific state options
 #

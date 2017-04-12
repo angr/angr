@@ -176,10 +176,11 @@ class SimSolver(SimStatePlugin):
     """
     Symbolic solver.
     """
-    def __init__(self, solver=None): #pylint:disable=redefined-outer-name
+    def __init__(self, solver=None, all_variables=None): #pylint:disable=redefined-outer-name
         l.debug("Creating SimSolverClaripy.")
         SimStatePlugin.__init__(self)
         self._stored_solver = solver
+        self.all_variables = [ ] if all_variables is None else all_variables
 
     def reload_solver(self):
         """
@@ -255,6 +256,9 @@ class SimSolver(SimStatePlugin):
         r = claripy.BVS(name, size, min=min, max=max, stride=stride, uninitialized=uninitialized, explicit_name=explicit_name, **kwargs)
         self.state._inspect('symbolic_variable', BP_AFTER, symbolic_name=next(iter(r.variables)), symbolic_size=size, symbolic_expr=r)
         self.state.log.add_event('unconstrained', name=iter(r.variables).next(), bits=size, **kwargs)
+        if o.TRACK_SOLVER_VARIABLES in self.state.options:
+            self.all_variables = list(self.all_variables)
+            self.all_variables.append(r)
         return r
 
     #
@@ -280,7 +284,7 @@ class SimSolver(SimStatePlugin):
     #
 
     def copy(self):
-        return SimSolver(solver=self._solver.branch())
+        return SimSolver(solver=self._solver.branch(), all_variables=self.all_variables)
 
     @error_converter
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=W0613
