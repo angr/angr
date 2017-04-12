@@ -204,6 +204,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
         return self.get_plugin('solver_engine')
 
     @property
+    def solver(self):
+        return self.get_plugin('solver_engine')
+
+    @property
     def inspect(self):
         return self.get_plugin('inspector')
 
