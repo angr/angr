@@ -168,7 +168,7 @@ class SimMemView(SimStatePlugin):
                                       addr)
 
     def __dir__(self):
-        return self._type._refine_dir() if self._type else SimMemView.types.keys()
+        return self._type._refine_dir() if self._type else [x for x in SimMemView.types if ' ' not in x]
 
     def __getattr__(self, k):
         if k in ('concrete', 'deref', 'resolvable', 'resolved', 'state', 'array', 'store', '_addr', '_type') or k in dir(SimStatePlugin):

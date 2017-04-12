@@ -63,7 +63,7 @@ class SimType(object):
     def _refine_dir(self): # pylint: disable=no-self-use
         return []
 
-    def _refine(self, view, k):
+    def _refine(self, view, k): # pylint: disable=unused-argument,no-self-use
         raise KeyError("{} is not a valid refinement".format(k))
 
     @property
@@ -574,7 +574,7 @@ class SimStruct(SimType):
         if not pack:
             raise ValueError("you think I've implemented padding, how cute")
 
-        self._name = name
+        self._name = '<anon>' if name is None else name
         self.fields = fields
 
     @property
@@ -695,53 +695,69 @@ ALL_TYPES = {
 }
 
 _C_TYPE_TO_SIMTYPE = {
-    ('int',): SimTypeInt(True),
-    ('signed', 'int'): SimTypeInt(True),
-    ('unsigned', 'int'): SimTypeInt(False),
-    ('long',): SimTypeLong(True),
-    ('signed', 'long'): SimTypeLong(True),
-    ('unsigned', 'long'): SimTypeLong(False),
-    ('long', 'int'): SimTypeLong(True),
-    ('signed', 'long', 'int'): SimTypeLong(True),
-    ('unsigned', 'long', 'int'): SimTypeLong(False),
-    ('short',): SimTypeShort(True),
-    ('signed', 'short'): SimTypeShort(True),
-    ('unsigned', 'short'): SimTypeShort(False),
-    ('short', 'int'): SimTypeShort(True),
-    ('signed', 'short', 'int'): SimTypeShort(True),
-    ('unsigned', 'short', 'int'): SimTypeShort(False),
-    ('long', 'long'): SimTypeLongLong(True),
-    ('signed', 'long', 'long'): SimTypeLongLong(True),
-    ('unsigned', 'long', 'long'): SimTypeLongLong(False),
-    ('long', 'long', 'int'): SimTypeLongLong(True),
-    ('signed', 'long', 'long', 'int'): SimTypeLongLong(True),
-    ('unsigned', 'long', 'long', 'int'): SimTypeLongLong(False),
-    ('char',): SimTypeChar(),
-    ('signed', 'char'): SimTypeChar(),
-    ('unsigned', 'char'): SimTypeChar(),
-    ('int8_t',): SimTypeNum(8, True),
-    ('uint8_t',): SimTypeNum(8, False),
-    ('int16_t',): SimTypeNum(16, True),
-    ('uint16_t',): SimTypeNum(16, False),
-    ('int32_t',): SimTypeNum(32, True),
-    ('uint32_t',): SimTypeNum(32, False),
-    ('int64_t',): SimTypeNum(64, True),
-    ('uint64_t',): SimTypeNum(64, False),
-    ('ptrdiff_t',): SimTypeLong(False),
-    ('size_t',): SimTypeLength(False),
-    ('ssize_t',): SimTypeLength(True),
-    ('uintptr_t',) : SimTypeLong(False),
-    ('float',): SimTypeFloat(),
-    ('double',): SimTypeDouble(),
-    ('void',): SimTypeBottom(),
+    'int': SimTypeInt(True),
+    'signed int': SimTypeInt(True),
+    'unsigned int': SimTypeInt(False),
+    'long': SimTypeLong(True),
+    'signed long': SimTypeLong(True),
+    'unsigned long': SimTypeLong(False),
+    'long int': SimTypeLong(True),
+    'signed long int': SimTypeLong(True),
+    'unsigned long int': SimTypeLong(False),
+    'short': SimTypeShort(True),
+    'signed short': SimTypeShort(True),
+    'unsigned short': SimTypeShort(False),
+    'short int': SimTypeShort(True),
+    'signed short int': SimTypeShort(True),
+    'unsigned short int': SimTypeShort(False),
+    'long long': SimTypeLongLong(True),
+    'signed long long': SimTypeLongLong(True),
+    'unsigned long long': SimTypeLongLong(False),
+    'long long int': SimTypeLongLong(True),
+    'signed long long int': SimTypeLongLong(True),
+    'unsigned long long int': SimTypeLongLong(False),
+    'char': SimTypeChar(),
+    'signed char': SimTypeChar(),
+    'unsigned char': SimTypeChar(),
+    'int8_t': SimTypeNum(8, True),
+    'uint8_t': SimTypeNum(8, False),
+    'int16_t': SimTypeNum(16, True),
+    'uint16_t': SimTypeNum(16, False),
+    'int32_t': SimTypeNum(32, True),
+    'uint32_t': SimTypeNum(32, False),
+    'int64_t': SimTypeNum(64, True),
+    'uint64_t': SimTypeNum(64, False),
+    'ptrdiff_t': SimTypeLong(False),
+    'size_t': SimTypeLength(False),
+    'ssize_t': SimTypeLength(True),
+    'uintptr_t' : SimTypeLong(False),
+    'float': SimTypeFloat(),
+    'double': SimTypeDouble(),
+    'void': SimTypeBottom(),
 }
 
 def define_struct(defn):
+    """
+    Register a struct definition globally
+
+    >>> define_struct('struct abcd {int x; int y;}')
+    """
     struct = parse_type(defn)
-    ALL_TYPES[struct.name] = struct
+    ALL_TYPES['struct ' + struct.name] = struct
     return struct
 
+def register_types(mapping):
+    """
+    Pass in a mapping from name to SimType and they will be registered to the global type store
+
+    >>> register_types(parse_types("typedef int x; typedef float y;"))
+    """
+    ALL_TYPES.update(mapping)
+
 def do_preprocess(defn):
+    """
+    Run a string through the C preprocessor installed on your system
+    """
     tf = tempfile.NamedTemporaryFile(delete=False)
     tf.write(defn)
     tf.close()
@@ -768,16 +784,31 @@ def do_preprocess(defn):
         except OSError:
             continue
     else:
-        l.error("Unable to preprocess struct (tried running: {})"
-                .format(", ".join(e[0] for e in errs)))
+        l.error("Unable to preprocess struct (tried running: %s)", ", ".join(e[0] for e in errs))
 
     os.remove(tf.name)
 
     defn = '\n'.join(x for x in defn.replace('\r\n', '\n').split('\n') if not x.startswith('#line'))
     return defn
 
-_include_re = re.compile(r'^\s*#include')
 def parse_defns(defn, preprocess=True):
+    """
+    Parse a series of C definitions, returns a mapping from variable name to variable type object
+    """
+    return parse_file(defn, preprocess=preprocess)[0]
+
+def parse_types(defn, preprocess=True):
+    """
+    Parse a series of C definitions, returns a mapping from type name to type object
+    """
+    return parse_file(defn, preprocess=preprocess)[1]
+
+_include_re = re.compile(r'^\s*#include')
+def parse_file(defn, preprocess=True):
+    """
+    Parse a series of C definitions, returns a tuple of two type mappings, one for variable
+    definitions and one for type definitions.
+    """
     if pycparser is None:
         raise ImportError("Please install pycparser in order to parse C definitions")
 
@@ -799,13 +830,17 @@ def parse_defns(defn, preprocess=True):
             if piece.name is not None:
                 out[piece.name] = ty
         elif isinstance(piece, pycparser.c_ast.Typedef):
-            out[piece.name] = _decl_to_type(piece.type, extra_types)
-            extra_types[(piece.name,)] = out[piece.name]
+            extra_types[piece.name] = _decl_to_type(piece.type, extra_types)
 
-    return out
+    return out, extra_types
 
 
 def parse_type(defn, preprocess=True):
+    """
+    Parse a simple type expression into a SimType
+
+    >>> parse_type('int *')
+    """
     if pycparser is None:
         raise ImportError("Please install pycparser in order to parse C definitions")
 
@@ -837,7 +872,7 @@ def _decl_to_type(decl, extra_types=None):
     elif isinstance(decl, pycparser.c_ast.ArrayDecl):
         elem_type = _decl_to_type(decl.type, extra_types)
         try:
-            size = parse_const(decl.dim)
+            size = _parse_const(decl.dim)
         except ValueError as e:
             l.warning("Got error parsing array dimension, defaulting to zero: %s", e)
             size = 0
@@ -846,7 +881,7 @@ def _decl_to_type(decl, extra_types=None):
     elif isinstance(decl, pycparser.c_ast.Struct):
         struct = SimStruct(OrderedDict(), decl.name)
         if decl.name is not None:
-            key = ('struct', decl.name)
+            key = 'struct ' + decl.name
             if key in extra_types:
                 struct = extra_types[key]
             else:
@@ -862,7 +897,7 @@ def _decl_to_type(decl, extra_types=None):
         return SimUnion(members)
 
     elif isinstance(decl, pycparser.c_ast.IdentifierType):
-        key = tuple(decl.names)
+        key = ' '.join(decl.names)
         if key in extra_types:
             return extra_types[key]
         elif key in _C_TYPE_TO_SIMTYPE:
@@ -872,18 +907,18 @@ def _decl_to_type(decl, extra_types=None):
 
     raise ValueError("Unknown type!")
 
-def parse_const(c):
+def _parse_const(c):
     if type(c) is pycparser.c_ast.Constant:
         return int(c.value)
     elif type(c) is pycparser.c_ast.BinaryOp:
         if c.op == '+':
-            return parse_const(c.children()[0][1]) + parse_const(c.children()[1][1])
+            return _parse_const(c.children()[0][1]) + _parse_const(c.children()[1][1])
         if c.op == '-':
-            return parse_const(c.children()[0][1]) - parse_const(c.children()[1][1])
+            return _parse_const(c.children()[0][1]) - _parse_const(c.children()[1][1])
         if c.op == '*':
-            return parse_const(c.children()[0][1]) * parse_const(c.children()[1][1])
+            return _parse_const(c.children()[0][1]) * _parse_const(c.children()[1][1])
         if c.op == '/':
-            return parse_const(c.children()[0][1]) // parse_const(c.children()[1][1])
+            return _parse_const(c.children()[0][1]) // _parse_const(c.children()[1][1])
         raise ValueError('Binary op %s' % c.op)
     else:
         raise ValueError(c)
