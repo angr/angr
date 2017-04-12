@@ -743,7 +743,7 @@ def define_struct(defn):
     >>> define_struct('struct abcd {int x; int y;}')
     """
     struct = parse_type(defn)
-    ALL_TYPES['struct ' + struct.name] = struct
+    ALL_TYPES[struct.name] = struct
     return struct
 
 def register_types(mapping):
