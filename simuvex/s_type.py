@@ -166,7 +166,7 @@ class SimTypeNum(SimType):
         self.signed = signed
 
     def __repr__(self):
-        return "int{}_t".format(self.size)
+        return "{}int{}_t".format('' if self.signed else 'u', self.size)
 
     def extract(self, state, addr, concrete=False):
         out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
@@ -498,7 +498,7 @@ class SimTypeFunction(SimType):
         return out
 
 
-class SimTypeLength(SimTypeNum):
+class SimTypeLength(SimTypeLong):
     """
     SimTypeLength is a type that specifies the length of some buffer in memory.
 
@@ -514,7 +514,7 @@ class SimTypeLength(SimTypeNum):
         :param addr:    The memory address (expression).
         :param length:  The length (expression).
         """
-        super(SimTypeLength, self).__init__(None, signed=signed, label=label)
+        super(SimTypeLength, self).__init__(signed=signed, label=label)
         self.addr = addr
         self.length = length
 
@@ -663,78 +663,93 @@ class SimUnion(SimType):
         out._arch = arch
         return out
 
-ALL_TYPES = {
+BASIC_TYPES = {
     'char': SimTypeChar(),
-    'int8_t': SimTypeNum(8, True),
-    'uchar': SimTypeNum(8, False),
-    'uint8_t': SimTypeNum(8, False),
-    'byte': SimTypeNum(8, False),
+    'signed char': SimTypeChar(),
+    'unsigned char': SimTypeChar(),
 
-    'short': SimTypeNum(16, True),
-    'int16_t': SimTypeNum(16, True),
-    'ushort': SimTypeNum(16, False),
-    'uint16_t': SimTypeNum(16, False),
-    'word': SimTypeNum(16, False),
-
-    'int': SimTypeInt(True),
-    'int32_t': SimTypeNum(32, True),
-    'uint': SimTypeInt(False),
-    'uint32_t': SimTypeNum(32, False),
-    'dword': SimTypeNum(32, False),
-
-    'long': SimTypeLong(True),
-    'int64_t': SimTypeNum(64, True),
-    'ulong': SimTypeLong(False),
-    'uint64_t': SimTypeNum(64, False),
-    'qword': SimTypeNum(64, False),
-
-    'string': SimTypeString(),
-
-    'float': SimTypeFloat(),
-    'double': SimTypeDouble()
-}
-
-_C_TYPE_TO_SIMTYPE = {
-    'int': SimTypeInt(True),
-    'signed int': SimTypeInt(True),
-    'unsigned int': SimTypeInt(False),
-    'long': SimTypeLong(True),
-    'signed long': SimTypeLong(True),
-    'unsigned long': SimTypeLong(False),
-    'long int': SimTypeLong(True),
-    'signed long int': SimTypeLong(True),
-    'unsigned long int': SimTypeLong(False),
     'short': SimTypeShort(True),
     'signed short': SimTypeShort(True),
     'unsigned short': SimTypeShort(False),
     'short int': SimTypeShort(True),
     'signed short int': SimTypeShort(True),
     'unsigned short int': SimTypeShort(False),
+
+    'int': SimTypeInt(True),
+    'signed int': SimTypeInt(True),
+    'unsigned int': SimTypeInt(False),
+
+    'long': SimTypeLong(True),
+    'signed long': SimTypeLong(True),
+    'unsigned long': SimTypeLong(False),
+    'long int': SimTypeLong(True),
+    'signed long int': SimTypeLong(True),
+    'unsigned long int': SimTypeLong(False),
+
     'long long': SimTypeLongLong(True),
     'signed long long': SimTypeLongLong(True),
     'unsigned long long': SimTypeLongLong(False),
     'long long int': SimTypeLongLong(True),
     'signed long long int': SimTypeLongLong(True),
     'unsigned long long int': SimTypeLongLong(False),
-    'char': SimTypeChar(),
-    'signed char': SimTypeChar(),
-    'unsigned char': SimTypeChar(),
-    'int8_t': SimTypeNum(8, True),
-    'uint8_t': SimTypeNum(8, False),
-    'int16_t': SimTypeNum(16, True),
-    'uint16_t': SimTypeNum(16, False),
-    'int32_t': SimTypeNum(32, True),
-    'uint32_t': SimTypeNum(32, False),
-    'int64_t': SimTypeNum(64, True),
-    'uint64_t': SimTypeNum(64, False),
-    'ptrdiff_t': SimTypeLong(False),
-    'size_t': SimTypeLength(False),
-    'ssize_t': SimTypeLength(True),
-    'uintptr_t' : SimTypeLong(False),
+
     'float': SimTypeFloat(),
     'double': SimTypeDouble(),
     'void': SimTypeBottom(),
 }
+
+ALL_TYPES = {
+    'int8_t': SimTypeNum(8, True),
+    'uint8_t': SimTypeNum(8, False),
+    'byte': SimTypeNum(8, False),
+
+    'int16_t': SimTypeNum(16, True),
+    'uint16_t': SimTypeNum(16, False),
+    'word': SimTypeNum(16, False),
+
+    'int32_t': SimTypeNum(32, True),
+    'uint32_t': SimTypeNum(32, False),
+    'dword': SimTypeNum(32, False),
+
+    'int64_t': SimTypeNum(64, True),
+    'uint64_t': SimTypeNum(64, False),
+    'qword': SimTypeNum(64, False),
+
+    'ptrdiff_t': SimTypeLong(False),
+    'size_t': SimTypeLength(False),
+    'ssize_t': SimTypeLength(True),
+    'uintptr_t' : SimTypeLong(False),
+
+    'string': SimTypeString(),
+}
+
+ALL_TYPES.update(BASIC_TYPES)
+
+# this is a hack, pending https://github.com/eliben/pycparser/issues/187
+def make_preamble():
+    out = []
+    for ty in ALL_TYPES:
+        if ty in BASIC_TYPES:
+            continue
+        if ' ' in ty:
+            continue
+
+        typ = ALL_TYPES[ty]
+        if isinstance(typ, (SimTypeFunction, SimTypeString)):
+            continue
+
+        if isinstance(typ, (SimTypeNum, SimTypeInt)) and str(typ) not in BASIC_TYPES:
+            try:
+                styp = {8: 'char', 16: 'short', 32: 'int', 64: 'long long'}[typ._size]
+            except KeyError:
+                styp = 'long' # :(
+            if not typ.signed:
+                styp = 'unsigned ' + styp
+            typ = styp
+
+        out.append('typedef %s %s;' % (typ, ty))
+
+    return '\n'.join(out) + '\n'
 
 def define_struct(defn):
     """
@@ -817,7 +832,7 @@ def parse_file(defn, preprocess=True):
     if preprocess:
         defn = do_preprocess(defn)
 
-    node = pycparser.c_parser.CParser().parse(defn)
+    node = pycparser.c_parser.CParser().parse(make_preamble() + defn)
     if not isinstance(node, pycparser.c_ast.FileAST):
         raise ValueError("Something went horribly wrong using pycparser")
     out = {}
@@ -844,10 +859,12 @@ def parse_type(defn, preprocess=True):
     if pycparser is None:
         raise ImportError("Please install pycparser in order to parse C definitions")
 
+    defn = 'typedef ' + defn.strip('; \n\t\r') + ' QQQQ;'
+
     if preprocess:
         defn = do_preprocess(defn)
 
-    node = pycparser.c_parser.CParser().parse('typedef ' + defn.strip('; \n\t\r') + ' QQQQ;')
+    node = pycparser.c_parser.CParser().parse(make_preamble() + defn)
     if not isinstance(node, pycparser.c_ast.FileAST) or \
             not isinstance(node.ext[-1], pycparser.c_ast.Typedef):
         raise ValueError("Something went horribly wrong using pycparser")
@@ -900,8 +917,8 @@ def _decl_to_type(decl, extra_types=None):
         key = ' '.join(decl.names)
         if key in extra_types:
             return extra_types[key]
-        elif key in _C_TYPE_TO_SIMTYPE:
-            return _C_TYPE_TO_SIMTYPE[key]
+        elif key in ALL_TYPES:
+            return ALL_TYPES[key]
         else:
             raise TypeError("Unknown type '%s'" % ' '.join(key))
 
