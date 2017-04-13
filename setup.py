@@ -13,7 +13,7 @@ setup(
     description='The next-generation binary analysis platform from UC Santa Barbara\'s Seclab!',
     packages=packages,
     install_requires=[
-        'capstone',
+        'capstone>=3.0.5rc2',
         'networkx',
         'futures',
         'progressbar',
