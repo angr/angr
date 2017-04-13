@@ -94,7 +94,8 @@ class Project(object):
                  arch=None, simos=None,
                  load_options=None,
                  translation_cache=True,
-                 support_selfmodifying_code=False):
+                 support_selfmodifying_code=False,
+                 **kwargs):
         """
         :param thing:                       The path to the main executable object to analyze, or a CLE Loader object.
 
@@ -132,6 +133,7 @@ class Project(object):
 
         # Step 1: Load the binary
         if load_options is None: load_options = {}
+        load_options.update(kwargs)
 
         if isinstance(thing, cle.Loader):
             self.loader = thing
