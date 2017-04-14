@@ -2,12 +2,19 @@ import collections
 import claripy
 
 class SimVariable(object):
-    def __init__(self, name=None):
+    def __init__(self, ident=None, name=None, phi=False):
+        """
+        :param ident: A unique identifier provided by user or the program. Usually a string.
+        :param str name: Name of this variable.
+        """
+        self.ident = ident
         self.name = name
+        self.phi = phi
+
 
 class SimConstantVariable(SimVariable):
-    def __init__(self, value=None):
-        super(SimConstantVariable, self).__init__()
+    def __init__(self, ident=None, value=None):
+        super(SimConstantVariable, self).__init__(ident=ident)
         self.value = value
 
     def __repr__(self):
@@ -23,7 +30,7 @@ class SimConstantVariable(SimVariable):
             # they may or may not represent the same constant. return not equal to be safe
             return False
 
-        return self.value == other.value
+        return self.value == other.value and self.ident == other.ident
 
     def __hash__(self):
         return hash(('const', self.value))
@@ -50,9 +57,10 @@ class SimTemporaryVariable(SimVariable):
         else:
             return False
 
+
 class SimRegisterVariable(SimVariable):
-    def __init__(self, reg_offset, size, name=None):
-        SimVariable.__init__(self, name=name)
+    def __init__(self, reg_offset, size, ident=None, name=None):
+        SimVariable.__init__(self, ident=ident, name=name)
 
         self.reg = reg_offset
         self.size = size
@@ -63,18 +71,19 @@ class SimRegisterVariable(SimVariable):
         return s
 
     def __hash__(self):
-        return hash('reg_%s_%s' % (self.reg, self.size))
+        return hash('reg_%s_%s_%s' % (self.reg, self.size, self.ident))
 
     def __eq__(self, other):
         if isinstance(other, SimRegisterVariable):
-            return hash(self) == hash(other)
+            return hash(self) == hash(other) and self.name == other.name
 
         else:
             return False
 
+
 class SimMemoryVariable(SimVariable):
-    def __init__(self, addr, size, name=None):
-        SimVariable.__init__(self, name=name)
+    def __init__(self, addr, size, ident=None, name=None, phi=False):
+        SimVariable.__init__(self, ident=ident, name=name, phi=phi)
 
         self.addr = addr
 
@@ -110,18 +119,18 @@ class SimMemoryVariable(SimVariable):
             addr_hash = hash(self.addr._model_z3)
         else:
             addr_hash = hash(self.addr)
-        return hash((addr_hash, hash(self.size)))
+        return hash((addr_hash, hash(self.size), self.ident))
 
     def __eq__(self, other):
         if isinstance(other, SimMemoryVariable):
-            return hash(self) == hash(other)
+            return hash(self) == hash(other) and self.name == other.name
 
         else:
             return False
 
 
 class SimStackVariable(SimMemoryVariable):
-    def __init__(self, offset, size, base='sp', base_addr=None, name=None):
+    def __init__(self, offset, size, base='sp', base_addr=None, ident=None, name=None, phi=False):
         if offset > 0x1000000 and isinstance(offset, (int, long)):
             # I don't think any positive stack offset will be greater than that...
             # convert it to a negative number
@@ -134,7 +143,7 @@ class SimStackVariable(SimMemoryVariable):
             # TODO: this is not optimal
             addr = offset
 
-        super(SimStackVariable, self).__init__(addr, size, name=name)
+        super(SimStackVariable, self).__init__(addr, size, ident=ident, name=name, phi=phi)
 
         self.base = base
         self.offset = offset
