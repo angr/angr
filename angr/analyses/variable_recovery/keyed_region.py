@@ -36,15 +36,33 @@ class KeyedRegion(object):
             return True
         return False
 
+    def __len__(self):
+        return len(self._tree)
+
+    def __iter__(self):
+        for offset in self._tree.keys():
+            for item in self._tree[offset]:
+                yield item
+
     def copy(self):
         if not self._tree:
             return KeyedRegion()
         else:
             return KeyedRegion(tree=self._tree.copy())
 
+    def merge(self, other):
+        for offset in set(self._tree.keys()) | set(other._tree.keys()):
+            if offset in self._tree:
+                if offset in other._tree:
+                    for var in other._tree[offset]:
+                        self.add_variable(offset, var)
+                        # print "adding variable %s during merge" % var
+            else:
+                self._tree[offset] = other._tree[offset]
+
     def add_variable(self, offset, variable):
         """
-        Add a variable to this region.
+        Add a variable to this region at the given offset.
 
         :param int offset:
         :param SimVariable variable:
@@ -52,31 +70,9 @@ class KeyedRegion(object):
         """
 
         if offset not in self._tree:
-            if variable.size is not None:
-                # make sure this variable does not overlap with any other variable
-                end = offset + variable.size
-                try: prev_offset = self._tree.floor_key(end - 1)
-                except KeyError: prev_offset = None
-
-                if prev_offset is not None:
-                    if offset <= prev_offset < end:
-                        l.debug('Variable %s overlaps with an existin variable. Skip.', variable)
-                        return
-                    prev_item = self._tree[prev_offset][0]
-                    prev_item_size = prev_item.size if prev_item.size is not None else 1
-                    if offset < prev_offset + prev_item_size < end:
-                        l.debug('Variable %s overlaps with an existin variable. Skip.', variable)
-                        return
-            else:
-                try: prev_offset = self._tree.floor_key(offset)
-                except KeyError: prev_offset = None
-
-                if prev_offset is not None:
-                    prev_item = self._tree[prev_offset][0]
-                    prev_item_size = prev_item.size if prev_item.size is not None else 1
-                    if prev_offset <= offset < prev_offset + prev_item_size:
-                        l.debug('Variable %s overlaps with an existin variable. Skip.', variable)
-                        return
+            if self._is_overlapping(offset, variable):
+                l.debug('Variable %s overlaps with an existing variable. Skip.', variable)
+                return
 
             self._tree[offset] = [variable]
 
@@ -84,11 +80,31 @@ class KeyedRegion(object):
             if variable in self._tree[offset]:
                 return
 
-            if variable.size != self._tree[offset][0]:
+            if variable.size != self._tree[offset][0].size:
                 l.debug('Adding a new variable to stack with a different size as the previous item. Skip.')
                 return
 
             self._tree[offset].append(variable)
+
+    def set_variable(self, offset, variable):
+        """
+        Add a variable to this region at the given offset, and remove all other variables that are fully covered by 
+        this variable.
+
+        :param int offset:
+        :param SimVariable variable:
+        :return: None
+        """
+
+        if offset not in self._tree:
+            # TODO: check for overlaps
+
+            self._tree[offset] = [ variable ]
+
+        else:
+            # TODO: check for overlaps
+
+            self._tree[offset] = [ variable ]
 
     def get_base_offset(self, offset):
         """
@@ -131,3 +147,38 @@ class KeyedRegion(object):
             return variables
         return [ ]
 
+
+    #
+    # Private methods
+    #
+
+    def _is_overlapping(self, offset, variable):
+
+        if variable.size is not None:
+            # make sure this variable does not overlap with any other variable
+            end = offset + variable.size
+            try:
+                prev_offset = self._tree.floor_key(end - 1)
+            except KeyError:
+                prev_offset = None
+
+            if prev_offset is not None:
+                if offset <= prev_offset < end:
+                    return True
+                prev_item = self._tree[prev_offset][0]
+                prev_item_size = prev_item.size if prev_item.size is not None else 1
+                if offset < prev_offset + prev_item_size < end:
+                    return True
+        else:
+            try:
+                prev_offset = self._tree.floor_key(offset)
+            except KeyError:
+                prev_offset = None
+
+            if prev_offset is not None:
+                prev_item = self._tree[prev_offset][0]
+                prev_item_size = prev_item.size if prev_item.size is not None else 1
+                if prev_offset <= offset < prev_offset + prev_item_size:
+                    return True
+
+        return False
