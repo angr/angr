@@ -161,7 +161,14 @@ class SimMemView(SimStatePlugin):
         if self._addr is None:
             return '<SimMemView>'
         value = '<unresolvable>' if not self.resolvable else self.resolved
-        addr = self._addr.__repr__(inner=True)
+
+        if isinstance(self._addr, claripy.ast.Base):
+            addr = self._addr.__repr__(inner=True)
+        elif hasattr(self._addr, 'ast') and isinstance(self._addr.ast, claripy.ast.Base):
+            addr = self._addr.ast.__repr__(inner=True)
+        else:
+            addr = repr(self._addr)
+
         type_name = repr(self._type) if self._type is not None else '<untyped>'
         return '<{} {} at {}>'.format(type_name,
                                       value,
