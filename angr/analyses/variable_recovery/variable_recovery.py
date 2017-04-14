@@ -37,7 +37,7 @@ class VariableRecoveryState(object):
             self._register_variables = KeyedRegion()
 
         # register callbacks
-        self._register_callbacks(self.concrete_states)
+        self.register_callbacks(self.concrete_states)
 
     def __repr__(self):
         return "<VRAbstractState: %d register variables, %d stack variables>" % (len(self._register_variables), len(self._stack_variables))
@@ -49,9 +49,6 @@ class VariableRecoveryState(object):
     @concrete_states.setter
     def concrete_states(self, v):
         self._concrete_states = v
-
-        # register callbacks
-        self._register_callbacks(self._concrete_states)
 
     def get_concrete_state(self, addr):
         """
@@ -80,7 +77,7 @@ class VariableRecoveryState(object):
 
         return state
 
-    def _register_callbacks(self, concrete_states):
+    def register_callbacks(self, concrete_states):
         """
 
         :param concrete_states:
@@ -110,9 +107,18 @@ class VariableRecoveryState(object):
 
         # TODO: finish it
 
-        merged_concrete_states = self._merge_concrete_states(other)
+        merged_concrete_states =  [ self._concrete_states[0] ] # self._merge_concrete_states(other)
 
-        return VariableRecoveryState(self.variable_manager, self.arch, merged_concrete_states)
+        new_stack_variables = self._stack_variables.copy()
+        new_stack_variables.merge(other._stack_variables)
+
+        new_register_variables = self._register_variables.copy()
+        new_register_variables.merge(other._register_variables)
+
+        return VariableRecoveryState(self.variable_manager, self.arch, merged_concrete_states,
+                                     stack_variables=new_stack_variables,
+                                     register_variables=new_register_variables
+                                     )
 
     def _merge_concrete_states(self, other):
         """
@@ -163,13 +169,21 @@ class VariableRecoveryState(object):
         if var_offset not in self._register_variables:
             # the variable being read doesn't exist before
             variable = SimRegisterVariable(reg_read_offset, reg_read_length,
-                                           name=self.variable_manager.next_variable_name('register')
+                                           ident=self.variable_manager.next_variable_ident('register')
                                            )
             self._register_variables.add_variable(var_offset, variable)
+
+            # record this variable in variable manager
+            self.variable_manager._register_variables.add_variable(var_offset, variable)
 
     def _hook_register_write(self, state):
 
         reg_write_offset = state.inspect.reg_write_offset
+
+        if reg_write_offset == state.arch.sp_offset:
+            # it's updating stack pointer. skip
+            return
+
         reg_write_expr = state.inspect.reg_write_expr
         reg_write_length = len(reg_write_expr) / 8
 
@@ -180,10 +194,12 @@ class VariableRecoveryState(object):
 
         # create the variable
         variable = SimRegisterVariable(reg_write_offset, reg_write_length,
-                                       name=self.variable_manager.next_variable_name('register')
+                                       ident=self.variable_manager.next_variable_ident('register')
                                        )
         var_offset = self._normalize_register_offset(reg_write_offset)
-        self._register_variables.add_variable(var_offset, variable)
+        self._register_variables.set_variable(var_offset, variable)
+        # record this variable in variable manager
+        self.variable_manager._register_variables.add_variable(var_offset, variable)
 
         # is it writing a pointer to a stack variable into the register?
         # e.g. lea eax, [ebp-0x40]
@@ -191,11 +207,15 @@ class VariableRecoveryState(object):
         if stack_offset is not None:
             # it is!
             # unfortunately we don't know the size. We use size None for now.
+
             if stack_offset not in self._stack_variables:
                 variable = SimStackVariable(stack_offset, None, base='bp',
-                                            name=self.variable_manager.next_variable_name('stack')
+                                            ident=self.variable_manager.next_variable_ident('stack')
                                             )
                 self._stack_variables.add_variable(stack_offset, variable)
+
+                # record this variable in variable manager
+                self.variable_manager._stack_variables.add_variable(stack_offset, variable)
 
             base_offset = self._stack_variables.get_base_offset(stack_offset)
             assert base_offset is not None
@@ -216,13 +236,29 @@ class VariableRecoveryState(object):
 
         else:
             if stack_offset not in self._stack_variables:
+                ident_sort = 'argument' if stack_offset > 0 else 'stack'
                 variable = SimStackVariable(stack_offset, mem_read_length, base='bp',
-                                            name=self.variable_manager.next_variable_name('argument')
+                                            ident=self.variable_manager.next_variable_ident(ident_sort)
                                             )
                 self._stack_variables.add_variable(stack_offset, variable)
 
+                # record this variable in variable manager
+                self.variable_manager._stack_variables.add_variable(stack_offset, variable)
+
             base_offset = self._stack_variables.get_base_offset(stack_offset)
             assert base_offset is not None
+
+            if len(self._stack_variables.get_variables_by_offset(stack_offset)) > 1:
+                # create a phi node for all other variables
+                ident_sort = 'argument' if stack_offset > 0 else 'stack'
+                variable = SimStackVariable(stack_offset, mem_read_length, base='bp',
+                                            ident=self.variable_manager.next_variable_ident(ident_sort),
+                                            phi=True
+                                            )
+                self._stack_variables.set_variable(stack_offset, variable)
+
+                self.variable_manager._stack_variables.add_variable(stack_offset, variable)
+
             for variable in self._stack_variables.get_variables_by_offset(stack_offset):
                 self.variable_manager.read_from(variable, stack_offset - base_offset, self._codeloc_from_state(state))
 
@@ -240,11 +276,14 @@ class VariableRecoveryState(object):
             pass
 
         else:
-            if stack_offset not in self._stack_variables:
-                variable = SimStackVariable(stack_offset, mem_write_length, base='bp',
-                                            name=self.variable_manager.next_variable_name('stack')
-                                            )
-                self._stack_variables.add_variable(stack_offset, variable)
+            # we always add a new variable to keep it SSA
+            variable = SimStackVariable(stack_offset, mem_write_length, base='bp',
+                                        ident=self.variable_manager.next_variable_ident('stack')
+                                        )
+            self._stack_variables.set_variable(stack_offset, variable)
+
+            # record this variable in variable manager
+            self.variable_manager._stack_variables.add_variable(stack_offset, variable)
 
             base_offset = self._stack_variables.get_base_offset(stack_offset)
             assert base_offset is not None
@@ -323,9 +362,19 @@ class VariableRecoveryState(object):
         return self._to_signed(offset)
 
 
+class VariableAccess(object):
+    def __init__(self, variable, access_type, location):
+        self.variable = variable
+        self.access_type = access_type
+        self.location = location
+
+    def __repr__(self):
+        return "%s %s @ %s" % (self.access_type, self.variable, self.location)
+
+
 class VariableRecovery(ForwardAnalysis, Analysis):
     """
-    Recover "variables" from a function.
+    Recover "variables" from a function using forced execution.
 
     While variables play a very important role in programming, it does not really exist after compiling. However, we can
     still identify and recovery their counterparts in binaries. It is worth noting that not every variable in source
@@ -338,23 +387,28 @@ class VariableRecovery(ForwardAnalysis, Analysis):
     - Stack variables.
     - Heap variables.
 
-    This analysis takes a function as input, and performs a data-flow analysis to discover all places that are
-    accessing variables.
+    This analysis takes a function as input, and performs a data-flow analysis on nodes. It runs concrete execution on
+    every statement and hooks all register/memory accesses to discover all places that are accessing variables. It is
+    slow, but has a more accurate analysis result. For a fast but inaccurate variable recovery, you may consider using
+    VariableRecoveryFast.
     """
 
-    def __init__(self, function):
+    def __init__(self, func):
         """
 
-        :param knowledge.Function function:  The function to analyze.
+        :param knowledge.Function func:  The function to analyze.
         """
 
-        function_graph_visitor = FunctionGraphVisitor(function)
+        function_graph_visitor = FunctionGraphVisitor(func)
 
         ForwardAnalysis.__init__(self, order_entries=True, allow_merging=True, allow_widening=False,
                                  graph_visitor=function_graph_visitor)
 
-        self.function = function
+        self.function = func
         self._node_to_state = { }
+
+        self._stack_variables = KeyedRegion()
+        self._register_variables = KeyedRegion()
 
         self._variable_accesses = defaultdict(list)
         self._insn_to_variable = defaultdict(list)
@@ -370,7 +424,7 @@ class VariableRecovery(ForwardAnalysis, Analysis):
     # Variable Manager
     #
 
-    def next_variable_name(self, sort):
+    def next_variable_ident(self, sort):
         if sort not in self._variable_counters:
             raise ValueError('Unsupported variable sort %s' % sort)
 
@@ -381,27 +435,67 @@ class VariableRecovery(ForwardAnalysis, Analysis):
         elif sort == 'argument':
             prefix = 'arg'
         else:
-            prefix = "memvar"
+            prefix = "mem"
 
-        return "%s_%d" % (prefix, self._variable_counters[sort].next())
+        return "i%s_%d" % (prefix, self._variable_counters[sort].next())
 
     def write_to(self, variable, offset, location):
-        self._variable_accesses[variable].append(('write', location))
+        self._variable_accesses[variable].append(VariableAccess(variable, 'write', location))
         self._insn_to_variable[location.ins_addr].append((variable, offset))
 
     def read_from(self, variable, offset, location):
-        self._variable_accesses[variable].append(('read', location))
+        self._variable_accesses[variable].append(VariableAccess(variable, 'read', location))
         self._insn_to_variable[location.ins_addr].append((variable, offset))
 
     def reference_at(self, variable, offset, location):
-        self._variable_accesses[variable].append(('reference', location))
+        self._variable_accesses[variable].append(VariableAccess(variable, 'reference', location))
         self._insn_to_variable[location.ins_addr].append((variable, offset))
 
     def find_variable_by_insn(self, ins_addr):
         if ins_addr not in self._insn_to_variable:
             return None
 
-        return self._insn_to_variable[ins_addr][0]
+        return self._insn_to_variable[ins_addr][-1]
+
+    def get_variable_accesses(self, variable, same_name=False):
+
+        if not same_name:
+            if variable in self._variable_accesses:
+                return self._variable_accesses[variable]
+
+            else:
+                return [ ]
+
+        else:
+            # find all variables with the same variable name
+
+            vars = [ ]
+
+            for var in self._variable_accesses.keys():
+                if variable.name == var.name:
+                    vars.append(var)
+
+            accesses = [ ]
+            for var in vars:
+                accesses.extend(self.get_variable_accesses(var))
+
+            return accesses
+
+    def _assign_variable_names(self):
+        """
+        Assign default names to all variables.
+
+        :return: None
+        """
+
+        for var in self._stack_variables:
+            if var.name is not None:
+                continue
+            if var.ident.startswith('iarg'):
+                var.name = 'arg_%x' % var.offset
+            else:
+                var.name = 'var_%x' % (-var.offset)
+                #var.name = var.ident
 
     #
     # Main analysis routines
@@ -433,9 +527,6 @@ class VariableRecovery(ForwardAnalysis, Analysis):
         if len(states) == 1:
             return states[0]
 
-        # FIXME: SimFastMemory doesn't support merge. We should do a merge here. Fix it later.
-        return states[0]
-
         return reduce(lambda s_0, s_1: s_0.merge(s_1), states[1:], states[0])
 
     def _run_on_node(self, node, state):
@@ -447,9 +538,10 @@ class VariableRecovery(ForwardAnalysis, Analysis):
         :return:
         """
 
-        state.concrete_states[0].registers.load(184, 8)
-
         concrete_state = state.get_concrete_state(node.addr)
+
+        state = state.copy()
+        state.register_callbacks([ concrete_state ])
 
         successors = self.project.factory.successors(concrete_state,
                                                      addr=node.addr,
@@ -459,7 +551,6 @@ class VariableRecovery(ForwardAnalysis, Analysis):
                                                      )
         output_states = successors.all_successors
 
-        state = state.copy()
         state.concrete_states = output_states
 
         self._node_to_state[node] = state
@@ -470,7 +561,7 @@ class VariableRecovery(ForwardAnalysis, Analysis):
         pass
 
     def _post_analysis(self):
-        pass
+        self._assign_variable_names()
 
 
 register_analysis(VariableRecovery, 'VariableRecovery')
