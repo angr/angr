@@ -893,10 +893,15 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # - Entry pended by a returning function
             # - Entry pended by an unknown function
 
+            functions_do_not_return = set()
+
             while True:
                 new_changes = self._analyze_function_features()
+                functions_do_not_return |= set(new_changes['functions_do_not_return'])
                 if not new_changes['functions_do_not_return']:
                     break
+
+            self._update_function_callsites(functions_do_not_return)
 
             self._clean_pending_exits()
 
@@ -1929,6 +1934,26 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     ins_addr=ins_addr,
                     stmt_idx=stmt_idx,
                 )
+
+    def _update_function_callsites(self, noreturns):
+        """
+        Update the callsites of functions (remove return targets) that are calling functions that are just deemed not
+        returning.
+
+        :param iterable func_addrs: A collection of functions for newly-recovered non-returning functions.
+        :return:                    None
+        """
+
+        for callee_func in noreturns:
+            # consult the callgraph to find callers of each function
+            caller_addrs = self.functions.callgraph.predecessors(callee_func.addr)
+            for caller_addr in caller_addrs:
+                caller = self.functions[caller_addr]
+                if callee_func not in caller.transition_graph:
+                    continue
+                callsites = caller.transition_graph.predecessors(callee_func)
+                for callsite in callsites:
+                    caller._add_call_site(callsite.addr, callee_func.addr, None)
 
     def _add_additional_edges(self, input_state, sim_successors, cfg_node, successors):
         """
