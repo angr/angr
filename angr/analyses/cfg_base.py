@@ -11,7 +11,7 @@ import pyvex
 import simuvex
 from claripy.utils.orderedset import OrderedSet
 
-from ..knowledge import Function, HookNode, BlockNode, FunctionManager
+from ..knowledge import HookNode, BlockNode, FunctionManager
 from ..analysis import Analysis
 from ..errors import AngrCFGError
 from ..extern_obj import AngrExternObject
@@ -214,21 +214,20 @@ class CFGBase(Analysis):
             # fast path
             if cfgnode in self._graph:
                 return self._graph.predecessors(cfgnode)
-            else:
-                return []
-        else:
-            predecessors = []
-            for pred, _, data in self._graph.in_edges_iter([cfgnode], data=True):
-                jk = data['jumpkind']
-                if jumpkind is not None:
-                    if jk == jumpkind:
-                        predecessors.append(pred)
-                elif excluding_fakeret:
-                    if jk != 'Ijk_FakeRet':
-                        predecessors.append(pred)
-                else:
+            return [ ]
+
+        predecessors = []
+        for pred, _, data in self._graph.in_edges_iter([cfgnode], data=True):
+            jk = data['jumpkind']
+            if jumpkind is not None:
+                if jk == jumpkind:
                     predecessors.append(pred)
-            return predecessors
+            elif excluding_fakeret:
+                if jk != 'Ijk_FakeRet':
+                    predecessors.append(pred)
+            else:
+                predecessors.append(pred)
+        return predecessors
 
     def get_successors(self, basic_block, excluding_fakeret=True, jumpkind=None):
         """
@@ -245,27 +244,26 @@ class CFGBase(Analysis):
 
         if jumpkind is not None:
             if excluding_fakeret and jumpkind == 'Ijk_FakeRet':
-                return []
+                return [ ]
 
         if not excluding_fakeret and jumpkind is None:
             # fast path
             if basic_block in self._graph:
                 return self._graph.successors(basic_block)
-            else:
-                return []
-        else:
-            successors = []
-            for _, suc, data in self._graph.out_edges_iter([basic_block], data=True):
-                jk = data['jumpkind']
-                if jumpkind is not None:
-                    if jumpkind == jk:
-                        successors.append(suc)
-                elif excluding_fakeret:
-                    if jk != 'Ijk_FakeRet':
-                        successors.append(suc)
-                else:
+            return [ ]
+
+        successors = []
+        for _, suc, data in self._graph.out_edges_iter([basic_block], data=True):
+            jk = data['jumpkind']
+            if jumpkind is not None:
+                if jumpkind == jk:
                     successors.append(suc)
-            return successors
+            elif excluding_fakeret:
+                if jk != 'Ijk_FakeRet':
+                    successors.append(suc)
+            else:
+                successors.append(suc)
+        return successors
 
     def get_successors_and_jumpkind(self, basic_block, excluding_fakeret=True):
         successors = []
@@ -298,8 +296,7 @@ class CFGBase(Analysis):
         """
         if block_id in self._nodes:
             return self._nodes[block_id]
-        else:
-            return None
+        return None
 
     def nodes(self):
         return self._graph.nodes()
@@ -461,8 +458,8 @@ class CFGBase(Analysis):
             hooker = self.project._sim_procedures[addr]
             size = hooker.kwargs.get('length', 0)
             return HookNode(addr, size, hooker.procedure)
-        else:
-            return BlockNode(cfg_node.addr, cfg_node.size)  # pylint: disable=no-member
+
+        return BlockNode(cfg_node.addr, cfg_node.size)  # pylint: disable=no-member
 
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
@@ -780,7 +777,7 @@ class CFGBase(Analysis):
             all_functions = self.kb.functions.values()
 
         # pylint: disable=too-many-nested-blocks
-        for func in all_functions:  # type: Function
+        for func in all_functions:  # type: angr.knowledge.Function
 
             if func.returning is not None:
                 # It has been determined before. Skip it
@@ -1036,12 +1033,12 @@ class CFGBase(Analysis):
 
     def _register_analysis_job(self, func_addr, job):
         """
-        Register an analysis job of a function to job manager. This allows us to track whether we have finished 
+        Register an analysis job of a function to job manager. This allows us to track whether we have finished
         analyzing/recovering a function or not.
         
-        :param int func_addr: Address of the function that this job belongs to. 
-        :param job:           The job to register. Note that it does not necessarily be the a CFGJob instance. There 
-                              can be PendingExit or PendingJob or other instances, too. 
+        :param int func_addr: Address of the function that this job belongs to.
+        :param job:           The job to register. Note that it does not necessarily be the a CFGJob instance. There
+                              can be PendingExit or PendingJob or other instances, too.
         :return:              None
         """
 
@@ -1050,8 +1047,8 @@ class CFGBase(Analysis):
     def _deregister_analysis_job(self, func_addr, job):
         """
         Deregister/Remove an analysis job of a function from job manager.
-        
-        :param int func_addr: Address of the function that this job belongs to. 
+
+        :param int func_addr: Address of the function that this job belongs to.
         :param job:           The job to deregister.
         :return:              None
         """
@@ -1061,9 +1058,9 @@ class CFGBase(Analysis):
     def _get_finished_functions(self):
         """
         Obtain all functions of which we have finished analyzing. As _jobs_to_analyze_per_function is a defaultdict(),
-        if a function address shows up in it with an empty job list, we consider we have exhausted all jobs of this 
+        if a function address shows up in it with an empty job list, we consider we have exhausted all jobs of this
         function (both current jobs and pending jobs), thus the analysis of this function is done.
-        
+
         :return: a list of function addresses of that we have finished analysis.
         :rtype:  list
         """
@@ -1079,9 +1076,9 @@ class CFGBase(Analysis):
     def _cleanup_analysis_jobs(self, finished_func_addrs=None):
         """
         From job manager, remove all functions of which we have finished analysis.
-        
-        :param list or None finished_func_addrs: A list of addresses of functions of which we have finished analysis. 
-                                                 A new list of function addresses will be obtained by calling 
+
+        :param list or None finished_func_addrs: A list of addresses of functions of which we have finished analysis.
+                                                 A new list of function addresses will be obtained by calling
                                                  _get_finished_functions() if this parameter is None.
         :return:                                 None
         """
@@ -1096,7 +1093,7 @@ class CFGBase(Analysis):
     def _make_completed_functions(self):
         """
         Fill in self._completed_functions list and clean up job manager.
-        
+
         :return: None
         """
 

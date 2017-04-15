@@ -206,13 +206,13 @@ class FunctionManager(collections.Mapping):
     def __iter__(self):
         for i in sorted(self._function_map.iterkeys()):
             yield i
-    
+
     def contains_addr(self, addr):
         """
         Decide if an address is handled by the function manager.
-        
+
         Note: this function is non-conformant with python programming idioms, but its needed for performance reasons.
-        
+
         :param int addr: Address of the function.
         """
         return addr in self._function_map

@@ -21,11 +21,11 @@ from .cfg_node import CFGNode
 from .cfg_base import CFGBase, IndirectJump
 from .forward_analysis import ForwardAnalysis
 from .cfg_arch_options import CFGArchOptions
-from ..extern_obj import AngrExternObject
 
 VEX_IRSB_MAX_SIZE = 400
 
 l = logging.getLogger("angr.analyses.cfg_fast")
+
 
 class Segment(object):
     """
@@ -68,6 +68,7 @@ class Segment(object):
         :rtype: angr.analyses.cfg_fast.Segment
         """
         return Segment(self.start, self.end, self.sort)
+
 
 class SegmentList(object):
     """
@@ -326,10 +327,10 @@ class SegmentList(object):
                 i += 1
             if i == len(self._list):
                 return self._list[-1].end
-            else:
-                return self._list[i].end
-        else:
-            return address
+
+            return self._list[i].end
+
+        return address
 
     def is_occupied(self, address):
         """
@@ -383,7 +384,7 @@ class SegmentList(object):
             return
 
         # l.debug("Occpuying 0x%08x-0x%08x", address, address + size)
-        if len(self._list) == 0:
+        if not self._list:
             self._list.append(Segment(address, address + size, sort))
             self._bytes_occupied += size
             return
@@ -900,9 +901,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if self._inside_regions(curr_addr):
             l.debug("Returning a new recon address: %#x", curr_addr)
             return curr_addr
-        else:
-            l.debug("%#x is beyond the ending point. Returning None.", curr_addr)
-            return None
+
+        l.debug("%#x is beyond the ending point. Returning None.", curr_addr)
+        return None
 
     def _next_code_addr_core(self):
         """
@@ -939,7 +940,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     l.debug("Address 0x%08x is not concretizable!", next_addr)
                     break
 
-            if len(sz) > 0 and is_sz:
+            if sz and is_sz:
                 l.debug("Got a string of %d chars: [%s]", len(sz), sz)
                 # l.debug("Occpuy %x - %x", start_addr, start_addr + len(sz) + 1)
                 self._seg_list.occupy(start_addr, len(sz) + 1, "string")
@@ -1086,9 +1087,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         l.debug("... got %d jobs: %s", len(jobs), jobs)
 
-        for job in jobs:  # type: CFGJob
+        for job_ in jobs:  # type: CFGJob
             # register those jobs
-            self._register_analysis_job(job.func_addr, job)
+            self._register_analysis_job(job_.func_addr, job_)
 
         return jobs
 
@@ -1238,7 +1239,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Scan all functions, and make sure .returning for all functions are either True or False
         for f in self.functions.values():
             if f.returning is None:
-                f.returning = len(f.endpoints) > 0
+                f.returning = len(f.endpoints) > 0  # pylint:disable=len-as-condition
 
         if self.project.arch.name in ('X86', 'AMD64', 'MIPS32'):
             self._remove_redundant_overlapping_blocks()
@@ -1431,12 +1432,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             ]
             new_exits = procedure(addr, self.project.arch, is_function=False).static_exits(blocks_ahead)
 
-            for addr, jumpkind in new_exits:
-                if isinstance(addr, claripy.ast.BV) and not addr.symbolic:
-                    addr = addr._model_concrete.value
-                if not isinstance(addr, (int, long)):
+            for addr_, jumpkind in new_exits:
+                if isinstance(addr_, claripy.ast.BV) and not addr_.symbolic:
+                    addr_ = addr_._model_concrete.value
+                if not isinstance(addr_, (int, long)):
                     continue
-                entries += self._create_entries(addr, jumpkind, current_function_addr, None, addr, cfg_node, None, None)
+                entries += self._create_entries(addr_, jumpkind, current_function_addr, None, addr_, cfg_node, None,
+                                                None
+                                                )
 
         return entries
 
@@ -1630,12 +1633,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if ij.resolved_targets:
                     # has been resolved before
                     # directly create CFGJobs
-                    for target in ij.resolved_targets:
-                        ce = CFGJob(target, target, jumpkind, last_addr=target,
+                    for resolved_target in ij.resolved_targets:
+                        ce = CFGJob(resolved_target, resolved_target, jumpkind, last_addr=resolved_target,
                                     src_node=cfg_node, src_stmt_idx=stmt_idx, src_ins_addr=ins_addr)
                         entries.append(ce)
 
-                        self._function_add_call_edge(target, None, None, target,
+                        self._function_add_call_edge(resolved_target, None, None, resolved_target,
                                                      stmt_idx=stmt_idx, ins_addr=ins_addr
                                                      )
                 else:
@@ -2207,7 +2210,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if block[1] == 0 and block[3] == 0 and chr(block[0]) in self.PRINTABLES:
             max_unicode_string_len = 1024
             unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
-            if len(unicode_str) and all([ c in self.PRINTABLES for c in unicode_str]):
+            if len(unicode_str) and \
+                    all([ c in self.PRINTABLES for c in unicode_str]):  # pylint:disable=len-as-condition
                 if content_holder is not None:
                     content_holder.append(unicode_str)
                 return "unicode", (len(unicode_str) + 1) * 2
@@ -2215,7 +2219,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Is it a null-terminated printable string?
         max_string_len = min(max_size, 4096)
         s = self._ffi.string(self._ffi.cast("char*", block), max_string_len)
-        if len(s):
+        if len(s):  # pylint:disable=len-as-condition
             if all([ c in self.PRINTABLES for c in s ]):
                 # it's a string
                 # however, it may not be terminated
@@ -2335,7 +2339,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         # is the address identified by CLE as a PLT stub?
-        if len(self.project.loader.all_elf_objects) > 0:
+        if self.project.loader.all_elf_objects:
             # restrict this heuristics to ELF files only
             if not any([ addr in obj.reverse_plt for obj in self.project.loader.all_elf_objects ]):
                 return False
@@ -2521,8 +2525,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             block_addr, stmt_idx = stmt_loc = preds[0]
             block = self.project.factory.block(block_addr).vex
             stmt = block.statements[stmt_idx]
-            if isinstance(stmt, pyvex.IRStmt.WrTmp) or isinstance(stmt, pyvex.IRStmt.Put):
-                if isinstance(stmt.data, pyvex.IRExpr.Get) or isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+            if isinstance(stmt, (pyvex.IRStmt.WrTmp, pyvex.IRStmt.Put)):
+                if isinstance(stmt.data, (pyvex.IRExpr.Get, pyvex.IRExpr.RdTmp)):
                     # data transferring
                     stmts_to_remove.append(stmt_loc)
                     stmt_loc = (block_addr, stmt_idx)
@@ -3618,7 +3622,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 obj = self.project.loader.addr_belongs_to_object(addr)
                 if obj:
                     # is there a section?
-                    has_executable_section = len([ sec for sec in obj.sections if sec.is_executable ]) > 0
+                    has_executable_section = len([ sec for sec in obj.sections if sec.is_executable ]) > 0  # pylint:disable=len-as-condition
                     section = self._addr_belongs_to_section(addr)
                     if has_executable_section and section is None:
                         # the basic block should not exist here...
