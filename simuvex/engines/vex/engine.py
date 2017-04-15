@@ -173,13 +173,13 @@ class SimEngineVEX(SimEngine):
         # exit barring errors
         has_default_exit = num_stmts <= last_stmt
 
-        # This option makes us only execute the last two instructions
+        # This option makes us only execute the last four instructions
         if o.SUPER_FASTPATH in state.options:
             imark_counter = 0
             for i in xrange(len(ss) - 1, -1, -1):
                 if type(ss[i]) is pyvex.IRStmt.IMark:
                     imark_counter += 1
-                if imark_counter >= 2:
+                if imark_counter >= 4:
                     skip_stmts = max(skip_stmts, i)
                     break
 
