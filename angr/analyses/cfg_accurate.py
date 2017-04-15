@@ -885,7 +885,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # TODO: Why was the former two conditions there in the first place?
         # if remaining_entries and pending_entries and self._pending_function_hints:
         if self._pending_function_hints:
-            self._process_hints(self._analyzed_addrs, self._pending_entries)
+            self._process_hints(self._analyzed_addrs)
 
     def _entry_list_empty(self):
         """
@@ -1039,7 +1039,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                           self._context_sensitivity_level
                                           )
                 self._insert_entry(new_path_wrapper)
-
                 self._register_analysis_job(f, new_path_wrapper)
                 l.debug('Picking a function 0x%x from pending function hints.', f)
                 self.kb.functions.function(new_path_wrapper.func_addr, create=True)
