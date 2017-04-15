@@ -649,10 +649,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     def context_sensitivity_level(self):
         return self._context_sensitivity_level
 
-    @property
-    def functions(self):
-        return self.kb.functions
-
     #
     # Serialization
     #

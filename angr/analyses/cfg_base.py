@@ -131,6 +131,16 @@ class CFGBase(Analysis):
     def context_sensitivity_level(self):
         return self._context_sensitivity_level
 
+    @property
+    def functions(self):
+        """
+        A reference to the FunctionManager in the current knowledge base.
+
+        :return: FunctionManager with all functions
+        :rtype: angr.knowledge.FunctionManager
+        """
+        return self.kb.functions
+
     def _initialize_cfg(self):
         """
         Re-create the DiGraph
