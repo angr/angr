@@ -3,6 +3,8 @@ import collections
 
 import networkx
 
+from simuvex import SimEngineError
+
 from .function import Function
 
 l = logging.getLogger(name="angr.knowledge.function_manager")
@@ -142,7 +144,12 @@ class FunctionManager(collections.Mapping):
         if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
         if type(to_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
-            to_node = self._kb._project.factory.snippet(to_node)
+            try:
+                to_node = self._kb._project.factory.snippet(to_node)
+            except SimEngineError:
+                # we cannot get the snippet, but we should at least tell the function that it's going to jump out here
+                self._function_map[function_addr].add_jumpout_site(from_node)
+                return
         self._function_map[function_addr]._transit_to(from_node, to_node, outside=True, ins_addr=ins_addr,
                                                       stmt_idx=stmt_idx
                                                       )

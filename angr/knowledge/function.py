@@ -435,6 +435,18 @@ class Function(object):
 
         return self._project.loader.addr_belongs_to_object(self.addr)
 
+    def add_jumpout_site(self, node):
+        """
+        Add a custom jumpout site.
+
+        :param node:    The address of the basic block that control flow leaves during this transition.
+        :return:        None
+        """
+
+        self._register_nodes(True, node)
+        self._jumpout_sites.add(node)
+        self._add_endpoint(node, 'transition')
+
     def _clear_transition_graph(self):
         self._block_cache = {}
         self._block_sizes = {}
