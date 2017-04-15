@@ -825,6 +825,7 @@ class CFGBase(Analysis):
                 # the error will be corrected during post-processing. In fact at this moment we cannot say anything
                 # about whether this function returns or not. We always assume it returns.
                 func.returning = True
+                changes['functions_return'].append(func)
                 continue
 
             bail_out = False
@@ -849,6 +850,7 @@ class CFGBase(Analysis):
                 target_func = self.kb.functions[jump_out_target.addr]
                 if target_func.returning is True:
                     func.returning = True
+                    changes['functions_return'].append(func)
                     bail_out = True
                 elif target_func.returning is None:
                     # the returning status of at least one of the target functions is not decided yet.
@@ -860,7 +862,7 @@ class CFGBase(Analysis):
 
             # well this function does not return then
             func.returning = False
-            changes['functions_return'].append(func)
+            changes['functions_do_not_return'].append(func)
 
         return changes
 
