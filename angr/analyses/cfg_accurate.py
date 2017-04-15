@@ -1037,6 +1037,17 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: None
         """
 
+        self._make_completed_functions()
+
+        functions_do_not_return = set()
+        while True:
+            new_changes = self._analyze_function_features()
+            functions_do_not_return |= set(new_changes['functions_do_not_return'])
+            if not new_changes['functions_do_not_return']:
+                break
+
+        self._update_function_callsites(functions_do_not_return)
+
         # Create all pending edges
         for _, edges in self._pending_edges.iteritems():
             for src_node, dst_node, data in edges:
