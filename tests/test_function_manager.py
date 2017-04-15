@@ -24,7 +24,7 @@ def test_amd64():
     EXPECTED_CALLSITE_RETURNS = { 0x40073e, 0x400754, 0x40076a, 0x400774, 0x40078a, 0x4007a0, 0x4007b3, 0x4007c7,
                                   None }
 
-    fauxware_amd64.analyses.CFGAccurate()
+    cfg = fauxware_amd64.analyses.CFGAccurate()  # pylint:disable=unused-variable
     nose.tools.assert_equal(set([ k for k in fauxware_amd64.kb.functions.keys() if k < 0x500000 ]), EXPECTED_FUNCTIONS)
 
     main = fauxware_amd64.kb.functions.function(name='main')
