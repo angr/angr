@@ -1965,6 +1965,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         for callee_func in noreturns:
             # consult the callgraph to find callers of each function
+            if callee_func.addr not in self.functions.callgraph:
+                continue
             caller_addrs = self.functions.callgraph.predecessors(callee_func.addr)
             for caller_addr in caller_addrs:
                 caller = self.functions[caller_addr]
