@@ -1870,12 +1870,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 create=True
             )._get_block(ret_addr).codenode if ret_addr else None
 
-            if ret_node is None:
-                # it happens if the target function being called does not return
-                l.debug("Unknown return site for call to %#x at call-site %#x. Maybe function %#x does not return.",
-                        dst_node.addr, src_node.addr, dst_node.addr
-                        )
-
             self.kb.functions._add_call_to(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
