@@ -771,7 +771,7 @@ class CFGBase(Analysis):
 
             all_functions |= caller_functions
 
-            all_functions = [ self.kb.functions.function(addr=f) for f in all_functions ]
+            all_functions = [ self.kb.functions.function(addr=f) for f in all_functions if f in self.kb.functions ]
 
         else:
             all_functions = self.kb.functions.values()
