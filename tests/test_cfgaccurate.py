@@ -154,7 +154,7 @@ def test_not_returning():
                         use_sim_procedures=True,
                         load_options={'auto_load_libs': False}
                         )
-    proj.analyses.CFGAccurate(context_sensitivity_level=0)
+    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=0)  # pylint:disable=unused-variable
 
     # function_a returns
     nose.tools.assert_not_equal(proj.kb.functions.function(name='function_a'), None)
@@ -247,7 +247,11 @@ def test_fakeret_edges_0():
     p = angr.Project(binary_path)
     cfg = p.analyses.CFGAccurate(context_sensitivity_level=3)
 
+    putchar_plt = cfg.functions.function(name="putchar", plt=True)
+    nose.tools.assert_true(putchar_plt.returning)
+
     putchar = cfg.functions.function(name="putchar", plt=False)
+    nose.tools.assert_true(putchar.returning)
 
     # Since context sensitivity is 3, there should be two different putchar nodes
     putchar_cfgnodes = cfg.get_all_nodes(putchar.addr)
@@ -337,8 +341,8 @@ def run_all():
 if __name__ == "__main__":
     logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
     logging.getLogger("angr.surveyors.Explorer").setLevel(logging.DEBUG)
-    #logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
-    # logging.getLogger("angr.analyses.cfg_accurate").setLevel(logging.DEBUG)
+    logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
+    logging.getLogger("angr.analyses.cfg_accurate").setLevel(logging.DEBUG)
     # logging.getLogger("s_irsb").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend
     #logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)

@@ -1036,7 +1036,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             job = CFGJob(sp, sp, 'Ijk_Boring')
             self._insert_entry(job)
             # register the job to function `sp`
-            self._jobs_to_analyze_per_function[sp].add(job)
+            self._register_analysis_job(sp, job)
 
         self._changed_functions = set()
 
@@ -1062,7 +1062,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         # a new entry is picked. Deregister it
-        self._jobs_to_analyze_per_function[job.func_addr].remove(job)
+        self._deregister_analysis_job(job.func_addr, job)
 
         # Do not calculate progress if the user doesn't care about the progress at all
         if self._show_progressbar or self._progress_callback:
@@ -1097,7 +1097,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         for job in jobs:  # type: CFGJob
             # register those jobs
-            self._jobs_to_analyze_per_function[job.func_addr].add(job)
+            self._register_analysis_job(job.func_addr, job)
 
         return jobs
 
@@ -1146,19 +1146,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return
 
         # did we finish analyzing any function?
-        just_finished = [ ]
-        for func_addr, all_jobs in self._jobs_to_analyze_per_function.iteritems():
-            if not all_jobs:
-                # great! we have finished analyzing this function!
-                just_finished.append(func_addr)
+        # fill in self._completed_functions
+        self._make_completed_functions()
 
-        # add addresses of all "just finished" functions to _completed_functions
-        for func_addr in just_finished:
-            # remove it from _jobs_to_analyze_per_function
-            del self._jobs_to_analyze_per_function[func_addr]
-            # add it to _completed_functions
-            self._completed_functions.add(func_addr)
-
+        # analyze function features, most importantly, whether each function returns or not
         self._analyze_all_function_features()
 
         if self._pending_entries:
@@ -1181,7 +1172,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 job = CFGJob(prolog_addr, prolog_addr, 'Ijk_Boring')
                 self._insert_entry(job)
-                self._jobs_to_analyze_per_function[prolog_addr].add(job)
+                self._register_analysis_job(prolog_addr, job)
                 return
 
         # Try to see if there is any indirect jump left to be resolved
@@ -1203,7 +1194,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                  src_stmt_idx=None,
                                  )
                     self._insert_entry(job)
-                    self._jobs_to_analyze_per_function[target_func_addr].add(job)
+                    self._register_analysis_job(target_func_addr, job)
 
             if self._entries:
                 return
@@ -1214,7 +1205,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if addr is not None:
                 job = CFGJob(addr, addr, "Ijk_Boring", last_addr=None)
                 self._insert_entry(job)
-                self._jobs_to_analyze_per_function[addr].add(job)
+                self._register_analysis_job(addr, job)
 
     def _post_analysis(self):
 
@@ -1793,7 +1784,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         syscall=is_syscall)
             self._pending_entries.append(ce)
             # register this job to this function
-            self._jobs_to_analyze_per_function[current_function_addr].add(ce)
+            self._register_analysis_job(current_function_addr, ce)
 
         if new_function_addr is not None:
             callee_function = self.kb.functions.function(addr=new_function_addr, syscall=is_syscall)
@@ -3231,8 +3222,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         for index in reversed(pending_exits_to_remove):
             job = self._pending_entries[index]
-            # deregister the job
-            self._jobs_to_analyze_per_function[job.func_addr].remove(job)
+            self._deregister_analysis_job(job.func_addr, job)
             del self._pending_entries[index]
 
     #

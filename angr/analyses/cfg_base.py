@@ -1019,6 +1019,81 @@ class CFGBase(Analysis):
                 l.error('normalize(): Please report it to Fish.')
 
     #
+    # Job management
+    #
+
+    def _register_analysis_job(self, func_addr, job):
+        """
+        Register an analysis job of a function to job manager. This allows us to track whether we have finished 
+        analyzing/recovering a function or not.
+        
+        :param int func_addr: Address of the function that this job belongs to. 
+        :param job:           The job to register. Note that it does not necessarily be the a CFGJob instance. There 
+                              can be PendingExit or PendingJob or other instances, too. 
+        :return:              None
+        """
+
+        self._jobs_to_analyze_per_function[func_addr].add(job)
+
+    def _deregister_analysis_job(self, func_addr, job):
+        """
+        Deregister/Remove an analysis job of a function from job manager.
+        
+        :param int func_addr: Address of the function that this job belongs to. 
+        :param job:           The job to deregister.
+        :return:              None
+        """
+
+        self._jobs_to_analyze_per_function[func_addr].remove(job)
+
+    def _get_finished_functions(self):
+        """
+        Obtain all functions of which we have finished analyzing. As _jobs_to_analyze_per_function is a defaultdict(),
+        if a function address shows up in it with an empty job list, we consider we have exhausted all jobs of this 
+        function (both current jobs and pending jobs), thus the analysis of this function is done.
+        
+        :return: a list of function addresses of that we have finished analysis.
+        :rtype:  list
+        """
+
+        finished_func_addrs = [ ]
+        for func_addr, all_jobs in self._jobs_to_analyze_per_function.iteritems():
+            if not all_jobs:
+                # great! we have finished analyzing this function!
+                finished_func_addrs.append(func_addr)
+
+        return finished_func_addrs
+
+    def _cleanup_analysis_jobs(self, finished_func_addrs=None):
+        """
+        From job manager, remove all functions of which we have finished analysis.
+        
+        :param list or None finished_func_addrs: A list of addresses of functions of which we have finished analysis. 
+                                                 A new list of function addresses will be obtained by calling 
+                                                 _get_finished_functions() if this parameter is None.
+        :return:                                 None
+        """
+
+        if finished_func_addrs is None:
+            finished_func_addrs = self._get_finished_functions()
+
+        for func_addr in finished_func_addrs:
+            if func_addr in self._jobs_to_analyze_per_function:
+                del self._jobs_to_analyze_per_function[func_addr]
+
+    def _make_completed_functions(self):
+        """
+        Fill in self._completed_functions list and clean up job manager.
+        
+        :return: None
+        """
+
+        finished = self._get_finished_functions()
+        for func_addr in finished:
+            self._completed_functions.add(func_addr)
+        self._cleanup_analysis_jobs(finished_func_addrs=finished)
+
+    #
     # Function identification and such
     #
 
