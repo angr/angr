@@ -94,6 +94,21 @@ class PendingExit(object):
         return "<PendingExit to %s, from function %s>" % (self.state.ip, hex(
             self.returning_source) if self.returning_source is not None else 'Unknown')
 
+    def __hash__(self):
+        return hash((self.caller_func_addr, self.returning_source, self.src_block_id, self.src_exit_stmt_idx,
+                     self.src_exit_ins_addr
+                     )
+                    )
+
+    def __eq__(self, other):
+        if not isinstance(other, PendingExit):
+            return False
+        return self.caller_func_addr == other.caller_func_addr and \
+               self.returning_source == other.returning_source and \
+               self.src_block_id == other.src_block_id and \
+               self.src_exit_stmt_idx == other.src_exit_stmt_idx and \
+               self.src_exit_ins_addr == other.src_exit_ins_addr
+
 
 class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     """
