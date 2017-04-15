@@ -80,7 +80,7 @@ class HookNode(CodeNode):
         self.sim_procedure = sim_procedure
 
     def __repr__(self):
-        return '<HookNode %r at %#x (size %d)>' % (self.sim_procedure, self.addr, self.size)
+        return '<HookNode %r at %#x (size %s)>' % (self.sim_procedure, self.addr, self.size)
 
     def __hash__(self):
         return hash((self.addr, self.size, self.sim_procedure))
