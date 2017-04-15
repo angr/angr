@@ -1672,9 +1672,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         # has been resolved as a PLT entry. Remove it from indirect_jumps_to_resolve
                         if ij.addr in self._indirect_jumps_to_resolve:
                             self._indirect_jumps_to_resolve.remove(ij.addr)
+                            self._deregister_analysis_job(current_function_addr, ij)
                     else:
                         # add it to indirect_jumps_to_resolve
                         self._indirect_jumps_to_resolve.add(ij)
+
+                        # register it as a job for the current function
+                        self._register_analysis_job(current_function_addr, ij)
 
         elif jumpkind == 'Ijk_Call' or jumpkind.startswith("Ijk_Sys"):
             is_syscall = jumpkind.startswith("Ijk_Sys")
@@ -1705,6 +1709,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     ij = self.indirect_jumps[addr]
 
                 self._indirect_jumps_to_resolve.add(ij)
+                self._register_analysis_job(current_function_addr, ij)
 
                 self._create_entry_call(addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, None,
                                         jumpkind, is_syscall=is_syscall
@@ -2407,6 +2412,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         for jump, resolved in jumps_resolved.iteritems():
             self._indirect_jumps_to_resolve.remove(jump)
+            self._deregister_analysis_job(jump.func_addr, jump)
 
             if not resolved:
                 # add a node from this entry to the Unresolv
