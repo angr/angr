@@ -63,7 +63,8 @@ class CFGJob(EntryDesc):
 
 
 class PendingExit(object):
-    def __init__(self, returning_source, state, src_block_id, src_exit_stmt_idx, src_exit_ins_addr, call_stack):
+    def __init__(self, caller_func_addr, returning_source, state, src_block_id, src_exit_stmt_idx, src_exit_ins_addr,
+                 call_stack):
         """
         PendingExit is whatever will be put into our pending_exit list. A pending exit is an entry that created by the
         returning of a call or syscall. It is "pending" since we cannot immediately figure out whether this entry will
@@ -81,6 +82,7 @@ class PendingExit(object):
         :param call_stack:          A callstack.
         """
 
+        self.caller_func_addr = caller_func_addr
         self.returning_source = returning_source
         self.state = state
         self.src_block_id = src_block_id
@@ -860,6 +862,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 self._start_keys.append(key)
 
             self._insert_entry(path_wrapper)
+            self._register_analysis_job(path_wrapper.func_addr, path_wrapper)
 
     def _intra_analysis(self):
         """
@@ -879,6 +882,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return:
         """
 
+        # did we finish analyzing any function?
+        # fill in self._completed_functions
+        self._make_completed_functions()
+
         if len(self._pending_entries):
             # There are no more remaining entries, but only pending entries left. Each pending entry corresponds to
             # a previous entry that does not return properly.
@@ -895,15 +902,16 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 if not new_changes['functions_do_not_return']:
                     break
 
-            self._clean_pending_exits(self._pending_entries)
+            self._clean_pending_exits()
 
         while len(self._pending_entries) > 0:
             # We don't have any exits remaining. Let's pop out a pending exit
-            pending_entry = self._get_pending_entry()
-            if pending_entry is None:
+            pending_job = self._get_one_pending_job()
+            if pending_job is None:
                 continue
 
-            self._insert_entry(pending_entry)
+            self._insert_entry(pending_job)
+            self._register_analysis_job(pending_job.func_addr, pending_job)
             break
 
     def _create_initial_state(self, ip, jumpkind):
@@ -945,7 +953,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return state
 
-    def _get_pending_entry(self):
+    def _get_one_pending_job(self):
         """
         Retrieve a pending entry from all pended ones.
 
@@ -988,7 +996,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return entry
 
-    def _process_hints(self, analyzed_addrs, remaining_entries):
+    def _process_hints(self, analyzed_addrs):
         """
         Process function hints in the binary.
 
@@ -1014,6 +1022,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                           )
                 self._insert_entry(new_path_wrapper)
 
+                self._register_analysis_job(f, new_path_wrapper)
                 l.debug('Picking a function 0x%x from pending function hints.', f)
                 self.kb.functions.function(new_path_wrapper.func_addr, create=True)
                 break
@@ -1074,12 +1083,15 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # Store the input state of this function
             self._function_input_states[job.func_addr] = job.state
 
+        # deregister this job
+        self._deregister_analysis_job(job.func_addr, job)
+
         # Generate a unique key for this job
         block_id = job.block_id
 
         # Should we skip tracing this block?
         should_skip = False
-        if self._traced_addrs[job.call_stack_suffix][addr] > self._max_iterations:
+        if self._traced_addrs[job.call_stack_suffix][addr] >= self._max_iterations:
             should_skip = True
         elif self._is_call_jumpkind(job.jumpkind) and \
              self._call_depth is not None and \
@@ -1113,6 +1125,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # in the graph.
 
                 pending_entry = self._pending_entries.pop(block_id)
+                self._deregister_analysis_job(pending_entry.function_address, pending_entry)
                 self._graph_add_edge(pending_entry.src_block_id, block_id, jumpkind='Ijk_FakeRet',
                                      stmt_idx=pending_entry.src_exit_stmt_idx,
                                      ins_addr=pending_entry.src_exit_ins_addr
@@ -1204,6 +1217,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # in the graph.
 
             pending_entry = self._pending_entries.pop(block_id)
+            self._deregister_analysis_job(pending_entry.function_address, pending_entry)
             self._graph_add_edge(pending_entry.src_block_id, block_id, jumpkind='Ijk_FakeRet',
                                  stmt_idx=pending_entry.src_exit_stmt_idx, ins_addr=src_ins_addr
                                  )
@@ -1448,20 +1462,17 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         l.debug("%d exits remaining, %d exits pending.", len(self._entries), len(self._pending_entries))
         l.debug("%d unique basic blocks are analyzed so far.", len(self._analyzed_addrs))
 
-    def _clean_pending_exits(self, pending_exits):
+    def _clean_pending_exits(self):
         """
         Remove those pending exits if:
         a) they are the return exits of non-returning SimProcedures
         b) they are the return exits of non-returning syscalls
         c) they are the return exits of non-returning functions
-
-        :param pending_exits: A dict of all pending exits
         """
 
-        pending_exits_to_remove = []
+        pending_exits_to_remove = [ ]
 
-        for block_id, pe in pending_exits.iteritems():
-
+        for block_id, pe in self._pending_entries.iteritems():
             if pe.returning_source is None:
                 # The original call failed. This pending exit must be followed.
                 continue
@@ -1491,12 +1502,15 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                   )
 
         for block_id in pending_exits_to_remove:
-            l.debug('Removing a pending exit to 0x%x since the target function 0x%x does not return',
+            l.debug('Removing a pending exit to %#x since the target function %#x does not return',
                     self._block_id_addr(block_id),
-                    pending_exits[block_id].returning_source,
+                    self._pending_entries[block_id].returning_source,
                     )
 
-            del pending_exits[block_id]
+            to_remove = self._pending_entries[block_id]
+            self._deregister_analysis_job(to_remove.caller_func_addr, to_remove)
+
+            del self._pending_entries[block_id]
 
     # Entry successor handling
 
@@ -1519,8 +1533,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     def _handle_successor(self, entry, successor, successors):
         """
-        Returns a new PathWrapper instance for further analysis, or None if there is no immediate state to perform the
+        Returns a new CFGJob instance for further analysis, or None if there is no immediate state to perform the
         analysis on.
+        
+        :param CFGJob entry: The current job.
         """
 
         state = successor
@@ -1660,13 +1676,16 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             st.set_mode('fastpath')
 
             pw = None # clear the EntryWrapper
-            pe = PendingExit(entry.extra_info['call_target'],
+            pe = PendingExit(entry.func_addr,
+                             entry.extra_info['call_target'],
                              st,
                              entry.block_id,
                              suc_exit_stmt_idx,
                              suc_exit_ins_addr,
-                             new_call_stack)
+                             new_call_stack
+                             )
             self._pending_entries[new_tpl] = pe
+            self._register_analysis_job(pe.caller_func_addr, pe)
             entry.successor_status[state] = "Pended"
 
         elif self._traced_addrs[new_call_stack_suffix][target_addr] >= 1 and suc_jumpkind == "Ijk_Ret":
@@ -1693,6 +1712,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             if next((en for en in self.entries if en.block_id == pw.block_id), None):
                 # TODO: this is very hackish. Reimplement this logic later
                 self._entries = [entry_info for entry_info in self._entries if entry_info.entry.block_id != pw.block_id]
+
+        # register the job
+        self._register_analysis_job(pw.func_addr, pw)
 
         return [ pw ]
 
@@ -1901,12 +1923,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 )
 
             else:
-                self.kb.functions._add_call_to(
+                self.kb.functions._add_outside_transition_to(
                     function_addr=src_node.function_address,
                     from_node=src_node.to_codenode(),
-                    to_addr=dst_node.addr,
-                    retn_node=None,  # TODO
-                    syscall=False,
+                    to_node=dst_node.to_codenode(),
+                    to_function_addr=dst_node.function_address,
                     ins_addr=ins_addr,
                     stmt_idx=stmt_idx,
                 )
