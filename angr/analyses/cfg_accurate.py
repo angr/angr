@@ -963,6 +963,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         pending_entry_src_block_id = pending_entry.src_block_id
         pending_entry_src_exit_stmt_idx = pending_entry.src_exit_stmt_idx
 
+        self._deregister_analysis_job(pending_entry.caller_func_addr, pending_entry)
+
         # Let's check whether this address has been traced before.
         if pending_entry_key in self._nodes:
             node = self._nodes[pending_entry_key]
