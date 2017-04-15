@@ -769,15 +769,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     #
     # Properties
     #
-    @property
-    def functions(self):
-        """
-        A collection of all functions in current CFG via FunctionManager
-
-        :return: FunctionManager with all functions
-        :rtype: angr.knowedge.function_manager.FunctionManager
-        """
-        return self.kb.functions
 
     @property
     def memory_data(self):
