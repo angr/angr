@@ -273,7 +273,7 @@ class SimEngineVEX(SimEngine):
                 ret_state = exit_state.copy()
                 guard = ret_state.se.true if o.TRUE_RET_EMULATION_GUARD in state.options else ret_state.se.false
                 target = ret_state.se.BVV(successors.addr + irsb.size, ret_state.arch.bits)
-                if ret_state.arch.call_pushes_ret:
+                if ret_state.arch.call_pushes_ret and not exit_jumpkind.startswith('Ijk_Sys'):
                     ret_state.regs.sp = ret_state.regs.sp + ret_state.arch.bytes
                 successors.add_successor(
                     ret_state, target, guard, 'Ijk_FakeRet', exit_stmt_idx='default',
