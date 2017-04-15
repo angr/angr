@@ -11,6 +11,19 @@ test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)),
                     )
 
 def smoketest():
+    binary_path = os.path.join(test_location, 'x86_64', 'variables_O0')
+
+    project = angr.Project(binary_path, load_options={'auto_load_libs': False})
+
+    cfg = project.analyses.CFG(normalize=True)
+
+    authenticate = cfg.kb.functions['the_func']
+
+    vr = project.analyses.VariableRecovery(authenticate)
+
+    import ipdb; ipdb.set_trace()
+
+def smoketest_fast():
     binary_path = os.path.join(test_location, 'x86_64', 'fauxware')
 
     project = angr.Project(binary_path, load_options={'auto_load_libs': False})
@@ -19,7 +32,7 @@ def smoketest():
 
     authenticate = cfg.kb.functions['authenticate']
 
-    vr = project.analyses.VariableRecovery(authenticate)
+    vr = project.analyses.VariableRecoveryFast(authenticate)
 
     import ipdb; ipdb.set_trace()
 
