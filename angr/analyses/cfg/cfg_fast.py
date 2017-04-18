@@ -21,6 +21,7 @@ from ..forward_analysis import ForwardAnalysis
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase, IndirectJump
 from .cfg_arch_options import CFGArchOptions
+from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
 VEX_IRSB_MAX_SIZE = 400
 
@@ -562,6 +563,7 @@ class CFGJob(object):
                      self.src_stmt_idx, self.src_ins_addr, self.returning_source, self.syscall)
                     )
 
+
 class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     """
     We find functions inside the given binary, and build a control-flow graph in very fast manners: instead of
@@ -612,6 +614,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  extra_memory_regions=None,
                  data_type_guessing_handlers=None,
                  arch_options=None,
+                 indirect_jump_resolvers=None,
                  start=None,  # deprecated
                  end=None,  # deprecated
                  **extra_arch_options
@@ -726,6 +729,24 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._function_prologue_addrs = None
         self._remaining_function_prologue_addrs = None
+
+        #
+        # Indirect jump resolvers
+        #
+        # TODO: make it compatible with CFGAccurate
+
+        self.timeless_indirect_jump_resolvers = [ ]
+        self.indirect_jump_resolvers = [ ]
+        if not indirect_jump_resolvers:
+            indirect_jump_resolvers = default_indirect_jump_resolvers(self.project.arch.name)
+        if indirect_jump_resolvers:
+            # split them into different groups for the sake of speed
+            for ijr in indirect_jump_resolvers:
+                if ijr.timeless:
+                    self.timeless_indirect_jump_resolvers.append(ijr)
+                else:
+                    if self._resolve_indirect_jumps:
+                        self.indirect_jump_resolvers.append(ijr)
 
         #
         # Variables used during analysis
@@ -2247,87 +2268,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         :param int addr: irsb address
         :param pyvex.IRSB block: irsb
-        :param int func_addr: instruction address
+        :param int func_addr: Function address
         :return: If it was resolved and targets alongside it
         :rtype: tuple
         """
-        if self.project.arch.name == "MIPS32":
-            # Prudently search for indirect jump target
-            return self._resolve_indirect_jump_timelessly_mips32(addr, block, func_addr)
 
-        return False, [ ]
-
-    def _resolve_indirect_jump_timelessly_mips32(self, addr, block, func_addr):  # pylint: disable=unused-argument
-        """
-        Attempts to execute any potential paths forward through jump returning
-        a sucess boolean and list of sucessors
-
-        :param int addr: irsb address
-        :param pyvex.IRSB block: irsb
-        :param int func_addr: instruction address
-        :return: If it was resolved and targets alongside it
-        :rtype: tuple
-        """
-        b = Blade(self._graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True,
-                  ignored_regs=('gp',))
-
-        sources = [ n for n in b.slice.nodes() if b.slice.in_degree(n) == 0 ]
-        if not sources:
-            return False, [ ]
-
-        source = sources[0]
-        source_addr = source[0]
-        annotated_cfg = AnnotatedCFG(self.project, None, detect_loops=False)
-        annotated_cfg.from_digraph(b.slice)
-
-        state = self.project.factory.blank_state(addr=source_addr, mode="fastpath",
-                                                 remove_options=simuvex.options.refs
-                                                 )
-        func = self.kb.functions.function(addr=func_addr)
-
-        gp_offset = self.project.arch.registers['gp'][0]
-        if 'gp' not in func.info:
-            sec = self._addr_belongs_to_section(func.addr)
-            if sec is None or sec.name != '.plt':
-                # this might a special case: gp is only used once in this function, and it can be initialized right before
-                # its use site.
-                # TODO: handle this case
-                l.debug('Failed to determine value of register gp for function %#x.', func.addr)
-                return False, [ ]
-        else:
-            state.regs.gp = func.info['gp']
-
-        def overwrite_tmp_value(state):
-            state.inspect.tmp_write_expr = state.se.BVV(func.info['gp'], state.arch.bits)
-
-        # Special handling for cases where `gp` is stored on the stack
-        got_gp_stack_store = False
-        for block_addr_in_slice in set(slice_node[0] for slice_node in b.slice.nodes()):
-            for stmt in self.project.factory.block(block_addr_in_slice).vex.statements:
-                if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == gp_offset and \
-                        isinstance(stmt.data, pyvex.IRExpr.RdTmp):
-                    tmp_offset = stmt.data.tmp  # pylint:disable=cell-var-from-loop
-                    # we must make sure value of that temporary variable equals to the correct gp value
-                    state.inspect.make_breakpoint('tmp_write', when=simuvex.BP_BEFORE,
-                        condition=lambda s, bbl_addr_=block_addr_in_slice, tmp_offset_=tmp_offset:
-                                    s.scratch.bbl_addr == bbl_addr_ and s.inspect.tmp_write_num == tmp_offset_,
-                        action=overwrite_tmp_value
-                                                  )
-                    got_gp_stack_store = True
-                    break
-            if got_gp_stack_store:
-                break
-
-        path = self.project.factory.path(state)
-        slicecutor = Slicecutor(self.project, annotated_cfg=annotated_cfg, start=path)
-
-        slicecutor.run()
-
-        if slicecutor.cut:
-            suc = slicecutor.cut[0].successors[0].addr
-
-            return True, [ suc ]
-
+        for res in self.timeless_indirect_jump_resolvers:
+            if res.filter(self, addr, func_addr, block):
+                r, resolved_targets = res.resolve(self, addr, func_addr, block)
+                if r:
+                    return True, resolved_targets
         return False, [ ]
 
     def _resolve_plt(self, addr, irsb, indir_jump):
