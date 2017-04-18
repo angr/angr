@@ -1045,7 +1045,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # make function_prologue_addrs a set for faster lookups
             self._function_prologue_addrs = set(self._function_prologue_addrs)
 
-    def _pre_entry_handling(self, job):
+    def _pre_entry_handling(self, job):  # pylint:disable=arguments-differ
         """
         Some pre job-processing tasks, like update progress bar.
 
@@ -1068,7 +1068,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _intra_analysis(self):
         pass
 
-    def _get_successors(self, job):
+    def _get_successors(self, job):  # pylint:disable=arguments-differ
 
         current_function_addr = job.func_addr
         addr = job.addr
@@ -2215,8 +2215,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if block[1] == 0 and block[3] == 0 and chr(block[0]) in self.PRINTABLES:
             max_unicode_string_len = 1024
             unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
-            if len(unicode_str) and \
-                    all([ c in self.PRINTABLES for c in unicode_str]):  # pylint:disable=len-as-condition
+            if (len(unicode_str) and  # pylint:disable=len-as-condition
+                    all([ c in self.PRINTABLES for c in unicode_str])):
                 if content_holder is not None:
                     content_holder.append(unicode_str)
                 return "unicode", (len(unicode_str) + 1) * 2

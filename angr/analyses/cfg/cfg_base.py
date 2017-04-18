@@ -1060,7 +1060,7 @@ class CFGBase(Analysis):
         """
         Register an analysis job of a function to job manager. This allows us to track whether we have finished
         analyzing/recovering a function or not.
-        
+
         :param int func_addr: Address of the function that this job belongs to.
         :param job:           The job to register. Note that it does not necessarily be the a CFGJob instance. There
                               can be PendingExit or PendingJob or other instances, too.

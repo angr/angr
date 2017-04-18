@@ -10,7 +10,6 @@ from .vsa_ddg import VSA_DDG
 from .bindiff import BinDiff
 from .dfg import DFG
 from .loopfinder import LoopFinder
-from .cfg import CFG
 from .congruency_check import CongruencyCheck
 from .static_hooker import StaticHooker
 from .reassembler import Reassembler

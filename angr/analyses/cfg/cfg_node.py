@@ -152,7 +152,6 @@ class CFGNode(object):
     def to_codenode(self):
         if self.is_simprocedure:
             return HookNode(self.addr, self.size, self.simprocedure_name)
-        else:
-            return BlockNode(self.addr, self.size)
+        return BlockNode(self.addr, self.size)
 
 from ...knowledge.codenode import BlockNode, HookNode

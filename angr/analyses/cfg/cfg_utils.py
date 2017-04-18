@@ -102,11 +102,11 @@ class CFGUtils(object):
 
         if nodes is None:
             return reversed(list(post_order))
-        else:
-            addrs_to_index = {}
-            for i, n in enumerate(post_order):
-                addrs_to_index[n.addr] = i
-            return sorted(nodes, key=lambda n: addrs_to_index[n.addr], reverse=True)
+
+        addrs_to_index = {}
+        for i, n in enumerate(post_order):
+            addrs_to_index[n.addr] = i
+        return sorted(nodes, key=lambda n: addrs_to_index[n.addr], reverse=True)
 
     @staticmethod
     def quasi_topological_sort_nodes(graph, nodes=None):
@@ -159,10 +159,10 @@ class CFGUtils(object):
 
         if nodes is None:
             return ordered_nodes
-        else:
-            nodes = set(nodes)
-            ordered_nodes = [ n for n in ordered_nodes if n in nodes ]
-            return ordered_nodes
+
+        nodes = set(nodes)
+        ordered_nodes = [ n for n in ordered_nodes if n in nodes ]
+        return ordered_nodes
 
     @staticmethod
     def _components_index_node(components, node):
