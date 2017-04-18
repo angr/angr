@@ -5,7 +5,7 @@ import nose.tools
 
 import angr
 
-from angr.analyses.cfg_fast import Segment, SegmentList
+from angr.analyses.cfg.cfg_fast import SegmentList
 
 l = logging.getLogger("angr.tests.test_cfgfast")
 

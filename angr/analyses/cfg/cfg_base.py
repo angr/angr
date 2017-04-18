@@ -11,10 +11,10 @@ import pyvex
 import simuvex
 from claripy.utils.orderedset import OrderedSet
 
-from ..knowledge import HookNode, BlockNode, FunctionManager
-from ..analysis import Analysis
-from ..errors import AngrCFGError
-from ..extern_obj import AngrExternObject
+from ...knowledge import HookNode, BlockNode, FunctionManager
+from ...analysis import Analysis
+from ...errors import AngrCFGError
+from ...extern_obj import AngrExternObject
 
 from .cfg_node import CFGNode
 

@@ -155,4 +155,4 @@ class CFGNode(object):
         else:
             return BlockNode(self.addr, self.size)
 
-from ..knowledge.codenode import BlockNode, HookNode
+from ...knowledge.codenode import BlockNode, HookNode

@@ -10,13 +10,13 @@ import claripy
 from archinfo import ArchARM
 from simuvex import SimEngineProcedure
 
-from ..entry_wrapper import BlockID, EntryDesc
-from ..analysis import register_analysis
-from ..errors import AngrCFGError, AngrError, AngrSkipEntryNotice
-from ..path import Path
+from ...entry_wrapper import BlockID, EntryDesc
+from ...analysis import register_analysis
+from ...errors import AngrCFGError, AngrError, AngrSkipEntryNotice
+from ...path import Path
+from ..forward_analysis import ForwardAnalysis
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase
-from .forward_analysis import ForwardAnalysis
 from .cfg_utils import CFGUtils
 
 l = logging.getLogger(name="angr.analyses.cfg_accurate")

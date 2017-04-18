@@ -12,14 +12,14 @@ import simuvex
 import pyvex
 from simuvex.s_errors import SimEngineError, SimMemoryError, SimTranslationError
 
-from ..blade import Blade
-from ..analysis import register_analysis
-from ..surveyors import Slicecutor
-from ..annocfg import AnnotatedCFG
-from ..errors import AngrCFGError
+from ...blade import Blade
+from ...analysis import register_analysis
+from ...surveyors import Slicecutor
+from ...annocfg import AnnotatedCFG
+from ...errors import AngrCFGError
+from ..forward_analysis import ForwardAnalysis
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase, IndirectJump
-from .forward_analysis import ForwardAnalysis
 from .cfg_arch_options import CFGArchOptions
 
 VEX_IRSB_MAX_SIZE = 400
