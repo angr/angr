@@ -893,32 +893,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return:
         """
 
-        # did we finish analyzing any function?
-        # fill in self._completed_functions
-        self._make_completed_functions()
-
-        if len(self._pending_entries):
-            # There are no more remaining entries, but only pending entries left. Each pending entry corresponds to
-            # a previous entry that does not return properly.
-            # Now it's a good time to analyze each function (that we have so far) and determine if it is a)
-            # returning, b) not returning, or c) unknown. For those functions that are definitely not returning,
-            # remove the corresponding pending exits from `pending_entries` array. Perform this procedure iteratively
-            # until no new not-returning functions appear. Then we pick a pending exit based on the following
-            # priorities:
-            # - Entry pended by a returning function
-            # - Entry pended by an unknown function
-
-            functions_do_not_return = set()
-
-            while True:
-                new_changes = self._analyze_function_features()
-                functions_do_not_return |= set(new_changes['functions_do_not_return'])
-                if not new_changes['functions_do_not_return']:
-                    break
-
-            self._update_function_callsites(functions_do_not_return)
-
-            self._clean_pending_exits()
+        self._iteratively_clean_pending_exits()
 
         while len(self._pending_entries) > 0:
             # We don't have any exits remaining. Let's pop out a pending exit
@@ -1052,14 +1027,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
 
         self._make_completed_functions()
-
-        functions_do_not_return = set()
-        while True:
-            new_changes = self._analyze_function_features()
-            functions_do_not_return |= set(new_changes['functions_do_not_return'])
-            if not new_changes['functions_do_not_return']:
-                break
-
+        new_changes = self._iteratively_analyze_function_features()
+        functions_do_not_return = new_changes['functions_do_not_return']
         self._update_function_callsites(functions_do_not_return)
 
         # Create all pending edges
@@ -1490,12 +1459,52 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         l.debug("%d exits remaining, %d exits pending.", len(self._entries), len(self._pending_entries))
         l.debug("%d unique basic blocks are analyzed so far.", len(self._analyzed_addrs))
 
+    def _iteratively_clean_pending_exits(self):
+        """
+        Iteratively update the completed functions set, analyze whether each function returns or not, and remove
+        pending exits if the callee function does not return. We do this iteratively so that we come to a fixed point
+        in the end. In most cases, the number of outer iteration equals to the maximum levels of wrapped functions
+        whose "returningness" is determined by the very last function it calls.
+
+        :return: None
+        """
+
+        while True:
+            # did we finish analyzing any function?
+            # fill in self._completed_functions
+            self._make_completed_functions()
+
+            if len(self._pending_entries):
+                # There are no more remaining entries, but only pending entries left. Each pending entry corresponds to
+                # a previous entry that does not return properly.
+                # Now it's a good time to analyze each function (that we have so far) and determine if it is a)
+                # returning, b) not returning, or c) unknown. For those functions that are definitely not returning,
+                # remove the corresponding pending exits from `pending_entries` array. Perform this procedure iteratively
+                # until no new not-returning functions appear. Then we pick a pending exit based on the following
+                # priorities:
+                # - Entry pended by a returning function
+                # - Entry pended by an unknown function
+
+                new_changes = self._iteratively_analyze_function_features()
+                functions_do_not_return = new_changes['functions_do_not_return']
+
+                self._update_function_callsites(functions_do_not_return)
+
+                if not self._clean_pending_exits():
+                    # no more pending exits are removed. we are good to go!
+                    break
+            else:
+                break
+
     def _clean_pending_exits(self):
         """
         Remove those pending exits if:
         a) they are the return exits of non-returning SimProcedures
         b) they are the return exits of non-returning syscalls
         c) they are the return exits of non-returning functions
+
+        :return: True if any pending exits are removed, False otherwise
+        :rtype: bool
         """
 
         pending_exits_to_remove = [ ]
@@ -1539,6 +1548,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self._deregister_analysis_job(to_remove.caller_func_addr, to_remove)
 
             del self._pending_entries[block_id]
+
+        if pending_exits_to_remove:
+            return True
+        return False
 
     # Entry successor handling
 

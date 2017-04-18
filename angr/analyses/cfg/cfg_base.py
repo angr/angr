@@ -863,6 +863,31 @@ class CFGBase(Analysis):
 
         return changes
 
+    def _iteratively_analyze_function_features(self):
+        """
+        Iteratively analyze function features until a fixed point is reached.
+
+        :return: the "changes" dict
+        :rtype:  dict
+        """
+
+        changes = {
+            'functions_do_not_return': set(),
+            'functions_return': set()
+        }
+
+        while True:
+            new_changes = self._analyze_function_features()
+
+            changes['functions_do_not_return'] |= set(new_changes['functions_do_not_return'])
+            changes['functions_return'] |= set(new_changes['functions_return'])
+
+            if not new_changes['functions_do_not_return'] and not new_changes['functions_return']:
+                # a fixed point is reached
+                break
+
+        return changes
+
     def normalize(self):
         """
         Normalize the CFG, making sure that there are no overlapping basic blocks.
