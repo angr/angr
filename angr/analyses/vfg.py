@@ -14,7 +14,7 @@ from ..entry_wrapper import BlockID, FunctionKey, EntryDesc
 from ..analysis import Analysis, register_analysis
 from ..errors import AngrVFGError, AngrError, AngrVFGRestartAnalysisNotice, AngrJobMergingFailureNotice
 from .forward_analysis import ForwardAnalysis, AngrSkipEntryNotice, AngrDelayEntryNotice
-from .cfg_utils import CFGUtils
+from .cfg.cfg_utils import CFGUtils
 
 l = logging.getLogger(name="angr.analyses.vfg")
 

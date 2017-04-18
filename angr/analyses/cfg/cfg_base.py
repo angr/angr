@@ -11,10 +11,10 @@ import pyvex
 import simuvex
 from claripy.utils.orderedset import OrderedSet
 
-from ..knowledge import HookNode, BlockNode, FunctionManager
-from ..analysis import Analysis
-from ..errors import AngrCFGError
-from ..extern_obj import AngrExternObject
+from ...knowledge import HookNode, BlockNode, FunctionManager
+from ...analysis import Analysis
+from ...errors import AngrCFGError
+from ...extern_obj import AngrExternObject
 
 from .cfg_node import CFGNode
 
@@ -863,6 +863,31 @@ class CFGBase(Analysis):
 
         return changes
 
+    def _iteratively_analyze_function_features(self):
+        """
+        Iteratively analyze function features until a fixed point is reached.
+
+        :return: the "changes" dict
+        :rtype:  dict
+        """
+
+        changes = {
+            'functions_do_not_return': set(),
+            'functions_return': set()
+        }
+
+        while True:
+            new_changes = self._analyze_function_features()
+
+            changes['functions_do_not_return'] |= set(new_changes['functions_do_not_return'])
+            changes['functions_return'] |= set(new_changes['functions_return'])
+
+            if not new_changes['functions_do_not_return'] and not new_changes['functions_return']:
+                # a fixed point is reached
+                break
+
+        return changes
+
     def normalize(self):
         """
         Normalize the CFG, making sure that there are no overlapping basic blocks.
@@ -1035,7 +1060,7 @@ class CFGBase(Analysis):
         """
         Register an analysis job of a function to job manager. This allows us to track whether we have finished
         analyzing/recovering a function or not.
-        
+
         :param int func_addr: Address of the function that this job belongs to.
         :param job:           The job to register. Note that it does not necessarily be the a CFGJob instance. There
                               can be PendingExit or PendingJob or other instances, too.

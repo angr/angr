@@ -10,13 +10,13 @@ import claripy
 from archinfo import ArchARM
 from simuvex import SimEngineProcedure
 
-from ..entry_wrapper import BlockID, EntryDesc
-from ..analysis import register_analysis
-from ..errors import AngrCFGError, AngrError, AngrSkipEntryNotice
-from ..path import Path
+from ...entry_wrapper import BlockID, EntryDesc
+from ...analysis import register_analysis
+from ...errors import AngrCFGError, AngrError, AngrSkipEntryNotice
+from ...path import Path
+from ..forward_analysis import ForwardAnalysis
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase
-from .forward_analysis import ForwardAnalysis
 from .cfg_utils import CFGUtils
 
 l = logging.getLogger(name="angr.analyses.cfg_accurate")
@@ -453,7 +453,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             end_nodes = [n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0]
             new_end_node = "end_node"
 
-            if len(end_nodes) == 0:
+            if not end_nodes:
                 # We gotta randomly break a loop
                 cycles = sorted(networkx.simple_cycles(graph_copy), key=len)
                 first_cycle = cycles[0]
@@ -563,7 +563,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: An integer representing its order, or None if the CFGNode does not exist in the graph.
         """
 
-        if len(self._quasi_topological_order) == 0:
+        if not self._quasi_topological_order:
             self._quasi_topological_sort()
 
         return self._quasi_topological_order.get(cfg_node, None)
@@ -893,34 +893,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return:
         """
 
-        # did we finish analyzing any function?
-        # fill in self._completed_functions
-        self._make_completed_functions()
+        self._iteratively_clean_pending_exits()
 
-        if len(self._pending_entries):
-            # There are no more remaining entries, but only pending entries left. Each pending entry corresponds to
-            # a previous entry that does not return properly.
-            # Now it's a good time to analyze each function (that we have so far) and determine if it is a)
-            # returning, b) not returning, or c) unknown. For those functions that are definitely not returning,
-            # remove the corresponding pending exits from `pending_entries` array. Perform this procedure iteratively
-            # until no new not-returning functions appear. Then we pick a pending exit based on the following
-            # priorities:
-            # - Entry pended by a returning function
-            # - Entry pended by an unknown function
-
-            functions_do_not_return = set()
-
-            while True:
-                new_changes = self._analyze_function_features()
-                functions_do_not_return |= set(new_changes['functions_do_not_return'])
-                if not new_changes['functions_do_not_return']:
-                    break
-
-            self._update_function_callsites(functions_do_not_return)
-
-            self._clean_pending_exits()
-
-        while len(self._pending_entries) > 0:
+        while self._pending_entries:
             # We don't have any exits remaining. Let's pop out a pending exit
             pending_job = self._get_one_pending_job()
             if pending_job is None:
@@ -1052,14 +1027,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
 
         self._make_completed_functions()
-
-        functions_do_not_return = set()
-        while True:
-            new_changes = self._analyze_function_features()
-            functions_do_not_return |= set(new_changes['functions_do_not_return'])
-            if not new_changes['functions_do_not_return']:
-                break
-
+        new_changes = self._iteratively_analyze_function_features()
+        functions_do_not_return = new_changes['functions_do_not_return']
         self._update_function_callsites(functions_do_not_return)
 
         # Create all pending edges
@@ -1081,7 +1050,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     # Entry handling
 
-    def _pre_entry_handling(self, job):
+    def _pre_entry_handling(self, job):  # pylint:disable=arguments-differ
         """
         Before processing an entry.
         Right now each block is traced at most once. If it is traced more than once, we will mark it as "should_skip"
@@ -1326,7 +1295,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 if extra_successor_addrs:
                     l.error('CFGAccurate terminates at %#x although base graph provided more exits.', addr)
 
-        if len(successors) == 0:
+        if not successors:
             # There is no way out :-(
             # Log it first
             self._push_unresolvable_run(addr)
@@ -1490,12 +1459,52 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         l.debug("%d exits remaining, %d exits pending.", len(self._entries), len(self._pending_entries))
         l.debug("%d unique basic blocks are analyzed so far.", len(self._analyzed_addrs))
 
+    def _iteratively_clean_pending_exits(self):
+        """
+        Iteratively update the completed functions set, analyze whether each function returns or not, and remove
+        pending exits if the callee function does not return. We do this iteratively so that we come to a fixed point
+        in the end. In most cases, the number of outer iteration equals to the maximum levels of wrapped functions
+        whose "returningness" is determined by the very last function it calls.
+
+        :return: None
+        """
+
+        while True:
+            # did we finish analyzing any function?
+            # fill in self._completed_functions
+            self._make_completed_functions()
+
+            if self._pending_entries:
+                # There are no more remaining entries, but only pending entries left. Each pending entry corresponds to
+                # a previous entry that does not return properly.
+                # Now it's a good time to analyze each function (that we have so far) and determine if it is a)
+                # returning, b) not returning, or c) unknown. For those functions that are definitely not returning,
+                # remove the corresponding pending exits from `pending_entries` array. Perform this procedure iteratively
+                # until no new not-returning functions appear. Then we pick a pending exit based on the following
+                # priorities:
+                # - Entry pended by a returning function
+                # - Entry pended by an unknown function
+
+                new_changes = self._iteratively_analyze_function_features()
+                functions_do_not_return = new_changes['functions_do_not_return']
+
+                self._update_function_callsites(functions_do_not_return)
+
+                if not self._clean_pending_exits():
+                    # no more pending exits are removed. we are good to go!
+                    break
+            else:
+                break
+
     def _clean_pending_exits(self):
         """
         Remove those pending exits if:
         a) they are the return exits of non-returning SimProcedures
         b) they are the return exits of non-returning syscalls
         c) they are the return exits of non-returning functions
+
+        :return: True if any pending exits are removed, False otherwise
+        :rtype: bool
         """
 
         pending_exits_to_remove = [ ]
@@ -1540,6 +1549,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             del self._pending_entries[block_id]
 
+        if pending_exits_to_remove:
+            return True
+        return False
+
     # Entry successor handling
 
     def _pre_handle_successor_state(self, extra_info, jumpkind, target_addr):
@@ -1563,7 +1576,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
         Returns a new CFGJob instance for further analysis, or None if there is no immediate state to perform the
         analysis on.
-        
+
         :param CFGJob entry: The current job.
         """
 
@@ -2122,7 +2135,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 else:
                     more_successors = self._resolve_indirect_jump(cfg_node, sim_successors, func_addr)
 
-                    if len(more_successors):
+                    if more_successors:
                         # Remove the symbolic successor
                         # TODO: Now we are removing all symbolic successors. Is it possible
                         # TODO: that there is more than one symbolic successor?
@@ -2160,8 +2173,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                        not suc_state.se.symbolic(suc_state.ip)]
             symbolic_successors = [suc_state for suc_state in successors if suc_state.se.symbolic(suc_state.ip)]
 
-            resolved = len(symbolic_successors) == 0
-            if len(symbolic_successors) > 0:
+            resolved = True if not symbolic_successors else False
+            if symbolic_successors:
                 for suc in symbolic_successors:
                     if simuvex.o.SYMBOLIC in suc.options:
                         targets = suc.se.any_n_int(suc.ip, 32)
@@ -2176,7 +2189,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                             break
 
             if not resolved and (
-                        (len(symbolic_successors) > 0 and len(concrete_successors) == 0) or
+                        (symbolic_successors and not concrete_successors) or
                         (not cfg_node.is_simprocedure and self._is_indirect_jump(cfg_node, sim_successors))
             ):
                 l.debug("%s has an indirect jump. See what we can do about it.", cfg_node)
@@ -2188,7 +2201,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     if self._enable_symbolic_back_traversal:
                         successors = self._symbolically_back_traverse(sim_successors, artifacts, cfg_node)
                         # mark jump as resolved if we got successors
-                        if len(successors):
+                        if successors:
                             self.kb._resolved_indirect_jumps.add(cfg_node.addr)
                         else:
                             self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
@@ -2210,7 +2223,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                           if self._is_address_executable(suc.se.exactly_int(suc.ip))]
 
                         # mark jump as resolved if we got successors
-                        if len(successors):
+                        if successors:
                             self.kb._resolved_indirect_jumps.add(cfg_node.addr)
                         else:
                             self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
@@ -2219,7 +2232,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
                         successors = []
 
-                elif len(successors) > 0 and all([ex.scratch.jumpkind == 'Ijk_Ret' for ex in successors]):
+                elif successors and all([ex.scratch.jumpkind == 'Ijk_Ret' for ex in successors]):
                     l.debug('All exits are returns (Ijk_Ret). It will be handled by pending exits.')
 
                 else:
@@ -2398,7 +2411,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             return concrete_exits
 
         keep_running = True
-        while len(concrete_exits) == 0 and path_length < 5 and keep_running:
+        while not concrete_exits and path_length < 5 and keep_running:
             path_length += 1
             queue = [cfg_node]
             avoid = set()
@@ -2451,7 +2464,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     max_depth=path_length
                 ).run()
                 if result.found:
-                    if not result.found[0].errored and len(result.found[0].step()) > 0:
+                    if not result.found[0].errored and result.found[0].step():
                         # Make sure we don't throw any exception here by checking the path.errored attribute first
                         keep_running = False
                         concrete_exits.extend([s for s in result.found[0].next_run.flat_successors])
@@ -3017,7 +3030,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     self.project.factory.blank_state(mode="fastpath", addr=blocks_ahead[0].addr))
                 path.step()
                 all_successors = path.next_run.successors + path.next_run.unsat_successors
-                if len(all_successors) == 0:
+                if not all_successors:
                     continue
 
                 suc = all_successors[0]
@@ -3042,12 +3055,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 pass
 
             try:
-                if len(blocks_after):
+                if blocks_after:
                     path = self.project.factory.path(
                         self.project.factory.blank_state(mode="fastpath", addr=blocks_after[0].addr))
                     path.step()
                     all_successors = path.next_run.successors + path.next_run.unsat_successors
-                    if len(all_successors) == 0:
+                    if not all_successors:
                         continue
 
                     suc = all_successors[0]
@@ -3153,8 +3166,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     def _generate_block_id(call_stack_suffix, block_addr, is_syscall, continue_at=None):
         if not is_syscall:
             return BlockID.new(block_addr, call_stack_suffix, 'normal', continue_at=continue_at)
-        else:
-            return BlockID.new(block_addr, call_stack_suffix, 'syscall', continue_at=continue_at)
+        return BlockID.new(block_addr, call_stack_suffix, 'syscall', continue_at=continue_at)
 
     @staticmethod
     def _block_id_repr(block_id):
@@ -3180,8 +3192,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         if block_id.callsite_tuples:
             return block_id.callsite_tuples[-1]
-        else:
-            return None
+        return None
 
     #
     # Other private utility methods

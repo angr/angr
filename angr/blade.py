@@ -324,4 +324,4 @@ class Blade(object):
                     self._backward_slice_recursive(level - 1, pred, regs, stack_offsets, prev, data.get('stmt_idx', None))
 
 from .errors import AngrBladeError, AngrBladeSimProcError
-from .analyses.cfg_node import CFGNode
+from .analyses.cfg.cfg_node import CFGNode

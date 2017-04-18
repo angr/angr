@@ -7,7 +7,7 @@ import simuvex
 
 from .pathprioritizer import PathPrioritizer
 from .errors import AngrAnnotatedCFGError, AngrExitError
-from .analyses.cfg_node import CFGNode
+from .analyses.cfg.cfg_node import CFGNode
 
 l = logging.getLogger("angr.annocfg")
 
