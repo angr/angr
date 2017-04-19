@@ -321,7 +321,7 @@ class SimOS(object):
         cc, syscall_addr, syscall_name, syscall_class = self.syscall_info(state)
 
         state.ip = syscall_addr
-        syscall = syscall_class(syscall_addr, state.arch, convention=cc, display_name=syscall_name)
+        syscall = syscall_class(syscall_addr, state.arch, cc=cc, display_name=syscall_name)
         return syscall
 
     def configure_project(self):
