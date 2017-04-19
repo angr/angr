@@ -21,7 +21,7 @@ class SimProcedure(object):
         symbolic_return=None,
         returns=None, is_syscall=None,
         num_args=None, display_name=None,
-        convention=None, sim_kwargs=None,
+        cc=None, sim_kwargs=None,
         is_function=None, is_continuation=False,
         continuation_addr=None
     ):
@@ -36,7 +36,7 @@ class SimProcedure(object):
         :param is_syscall:      Whether this procedure is a syscall
         :param num_args:        The number of arguments this procedure should extract
         :param display_name:    The name to use when displaying this procedure
-        :param convention:      The SimCC to use for this procedure
+        :param cc:              The SimCC to use for this procedure
         :param sim_kwargs:      Additional keyword arguments to be passed to run()
         :param is_function:     Whether this procedure emulates a function
         """
@@ -52,7 +52,7 @@ class SimProcedure(object):
         self.return_type = None
 
         # calling convention
-        if convention is None:
+        if cc is None:
             # default conventions
             if self.arch.name in DefaultCC:
                 self.cc = DefaultCC[self.arch.name](self.arch)
@@ -61,7 +61,7 @@ class SimProcedure(object):
                                         ' You must specify a calling convention.', arch.name)
 
         else:
-            self.cc = convention
+            self.cc = cc
 
         # set some properties about the type of procedure this is
         self.returns = returns if returns is not None else not self.NO_RET

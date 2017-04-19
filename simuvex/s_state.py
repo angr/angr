@@ -602,7 +602,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     # This handles the preparation of concrete function launches from abstract functions.
     @arch_overrideable
-    def prepare_callsite(self, retval, args, convention='wtf'):
+    def prepare_callsite(self, retval, args, cc='wtf'):
         #TODO
         pass
 
