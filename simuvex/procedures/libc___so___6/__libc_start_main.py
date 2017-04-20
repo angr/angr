@@ -131,6 +131,8 @@ class __libc_start_main(simuvex.SimProcedure):
     def static_exits(self, blocks):
         # Execute those blocks with a blank state, and then dump the arguments
         blank_state = simuvex.SimState(arch=self.arch, mode="fastpath")
+        # set up the stack pointer
+        blank_state.regs.sp = 0x7fffffff
 
         # Execute each block
         state = blank_state
