@@ -1462,6 +1462,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                 None
                                                 )
 
+        if not procedure.NO_RET:
+            # it returns
+            cfg_node.has_return = True
+            self._function_exits[current_function_addr].add(addr)
+            self._function_add_return_site(addr, current_function_addr)
+
         return entries
 
     def _scan_irsb(self, addr, current_function_addr, previous_jumpkind, previous_src_node, previous_src_ins_addr,
