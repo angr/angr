@@ -3187,14 +3187,59 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :param CFGNode cfg_node: node which is jumped to
         :param CFGNode src_node: node which is jumped from none if entry point
         :param str src_jumpkind: what type of jump the edge takes
-        :param int src_stmt_idx: source statements ID
+        :param int or str src_stmt_idx: source statements ID
         :return: None
         """
+
         if src_node is None:
             self.graph.add_node(cfg_node)
         else:
             self.graph.add_edge(src_node, cfg_node, jumpkind=src_jumpkind, ins_addr=src_ins_addr,
                                 stmt_idx=src_stmt_idx)
+
+    def _get_return_endpoints(self, func):
+        all_endpoints = func.endpoints_with_type
+        return all_endpoints.get('return', [ ])
+
+    def _get_jumpout_targets(self, func):
+        jumpout_targets = set()
+        callgraph_outedges = self.functions.callgraph.out_edges(func.addr, data=True)
+        # find the ones whose type is transition
+        for _, dst, data in callgraph_outedges:
+            if data.get('type', None) == 'transition':
+                jumpout_targets.add(dst)
+        return jumpout_targets
+
+    def _get_return_sources(self, func):
+
+        # We will create a return edge for each returning point of this function
+
+        # Get all endpoints
+        all_endpoints = func.endpoints_with_type
+        # However, we do not want to create return edge if the endpoint is not a returning endpoint.
+        # For example, a PLT stub on x86/x64 always jump to the real library function, so we should create a return
+        # edge from that library function to the call site, instead of creating a return edge from the PLT stub to
+        # the call site.
+        if all_endpoints['transition']:
+            # it has jump outs
+            # it is, for example, a PLT stub
+            # we take the endpoints of the function it calls. this is not always correct, but it can handle many
+            # cases.
+            jumpout_targets = self._get_jumpout_targets(func)
+            jumpout_target_endpoints = set()
+
+            for jumpout_func_addr in jumpout_targets:
+                if jumpout_func_addr in self.functions:
+                    jumpout_target_endpoints |= set(self._get_return_endpoints(self.functions[jumpout_func_addr]))
+
+            endpoints = jumpout_target_endpoints
+        else:
+            endpoints = set()
+
+        # then we take all return endpoints of the current function
+        endpoints |= all_endpoints.get('return', set())
+
+        return endpoints
 
     def _make_return_edges(self):
         """
@@ -3203,22 +3248,23 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return: None
         """
 
-        for func_addr, function in self.functions.iteritems():
-            if function.returning is False:
+        for func_addr, func in self.functions.iteritems():
+            if func.returning is False:
                 continue
 
             # get the node on CFG
-            if function.startpoint is None:
+            if func.startpoint is None:
                 l.warning('Function %#x does not have a startpoint (yet).', func_addr)
                 continue
 
-            startpoint = self.get_any_node(function.startpoint.addr)
+            startpoint = self.get_any_node(func.startpoint.addr)
             if startpoint is None:
                 # weird...
                 l.warning('No CFGNode is found for function %#x in _make_return_edges().', func_addr)
                 continue
-            # get all endpoints
-            endpoints = function.endpoints
+
+            endpoints = self._get_return_sources(func)
+
             # get all callers
             callers = self.get_predecessors(startpoint, jumpkind='Ijk_Call')
             # for each caller, since they all end with a call instruction, get the immediate successor

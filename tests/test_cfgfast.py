@@ -1,5 +1,6 @@
 import os
 import logging
+import sys
 
 import nose.tools
 
@@ -346,4 +347,7 @@ def main():
         args[0](*args[1:])
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1:
+        globals()['test_' + sys.argv[1]]()
+    else:
+        main()
