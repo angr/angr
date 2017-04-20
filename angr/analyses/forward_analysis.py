@@ -7,7 +7,7 @@ from ..errors import AngrForwardAnalysisError
 # notices
 from ..errors import AngrSkipEntryNotice, AngrDelayEntryNotice, AngrJobMergingFailureNotice, \
     AngrJobWideningFailureNotice
-from .cfg_utils import CFGUtils
+from .cfg.cfg_utils import CFGUtils
 
 
 #
