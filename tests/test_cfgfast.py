@@ -1,5 +1,6 @@
 import os
 import logging
+import sys
 
 import nose.tools
 
@@ -135,7 +136,35 @@ def test_fauxware():
             0x400870,
             0x400880,
             0x4008b8,
-        }
+        },
+        'mips': {
+            0x400534,  # _init
+            0x400574,
+            0x400598,
+            0x4005d0,  # _ftext
+            0x4005dc,
+            0x400630,  # __do_global_dtors_aux
+            0x4006d4,  # frame_dummy
+            0x400708,
+            0x400710,  # authenticate
+            0x400814,
+            0x400814,  # accepted
+            0x400868,  # rejected
+            0x4008c0,  # main
+            0x400a34,
+            0x400a48,  # __libc_csu_init
+            0x400af8,
+            0x400b00,  # __do_global_ctors_aux
+            0x400b58,
+            ### plt entries
+            0x400b60,  # strcmp
+            0x400b70,  # read
+            0x400b80,  # printf
+            0x400b90,  # puts
+            0x400ba0,  # exit
+            0x400bb0,  # open
+            0x400bc0,  # __libc_start_main
+        },
     }
 
     function_features = {
@@ -149,14 +178,25 @@ def test_fauxware():
                     {
                         "returning": False
                     }
-            }
+            },
+        'mips':
+            {
+                0x400868:  # rejected
+                    {
+                        "returning": False,
+                    }
+            },
     }
 
     return_edges = {
         'x86_64':
             [
                 (0x4006fb, 0x4007c7)  # return from accepted to main
-            ]
+            ],
+        'mips':
+            [
+                (0x40084c, 0x400a04)  # returning edge from accepted to main
+            ],
     }
 
     arches = functions.keys()
@@ -281,25 +321,60 @@ def test_segment_list_6():
     nose.tools.assert_equal(seg_list._list[1].end, 30)
     nose.tools.assert_equal(seg_list._list[1].sort, 'code')
 
+#
+# Indirect jump resolvers
+#
+
+def test_resolve_x86_elf_pic_plt():
+    path = os.path.join(test_location, 'i386', 'fauxware_pie')
+    proj = angr.Project(path, load_options={'auto_load_libs': False})
+
+    cfg = proj.analyses.CFGFast()
+
+    # puts
+    puts_node = cfg.get_any_node(0x4005b0)
+    nose.tools.assert_is_not_none(puts_node)
+
+    # there should be only one successor, which jumps to SimProcedure puts
+    nose.tools.assert_equal(len(puts_node.successors), 1)
+    puts_successor = puts_node.successors[0]
+    nose.tools.assert_equal(puts_successor.addr, proj.hooked_symbol_addr('puts'))
+
+    # the SimProcedure puts should have more than one successors, which are all return targets
+    nose.tools.assert_equal(len(puts_successor.successors), 3)
+    simputs_successor = puts_successor.successors
+    return_targets = set(a.addr for a in simputs_successor)
+    nose.tools.assert_equal(return_targets, { 0x400800, 0x40087e, 0x4008b6 })
+
 def main():
 
     g = globals()
     segmentlist_tests = [ v for k, v in g.iteritems() if k.startswith("test_segment_list_") and hasattr(v, "__call__")]
 
     for func in segmentlist_tests:
+        print func.__name__
         func()
 
     for args in test_cfg_0():
+        print args[0].__name__
         args[0](*args[1:])
 
     for args in test_cfg_0_pe():
+        print args[0].__name__
         args[0](*args[1:])
 
     for args in test_fauxware():
+        print args[0].__name__
         args[0](*args[1:])
 
     for args in test_cfg_loop_unrolling():
+        print args[0].__name__
         args[0](*args[1:])
 
+    test_resolve_x86_elf_pic_plt()
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1:
+        globals()['test_' + sys.argv[1]]()
+    else:
+        main()

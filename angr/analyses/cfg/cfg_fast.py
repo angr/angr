@@ -21,6 +21,7 @@ from ..forward_analysis import ForwardAnalysis
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase, IndirectJump
 from .cfg_arch_options import CFGArchOptions
+from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
 VEX_IRSB_MAX_SIZE = 400
 
@@ -562,6 +563,7 @@ class CFGJob(object):
                      self.src_stmt_idx, self.src_ins_addr, self.returning_source, self.syscall)
                     )
 
+
 class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     """
     We find functions inside the given binary, and build a control-flow graph in very fast manners: instead of
@@ -608,10 +610,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  collect_data_references=False,
                  extra_cross_references=False,
                  normalize=False,
+                 start_at_entry=True,
                  function_starts=None,
                  extra_memory_regions=None,
                  data_type_guessing_handlers=None,
                  arch_options=None,
+                 indirect_jump_resolvers=None,
                  start=None,  # deprecated
                  end=None,  # deprecated
                  **extra_arch_options
@@ -636,10 +640,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                              noticeably slower. Setting it to False means each memory data entry has at
                                              most one reference (which is the initial one).
         :param bool normalize:          Normalize the CFG as well as all function graphs after CFG recovery.
+        :param bool start_at_entry:     Begin CFG recovery at the entry point of this project. Setting it to False
+                                        prevents CFGFast from viewing the entry point as one of the starting points of
+                                        code scanning.
         :param list function_starts:    A list of extra function starting points. CFGFast will try to resume scanning
                                         from each address in the list.
         :param list extra_memory_regions: A list of 2-tuple (start-address, end-address) that shows extra memory
                                           regions. Integers falling inside will be considered as pointers.
+        :param list indirect_jump_resolvers: A custom list of indirect jump resolvers. If this list is None or empty,
+                                             default indirect jump resolvers specific to this architecture and binary
+                                             types will be loaded.
         :param int start:               (Deprecated) The beginning address of CFG recovery.
         :param int end:                 (Deprecated) The end address of CFG recovery.
         :param CFGArchOptions arch_options: Architecture-specific options.
@@ -685,6 +695,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._resolve_indirect_jumps = resolve_indirect_jumps
         self._force_complete_scan = force_complete_scan
 
+        self._start_at_entry = start_at_entry
         self._extra_function_starts = function_starts
 
         self._extra_memory_regions = extra_memory_regions
@@ -726,6 +737,24 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._function_prologue_addrs = None
         self._remaining_function_prologue_addrs = None
+
+        #
+        # Indirect jump resolvers
+        #
+        # TODO: make it compatible with CFGAccurate
+
+        self.timeless_indirect_jump_resolvers = [ ]
+        self.indirect_jump_resolvers = [ ]
+        if not indirect_jump_resolvers:
+            indirect_jump_resolvers = default_indirect_jump_resolvers(self.project.arch, self._binary, self.project)
+        if indirect_jump_resolvers:
+            # split them into different groups for the sake of speed
+            for ijr in indirect_jump_resolvers:
+                if ijr.timeless:
+                    self.timeless_indirect_jump_resolvers.append(ijr)
+                else:
+                    if self._resolve_indirect_jumps:
+                        self.indirect_jump_resolvers.append(ijr)
 
         #
         # Variables used during analysis
@@ -1018,9 +1047,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Sort it
         starting_points = sorted(list(starting_points), reverse=True)
 
-        if self.project.entry is not None and self._inside_regions(self.project.entry) and \
+        if self._start_at_entry and self.project.entry is not None and self._inside_regions(self.project.entry) and \
                 self.project.entry not in starting_points:
-            # make sure self.project.entry is the first entry
+            # make sure self.project.entry is inserted
             starting_points += [ self.project.entry ]
 
         # Create jobs for all starting points
@@ -1440,6 +1469,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 entries += self._create_entries(addr_, jumpkind, current_function_addr, None, addr_, cfg_node, None,
                                                 None
                                                 )
+
+        if not procedure.NO_RET:
+            # it returns
+            cfg_node.has_return = True
+            self._function_exits[current_function_addr].add(addr)
+            self._function_add_return_site(addr, current_function_addr)
 
         return entries
 
@@ -2247,87 +2282,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         :param int addr: irsb address
         :param pyvex.IRSB block: irsb
-        :param int func_addr: instruction address
+        :param int func_addr: Function address
         :return: If it was resolved and targets alongside it
         :rtype: tuple
         """
-        if self.project.arch.name == "MIPS32":
-            # Prudently search for indirect jump target
-            return self._resolve_indirect_jump_timelessly_mips32(addr, block, func_addr)
 
-        return False, [ ]
-
-    def _resolve_indirect_jump_timelessly_mips32(self, addr, block, func_addr):  # pylint: disable=unused-argument
-        """
-        Attempts to execute any potential paths forward through jump returning
-        a sucess boolean and list of sucessors
-
-        :param int addr: irsb address
-        :param pyvex.IRSB block: irsb
-        :param int func_addr: instruction address
-        :return: If it was resolved and targets alongside it
-        :rtype: tuple
-        """
-        b = Blade(self._graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True,
-                  ignored_regs=('gp',))
-
-        sources = [ n for n in b.slice.nodes() if b.slice.in_degree(n) == 0 ]
-        if not sources:
-            return False, [ ]
-
-        source = sources[0]
-        source_addr = source[0]
-        annotated_cfg = AnnotatedCFG(self.project, None, detect_loops=False)
-        annotated_cfg.from_digraph(b.slice)
-
-        state = self.project.factory.blank_state(addr=source_addr, mode="fastpath",
-                                                 remove_options=simuvex.options.refs
-                                                 )
-        func = self.kb.functions.function(addr=func_addr)
-
-        gp_offset = self.project.arch.registers['gp'][0]
-        if 'gp' not in func.info:
-            sec = self._addr_belongs_to_section(func.addr)
-            if sec is None or sec.name != '.plt':
-                # this might a special case: gp is only used once in this function, and it can be initialized right before
-                # its use site.
-                # TODO: handle this case
-                l.debug('Failed to determine value of register gp for function %#x.', func.addr)
-                return False, [ ]
-        else:
-            state.regs.gp = func.info['gp']
-
-        def overwrite_tmp_value(state):
-            state.inspect.tmp_write_expr = state.se.BVV(func.info['gp'], state.arch.bits)
-
-        # Special handling for cases where `gp` is stored on the stack
-        got_gp_stack_store = False
-        for block_addr_in_slice in set(slice_node[0] for slice_node in b.slice.nodes()):
-            for stmt in self.project.factory.block(block_addr_in_slice).vex.statements:
-                if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == gp_offset and \
-                        isinstance(stmt.data, pyvex.IRExpr.RdTmp):
-                    tmp_offset = stmt.data.tmp  # pylint:disable=cell-var-from-loop
-                    # we must make sure value of that temporary variable equals to the correct gp value
-                    state.inspect.make_breakpoint('tmp_write', when=simuvex.BP_BEFORE,
-                        condition=lambda s, bbl_addr_=block_addr_in_slice, tmp_offset_=tmp_offset:
-                                    s.scratch.bbl_addr == bbl_addr_ and s.inspect.tmp_write_num == tmp_offset_,
-                        action=overwrite_tmp_value
-                                                  )
-                    got_gp_stack_store = True
-                    break
-            if got_gp_stack_store:
-                break
-
-        path = self.project.factory.path(state)
-        slicecutor = Slicecutor(self.project, annotated_cfg=annotated_cfg, start=path)
-
-        slicecutor.run()
-
-        if slicecutor.cut:
-            suc = slicecutor.cut[0].successors[0].addr
-
-            return True, [ suc ]
-
+        for res in self.timeless_indirect_jump_resolvers:
+            if res.filter(self, addr, func_addr, block):
+                r, resolved_targets = res.resolve(self, addr, func_addr, block)
+                if r:
+                    return True, resolved_targets
         return False, [ ]
 
     def _resolve_plt(self, addr, irsb, indir_jump):
@@ -3231,14 +3195,60 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :param CFGNode cfg_node: node which is jumped to
         :param CFGNode src_node: node which is jumped from none if entry point
         :param str src_jumpkind: what type of jump the edge takes
-        :param int src_stmt_idx: source statements ID
+        :param int or str src_stmt_idx: source statements ID
         :return: None
         """
+
         if src_node is None:
             self.graph.add_node(cfg_node)
         else:
             self.graph.add_edge(src_node, cfg_node, jumpkind=src_jumpkind, ins_addr=src_ins_addr,
                                 stmt_idx=src_stmt_idx)
+
+    @staticmethod
+    def _get_return_endpoints(func):
+        all_endpoints = func.endpoints_with_type
+        return all_endpoints.get('return', [ ])
+
+    def _get_jumpout_targets(self, func):
+        jumpout_targets = set()
+        callgraph_outedges = self.functions.callgraph.out_edges(func.addr, data=True)
+        # find the ones whose type is transition
+        for _, dst, data in callgraph_outedges:
+            if data.get('type', None) == 'transition':
+                jumpout_targets.add(dst)
+        return jumpout_targets
+
+    def _get_return_sources(self, func):
+
+        # We will create a return edge for each returning point of this function
+
+        # Get all endpoints
+        all_endpoints = func.endpoints_with_type
+        # However, we do not want to create return edge if the endpoint is not a returning endpoint.
+        # For example, a PLT stub on x86/x64 always jump to the real library function, so we should create a return
+        # edge from that library function to the call site, instead of creating a return edge from the PLT stub to
+        # the call site.
+        if all_endpoints['transition']:
+            # it has jump outs
+            # it is, for example, a PLT stub
+            # we take the endpoints of the function it calls. this is not always correct, but it can handle many
+            # cases.
+            jumpout_targets = self._get_jumpout_targets(func)
+            jumpout_target_endpoints = set()
+
+            for jumpout_func_addr in jumpout_targets:
+                if jumpout_func_addr in self.functions:
+                    jumpout_target_endpoints |= set(self._get_return_endpoints(self.functions[jumpout_func_addr]))
+
+            endpoints = jumpout_target_endpoints
+        else:
+            endpoints = set()
+
+        # then we take all return endpoints of the current function
+        endpoints |= all_endpoints.get('return', set())
+
+        return endpoints
 
     def _make_return_edges(self):
         """
@@ -3247,22 +3257,23 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return: None
         """
 
-        for func_addr, function in self.functions.iteritems():
-            if function.returning is False:
+        for func_addr, func in self.functions.iteritems():
+            if func.returning is False:
                 continue
 
             # get the node on CFG
-            if function.startpoint is None:
+            if func.startpoint is None:
                 l.warning('Function %#x does not have a startpoint (yet).', func_addr)
                 continue
 
-            startpoint = self.get_any_node(function.startpoint.addr)
+            startpoint = self.get_any_node(func.startpoint.addr)
             if startpoint is None:
                 # weird...
                 l.warning('No CFGNode is found for function %#x in _make_return_edges().', func_addr)
                 continue
-            # get all endpoints
-            endpoints = function.endpoints
+
+            endpoints = self._get_return_sources(func)
+
             # get all callers
             callers = self.get_predecessors(startpoint, jumpkind='Ijk_Call')
             # for each caller, since they all end with a call instruction, get the immediate successor
