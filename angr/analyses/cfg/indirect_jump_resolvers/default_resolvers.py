@@ -2,9 +2,13 @@
 import cle
 
 from . import MipsElfFastResolver
+from . import X86ElfPicPltResolver
 
 
 DEFAULT_RESOLVERS = {
+    'X86': {
+        cle.MetaELF: [ X86ElfPicPltResolver, ],
+    },
     'MIPS32': {
         cle.MetaELF: [ MipsElfFastResolver, ],
     }
