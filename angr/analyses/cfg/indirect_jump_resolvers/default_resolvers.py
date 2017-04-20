@@ -1,15 +1,22 @@
 
+import cle
+
 from . import MipsElfFastResolver
 
 
 DEFAULT_RESOLVERS = {
-    'MIPS32': [ MipsElfFastResolver, ]
+    'MIPS32': {
+        cle.MetaELF: [ MipsElfFastResolver, ],
+    }
 }
 
 
-def default_indirect_jump_resolvers(arch_name):
-    arch_specific = DEFAULT_RESOLVERS.get(arch_name, [ ])
+def default_indirect_jump_resolvers(arch, obj, project=None):
+    arch_specific = DEFAULT_RESOLVERS.get(arch.name, { })
+    resolvers = [ ]
+    for k, lst in arch_specific.iteritems():
+        if isinstance(obj, k):
+            resolvers = lst
+            break
 
-    resolvers = arch_specific
-
-    return [ r() for r in resolvers ]
+    return [ r(project) for r in resolvers ]

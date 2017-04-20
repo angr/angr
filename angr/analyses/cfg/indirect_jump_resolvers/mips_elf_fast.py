@@ -17,7 +17,7 @@ l = logging.getLogger('resolvers.mips_elf_fast')
 
 
 class MipsElfFastResolver(IndirectJumpResolver):
-    def __init__(self, arch=archinfo.ArchMIPS32()):
+    def __init__(self, arch=archinfo.ArchMIPS32(), project=None):  # pylint:disable=unused-argument
         super(MipsElfFastResolver, self).__init__(arch=arch, timeless=True)
 
     def filter(self, cfg, addr, func_addr, block):
