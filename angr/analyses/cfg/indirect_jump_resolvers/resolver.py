@@ -13,7 +13,7 @@ class IndirectJumpResolver(object):
         :param int func_addr:   Address of the function that this indirect jump belongs to.
         :param block:           The basic block. The type is determined by the backend being used. It's pyvex.IRSB if
                                 pyvex is used as the backend.
-        :return: True if it is possible for this resolution method to resolve the specific indirect jump, False 
+        :return: True if it is possible for this resolution method to resolve the specific indirect jump, False
                  otherwise.
         :rtype:  bool
         """
@@ -36,7 +36,7 @@ class IndirectJumpResolver(object):
 
         raise NotImplementedError()
 
-    def _is_target_valid(self, cfg, target):
+    def _is_target_valid(self, cfg, target):  # pylint:disable=no-self-use
         """
         Check if the resolved target is valid.
 

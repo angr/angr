@@ -3205,7 +3205,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self.graph.add_edge(src_node, cfg_node, jumpkind=src_jumpkind, ins_addr=src_ins_addr,
                                 stmt_idx=src_stmt_idx)
 
-    def _get_return_endpoints(self, func):
+    @staticmethod
+    def _get_return_endpoints(func):
         all_endpoints = func.endpoints_with_type
         return all_endpoints.get('return', [ ])
 

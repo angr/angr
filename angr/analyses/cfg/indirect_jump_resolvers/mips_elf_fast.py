@@ -25,7 +25,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
 
     def resolve(self, cfg, addr, func_addr, block):
         """
-        Resolves the indirect jump in MIPS ELF binaries where all external function calls are indexed using gp. 
+        Resolves the indirect jump in MIPS ELF binaries where all external function calls are indexed using gp.
 
         :param int addr: irsb address
         :param pyvex.IRSB block: irsb
