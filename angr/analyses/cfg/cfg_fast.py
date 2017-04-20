@@ -610,6 +610,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  collect_data_references=False,
                  extra_cross_references=False,
                  normalize=False,
+                 start_at_entry=True,
                  function_starts=None,
                  extra_memory_regions=None,
                  data_type_guessing_handlers=None,
@@ -639,10 +640,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                              noticeably slower. Setting it to False means each memory data entry has at
                                              most one reference (which is the initial one).
         :param bool normalize:          Normalize the CFG as well as all function graphs after CFG recovery.
+        :param bool start_at_entry:     Begin CFG recovery at the entry point of this project. Setting it to False
+                                        prevents CFGFast from viewing the entry point as one of the starting points of
+                                        code scanning.
         :param list function_starts:    A list of extra function starting points. CFGFast will try to resume scanning
                                         from each address in the list.
         :param list extra_memory_regions: A list of 2-tuple (start-address, end-address) that shows extra memory
                                           regions. Integers falling inside will be considered as pointers.
+        :param list indirect_jump_resolvers: A custom list of indirect jump resolvers. If this list is None or empty,
+                                             default indirect jump resolvers specific to this architecture and binary
+                                             types will be loaded.
         :param int start:               (Deprecated) The beginning address of CFG recovery.
         :param int end:                 (Deprecated) The end address of CFG recovery.
         :param CFGArchOptions arch_options: Architecture-specific options.
@@ -688,6 +695,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._resolve_indirect_jumps = resolve_indirect_jumps
         self._force_complete_scan = force_complete_scan
 
+        self._start_at_entry = start_at_entry
         self._extra_function_starts = function_starts
 
         self._extra_memory_regions = extra_memory_regions
@@ -1039,9 +1047,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Sort it
         starting_points = sorted(list(starting_points), reverse=True)
 
-        if self.project.entry is not None and self._inside_regions(self.project.entry) and \
+        if self._start_at_entry and self.project.entry is not None and self._inside_regions(self.project.entry) and \
                 self.project.entry not in starting_points:
-            # make sure self.project.entry is the first entry
+            # make sure self.project.entry is inserted
             starting_points += [ self.project.entry ]
 
         # Create jobs for all starting points
