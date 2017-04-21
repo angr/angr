@@ -321,33 +321,22 @@ class MemoryOperand(Operand):
         # [ 'dword', 'ptr', '[', Register, Value, ']' ]
         # or
         # [ '[', Register, ']' ]
+        # or
+        # [ Value, '(', Regsiter, ')' ]
 
         # it will be converted into more meaningful and Pythonic properties
 
+        self.segment_selector = None
+        self.prefix = [ ]
+        self.values = [ ]
+
         try:
-            if self.children[0] != '[':
-                try: square_bracket_pos = self.children.index('[')
-                except ValueError: raise
-
-                self.prefix = self.children[ : square_bracket_pos]
-
-                # take out segment selector
-                if len(self.prefix) == 3:
-                    self.segment_selector = self.prefix[-1]
-                    self.prefix = self.prefix[ : -1]
-                else:
-                    self.segment_selector = None
-
+            if '[' in self.children:
+                self._parse_memop_squarebracket()
+            elif '(' in self.children:
+                self._parse_memop_paren()
             else:
-                # empty
-                square_bracket_pos = 0
-                self.prefix = [ ]
-                self.segment_selector = None
-
-            if self.children[-1] != ']':
                 raise ValueError()
-
-            self.values = self.children[ square_bracket_pos + 1 : len(self.children) - 1 ]
 
         except ValueError:
             l.error("Failed to parse operand children %s. Please report to Fish.", self.children)
@@ -355,6 +344,49 @@ class MemoryOperand(Operand):
             # setup all dummy properties
             self.prefix = None
             self.values = None
+
+    def _parse_memop_squarebracket(self):
+        if self.children[0] != '[':
+            try:
+                square_bracket_pos = self.children.index('[')
+            except ValueError:
+                raise
+
+            self.prefix = self.children[ : square_bracket_pos]
+
+            # take out segment selector
+            if len(self.prefix) == 3:
+                self.segment_selector = self.prefix[-1]
+                self.prefix = self.prefix[ : -1]
+            else:
+                self.segment_selector = None
+
+        else:
+            # empty
+            square_bracket_pos = 0
+            self.prefix = [ ]
+            self.segment_selector = None
+
+        if self.children[-1] != ']':
+            raise ValueError()
+
+        self.values = self.children[square_bracket_pos + 1: len(self.children) - 1]
+
+    def _parse_memop_paren(self):
+        if self.children[0] != '(':
+            try:
+                paren_pos = self.children.index('(')
+            except ValueError:
+                raise
+
+            self.prefix = self.children[ : paren_pos]
+
+        else:
+            paren_pos = 0
+            self.prefix = [ ]
+            self.segment_selector = None
+
+        self.values = self.children[paren_pos + 1 : len(self.children) - 1]
 
     def _render(self, formatting):
         if self.prefix is None:
