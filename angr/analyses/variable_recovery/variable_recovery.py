@@ -5,6 +5,7 @@ from itertools import count
 
 from simuvex import BP, BP_BEFORE, BP_AFTER
 from simuvex.s_variable import SimRegisterVariable, SimStackVariable
+from claripy.utils.orderedset import OrderedSet
 
 from ...analysis import Analysis, register_analysis
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
@@ -21,26 +22,26 @@ class VariableRecoveryState(object):
     The abstract state of variable recovery analysis.
     """
 
-    def __init__(self, variable_manager, arch, concrete_states, stack_variables=None, register_variables=None):
+    def __init__(self, variable_manager, arch, concrete_states, stack_region=None, register_region=None):
         self.variable_manager = variable_manager
         self.arch = arch
         self._concrete_states = concrete_states
 
         self._state_per_instruction = { }
-        if stack_variables is not None:
-            self._stack_variables = stack_variables
+        if stack_region is not None:
+            self._stack_region = stack_region
         else:
-            self._stack_variables = KeyedRegion()
-        if register_variables is not None:
-            self._register_variables = register_variables
+            self._stack_region = KeyedRegion()
+        if register_region is not None:
+            self._register_region = register_region
         else:
-            self._register_variables = KeyedRegion()
+            self._register_region = KeyedRegion()
 
         # register callbacks
         self.register_callbacks(self.concrete_states)
 
     def __repr__(self):
-        return "<VRAbstractState: %d register variables, %d stack variables>" % (len(self._register_variables), len(self._stack_variables))
+        return "<VRAbstractState: %d register variables, %d stack variables>" % (len(self._register_region), len(self._stack_region))
 
     @property
     def concrete_states(self):
@@ -68,8 +69,8 @@ class VariableRecoveryState(object):
         state = VariableRecoveryState(self.variable_manager,
                                       self.arch,
                                       self._concrete_states,
-                                      stack_variables=self._stack_variables.copy(),
-                                      register_variables=self._register_variables.copy(),
+                                      stack_region=self._stack_region.copy(),
+                                      register_region=self._register_region.copy(),
                                       )
 
         if copy_substates:
@@ -109,15 +110,15 @@ class VariableRecoveryState(object):
 
         merged_concrete_states =  [ self._concrete_states[0] ] # self._merge_concrete_states(other)
 
-        new_stack_variables = self._stack_variables.copy()
-        new_stack_variables.merge(other._stack_variables)
+        new_stack_region = self._stack_region.copy()
+        new_stack_region.merge(other._stack_region)
 
-        new_register_variables = self._register_variables.copy()
-        new_register_variables.merge(other._register_variables)
+        new_register_region = self._register_region.copy()
+        new_register_region.merge(other._register_region)
 
         return VariableRecoveryState(self.variable_manager, self.arch, merged_concrete_states,
-                                     stack_variables=new_stack_variables,
-                                     register_variables=new_register_variables
+                                     stack_region=new_stack_region,
+                                     register_region=new_register_region
                                      )
 
     def _merge_concrete_states(self, other):
@@ -166,15 +167,15 @@ class VariableRecoveryState(object):
         #    # TODO:
 
         var_offset = self._normalize_register_offset(reg_read_offset)
-        if var_offset not in self._register_variables:
+        if var_offset not in self._register_region:
             # the variable being read doesn't exist before
             variable = SimRegisterVariable(reg_read_offset, reg_read_length,
                                            ident=self.variable_manager.next_variable_ident('register')
                                            )
-            self._register_variables.add_variable(var_offset, variable)
+            self._register_region.add_variable(var_offset, variable)
 
             # record this variable in variable manager
-            self.variable_manager._register_variables.add_variable(var_offset, variable)
+            self.variable_manager.add_variable('reg', var_offset, variable)
 
     def _hook_register_write(self, state):
 
@@ -197,9 +198,9 @@ class VariableRecoveryState(object):
                                        ident=self.variable_manager.next_variable_ident('register')
                                        )
         var_offset = self._normalize_register_offset(reg_write_offset)
-        self._register_variables.set_variable(var_offset, variable)
+        self._register_region.set_variable(var_offset, variable)
         # record this variable in variable manager
-        self.variable_manager._register_variables.add_variable(var_offset, variable)
+        self.variable_manager.add_variable('reg', var_offset, variable)
 
         # is it writing a pointer to a stack variable into the register?
         # e.g. lea eax, [ebp-0x40]
@@ -208,18 +209,18 @@ class VariableRecoveryState(object):
             # it is!
             # unfortunately we don't know the size. We use size None for now.
 
-            if stack_offset not in self._stack_variables:
+            if stack_offset not in self._stack_region:
                 variable = SimStackVariable(stack_offset, None, base='bp',
                                             ident=self.variable_manager.next_variable_ident('stack')
                                             )
-                self._stack_variables.add_variable(stack_offset, variable)
+                self._stack_region.add_variable(stack_offset, variable)
 
                 # record this variable in variable manager
-                self.variable_manager._stack_variables.add_variable(stack_offset, variable)
+                self.variable_manager.add_variable('stack', stack_offset, variable)
 
-            base_offset = self._stack_variables.get_base_offset(stack_offset)
+            base_offset = self._stack_region.get_base_addr(stack_offset)
             assert base_offset is not None
-            for variable in self._stack_variables.get_variables_by_offset(stack_offset):
+            for variable in self._stack_region.get_variables_by_offset(stack_offset):
                 self.variable_manager.reference_at(variable, stack_offset - base_offset, self._codeloc_from_state(state))
 
     def _hook_memory_read(self, state):
@@ -235,31 +236,32 @@ class VariableRecoveryState(object):
             pass
 
         else:
-            if stack_offset not in self._stack_variables:
+            if stack_offset not in self._stack_region:
+                # this stack offset is not covered by any existing stack variable
                 ident_sort = 'argument' if stack_offset > 0 else 'stack'
                 variable = SimStackVariable(stack_offset, mem_read_length, base='bp',
                                             ident=self.variable_manager.next_variable_ident(ident_sort)
                                             )
-                self._stack_variables.add_variable(stack_offset, variable)
+                self._stack_region.add_variable(stack_offset, variable)
 
                 # record this variable in variable manager
-                self.variable_manager._stack_variables.add_variable(stack_offset, variable)
+                self.variable_manager.add_variable('stack', stack_offset, variable)
 
-            base_offset = self._stack_variables.get_base_offset(stack_offset)
+            base_offset = self._stack_region.get_base_addr(stack_offset)
             assert base_offset is not None
 
-            if len(self._stack_variables.get_variables_by_offset(stack_offset)) > 1:
+            if len(self._stack_region.get_variables_by_offset(stack_offset)) > 1:
                 # create a phi node for all other variables
                 ident_sort = 'argument' if stack_offset > 0 else 'stack'
                 variable = SimStackVariable(stack_offset, mem_read_length, base='bp',
                                             ident=self.variable_manager.next_variable_ident(ident_sort),
                                             phi=True
                                             )
-                self._stack_variables.set_variable(stack_offset, variable)
+                self._stack_region.set_variable(stack_offset, variable)
 
-                self.variable_manager._stack_variables.add_variable(stack_offset, variable)
+                self.variable_manager.add_variable('stack', stack_offset, variable)
 
-            for variable in self._stack_variables.get_variables_by_offset(stack_offset):
+            for variable in self._stack_region.get_variables_by_offset(stack_offset):
                 self.variable_manager.read_from(variable, stack_offset - base_offset, self._codeloc_from_state(state))
 
     def _hook_memory_write(self, state):
@@ -280,14 +282,14 @@ class VariableRecoveryState(object):
             variable = SimStackVariable(stack_offset, mem_write_length, base='bp',
                                         ident=self.variable_manager.next_variable_ident('stack')
                                         )
-            self._stack_variables.set_variable(stack_offset, variable)
+            self._stack_region.set_variable(stack_offset, variable)
 
             # record this variable in variable manager
-            self.variable_manager._stack_variables.add_variable(stack_offset, variable)
+            self.variable_manager.add_variable('stack', stack_offset, variable)
 
-            base_offset = self._stack_variables.get_base_offset(stack_offset)
+            base_offset = self._stack_region.get_base_addr(stack_offset)
             assert base_offset is not None
-            for variable in self._stack_variables.get_variables_by_offset(stack_offset):
+            for variable in self._stack_region.get_variables_by_offset(stack_offset):
                 self.variable_manager.write_to(variable, stack_offset - base_offset, self._codeloc_from_state(state))
 
     #
@@ -382,15 +384,22 @@ class VariableRecovery(ForwardAnalysis, Analysis):
     the original source code. In short, there is no guarantee that the variables we identified/recognized in a binary
     are the same variables in its source code.
 
-    This analysis uses heuristics to identify and recover the following types of variables:
+    This analysis uses heuristics to identify and recovers the following types of variables:
     - Register variables.
     - Stack variables.
     - Heap variables.
+    - Global variables.
 
     This analysis takes a function as input, and performs a data-flow analysis on nodes. It runs concrete execution on
     every statement and hooks all register/memory accesses to discover all places that are accessing variables. It is
     slow, but has a more accurate analysis result. For a fast but inaccurate variable recovery, you may consider using
     VariableRecoveryFast.
+
+    This analysis follows SSA, which means every write creates a new variable in registers or memory (statck, heap,
+    etc.). Things may get tricky when overlapping variable (in memory, as you cannot really have overlapping accesses
+    to registers) accesses exist, and in such cases, a new variable will be created, and this new variable will overlap
+    with one or more existing varaibles. A decision procedure (which is pretty much TODO) is required at the end of this
+    analysis to resolve the conflicts between overlapping variables.
     """
 
     def __init__(self, func):
@@ -407,8 +416,9 @@ class VariableRecovery(ForwardAnalysis, Analysis):
         self.function = func
         self._node_to_state = { }
 
-        self._stack_variables = KeyedRegion()
-        self._register_variables = KeyedRegion()
+        self._variables = OrderedSet()  # all variables that are added to any region
+        self._stack_region = KeyedRegion()
+        self._register_region = KeyedRegion()
 
         self._variable_accesses = defaultdict(list)
         self._insn_to_variable = defaultdict(list)
@@ -439,15 +449,26 @@ class VariableRecovery(ForwardAnalysis, Analysis):
 
         return "i%s_%d" % (prefix, self._variable_counters[sort].next())
 
+    def add_variable(self, sort, start, variable):
+        if sort == 'stack':
+            self._stack_region.add_variable(start, variable)
+        elif sort == 'reg':
+            self._register_region.add_variable(start, variable)
+        else:
+            raise ValueError('Unsupported sort %s in add_variable().' % sort)
+
     def write_to(self, variable, offset, location):
+        self._variables.add(variable)
         self._variable_accesses[variable].append(VariableAccess(variable, 'write', location))
         self._insn_to_variable[location.ins_addr].append((variable, offset))
 
     def read_from(self, variable, offset, location):
+        self._variables.add(variable)
         self._variable_accesses[variable].append(VariableAccess(variable, 'read', location))
         self._insn_to_variable[location.ins_addr].append((variable, offset))
 
     def reference_at(self, variable, offset, location):
+        self._variables.add(variable)
         self._variable_accesses[variable].append(VariableAccess(variable, 'reference', location))
         self._insn_to_variable[location.ins_addr].append((variable, offset))
 
@@ -488,14 +509,15 @@ class VariableRecovery(ForwardAnalysis, Analysis):
         :return: None
         """
 
-        for var in self._stack_variables:
-            if var.name is not None:
-                continue
-            if var.ident.startswith('iarg'):
-                var.name = 'arg_%x' % var.offset
-            else:
-                var.name = 'var_%x' % (-var.offset)
-                #var.name = var.ident
+        for var in self._variables:
+            if isinstance(var, SimStackVariable):
+                if var.name is not None:
+                    continue
+                if var.ident.startswith('iarg'):
+                    var.name = 'arg_%x' % var.offset
+                else:
+                    var.name = 'var_%x' % (-var.offset)
+                    #var.name = var.ident
 
     #
     # Main analysis routines
