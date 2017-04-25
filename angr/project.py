@@ -539,7 +539,7 @@ class Project(object):
         PathGroup.
         """
 
-        if len(args):
+        if args:
             state = args[0]
         else:
             state = self.factory.full_init_state(**kwargs)
