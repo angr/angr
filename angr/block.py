@@ -136,7 +136,8 @@ class Block(object):
                     thumb=self.thumb,
                     size=self.size,
                     num_inst=self.instructions,
-                    opt_level=self._opt_level
+                    opt_level=self._opt_level,
+                    arch=self.arch,
             )
             self._parse_vex_info()
 
