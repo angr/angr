@@ -397,6 +397,7 @@ class SimStateSystem(SimStatePlugin):
         :rtype:     str
         """
         return self.state.se.any_str(self.get_file(fd).all_bytes(), **kwargs)
+    dump_fd = dumps
 
     def dump(self, fd, filename):
         """
