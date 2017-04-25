@@ -24,6 +24,24 @@ The most common angr operation is loading a binary: `p = angr.Project('/bin/bash
 
 The short version of "how to install angr" is `mkvirtualenv angr && pip install angr`.
 
+# Example
+
+angr does a lot of binary analysis stuff.
+To get you started, here's a simple example of using symbolic execution to get a flag in a CTF challenge.
+
+```python
+import angr
+
+project = angr.Project("angr-doc/examples/defcamp_r100/r100", auto_load_libs=False)
+
+@project.hook(0x400844)
+def print_flag(state):
+    print "FLAG SHOULD BE:", state.posix.dump_fd(0)
+    project.terminate_execution()
+
+project.execute()
+```
+
 # Quick Start
 
 - [Install Instructions](http://docs.angr.io/INSTALL.html)
