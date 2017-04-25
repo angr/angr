@@ -228,6 +228,9 @@ class Project(object):
         self._use_sim_procedures()
         self._simos.configure_project()
 
+        # this is a flag for exec() and terminate_execution() below
+        self._executing = False
+
     def _use_sim_procedures(self):
         """
         This is all the automatic simprocedure related initialization work
@@ -511,6 +514,45 @@ class Project(object):
             provisions[name] = (pseudo_vaddr, 0, None)
 
         self.loader.provide_symbol_batch(self._extern_obj, provisions)
+
+    #
+    # A convenience API (in the style of triton and manticore) for symbolic execution.
+    #
+
+    def execute(self, *args, **kwargs):
+        """
+        This function is a symbolic execution helper in the simple style
+        supported by triton and manticore. It designed to be run after
+        setting up hooks (see Project.hook), in which the symbolic state
+        can be checked.
+
+        This function can be run in three different ways:
+
+        - When run with no parameters, this function begins symbolic execution
+        from the entrypoint.
+        - It can also be run with a "state" parameter specifying a SimState to
+          begin symbolic execution from.
+        - Finally, it can accept any arbitrary keyword arguments, which are all
+          passed to project.factory.full_init_state.
+
+        If symbolic execution finishes, this function returns the resulting
+        PathGroup.
+        """
+
+        if len(args):
+            state = args[0]
+        else:
+            state = self.factory.full_init_state(**kwargs)
+
+        pg = self.factory.path_group(state)
+        self._executing = True
+        return pg.step(until=lambda lpg: not self._executing)
+
+    def terminate_execution(self):
+        """
+        Terminates a symbolic execution that was started with Project.execute().
+        """
+        self._executing = False
 
     #
     # Private methods related to hooking
