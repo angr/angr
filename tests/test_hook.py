@@ -14,7 +14,7 @@ def test_mips():
 
     # hooking by a function decorator
     @p.hook(INNER_LOOP)
-    def hook1(_):
+    def hook1(_):  # pylint:disable=unused-variable
         output.append(1)
 
     def hook2(state):
