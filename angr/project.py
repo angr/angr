@@ -324,11 +324,19 @@ class Project(object):
     # They're all related to hooking!
     #
 
-    def hook(self, addr, hook, length=0, kwargs=None):
+    def hook(self, addr, hook=None, length=0, kwargs=None):
         """
         Hook a section of code with a custom function. This is used internally to provide symbolic
         summaries of library functions, and can be used to instrument execution or to modify
         control flow.
+
+        When hook is not specified, it returns a function decorator that allows easy hooking.
+        Usage:
+        # Assuming proj is an instance of angr.Project, we will add a custom hook at the entry
+        # point of the project.
+        @proj.hook(proj.entry)
+        def my_hook(state):
+            print "Hola! My hook is called!"
 
         :param addr:        The address to hook.
         :param hook:        A :class:`angr.project.Hook` describing a procedure to run at the
@@ -340,6 +348,10 @@ class Project(object):
                             arguments that will be passed to the procedure's `run` method
                             eventually.
         """
+
+        if hook is None:
+            return self._hook_decorator(addr, length=length, kwargs=kwargs)
+
         l.debug('hooking %#x with %s', addr, hook)
 
         if self.is_hooked(addr):
@@ -503,6 +515,18 @@ class Project(object):
     #
     # Private methods related to hooking
     #
+
+    def _hook_decorator(self, addr, length=0, kwargs=None):
+        """
+        Return a function decorator that allows easy hooking. Please refer to hook() for its usage.
+
+        :return: The function decorator.
+        """
+
+        def hook_decorator(func):
+            self.hook(addr, func, length=length, kwargs=kwargs)
+
+        return hook_decorator
 
     @staticmethod
     def _symbol_name_to_ident(symbol_name, kwargs=None):
