@@ -228,6 +228,9 @@ class Project(object):
         self._use_sim_procedures()
         self._simos.configure_project()
 
+        # this is a flag for exec() and terminate_execution() below
+        self._executing = False
+
     def _use_sim_procedures(self):
         """
         This is all the automatic simprocedure related initialization work
@@ -324,11 +327,19 @@ class Project(object):
     # They're all related to hooking!
     #
 
-    def hook(self, addr, hook, length=0, kwargs=None):
+    def hook(self, addr, hook=None, length=0, kwargs=None):
         """
         Hook a section of code with a custom function. This is used internally to provide symbolic
         summaries of library functions, and can be used to instrument execution or to modify
         control flow.
+
+        When hook is not specified, it returns a function decorator that allows easy hooking.
+        Usage:
+        # Assuming proj is an instance of angr.Project, we will add a custom hook at the entry
+        # point of the project.
+        @proj.hook(proj.entry)
+        def my_hook(state):
+            print "Hola! My hook is called!"
 
         :param addr:        The address to hook.
         :param hook:        A :class:`angr.project.Hook` describing a procedure to run at the
@@ -340,6 +351,10 @@ class Project(object):
                             arguments that will be passed to the procedure's `run` method
                             eventually.
         """
+
+        if hook is None:
+            return self._hook_decorator(addr, length=length, kwargs=kwargs)
+
         l.debug('hooking %#x with %s', addr, hook)
 
         if self.is_hooked(addr):
@@ -501,8 +516,59 @@ class Project(object):
         self.loader.provide_symbol_batch(self._extern_obj, provisions)
 
     #
+    # A convenience API (in the style of triton and manticore) for symbolic execution.
+    #
+
+    def execute(self, *args, **kwargs):
+        """
+        This function is a symbolic execution helper in the simple style
+        supported by triton and manticore. It designed to be run after
+        setting up hooks (see Project.hook), in which the symbolic state
+        can be checked.
+
+        This function can be run in three different ways:
+
+        - When run with no parameters, this function begins symbolic execution
+        from the entrypoint.
+        - It can also be run with a "state" parameter specifying a SimState to
+          begin symbolic execution from.
+        - Finally, it can accept any arbitrary keyword arguments, which are all
+          passed to project.factory.full_init_state.
+
+        If symbolic execution finishes, this function returns the resulting
+        PathGroup.
+        """
+
+        if args:
+            state = args[0]
+        else:
+            state = self.factory.full_init_state(**kwargs)
+
+        pg = self.factory.path_group(state)
+        self._executing = True
+        return pg.step(until=lambda lpg: not self._executing)
+
+    def terminate_execution(self):
+        """
+        Terminates a symbolic execution that was started with Project.execute().
+        """
+        self._executing = False
+
+    #
     # Private methods related to hooking
     #
+
+    def _hook_decorator(self, addr, length=0, kwargs=None):
+        """
+        Return a function decorator that allows easy hooking. Please refer to hook() for its usage.
+
+        :return: The function decorator.
+        """
+
+        def hook_decorator(func):
+            self.hook(addr, func, length=length, kwargs=kwargs)
+
+        return hook_decorator
 
     @staticmethod
     def _symbol_name_to_ident(symbol_name, kwargs=None):

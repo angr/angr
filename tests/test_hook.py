@@ -11,7 +11,10 @@ def test_mips():
 
     p = angr.Project(location + '/mips/test_loops')
     output = []
-    def hook1(_):
+
+    # hooking by a function decorator
+    @p.hook(INNER_LOOP)
+    def hook1(_):  # pylint:disable=unused-variable
         output.append(1)
 
     def hook2(state):
@@ -20,7 +23,7 @@ def test_mips():
         string = '%d ' % num
         state.posix.files[1].write(state.se.BVV(string), state.se.BVV(len(string), 32))
 
-    p.hook(INNER_LOOP, hook1)
+    # a manual hook
     p.hook(OUTER_LOOP, hook2, length=0x14)
 
     s = p.surveyors.Explorer(start=p.factory.path(), find=[MAIN_END])
