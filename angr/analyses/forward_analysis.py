@@ -526,7 +526,7 @@ class ForwardAnalysis(object):
 
         preds = self._graph_visitor.predecessors(node)
 
-        states = [ self._state_map[n] for n in preds ]
+        states = [ self._state_map[n] for n in preds if n in self._state_map ]
 
         if not states:
             return None
