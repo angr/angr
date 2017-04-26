@@ -402,7 +402,7 @@ class VariableRecovery(ForwardAnalysis, Analysis):
     analysis to resolve the conflicts between overlapping variables.
     """
 
-    def __init__(self, func):
+    def __init__(self, func, max_iterations=20):
         """
 
         :param knowledge.Function func:  The function to analyze.
@@ -415,6 +415,9 @@ class VariableRecovery(ForwardAnalysis, Analysis):
 
         self.function = func
         self._node_to_state = { }
+
+        self._max_iterations = max_iterations
+        self._node_iterations = defaultdict(int)
 
         self._variables = OrderedSet()  # all variables that are added to any region
         self._stack_region = KeyedRegion()
@@ -576,6 +579,11 @@ class VariableRecovery(ForwardAnalysis, Analysis):
         state.concrete_states = output_states
 
         self._node_to_state[node] = state
+
+        self._node_iterations[node] += 1
+
+        if self._node_iterations[node] >= self._max_iterations:
+            return False, state
 
         return True, state
 
