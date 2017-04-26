@@ -415,7 +415,9 @@ class MemoryOperand(Operand):
             if custom_values_str is not None:
                 value_str = custom_values_str
             else:
-                value_str = ''.join(x.render(formatting)[0] for x in self.values)
+                value_str = ''.join(
+                    x.render(formatting)[0] if not isinstance(x, (str, unicode)) else x for x in self.values
+                )
 
             segment_selector_str = "" if self.segment_selector is None else self.segment_selector
 
