@@ -463,12 +463,12 @@ class ForwardAnalysis(object):
 
             changed, output_state = self._run_on_node(n, entry_state)
 
+            # record the new state
+            self._state_map[n] = output_state
+
             if not changed:
                 # reached a fixed point
                 continue
-
-            # record the new state
-            self._state_map[n] = output_state
 
             # add all successors
             self._graph_visitor.revisit(n, include_self=False)
