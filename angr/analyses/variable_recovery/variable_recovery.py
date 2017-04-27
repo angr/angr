@@ -477,6 +477,11 @@ class VariableRecovery(ForwardAnalysis, Analysis):
             return False, state
 
         state = state.copy()
+
+        if self._node_iterations[node] >= self._max_iterations:
+            l.debug('Skip node %s as we have iterated %d times on it.', node, self._node_iterations[node])
+            return False, state
+
         state.register_callbacks([ concrete_state ])
 
         successors = self.project.factory.successors(concrete_state,
@@ -492,9 +497,6 @@ class VariableRecovery(ForwardAnalysis, Analysis):
         self._node_to_state[node] = state
 
         self._node_iterations[node] += 1
-
-        if self._node_iterations[node] >= self._max_iterations:
-            return False, state
 
         return True, state
 
