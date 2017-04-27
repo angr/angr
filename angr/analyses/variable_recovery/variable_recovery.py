@@ -471,6 +471,11 @@ class VariableRecovery(ForwardAnalysis, Analysis):
 
         concrete_state = state.get_concrete_state(node.addr)
 
+        if concrete_state is None:
+            # didn't find any state going to here
+            l.error("_run_on_node(): cannot find any state for address %#x.", node.addr)
+            return False, state
+
         state = state.copy()
         state.register_callbacks([ concrete_state ])
 
