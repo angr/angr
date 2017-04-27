@@ -2,7 +2,7 @@ import collections
 import claripy
 
 class SimVariable(object):
-    def __init__(self, ident=None, name=None, phi=False):
+    def __init__(self, ident=None, name=None, phi=False, region=None):
         """
         :param ident: A unique identifier provided by user or the program. Usually a string.
         :param str name: Name of this variable.
@@ -10,15 +10,16 @@ class SimVariable(object):
         self.ident = ident
         self.name = name
         self.phi = phi
+        self.region = region if region is not None else ""
 
 
 class SimConstantVariable(SimVariable):
-    def __init__(self, ident=None, value=None):
-        super(SimConstantVariable, self).__init__(ident=ident)
+    def __init__(self, ident=None, value=None, region=None):
+        super(SimConstantVariable, self).__init__(ident=ident, region=region)
         self.value = value
 
     def __repr__(self):
-        s = "<const %s>" % self.value
+        s = "<%s|const %s>" % (self.region, self.value)
 
         return s
 
@@ -30,10 +31,10 @@ class SimConstantVariable(SimVariable):
             # they may or may not represent the same constant. return not equal to be safe
             return False
 
-        return self.value == other.value and self.ident == other.ident
+        return self.value == other.value and self.ident == other.ident and self.region == other.region
 
     def __hash__(self):
-        return hash(('const', self.value))
+        return hash(('const', self.value, self.ident, self.region))
 
 
 class SimTemporaryVariable(SimVariable):
@@ -59,31 +60,32 @@ class SimTemporaryVariable(SimVariable):
 
 
 class SimRegisterVariable(SimVariable):
-    def __init__(self, reg_offset, size, ident=None, name=None):
-        SimVariable.__init__(self, ident=ident, name=name)
+    def __init__(self, reg_offset, size, ident=None, name=None, region=None):
+        SimVariable.__init__(self, ident=ident, name=name, region=region)
 
         self.reg = reg_offset
         self.size = size
 
     def __repr__(self):
-        s = "<Reg %s %s>" % (self.reg, self.size)
+        s = "<%s|Reg %s %s>" % (self.region, self.reg, self.size)
 
         return s
 
     def __hash__(self):
-        return hash('reg_%s_%s_%s' % (self.reg, self.size, self.ident))
+        return hash('%s|reg_%s_%s_%s' % (self.region, self.reg, self.size, self.ident))
 
     def __eq__(self, other):
         if isinstance(other, SimRegisterVariable):
-            return hash(self) == hash(other) and self.name == other.name
+            return hash(self) == hash(other) and self.name == other.name and self.ident == other.ident and \
+                   self.region == other.region
 
         else:
             return False
 
 
 class SimMemoryVariable(SimVariable):
-    def __init__(self, addr, size, ident=None, name=None, phi=False):
-        SimVariable.__init__(self, ident=ident, name=name, phi=phi)
+    def __init__(self, addr, size, ident=None, name=None, phi=False, region=None):
+        SimVariable.__init__(self, ident=ident, name=name, phi=phi, region=region)
 
         self.addr = addr
 
@@ -100,9 +102,9 @@ class SimMemoryVariable(SimVariable):
             size = '%s' % self.size
 
         if type(self.addr) in (int, long):
-            s = "<Mem %#x %s>" % (self.addr, size)
+            s = "<%s|Mem %#x %s>" % (self.region, self.addr, size)
         else:
-            s = "<Mem %s %s>" % (self.addr, size)
+            s = "<%s|Mem %s %s>" % (self.region, self.addr, size)
 
         return s
 
@@ -130,7 +132,7 @@ class SimMemoryVariable(SimVariable):
 
 
 class SimStackVariable(SimMemoryVariable):
-    def __init__(self, offset, size, base='sp', base_addr=None, ident=None, name=None, phi=False):
+    def __init__(self, offset, size, base='sp', base_addr=None, ident=None, name=None, phi=False, region=None):
         if offset > 0x1000000 and isinstance(offset, (int, long)):
             # I don't think any positive stack offset will be greater than that...
             # convert it to a negative number
@@ -143,7 +145,7 @@ class SimStackVariable(SimMemoryVariable):
             # TODO: this is not optimal
             addr = offset
 
-        super(SimStackVariable, self).__init__(addr, size, ident=ident, name=name, phi=phi)
+        super(SimStackVariable, self).__init__(addr, size, ident=ident, name=name, phi=phi, region=region)
 
         self.base = base
         self.offset = offset
@@ -164,9 +166,9 @@ class SimStackVariable(SimMemoryVariable):
             else:
                 offset = ""
 
-            s = "<%s %s%s, %s bytes>" % (prefix, self.base, offset, size)
+            s = "<%s|%s %s%s, %s bytes>" % (self.region, prefix, self.base, offset, size)
         else:
-            s = "<%s %s%s, %s bytes>" % (prefix, self.base, self.addr, size)
+            s = "<%s|%s %s%s, %s bytes>" % (self.region, prefix, self.base, self.addr, size)
 
         return s
 
