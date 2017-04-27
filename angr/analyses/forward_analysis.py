@@ -22,6 +22,7 @@ class GraphVisitor(object):
     def __init__(self):
 
         self._sorted_nodes = OrderedSet()
+        self._node_to_index = { }
         self._reached_fixedpoint = set()
 
     #
@@ -95,9 +96,11 @@ class GraphVisitor(object):
         """
 
         self._sorted_nodes.clear()
+        self._node_to_index.clear()
         self._reached_fixedpoint.clear()
 
-        for n in self.sort_nodes():
+        for i, n in enumerate(self.sort_nodes()):
+            self._node_to_index[n] = i
             self._sorted_nodes.add(n)
 
     def next_node(self):
@@ -151,7 +154,7 @@ class GraphVisitor(object):
             self._sorted_nodes.add(succ)
 
         # reorder it
-        self._sorted_nodes = OrderedSet(self.sort_nodes(self._sorted_nodes))
+        self._sorted_nodes = OrderedSet(sorted(self._sorted_nodes, key=lambda n: self._node_to_index[n]))
 
     def reached_fixedpoint(self, node):
         """
