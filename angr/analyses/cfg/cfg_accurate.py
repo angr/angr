@@ -2518,15 +2518,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         symbolic_initial_state = self.project.factory.entry_state(mode='symbolic')
         if fastpath_state is not None:
             symbolic_initial_state = self.project._simos.prepare_call_state(fastpath_state,
-                                                                           initial_state=symbolic_initial_state)
+                                                                            initial_state=symbolic_initial_state)
 
-        # Create a temporary block
-        try:
-            tmp_block = self.project.factory.block(function_addr)
-        except (simuvex.SimError, AngrError):
-            return None
-
-        num_instr = tmp_block.instructions - 1
+        # Find number of instructions of start block
+        func = self.project.kb.functions.get(function_addr)
+        start_block = func._get_block(function_addr)
+        num_instr = start_block.instructions - 1
 
         symbolic_initial_state.ip = function_addr
         path = self.project.factory.path(symbolic_initial_state)
