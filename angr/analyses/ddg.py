@@ -720,8 +720,10 @@ class DDG(Analysis):
 
                 for successing_node in successing_nodes:
 
+                    suc_new_defs = new_defs
                     if (state.history.jumpkind == 'Ijk_Call' or state.history.jumpkind.startswith('Ijk_Sys')) and \
                             (state.ip.symbolic or successing_node.addr != state.se.eval(state.ip)):
+
                         # this might be the block after the call, and we are not tracing into the call
                         # TODO: make definition killing architecture independent and calling convention independent
                         filtered_defs = LiveDefinitions()
@@ -734,7 +736,7 @@ class DDG(Analysis):
 
                             filtered_defs.add_defs(variable, locs)
 
-                        new_defs = filtered_defs
+                        suc_new_defs = filtered_defs
 
                     if successing_node in live_defs_per_node:
                         defs_for_next_node = live_defs_per_node[successing_node]
@@ -742,7 +744,7 @@ class DDG(Analysis):
                         defs_for_next_node = LiveDefinitions()
                         live_defs_per_node[successing_node] = defs_for_next_node
 
-                    for var, code_loc_set in new_defs.iteritems():
+                    for var, code_loc_set in suc_new_defs.iteritems():
                         l.debug("Adding %d new definitions for variable %s.", len(code_loc_set), var)
                         changed |= defs_for_next_node.add_defs(var, code_loc_set)
 
