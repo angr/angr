@@ -694,8 +694,30 @@ class DDG(Analysis):
                 live_defs_per_node[node] = live_defs
 
             successing_nodes = self._cfg.graph.successors(node)
+
+            # try to assign every final state to a successor and vice versa
+            match_suc = defaultdict(bool)
+            match_state = defaultdict(set)
+
+            for suc in successing_nodes:
+                matched = False
+                for state in final_states:
+                    try:
+                        if state.se.any_int(state.ip) == suc.addr:
+                            match_suc[suc.addr] = True
+                            match_state[state].add(suc)
+                            matched = True
+                    except (SimUnsatError, SimSolverModeError, ZeroDivisionError):
+                        # ignore
+                        matched = matched
+                if not matched:
+                    break
+
+            # whether all final states could be matched to a successor and vice versa
+            matches = len(match_suc) == len(successing_nodes) and len(match_state) == len(final_states)
+
             for state in final_states:
-                if state.history.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
+                if not matches and state.history.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
                     # Skip fakerets if there are other control flow transitions available
                     continue
 
@@ -718,7 +740,14 @@ class DDG(Analysis):
 
                 changed = False
 
-                for successing_node in successing_nodes:
+                # if every successor can be matched with one or more final states (by IP address),
+                # only take over the LiveDefinition of matching states
+                if matches:
+                    add_state_to_sucs = match_state[state]
+                else:
+                    add_state_to_sucs = successing_nodes
+
+                for successing_node in add_state_to_sucs:
 
                     suc_new_defs = new_defs
                     if (state.history.jumpkind == 'Ijk_Call' or state.history.jumpkind.startswith('Ijk_Sys')) and \
