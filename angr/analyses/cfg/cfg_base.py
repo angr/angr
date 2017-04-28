@@ -1568,9 +1568,10 @@ class CFGBase(Analysis):
             if n is None: src_node = src_addr
             else: src_node = self._to_snippet(n)
 
-            fake_ret_node = None if not all_edges else self._one_fakeret_node(all_edges)
+            fakeret_node = None if not all_edges else self._one_fakeret_node(all_edges)
+            fakeret_addr = fakeret_node.addr if fakeret_node is not None else None
 
-            self.kb.functions._add_call_to(src_function.addr, src_node, dst_addr, fake_ret_node, syscall=is_syscall,
+            self.kb.functions._add_call_to(src_function.addr, src_node, dst_addr, fakeret_addr, syscall=is_syscall,
                                            ins_addr=ins_addr, stmt_idx=stmt_idx)
 
             if dst_function.returning:
