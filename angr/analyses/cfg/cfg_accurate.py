@@ -1823,6 +1823,13 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # TODO: Is it really OK?
                 func_addr = self._block_id_addr(node_key)
 
+            if node_key.jump_type == 'syscall':
+                # it's a syscall
+                is_syscall = True
+            else:
+                is_syscall = False
+
+
             pt = CFGNode(self._block_id_addr(node_key),
                          None,
                          self,
@@ -1831,6 +1838,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                          simprocedure_name="PathTerminator",
                          function_address=func_addr,
                          callstack_key=self._block_id_callstack_key(node_key),
+                         is_syscall=is_syscall,
                          )
             if self._keep_state:
                 # We don't have an input state available for it (otherwise we won't have to create a
