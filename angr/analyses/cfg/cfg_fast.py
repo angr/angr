@@ -1624,7 +1624,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     if target_func_addr is None:
                         target_func_addr = current_function_addr
 
-                    to_outside = target_func_addr == current_function_addr
+                    to_outside = not target_func_addr == current_function_addr
 
                 r = self._function_add_transition_edge(target_addr, cfg_node, current_function_addr, ins_addr=ins_addr,
                                                        stmt_idx=stmt_idx, to_outside=to_outside
@@ -2844,7 +2844,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         sorted_nodes = sorted(self.graph.nodes(), key=lambda n: n.addr if n is not None else 0)
 
-        all_plt_stub_addrs = set(*itertools.chain(obj.reverse_plt.keys() for obj in self.project.loader.all_objects if isinstance(obj, cle.MetaELF)))
+        all_plt_stub_addrs = set(itertools.chain.from_iterable(obj.reverse_plt.keys() for obj in self.project.loader.all_objects if isinstance(obj, cle.MetaELF)))
 
         # go over the list. for each node that is the beginning of a function and is not properly aligned, if its
         # leading instruction is a single-byte or multi-byte nop, make sure there is another CFGNode starts after the

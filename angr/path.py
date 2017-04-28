@@ -1,4 +1,5 @@
 from os import urandom
+import os
 import copy
 import sys
 import logging
@@ -734,7 +735,10 @@ class Path(object):
         if where_object is None:
             return "<Path with %d runs (at 0x%x)>" % (self.length, self.addr)
         else:
-            return "<Path with %d runs (at 0x%x : %s)>" % (self.length, self.addr, where_object.binary)
+            return "<Path with %d runs (at 0x%x : %s)>" % (self.length,
+                                                           self.addr,
+                                                           os.path.basename(where_object.binary)
+                                                           )
 
 
 class ErroredPath(Path):

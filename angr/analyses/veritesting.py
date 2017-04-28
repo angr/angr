@@ -88,7 +88,13 @@ class CallTracingFilter(object):
             call_target_state.scratch.jumpkind = jumpkind
             tmp_path = self.project.factory.path(call_target_state)
             tmp_path.step()
-            next_run = tmp_path.next_run
+            successors_ = tmp_path.next_run
+            try:
+                next_run = successors_.artifacts['procedure']
+            except KeyError:
+                l.warning('CallTracingFilter.filter(): except artifacts[\'procedure\'] in %s. Reject.', successors_)
+                return REJECT
+
             if type(next_run) in CallTracingFilter.whitelist:
                 # accept!
                 l.debug('Accepting target 0x%x, jumpkind %s', addr, jumpkind)
@@ -118,7 +124,7 @@ class CallTracingFilter(object):
             except AngrCFGError:
                 # Exceptions occurred during loop unrolling
                 # reject
-                l.debug('Rejecting target 0x%x - loop unrolling failed', addr)
+                l.debug('Rejecting target %#x - loop unrolling failed', addr)
                 return REJECT
 
         else:
@@ -205,7 +211,7 @@ class Veritesting(Analysis):
         self._loop_backedges = self._cfg._loop_back_edges
         self._loop_heads = set([ dst.addr for _, dst in self._loop_backedges ])
 
-        l.info("Static symbolic execution starts at 0x%x", self._input_path.addr)
+        l.info("Static symbolic execution starts at %#x", self._input_path.addr)
         l.debug(
             "The execution will terminate at the following addresses: [ %s ]",
             ", ".join([ hex(i) for i in self._boundaries ])

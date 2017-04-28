@@ -1496,15 +1496,16 @@ class CFGBase(Analysis):
             traversed.add(n)
 
             if n.has_return:
-                callback(n, None, {'jumpkind': 'Ijk_Ret'}, blockaddr_to_function, known_functions)
+                callback(n, None, {'jumpkind': 'Ijk_Ret'}, blockaddr_to_function, known_functions, None)
 
             elif g.out_degree(n) == 0:
                 # it's a single node
-                callback(n, None, None, blockaddr_to_function, known_functions)
+                callback(n, None, None, blockaddr_to_function, known_functions, None)
 
             else:
-                for src, dst, data in g.out_edges_iter(nbunch=[n], data=True):
-                    callback(src, dst, data, blockaddr_to_function, known_functions)
+                all_out_edges = g.out_edges(n, data=True)
+                for src, dst, data in all_out_edges:
+                    callback(src, dst, data, blockaddr_to_function, known_functions, all_out_edges)
 
                     jumpkind = data.get('jumpkind', "")
                     if not (jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys')):
@@ -1512,7 +1513,7 @@ class CFGBase(Analysis):
                         if dst not in stack and dst not in traversed:
                             stack.add(dst)
 
-    def _graph_traversal_handler(self, src, dst, data, blockaddr_to_function, known_functions):
+    def _graph_traversal_handler(self, src, dst, data, blockaddr_to_function, known_functions, all_edges):
         """
         Graph traversal handler. It takes in a node or an edge, and create new functions or add nodes to existing
         functions accordingly. Oh, it also create edges on the transition map of functions.
@@ -1522,6 +1523,7 @@ class CFGBase(Analysis):
         :param dict data: Edge data in the CFG. 'jumpkind' should be there if it's not None.
         :param dict blockaddr_to_function: A mapping between block addresses to Function instances.
         :param angr.knowledge.FunctionManager known_functions: Already recovered functions.
+        :param list or None all_edges: All edges going out from src.
         :return: None
         """
 
@@ -1566,7 +1568,10 @@ class CFGBase(Analysis):
             if n is None: src_node = src_addr
             else: src_node = self._to_snippet(n)
 
-            self.kb.functions._add_call_to(src_function.addr, src_node, dst_addr, None, syscall=is_syscall,
+            fakeret_node = None if not all_edges else self._one_fakeret_node(all_edges)
+            fakeret_addr = fakeret_node.addr if fakeret_node is not None else None
+
+            self.kb.functions._add_call_to(src_function.addr, src_node, dst_addr, fakeret_addr, syscall=is_syscall,
                                            ins_addr=ins_addr, stmt_idx=stmt_idx)
 
             if dst_function.returning:
@@ -1722,3 +1727,18 @@ class CFGBase(Analysis):
                     break
 
         return nop_length
+
+    @staticmethod
+    def _one_fakeret_node(all_edges):
+        """
+        Pick the first Ijk_FakeRet edge from all_edges, and return the destination node.
+
+        :param list all_edges: A list of networkx.Graph edges with data.
+        :return:               The first FakeRet node, or None if nothing is found.
+        :rtype:                CFGNode or None
+        """
+
+        for src, dst, data in all_edges:
+            if data.get('jumpkind', None) == 'Ijk_FakeRet':
+                return dst
+        return None
