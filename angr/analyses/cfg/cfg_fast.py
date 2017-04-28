@@ -1624,7 +1624,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     if target_func_addr is None:
                         target_func_addr = current_function_addr
 
-                    to_outside = target_func_addr == current_function_addr
+                    to_outside = not target_func_addr == current_function_addr
 
                 r = self._function_add_transition_edge(target_addr, cfg_node, current_function_addr, ins_addr=ins_addr,
                                                        stmt_idx=stmt_idx, to_outside=to_outside
