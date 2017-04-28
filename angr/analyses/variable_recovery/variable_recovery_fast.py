@@ -447,7 +447,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):
         pass
 
     def _post_analysis(self):
-        pass
+        self.variable_manager.initialize_variable_names()
 
     #
     # Private methods
