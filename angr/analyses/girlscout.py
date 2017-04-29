@@ -15,7 +15,7 @@ import cle
 import pyvex
 from simuvex.s_errors import SimMemoryError, SimEngineError
 
-from .cfg_fast import SegmentList
+from cfg.cfg_fast import SegmentList
 from ..errors import AngrError
 from ..analysis import Analysis, register_analysis
 from ..surveyors import Explorer, Slicecutor
@@ -114,7 +114,7 @@ class GirlScout(Analysis):
 
     def _get_next_code_addr(self, initial_state):
         """
-        Besides calling _get_next_addr, we will check if data locates at that address seems to be code or not. If not, 
+        Besides calling _get_next_addr, we will check if data locates at that address seems to be code or not. If not,
         we'll move on to request for next valid address.
         """
         next_addr = self._get_next_addr_to_search()
@@ -149,7 +149,7 @@ class GirlScout(Analysis):
             if len(sz) > 0 and is_sz:
                 l.debug("Got a string of %d chars: [%s]", len(sz), sz)
                 # l.debug("Occpuy %x - %x", start_addr, start_addr + len(sz) + 1)
-                self._seg_list.occupy(start_addr, len(sz) + 1)
+                self._seg_list.occupy(start_addr, len(sz) + 1, 'code')
                 sz = ""
                 next_addr = self._get_next_addr_to_search()
                 if next_addr is None:
@@ -251,7 +251,7 @@ class GirlScout(Analysis):
             self._block_size[addr] = irsb.size
 
             # Occupy the block
-            self._seg_list.occupy(addr, irsb.size)
+            self._seg_list.occupy(addr, irsb.size, 'code')
         except (SimEngineError, SimMemoryError):
             return
 
@@ -332,7 +332,7 @@ class GirlScout(Analysis):
 
         # Mark that part as occupied
         if isinstance(s_run, simuvex.SimIRSB):
-            self._seg_list.occupy(addr, s_run.irsb.size)
+            self._seg_list.occupy(addr, s_run.irsb.size, 'code')
         successors = s_run.flat_successors + s_run.unsat_successors
         has_call_exit = False
         tmp_exit_set = set()
