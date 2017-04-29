@@ -667,10 +667,11 @@ class GirlScout(Analysis):
             # TODO: Slowpath mode...
             while True:
                 next_addr = self._get_next_code_addr(initial_state)
-                percentage = self._seg_list.occupied_size * 100.0 / (self._valid_memory_region_size)
-                l.info("Analyzing %xh, progress %0.04f%%", next_addr, percentage)
                 if next_addr is None:
                     break
+
+                percentage = self._seg_list.occupied_size * 100.0 / (self._valid_memory_region_size)
+                l.debug("Analyzing %xh, progress %0.04f%%", next_addr, percentage)
 
                 self.call_map.add_node(next_addr)
 
