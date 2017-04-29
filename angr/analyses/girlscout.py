@@ -15,7 +15,7 @@ import cle
 import pyvex
 from simuvex.s_errors import SimMemoryError, SimEngineError
 
-from cfg.cfg_fast import SegmentList
+from .cfg.cfg_fast import SegmentList
 from ..errors import AngrError
 from ..analysis import Analysis, register_analysis
 from ..surveyors import Explorer, Slicecutor
