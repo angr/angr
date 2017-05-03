@@ -9,7 +9,7 @@ class SimEvent(object):
         self.ins_addr = state.scratch.ins_addr
         self.bbl_addr = state.scratch.bbl_addr
         self.stmt_idx = state.scratch.stmt_idx
-        self.sim_procedure = state.scratch.sim_procedure
+        self.sim_procedure = state.scratch.sim_procedure.__class__
         self.objects = dict(kwargs)
 
     def __repr__(self):
