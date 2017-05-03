@@ -220,6 +220,7 @@ class SimStateLibc(SimStatePlugin):
     def copy(self):
         c = SimStateLibc()
         c.heap_location = self.heap_location
+        c.mmap_base = self.mmap_base
         c.buf_symbolic_bytes = self.buf_symbolic_bytes
         c.max_symbolic_strstr = self.max_symbolic_strstr
         c.max_symbolic_strchr = self.max_symbolic_strchr
