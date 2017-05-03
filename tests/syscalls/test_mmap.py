@@ -1,5 +1,4 @@
 import nose
-import archinfo
 import simuvex
 
 import logging
