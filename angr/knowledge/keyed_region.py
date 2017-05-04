@@ -4,7 +4,7 @@ import logging
 from bintrees import AVLTree
 
 
-l = logging.getLogger('angr.analyses.variable_recovery.keyed_region')
+l = logging.getLogger('angr.knowledge.keyed_region')
 
 
 class LocationAndVariable(object):

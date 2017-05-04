@@ -1,15 +1,25 @@
 
 import logging
-from itertools import count
 from collections import defaultdict
-
-from simuvex.s_variable import SimStackVariable
+from itertools import count
 
 from claripy.utils.orderedset import OrderedSet
+from simuvex.s_variable import SimStackVariable
+
 from .keyed_region import KeyedRegion
 from .variable_access import VariableAccess
 
-l = logging.getLogger('variable_analysis.variable_manager')
+
+l = logging.getLogger('angr.knowledge.variable_manager')
+
+
+class LiveVariables(object):
+    """
+    A collection of live variables at a program point.
+    """
+    def __init__(self, register_region, stack_region):
+        self.register_region = register_region
+        self.stack_region = stack_region
 
 
 class VariableManagerInternal(object):
@@ -24,6 +34,7 @@ class VariableManagerInternal(object):
         self._variables = OrderedSet()  # all variables that are added to any region
         self._stack_region = KeyedRegion()
         self._register_region = KeyedRegion()
+        self._live_variables = { }  # a mapping between addresses of program points and live variable collections
 
         self._variable_accesses = defaultdict(list)
         self._insn_to_variable = defaultdict(list)
@@ -74,6 +85,10 @@ class VariableManagerInternal(object):
         self._variables.add(variable)
         self._variable_accesses[variable].append(VariableAccess(variable, 'reference', location))
         self._insn_to_variable[location.ins_addr].append((variable, offset))
+
+    def set_live_variables(self, addr, register_region, stack_region):
+        lv = LiveVariables(register_region, stack_region)
+        self._live_variables[addr] = lv
 
     def find_variable_by_insn(self, ins_addr):
         if ins_addr not in self._insn_to_variable:
@@ -148,7 +163,8 @@ class VariableManager(object):
     """
     Manage variables.
     """
-    def __init__(self):
+    def __init__(self, kb=None):
+        self.kb = kb
         self.global_manager = VariableManagerInternal(self)
         self.function_managers = { }
 
