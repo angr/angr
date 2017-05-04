@@ -126,14 +126,13 @@ class BlockProcessor(object):
     def _handle_Put(self, stmt):
         offset = stmt.offset
         if offset == self.arch.sp_offset:
-            if self.processor_state.sp_adjusted is None:
-                data = self._expr(stmt.data)
-                if type(data) is SpAndOffset:
-                    sp_offset = data.offset
-                    self.processor_state.sp_adjusted = True
-                    self.processor_state.sp_adjustment = sp_offset
+            data = self._expr(stmt.data)
+            if type(data) is SpAndOffset:
+                sp_offset = data.offset
+                self.processor_state.sp_adjusted = True
+                self.processor_state.sp_adjustment = sp_offset
 
-                    l.debug('Adjusting stack pointer at %#x with offset %+#x.', self.ins_addr, sp_offset)
+                l.debug('Adjusting stack pointer at %#x with offset %+#x.', self.ins_addr, sp_offset)
 
             return
 
