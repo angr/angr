@@ -1,17 +1,15 @@
 
 import logging
 from collections import defaultdict
-from itertools import count
 
 import pyvex
-from simuvex.s_variable import SimRegisterVariable, SimStackVariable
+from simuvex.s_variable import SimStackVariable
 
-from ...analysis import Analysis, register_analysis
-from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
+from ...knowledge.keyed_region import KeyedRegion
+from ...knowledge.variable_manager import VariableManager
 from ..code_location import CodeLocation
-from .keyed_region import KeyedRegion
-from .variable_manager import VariableManager
-
+from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
+from ...analysis import Analysis, register_analysis
 
 l = logging.getLogger('angr.analyses.variable_recovery_fast')
 
@@ -380,8 +378,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):
         self.function = func
         self._node_to_state = { }
 
-        # TODO: load variable manager from KB
-        self.variable_manager = VariableManager()
+        self.variable_manager = self.kb.variables
 
         self._max_iterations = max_iterations
         self._node_iterations = defaultdict(int)
@@ -437,7 +434,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):
 
         self._process_block(state, block)
 
-        self._node_to_state[node] = state
+        self._node_to_state[node.addr] = state
 
         self._node_iterations[node.addr] += 1
 
