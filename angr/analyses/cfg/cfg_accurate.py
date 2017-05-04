@@ -1039,9 +1039,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # Remove those edges that will never be taken!
         self._remove_non_return_edges()
 
-        # Perform function calling convention analysis
-        self._analyze_calling_conventions()
-
         CFGBase._post_analysis(self)
 
         # loop detection
@@ -2970,27 +2967,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     # Private methods - function/procedure/subroutine analysis
     # Including calling convention, function arguments, etc.
-
-    def _analyze_calling_conventions(self):
-        """
-        Concretely execute part of the function and watch the changes of sp
-        :return: None
-        """
-
-        l.debug("Analyzing calling conventions of each function.")
-
-        for func in self.kb.functions.values():
-            if func.calling_convention is not None:
-                continue
-
-            #
-            # Refining arguments of a function by analyzing its call-sites
-            #
-            callsites = self._get_callsites(func.addr)
-            self._refine_function_arguments(func, callsites)
-
-            # Set the calling convention
-            func.calling_convention = func._match_cc()
 
     def _refine_function_arguments(self, func, callsites):
         """
