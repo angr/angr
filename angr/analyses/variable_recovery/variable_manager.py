@@ -105,6 +105,27 @@ class VariableManagerInternal(object):
 
             return accesses
 
+    def input_variables(self):
+        """
+        Get all variables that have never been written to.
+
+        :return: A list of variables that are never written to.
+        """
+
+        def has_write_access(accesses):
+            return any(acc for acc in accesses if acc.access_type == 'write')
+
+        def has_read_access(accesses):
+            return any(acc for acc in accesses if acc.access_type == 'read')
+
+        input_variables = [ ]
+
+        for variable, accesses in self._variable_accesses.iteritems():
+            if not has_write_access(accesses) and has_read_access(accesses):
+                input_variables.append(variable)
+
+        return input_variables
+
     def assign_variable_names(self):
         """
         Assign default names to all variables.
