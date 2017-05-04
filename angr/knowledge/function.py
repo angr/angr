@@ -977,41 +977,6 @@ class Function(object):
 
         self.normalized = True
 
-    def _match_cc(self):
-        """
-        Try to decide the arguments to this function.
-        `cfg` is not necessary, but providing a CFG makes our life easier and will give you a better analysis
-        result (i.e. we have an idea of how this function is called in its call-sites).
-        If a CFG is not provided or we cannot find the given function address in the given CFG, we will generate
-        a local CFG of the function to detect how it is using the arguments.
-        """
-        arch = self._project.arch
-
-        args = [ ]
-        ret_vals = [ ]
-        sp_delta = 0
-
-        #
-        # Determine how many arguments this function has.
-        #
-
-        for arg in self._argument_registers:
-            name = arch.register_names[arg]
-            a = simuvex.s_cc.SimRegArg(name, arch.registers[name][1])
-            args.append(a)
-
-        for arg in self._argument_stack_variables:
-            a = simuvex.s_cc.SimStackArg(arg, arch.bytes)
-            args.append(a)
-
-        sp_delta = self.sp_delta
-
-        for c in simuvex.s_cc.CC:
-            if c._match(arch, args, sp_delta):
-                return c(arch, args, ret_vals, sp_delta)
-
-        # We cannot determine the calling convention of this function.
-        return simuvex.s_cc.SimCCUnknown(arch, args, ret_vals, sp_delta)
 
 from .codenode import BlockNode
 from ..errors import AngrValueError
