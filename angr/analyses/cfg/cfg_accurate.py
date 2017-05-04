@@ -1099,52 +1099,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # Get a SimSuccessors out of current job
         sim_successors, error_occurred, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
 
-        if sim_successors is None or should_skip:
-            # We cannot retrieve the block, or we should skip the analysis of this node
-
-            # But we create the edge anyway. If the sim_successors does not exist, it will be an edge from the previous node to
-            # a PathTerminator
-            self._graph_add_edge(src_block_id, block_id, jumpkind=job.jumpkind, stmt_idx=src_exit_stmt_idx,
-                                 ins_addr=src_ins_addr
-                                 )
-            self._update_function_transition_graph(src_block_id, block_id, jumpkind=job.jumpkind,
-                                                   ins_addr=src_ins_addr, stmt_idx=src_exit_stmt_idx)
-
-            # If this entry cancels another FakeRet entry, we should also create the FakeRet edge
-
-            # This is the real return exit
-            # Check if this retn is inside our pending_exits set
-            if (job.jumpkind == 'Ijk_Call' or job.is_syscall) and block_id in self._pending_entries:
-                # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
-                # in the graph.
-
-                pending_entry = self._pending_entries.pop(block_id)
-                self._deregister_analysis_job(pending_entry.function_address, pending_entry)
-                self._graph_add_edge(pending_entry.src_block_id, block_id, jumpkind='Ijk_FakeRet',
-                                     stmt_idx=pending_entry.src_exit_stmt_idx,
-                                     ins_addr=pending_entry.src_exit_ins_addr
-                                     )
-                self._update_function_transition_graph(pending_entry.src_block_id, block_id, jumpkind='Ijk_FakeRet',
-                                                       ins_addr=pending_entry.src_exit_ins_addr,
-                                                       stmt_idx=pending_entry.src_exit_stmt_idx
-                                                       )
-
-            # We are good. Raise the exception and leave
-            raise AngrSkipEntryNotice()
-
-        self._update_thumb_addrs(sim_successors, job.state)
-
-        # We store the function hints first. Function hints will be checked at the end of the analysis to avoid
-        # any duplication with existing jumping targets
-        if self._enable_function_hints:
-            if sim_successors.sort == 'IRSB':
-                function_hints = self._search_for_function_hints(sim_successors.all_successors[0])
-                for f in function_hints:
-                    self._pending_function_hints.add(f)
-
-        # Increment tracing count for this block
-        self._traced_addrs[job.call_stack_suffix][addr] += 1
-
         # determine the depth of this basic block
         if self._max_steps is None:
             # it's unnecessary to track depth when we are not limiting max_steps
@@ -1189,10 +1143,56 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             cfg_node = self._nodes[block_id]
 
+        # Increment tracing count for this block
+        self._traced_addrs[job.call_stack_suffix][addr] += 1
+
         if self._keep_state:
             # TODO: if we are reusing an existing CFGNode, we will be overwriting the original input state here. we
             # TODO: should save them all, which, unfortunately, requires some redesigning :-(
             cfg_node.input_state = sim_successors.initial_state
+
+        if sim_successors is None or should_skip:
+            # We cannot retrieve the block, or we should skip the analysis of this node
+
+            # But we create the edge anyway. If the sim_successors does not exist, it will be an edge from the previous node to
+            # a PathTerminator
+            self._graph_add_edge(src_block_id, block_id, jumpkind=job.jumpkind, stmt_idx=src_exit_stmt_idx,
+                                 ins_addr=src_ins_addr
+                                 )
+            self._update_function_transition_graph(src_block_id, block_id, jumpkind=job.jumpkind,
+                                                   ins_addr=src_ins_addr, stmt_idx=src_exit_stmt_idx)
+
+            # If this entry cancels another FakeRet entry, we should also create the FakeRet edge
+
+            # This is the real return exit
+            # Check if this retn is inside our pending_exits set
+            if (job.jumpkind == 'Ijk_Call' or job.is_syscall) and block_id in self._pending_entries:
+                # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
+                # in the graph.
+
+                pending_entry = self._pending_entries.pop(block_id)
+                self._deregister_analysis_job(pending_entry.function_address, pending_entry)
+                self._graph_add_edge(pending_entry.src_block_id, block_id, jumpkind='Ijk_FakeRet',
+                                     stmt_idx=pending_entry.src_exit_stmt_idx,
+                                     ins_addr=pending_entry.src_exit_ins_addr
+                                     )
+                self._update_function_transition_graph(pending_entry.src_block_id, block_id, jumpkind='Ijk_FakeRet',
+                                                       ins_addr=pending_entry.src_exit_ins_addr,
+                                                       stmt_idx=pending_entry.src_exit_stmt_idx
+                                                       )
+
+            # We are good. Raise the exception and leave
+            raise AngrSkipEntryNotice()
+
+        self._update_thumb_addrs(sim_successors, job.state)
+
+        # We store the function hints first. Function hints will be checked at the end of the analysis to avoid
+        # any duplication with existing jumping targets
+        if self._enable_function_hints:
+            if sim_successors.sort == 'IRSB':
+                function_hints = self._search_for_function_hints(sim_successors.all_successors[0])
+                for f in function_hints:
+                    self._pending_function_hints.add(f)
 
         self._graph_add_edge(src_block_id, block_id, jumpkind=job.jumpkind, stmt_idx=src_exit_stmt_idx,
                              ins_addr=src_ins_addr)
