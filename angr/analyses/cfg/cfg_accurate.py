@@ -1753,7 +1753,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # remove all exising entries that has the same block ID
             if next((en for en in self.entries if en.block_id == pw.block_id), None):
                 # TODO: this is very hackish. Reimplement this logic later
-                self._entries = [entry_info for entry_info in self._entries if entry_info.entry.block_id != pw.block_id]
+                self._job_info_list = [entry_info for entry_info in self._job_info_list if entry_info.entry.block_id != pw.block_id]
 
         # register the job
         self._register_analysis_job(pw.func_addr, pw)
