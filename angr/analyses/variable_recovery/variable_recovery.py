@@ -504,5 +504,11 @@ class VariableRecovery(ForwardAnalysis, Analysis):
         # TODO: only re-assign variable names to those that are newly changed
         self.variable_manager.initialize_variable_names()
 
+        for addr, state in self._node_to_state.iteritems():
+            self.variable_manager[self.function.addr].set_live_variables(addr,
+                                                                         state.register_region,
+                                                                         state.stack_region
+                                                                         )
+
 
 register_analysis(VariableRecovery, 'VariableRecovery')
