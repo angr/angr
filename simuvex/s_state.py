@@ -181,6 +181,17 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         self.regs._ip = val
 
+    @property
+    def addr(self):
+        """
+        Get the concrete address of the instruction pointer, without triggering SimInspect breakpoints or generating
+        SimActions. An integer is returned, or an exception is raised if the instruction pointer is symbolic.
+
+        :return: an int
+        """
+
+        return self.se.exactly_int(self.regs._ip)
+
     #
     # Plugin accessors
     #
