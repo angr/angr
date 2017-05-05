@@ -189,7 +189,7 @@ class ArgSession(object):
 
     def upsize_arg(self, arg, is_fp, size):
         if not is_fp:
-            raise ValueError("You can't fit a integral value of size %d into an argument!")
+            raise ValueError("You can't fit a integral value of size %d into an argument of size %d!" % (size, arg.size))
         if not isinstance(arg, SimStackArg):
             raise ValueError("I don't know how to handle this? please report to @rhelmot")
 
