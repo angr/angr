@@ -2480,7 +2480,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return False, None
 
         # Perform a backward slicing from the jump target
-        b = Blade(self.graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True, max_level=2)
+        b = Blade(self.graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True, max_level=3)
 
         stmt_loc = (addr, 'default')
         if stmt_loc not in b.slice:
@@ -2567,7 +2567,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             start_path = self.project.factory.path(start_state)
 
             # Create the slicecutor
-            slicecutor = Slicecutor(self.project, annotatedcfg, start=start_path, targets=(load_stmt_loc[0],))
+            slicecutor = Slicecutor(self.project, annotatedcfg, start=start_path, targets=(load_stmt_loc[0],),
+                                    force_taking_exit=True
+                                    )
 
             # Run it!
             try:

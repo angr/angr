@@ -114,8 +114,8 @@ class Function(object):
         self._addr_to_block_node = {}  # map addresses to nodes
         self._block_sizes = {}  # map addresses to block sizes
         self._block_cache = {}  # a cache of real, hard data Block objects
-        self._local_blocks = set() # a set of all blocks inside the function
-        self._local_block_addrs = set() # a set of addresses of all blocks inside the function
+        self._local_blocks = {} # a dict of all blocks inside the function
+        self._local_block_addrs = set()  # a set of addresses of all blocks inside the function
 
         self.info = { }  # storing special information, like $gp values for MIPS32
 
@@ -144,9 +144,9 @@ class Function(object):
         :return: angr.lifter.Block instances.
         """
 
-        for block in self._local_blocks:
+        for block_addr, block in self._local_blocks.iteritems():
             try:
-                yield self._get_block(block.addr)
+                yield self._get_block(block_addr, block.size)
             except (SimEngineError, SimMemoryError):
                 pass
 
@@ -158,8 +158,7 @@ class Function(object):
         :return: block addresses.
         """
 
-        for block in self._local_blocks:
-            yield block.addr
+        return self._local_blocks.iterkeys()
 
     @property
     def block_addrs_set(self):
@@ -172,17 +171,27 @@ class Function(object):
 
         return self._local_block_addrs
 
-    def _get_block(self, addr):
+    def _get_block(self, addr, size=None):
         if addr in self._block_cache:
-            return self._block_cache[addr]
-        else:
-            if addr in self.block_addrs:
-                block = self._project.factory.block(addr, size=self._block_sizes[addr])
-                self._block_cache[addr] = block
-                return block
-            block = self._project.factory.block(addr)
+            b = self._block_cache[addr]
+            if size is None or b.size == size:
+                return b
+            else:
+                # size seems to be updated. remove this cached entry from the block cache
+                del self._block_cache[addr]
+
+        if size is None and addr in self.block_addrs:
+            # we know the size
+            size = self._block_sizes[addr]
+
+
+
+        block = self._project.factory.block(addr, size=size)
+        if size is None:
+            # update block_size dict
             self._block_sizes[addr] = block.size
-            return block
+        self._block_cache[addr] = block
+        return block
 
     @property
     def nodes(self):
@@ -393,7 +402,7 @@ class Function(object):
         s += '  Arguments: reg: %s, stack: %s\n' % \
             (self._argument_registers,
              self._argument_stack_variables)
-        s += '  Blocks: [%s]\n' % ", ".join(['%#x' % i.addr for i in self._local_blocks])
+        s += '  Blocks: [%s]\n' % ", ".join(['%#x' % i for i in self.block_addrs])
         s += "  Calling convention: %s" % self.calling_convention
         return s
 
@@ -571,7 +580,7 @@ class Function(object):
                 if self.startpoint is None or not self.startpoint.is_hook:
                     self.startpoint = node
             if is_local:
-                self._local_blocks.add(node)
+                self._local_blocks[node.addr] = node
                 self._local_block_addrs.add(node.addr)
             # add BlockNodes to the addr_to_block_node cache if not already there
             if isinstance(node, BlockNode):
@@ -721,7 +730,7 @@ class Function(object):
         g = networkx.DiGraph()
         if self.startpoint is not None:
             g.add_node(self.startpoint)
-        for block in self._local_blocks:
+        for block in self._local_blocks.itervalues():
             g.add_node(block)
         for src, dst, data in self.transition_graph.edges_iter(data=True):
             if 'type' in data:
@@ -748,9 +757,9 @@ class Function(object):
         blocks = []
         block_addr_to_insns = {}
 
-        for b in self._local_blocks:
+        for b in self._local_blocks.itervalues():
             # TODO: should I call get_blocks?
-            block = self._get_block(b.addr)
+            block = self._get_block(b.addr, size=b.size)
             common_insns = set(block.instruction_addrs).intersection(ins_addrs)
             if common_insns:
                 blocks.append(b)
@@ -788,7 +797,7 @@ class Function(object):
         """
 
         for b in self.blocks:
-            block = self._get_block(b.addr)
+            block = self._get_block(b.addr, size=b.size)
             if insn_addr in block.instruction_addrs:
                 index = block.instruction_addrs.index(insn_addr)
                 if index == len(block.instruction_addrs) - 1:
@@ -931,11 +940,17 @@ class Function(object):
                     graph.remove_edge(p, n)
                 graph.remove_node(n)
 
-                if n in self._local_blocks:
-                    self._local_blocks.remove(n)
-                    self._local_block_addrs.remove(n.addr)
-                    self._local_blocks.add(new_node)
-                    self._local_block_addrs.add(n.addr)
+                # update local_blocks
+                if n.addr in self._local_blocks and self._local_blocks[n.addr].size != new_node.size:
+                    del self._local_blocks[n.addr]
+                    self._local_blocks[n.addr] = new_node
+
+                # update block_cache and block_sizes
+                if (n.addr in self._block_cache and self._block_cache[n.addr].size != new_node.size) or \
+                        (n.addr in self._block_sizes and self._block_sizes[n.addr] != new_node.size):
+                    # the cache needs updating
+                    self._block_cache.pop(n.addr, None)
+                    self._block_sizes[n.addr] = new_node.size
 
                 for p, _, data in original_predecessors:
                     if p not in other_nodes:
