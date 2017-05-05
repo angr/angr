@@ -1457,7 +1457,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             except (simuvex.SimValueError, simuvex.SimSolverModeError):
                 l.debug("|    target cannot be concretized. %s [%s] %s", successor_status[suc], exit_type_str,
                         jumpkind)
-        l.debug("%d exits remaining, %d exits pending.", len(self._entries), len(self._pending_entries))
+        l.debug("%d exits remaining, %d exits pending.", len(self._job_info_list), len(self._pending_entries))
         l.debug("%d unique basic blocks are analyzed so far.", len(self._analyzed_addrs))
 
     def _iteratively_clean_pending_exits(self):
