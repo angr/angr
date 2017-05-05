@@ -2567,7 +2567,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             start_path = self.project.factory.path(start_state)
 
             # Create the slicecutor
-            slicecutor = Slicecutor(self.project, annotatedcfg, start=start_path, targets=(load_stmt_loc[0],))
+            slicecutor = Slicecutor(self.project, annotatedcfg, start=start_path, targets=(load_stmt_loc[0],),
+                                    force_taking_exit=True
+                                    )
 
             # Run it!
             try:

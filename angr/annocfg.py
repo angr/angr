@@ -171,6 +171,11 @@ class AnnotatedCFG(object):
     def get_loops(self):
         return self._loops
 
+    def get_targets(self, source_addr):
+        if source_addr in self._exit_taken:
+            return self._exit_taken[source_addr]
+        return None
+
     #
     # Debugging helpers
     #

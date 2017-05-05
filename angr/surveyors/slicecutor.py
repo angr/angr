@@ -54,7 +54,7 @@ class Slicecutor(Surveyor):
     """The Slicecutor is a surveyor that executes provided code slices."""
 
     def __init__(self, project, annotated_cfg, start=None, targets=None, max_concurrency=None, max_active=None,
-                 max_loop_iterations=None, pickle_paths=None, merge_countdown=10):
+                 max_loop_iterations=None, pickle_paths=None, merge_countdown=10, force_taking_exit=False):
         Surveyor.__init__(self, project, start=start, max_concurrency=max_concurrency, max_active=max_active, pickle_paths=pickle_paths)
 
         # the loop limiter
@@ -65,6 +65,8 @@ class Slicecutor(Surveyor):
 
         # the annotated cfg to determine what to execute
         self._annotated_cfg = annotated_cfg
+
+        self._force_taking_exit = force_taking_exit
 
         # these are paths that are taking exits that the annotated CFG does not
         # know about
@@ -143,6 +145,14 @@ class Slicecutor(Surveyor):
             else:
                 l.debug("... not taking the exit.")
                 cut = True
+
+        if not new_paths and path.unconstrained_successors and self._force_taking_exit:
+            # somehow there is no feasible path. We are forced to create a successor based on our slice
+            for target in self._annotated_cfg.get_targets(path.addr):
+                successor = path.unconstrained_successors[0].copy()
+                successor.addr = target
+                new_paths.append(successor)
+            l.debug('%d new paths are created based on AnnotatedCFG.', len(new_paths))
 
         if mystery: self.mysteries.append(self.suspend_path(path))
         if cut: self.cut.append(self.suspend_path(path))
