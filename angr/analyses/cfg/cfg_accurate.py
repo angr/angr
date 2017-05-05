@@ -1259,6 +1259,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         all_successors = successors + sim_successors.unconstrained_successors
 
+        # make sure FakeRets are at the last
+        all_successors = [ suc for suc in all_successors if suc.scratch.jumpkind != 'Ijk_FakeRet' ] + \
+                         [ suc for suc in all_successors if suc.scratch.jumpkind == 'Ijk_FakeRet' ]
+
         if self._keep_state:
             entry.cfg_node.final_states = all_successors[::]
 
