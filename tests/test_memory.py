@@ -621,7 +621,26 @@ def test_fast_memory():
 
     _concrete_memory_tests(s)
 
+def test_crosspage_read():
+    state = SimState(arch='ARM')
+    state.regs.sp = 0x7fff0008
+    state.stack_push(0x44556677)
+    state.stack_push(0x1)
+    state.stack_push(0x2)
+    state.stack_push(0x3)
+    state.stack_push(0x4)
+    state.stack_push(0x99887766)
+    state.stack_push(0x5)
+    state.stack_push(0x105c8)
+    state.stack_push(0x11223344)
+    state.stack_push(0x10564)
+
+    r = state.memory.load(state.regs.sp, 40)
+    assert "77665544" in state.solver.any_str(r).encode('hex')
+    #assert s.solver.eval(r, 2) == ( 0xffeeddccbbaa998877665544, )
+
 if __name__ == '__main__':
+    test_crosspage_read()
     test_fast_memory()
     test_load_bytes()
     test_false_condition()

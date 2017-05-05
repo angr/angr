@@ -439,7 +439,7 @@ class SimPagedMemory(object):
 
         result = [ ]
         end = addr + num_bytes
-        for page_addr in range(addr, end, self._page_size):
+        for page_addr in self._containing_pages(addr, end):
             try:
                 #print "Getting page %x" % (page_addr / self._page_size)
                 page = self._get_page(page_addr / self._page_size)
@@ -664,7 +664,7 @@ class SimPagedMemory(object):
                     # Try to see if the bytes are equal
                     self_byte = self[c].bytes_at(c, 1)
                     other_byte = other[c].bytes_at(c, 1)
-                    if not self_byte is other_byte:
+                    if self_byte is not other_byte:
                         #l.debug("%s: offset %x, two different bytes %s %s from %s %s", self.id, c,
                         #        self_byte, other_byte,
                         #        self[c].object.model, other[c].object.model)
@@ -704,12 +704,15 @@ class SimPagedMemory(object):
         page.store_mo(mo, overwrite=overwrite)
         return True
 
-    def _containing_pages(self, mo):
-        mo_start = mo.base
-        mo_end = mo.base + mo.length
+    def _containing_pages(self, mo_start, mo_end):
         page_start = mo_start - mo_start%self._page_size
         page_end = mo_end + (self._page_size - mo_end%self._page_size) if mo_end % self._page_size else mo_end
         return [ b for b in range(page_start, page_end, self._page_size) ]
+
+    def _containing_pages_mo(self, mo):
+        mo_start = mo.base
+        mo_end = mo.base + mo.length
+        return self._containing_pages(mo_start, mo_end)
 
     def store_memory_object(self, mo, overwrite=True):
         """
@@ -719,7 +722,7 @@ class SimPagedMemory(object):
         :param memory_object: the memory object to store
         """
 
-        for p in self._containing_pages(mo):
+        for p in self._containing_pages_mo(mo):
             self._apply_object_to_page(p, mo, overwrite=overwrite)
 
         self._update_range_mappings(mo.base, mo.object, mo.length)
@@ -738,7 +741,7 @@ class SimPagedMemory(object):
             raise SimMemoryError("memory objects can only be replaced by the same length content")
 
         new = SimMemoryObject(new_content, old.base)
-        for p in self._containing_pages(old):
+        for p in self._containing_pages_mo(old):
             self._get_page(p/self._page_size, write=True).replace_mo(old, new)
 
         if isinstance(new.object, claripy.ast.BV):
