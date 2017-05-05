@@ -56,16 +56,9 @@ class BasePage(object):
         else:
             return self.permissions.args[0]
 
-    def __contains__(self, idx):
-        m = self.load_mo(idx)
+    def contains(self, state, idx):
+        m = self.load_mo(state, idx)
         return m is not None and m.includes(idx)
-
-    def __getitem__(self, idx):
-        m = self.load_mo(idx)
-        if m is None or not m.includes(idx):
-            raise KeyError(idx)
-        else:
-            return m
 
     def _resolve_range(self, mo):
         start = max(mo.base, self._page_addr)
@@ -74,7 +67,7 @@ class BasePage(object):
             l.warning("Nothing left of the memory object to store in SimPage.")
         return start, end
 
-    def store_mo(self, new_mo, overwrite=True):
+    def store_mo(self, state, new_mo, overwrite=True): #pylint:disable=unused-argument
         """
         Stores a memory object.
 
@@ -83,9 +76,9 @@ class BasePage(object):
         """
         start, end = self._resolve_range(new_mo)
         if overwrite:
-            self.store_overwrite(new_mo, start, end)
+            self.store_overwrite(state, new_mo, start, end)
         else:
-            self.store_underwrite(new_mo, start, end)
+            self.store_underwrite(state, new_mo, start, end)
 
     def copy(self):
         return Page(
@@ -98,7 +91,7 @@ class BasePage(object):
     # Abstract functions
     #
 
-    def load_mo(self, page_idx):
+    def load_mo(self, state, page_idx):
         """
         Loads a memory object from memory.
 
@@ -110,16 +103,16 @@ class BasePage(object):
     def keys(self):
         raise NotImplementedError()
 
-    def replace_mo(self, old_mo, new_mo):
+    def replace_mo(self, state, old_mo, new_mo):
         raise NotImplementedError()
 
-    def store_overwrite(self, new_mo, start, end):
+    def store_overwrite(self, state, new_mo, start, end):
         raise NotImplementedError()
 
-    def store_underwrite(self, new_mo, start, end):
+    def store_underwrite(self, state, new_mo, start, end):
         raise NotImplementedError()
 
-    def load_slice(self, start, end):
+    def load_slice(self, state, start, end): #pylint:disable=unused-argument
         """
         Return the memory objects overlapping with the provided slice.
 
@@ -148,7 +141,7 @@ class TreePage(BasePage):
         else:
             return set.union(*(set(range(*self._resolve_range(mo))) for mo in self._storage.values()))
 
-    def replace_mo(self, old_mo, new_mo):
+    def replace_mo(self, state, old_mo, new_mo):
         start, end = self._resolve_range(old_mo)
         possible_items = list(self._storage.item_slice(start, end))
         for a,v in possible_items:
@@ -156,7 +149,7 @@ class TreePage(BasePage):
                 #assert new_mo.includes(a)
                 self._storage[a] = new_mo
 
-    def store_overwrite(self, new_mo, start, end):
+    def store_overwrite(self, state, new_mo, start, end):
         # get a list of items that we will overwrite
         current_items = list(self._storage.item_slice(start, end + 1))
 
@@ -186,7 +179,7 @@ class TreePage(BasePage):
         # store the new stuff
         self._storage.update(updates)
 
-    def store_underwrite(self, new_mo, start, end):
+    def store_underwrite(self, state, new_mo, start, end):
         # first, get the current items
         current_items = list(self._storage.item_slice(start, end + 1))
 
@@ -214,7 +207,7 @@ class TreePage(BasePage):
         # apply it
         self._storage.update(updates)
 
-    def load_mo(self, page_idx):
+    def load_mo(self, state, page_idx):
         """
         Loads a memory object from memory.
 
@@ -229,7 +222,7 @@ class TreePage(BasePage):
 
         return mo
 
-    def load_slice(self, start, end):
+    def load_slice(self, state, start, end):
         """
         Return the memory objects overlapping with the provided slice.
 
@@ -268,7 +261,7 @@ class ListPage(BasePage):
         else:
             return [ self._page_addr + i for i,v in enumerate(self._storage) if v is not None ]
 
-    def replace_mo(self, old_mo, new_mo):
+    def replace_mo(self, state, old_mo, new_mo):
         if self._sinkhole is old_mo:
             self._sinkhole = new_mo
         else:
@@ -277,7 +270,7 @@ class ListPage(BasePage):
                 if self._storage[i-self._page_addr] is old_mo:
                     self._storage[i-self._page_addr] = new_mo
 
-    def store_overwrite(self, new_mo, start, end):
+    def store_overwrite(self, state, new_mo, start, end):
         if start == self._page_addr and end == self._page_addr + self._page_size:
             self._sinkhole = new_mo
             self._storage = [ None ] * self._page_size
@@ -285,7 +278,7 @@ class ListPage(BasePage):
             for i in range(start, end):
                 self._storage[i-self._page_addr] = new_mo
 
-    def store_underwrite(self, new_mo, start, end):
+    def store_underwrite(self, state, new_mo, start, end):
         if start == self._page_addr and end == self._page_addr + self._page_size:
             self._sinkhole = new_mo
         else:
@@ -293,7 +286,7 @@ class ListPage(BasePage):
                 if self._storage[i-self._page_addr] is None:
                     self._storage[i-self._page_addr] = new_mo
 
-    def load_mo(self, page_idx):
+    def load_mo(self, state, page_idx):
         """
         Loads a memory object from memory.
 
@@ -303,7 +296,7 @@ class ListPage(BasePage):
         mo = self._storage[page_idx-self._page_addr]
         return self._sinkhole if mo is None else mo
 
-    def load_slice(self, start, end):
+    def load_slice(self, state, start, end):
         """
         Return the memory objects overlapping with the provided slice.
 
@@ -399,7 +392,7 @@ class SimPagedMemory(object):
         #print "GET", addr, page_num, page_idx
 
         try:
-            v = self._get_page(page_num)[page_idx]
+            v = self._get_page(page_num).load_mo(self.state, page_idx)
             return v
         except KeyError:
             raise KeyError(addr)
@@ -460,7 +453,7 @@ class SimPagedMemory(object):
                 if ret_on_segv:
                     break
                 raise SimSegfaultError(page_addr, 'non-readable')
-            result.extend(page.load_slice(addr, end))
+            result.extend(page.load_slice(self.state, addr, end))
 
         return result
 
@@ -638,7 +631,7 @@ class SimPagedMemory(object):
             our_keys = set(our_page.keys())
             their_keys = set(their_page.keys())
             changes = (our_keys - their_keys) | (their_keys - our_keys) | {
-                i for i in (our_keys & their_keys) if our_page[i] is not their_page[i]
+                i for i in (our_keys & their_keys) if our_page.load_mo(self.state, i) is not their_page.load_mo(self.state, i)
             }
             candidates.update(changes)
 
@@ -701,7 +694,7 @@ class SimPagedMemory(object):
         if self.allow_segv and not page.concrete_permissions & Page.PROT_WRITE:
             raise SimSegfaultError(mo.base, 'non-writable')
 
-        page.store_mo(mo, overwrite=overwrite)
+        page.store_mo(self.state, mo, overwrite=overwrite)
         return True
 
     def _containing_pages(self, mo_start, mo_end):
@@ -742,7 +735,7 @@ class SimPagedMemory(object):
 
         new = SimMemoryObject(new_content, old.base)
         for p in self._containing_pages_mo(old):
-            self._get_page(p/self._page_size, write=True).replace_mo(old, new)
+            self._get_page(p/self._page_size, write=True).replace_mo(self.state, old, new)
 
         if isinstance(new.object, claripy.ast.BV):
             for b in range(old.base, old.base+old.length):
