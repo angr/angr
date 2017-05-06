@@ -2475,8 +2475,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             # job done :-)
 
-        if jumpkind != "Ijk_Boring":
-            # Currently we only support boring ones
+        if jumpkind != "Ijk_Boring" and jumpkind !="Ijk_Call":
+            # Currently we only support boring ones and call
             return False, None
 
         # Perform a backward slicing from the jump target
@@ -2593,6 +2593,30 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 jump_addr = state.scratch.temps[load_addr_tmp]
                 total_cases = jump_addr._model_vsa.cardinality
                 all_targets = [ ]
+
+                table_entry = 0
+                if total_cases > self._indirect_jump_target_limit:
+                    # try to limit the total cases exploring the possible
+                    # entry in the jumptable
+                    # assume the jumptable byte alligned
+
+                    # get the table head
+                    current_element_addr = state.se.any_int(jump_addr)
+                    while table_entry < self._indirect_jump_target_limit:
+                        # if the current element do not refer to a valid
+                        # executable region it is the end of the table
+                        current_element_addr += (table_entry * state.arch.bits / 8)
+                        address_pointed = state.se.any_int(
+                                                state.memory.load(
+                                                        current_element_addr,
+                                                        state.arch.bits / 8,
+                                                        endness=state.arch.memory_endness))
+                        if not self._addr_in_exec_memory_regions(address_pointed):
+                            break
+                        table_entry += 1
+
+                if table_entry != 0:
+                    total_cases = table_entry + 1
 
                 if total_cases > self._indirect_jump_target_limit:
                     # We resolved too many targets for this indirect jump. Something might have gone wrong.
