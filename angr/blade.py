@@ -182,6 +182,7 @@ class Blade(object):
             self._slice.add_node(tpl)
 
         infodict['prev'] = tpl
+        infodict['has_statement'] = True
 
     def _backward_slice(self):
         """
@@ -262,9 +263,7 @@ class Blade(object):
             for pred, _, data in in_edges:
                 if 'jumpkind' in data and data['jumpkind'] == 'Ijk_FakeRet':
                     continue
-                if pred not in self._traced_runs:
-                    self._traced_runs.add(pred)
-                    self._backward_slice_recursive(self._max_level - 1, pred, regs, stack_offsets, prev, data.get('stmt_idx', None))
+                self._backward_slice_recursive(self._max_level - 1, pred, regs, stack_offsets, prev, data.get('stmt_idx', None))
 
     def _backward_slice_recursive(self, level, run, regs, stack_offsets, prev, exit_stmt_idx):
 
@@ -293,15 +292,27 @@ class Blade(object):
             self._inslice_callback(exit_stmt_idx, exit_stmt, {'irsb_addr': irsb_addr, 'prev': prev})
             prev = (irsb_addr, exit_stmt_idx)
 
+        infodict = {'irsb_addr' : self._get_addr(run),
+                    'prev' : prev,
+                    'has_statement': False
+                    }
+
         slicer = simuvex.SimSlicer(self.project.arch, stmts,
                                    target_tmps=temps,
                                    target_regs=regs,
                                    target_stack_offsets=stack_offsets,
                                    inslice_callback=self._inslice_callback,
-                                   inslice_callback_infodict={
-                                       'irsb_addr' : self._get_addr(run),
-                                       'prev' : prev
-                                   })
+                                   inslice_callback_infodict=infodict
+                                   )
+
+        if not infodict['has_statement']:
+            # put this block into the slice
+            self._inslice_callback(1, None, infodict)
+
+        if run in self._traced_runs:
+            return
+        self._traced_runs.add(run)
+
         regs = slicer.final_regs
 
         if self._ignore_sp and self.project.arch.sp_offset in regs:
@@ -319,9 +330,8 @@ class Blade(object):
             for pred, _, data in in_edges:
                 if 'jumpkind' in data and data['jumpkind'] == 'Ijk_FakeRet':
                     continue
-                if pred not in self._traced_runs:
-                    self._traced_runs.add(pred)
-                    self._backward_slice_recursive(level - 1, pred, regs, stack_offsets, prev, data.get('stmt_idx', None))
+
+                self._backward_slice_recursive(level - 1, pred, regs, stack_offsets, prev, data.get('stmt_idx', None))
 
 from .errors import AngrBladeError, AngrBladeSimProcError
 from .analyses.cfg.cfg_node import CFGNode

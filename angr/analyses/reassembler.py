@@ -1661,11 +1661,11 @@ class Reassembler(Analysis):
 
         self._relocations = [ ]
 
-        self._initialize()
-
         self._inserted_asm_before_label = defaultdict(list)
         self._inserted_asm_after_label = defaultdict(list)
         self._removed_instructions = set()
+
+        self._initialize()
 
     #
     # Overridden predefined methods
