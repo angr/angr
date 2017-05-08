@@ -50,6 +50,9 @@ class SimMemoryObject(object):
         return self.object[left:right]
 
     def __eq__(self, other):
+        if type(other) is not SimMemoryObject:
+            return NotImplemented
+
         return self._object is other._object and self._base == other._base and hash(self._length) == hash(other._length)
 
     def __ne__(self, other):
