@@ -1054,14 +1054,14 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         """
         return self.mem.permissions(addr, permissions)
 
-    def map_region(self, addr, length, permissions):
+    def map_region(self, addr, length, permissions, init_zero=False):
         """
         Map a number of pages at address `addr` with permissions `permissions`.
         :param addr: address to map the pages at
         :param length: length in bytes of region to map, will be rounded upwards to the page size
         :param permissions: AST of permissions to map, will be a bitvalue representing flags
         """
-        return self.mem.map_region(addr, length, permissions)
+        return self.mem.map_region(addr, length, permissions, init_zero=init_zero)
 
     def unmap_region(self, addr, length):
         """
