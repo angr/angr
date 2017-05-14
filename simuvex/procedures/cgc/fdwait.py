@@ -15,7 +15,10 @@ class fdwait(simuvex.SimProcedure):
 
         read_fds = [ ]
         for fd in range(32):
-            sym_bit = self.state.se.Unconstrained('fdwait_read_%d_%d'%(run_count,fd), 1)
+            if simuvex.options.CGC_NON_BLOCKING_FDS in self.state.options:
+                sym_bit = self.state.se.BVV(1, 1)
+            else:
+                sym_bit = self.state.se.Unconstrained('fdwait_read_%d_%d'%(run_count,fd), 1)
             fd = self.state.se.BVV(fd, self.state.arch.bits)
             sym_newbit = self.state.se.If(self.state.se.ULT(fd, nfds), sym_bit, 0)
             total_ready += sym_newbit.zero_extend(self.state.arch.bits - 1)
@@ -24,7 +27,11 @@ class fdwait(simuvex.SimProcedure):
 
         write_fds = [ ]
         for fd in range(32):
-            sym_bit = self.state.se.Unconstrained('fdwait_write_%d_%d'%(run_count,fd), 1)
+            if simuvex.options.CGC_NON_BLOCKING_FDS in self.state.options:
+                sym_bit = self.state.se.BVV(1, 1)
+            else:
+                sym_bit = self.state.se.Unconstrained('fdwait_write_%d_%d' % (run_count, fd), 1)
+
             fd = self.state.se.BVV(fd, self.state.arch.bits)
             sym_newbit = self.state.se.If(self.state.se.ULT(fd, nfds), sym_bit, 0)
             total_ready += sym_newbit.zero_extend(self.state.arch.bits - 1)
