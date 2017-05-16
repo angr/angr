@@ -69,20 +69,19 @@ class mmap(simuvex.SimProcedure):
         if (flags & MAP_SHARED and flags & MAP_PRIVATE) or flags & (MAP_SHARED | MAP_PRIVATE) == 0:
             return self.state.se.BVV(-1, self.state.arch.bits)
 
+        while True:
+            try:
+                self.state.memory.map_region(addr, size, prot[2:0], init_zero=bool(flags & MAP_ANONYMOUS))
+                return addr
 
-        try:
-            self.state.memory.map_region(addr, size, prot[2:0], init_zero=bool(flags & MAP_ANONYMOUS))
+            except simuvex.SimMemoryError:
+                # This page is already mapped
 
-        except simuvex.SimMemoryError:
-            # This page is already mapped
+                if flags & MAP_FIXED:
+                    return self.state.se.BVV(-1, self.state.arch.bits)
 
-            if flags & MAP_FIXED:
-                return self.state.se.BVV(-1, self.state.arch.bits)
-
-            # Can't give you that address. Find a different one.
-            addr = self.allocate_memory(size)
-
-        return addr
+                # Can't give you that address. Find a different one.
+                addr = self.allocate_memory(size)
 
 
     def allocate_memory(self,size):
