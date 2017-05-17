@@ -9,7 +9,11 @@ import sys
 i = 0
 while True:
     i += 1
-    module = sys._getframe(i).f_globals.get('__name__')
+    try:
+        module = sys._getframe(i).f_globals.get('__name__')
+    except ValueError:
+        break
+
     if module == '__main__' or module == '__console__':
         loggers = Loggers()
         break
