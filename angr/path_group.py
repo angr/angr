@@ -65,9 +65,9 @@ class PathGroup(ana.Storable):
         self._hooks_complete = []
 
         if threads is not None:
-            self.use_technique(exploration_techniques.Threading(threads))
+            self.add_technique(exploration_techniques.Threading(threads))
         if veritesting:
-            self.use_technique(exploration_techniques.Veritesting(
+            self.add_technique(exploration_techniques.Veritesting(
                 **({} if veritesting_options is None else veritesting_options)
             ))
 
@@ -712,7 +712,7 @@ class PathGroup(ana.Storable):
         new_stashes[stash] = not_to_merge
         return self._successor(new_stashes)
 
-    def use_technique(self, tech):
+    def add_technique(self, tech):
         """
         Use an exploration technique with this path group.
         Techniques can be found in :mod:`angr.exploration_techniques`.
@@ -721,14 +721,14 @@ class PathGroup(ana.Storable):
         """
         # this might be the best worst code I've ever written in my life
         tech.project = self._project
-        self.remove_tech(tech)
+        self.remove_technique(tech)
         tech.setup(self)
         for hook in ['step_path', 'step', 'filter', 'complete']:
             hookfunc = getattr(tech, hook)
             if hookfunc.im_func is not getattr(exploration_techniques.ExplorationTechnique, hook).im_func:
                 getattr(self, '_hooks_' + hook).append(hookfunc)
 
-    def remove_tech(self, tech):
+    def remove_technique(self, tech):
         for hook in ['step_path', 'step', 'filter', 'complete']:
             try:
                 getattr(self, '_hooks_' + hook).remove(getattr(tech, hook))
@@ -825,12 +825,12 @@ class PathGroup(ana.Storable):
                                    avoid_stash=avoid_stash,
                                    cfg=cfg,
                                    num_find=num_find)
-        self.use_technique(tech)
+        self.add_technique(tech)
         out = self.run(stash=stash,
                        step_func=step_func,
                        n=n)
-        out.remove_tech(tech)
-        self.remove_tech(tech)
+        out.remove_technique(tech)
+        self.remove_technique(tech)
         return out
 
     def run(self, stash=None, n=None, step_func=None):

@@ -9,7 +9,7 @@ class ExplorationTechnique(object):
     TODO: choose actual name for the functionality (techniques? something?)
 
     Any number of these methods may be overridden by a subclass.
-    To use an exploration technique, call ``pg.use_technique``.
+    To use an exploration technique, call ``pg.add_technique``.
     """
     # pylint: disable=unused-argument, no-self-use
     def __init__(self):

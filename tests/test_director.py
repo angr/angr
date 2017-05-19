@@ -20,7 +20,7 @@ def test_execute_address_brancher():
     dm = angr.exploration_techniques.Director(num_fallback_paths=1)
     goal = angr.exploration_techniques.ExecuteAddressGoal(0x400594)
     dm.add_goal(goal)
-    pg.use_technique(dm)
+    pg.add_technique(dm)
 
     pg.explore(find=(0x4005b4,))
 
@@ -48,7 +48,7 @@ def test_call_function_brancher():
     puts_func = p.kb.functions.function(name='puts')
     goal = angr.exploration_techniques.CallFunctionGoal(puts_func, [(SimTypePointer(SimTypeChar()), ">=20")])
     dm.add_goal(goal)
-    pg.use_technique(dm)
+    pg.add_technique(dm)
 
     pg.explore(find=(0x40059e,))
 

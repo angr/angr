@@ -29,7 +29,7 @@ def test_palindrome2():
     pg = project.factory.path_group()
     pg.active[0].state.options.discard('LAZY_SOLVES')
     limiter = angr.exploration_techniques.LengthLimiter(max_length=250)
-    pg.use_technique(limiter)
+    pg.add_technique(limiter)
 
     def pickle_callback(path): path.info['pickled'] = True
     def unpickle_callback(path): path.info['unpickled'] = True
@@ -38,7 +38,7 @@ def test_palindrome2():
         pickle_callback=pickle_callback, unpickle_callback=unpickle_callback,
         priority_key=priority_key
     )
-    pg.use_technique(spiller)
+    pg.add_technique(spiller)
     #pg.step(until=lambda lpg: len(lpg.active) == 10)
     #pg.step(until=lambda lpg: len(lpg.spill_stage) > 15)
     #pg.step(until=lambda lpg: spiller._pickled_paths)
