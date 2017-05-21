@@ -231,6 +231,27 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     def set_stack_size(self, size):
         self._stack_size = size
 
+    def create_region(self, key, state, is_stack, related_function_addr, endness, backer_dict=None):
+        """
+        Create a new MemoryRegion with the region key specified, and store it to self._regions.
+
+        :param key: a string which is the region key
+        :param state: the SimState instance
+        :param bool is_stack: Whether this memory region is on stack. True/False
+        :param related_function_addr: Which function first creates this memory region. Just for reference.
+        :param endness: The endianness.
+        :param backer_dict: The memory backer object.
+        :return: None
+        """
+
+        self._regions[key] = MemoryRegion(key,
+                                          state=state,
+                                          is_stack=is_stack,
+                                          related_function_addr=related_function_addr,
+                                          endness=endness,
+                                          backer_dict=backer_dict,
+                                          )
+
     def _normalize_address(self, region_id, relative_address, target_region=None):
         """
         If this is a stack address, we convert it to a correct region and address
@@ -402,13 +423,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         bbl_addr, stmt_id, ins_addr = self.state.scratch.bbl_addr, self.state.scratch.stmt_idx, self.state.scratch.ins_addr
 
         if key not in self._regions:
-            self._regions[key] = MemoryRegion(
-                key,
-                self.state,
-                is_stack=is_stack,
-                related_function_addr=related_function_addr,
-                endness=self.endness
-            )
+            self.create_region(key, self.state, is_stack, related_function_addr, self.endness)
 
         r = MemoryStoreRequest(addr, data=data, endness=endness)
         self._regions[key].store(r, bbl_addr, stmt_id, ins_addr)
@@ -458,7 +473,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         bbl_addr, stmt_id, ins_addr = self.state.scratch.bbl_addr, self.state.scratch.stmt_idx, self.state.scratch.ins_addr
 
         if key not in self._regions:
-            self._regions[key] = MemoryRegion(key, state=self.state, is_stack=is_stack, related_function_addr=related_function_addr, endness=self.endness)
+            self.create_region(key, self.state, is_stack, related_function_addr, self.endness)
 
         return self._regions[key].load(addr, size, bbl_addr, stmt_id, ins_addr)
 
