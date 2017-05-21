@@ -31,14 +31,19 @@ class __libc_start_main(simuvex.SimProcedure):
             # Each entry is 2 bytes
             self.state.memory.store(table + (pos*2),
                                     self.state.se.BVV(c, 16),
-                                    endness=self.state.arch.memory_endness)
+                                    endness=self.state.arch.memory_endness,
+                                    inspect=False,
+                                    disable_actions=True,
+                                    )
         # Offset for negative chars
         # 256 because 2 bytes each, -128 * 2
         table += 256
         self.state.memory.store(table_ptr,
                                 table,
                                 size=self.state.arch.bits / 8,
-                                endness=self.state.arch.memory_endness
+                                endness=self.state.arch.memory_endness,
+                                inspect=False,
+                                disable_actions=True,
                                 )
 
         self.state.libc.ctype_b_loc_table_ptr = table_ptr
@@ -57,14 +62,19 @@ class __libc_start_main(simuvex.SimProcedure):
         for pos, c in enumerate(self.state.libc.TOLOWER_LOC_ARRAY):
             self.state.memory.store(table + (pos * 4),
                                     self.state.se.BVV(c, 32),
-                                    endness=self.state.arch.memory_endness)
+                                    endness=self.state.arch.memory_endness,
+                                    inspect=False,
+                                    disable_actions=True,
+                                    )
 
         # Offset for negative chars: -128 index (4 bytes per index)
         table += (128 * 4)
         self.state.memory.store(table_ptr,
                                 table,
                                 size=self.state.arch.bits / 8,
-                                endness=self.state.arch.memory_endness
+                                endness=self.state.arch.memory_endness,
+                                inspect=False,
+                                disable_actions=True,
                                 )
 
         self.state.libc.ctype_tolower_loc_table_ptr = table_ptr
@@ -83,14 +93,19 @@ class __libc_start_main(simuvex.SimProcedure):
         for pos, c in enumerate(self.state.libc.TOUPPER_LOC_ARRAY):
             self.state.memory.store(table + (pos * 4),
                                     self.state.se.BVV(c, 32),
-                                    endness=self.state.arch.memory_endness)
+                                    endness=self.state.arch.memory_endness,
+                                    inspect=False,
+                                    disable_actions=True,
+                                    )
 
         # Offset for negative chars: -128 index (4 bytes per index)
         table += (128 * 4)
         self.state.memory.store(table_ptr,
                                 table,
                                 size=self.state.arch.bits / 8,
-                                endness=self.state.arch.memory_endness
+                                endness=self.state.arch.memory_endness,
+                                inspect=False,
+                                disable_actions=True,
                                 )
 
         self.state.libc.ctype_toupper_loc_table_ptr = table_ptr
