@@ -2,15 +2,18 @@ import collections
 import claripy
 
 class SimVariable(object):
-    def __init__(self, ident=None, name=None, phi=False, region=None):
+    def __init__(self, ident=None, name=None, region=None):
         """
         :param ident: A unique identifier provided by user or the program. Usually a string.
         :param str name: Name of this variable.
         """
         self.ident = ident
         self.name = name
-        self.phi = phi
         self.region = region if region is not None else ""
+
+    @property
+    def phi(self):
+        return False
 
 
 class SimConstantVariable(SimVariable):
@@ -31,10 +34,10 @@ class SimConstantVariable(SimVariable):
             # they may or may not represent the same constant. return not equal to be safe
             return False
 
-        return self.value == other.value and self.ident == other.ident and self.region == other.region
+        return self.ident == other.ident and self.value == other.value and self.region == other.region
 
     def __hash__(self):
-        return hash(('const', self.value, self.ident, self.region))
+        return hash(('const', self.value, self.ident, self.region, self.ident))
 
 
 class SimTemporaryVariable(SimVariable):
@@ -67,25 +70,62 @@ class SimRegisterVariable(SimVariable):
         self.size = size
 
     def __repr__(self):
-        s = "<%s|Reg %s %s>" % (self.region, self.reg, self.size)
+
+        ident_str = "[%s]" % self.ident if self.ident else ""
+        region_str = hex(self.region) if isinstance(self.region, (int, long)) else self.region
+        phi_str = ("phi(%s)|" % (",".join(v.ident for v in self.variables))) if self.phi else ""
+
+        s = "<%s%s%s|Reg %s, %sB>" % (phi_str, region_str, ident_str, self.reg, self.size)
 
         return s
 
     def __hash__(self):
-        return hash('%s|reg_%s_%s_%s' % (self.region, self.reg, self.size, self.ident))
+        return hash(('reg', self.region, self.reg, self.size, self.ident))
 
     def __eq__(self, other):
         if isinstance(other, SimRegisterVariable):
-            return hash(self) == hash(other) and self.name == other.name and self.ident == other.ident and \
-                   self.region == other.region
+            return self.ident == other.ident and \
+                   self.name == other.name and \
+                   self.reg == other.reg and \
+                   self.size == other.size and \
+                   self.region == other.region and \
+                   self.phi == other.phi
 
         else:
             return False
 
 
+class SimRegisterVariablePhi(SimRegisterVariable):
+    def __init__(self, ident=None, name=None, region=None, variables=None):
+        var = next(iter(variables))
+        reg_offset = var.reg
+        size = var.size
+
+        super(SimRegisterVariablePhi, self).__init__(reg_offset, size, ident=ident, name=name, region=region)
+
+        self.variables = set(variables)
+
+    def __hash__(self):
+        return hash((self.name, self.region, self.size, self.ident, tuple(self.variables)))
+
+    def __eq__(self, other):
+        if type(other) is not SimRegisterVariablePhi:
+            return False
+
+        return self.ident == other.ident and \
+               self.variables == other.variables and \
+               self.name == other.name and \
+               self.region == other.region and \
+               self.size == other.size
+
+    @property
+    def phi(self):
+        return True
+
+
 class SimMemoryVariable(SimVariable):
-    def __init__(self, addr, size, ident=None, name=None, phi=False, region=None):
-        SimVariable.__init__(self, ident=ident, name=name, phi=phi, region=region)
+    def __init__(self, addr, size, ident=None, name=None, region=None):
+        SimVariable.__init__(self, ident=ident, name=name, region=region)
 
         self.addr = addr
 
@@ -125,14 +165,47 @@ class SimMemoryVariable(SimVariable):
 
     def __eq__(self, other):
         if isinstance(other, SimMemoryVariable):
-            return hash(self) == hash(other) and self.name == other.name
+            return self.ident == other.ident and \
+                   self.addr == other.addr and \
+                   self.name == other.name and \
+                   self.size == other.size and \
+                   self.phi == other.phi
 
         else:
             return False
 
 
+class SimMemoryVariablePhi(SimMemoryVariable):
+    def __init__(self, ident=None, name=None, region=None, variables=None):
+        var = next(iter(variables))
+        addr = var.addr
+        size = var.size
+
+        super(SimMemoryVariablePhi, self).__init__(addr, size, ident=ident, name=name, region=region)
+
+        self.variables = set(variables)
+
+    def __hash__(self):
+        return hash((self.name, self.region, self.size, self.ident, tuple(self.variables)))
+
+    def __eq__(self, other):
+        if type(other) is not SimMemoryVariablePhi:
+            return False
+
+        return self.ident == other.ident and \
+               self.variables == other.variables and \
+               self.addr == other.addr and \
+               self.name == other.name and \
+               self.region == other.region and \
+               self.size == other.size
+
+    @property
+    def phi(self):
+        return True
+
+
 class SimStackVariable(SimMemoryVariable):
-    def __init__(self, offset, size, base='sp', base_addr=None, ident=None, name=None, phi=False, region=None):
+    def __init__(self, offset, size, base='sp', base_addr=None, ident=None, name=None, region=None):
         if offset > 0x1000000 and isinstance(offset, (int, long)):
             # I don't think any positive stack offset will be greater than that...
             # convert it to a negative number
@@ -145,7 +218,7 @@ class SimStackVariable(SimMemoryVariable):
             # TODO: this is not optimal
             addr = offset
 
-        super(SimStackVariable, self).__init__(addr, size, ident=ident, name=name, phi=phi, region=region)
+        super(SimStackVariable, self).__init__(addr, size, ident=ident, name=name, region=region)
 
         self.base = base
         self.offset = offset
@@ -157,6 +230,9 @@ class SimStackVariable(SimMemoryVariable):
             size = '%s' % self.size
 
         prefix = "%s(stack)" % self.name if self.name is not None else "Stack"
+        ident = "[%s]" % self.ident if self.ident else ""
+        region_str = hex(self.region) if isinstance(self.region, (int, long)) else self.region
+        phi_str = "phi|" if self.phi else ""
 
         if type(self.offset) in (int, long):
             if self.offset < 0:
@@ -166,11 +242,51 @@ class SimStackVariable(SimMemoryVariable):
             else:
                 offset = ""
 
-            s = "<%s|%s %s%s, %s bytes>" % (self.region, prefix, self.base, offset, size)
+            s = "<%s%s%s|%s %s%s, %s B>" % (phi_str, region_str, ident, prefix, self.base, offset, size)
         else:
-            s = "<%s|%s %s%s, %s bytes>" % (self.region, prefix, self.base, self.addr, size)
+            s = "<%s%s%s|%s %s%s, %s B>" % (phi_str, region_str, ident, prefix, self.base, self.addr, size)
 
         return s
+
+    def __eq__(self, other):
+        if type(other) is not SimStackVariable:
+            return False
+
+        return self.ident == other.ident and \
+               self.name == other.name and \
+               self.base == other.base and \
+               self.offset == other.offset and \
+               self.size == other.size and \
+               self.phi == other.phi
+
+
+class SimStackVariablePhi(SimStackVariable):
+    def __init__(self, ident=None, name=None, region=None, variables=None):
+        var = next(iter(variables))
+        offset = var.addr
+        size = var.size
+
+        super(SimStackVariablePhi, self).__init__(offset, size, ident=ident, name=name, region=region)
+
+        self.variables = set(variables)
+
+    def __hash__(self):
+        return hash((self.name, self.region, self.size, self.ident, tuple(self.variables)))
+
+    def __eq__(self, other):
+        if type(other) is not SimStackVariablePhi:
+            return False
+
+        return self.ident == other.ident and \
+               self.variables == other.variables and \
+               self.addr == other.addr and \
+               self.name == other.name and \
+               self.region == other.region and \
+               self.size == other.size
+
+    @property
+    def phi(self):
+        return True
 
 
 class SimVariableSet(collections.MutableSet):
