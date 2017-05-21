@@ -5,6 +5,8 @@ import networkx
 
 
 class SCCPlaceholder(object):
+    __slots__ = ['scc_id']
+
     def __init__(self, scc_id):
         self.scc_id = scc_id
 
