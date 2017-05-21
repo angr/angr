@@ -437,7 +437,7 @@ class ForwardAnalysis(object):
     def _merge_entries(self, *entries):
         raise NotImplementedError('_merge_entries() is not implemented.')
 
-    def _merge_states(self, *states):
+    def _merge_states(self, node, *states):
         """
 
         :param states: Abstract states to merge.
@@ -500,7 +500,7 @@ class ForwardAnalysis(object):
                 # all done!
                 break
 
-            entry_state = self._merge_state_from_predecessors(n)
+            entry_state = self._pop_input_state(n)
             if entry_state is None:
                 entry_state = self._get_initial_abstract_state(n)
 
@@ -509,8 +509,8 @@ class ForwardAnalysis(object):
 
             changed, output_state = self._run_on_node(n, entry_state)
 
-            # record the new state
-            self._state_map[n] = output_state
+            # output state of node n is input state for successors to node n
+            self._add_input_state(n, output_state)
 
             if not changed:
                 # reached a fixed point
@@ -518,6 +518,35 @@ class ForwardAnalysis(object):
 
             # add all successors
             self._graph_visitor.revisit(n, include_self=False)
+
+    def _add_input_state(self, node, input_state):
+        """
+        Add the input state to all successors of the given node.
+
+        :param node:        The node whose successors' input states will be touched.
+        :param input_state: The state that will be added to successors of the node.
+        :return:            None
+        """
+
+        successors = self._graph_visitor.successors(node)
+
+        for succ in successors:
+            if succ in self._state_map:
+                self._state_map[succ] = self._merge_states(succ, *([ self._state_map[succ], input_state ]))
+            else:
+                self._state_map[succ] = input_state
+
+    def _pop_input_state(self, node):
+        """
+        Get the input abstract state for this node, and remove it from the state map.
+
+        :param node: The node in graph.
+        :return:     A merged state, or None if there is no input state for this node available.
+        """
+
+        if node in self._state_map:
+            return self._state_map.pop(node)
+        return None
 
     def _merge_state_from_predecessors(self, node):
         """
@@ -534,7 +563,7 @@ class ForwardAnalysis(object):
         if not states:
             return None
 
-        return reduce(lambda s0, s1: self._merge_states(s0, s1), states[1:], states[0])
+        return reduce(lambda s0, s1: self._merge_states(node, s0, s1), states[1:], states[0])
 
     def _analysis_core_baremetal(self):
 
@@ -567,7 +596,11 @@ class ForwardAnalysis(object):
             except AngrSkipEntryNotice:
                 # consume and skip this job
                 self._job_info_list = self._job_info_list[1:]
+                self._entries_map.pop(self._entry_key(job_info.entry), None)
                 continue
+
+            # remove the job info from the map
+            self._entries_map.pop(self._entry_key(job_info.entry), None)
 
             self._job_info_list = self._job_info_list[1:]
 
