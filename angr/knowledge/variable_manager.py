@@ -4,7 +4,8 @@ from collections import defaultdict
 from itertools import count
 
 from claripy.utils.orderedset import OrderedSet
-from simuvex.s_variable import SimStackVariable
+from simuvex.s_variable import SimStackVariable, SimMemoryVariable, SimRegisterVariable, SimMemoryVariablePhi, \
+    SimStackVariablePhi, SimRegisterVariablePhi
 
 from .keyed_region import KeyedRegion
 from .variable_access import VariableAccess
@@ -36,12 +37,15 @@ class VariableManagerInternal(object):
         self._register_region = KeyedRegion()
         self._live_variables = { }  # a mapping between addresses of program points and live variable collections
 
-        self._variable_accesses = defaultdict(list)
-        self._insn_to_variable = defaultdict(list)
+        self._variable_accesses = defaultdict(set)
+        self._insn_to_variable = defaultdict(set)
+        self._block_to_variable = defaultdict(set)
+        self._stmt_to_variable = defaultdict(set)
         self._variable_counters = {
             'register': count(),
             'stack': count(),
             'argument': count(),
+            'phi': count(),
         }
 
     #
@@ -53,48 +57,140 @@ class VariableManagerInternal(object):
             raise ValueError('Unsupported variable sort %s' % sort)
 
         if sort == 'register':
-            prefix = "regvar"
+            prefix = "r"
         elif sort == 'stack':
-            prefix = "var"
+            prefix = "s"
         elif sort == 'argument':
             prefix = 'arg'
         else:
-            prefix = "mem"
+            prefix = "m"
 
         return "i%s_%d" % (prefix, self._variable_counters[sort].next())
 
     def add_variable(self, sort, start, variable):
         if sort == 'stack':
             self._stack_region.add_variable(start, variable)
-        elif sort == 'reg':
+        elif sort == 'register':
             self._register_region.add_variable(start, variable)
         else:
             raise ValueError('Unsupported sort %s in add_variable().' % sort)
 
-    def write_to(self, variable, offset, location):
-        self._variables.add(variable)
-        self._variable_accesses[variable].append(VariableAccess(variable, 'write', location))
-        self._insn_to_variable[location.ins_addr].append((variable, offset))
+    def set_variable(self, sort, start, variable):
+        if sort == 'stack':
+            self._stack_region.set_variable(start, variable)
+        elif sort == 'register':
+            self._register_region.set_variable(start, variable)
+        else:
+            raise ValueError('Unsupported sort %s in add_variable().' % sort)
 
-    def read_from(self, variable, offset, location):
-        self._variables.add(variable)
-        self._variable_accesses[variable].append(VariableAccess(variable, 'read', location))
-        self._insn_to_variable[location.ins_addr].append((variable, offset))
+    def write_to(self, variable, offset, location, overwrite=False):
+        self._record_variable_access('write', variable, offset, location, overwrite=overwrite)
 
-    def reference_at(self, variable, offset, location):
+    def read_from(self, variable, offset, location, overwrite=False):
+        self._record_variable_access('read', variable, offset, location, overwrite=overwrite)
+
+    def reference_at(self, variable, offset, location, overwrite=False):
+        self._record_variable_access('reference', variable, offset, location, overwrite=overwrite)
+
+    def _record_variable_access(self, sort, variable, offset, location, overwrite=False):
         self._variables.add(variable)
-        self._variable_accesses[variable].append(VariableAccess(variable, 'reference', location))
-        self._insn_to_variable[location.ins_addr].append((variable, offset))
+        if overwrite:
+            self._variable_accesses[variable] = {VariableAccess(variable, sort, location)}
+            self._insn_to_variable[location.ins_addr] = {(variable, offset)}
+            self._block_to_variable[location.block_addr] = {(variable, offset)}
+            self._stmt_to_variable[(location.block_addr, location.stmt_idx)] = {(variable, offset)}
+        else:
+            self._variable_accesses[variable].add(VariableAccess(variable, sort, location))
+            self._insn_to_variable[location.ins_addr].add((variable, offset))
+            self._block_to_variable[location.block_addr].add((variable, offset))
+            self._stmt_to_variable[(location.block_addr, location.stmt_idx)].add((variable, offset))
+
+    def make_phi_node(self, *variables):
+
+        # unpack phi nodes
+        existing_phi = [ ]
+        unpacked = set()
+        for var in variables:
+            if isinstance(var, (SimRegisterVariablePhi, SimStackVariablePhi, SimMemoryVariablePhi)):
+                unpacked |= var.variables
+                existing_phi.append(var)
+            else:
+                unpacked.add(var)
+
+        # optimization: if a phi node already contains all of the unpacked variables, just return that phi node
+        for phi_node in existing_phi:
+            if phi_node.variables.issuperset(unpacked):
+                print "LOL"
+                return phi_node
+
+        variables = unpacked
+
+        repre = next(iter(variables))
+        repre_type = type(repre)
+        if repre_type is SimRegisterVariable:
+            cls = SimRegisterVariablePhi
+            ident_sort = 'register'
+        elif repre_type is SimMemoryVariable:
+            cls = SimMemoryVariablePhi
+            ident_sort = 'memory'
+        elif repre_type is SimStackVariable:
+            cls = SimStackVariablePhi
+            ident_sort = 'stack'
+        else:
+            raise TypeError('make_phi_node(): Unsupported variable type "%s".' % type(repre))
+        a = cls(ident=self.next_variable_ident(ident_sort),
+                   region=self.func_addr,
+                   variables=variables,
+                   )
+        return a
 
     def set_live_variables(self, addr, register_region, stack_region):
         lv = LiveVariables(register_region, stack_region)
         self._live_variables[addr] = lv
 
-    def find_variable_by_insn(self, ins_addr):
+    def find_variable_by_insn(self, ins_addr, sort):
         if ins_addr not in self._insn_to_variable:
             return None
 
-        return self._insn_to_variable[ins_addr][-1]
+        if sort == 'memory':
+            var_and_offset = next(((var, offset) for var, offset in self._insn_to_variable[ins_addr]
+                        if isinstance(var, (SimStackVariable, SimMemoryVariable))),
+                        None)
+        elif sort == 'register':
+            var_and_offset = next(((var, offset) for var, offset in self._insn_to_variable[ins_addr]
+                        if isinstance(var, SimRegisterVariable)),
+                        None)
+        else:
+            l.error('find_variable_by_insn(): Unsupported variable sort "%s".', sort)
+            return None
+
+        return var_and_offset
+
+    def find_variable_by_stmt(self, block_addr, stmt_idx, sort):
+        return next(iter(self.find_variables_by_stmt(block_addr, stmt_idx, sort)), None)
+
+    def find_variables_by_stmt(self, block_addr, stmt_idx, sort):
+
+        key = block_addr, stmt_idx
+
+        if key not in self._stmt_to_variable:
+            return [ ]
+
+        variables = self._stmt_to_variable[key]
+        if not variables:
+            return [ ]
+
+        if sort == 'memory':
+            var_and_offsets = list((var, offset) for var, offset in self._stmt_to_variable[key]
+                                   if isinstance(var, (SimStackVariable, SimMemoryVariable)))
+        elif sort == 'register':
+            var_and_offsets = list((var, offset) for var, offset in self._stmt_to_variable[key]
+                                   if isinstance(var, SimRegisterVariable))
+        else:
+            l.error('find_variables_by_stmt(): Unsupported variable sort "%s".', sort)
+            return [ ]
+
+        return var_and_offsets
 
     def get_variable_accesses(self, variable, same_name=False):
 
@@ -155,8 +251,12 @@ class VariableManagerInternal(object):
                 if var.ident.startswith('iarg'):
                     var.name = 'arg_%x' % var.offset
                 else:
-                    var.name = 'var_%x' % (-var.offset)
+                    var.name = 's_%x' % (-var.offset)
                     # var.name = var.ident
+            elif isinstance(var, SimRegisterVariable):
+                if var.name is not None:
+                    continue
+                var.name = var.ident
 
 
 class VariableManager(object):
