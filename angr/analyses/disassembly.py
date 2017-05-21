@@ -310,7 +310,17 @@ class ConstantOperand(Operand):
 
 
 class RegisterOperand(Operand):
-    pass
+
+    def _render(self, formatting):
+        custom_value_str = None
+        if formatting is not None:
+            try: custom_value_str = formatting['custom_values_str'][self.ident]
+            except KeyError: pass
+
+        if custom_value_str:
+            return [custom_value_str]
+        else:
+            return super(RegisterOperand, self)._render(formatting)
 
 
 class MemoryOperand(Operand):
