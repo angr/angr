@@ -957,7 +957,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if more_data:
             print "%s..." % (" " * indent)
 
-    def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None):
+    def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None, inspect=True,
+                      disable_actions=False):
         src_memory = self if src_memory is None else src_memory
         dst_memory = self if dst_memory is None else dst_memory
 
@@ -965,8 +966,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if max_size == 0:
             return None, [ ]
 
-        data = src_memory.load(src, max_size)
-        dst_memory.store(dst, data, size=size, condition=condition)
+        data = src_memory.load(src, max_size, inspect=inspect, disable_actions=disable_actions)
+        dst_memory.store(dst, data, size=size, condition=condition, inspect=inspect, disable_actions=disable_actions)
         return data
 
     #

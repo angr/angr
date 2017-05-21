@@ -462,6 +462,19 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         return self._regions[key].load(addr, size, bbl_addr, stmt_id, ins_addr)
 
+    def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None, inspect=True,
+                      disable_actions=False):
+        src_memory = self if src_memory is None else src_memory
+        dst_memory = self if dst_memory is None else dst_memory
+
+        max_size = self.state.se.max_int(size)
+        if max_size == 0:
+            return None, [ ]
+
+        data = src_memory.load(src, max_size, inspect=inspect, disable_actions=disable_actions)
+        dst_memory.store(dst, data, size=size, condition=condition, inspect=inspect, disable_actions=disable_actions)
+        return data
+
     def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
         if type(addr) in (int, long):
             addr = self.state.se.BVV(addr, self.state.arch.bits)

@@ -820,7 +820,8 @@ class SimMemory(SimStatePlugin):
     def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
         raise NotImplementedError()
 
-    def copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None):
+    def copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None, inspect=True,
+                      disable_actions=False):
         """
         Copies data within a memory.
 
@@ -840,9 +841,11 @@ class SimMemory(SimStatePlugin):
         size = _raw_ast(size)
         condition = _raw_ast(condition)
 
-        return self._copy_contents(dst, src, size, condition=condition, src_memory=src_memory, dst_memory=dst_memory)
+        return self._copy_contents(dst, src, size, condition=condition, src_memory=src_memory, dst_memory=dst_memory,
+                                   inspect=inspect, disable_actions=disable_actions)
 
-    def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None):
+    def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None, inspect=True,
+                      disable_actions=False):
         raise NotImplementedError()
 
 from bintrees import AVLTree
