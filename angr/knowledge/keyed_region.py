@@ -17,6 +17,9 @@ class LocationAndVariable(object):
 
         return self.variable == other.variable and self.start == other.start
 
+    def __hash__(self):
+        return hash((self.start, self.variable))
+
 
 class RegionObject(object):
     """
@@ -26,6 +29,16 @@ class RegionObject(object):
         self.start = start
         self.size = size
         self.objects = set() if objects is None else objects
+
+    def __eq__(self, other):
+        return self.start == other.start and self.size == other.size and self.objects == other.objects
+
+    def __ne__(self, other):
+        return not self == other
+
+    @property
+    def is_empty(self):
+        return len(self.objects) == 0
 
     @property
     def end(self):
@@ -54,6 +67,10 @@ class RegionObject(object):
     def set_object(self, obj):
         self.objects.clear()
         self.objects.add(obj)
+
+    def copy(self):
+        ro = RegionObject(self.start, self.size, objects=self.objects.copy())
+        return ro
 
 
 class KeyedRegion(object):
@@ -88,13 +105,26 @@ class KeyedRegion(object):
         for _, item in self._storage.items():
             yield item
 
+    def __eq__(self, other):
+        if set(self._storage.keys()) != set(other._storage.keys()):
+            return False
+
+        for k, v in self._storage.iter_items():
+            if v != other._storage[k]:
+                return False
+
+        return True
+
     def copy(self):
         if not self._storage:
             return KeyedRegion()
         else:
-            return KeyedRegion(tree=self._storage.copy())
+            kr = KeyedRegion()
+            for key, ro in self._storage.iter_items():
+                kr._storage[key] = ro.copy()
+            return kr
 
-    def merge(self, other):
+    def merge(self, other, make_phi_func=None):
         """
         Merge another KeyedRegion into this KeyedRegion.
 
@@ -105,7 +135,27 @@ class KeyedRegion(object):
         # TODO: is the current solution not optimal enough?
         for _, item in other._storage.iter_items():  # type: RegionObject
             for loc_and_var in item.objects:
-                self.__store(loc_and_var, overwrite=False)
+                self.__store(loc_and_var, overwrite=False, make_phi_func=make_phi_func)
+
+        return self
+
+    def dbg_repr(self):
+        """
+        Get a debugging representation of this keyed region.
+        :return: A string of debugging output.
+        """
+        keys = self._storage.keys()
+        offset_to_vars = { }
+
+        for key in sorted(keys):
+            ro = self._storage[key]
+            vars = [ obj.variable for obj in ro.objects ]
+            offset_to_vars[key] = vars
+
+        s = [ ]
+        for offset, vars in offset_to_vars.iteritems():
+            s.append("Offset %#x: %s" % (offset, vars))
+        return "\n".join(s)
 
     def add_variable(self, start, variable):
         """
@@ -160,8 +210,9 @@ class KeyedRegion(object):
         except KeyError: return [ ]
 
         item = self._storage[base_addr]  # type: RegionObject
-
-        return item.variables
+        if item.includes(start):
+            return item.variables
+        return [ ]
 
 
     #
@@ -181,7 +232,7 @@ class KeyedRegion(object):
         loc_and_var = LocationAndVariable(start, variable)
         self.__store(loc_and_var, overwrite=overwrite)
 
-    def __store(self, loc_and_var, overwrite=False):
+    def __store(self, loc_and_var, overwrite=False, make_phi_func=None):
         """
         Store a variable into the storage.
 
@@ -196,14 +247,16 @@ class KeyedRegion(object):
         end = start + variable_size
 
         # region items in the middle
-        overlapping_items = list(self._storage.item_slice(start, end + 1))
+        overlapping_items = list(self._storage.item_slice(start, end))
 
         # is there a region item that begins before the start and overlaps with this variable?
         try:
             floor_key, floor_item = self._storage.floor_item(start)  # type: RegionObject
             if floor_item.includes(start):
-                # insert it into the beginning
-                overlapping_items.insert(0, (floor_key, floor_item))
+                item = (floor_key, floor_item)
+                if item not in overlapping_items:
+                    # insert it into the beginningq
+                    overlapping_items.insert(0, (floor_key, floor_item))
         except KeyError:
             # no there isn't
             pass
@@ -219,7 +272,7 @@ class KeyedRegion(object):
                 if overwrite:
                     b.set_object(loc_and_var)
                 else:
-                    b.add_object(loc_and_var)
+                    self._add_object_or_make_phi(b, loc_and_var, make_phi_func=make_phi_func)
                 to_update[a.start] = a
                 to_update[b.start] = b
                 last_end = b.end
@@ -235,7 +288,7 @@ class KeyedRegion(object):
                 if overwrite:
                     a.set_object(loc_and_var)
                 else:
-                    a.add_object(loc_and_var)
+                    self._add_object_or_make_phi(a, loc_and_var, make_phi_func=make_phi_func)
                 to_update[a.start] = a
                 to_update[b.start] = b
                 last_end = b.end
@@ -243,7 +296,8 @@ class KeyedRegion(object):
                 if overwrite:
                     item.set_object(loc_and_var)
                 else:
-                    item.add_object(loc_and_var)
+                    self._add_object_or_make_phi(item, loc_and_var, make_phi_func=make_phi_func)
+                to_update[loc_and_var.start] = item
 
         self._storage.update(to_update)
 
@@ -277,3 +331,13 @@ class KeyedRegion(object):
                     return True
 
         return False
+
+    def _add_object_or_make_phi(self, item, loc_and_var, make_phi_func=None):
+        if not make_phi_func or len({loc_and_var.variable} | item.variables) == 1:
+            item.add_object(loc_and_var)
+        else:
+            # make a phi node
+            item.set_object(LocationAndVariable(loc_and_var.start,
+                                                make_phi_func(loc_and_var.variable, *item.variables)
+                                                )
+                            )
