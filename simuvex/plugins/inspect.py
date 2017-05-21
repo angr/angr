@@ -243,13 +243,25 @@ class SimInspector(SimStatePlugin):
                              )
         self._breakpoints[event_type].append(bp)
 
-    def remove_breakpoint(self, event_type, bp):
+    def remove_breakpoint(self, event_type, bp=None, filter_func=None):
         """
         Removes a breakpoint.
 
         :param bp:  The breakpoint to remove.
+        :param filter_func: A filter function to specify whether each breakpoint should be removed or not.
         """
-        self._breakpoints[event_type].remove(bp)
+
+        if bp is None and filter_func is None:
+            raise ValueError('remove_breakpoint(): You must specify either "bp" or "filter".')
+
+        try:
+            if bp is not None:
+                self._breakpoints[event_type].remove(bp)
+            else:
+                self._breakpoints[event_type] = [ b for b in self._breakpoints[event_type] if not filter_func(b) ]
+        except ValueError:
+            # the breakpoint is not found
+            l.error('remove_breakpoint(): Breakpoint %s (type %s) is not found.', bp, event_type)
 
     def copy(self):
         c = SimInspector()
