@@ -30,19 +30,19 @@ class VariableRecoveryState(object):
 
         # self._state_per_instruction = { }
         if stack_region is not None:
-            self._stack_region = stack_region
+            self.stack_region = stack_region
         else:
-            self._stack_region = KeyedRegion()
+            self.stack_region = KeyedRegion()
         if register_region is not None:
-            self._register_region = register_region
+            self.register_region = register_region
         else:
-            self._register_region = KeyedRegion()
+            self.register_region = KeyedRegion()
 
         # register callbacks
         self.register_callbacks(self.concrete_states)
 
     def __repr__(self):
-        return "<VRAbstractState: %d register variables, %d stack variables>" % (len(self._register_region), len(self._stack_region))
+        return "<VRAbstractState: %d register variables, %d stack variables>" % (len(self.register_region), len(self.stack_region))
 
     @property
     def concrete_states(self):
@@ -71,8 +71,8 @@ class VariableRecoveryState(object):
                                       self.arch,
                                       self.func_addr,
                                       self._concrete_states,
-                                      stack_region=self._stack_region.copy(),
-                                      register_region=self._register_region.copy(),
+                                      stack_region=self.stack_region.copy(),
+                                      register_region=self.register_region.copy(),
                                       )
 
         #if copy_substates:
@@ -112,11 +112,11 @@ class VariableRecoveryState(object):
 
         merged_concrete_states =  [ self._concrete_states[0] ] # self._merge_concrete_states(other)
 
-        new_stack_region = self._stack_region.copy()
-        new_stack_region.merge(other._stack_region)
+        new_stack_region = self.stack_region.copy()
+        new_stack_region.merge(other.stack_region)
 
-        new_register_region = self._register_region.copy()
-        new_register_region.merge(other._register_region)
+        new_register_region = self.register_region.copy()
+        new_register_region.merge(other.register_region)
 
         return VariableRecoveryState(self.variable_manager, self.arch, self.func_addr, merged_concrete_states,
                                      stack_region=new_stack_region,
@@ -169,16 +169,16 @@ class VariableRecoveryState(object):
         #    # TODO:
 
         var_offset = self._normalize_register_offset(reg_read_offset)
-        if var_offset not in self._register_region:
+        if var_offset not in self.register_region:
             # the variable being read doesn't exist before
             variable = SimRegisterVariable(reg_read_offset, reg_read_length,
                                            ident=self.variable_manager[self.func_addr].next_variable_ident('register'),
                                            region=self.func_addr,
                                            )
-            self._register_region.add_variable(var_offset, variable)
+            self.register_region.add_variable(var_offset, variable)
 
             # record this variable in variable manager
-            self.variable_manager[self.func_addr].add_variable('reg', var_offset, variable)
+            self.variable_manager[self.func_addr].add_variable('register', var_offset, variable)
 
     def _hook_register_write(self, state):
 
@@ -202,9 +202,9 @@ class VariableRecoveryState(object):
                                        region=self.func_addr,
                                        )
         var_offset = self._normalize_register_offset(reg_write_offset)
-        self._register_region.set_variable(var_offset, variable)
+        self.register_region.set_variable(var_offset, variable)
         # record this variable in variable manager
-        self.variable_manager[self.func_addr].add_variable('reg', var_offset, variable)
+        self.variable_manager[self.func_addr].add_variable('register', var_offset, variable)
 
         # is it writing a pointer to a stack variable into the register?
         # e.g. lea eax, [ebp-0x40]
@@ -213,19 +213,19 @@ class VariableRecoveryState(object):
             # it is!
             # unfortunately we don't know the size. We use size None for now.
 
-            if stack_offset not in self._stack_region:
+            if stack_offset not in self.stack_region:
                 new_var = SimStackVariable(stack_offset, None, base='bp',
                                             ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
                                             region=self.func_addr,
                                             )
-                self._stack_region.add_variable(stack_offset, new_var)
+                self.stack_region.add_variable(stack_offset, new_var)
 
                 # record this variable in variable manager
                 self.variable_manager[self.func_addr].add_variable('stack', stack_offset, new_var)
 
-            base_offset = self._stack_region.get_base_addr(stack_offset)
+            base_offset = self.stack_region.get_base_addr(stack_offset)
             assert base_offset is not None
-            for var in self._stack_region.get_variables_by_offset(stack_offset):
+            for var in self.stack_region.get_variables_by_offset(stack_offset):
                 self.variable_manager[self.func_addr].reference_at(var, stack_offset - base_offset,
                                                                    self._codeloc_from_state(state)
                                                                    )
@@ -243,22 +243,22 @@ class VariableRecoveryState(object):
             pass
 
         else:
-            if stack_offset not in self._stack_region:
+            if stack_offset not in self.stack_region:
                 # this stack offset is not covered by any existing stack variable
                 ident_sort = 'argument' if stack_offset > 0 else 'stack'
                 variable = SimStackVariable(stack_offset, mem_read_length, base='bp',
                                             ident=self.variable_manager[self.func_addr].next_variable_ident(ident_sort),
                                             region=self.func_addr,
                                             )
-                self._stack_region.add_variable(stack_offset, variable)
+                self.stack_region.add_variable(stack_offset, variable)
 
                 # record this variable in variable manager
                 self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
 
-            base_offset = self._stack_region.get_base_addr(stack_offset)
+            base_offset = self.stack_region.get_base_addr(stack_offset)
             assert base_offset is not None
 
-            if len(self._stack_region.get_variables_by_offset(stack_offset)) > 1:
+            if len(self.stack_region.get_variables_by_offset(stack_offset)) > 1:
                 # create a phi node for all other variables
                 ident_sort = 'argument' if stack_offset > 0 else 'stack'
                 variable = SimStackVariable(stack_offset, mem_read_length, base='bp',
@@ -266,11 +266,11 @@ class VariableRecoveryState(object):
                                             phi=True,
                                             region=self.func_addr,
                                             )
-                self._stack_region.set_variable(stack_offset, variable)
+                self.stack_region.set_variable(stack_offset, variable)
 
                 self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
 
-            for variable in self._stack_region.get_variables_by_offset(stack_offset):
+            for variable in self.stack_region.get_variables_by_offset(stack_offset):
                 self.variable_manager[self.func_addr].read_from(variable, stack_offset - base_offset, self._codeloc_from_state(state))
 
     def _hook_memory_write(self, state):
@@ -292,14 +292,14 @@ class VariableRecoveryState(object):
                                         ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
                                         region=self.func_addr,
                                         )
-            self._stack_region.set_variable(stack_offset, variable)
+            self.stack_region.set_variable(stack_offset, variable)
 
             # record this variable in variable manager
             self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
 
-            base_offset = self._stack_region.get_base_addr(stack_offset)
+            base_offset = self.stack_region.get_base_addr(stack_offset)
             assert base_offset is not None
-            for variable in self._stack_region.get_variables_by_offset(stack_offset):
+            for variable in self.stack_region.get_variables_by_offset(stack_offset):
                 self.variable_manager[self.func_addr].write_to(variable, stack_offset - base_offset, self._codeloc_from_state(state))
 
     #
