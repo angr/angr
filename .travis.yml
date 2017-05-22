@@ -1,5 +1,5 @@
 sudo: required
-dist: xenial
+dist: trusty
 env:
   - PY=e ANGR_REPO=simuvex
   - PY=e ANGR_REPO=angr
