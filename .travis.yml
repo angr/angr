@@ -1,5 +1,5 @@
 sudo: required
-dist: xenial
+dist: trusty
 env:
   - PY=e ANGR_REPO=identifier
   - PY=e ANGR_REPO=patcherex
