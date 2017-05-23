@@ -673,6 +673,12 @@ class SimCC(object):
                 val = val.reversed      # pylint: disable=no-member
             return val
 
+        elif isinstance(arg, claripy.ast.FP):
+            val = claripy.fpToIEEEBV(arg)
+            if state.arch.memory_endness == 'Iend_LE':
+                val = val.reversed      # pylint: disable=no-member
+            return val
+
         elif isinstance(arg, claripy.ast.Base):
             # yikes
             if state.arch.memory_endness == 'Iend_LE' and arg.length == state.arch.bits:
