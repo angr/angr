@@ -186,13 +186,15 @@ class CFGUtils(object):
         :return:                       None
         """
 
-        # find the first node in the strongly connected component that is the successor to the last node in
-        # ordered_nodes
-        last_node = ordered_nodes[-1]
+        # find the first node in the strongly connected component that is the successor to any node in ordered_nodes
         loop_head = None
-        for n in scc:
-            if n in graph[last_node]:
-                loop_head = n
+        for parent_node in reversed(ordered_nodes):
+            for n in scc:
+                if n in graph[parent_node]:
+                    loop_head = n
+                    break
+
+            if loop_head is not None:
                 break
 
         if loop_head is None:
