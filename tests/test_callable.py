@@ -1,5 +1,6 @@
 import nose
 import angr
+import claripy
 from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeChar, SimTypeInt, parse_defns
 from angr.surveyors.caller import Callable
 from angr.errors import AngrCallableMultistateError
@@ -72,6 +73,32 @@ def run_manyfloatsum(arch):
         result_concrete = result.args[0]
         nose.tools.assert_equal(answer, result_concrete)
 
+def run_manyfloatsum_symbolic(arch):
+    global type_cache
+    if type_cache is None:
+        type_cache = parse_defns(open(os.path.join(location, '..', 'tests_src', 'manyfloatsum.c')).read())
+
+    p = angr.Project(location + '/' + arch + '/manyfloatsum')
+    function = 'sum_doubles'
+    cc = p.factory.cc(func_ty=type_cache[function])
+    args = [claripy.FPS('arg_%d' % i, claripy.FSORT_DOUBLE) for i in xrange(len(type_cache[function].args))]
+    addr = p.loader.main_bin.get_symbol(function).rebased_addr
+    my_callable = p.factory.callable(addr, cc=cc)
+    result = my_callable(*args)
+    nose.tools.assert_true(result.symbolic)
+
+    s = claripy.Solver()
+    for arg in args:
+        s.add(arg > claripy.FPV(1.0, claripy.FSORT_DOUBLE))
+    s.add(result == claripy.FPV(27.7, claripy.FSORT_DOUBLE))
+
+    args_conc = s.batch_eval(args, 1)[0]
+    nose.tools.assert_equal(s.eval(result, 1)[0], 27.7)
+    # not almost equal!! totally equal!!! z3 is magic, if kinda slow!!!!!
+    for arg_conc in args_conc:
+        nose.tools.assert_greater(arg_conc, 1.0)
+    nose.tools.assert_equal(sum(args_conc), 27.7)
+
 
 def test_fauxware():
     for arch in addresses_fauxware:
@@ -85,7 +112,15 @@ def test_manyfloatsum():
     for arch in ('i386', 'x86_64'):
         yield run_manyfloatsum, arch
 
+def test_manyfloatsum_symbolic():
+    for arch in ('i386', 'x86_64'):
+        yield run_manyfloatsum_symbolic, arch
+
 if __name__ == "__main__":
+    print 'testing manyfloatsum with symbolic arguments'
+    for func, march in test_manyfloatsum_symbolic():
+        print '* testing ' + march
+        func(march)
     print 'testing manyfloatsum'
     for func, march in test_manyfloatsum():
         print '* testing ' + march
