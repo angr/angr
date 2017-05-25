@@ -127,6 +127,10 @@ class CFGUtils(object):
         :rtype: list
         """
 
+        # fast path for single node graphs
+        if graph.number_of_nodes() == 1:
+            return graph.nodes()
+
         # make a copy to the graph since we are gonna modify it
         graph_copy = networkx.DiGraph()
 
