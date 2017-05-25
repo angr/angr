@@ -120,7 +120,6 @@ class VariableManagerInternal(object):
         # optimization: if a phi node already contains all of the unpacked variables, just return that phi node
         for phi_node in existing_phi:
             if phi_node.variables.issuperset(unpacked):
-                print "LOL"
                 return phi_node
 
         variables = unpacked
