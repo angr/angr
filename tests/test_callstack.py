@@ -1,7 +1,10 @@
-import nose
-from angr.entry_wrapper import CallStack
 
 import logging
+
+import nose
+
+from angr.call_stack import CallStack
+
 l = logging.getLogger('angr.tests.test_callstack')
 
 def test_empty_stack():

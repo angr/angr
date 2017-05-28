@@ -410,7 +410,7 @@ class VariableRecovery(ForwardAnalysis, Analysis):
 
         function_graph_visitor = FunctionGraphVisitor(func)
 
-        ForwardAnalysis.__init__(self, order_entries=True, allow_merging=True, allow_widening=False,
+        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
                                  graph_visitor=function_graph_visitor)
 
         self.function = func
@@ -430,10 +430,10 @@ class VariableRecovery(ForwardAnalysis, Analysis):
     def _pre_analysis(self):
         pass
 
-    def _pre_entry_handling(self, job):
+    def _pre_job_handling(self, job):
         pass
 
-    def _get_initial_abstract_state(self, node):
+    def _initial_abstract_state(self, node):
 
         concrete_state = self.project.factory.blank_state(
             addr=node.addr,
