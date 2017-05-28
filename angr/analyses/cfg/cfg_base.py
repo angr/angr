@@ -1063,7 +1063,7 @@ class CFGBase(Analysis):
 
         :param int func_addr: Address of the function that this job belongs to.
         :param job:           The job to register. Note that it does not necessarily be the a CFGJob instance. There
-                              can be PendingExit or PendingJob or other instances, too.
+                              can be PendingJob or PendingJob or other instances, too.
         :return:              None
         """
 

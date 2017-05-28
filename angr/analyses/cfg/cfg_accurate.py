@@ -1,27 +1,28 @@
-from collections import defaultdict
-import logging
-
 import itertools
-import networkx
+import logging
+from collections import defaultdict
 
+import claripy
+import networkx
 import pyvex
 import simuvex
-import claripy
 from archinfo import ArchARM
 from simuvex import SimEngineProcedure
 
-from ...entry_wrapper import BlockID, EntryDesc
 from ...analysis import register_analysis
-from ...errors import AngrCFGError, AngrError, AngrSkipEntryNotice
+from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice
 from ...path import Path
 from ..forward_analysis import ForwardAnalysis
-from .cfg_node import CFGNode
+from .cfg_job_base import BlockID, CFGJobBase
 from .cfg_base import CFGBase
+from .cfg_node import CFGNode
 from .cfg_utils import CFGUtils
+
 
 l = logging.getLogger(name="angr.analyses.cfg_accurate")
 
-class CFGJob(EntryDesc):
+
+class CFGJob(CFGJobBase):
     def __init__(self, *args, **kwargs):
         super(CFGJob, self).__init__(*args, **kwargs)
 
@@ -62,17 +63,17 @@ class CFGJob(EntryDesc):
         return hash(self.block_id)
 
 
-class PendingExit(object):
+class PendingJob(object):
     def __init__(self, caller_func_addr, returning_source, state, src_block_id, src_exit_stmt_idx, src_exit_ins_addr,
                  call_stack):
         """
-        PendingExit is whatever will be put into our pending_exit list. A pending exit is an entry that created by the
+        A PendingJob is whatever will be put into our pending_exit list. A pending exit is an entry that created by the
         returning of a call or syscall. It is "pending" since we cannot immediately figure out whether this entry will
         be executed or not. If the corresponding call/syscall intentially doesn't return, then the pending exit will be
         removed. If the corresponding call/syscall returns, then the pending exit will be removed as well (since a real
         entry is created from the returning and will be analyzed later). If the corresponding call/syscall might
         return, but for some reason (for example, an unsupported instruction is met during the analysis) our analysis
-        does not return properly, then the pending exit will be picked up and put into remaining_entries list.
+        does not return properly, then the pending exit will be picked up and put into remaining_jobs list.
 
         :param returning_source:    Address of the callee function. It might be None if address of the callee is not
                                     resolvable.
@@ -91,7 +92,7 @@ class PendingExit(object):
         self.call_stack = call_stack
 
     def __repr__(self):
-        return "<PendingExit to %s, from function %s>" % (self.state.ip, hex(
+        return "<PendingJob to %s, from function %s>" % (self.state.ip, hex(
             self.returning_source) if self.returning_source is not None else 'Unknown')
 
     def __hash__(self):
@@ -101,7 +102,7 @@ class PendingExit(object):
                     )
 
     def __eq__(self, other):
-        if not isinstance(other, PendingExit):
+        if not isinstance(other, PendingJob):
             return False
         return self.caller_func_addr == other.caller_func_addr and \
                self.returning_source == other.returning_source and \
@@ -178,7 +179,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param int max_steps:                       The maximum number of basic blocks to recover forthe longest path
                                                     from each start before pausing the recovery procedure.
         """
-        ForwardAnalysis.__init__(self, order_entries=True if base_graph is not None else False)
+        ForwardAnalysis.__init__(self, order_jobs=True if base_graph is not None else False)
         CFGBase.__init__(self, 'accurate', context_sensitivity_level, normalize=normalize, iropt_level=iropt_level)
 
         if start is not None:
@@ -249,7 +250,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # exits here to increase our code coverage. Of course the real retn from
         # that call always precedes those "fake" retns.
         # Tuple --> (Initial state, call_stack)
-        self._pending_entries = { }
+        self._pending_jobs = { }
 
         # Counting how many times a basic block is traced into
         self._traced_addrs = defaultdict(lambda: defaultdict(int))
@@ -793,22 +794,22 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     # CFG construction
     # The main loop and sub-methods
 
-    def _entry_key(self, entry):
+    def _job_key(self, job):
         """
         Get the key for a specific CFG job. The key is a context-sensitive block ID.
 
-        :param CFGJob entry: The CFGJob instance.
+        :param CFGJob job: The CFGJob instance.
         :return:             The block ID of the specific CFG job.
         :rtype:              BlockID
         """
 
-        return entry.block_id
+        return job.block_id
 
-    def _entry_sorting_key(self, entry):
+    def _job_sorting_key(self, job):
         """
         Get the sorting key of a CFGJob instance.
 
-        :param CFGJob entry: the CFGJob object.
+        :param CFGJob job: the CFGJob object.
         :return: An integer that determines the order of this job in the queue.
         :rtype: int
         """
@@ -817,12 +818,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # we don't do sorting if there is no base_graph
             return 0
 
-        MAX_ENTRIES = 1000000
+        MAX_JOBS = 1000000
 
-        if entry.addr not in self._node_addr_visiting_order:
-            return MAX_ENTRIES
+        if job.addr not in self._node_addr_visiting_order:
+            return MAX_JOBS
 
-        return self._node_addr_visiting_order.index(entry.addr)
+        return self._node_addr_visiting_order.index(job.addr)
 
     def _pre_analysis(self):
         """
@@ -856,8 +857,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             self._symbolic_function_initial_state[ip] = state
 
-            entry_path = self.project.factory.path(state)
-
             # try to get a callstack from an existing node if it exists
             continue_at = None
             if self.project.is_hooked(ip) and \
@@ -865,14 +864,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     state.procedure_data.callstack:
                 continue_at = state.procedure_data.callstack[-1][0]
 
-            path_wrapper = CFGJob(ip, entry_path.state, self._context_sensitivity_level, None, None, call_stack=callstack,
+            path_wrapper = CFGJob(ip, state, self._context_sensitivity_level, None, None, call_stack=callstack,
                                   continue_at=continue_at,
                                   )
             key = path_wrapper.block_id
             if key not in self._start_keys:
                 self._start_keys.append(key)
 
-            self._insert_entry(path_wrapper)
+            self._insert_job(path_wrapper)
             self._register_analysis_job(path_wrapper.func_addr, path_wrapper)
 
     def _intra_analysis(self):
@@ -883,25 +882,25 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
 
         # TODO: Why was the former two conditions there in the first place?
-        # if remaining_entries and pending_entries and self._pending_function_hints:
         if self._pending_function_hints:
             self._process_hints(self._analyzed_addrs)
 
-    def _entry_list_empty(self):
+    def _job_queue_empty(self):
         """
+        A callback method called when the job queue is empty.
 
-        :return:
+        :return: None
         """
 
         self._iteratively_clean_pending_exits()
 
-        while self._pending_entries:
+        while self._pending_jobs:
             # We don't have any exits remaining. Let's pop out a pending exit
             pending_job = self._get_one_pending_job()
             if pending_job is None:
                 continue
 
-            self._insert_entry(pending_job)
+            self._insert_job(pending_job)
             self._register_analysis_job(pending_job.func_addr, pending_job)
             break
 
@@ -946,48 +945,47 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     def _get_one_pending_job(self):
         """
-        Retrieve a pending entry from all pended ones.
+        Retrieve a pending job.
 
-        :return: An EntryWrapper instance or None
+        :return: A CFGJob instance or None
         """
 
-        pending_entry_key = self._pending_entries.keys()[0]
-        pending_entry = self._pending_entries.pop(pending_entry_key)
-        pending_entry_state = pending_entry.state
-        pending_entry_call_stack = pending_entry.call_stack
-        pending_entry_src_block_id = pending_entry.src_block_id
-        pending_entry_src_exit_stmt_idx = pending_entry.src_exit_stmt_idx
+        pending_job_key = self._pending_jobs.keys()[0]
+        pending_job = self._pending_jobs.pop(pending_job_key)
+        pending_job_state = pending_job.state
+        pending_job_call_stack = pending_job.call_stack
+        pending_job_src_block_id = pending_job.src_block_id
+        pending_job_src_exit_stmt_idx = pending_job.src_exit_stmt_idx
 
-        self._deregister_analysis_job(pending_entry.caller_func_addr, pending_entry)
+        self._deregister_analysis_job(pending_job.caller_func_addr, pending_job)
 
         # Let's check whether this address has been traced before.
-        if pending_entry_key in self._nodes:
-            node = self._nodes[pending_entry_key]
+        if pending_job_key in self._nodes:
+            node = self._nodes[pending_job_key]
             if node in self.graph:
-                pending_exit_addr = self._block_id_addr(pending_entry_key)
+                pending_exit_addr = self._block_id_addr(pending_job_key)
                 # That block has been traced before. Let's forget about it
                 l.debug("Target 0x%08x has been traced before. " + "Trying the next one...", pending_exit_addr)
 
                 # However, we should still create the FakeRet edge
-                self._graph_add_edge(pending_entry_src_block_id, pending_entry_key, jumpkind="Ijk_FakeRet",
-                                     stmt_idx=pending_entry_src_exit_stmt_idx, ins_addr=pending_entry.src_exit_ins_addr)
+                self._graph_add_edge(pending_job_src_block_id, pending_job_key, jumpkind="Ijk_FakeRet",
+                                     stmt_idx=pending_job_src_exit_stmt_idx, ins_addr=pending_job.src_exit_ins_addr)
 
                 return None
 
-        pending_entry_state.scratch.jumpkind = 'Ijk_FakeRet'
+        pending_job_state.scratch.jumpkind = 'Ijk_FakeRet'
 
-        path = self.project.factory.path(pending_entry_state)
-        entry = CFGJob(path.addr,
-                       path.state,
-                       self._context_sensitivity_level,
-                       src_block_id=pending_entry_src_block_id,
-                       src_exit_stmt_idx=pending_entry_src_exit_stmt_idx,
-                       src_ins_addr=pending_entry.src_exit_ins_addr,
-                       call_stack=pending_entry_call_stack,
+        job = CFGJob(pending_job_state.addr,
+                     pending_job_state,
+                     self._context_sensitivity_level,
+                     src_block_id=pending_job_src_block_id,
+                     src_exit_stmt_idx=pending_job_src_exit_stmt_idx,
+                     src_ins_addr=pending_job.src_exit_ins_addr,
+                     call_stack=pending_job_call_stack,
         )
-        l.debug("Tracing a missing return exit %s", self._block_id_repr(pending_entry_key))
+        l.debug("Tracing a missing return exit %s", self._block_id_repr(pending_job_key))
 
-        return entry
+        return job
 
     def _process_hints(self, analyzed_addrs):
         """
@@ -1013,7 +1011,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                           new_state,
                                           self._context_sensitivity_level
                                           )
-                self._insert_entry(new_path_wrapper)
+                self._insert_job(new_path_wrapper)
                 self._register_analysis_job(f, new_path_wrapper)
                 l.debug('Picking a function 0x%x from pending function hints.', f)
                 self.kb.functions.function(new_path_wrapper.func_addr, create=True)
@@ -1045,22 +1043,22 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # only detect loops after potential graph normalization
         self._detect_loops()
 
-    # Entry handling
+    # Job handling
 
-    def _pre_entry_handling(self, job):  # pylint:disable=arguments-differ
+    def _pre_job_handling(self, job):  # pylint:disable=arguments-differ
         """
-        Before processing an entry.
+        Before processing a CFGJob.
         Right now each block is traced at most once. If it is traced more than once, we will mark it as "should_skip"
         before tracing it.
-        An AngrForwardAnalysisSkipEntry exception is raised in order to skip analyzing the entry.
+        An AngrForwardAnalysisSkipJob exception is raised in order to skip analyzing the job.
 
         :param CFGJob job: The CFG job object.
-        :param dict _locals: A bunch of local variables that will be kept around when handling this entry and its
+        :param dict _locals: A bunch of local variables that will be kept around when handling this job and its
                         corresponding successors.
         :return: None
         """
 
-        # Extract initial info from entry_wrapper
+        # Extract initial info the CFGJob
         job.call_stack_suffix = job.get_call_stack_suffix()
         job.current_function = self.kb.functions.function(job.func_addr, create=True,
                                                           syscall=job.jumpkind.startswith("Ijk_Sys"))
@@ -1094,7 +1092,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             should_skip = True
 
         # SimInspect breakpoints support
-        job.state._inspect('cfg_handle_entry', simuvex.BP_BEFORE)
+        job.state._inspect('cfg_handle_job', simuvex.BP_BEFORE)
 
         # Get a SimSuccessors out of current job
         sim_successors, error_occurred, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
@@ -1162,27 +1160,27 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self._update_function_transition_graph(src_block_id, block_id, jumpkind=job.jumpkind,
                                                    ins_addr=src_ins_addr, stmt_idx=src_exit_stmt_idx)
 
-            # If this entry cancels another FakeRet entry, we should also create the FakeRet edge
+            # If this job cancels another FakeRet job, we should also create the FakeRet edge
 
             # This is the real return exit
             # Check if this retn is inside our pending_exits set
-            if (job.jumpkind == 'Ijk_Call' or job.is_syscall) and block_id in self._pending_entries:
+            if (job.jumpkind == 'Ijk_Call' or job.is_syscall) and block_id in self._pending_jobs:
                 # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
                 # in the graph.
 
-                pending_entry = self._pending_entries.pop(block_id)
-                self._deregister_analysis_job(pending_entry.function_address, pending_entry)
-                self._graph_add_edge(pending_entry.src_block_id, block_id, jumpkind='Ijk_FakeRet',
-                                     stmt_idx=pending_entry.src_exit_stmt_idx,
-                                     ins_addr=pending_entry.src_exit_ins_addr
+                pending_job = self._pending_jobs.pop(block_id)
+                self._deregister_analysis_job(pending_job.function_address, pending_job)
+                self._graph_add_edge(pending_job.src_block_id, block_id, jumpkind='Ijk_FakeRet',
+                                     stmt_idx=pending_job.src_exit_stmt_idx,
+                                     ins_addr=pending_job.src_exit_ins_addr
                                      )
-                self._update_function_transition_graph(pending_entry.src_block_id, block_id, jumpkind='Ijk_FakeRet',
-                                                       ins_addr=pending_entry.src_exit_ins_addr,
-                                                       stmt_idx=pending_entry.src_exit_stmt_idx
+                self._update_function_transition_graph(pending_job.src_block_id, block_id, jumpkind='Ijk_FakeRet',
+                                                       ins_addr=pending_job.src_exit_ins_addr,
+                                                       stmt_idx=pending_job.src_exit_stmt_idx
                                                        )
 
             # We are good. Raise the exception and leave
-            raise AngrSkipEntryNotice()
+            raise AngrSkipJobNotice()
 
         self._update_thumb_addrs(sim_successors, job.state)
 
@@ -1205,18 +1203,18 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 self._graph_add_edge(src_key, dst_key, **data)
             del self._pending_edges[block_id]
 
-        # See if this entry cancels another FakeRet
-        if (job.jumpkind == 'Ijk_Call' or job.is_syscall) and block_id in self._pending_entries:
+        # See if this job cancels another FakeRet
+        if (job.jumpkind == 'Ijk_Call' or job.is_syscall) and block_id in self._pending_jobs:
             # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
             # in the graph.
 
-            pending_entry = self._pending_entries.pop(block_id)
-            self._deregister_analysis_job(pending_entry.function_address, pending_entry)
-            self._graph_add_edge(pending_entry.src_block_id, block_id, jumpkind='Ijk_FakeRet',
-                                 stmt_idx=pending_entry.src_exit_stmt_idx, ins_addr=src_ins_addr
+            pending_job = self._pending_jobs.pop(block_id)
+            self._deregister_analysis_job(pending_job.function_address, pending_job)
+            self._graph_add_edge(pending_job.src_block_id, block_id, jumpkind='Ijk_FakeRet',
+                                 stmt_idx=pending_job.src_exit_stmt_idx, ins_addr=src_ins_addr
                                  )
-            self._update_function_transition_graph(pending_entry.src_block_id, block_id, jumpkind='Ijk_FakeRet',
-                                                   ins_addr=src_ins_addr, stmt_idx=pending_entry.src_exit_stmt_idx
+            self._update_function_transition_graph(pending_job.src_block_id, block_id, jumpkind='Ijk_FakeRet',
+                                                   ins_addr=src_ins_addr, stmt_idx=pending_job.src_exit_stmt_idx
                                                    )
 
         block_info = self.project.arch.gather_info_from_state(sim_successors.initial_state)
@@ -1229,30 +1227,31 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # For debugging purposes!
         job.successor_status = {}
 
-    def _get_successors(self, entry):
+    def _get_successors(self, job):
         """
         Get a collection of successors out of the current job.
 
-        :param CFGJob entry: The CFGJob instance.
-        :return: A collection of successors.
-        :rtype: list
+        :param CFGJob job:  The CFGJob instance.
+        :return:            A collection of successors.
+        :rtype:             list
         """
 
-        addr = entry.addr
-        sim_successors = entry.sim_successors
-        input_state = entry.state
+        addr = job.addr
+        sim_successors = job.sim_successors
+        input_state = job.state
 
         # check step limit
         if self._max_steps is not None:
-            depth = entry.cfg_node.depth
+            depth = job.cfg_node.depth
             if depth >= self._max_steps:
                 return [ ]
 
         # Get all successors of this block
-        successors = (sim_successors.flat_successors + sim_successors.unsat_successors) if addr not in self._avoid_runs else []
+        successors = (sim_successors.flat_successors + sim_successors.unsat_successors) \
+            if addr not in self._avoid_runs else [ ]
 
         # Post-process successors
-        successors, entry.extra_info = self._post_process_successors(input_state, sim_successors, successors)
+        successors, job.extra_info = self._post_process_successors(input_state, sim_successors, successors)
 
         all_successors = successors + sim_successors.unconstrained_successors
 
@@ -1261,19 +1260,19 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                          [ suc for suc in all_successors if suc.scratch.jumpkind == 'Ijk_FakeRet' ]
 
         if self._keep_state:
-            entry.cfg_node.final_states = all_successors[::]
+            job.cfg_node.final_states = all_successors[::]
 
         # Try to resolve indirect jumps
         successors = self._resolve_indirect_jumps(sim_successors,
-                                                  entry.cfg_node,
-                                                  entry.func_addr,
+                                                  job.cfg_node,
+                                                  job.func_addr,
                                                   successors,
-                                                  entry.error_occurred,
+                                                  job.error_occurred,
                                                   self._block_artifacts
-        )
+                                                  )
 
         # Ad additional edges supplied by the user
-        successors = self._add_additional_edges(input_state, sim_successors, entry.cfg_node, successors)
+        successors = self._add_additional_edges(input_state, sim_successors, job.cfg_node, successors)
 
         # if base graph is used, add successors implied from the graph
         if self._base_graph:
@@ -1308,35 +1307,35 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # do_return) , we should make it return to its call-site. However,
                 # we don't want to use its state anymore as it might be corrupted.
                 # Just create an edge in the graph.
-                return_target = entry.call_stack.current_return_target
+                return_target = job.call_stack.current_return_target
                 if return_target is not None:
-                    new_call_stack = entry.call_stack_copy()
+                    new_call_stack = job.call_stack_copy()
                     return_target_key = self._generate_block_id(
                         new_call_stack.stack_suffix(self.context_sensitivity_level),
                         return_target,
                         False
                     )  # You can never return to a syscall
 
-                    if not entry.cfg_node.instruction_addrs:
+                    if not job.cfg_node.instruction_addrs:
                         ret_ins_addr = None
                     else:
                         if self.project.arch.branch_delay_slot:
-                            if len(entry.cfg_node.instruction_addrs) > 1:
-                                ret_ins_addr = entry.cfg_node.instruction_addrs[-2]
+                            if len(job.cfg_node.instruction_addrs) > 1:
+                                ret_ins_addr = job.cfg_node.instruction_addrs[-2]
                             else:
-                                l.error('At %s: expecting more than one instruction. Only got one.', entry.cfg_node)
+                                l.error('At %s: expecting more than one instruction. Only got one.', job.cfg_node)
                                 ret_ins_addr = None
                         else:
-                            ret_ins_addr = entry.cfg_node.instruction_addrs[-1]
+                            ret_ins_addr = job.cfg_node.instruction_addrs[-1]
 
                     # Things might be a bit difficult here. _graph_add_edge() requires both nodes to exist, but here
                     # the return target node may not exist yet. If that's the case, we will put it into a "delayed edge
                     # list", and add this edge later when the return target CFGNode is created.
                     if return_target_key in self._nodes:
-                        self._graph_add_edge(entry.block_id, return_target_key, jumpkind='Ijk_Ret', stmt_id='default',
+                        self._graph_add_edge(job.block_id, return_target_key, jumpkind='Ijk_Ret', stmt_id='default',
                                              ins_addr=ret_ins_addr)
                     else:
-                        self._pending_edges[return_target_key].append((entry.block_id, return_target_key,
+                        self._pending_edges[return_target_key].append((job.block_id, return_target_key,
                                                                        {
                                                                            'jumpkind': 'Ijk_Ret',
                                                                            'stmt_id': 'default',
@@ -1354,33 +1353,33 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if successors:
             self._handle_actions(successors[0],
                                  sim_successors,
-                                 entry.current_function,
-                                 entry.current_stack_pointer,
+                                 job.current_function,
+                                 job.current_stack_pointer,
                                  set(),
                                  )
 
         return successors
 
-    def _post_entry_handling(self, entry, new_entries, successors):
+    def _post_job_handling(self, job, new_jobs, successors):
         """
 
-        :param entry:
+        :param CFGJob job:
         :param successors:
         :return:
         """
 
         # Finally, post-process CFG Node and log the return target
-        if entry.extra_info:
-            if entry.extra_info['is_call_jump'] and entry.extra_info['return_target'] is not None:
-                entry.cfg_node.return_target = entry.extra_info['return_target']
+        if job.extra_info:
+            if job.extra_info['is_call_jump'] and job.extra_info['return_target'] is not None:
+                job.cfg_node.return_target = job.extra_info['return_target']
 
         # Debugging output if needed
         if l.level == logging.DEBUG:
             # Only in DEBUG mode do we process and output all those shit
-            self._post_handle_entry_debug(entry, successors)
+            self._post_handle_job_debug(job, successors)
 
         # SimInspect breakpoints support
-        entry.state._inspect('cfg_handle_entry', simuvex.BP_AFTER)
+        job.state._inspect('cfg_handle_job', simuvex.BP_AFTER)
 
     def _post_process_successors(self, input_state, sim_successors, successors):
         """
@@ -1419,9 +1418,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return successors, extra_info
 
-    def _post_handle_entry_debug(self, job, successors):
+    def _post_handle_job_debug(self, job, successors):
         """
-        Post job handling: print debugging information regarding the current entry.
+        Post job handling: print debugging information regarding the current job.
 
         :param CFGJob job:      The current CFGJob instance.
         :param list successors: All successors of the analysis job.
@@ -1457,7 +1456,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             except (simuvex.SimValueError, simuvex.SimSolverModeError):
                 l.debug("|    target cannot be concretized. %s [%s] %s", successor_status[suc], exit_type_str,
                         jumpkind)
-        l.debug("%d exits remaining, %d exits pending.", len(self._job_info_list), len(self._pending_entries))
+        l.debug("%d exits remaining, %d exits pending.", len(self._job_info_queue), len(self._pending_jobs))
         l.debug("%d unique basic blocks are analyzed so far.", len(self._analyzed_addrs))
 
     def _iteratively_clean_pending_exits(self):
@@ -1475,16 +1474,16 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # fill in self._completed_functions
             self._make_completed_functions()
 
-            if self._pending_entries:
-                # There are no more remaining entries, but only pending entries left. Each pending entry corresponds to
-                # a previous entry that does not return properly.
+            if self._pending_jobs:
+                # There are no more remaining jobs, but only pending jobs left. Each pending job corresponds to
+                # a previous job that does not return properly.
                 # Now it's a good time to analyze each function (that we have so far) and determine if it is a)
                 # returning, b) not returning, or c) unknown. For those functions that are definitely not returning,
-                # remove the corresponding pending exits from `pending_entries` array. Perform this procedure iteratively
+                # remove the corresponding pending exits from `pending_jobs` array. Perform this procedure iteratively
                 # until no new not-returning functions appear. Then we pick a pending exit based on the following
                 # priorities:
-                # - Entry pended by a returning function
-                # - Entry pended by an unknown function
+                # - Job pended by a returning function
+                # - Job pended by an unknown function
 
                 new_changes = self._iteratively_analyze_function_features()
                 functions_do_not_return = new_changes['functions_do_not_return']
@@ -1510,7 +1509,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         pending_exits_to_remove = [ ]
 
-        for block_id, pe in self._pending_entries.iteritems():
+        for block_id, pe in self._pending_jobs.iteritems():
             if pe.returning_source is None:
                 # The original call failed. This pending exit must be followed.
                 continue
@@ -1542,19 +1541,19 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         for block_id in pending_exits_to_remove:
             l.debug('Removing a pending exit to %#x since the target function %#x does not return',
                     self._block_id_addr(block_id),
-                    self._pending_entries[block_id].returning_source,
+                    self._pending_jobs[block_id].returning_source,
                     )
 
-            to_remove = self._pending_entries[block_id]
+            to_remove = self._pending_jobs[block_id]
             self._deregister_analysis_job(to_remove.caller_func_addr, to_remove)
 
-            del self._pending_entries[block_id]
+            del self._pending_jobs[block_id]
 
         if pending_exits_to_remove:
             return True
         return False
 
-    # Entry successor handling
+    # Successor handling
 
     def _pre_handle_successor_state(self, extra_info, jumpkind, target_addr):
         """
@@ -1573,23 +1572,22 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if jumpkind == "Ijk_Call":
             extra_info['last_call_exit_target'] = target_addr
 
-    def _handle_successor(self, entry, successor, successors):
+    def _handle_successor(self, job, successor, successors):
         """
         Returns a new CFGJob instance for further analysis, or None if there is no immediate state to perform the
         analysis on.
 
-        :param CFGJob entry: The current job.
+        :param CFGJob job: The current job.
         """
 
         state = successor
         all_successor_states = successors
-        entry_wrapper = entry
-        addr = entry.addr
+        addr = job.addr
 
         # The PathWrapper instance to return
         pw = None
 
-        entry.successor_status[state] = ""
+        job.successor_status[state] = ""
 
         new_state = state.copy()
         suc_jumpkind = state.scratch.jumpkind
@@ -1599,10 +1597,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if suc_jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode', 'Ijk_MapFail', 'Ijk_InvalICache', 'Ijk_NoRedir',
                             'Ijk_SigTRAP', 'Ijk_SigSEGV', 'Ijk_ClientReq'}:
             # Ignore SimExits that are of these jumpkinds
-            entry.successor_status[state] = "Skipped"
+            job.successor_status[state] = "Skipped"
             return [ ]
 
-        call_target = entry.extra_info['call_target']
+        call_target = job.extra_info['call_target']
         if suc_jumpkind == "Ijk_FakeRet" and call_target is not None:
             # if the call points to a SimProcedure that doesn't return, we don't follow the fakeret anymore
             if self.project.is_hooked(call_target):
@@ -1617,7 +1615,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # It cannot be concretized currently. Maybe we can handle it later, maybe it just cannot be concretized
             target_addr = None
             if suc_jumpkind == "Ijk_Ret":
-                target_addr = entry_wrapper.call_stack.current_return_target
+                target_addr = job.call_stack.current_return_target
                 if target_addr is not None:
                     new_state.ip = new_state.se.BVV(target_addr, new_state.arch.bits)
 
@@ -1651,31 +1649,31 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if suc_jumpkind.startswith("Ijk_Sys"):
             _, target_addr, _, _ = self.project._simos.syscall_info(new_state)
 
-        self._pre_handle_successor_state(entry.extra_info, suc_jumpkind, target_addr)
+        self._pre_handle_successor_state(job.extra_info, suc_jumpkind, target_addr)
 
         if suc_jumpkind == "Ijk_FakeRet":
-            if target_addr == entry.extra_info['last_call_exit_target']:
+            if target_addr == job.extra_info['last_call_exit_target']:
                 l.debug("... skipping a fake return exit that has the same target with its call exit.")
-                entry.successor_status[state] = "Skipped"
+                job.successor_status[state] = "Skipped"
                 return [ ]
 
-            if entry.extra_info['skip_fakeret']:
+            if job.extra_info['skip_fakeret']:
                 l.debug('... skipping a fake return exit since the function it\'s calling doesn\'t return')
-                entry.successor_status[state] = "Skipped - non-returning function 0x%x" % entry.extra_info['call_target']
+                job.successor_status[state] = "Skipped - non-returning function 0x%x" % job.extra_info['call_target']
                 return [ ]
 
         # TODO: Make it optional
         if (suc_jumpkind == 'Ijk_Ret' and
                     self._call_depth is not None and
-                    len(entry_wrapper.call_stack) <= 1
+                    len(job.call_stack) <= 1
             ):
             # We cannot continue anymore since this is the end of the function where we started tracing
             l.debug('... reaching the end of the starting function, skip.')
-            entry.successor_status[state] = "Skipped - reaching the end of the starting function"
+            job.successor_status[state] = "Skipped - reaching the end of the starting function"
             return [ ]
 
         # Create the new call stack of target block
-        new_call_stack = self._create_new_call_stack(addr, all_successor_states, entry_wrapper, target_addr,
+        new_call_stack = self._create_new_call_stack(addr, all_successor_states, job, target_addr,
                                                      suc_jumpkind)
         # Create the callstack suffix
         new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
@@ -1696,7 +1694,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         pw = CFGJob(target_addr,
                     new_state,
                     self._context_sensitivity_level,
-                    src_block_id=entry.block_id,
+                    src_block_id=job.block_id,
                     src_exit_stmt_idx=suc_exit_stmt_idx,
                     src_ins_addr=suc_exit_ins_addr,
                     call_stack=new_call_stack,
@@ -1707,7 +1705,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # Generate new exits
         if suc_jumpkind == "Ijk_Ret":
             # This is the real return exit
-            entry.successor_status[state] = "Appended"
+            job.successor_status[state] = "Appended"
 
         elif suc_jumpkind == "Ijk_FakeRet":
             # This is the default "fake" retn that generated at each
@@ -1717,18 +1715,18 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             st = new_state
             st.set_mode('fastpath')
 
-            pw = None # clear the EntryWrapper
-            pe = PendingExit(entry.func_addr,
-                             entry.extra_info['call_target'],
-                             st,
-                             entry.block_id,
-                             suc_exit_stmt_idx,
-                             suc_exit_ins_addr,
-                             new_call_stack
-                             )
-            self._pending_entries[new_tpl] = pe
+            pw = None # clear the job
+            pe = PendingJob(job.func_addr,
+                            job.extra_info['call_target'],
+                            st,
+                            job.block_id,
+                            suc_exit_stmt_idx,
+                            suc_exit_ins_addr,
+                            new_call_stack
+                            )
+            self._pending_jobs[new_tpl] = pe
             self._register_analysis_job(pe.caller_func_addr, pe)
-            entry.successor_status[state] = "Pended"
+            job.successor_status[state] = "Pended"
 
         elif self._traced_addrs[new_call_stack_suffix][target_addr] >= 1 and suc_jumpkind == "Ijk_Ret":
             # This is a corner case for the f****** ARM instruction
@@ -1741,19 +1739,19 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             pass
 
         else:
-            entry.successor_status[state] = "Appended"
+            job.successor_status[state] = "Appended"
 
-        if entry.extra_info['is_call_jump'] and entry.extra_info['call_target'] in self._non_returning_functions:
-            entry.extra_info['skip_fakeret'] = True
+        if job.extra_info['is_call_jump'] and job.extra_info['call_target'] in self._non_returning_functions:
+            job.extra_info['skip_fakeret'] = True
 
         if not pw:
             return [ ]
 
         if self._base_graph is not None:
-            # remove all exising entries that has the same block ID
-            if next((en for en in self.entries if en.block_id == pw.block_id), None):
+            # remove all existing jobs that has the same block ID
+            if next((en for en in self.jobs if en.block_id == pw.block_id), None):
                 # TODO: this is very hackish. Reimplement this logic later
-                self._job_info_list = [entry_info for entry_info in self._job_info_list if entry_info.entry.block_id != pw.block_id]
+                self._job_info_queue = [entry for entry in self._job_info_queue if entry.job.block_id != pw.block_id]
 
         # register the job
         self._register_analysis_job(pw.func_addr, pw)
@@ -2777,13 +2775,13 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return sim_successors, error_occurred, saved_state
 
-    def _create_new_call_stack(self, addr, all_entries, entry_wrapper, exit_target, jumpkind):
+    def _create_new_call_stack(self, addr, all_jobs, job, exit_target, jumpkind):
         """
         Creates a new call stack, and according to the jumpkind performs appropriate actions.
 
         :param int addr:                          Address to create at.
-        :param simuvex.Simsuccessors all_entries: Entries to get stack pointer from or retn address.
-        :param EntryDesc entry_wrapper:           EntryDesc to copy current call stack from.
+        :param simuvex.Simsuccessors all_jobs:    Jobs to get stack pointer from or return address.
+        :param CFGJob job:                        CFGJob to copy current call stack from.
         :param int exit_target:                   Address of exit target.
         :param str jumpkind:                      The type of jump performed.
         :returns:                                 New call stack for target block.
@@ -2791,27 +2789,27 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
 
         if self._is_call_jumpkind(jumpkind):
-            new_call_stack = entry_wrapper.call_stack_copy()
+            new_call_stack = job.call_stack_copy()
             # Notice that in ARM, there are some freaking instructions
             # like
             # BLEQ <address>
             # It should give us three exits: Ijk_Call, Ijk_Boring, and
             # Ijk_Ret. The last exit is simulated.
             # Notice: We assume the last exit is the simulated one
-            if len(all_entries) > 1 and all_entries[-1].scratch.jumpkind == "Ijk_FakeRet":
-                se = all_entries[-1].se
-                retn_target_addr = se.exactly_int(all_entries[-1].ip, default=0)
-                sp = se.exactly_int(all_entries[-1].regs.sp, default=0)
+            if len(all_jobs) > 1 and all_jobs[-1].scratch.jumpkind == "Ijk_FakeRet":
+                se = all_jobs[-1].se
+                retn_target_addr = se.exactly_int(all_jobs[-1].ip, default=0)
+                sp = se.exactly_int(all_jobs[-1].regs.sp, default=0)
 
                 new_call_stack.call(addr, exit_target,
                                     retn_target=retn_target_addr,
                                     stack_pointer=sp)
 
-            elif jumpkind.startswith('Ijk_Sys') and len(all_entries) == 1:
+            elif jumpkind.startswith('Ijk_Sys') and len(all_jobs) == 1:
                 # This is a syscall. It returns to the same address as itself (with a different jumpkind)
                 retn_target_addr = exit_target
-                se = all_entries[0].se
-                sp = se.exactly_int(all_entries[0].regs.sp, default=0)
+                se = all_jobs[0].se
+                sp = se.exactly_int(all_jobs[0].regs.sp, default=0)
                 new_call_stack.call(addr, exit_target,
                                     retn_target=retn_target_addr,
                                     stack_pointer=sp)
@@ -2820,24 +2818,24 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # We don't have a fake return exit available, which means
                 # this call doesn't return.
                 new_call_stack.clear()
-                se = all_entries[-1].se
-                sp = se.exactly_int(all_entries[-1].regs.sp, default=0)
+                se = all_jobs[-1].se
+                sp = se.exactly_int(all_jobs[-1].regs.sp, default=0)
 
                 new_call_stack.call(addr, exit_target, retn_target=None, stack_pointer=sp)
 
         elif jumpkind == "Ijk_Ret":
             # Normal return
-            new_call_stack = entry_wrapper.call_stack_copy()
+            new_call_stack = job.call_stack_copy()
             new_call_stack.ret(exit_target)
 
-            se = all_entries[-1].se
-            sp = se.exactly_int(all_entries[-1].regs.sp, default=0)
-            old_sp = entry_wrapper.current_stack_pointer
+            se = all_jobs[-1].se
+            sp = se.exactly_int(all_jobs[-1].regs.sp, default=0)
+            old_sp = job.current_stack_pointer
 
             # Calculate the delta of stack pointer
             if sp is not None and old_sp is not None:
                 delta = sp - old_sp
-                func_addr = entry_wrapper.func_addr
+                func_addr = job.func_addr
 
                 if self.kb.functions.function(func_addr) is None:
                     # Create the function if it doesn't exist
@@ -2852,7 +2850,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         elif jumpkind == 'Ijk_FakeRet':
             # The fake return...
-            new_call_stack = entry_wrapper.call_stack
+            new_call_stack = job.call_stack
 
         else:
             # although the jumpkind is not Ijk_Call, it may still jump to a new function... let's see
@@ -2861,18 +2859,18 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 if not hooker is simuvex.procedures.stubs.UserHook.UserHook:
                     # if it's not a UserHook, it must be a function
                     # Update the function address of the most recent call stack frame
-                    new_call_stack = entry_wrapper.call_stack_copy()
+                    new_call_stack = job.call_stack_copy()
                     new_call_stack.current_function_address = exit_target
 
                 else:
                     # TODO: We need a way to mark if a user hook is a function or not
                     # TODO: We can add a map in Project to store this information
                     # For now we are just assuming they are not functions, which is mostly the case
-                    new_call_stack = entry_wrapper.call_stack
+                    new_call_stack = job.call_stack
 
             else:
                 # Normal control flow transition
-                new_call_stack = entry_wrapper.call_stack
+                new_call_stack = job.call_stack
 
         return new_call_stack
 

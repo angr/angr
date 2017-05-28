@@ -3,7 +3,7 @@ import logging
 
 import simuvex
 
-from .call_stack import CallStack
+from ...call_stack import CallStack
 
 l = logging.getLogger(name="angr.entry_wrapper")
 
@@ -111,7 +111,7 @@ class FunctionKey(object):
         return FunctionKey(addr, callsite_tuples)
 
 
-class EntryDesc(object):
+class CFGJobBase(object):
     """
     Describes an entry in CFG or VFG. Only used internally by the analysis.
     """

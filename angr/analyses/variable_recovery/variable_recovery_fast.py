@@ -472,7 +472,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):
 
         function_graph_visitor = FunctionGraphVisitor(func)
 
-        ForwardAnalysis.__init__(self, order_entries=True, allow_merging=True, allow_widening=False,
+        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
                                  graph_visitor=function_graph_visitor)
 
         self.function = func
@@ -496,10 +496,10 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):
     def _pre_analysis(self):
         pass
 
-    def _pre_entry_handling(self, job):
+    def _pre_job_handling(self, job):
         pass
 
-    def _get_initial_abstract_state(self, node):
+    def _initial_abstract_state(self, node):
 
         # annotate the stack pointer
         # concrete_state.regs.sp = concrete_state.regs.sp.annotate(StackLocationAnnotation(8))
@@ -558,7 +558,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):
 
         self._node_iterations[node.addr] += 1
 
-        return state, state
+        return True, state
 
     def _intra_analysis(self):
         pass
