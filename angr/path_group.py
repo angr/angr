@@ -278,7 +278,6 @@ class PathGroup(ana.Storable):
 
         return new_active
 
-
     def _one_step(self, stash, selector_func=None, successor_func=None, check_func=None, **kwargs):
         """
         Takes a single step in a given stash.
@@ -310,7 +309,6 @@ class PathGroup(ana.Storable):
             return out
 
         new_stashes = self._copy_stashes()
-        to_tick = list(self.stashes[stash])
 
         if selector_func is None:
             new_active = []
