@@ -76,6 +76,10 @@ classified = set()
 unclassified = set()
 unsupported = set()
 explicit_attrs = {
+    'Iop_64x4toV256': {
+        '_generic_name': '64x4',
+        '_to_size': 256,
+    },
     'Iop_Yl2xF64': {
         '_generic_name': 'Yl2x',
         '_to_size': 64,
@@ -765,6 +769,9 @@ class SimIROp(object):
             rm = self._translate_rm(args[0])
             rounded_bv = claripy.fpToSBV(rm, args[1].raw_to_fp(), args[1].length)
             return claripy.fpToFP(claripy.fp.RM_RNE, rounded_bv, claripy.fp.FSort.from_size(args[1].length))
+
+    def _op_Iop_64x4toV256(self, args) :
+        return self._op_concat(args)
 
     #def _op_Iop_Yl2xF64(self, args):
     #   rm = self._translate_rm(args[0])
