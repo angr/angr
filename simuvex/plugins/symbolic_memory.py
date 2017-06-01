@@ -40,7 +40,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                            stack_region_map=stack_region_map,
                            generic_region_map=generic_region_map
                            )
-        self.mem = SimPagedMemory(memory_backer=memory_backer, permissions_backer=permissions_backer) if mem is None else mem
         self.id = memory_id
 
         if check_permissions is None:
