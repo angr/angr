@@ -14,6 +14,13 @@ class Labels(object):
             except AttributeError:
                 pass
 
+    def __iter__(self):
+        """
+        Iterate over all labels (the strings)
+        Use .lookup(name) if you need to find the address to it.
+        """
+        return self._reverse_labels.__iter__()
+
     def __getitem__(self, k):
         return self._labels[k]
 
@@ -33,7 +40,15 @@ class Labels(object):
         return k in self._labels
 
     def get(self, addr):
+        """
+        Get a label as string for a given address
+        Same as .labels[x]
+        """
         return self[addr]
 
     def lookup(self, name):
+        """
+        Returns an address to a given label
+        To show all available labels, iterate over .labels or list(b.kb.labels)
+        """
         return self._reverse_labels[name]
