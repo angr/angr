@@ -6,7 +6,7 @@ from collections import defaultdict
 
 import networkx
 
-from cle import ELF, PE
+from cle import ELF, PE, Blob
 import pyvex
 import simuvex
 from claripy.utils.orderedset import OrderedSet
@@ -562,6 +562,20 @@ class CFGBase(Analysis):
                     if section.is_executable:
                         tpl = (rebase_addr + section.min_addr, rebase_addr + section.max_addr)
                         memory_regions.append(tpl)
+
+            elif isinstance(b, Blob):
+                # a blob is entirely executable
+                tpl = (rebase_addr + b.get_min_addr(), rebase_addr + b.get_max_addr())
+                memory_regions.append(tpl)
+
+            elif isinstance(b, AngrExternObject):
+                pass
+
+            else:
+                l.warning('Unsupported object format "%s". Treat it as an executable.', b.__class__.__name__)
+
+                tpl = (rebase_addr + b.get_min_addr(), rebase_addr + b.get_max_addr())
+                memory_regions.append(tpl)
 
         if not memory_regions:
             memory_regions = [
