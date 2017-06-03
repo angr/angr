@@ -448,7 +448,7 @@ class VariableRecovery(ForwardAnalysis, Analysis):
 
         return VariableRecoveryState(self.variable_manager, self.project.arch, self.function.addr, [ concrete_state ])
 
-    def _merge_states(self, *states):
+    def _merge_states(self, node, *states):
 
         if len(states) == 1:
             return states[0]
