@@ -488,7 +488,7 @@ class CFGBase(Analysis):
             if stmt.tag == 'Ist_IMark':
                 if it_counter > 0:
                     it_counter -= 1
-                    can_produce_exits.add(stmt.addr)
+                    can_produce_exits.add(stmt.addr + stmt.delta)
             elif stmt.tag == 'Ist_WrTmp':
                 val = stmt.data
                 if val.tag == 'Iex_Const':
@@ -515,12 +515,12 @@ class CFGBase(Analysis):
             if cs_insn.mnemonic in THUMB_BRANCH_INSTRUCTIONS:
                 can_produce_exits.add(cs_insn.address)
 
-        successors = filter(lambda suc: get_ins_addr(suc) in can_produce_exits or
+        successors_filtered = filter(lambda suc: get_ins_addr(suc) in can_produce_exits or
                                         get_exit_stmt_idx(suc) == 'default',
                             successors
                             )
 
-        return successors
+        return successors_filtered
 
     def _executable_memory_regions(self, binary=None, force_segment=False):
         """
