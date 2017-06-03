@@ -30,6 +30,11 @@ class RegionObject(object):
         self.size = size
         self.objects = set() if objects is None else objects
 
+        self._variables = set()
+        if self.objects:
+            for obj in self.objects:
+                self._variables.add(obj.variable)
+
     def __eq__(self, other):
         return self.start == other.start and self.size == other.size and self.objects == other.objects
 
@@ -46,10 +51,7 @@ class RegionObject(object):
 
     @property
     def variables(self):
-        vars = set()
-        for obj in self.objects:
-            vars.add(obj.variable)
-        return vars
+        return self._variables
 
     def includes(self, offset):
         return self.start <= offset < self.start + self.size
@@ -63,10 +65,13 @@ class RegionObject(object):
 
     def add_object(self, obj):
         self.objects.add(obj)
+        self._variables.add(obj.variable)
 
     def set_object(self, obj):
         self.objects.clear()
-        self.objects.add(obj)
+        self._variables.clear()
+
+        self.add_object(obj)
 
     def copy(self):
         ro = RegionObject(self.start, self.size, objects=self.objects.copy())
