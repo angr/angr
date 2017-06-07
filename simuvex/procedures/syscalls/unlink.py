@@ -19,4 +19,4 @@ class unlink(simuvex.SimProcedure): #pylint:disable=W0622
 
         ret = self.state.posix.remove(str_val)
 
-        return self.state.se.BVV(ret, 64)
+        return self.state.se.BVV(ret, self.state.arch.bits)
