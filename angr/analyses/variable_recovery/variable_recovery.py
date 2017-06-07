@@ -3,7 +3,7 @@ import logging
 from collections import defaultdict
 
 from simuvex import BP, BP_AFTER
-from simuvex.s_variable import SimRegisterVariable, SimStackVariable
+from simuvex.s_variable import SimRegisterVariable, SimStackVariable, SimRegisterVariablePhi, SimStackVariablePhi
 
 from ...knowledge.keyed_region import KeyedRegion
 from ...knowledge.variable_manager import VariableManager
@@ -258,14 +258,16 @@ class VariableRecoveryState(object):
             base_offset = self.stack_region.get_base_addr(stack_offset)
             assert base_offset is not None
 
-            if len(self.stack_region.get_variables_by_offset(stack_offset)) > 1:
+            existing_variables = self.stack_region.get_variables_by_offset(stack_offset)
+
+            if len(existing_variables) > 1:
                 # create a phi node for all other variables
                 ident_sort = 'argument' if stack_offset > 0 else 'stack'
-                variable = SimStackVariable(stack_offset, mem_read_length, base='bp',
-                                            ident=self.variable_manager[self.func_addr].next_variable_ident(ident_sort),
-                                            phi=True,
-                                            region=self.func_addr,
-                                            )
+                variable = SimStackVariablePhi(
+                    ident=self.variable_manager[self.func_addr].next_variable_ident(ident_sort),
+                    region=self.func_addr,
+                    variables=existing_variables,
+                )
                 self.stack_region.set_variable(stack_offset, variable)
 
                 self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
