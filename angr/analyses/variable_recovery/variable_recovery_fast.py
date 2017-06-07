@@ -175,7 +175,7 @@ class BlockProcessor(object):
                 # TODO: how to determine the size for a lea?
                 existing_vars = self.state.stack_region.get_variables_by_offset(stack_offset)
                 if not existing_vars:
-                    size = self.arch.bits / 8
+                    size = 1
                     variable = SimStackVariable(stack_offset, size, base='bp',
                                                 ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
                                                 region=self.func_addr,
