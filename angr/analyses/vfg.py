@@ -1,27 +1,27 @@
-from collections import defaultdict
 import logging
+from collections import defaultdict
 
-import networkx
-
-import simuvex
-import claripy
 import angr
 import archinfo
+import claripy
+import networkx
+import simuvex
 from simuvex import SimEngineProcedure
 
-from ..call_stack import CallStack
-from ..entry_wrapper import BlockID, FunctionKey, EntryDesc
 from ..analysis import Analysis, register_analysis
+from ..call_stack import CallStack
 from ..errors import AngrVFGError, AngrError, AngrVFGRestartAnalysisNotice, AngrJobMergingFailureNotice
-from .forward_analysis import ForwardAnalysis, AngrSkipEntryNotice, AngrDelayEntryNotice
+from .cfg.cfg_job_base import BlockID, FunctionKey, CFGJobBase
 from .cfg.cfg_utils import CFGUtils
+from .forward_analysis import ForwardAnalysis, AngrSkipJobNotice, AngrDelayJobNotice
+
 
 l = logging.getLogger(name="angr.analyses.vfg")
 
 
-class VFGJob(EntryDesc):
+class VFGJob(CFGJobBase):
     """
-    An EntryWrapper that contains vfg local variables
+    A job descriptor that contains local variables used during VFG analysis.
     """
     def __init__(self, *args, **kwargs):
         super(VFGJob, self).__init__(*args, **kwargs)
@@ -269,7 +269,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         :param int timeout:
         """
 
-        ForwardAnalysis.__init__(self, order_entries=True, allow_merging=True, allow_widening=True,
+        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=True,
                                  status_callback=status_callback
                                  )
 
@@ -475,15 +475,14 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # clear function merge points cache
         self._function_merge_points = {}
 
-        # Create the initial path
-        entry_state = initial_state.copy()
-        entry_path = self.project.factory.path(entry_state)
+        # Create the initial state
+        state = initial_state.copy()
 
         if self._start_at_function:
             # set the return address to an address so we can catch it and terminate the VSA analysis
             # TODO: Properly pick an address that will not conflict with any existing code and data in the program
             self._final_address = 0x4fff0000
-            self._set_return_address(entry_state, self._final_address)
+            self._set_return_address(state, self._final_address)
 
         call_stack = None
         if not self._start_at_function:
@@ -491,21 +490,21 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             call_stack = CallStack()
             call_stack.call(None, self._function_start, retn_target=self._final_address)
 
-        job = VFGJob(entry_path.addr, entry_path.state, self._context_sensitivity_level,
+        job = VFGJob(state.addr, state, self._context_sensitivity_level,
                      jumpkind='Ijk_Boring', final_return_address=self._final_address,
                      call_stack=call_stack
                      )
-        block_id = BlockID.new(entry_path.addr, job.get_call_stack_suffix(), job.jumpkind)
+        block_id = BlockID.new(state.addr, job.get_call_stack_suffix(), job.jumpkind)
         job._block_id = block_id
 
-        self._insert_entry(job)
+        self._insert_job(job)
 
         # create the task
         function_analysis_task = FunctionAnalysis(self._function_start, self._final_address)
         function_analysis_task.jobs.append(job)
         self._task_stack.append(function_analysis_task)
 
-    def _entry_sorting_key(self, job):
+    def _job_sorting_key(self, job):
         """
         Get the sorting key of a VFGJob instance.
 
@@ -514,7 +513,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         :rtype: int
         """
 
-        MAX_ENTRIES_PER_FUNCTION = 1000000
+        MAX_BLOCKS_PER_FUNCTION = 1000000
 
         task_functions = list(reversed(
             list(task.function_address for task in self._task_stack if isinstance(task, FunctionAnalysis))
@@ -532,13 +531,13 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             block_in_function_pos = self._ordered_node_addrs(job.func_addr).index(job.addr)
         except ValueError:
             # block not found. what?
-            block_in_function_pos = min(job.addr - job.func_addr, MAX_ENTRIES_PER_FUNCTION - 1)
+            block_in_function_pos = min(job.addr - job.func_addr, MAX_BLOCKS_PER_FUNCTION - 1)
 
-        return block_in_function_pos + MAX_ENTRIES_PER_FUNCTION * function_pos
+        return block_in_function_pos + MAX_BLOCKS_PER_FUNCTION * function_pos
 
         # return self._cfg.get_topological_order(self._cfg.get_node(job.block_id))
 
-    def _entry_key(self, job):
+    def _job_key(self, job):
         """
         Return the block ID of the job. Two or more jobs owning the same block ID will be merged together.
 
@@ -549,9 +548,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return job.block_id
 
-    def _pre_entry_handling(self, job):
+    def _pre_job_handling(self, job):
         """
-        Some code executed before actually processing the entry.
+        Some code executed before actually processing the job.
 
         :param VFGJob job: the VFGJob object.
         :return: None
@@ -561,13 +560,13 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         if self._final_address is not None and job.addr == self._final_address:
             # our analysis should be termianted here
             l.debug("%s is viewed as a final state. Skip.", job)
-            raise AngrSkipEntryNotice()
+            raise AngrSkipJobNotice()
 
         l.debug("Handling VFGJob %s", job)
 
         if not self._top_task:
-            l.debug("No more tasks available. Skip the entry.")
-            raise AngrSkipEntryNotice()
+            l.debug("No more tasks available. Skip the job.")
+            raise AngrSkipJobNotice()
 
         assert isinstance(self._top_task, FunctionAnalysis)
 
@@ -582,13 +581,13 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                         unwind_count = i
 
             if unwind_count is None:
-                l.debug("%s is not recorded. Skip the entry.", job)
-                raise AngrSkipEntryNotice()
+                l.debug("%s is not recorded. Skip the job.", job)
+                raise AngrSkipJobNotice()
             else:
                 # unwind the stack till the target, unless we see any pending jobs for each new top task
                 for i in xrange(unwind_count):
                     if isinstance(self._top_task, FunctionAnalysis):
-                        # are there any pending entry belonging to the current function that we should handle first?
+                        # are there any pending job belonging to the current function that we should handle first?
                         pending_job_key = self._get_pending_job(self._top_task.function_address)
                         if pending_job_key is not None:
                             # ah there is
@@ -596,7 +595,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                             self._trace_pending_job(pending_job_key)
                             l.debug("A pending job is found for function %#x. Delay %s.",
                                     self._top_task.function_address, job)
-                            raise AngrDelayEntryNotice()
+                            raise AngrDelayJobNotice()
 
                     task = self._task_stack.pop()
 
@@ -607,9 +606,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # check if this is considered to be a final state
         if self._final_state_callback is not None and self._final_state_callback(job.state, job.call_stack):
-            l.debug("%s.state is considered as a final state. Skip the entry.", job)
+            l.debug("%s.state is considered as a final state. Skip the job.", job)
             self.final_states.append(job.state)
-            raise AngrSkipEntryNotice()
+            raise AngrSkipJobNotice()
 
         # increment the execution counter
         self._execution_counter[job.addr] += 1
@@ -630,7 +629,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         if self._tracing_times[block_id] > self._max_iterations:
             l.debug('%s has been traced too many times. Skip', job)
-            raise AngrSkipEntryNotice()
+            raise AngrSkipJobNotice()
 
         self._tracing_times[block_id] += 1
 
@@ -657,7 +656,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             # Ouch, we cannot get the SimSuccessors for some reason
             # Skip this guy
             l.debug('Cannot create SimSuccessors for %s. Skip.', job)
-            raise AngrSkipEntryNotice()
+            raise AngrSkipJobNotice()
 
         self._graph_add_edge(src_block_id,
                              block_id,
@@ -905,11 +904,11 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return new_jobs
 
-    def _post_entry_handling(self, job, new_jobs, successors):  # pylint:disable=unused-argument
+    def _post_job_handling(self, job, new_jobs, successors):  # pylint:disable=unused-argument
 
         # Debugging output
         if l.level == logging.DEBUG:
-            self._post_entry_handling_dbg(job, successors)
+            self._post_job_handling_debug(job, successors)
 
         # pop all finished tasks from the task stack
 
@@ -951,8 +950,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                                 # register the job to the top task
                                 self._top_task.jobs.append(new_job)
 
-                                # insert the entry
-                                self._insert_entry(new_job)
+                                # insert the job
+                                self._insert_job(new_job)
 
         #if not new_jobs:
         #    # task stack is empty
@@ -961,38 +960,38 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
     def _intra_analysis(self):
         pass
 
-    def _merge_entries(self, *entries):
+    def _merge_jobs(self, *jobs):
 
-        l.debug("Merging entries %s", entries)
+        l.debug("Merging jobs %s", jobs)
 
-        # there should not be more than two entries being merged at the same time
-        assert len(entries) == 2
+        # there should not be more than two jobs being merged at the same time
+        assert len(jobs) == 2
 
-        addr = entries[0].addr
+        addr = jobs[0].addr
 
         if self.project.is_hooked(addr) and \
                 self.project.hooked_by(addr).is_continuation:
             raise AngrJobMergingFailureNotice()
 
         # update jobs
-        for entry in entries:
-            if entry in self._top_function_analysis_task.jobs:
-                self._top_function_analysis_task.jobs.remove(entry)
+        for job in jobs:
+            if job in self._top_function_analysis_task.jobs:
+                self._top_function_analysis_task.jobs.remove(job)
 
-        state_0 = entries[0].state
-        state_1 = entries[1].state
+        state_0 = jobs[0].state
+        state_1 = jobs[1].state
 
         merged_state, _ = self._merge_states(state_0, state_1)
 
-        new_job = VFGJob(entries[0].addr, merged_state, self._context_sensitivity_level, jumpkind=entries[0].jumpkind,
-                         block_id=entries[0].block_id, call_stack=entries[0].call_stack
+        new_job = VFGJob(jobs[0].addr, merged_state, self._context_sensitivity_level, jumpkind=jobs[0].jumpkind,
+                         block_id=jobs[0].block_id, call_stack=jobs[0].call_stack
                          )
 
         self._top_function_analysis_task.jobs.append(new_job)
 
         return new_job
 
-    def _should_widen_entries(self, *jobs):
+    def _should_widen_jobs(self, *jobs):
         """
 
         :param iterable jobs:
@@ -1013,7 +1012,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return False
 
-    def _widen_entries(self, *jobs):
+    def _widen_jobs(self, *jobs):
         """
 
         :param iterable jobs:
@@ -1042,7 +1041,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return new_job
 
-    def _entry_list_empty(self):
+    def _job_queue_empty(self):
 
         if self._pending_returns:
             # We don't have any paths remaining. Let's pop a previously-missing return to
@@ -1066,7 +1065,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                     if isinstance(s, CallAnalysis):
                         break
 
-                return self._entry_list_empty()
+                return self._job_queue_empty()
 
             self._trace_pending_job(pending_ret_key)
 
@@ -1471,8 +1470,6 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                              jumpkind=successor_state.scratch.jumpkind,
                              call_stack=new_call_stack,
                              )
-            # r = self._worklist_append_entry(new_exit_wrapper)
-            # _dbg_exit_status[successor] = r
 
             if successor.scratch.jumpkind == 'Ijk_Ret':
                 # it's returning to the return site
@@ -1523,14 +1520,14 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return new_jobs
 
-    def _remove_pending_return(self, entry_wrapper, pending_returns):
+    def _remove_pending_return(self, job, pending_returns):
         """
-        Remove all pending returns that are related to the current entry.
+        Remove all pending returns that are related to the current job.
         """
 
         # Build the tuples that we want to remove from the dict fake_func_retn_exits
         tpls_to_remove = [ ]
-        call_stack_copy = entry_wrapper.call_stack_copy()
+        call_stack_copy = job.call_stack_copy()
         while call_stack_copy.current_return_target is not None:
             ret_target = call_stack_copy.current_return_target
             # Remove the current call stack frame
@@ -1546,7 +1543,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 l.debug("Removed (%s) from FakeExits dict.",
                         ",".join([hex(i) if i is not None else 'None' for i in tpl]))
 
-    def _post_entry_handling_dbg(self, job, successors):
+    def _post_job_handling_debug(self, job, successors):
         """
         Print out debugging information after handling a VFGJob and generating the succeeding jobs.
 
@@ -1574,8 +1571,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                         suc.scratch.jumpkind, job.dbg_exit_status[suc])
             except simuvex.SimValueError:
                 l.debug("-  target cannot be concretized. %s [%s]", job.dbg_exit_status[suc], suc.scratch.jumpkind)
-        l.debug("Remaining/pending jobs: %d/%d", len(self._entries), len(self._pending_returns))
-        l.debug("Remaining jobs: %s", [ "%s %d" % (ent.entry, id(ent.entry)) for ent in self._entries ])
+        l.debug("Remaining/pending jobs: %d/%d", len(self._job_info_queue), len(self._pending_returns))
+        l.debug("Remaining jobs: %s", [ "%s %d" % (ent.job, id(ent.job)) for ent in self._job_info_queue])
         l.debug("Task stack: %s", self._task_stack)
 
     @staticmethod
@@ -1710,7 +1707,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                      jumpkind=state.scratch.jumpkind,
                      call_stack=call_stack,
                      )
-        self._insert_entry(job)
+        self._insert_job(job)
         self._top_task.jobs.append(job)
 
     def _get_pending_job(self, func_addr):

@@ -2,6 +2,7 @@
 
 from .knowledge.data import Data
 from .knowledge.function_manager import FunctionManager
+from .knowledge.variable_manager import VariableManager
 from .knowledge.labels import Labels
 
 
@@ -15,6 +16,7 @@ class KnowledgeBase(object):
         self.obj = obj
         self.data = Data(self)
         self.functions = FunctionManager(self)
+        self.variables = VariableManager(self)
         self.labels = Labels(self)
         self.comments = {}
 

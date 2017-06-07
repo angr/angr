@@ -31,7 +31,7 @@ def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
 
     for func_addr, feature_dict in func_features.iteritems():
         returning = feature_dict.get("returning", "undefined")
-        if returning is not "undefined":
+        if returning != "undefined":
             nose.tools.assert_is(cfg.kb.functions.function(addr=func_addr).returning, returning)
 
     # Segment only
@@ -40,7 +40,7 @@ def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
 
     for func_addr, feature_dict in func_features.iteritems():
         returning = feature_dict.get("returning", "undefined")
-        if returning is not "undefined":
+        if returning != "undefined":
             nose.tools.assert_is(cfg.kb.functions.function(addr=func_addr).returning, returning)
 
     # with normalization enabled
@@ -49,7 +49,7 @@ def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
 
     for func_addr, feature_dict in func_features.iteritems():
         returning = feature_dict.get("returning", "undefined")
-        if returning is not "undefined":
+        if returning != "undefined":
             nose.tools.assert_is(cfg.kb.functions.function(addr=func_addr).returning, returning)
 
 def cfg_fast_edges_check(arch, binary_path, edges):
@@ -346,7 +346,7 @@ def test_resolve_x86_elf_pic_plt():
     return_targets = set(a.addr for a in simputs_successor)
     nose.tools.assert_equal(return_targets, { 0x400800, 0x40087e, 0x4008b6 })
 
-def main():
+def run_all():
 
     g = globals()
     segmentlist_tests = [ v for k, v in g.iteritems() if k.startswith("test_segment_list_") and hasattr(v, "__call__")]
@@ -373,8 +373,14 @@ def main():
 
     test_resolve_x86_elf_pic_plt()
 
-if __name__ == "__main__":
+
+def main():
     if len(sys.argv) > 1:
-        globals()['test_' + sys.argv[1]]()
+        for func_and_args in globals()['test_' + sys.argv[1]]():
+            func, args = func_and_args[0], func_and_args[1:]
+            func(*args)
     else:
-        main()
+        run_all()
+
+if __name__ == "__main__":
+    main()
