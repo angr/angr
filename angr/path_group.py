@@ -255,7 +255,9 @@ class PathGroup(ana.Storable):
         new_stashes['pruned'] += pruned
         new_stashes['errored'] += errored
 
-        if a not in pruned and a not in errored and len(successors) == 0:
+        if a not in pruned and a not in errored and \
+                len(successors) == 0 and \
+                (len(unconstrained) == 0 or not self.save_unconstrained):
             new_stashes['deadended'].append(a)
 
     def _apply_filter_hooks(self,path,new_stashes,new_active):
