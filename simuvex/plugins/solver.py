@@ -218,18 +218,18 @@ class SimSolver(SimStatePlugin):
     #
     # Get unconstrained stuff
     #
-    def Unconstrained(self, name, bits, **kwargs):
+    def Unconstrained(self, name, bits, uninitialized=True, **kwargs):
         if o.SYMBOLIC_INITIAL_VALUES in self.state.options:
             # Return a symbolic value
             if o.ABSTRACT_MEMORY in self.state.options:
                 l.debug("Creating new top StridedInterval")
-                r = claripy.TSI(bits=bits, name=name, uninitialized=True, **kwargs)
+                r = claripy.TSI(bits=bits, name=name, uninitialized=uninitialized, **kwargs)
             else:
                 l.debug("Creating new unconstrained BV named %s", name)
                 if o.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
-                    r = self.BVS(name, bits, uninitialized=True, **kwargs)
+                    r = self.BVS(name, bits, uninitialized=uninitialized, **kwargs)
                 else:
-                    r = self.BVS(name, bits, **kwargs)
+                    r = self.BVS(name, bits, uninitialized=uninitialized, **kwargs)
 
             return r
         else:
