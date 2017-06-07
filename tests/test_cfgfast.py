@@ -221,6 +221,26 @@ def test_cfg_loop_unrolling():
     for arch in arches:
         yield cfg_fast_edges_check, arch, filename, edges[arch]
 
+#
+# Blobs
+#
+
+def test_armel_divdf3():
+
+    # logging.getLogger('angr.analyses.cfg_fast').setLevel(logging.DEBUG)
+
+    binary_path = os.path.join(test_location, 'armel', 'nucleo_i2c_master_stripped.elf')
+    p = angr.Project(binary_path, auto_load_libs=False)
+    cfg = p.analyses.CFG(show_progressbar=True)
+
+    nose.tools.assert_in(0x800db29, cfg.functions)
+    nose.tools.assert_not_in(0x800dc0b, cfg.functions)
+
+
+#
+# Segment List test cases
+#
+
 def test_segment_list_0():
     seg_list = SegmentList()
     seg_list.occupy(0, 1, "code")
@@ -345,6 +365,7 @@ def test_resolve_x86_elf_pic_plt():
     simputs_successor = puts_successor.successors
     return_targets = set(a.addr for a in simputs_successor)
     nose.tools.assert_equal(return_targets, { 0x400800, 0x40087e, 0x4008b6 })
+
 
 def main():
 
