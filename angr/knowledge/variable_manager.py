@@ -14,6 +14,11 @@ from .variable_access import VariableAccess
 l = logging.getLogger('angr.knowledge.variable_manager')
 
 
+class VariableType(object):
+    REGISTER = 0
+    MEMORY = 1
+
+
 class LiveVariables(object):
     """
     A collection of live variables at a program point.
@@ -147,23 +152,21 @@ class VariableManagerInternal(object):
         lv = LiveVariables(register_region, stack_region)
         self._live_variables[addr] = lv
 
-    def find_variable_by_insn(self, ins_addr, sort):
+    def find_variables_by_insn(self, ins_addr, sort):
         if ins_addr not in self._insn_to_variable:
             return None
 
-        if sort == 'memory':
-            var_and_offset = next(((var, offset) for var, offset in self._insn_to_variable[ins_addr]
-                        if isinstance(var, (SimStackVariable, SimMemoryVariable))),
-                        None)
-        elif sort == 'register':
-            var_and_offset = next(((var, offset) for var, offset in self._insn_to_variable[ins_addr]
-                        if isinstance(var, SimRegisterVariable)),
-                        None)
+        if sort == VariableType.MEMORY or sort == 'memory':
+            vars_and_offset = [(var, offset) for var, offset in self._insn_to_variable[ins_addr]
+                        if isinstance(var, (SimStackVariable, SimMemoryVariable))]
+        elif sort == VariableType.REGISTER or sort == 'register':
+            vars_and_offset = [(var, offset) for var, offset in self._insn_to_variable[ins_addr]
+                        if isinstance(var, SimRegisterVariable)]
         else:
             l.error('find_variable_by_insn(): Unsupported variable sort "%s".', sort)
-            return None
+            return [ ]
 
-        return var_and_offset
+        return vars_and_offset
 
     def find_variable_by_stmt(self, block_addr, stmt_idx, sort):
         return next(iter(self.find_variables_by_stmt(block_addr, stmt_idx, sort)), None)
