@@ -443,8 +443,8 @@ class ForwardAnalysis(object):
     def _run_on_node(self, node, state):
         """
         The analysis routine that runs on each node in the graph.
-        
-        :param node:    A node in the graph. 
+
+        :param node:    A node in the graph.
         :param state:   An abstract state that acts as the initial abstract state of this analysis routine.
         :return:        A tuple: (changed, output abstract state)
         """

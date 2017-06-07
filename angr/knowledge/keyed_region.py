@@ -96,7 +96,7 @@ class KeyedRegion(object):
         :return:
         """
 
-        try: base_offset, item = self._storage.floor_item(offset)
+        try: base_offset, item = self._storage.floor_item(offset)  #pylint:disable=unused-variable
         except KeyError: return False
 
         if item.includes(offset):
@@ -123,11 +123,11 @@ class KeyedRegion(object):
     def copy(self):
         if not self._storage:
             return KeyedRegion()
-        else:
-            kr = KeyedRegion()
-            for key, ro in self._storage.iter_items():
-                kr._storage[key] = ro.copy()
-            return kr
+
+        kr = KeyedRegion()
+        for key, ro in self._storage.iter_items():
+            kr._storage[key] = ro.copy()
+        return kr
 
     def merge(self, other, make_phi_func=None):
         """
@@ -154,12 +154,12 @@ class KeyedRegion(object):
 
         for key in sorted(keys):
             ro = self._storage[key]
-            vars = [ obj.variable for obj in ro.objects ]
-            offset_to_vars[key] = vars
+            variables = [ obj.variable for obj in ro.objects ]
+            offset_to_vars[key] = variables
 
         s = [ ]
-        for offset, vars in offset_to_vars.iteritems():
-            s.append("Offset %#x: %s" % (offset, vars))
+        for offset, variables in offset_to_vars.iteritems():
+            s.append("Offset %#x: %s" % (offset, variables))
         return "\n".join(s)
 
     def add_variable(self, start, variable):
@@ -175,7 +175,7 @@ class KeyedRegion(object):
 
     def set_variable(self, start, variable):
         """
-        Add a variable to this region at the given offset, and remove all other variables that are fully covered by 
+        Add a variable to this region at the given offset, and remove all other variables that are fully covered by
         this variable.
 
         :param int start:
@@ -199,8 +199,8 @@ class KeyedRegion(object):
 
         if item.includes(addr):
             return base_addr
-        else:
-            return None
+
+        return None
 
     def get_variables_by_offset(self, start):
         """
@@ -337,7 +337,7 @@ class KeyedRegion(object):
 
         return False
 
-    def _add_object_or_make_phi(self, item, loc_and_var, make_phi_func=None):
+    def _add_object_or_make_phi(self, item, loc_and_var, make_phi_func=None):  #pylint:disable=no-self-use
         if not make_phi_func or len({loc_and_var.variable} | item.variables) == 1:
             item.add_object(loc_and_var)
         else:

@@ -67,8 +67,7 @@ class BlockID(object):
     def func_addr(self):
         if self.callsite_tuples:
             return self.callsite_tuples[-1]
-        else:
-            return None
+        return None
 
 
 class FunctionKey(object):

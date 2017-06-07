@@ -3,10 +3,9 @@ import logging
 from collections import defaultdict
 
 import pyvex
-from simuvex.s_variable import SimStackVariable, SimRegisterVariable, SimMemoryVariable
+from simuvex.s_variable import SimStackVariable, SimRegisterVariable
 
 from ...knowledge.keyed_region import KeyedRegion
-from ...knowledge.variable_manager import VariableManager
 from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 from ...analysis import Analysis, register_analysis
@@ -363,7 +362,7 @@ class BlockProcessor(object):
         except TypeError:
             return None
 
-    def _handle_Const(self, arg):
+    def _handle_Const(self, arg):  #pylint:disable=no-self-use
         return arg.con.value
 
 
@@ -444,7 +443,7 @@ class VariableRecoveryFastState(object):
     # Util methods
     #
 
-    def _normalize_register_offset(self, offset):
+    def _normalize_register_offset(self, offset):  #pylint:disable=no-self-use
 
         # TODO:
 
@@ -459,7 +458,7 @@ class VariableRecoveryFastState(object):
         return n
 
 
-class VariableRecoveryFast(ForwardAnalysis, Analysis):
+class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract-method
     """
     Recover "variables" from a function by keeping track of stack pointer offsets and  pattern matching VEX statements.
     """
@@ -515,7 +514,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):
 
         return states[0].merge(states[1], successor=node.addr)
 
-    def _run_on_node(self, node, input_state):
+    def _run_on_node(self, node, state):
         """
 
 
@@ -523,6 +522,8 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):
         :param VariableRecoveryState state:
         :return:
         """
+
+        input_state = state  # make it more meaningful
 
         block = self.project.factory.block(node.addr, node.size, opt_level=0)
 
@@ -576,7 +577,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):
     # Private methods
     #
 
-    def _process_block(self, state, block):
+    def _process_block(self, state, block):  #pylint:disable=no-self-use
         """
         Scan through all statements and perform the following tasks:
         - Find stack pointers and the VEX temporary variable storing stack pointers
@@ -586,8 +587,6 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):
         :param angr.Block block:
         :return:
         """
-
-        statements = block.vex.statements
 
         l.debug('Processing block %#x.', block.addr)
 
@@ -603,10 +602,10 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):
 
         if key in self._cached_phi_nodes[block_addr]:
             return self._cached_phi_nodes[block_addr][key]
-        else:
-            phi_node = self.variable_manager[self.function.addr].make_phi_node(*variables)
-            self._cached_phi_nodes[block_addr][key] = phi_node
-            return phi_node
+
+        phi_node = self.variable_manager[self.function.addr].make_phi_node(*variables)
+        self._cached_phi_nodes[block_addr][key] = phi_node
+        return phi_node
 
 
 register_analysis(VariableRecoveryFast, 'VariableRecoveryFast')

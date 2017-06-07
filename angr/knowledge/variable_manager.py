@@ -200,23 +200,21 @@ class VariableManagerInternal(object):
             if variable in self._variable_accesses:
                 return self._variable_accesses[variable]
 
-            else:
-                return [ ]
+            return [ ]
 
-        else:
-            # find all variables with the same variable name
+        # find all variables with the same variable name
 
-            vars_list = [ ]
+        vars_list = [ ]
 
-            for var in self._variable_accesses.keys():
-                if variable.name == var.name:
-                    vars_list.append(var)
+        for var in self._variable_accesses.keys():
+            if variable.name == var.name:
+                vars_list.append(var)
 
-            accesses = [ ]
-            for var in vars_list:
-                accesses.extend(self.get_variable_accesses(var))
+        accesses = [ ]
+        for var in vars_list:
+            accesses.extend(self.get_variable_accesses(var))
 
-            return accesses
+        return accesses
 
     def input_variables(self):
         """
@@ -280,7 +278,7 @@ class VariableManager(object):
         :rtype:                VariableManagerInternal
         """
 
-        if key == 'global':
+        if key == 'global':  # pylint:disable=no-else-return
             return self.global_manager
 
         else:

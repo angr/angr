@@ -3,10 +3,9 @@ import logging
 from collections import defaultdict
 
 from simuvex import BP, BP_AFTER
-from simuvex.s_variable import SimRegisterVariable, SimStackVariable, SimRegisterVariablePhi, SimStackVariablePhi
+from simuvex.s_variable import SimRegisterVariable, SimStackVariable, SimStackVariablePhi
 
 from ...knowledge.keyed_region import KeyedRegion
-from ...knowledge.variable_manager import VariableManager
 from .annotations import StackLocationAnnotation
 from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
@@ -19,11 +18,11 @@ class VariableRecoveryState(object):
     """
     The abstract state of variable recovery analysis.
 
-    :ivar VariableManager variable_manager: The variable manager.
+    :ivar angr.knowledge.variable_manager.VariableManager variable_manager: The variable manager.
     """
 
     def __init__(self, variable_manager, arch, func_addr, concrete_states, stack_region=None, register_region=None):
-        self.variable_manager = variable_manager  # type: VariableManager
+        self.variable_manager = variable_manager  # type: angr.knowledge.variable_manager.VariableManager
         self.arch = arch
         self.func_addr = func_addr
         self._concrete_states = concrete_states
@@ -65,7 +64,7 @@ class VariableRecoveryState(object):
 
         return None
 
-    def copy(self, copy_substates=True):
+    def copy(self):
 
         state = VariableRecoveryState(self.variable_manager,
                                       self.arch,
@@ -74,9 +73,6 @@ class VariableRecoveryState(object):
                                       stack_region=self.stack_region.copy(),
                                       register_region=self.register_region.copy(),
                                       )
-
-        #if copy_substates:
-        #    state._state_per_instruction = dict((k, v.copy()) for k, v in self._state_per_instruction.iteritems())
 
         return state
 
@@ -93,10 +89,15 @@ class VariableRecoveryState(object):
             for bp_type in ('reg_read', 'reg_write', 'mem_read', 'mem_write', 'instruction'):
                 concrete_state.inspect._breakpoints[bp_type] = [ ]
 
-            concrete_state.inspect.add_breakpoint('instruction', BP(when=BP_AFTER, enabled=True, action=self._hook_instruction))
-            concrete_state.inspect.add_breakpoint('reg_read', BP(when=BP_AFTER, enabled=True, action=self._hook_register_read))
+            concrete_state.inspect.add_breakpoint('reg_read', BP(when=BP_AFTER, enabled=True,
+                                                                 action=self._hook_register_read
+                                                                 )
+                                                  )
             concrete_state.inspect.add_breakpoint('reg_write', BP(enabled=True, action=self._hook_register_write))
-            concrete_state.inspect.add_breakpoint('mem_read', BP(when=BP_AFTER, enabled=True, action=self._hook_memory_read))
+            concrete_state.inspect.add_breakpoint('mem_read', BP(when=BP_AFTER, enabled=True,
+                                                                 action=self._hook_memory_read
+                                                                 )
+                                                  )
             concrete_state.inspect.add_breakpoint('mem_write', BP(enabled=True, action=self._hook_memory_write))
 
     def merge(self, other):
@@ -144,17 +145,6 @@ class VariableRecoveryState(object):
     #
     # SimInspect callbacks
     #
-
-    def _hook_instruction(self, state):
-        """
-        We have analyzed an instruction. Make a copy of the current abstract state.
-
-        :param state:
-        :return:
-        """
-
-        ins_addr = state.scratch.ins_addr
-        # self._state_per_instruction[ins_addr] = self.copy(copy_substates=False)
 
     def _hook_register_read(self, state):
 
@@ -308,7 +298,7 @@ class VariableRecoveryState(object):
     # Util methods
     #
 
-    def _normalize_register_offset(self, offset):
+    def _normalize_register_offset(self, offset):  #pylint:disable=no-self-use
 
         # TODO:
 
@@ -376,7 +366,7 @@ class VariableRecoveryState(object):
         return self._to_signed(offset)
 
 
-class VariableRecovery(ForwardAnalysis, Analysis):
+class VariableRecovery(ForwardAnalysis, Analysis):  #pylint:disable=abstract-method
     """
     Recover "variables" from a function using forced execution.
 
