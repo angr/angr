@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import pyvex
 import claripy
 import simuvex
@@ -47,36 +49,21 @@ class Oppologist(ExplorationTechnique):
 
         l.debug("... successors: %s", pn.successors)
 
-        return (
-            map(fixup, [ pp for pp in pn.successors if not pp.errored ]),
-            map(fixup, pn.unconstrained_successors),
-            map(fixup, pn.unsat_successors),
-            [ ], # pruned
-            map(fixup, [ pp for pp in pn.successors if pp.errored ]), #errored
-        )
+        return {'active': map(fixup, [ pp for pp in pn.successors if not pp.errored ]),
+                'unconstrained': map(fixup, pn.unconstrained_successors),
+                'unsat': map(fixup, pn.unsat_successors),
+                'errored': map(fixup, [ pp for pp in pn.successors if pp.errored ]),
+                }
 
     @staticmethod
     def _combine_results(*results):
-        all_successors = [ ]
-        all_unconstrained = [ ]
-        all_unsat = [ ]
-        all_pruned = [ ]
-        all_errored = [ ]
+        all_results = defaultdict(list)
 
-        for s,uc,us,p,e in results:
-            all_successors.extend(s)
-            all_unconstrained.extend(uc)
-            all_unsat.extend(us)
-            all_pruned.extend(p)
-            all_errored.extend(e)
+        for stashes_dict in results:
+            for stash, paths in stashes_dict.iteritems():
+                all_results[stash].extend(paths)
 
-        return (
-            all_successors,
-            all_unconstrained,
-            all_unsat,
-            all_pruned,
-            all_errored
-        )
+        return {stash: paths for stash, paths in all_results.iteritems()}
 
     def _delayed_oppology(self, p, e, **kwargs):
         try:
@@ -85,13 +72,11 @@ class Oppologist(ExplorationTechnique):
             return [], [], [], [], p.step(num_inst=e.executed_instruction_count, **kwargs)
 
         need_oppologizing = [ pp for pp in p.successors if pp.addr == e.ins_addr ]
-        results = [ (
-            [ pp for pp in p.successors if pp.addr != e.ins_addr ],
-            p.unconstrained_successors,
-            p.unsat_successors,
-            [ ],
-            [ ]
-        ) ]
+
+        results = [{'active': [ pp for pp in p.successors if pp.addr != e.ins_addr ],
+                    'unconstrained': p.unconstrained_successors,
+                    'unsat': p.unsat_successors,
+                  }]
 
         results += map(functools.partial(self._oppologize, p, **kwargs), need_oppologizing)
         return self._combine_results(*results)
