@@ -73,8 +73,7 @@ class SimTemporaryVariable(SimVariable):
         if isinstance(other, SimTemporaryVariable):
             return hash(self) == hash(other)
 
-        else:
-            return False
+        return False
 
 
 class SimRegisterVariable(SimVariable):
@@ -92,7 +91,7 @@ class SimRegisterVariable(SimVariable):
 
         ident_str = "[%s]" % self.ident if self.ident else ""
         region_str = hex(self.region) if isinstance(self.region, (int, long)) else self.region
-        phi_str = ("phi(%s)|" % (",".join(v.ident for v in self.variables))) if self.phi else ""
+        phi_str = ("phi(%s)|" % (",".join(v.ident for v in self.variables))) if self.phi else ""  #pylint:disable=no-member
 
         s = "<%s%s%s|Reg %s, %sB>" % (phi_str, region_str, ident_str, self.reg, self.size)
 
@@ -112,8 +111,7 @@ class SimRegisterVariable(SimVariable):
                    self.region == other.region and \
                    self.phi == other.phi
 
-        else:
-            return False
+        return False
 
 
 class SimRegisterVariablePhi(SimRegisterVariable):
@@ -207,8 +205,7 @@ class SimMemoryVariable(SimVariable):
                    self.size == other.size and \
                    self.phi == other.phi
 
-        else:
-            return False
+        return False
 
 
 class SimMemoryVariablePhi(SimMemoryVariable):
