@@ -2924,6 +2924,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 continue
 
             b = sorted_nodes[i]
+            if self.project.is_hooked(b.addr):
+                continue
 
             if b in removed_nodes:
                 # skip all removed nodes

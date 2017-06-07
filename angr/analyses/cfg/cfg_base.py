@@ -6,7 +6,7 @@ from collections import defaultdict
 
 import networkx
 
-from cle import ELF, PE, Blob
+from cle import ELF, PE, Blob, TLSObj
 import pyvex
 import simuvex
 from claripy.utils.orderedset import OrderedSet
@@ -568,7 +568,7 @@ class CFGBase(Analysis):
                 tpl = (rebase_addr + b.get_min_addr(), rebase_addr + b.get_max_addr())
                 memory_regions.append(tpl)
 
-            elif isinstance(b, AngrExternObject):
+            elif isinstance(b, (AngrExternObject, TLSObj)):
                 pass
 
             else:

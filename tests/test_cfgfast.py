@@ -375,6 +375,8 @@ def main():
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        globals()['test_' + sys.argv[1]]()
+        for func_and_args in globals()['test_' + sys.argv[1]]():
+            func, args = func_and_args[0], func_and_args[1:]
+            func(*args)
     else:
         main()
