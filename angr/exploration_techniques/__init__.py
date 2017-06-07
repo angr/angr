@@ -27,7 +27,8 @@ class ExplorationTechnique(object):
         Perform the process of stepping a path forward.
 
         If the stepping fails, return None to fall back to a default stepping procedure.
-        Otherwise, return a tuple of lists: successors, unconstrained, unsat, pruned, errored
+        Otherwise, return a dict of stashes to merge into the path group. All the paths will be added to the
+        PathGroup's stashes based on the mapping in the returned dict.
         """
         return None
 

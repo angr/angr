@@ -17,5 +17,11 @@ class Veritesting(ExplorationTechnique):
             pg = vt.final_path_group
             pg.stash(from_stash='deviated', to_stash='active')
             pg.stash(from_stash='successful', to_stash='active')
-            return pg.active, pg.stashes.get('unconstrained', []), pg.stashes.get('unsat', []), [], []
+
+            return {
+                    'active': pg.active,
+                    'unconstrained': pg.stashes.get('unconstrained', []),
+                    'unsat': pg.stashes.get('unsat', []),
+                    }
+
         return None

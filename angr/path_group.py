@@ -9,7 +9,6 @@ import mulpyplexer
 
 l = logging.getLogger('angr.path_group')
 
-
 class PathGroup(ana.Storable):
     """
     Path groups are the future.
@@ -71,15 +70,7 @@ class PathGroup(ana.Storable):
                 **({} if veritesting_options is None else veritesting_options)
             ))
 
-        self.stashes = {
-            'active': [ ] if active_paths is None else active_paths,
-            'stashed': [ ],
-            'pruned': [ ],
-            'unsat': [ ],
-            'errored': [ ],
-            'deadended': [ ],
-            'unconstrained': [ ]
-        } if stashes is None else stashes
+        self.stashes = self._make_stashes_dict(active=active_paths) if stashes is None else stashes
 
     #
     # Pickling
@@ -119,6 +110,21 @@ class PathGroup(ana.Storable):
             return { k:list(v) for k,v in self.stashes.items() }
         else:
             return self.stashes
+
+    def _make_stashes_dict(self, active=None, unconstrained=None, unsat=None, pruned=None, errored=None, deadended=None,
+                           **kwargs):
+        result = {'active': active or [],
+                  'unconstrained': unconstrained or [],
+                  'unsat': unsat or [],
+                  'pruned': pruned or [],
+                  'errored': errored or [],
+                  'deadended': deadended or []
+                  }
+
+        for key, val in kwargs.iteritems():
+            result[key] = val or []
+
+        return result
 
     def _copy_paths(self, paths):
         """
@@ -184,7 +190,7 @@ class PathGroup(ana.Storable):
         :param check_func:      A function to check the path for an error state.
         :param successor_func:  A function to run on the path instead of doing a.step().
 
-        :returns:               A tuple of lists: successors, unconstrained, unsat, pruned, errored.
+        :returns:               A dict mapping stash names to path lists
         """
 
         # we keep a strong reference here since the hierarchy handles trimming it
@@ -199,63 +205,64 @@ class PathGroup(ana.Storable):
 
             out = hook(a, **kwargs)
             if out is not None:
-                return out
+                return self._make_stashes_dict(**out)
 
         if (check_func is not None and check_func(a)) or (check_func is None and a.errored):
             # This path has error(s)!
             if hasattr(a, "error") and isinstance(a.error, PathUnreachableError):
-                return [], [], [], [a], []
+                return self._make_stashes_dict(pruned=[a])
             else:
                 if self._hierarchy:
                     self._hierarchy.unreachable_path(a)
                     self._hierarchy.simplify()
-                return [], [], [], [], [a]
+                return self._make_stashes_dict(errored=[a])
         else:
             try:
                 if successor_func is not None:
                     successors = successor_func(a)
                 else:
                     successors = a.step(**kwargs)
-                return successors, a.unconstrained_successors, a.unsat_successors, [], []
+                return self._make_stashes_dict(active=successors,
+                                               unconstrained=a.unconstrained_successors,
+                                               unsat=a.unsat_successors)
             except (AngrError, simuvex.SimError, claripy.ClaripyError):
                 if not self._resilience:
                     raise
                 else:
                     l.warning("PathGroup resilience squashed an exception", exc_info=True)
-                    return [], [], [], [], [a]
+                    return self._make_stashes_dict(errored=[a])
 
-    def _record_step_results(self, new_stashes, new_active, a, successors, unconstrained, unsat, pruned, errored):
+    def _record_step_results(self, new_stashes, new_active, a, successor_stashes):
         """
         Take a whole bunch of intermediate values and smushes them together
 
-        :param new_stashes:     The dict of stashes that will be modified by this operation
-        :param new_active:      One of the lists in new_stashes that is being actively ticked
-        :param a:               The path that just got ticked
-        :param successors:      The successors of a
-        :param unconstrained:   The unconstrained successors
-        :param pruned:          The pruned successors
-        :param errored:         The errored successors
+        :param new_stashes:         The dict of stashes that will be modified by this operation
+        :param new_active:          One of the lists in new_stashes that is being actively ticked
+        :param a:                   The path that just got ticked
+        :param successor_stashes:   A dict of the stashs and their paths that were created by stepping the path a.
         """
 
         if self._hierarchy:
-            for p in successors:
+            for p in successor_stashes.get('active', []):
                 self._hierarchy.add_path(p)
             self._hierarchy.simplify()
 
         if len(self._hooks_filter) == 0:
-            new_active.extend(successors)
+            new_active.extend(successor_stashes['active'])
         else:
-            for path in successors:
+            for path in successor_stashes['active']:
                 self._apply_filter_hooks(path,new_stashes,new_active)
 
         if self.save_unconstrained:
-            new_stashes['unconstrained'] += unconstrained
+            new_stashes['unconstrained'] += successor_stashes['unconstrained']
         if self.save_unsat:
-            new_stashes['unsat'] += unsat
-        new_stashes['pruned'] += pruned
-        new_stashes['errored'] += errored
+            new_stashes['unsat'] += successor_stashes['unsat']
+        new_stashes['pruned'] += successor_stashes['pruned']
+        new_stashes['errored'] += successor_stashes['errored']
 
-        if a not in pruned and a not in errored and len(successors) == 0:
+        if a not in successor_stashes['pruned'] \
+                and a not in successor_stashes['errored'] \
+                and len(successor_stashes['active']) == 0:
             new_stashes['deadended'].append(a)
 
     def _apply_filter_hooks(self,path,new_stashes,new_active):
@@ -323,8 +330,8 @@ class PathGroup(ana.Storable):
                     new_active.append(a)
 
         for a in to_tick:
-            r = self._one_path_step(a, successor_func=successor_func, check_func=check_func, **kwargs)
-            self._record_step_results(new_stashes, new_active, a, *r)
+            result_stashes = self._one_path_step(a, successor_func=successor_func, check_func=check_func, **kwargs)
+            self._record_step_results(new_stashes, new_active, a, result_stashes)
 
         new_stashes[stash] = new_active
         return self._successor(new_stashes)
