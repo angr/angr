@@ -680,7 +680,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # Update thumb_addrs
         if job.sim_successors.sort == 'IRSB' and state.thumb:
-            self._thumb_addrs.update(job.sim_successors.artifacts['instruction_addrs'])
+            self._thumb_addrs.update(job.sim_successors.artifacts['insn_addrs'])
 
         if len(all_successors) == 0:
             if job.sim_successors.sort == 'SimProcedure' and isinstance(job.sim_successors.artifacts['procedure'],
