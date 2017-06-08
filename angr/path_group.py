@@ -102,17 +102,8 @@ class PathGroup(ana.Storable):
         out._hooks_complete = list(self._hooks_complete)
         return out
 
-    def _copy_stashes(self, immutable=None):
-        """
-        Returns a copy of the stashes (if immutable) or the stashes themselves (if not immutable). Used to abstract away
-        immutability.
-        """
-        if self._immutable if immutable is None else immutable:
-            return defaultdict(list, {k: list(v) for k, v in self.stashes.items()})
-        else:
-            return self.stashes
-
-    def _make_stashes_dict(self, active=None, unconstrained=None, unsat=None, pruned=None, errored=None, deadended=None,
+    @staticmethod
+    def _make_stashes_dict(active=None, unconstrained=None, unsat=None, pruned=None, errored=None, deadended=None,
                            **kwargs):
 
         always_present = {'active': active or [],
@@ -122,7 +113,19 @@ class PathGroup(ana.Storable):
                           'errored': errored or [],
                           'deadended': deadended or []
                           }
+
         result = defaultdict(list, always_present, **kwargs)
+        return result
+
+    def _copy_stashes(self, immutable=None):
+        """
+        Returns a copy of the stashes (if immutable) or the stashes themselves (if not immutable). Used to abstract away
+        immutability.
+        """
+        if self._immutable if immutable is None else immutable:
+            result = self._make_stashes_dict(**{k: list(v) for k, v in self.stashes.items()})
+        else:
+            result = self.stashes
 
         return result
 
