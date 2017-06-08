@@ -22,7 +22,7 @@ class ExplorationTechnique(object):
         """
         pass
 
-    def step_path(self, path):
+    def step_path(self, path, **kwargs):
         """
         Perform the process of stepping a path forward.
 
