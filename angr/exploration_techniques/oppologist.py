@@ -69,7 +69,7 @@ class Oppologist(ExplorationTechnique):
         try:
             p.step(num_inst=e.executed_instruction_count, throw=True, **kwargs)
         except Exception: #pylint:disable=broad-except
-            return [], [], [], [], p.step(num_inst=e.executed_instruction_count, **kwargs)
+            return {'errored': p.step(num_inst=e.executed_instruction_count, **kwargs)}
 
         need_oppologizing = [ pp for pp in p.successors if pp.addr == e.ins_addr ]
 
