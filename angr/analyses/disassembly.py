@@ -311,6 +311,10 @@ class ConstantOperand(Operand):
 
 class RegisterOperand(Operand):
 
+    @property
+    def register(self):
+        return next((child for child in self.children if isinstance(child, Register)), None)
+
     def _render(self, formatting):
         custom_value_str = None
         if formatting is not None:
