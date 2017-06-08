@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import pyvex
 import claripy
 import simuvex
@@ -47,66 +49,49 @@ class Oppologist(ExplorationTechnique):
 
         l.debug("... successors: %s", pn.successors)
 
-        return (
-            map(fixup, [ pp for pp in pn.successors if not pp.errored ]),
-            map(fixup, pn.unconstrained_successors),
-            map(fixup, pn.unsat_successors),
-            [ ], # pruned
-            map(fixup, [ pp for pp in pn.successors if pp.errored ]), #errored
-        )
+        return {'active': map(fixup, [ pp for pp in pn.successors if not pp.errored ]),
+                'unconstrained': map(fixup, pn.unconstrained_successors),
+                'unsat': map(fixup, pn.unsat_successors),
+                'errored': map(fixup, [ pp for pp in pn.successors if pp.errored ]),
+                }
 
     @staticmethod
     def _combine_results(*results):
-        all_successors = [ ]
-        all_unconstrained = [ ]
-        all_unsat = [ ]
-        all_pruned = [ ]
-        all_errored = [ ]
+        all_results = defaultdict(list)
 
-        for s,uc,us,p,e in results:
-            all_successors.extend(s)
-            all_unconstrained.extend(uc)
-            all_unsat.extend(us)
-            all_pruned.extend(p)
-            all_errored.extend(e)
+        for stashes_dict in results:
+            for stash, paths in stashes_dict.iteritems():
+                all_results[stash].extend(paths)
 
-        return (
-            all_successors,
-            all_unconstrained,
-            all_unsat,
-            all_pruned,
-            all_errored
-        )
+        return {stash: paths for stash, paths in all_results.iteritems()}
 
     def _delayed_oppology(self, p, e, **kwargs):
         try:
             p.step(num_inst=e.executed_instruction_count, throw=True, **kwargs)
         except Exception: #pylint:disable=broad-except
-            return [], [], [], [], p.step(num_inst=e.executed_instruction_count, **kwargs)
+            return {'errored': p.step(num_inst=e.executed_instruction_count, **kwargs)}
 
         need_oppologizing = [ pp for pp in p.successors if pp.addr == e.ins_addr ]
-        results = [ (
-            [ pp for pp in p.successors if pp.addr != e.ins_addr ],
-            p.unconstrained_successors,
-            p.unsat_successors,
-            [ ],
-            [ ]
-        ) ]
+
+        results = [{'active': [ pp for pp in p.successors if pp.addr != e.ins_addr ],
+                    'unconstrained': p.unconstrained_successors,
+                    'unsat': p.unsat_successors,
+                  }]
 
         results += map(functools.partial(self._oppologize, p, **kwargs), need_oppologizing)
         return self._combine_results(*results)
 
-    def step_path(self, p, **kwargs):
+    def step_path(self, path, **kwargs):
         try:
-            p.step(throw=True, **kwargs)
+            path.step(throw=True, **kwargs)
             return None
         except (simuvex.SimUnsupportedError, simuvex.SimCCallError) as e:
-            l.debug("Errored on path %s after %d instructions", p, e.executed_instruction_count)
+            l.debug("Errored on path %s after %d instructions", path, e.executed_instruction_count)
             try:
                 if e.executed_instruction_count:
-                    return self._delayed_oppology(p, e, **kwargs)
+                    return self._delayed_oppology(path, e, **kwargs)
                 else:
-                    return self._oppologize(p, p.copy(), **kwargs)
+                    return self._oppologize(path, path.copy(), **kwargs)
             except exc_list: #pylint:disable=broad-except
                 l.error("Oppologizer hit an error.", exc_info=True)
                 return None
