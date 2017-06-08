@@ -81,17 +81,17 @@ class Oppologist(ExplorationTechnique):
         results += map(functools.partial(self._oppologize, p, **kwargs), need_oppologizing)
         return self._combine_results(*results)
 
-    def step_path(self, p, **kwargs):
+    def step_path(self, path, **kwargs):
         try:
-            p.step(throw=True, **kwargs)
+            path.step(throw=True, **kwargs)
             return None
         except (simuvex.SimUnsupportedError, simuvex.SimCCallError) as e:
-            l.debug("Errored on path %s after %d instructions", p, e.executed_instruction_count)
+            l.debug("Errored on path %s after %d instructions", path, e.executed_instruction_count)
             try:
                 if e.executed_instruction_count:
-                    return self._delayed_oppology(p, e, **kwargs)
+                    return self._delayed_oppology(path, e, **kwargs)
                 else:
-                    return self._oppologize(p, p.copy(), **kwargs)
+                    return self._oppologize(path, path.copy(), **kwargs)
             except exc_list: #pylint:disable=broad-except
                 l.error("Oppologizer hit an error.", exc_info=True)
                 return None
