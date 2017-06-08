@@ -11,7 +11,7 @@ class Veritesting(ExplorationTechnique):
         super(Veritesting, self).__init__()
         self.options = options
 
-    def step_path(self, path):
+    def step_path(self, path, **kwargs):
         vt = self.project.analyses.Veritesting(path, **self.options)
         if vt.result and vt.final_path_group:
             pg = vt.final_path_group
