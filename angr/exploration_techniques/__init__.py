@@ -107,6 +107,9 @@ class ExplorationTechnique(object):
 from .explorer import Explorer
 from .threading import Threading
 from .dfs import DFS
+from .afl import AFL
+from .afl2 import AFL2
+from .afl3 import AFL3
 from .looplimiter import LoopLimiter
 from .lengthlimiter import LengthLimiter
 from .veritesting import Veritesting
