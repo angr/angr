@@ -112,13 +112,15 @@ class PathGroup(ana.Storable):
         else:
             return self.stashes
 
-    def _make_stashes_dict(self, active=None, unconstrained=None, unsat=None, pruned=None, errored=None, **kwargs):
+    def _make_stashes_dict(self, active=None, unconstrained=None, unsat=None, pruned=None, errored=None, deadended=None,
+                           **kwargs):
 
         always_present = {'active': active or [],
                           'unconstrained': unconstrained or [],
                           'unsat': unsat or [],
                           'pruned': pruned or [],
                           'errored': errored or [],
+                          'deadended': deadended or []
                           }
         result = defaultdict(list, always_present, **kwargs)
 
