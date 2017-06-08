@@ -208,6 +208,10 @@ class PathGroup(ana.Storable):
 
             out = hook(a, **kwargs)
             if out is not None:
+                if isinstance(out, tuple):
+                    l.warning('step_path returning a tuple has been deprecated! Please return a dict of stashes instead.')
+                    a, unconst, unsat, p, e = out
+                    out = {'active': a, 'unconstrained': unconst, 'unsat': unsat, 'pruned': p, 'errored': e}
                 return self._make_stashes_dict(**out)
 
         if (check_func is not None and check_func(a)) or (check_func is None and a.errored):
