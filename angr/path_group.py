@@ -1,6 +1,7 @@
 import inspect
 import logging
 import itertools
+from collections import defaultdict
 
 import ana
 import simuvex
@@ -107,22 +108,19 @@ class PathGroup(ana.Storable):
         immutability.
         """
         if self._immutable if immutable is None else immutable:
-            return { k:list(v) for k,v in self.stashes.items() }
+            return defaultdict(list, {k: list(v) for k, v in self.stashes.items()})
         else:
             return self.stashes
 
-    def _make_stashes_dict(self, active=None, unconstrained=None, unsat=None, pruned=None, errored=None, deadended=None,
-                           **kwargs):
-        result = {'active': active or [],
-                  'unconstrained': unconstrained or [],
-                  'unsat': unsat or [],
-                  'pruned': pruned or [],
-                  'errored': errored or [],
-                  'deadended': deadended or []
-                  }
+    def _make_stashes_dict(self, active=None, unconstrained=None, unsat=None, pruned=None, errored=None, **kwargs):
 
-        for key, val in kwargs.iteritems():
-            result[key] = val or []
+        always_present = {'active': active or [],
+                          'unconstrained': unconstrained or [],
+                          'unsat': unsat or [],
+                          'pruned': pruned or [],
+                          'errored': errored or [],
+                          }
+        result = defaultdict(list, always_present, **kwargs)
 
         return result
 
@@ -147,7 +145,7 @@ class PathGroup(ana.Storable):
             del new_stashes[self.DROP]
 
         if not self._immutable:
-            self.stashes = new_stashes
+            self.stashes = defaultdict(list, new_stashes.iteritems())
             return self
         else:
             return self.copy(stashes=new_stashes)
