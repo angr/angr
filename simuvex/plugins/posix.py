@@ -263,11 +263,11 @@ class SimStateSystem(SimStatePlugin):
         return Stat(self.state.se.BVV(0, 64), # st_dev
                     self.state.se.BVV(0, 64), # st_ino
                     self.state.se.BVV(0, 64), # st_nlink
-                    self.state.se.BVV(0, 32), # st_mode
+                    self.state.se.BVS('st_mode', 32), # st_mode
                     self.state.se.BVV(0, 32), # st_uid (lol root)
                     self.state.se.BVV(0, 32), # st_gid
                     self.state.se.BVV(0, 64), # st_rdev
-                    self.state.se.BVV(0, 64), # st_size
+                    self.state.se.BVS('st_size', 64), # st_size
                     self.state.se.BVV(0, 64), # st_blksize
                     self.state.se.BVV(0, 64), # st_blocks
                     self.state.se.BVV(0, 64), # st_atime

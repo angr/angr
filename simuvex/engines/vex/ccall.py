@@ -890,6 +890,138 @@ def x86g_check_fldcw(state, fpucw):
 def x86g_create_fpucw(state, fpround):
     return 0x037f | ((fpround & 3) << 10), ()
 
+def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
+    assert len(flags_and_AX) == 32
+    assert not opcode.symbolic
+    opcode = state.se.any_int(opcode)
+
+    r_O  = flags_and_AX[data['X86']['CondBitOffsets']['G_CC_SHIFT_O'] + 16].zero_extend(31)
+    r_S  = flags_and_AX[data['X86']['CondBitOffsets']['G_CC_SHIFT_S'] + 16].zero_extend(31)
+    r_Z  = flags_and_AX[data['X86']['CondBitOffsets']['G_CC_SHIFT_Z'] + 16].zero_extend(31)
+    r_A  = flags_and_AX[data['X86']['CondBitOffsets']['G_CC_SHIFT_A'] + 16].zero_extend(31)
+    r_C  = flags_and_AX[data['X86']['CondBitOffsets']['G_CC_SHIFT_C'] + 16].zero_extend(31)
+    r_P  = flags_and_AX[data['X86']['CondBitOffsets']['G_CC_SHIFT_P'] + 16].zero_extend(31)
+
+    r_AL = (flags_and_AX >> 0) & 0xFF
+    r_AH = (flags_and_AX >> 8) & 0xFF
+
+    #if opcode == 0x27: # DAA
+    #    old_AL = r_AL
+    #    old_C  = r_C
+    #    r_C = state.se.If((r_AL & 0xF) > 9 || r_A == 1, old_C, state.se.BVV(0, 32))
+    #    r_A = state.se.If((r_AL & 0xF) > 9 || r_A == 1, 
+    #    if ((r_AL & 0xF) > 9 || r_A == 1) {
+    #        r_AL = r_AL + 6;
+    #        r_C  = old_C;
+    #        if (r_AL >= 0x100) r_C = 1;
+    #        r_A = 1;
+    #    } else {
+    #       r_A = 0;
+    #    }
+    #    if (old_AL > 0x99 || old_C == 1) {
+    #       r_AL = r_AL + 0x60;
+    #       r_C  = 1;
+    #    } else {
+    #       r_C = 0;
+    #    }
+    #    r_AL &= 0xFF;
+    #    r_O = 0
+    #    r_S = (r_AL & 0x80) ? 1 : 0;
+    #    r_Z = (r_AL == 0) ? 1 : 0;
+    #    r_P = calc_parity_8bit( r_AL );
+    #elif opcode == 0x2F: # DAS
+    #    old_AL = r_AL;
+    #    old_C  = r_C;
+    #    r_C = 0;
+    #    if ((r_AL & 0xF) > 9 || r_A == 1) {
+    #       Bool borrow = r_AL < 6;
+    #       r_AL = r_AL - 6;
+    #       r_C  = old_C;
+    #       if (borrow) r_C = 1;
+    #       r_A = 1;
+    #    } else {
+    #       r_A = 0;
+    #    }
+    #     if (old_AL > 0x99 || old_C == 1) {
+    #        r_AL = r_AL - 0x60;
+    #        r_C  = 1;
+    #     } else {
+    #        /* Intel docs are wrong: r_C = 0; */
+    #     }
+    #     /* O is undefined.  S Z and P are set according to the
+    #        result. */
+    #     r_AL &= 0xFF;
+    #     r_O = 0; /* let's say */
+    #     r_S = (r_AL & 0x80) ? 1 : 0;
+    #     r_Z = (r_AL == 0) ? 1 : 0;
+    #     r_P = calc_parity_8bit( r_AL );
+    #     break;
+    #  }
+    zero = state.se.BVV(0, 32)
+    one = state.se.BVV(1, 32)
+    if opcode == 0x37: # AAA
+        nudge = r_AL > 0xF9
+        condition = state.se.Or((r_AL & 0xF) > 9, r_A == 1)
+        r_AL = state.se.If(condition, (r_AL + 6) & 0xF, r_AL & 0xF)
+        r_AH = state.se.If(condition, state.se.If(nudge, r_AH + 2, r_AH + 1), r_AH)
+        r_A  = state.se.If(condition, one, zero)
+        r_C = state.se.If(condition, one, zero)
+        r_O = r_S = r_Z = r_P = 0
+    elif opcode == 0x3F: # AAS
+        nudge = r_AL < 0x06
+        condition = state.se.Or((r_AL & 0xF) > 9, r_A == 1)
+        r_AL = state.se.If(condition, (r_AL - 6) & 0xF, r_AL & 0xF)
+        r_AH = state.se.If(condition, state.se.If(nudge, r_AH - 2, r_AH - 1), r_AH)
+        r_A  = state.se.If(condition, one, zero)
+        r_C = state.se.If(condition, one, zero)
+        r_O = r_S = r_Z = r_P = 0
+    else:
+        assert False
+
+    result =   ( (r_O & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_O']) ) \
+             | ( (r_S & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_S']) ) \
+             | ( (r_Z & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_Z']) ) \
+             | ( (r_A & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_A']) ) \
+             | ( (r_C & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_C']) ) \
+             | ( (r_P & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_P']) ) \
+             | ( (r_AH & 0xFF) << 8 ) \
+             | ( (r_AL & 0xFF) << 0 )
+    return result, []
+
+def x86g_calculate_aad_aam(state, flags_and_AX, opcode):
+    assert len(flags_and_AX) == 32
+    assert not opcode.symbolic
+    opcode = state.se.any_int(opcode)
+
+    r_AL = (flags_and_AX >> 0) & 0xFF
+    r_AH = (flags_and_AX >> 8) & 0xFF
+
+    if opcode == 0xD4:  # AAM
+        r_AH = r_AL / 10
+        r_AL = r_AL % 10
+    elif opcode == 0xD5: # AAD
+        r_AL = ((r_AH * 10) + r_AL) & 0xff
+        r_AH = state.se.BVV(0, 32)
+    else:
+        assert False
+
+    r_O = state.se.BVV(0, 32)
+    r_C = state.se.BVV(0, 32)
+    r_A = state.se.BVV(0, 32)
+    r_S = r_AL[7].zero_extend(31)
+    r_Z = state.se.If(r_AL == 0, state.se.BVV(1, 32), state.se.BVV(0, 32))
+    r_P = calc_paritybit(state, r_AL).zero_extend(31)
+
+    result =   ( (r_O & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_O']) ) \
+             | ( (r_S & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_S']) ) \
+             | ( (r_Z & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_Z']) ) \
+             | ( (r_A & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_A']) ) \
+             | ( (r_C & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_C']) ) \
+             | ( (r_P & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_P']) ) \
+             | ( (r_AH & 0xFF) << 8 ) \
+             | ( (r_AL & 0xFF) << 0 )
+    return result, []
+
 #
 # x86 segment selection
 #

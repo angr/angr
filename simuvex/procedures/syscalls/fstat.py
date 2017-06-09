@@ -11,7 +11,7 @@ class fstat(simuvex.SimProcedure):
         return self.state.se.BVV(0, 64) # success
 
     def _store_amd64(self, stat_buf, stat):
-        store = lambda offset, val: self.state.memory.store(stat_buf + offset, val)
+        store = lambda offset, val: self.state.memory.store(stat_buf + offset, val, endness='Iend_LE')
 
         store(0x00, stat.st_dev)
         store(0x08, stat.st_ino)
