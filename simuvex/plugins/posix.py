@@ -260,10 +260,18 @@ class SimStateSystem(SimStatePlugin):
 
     def fstat(self, fd): #pylint:disable=unused-argument
         # sizes are AMD64-specific for now
+        # TODO: import results from concrete FS, if using concrete FS
+        if fd.symbolic:
+            mode = self.state.se.BVS('st_mode', 32)
+        else:
+            fd = self.state.se.any_int(fd)
+            mode = self.state.se.BVS('st_mode', 32) if not self.files[fd].name.startswith('/dev/') else self.state.se.BVV(0, 32)
+            # return this weird bogus zero value to keep code paths in libc simple :\
+
         return Stat(self.state.se.BVV(0, 64), # st_dev
                     self.state.se.BVV(0, 64), # st_ino
                     self.state.se.BVV(0, 64), # st_nlink
-                    self.state.se.BVS('st_mode', 32), # st_mode
+                    mode, # st_mode
                     self.state.se.BVV(0, 32), # st_uid (lol root)
                     self.state.se.BVV(0, 32), # st_gid
                     self.state.se.BVV(0, 64), # st_rdev
