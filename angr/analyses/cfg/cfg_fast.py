@@ -759,7 +759,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         #
         # Variables used during analysis
         #
-        self._pending_entries = None
+        self._pending_jobs = None
         self._traced_addresses = None
         self._function_returns = None
         self._function_exits = None
@@ -1006,12 +1006,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     # Overriden methods from ForwardAnalysis
 
-    def _entry_key(self, entry):
-        return entry.addr
+    def _job_key(self, job):
+        return job.addr
 
     def _pre_analysis(self):
         # Initialize variables used during analysis
-        self._pending_entries = [ ]
+        self._pending_jobs = [ ]
         self._traced_addresses = set()
         self._function_returns = defaultdict(list)
 
@@ -1055,7 +1055,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Create jobs for all starting points
         for sp in starting_points:
             job = CFGJob(sp, sp, 'Ijk_Boring')
-            self._insert_entry(job)
+            self._insert_job(job)
             # register the job to function `sp`
             self._register_analysis_job(sp, job)
 
@@ -1074,7 +1074,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # make function_prologue_addrs a set for faster lookups
             self._function_prologue_addrs = set(self._function_prologue_addrs)
 
-    def _pre_entry_handling(self, job):  # pylint:disable=arguments-differ
+    def _pre_job_handling(self, job):  # pylint:disable=arguments-differ
         """
         Some pre job-processing tasks, like update progress bar.
 
@@ -1122,13 +1122,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return jobs
 
-    def _handle_successor(self, entry, successor, successors):
+    def _handle_successor(self, job, successor, successors):
         return [ successor ]
 
-    def _merge_entries(self, *entries):
+    def _merge_jobs(self, *jobs):
         pass
 
-    def _widen_entries(self, *entries):
+    def _widen_jobs(self, *jobs):
         pass
 
     def _post_process_successors(self, addr, successors):
@@ -1143,27 +1143,27 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return successors
 
-    def _post_entry_handling(self, entry, new_entries, successors):
+    def _post_job_handling(self, job, new_jobs, successors):
         pass
 
-    def _entry_list_empty(self):
+    def _job_queue_empty(self):
 
-        if self._pending_entries:
-            # look for an entry that comes from a function that must return
+        if self._pending_jobs:
+            # look for a job that comes from a function that must return
             # if we can find one, just use it
-            entry_index = None
-            for i, entry in enumerate(self._pending_entries):
-                src_func_addr = entry.returning_source
+            job_index = None
+            for i, job in enumerate(self._pending_jobs):
+                src_func_addr = job.returning_source
                 if src_func_addr is None or src_func_addr not in self.kb.functions:
                     continue
                 function = self.kb.functions[src_func_addr]
                 if function.returning is True:
-                    entry_index = i
+                    job_index = i
                     break
 
-            if entry_index is not None:
-                self._insert_entry(self._pending_entries[entry_index])
-                del self._pending_entries[entry_index]
+            if job_index is not None:
+                self._insert_job(self._pending_jobs[job_index])
+                del self._pending_jobs[job_index]
                 return
 
         # did we finish analyzing any function?
@@ -1173,15 +1173,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # analyze function features, most importantly, whether each function returns or not
         self._analyze_all_function_features()
 
-        if self._pending_entries:
+        if self._pending_jobs:
             self._clean_pending_exits()
 
         # Clear _changed_functions set
         self._changed_functions = set()
 
-        if self._pending_entries:
-            self._insert_entry(self._pending_entries[0])
-            del self._pending_entries[0]
+        if self._pending_jobs:
+            self._insert_job(self._pending_jobs[0])
+            del self._pending_jobs[0]
             return
 
         if self._use_function_prologues and self._remaining_function_prologue_addrs:
@@ -1192,7 +1192,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     continue
 
                 job = CFGJob(prolog_addr, prolog_addr, 'Ijk_Boring')
-                self._insert_entry(job)
+                self._insert_job(job)
                 self._register_analysis_job(prolog_addr, job)
                 return
 
@@ -1214,10 +1214,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                  src_node=self._nodes[source_addr],
                                  src_stmt_idx=None,
                                  )
-                    self._insert_entry(job)
+                    self._insert_job(job)
                     self._register_analysis_job(target_func_addr, job)
 
-            if self._entries:
+            if self._job_info_queue:
                 return
 
         if self._force_complete_scan:
@@ -1225,7 +1225,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             if addr is not None:
                 job = CFGJob(addr, addr, "Ijk_Boring", last_addr=None)
-                self._insert_entry(job)
+                self._insert_job(job)
                 self._register_analysis_job(addr, job)
 
     def _post_analysis(self):
@@ -1466,9 +1466,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     addr_ = addr_._model_concrete.value
                 if not isinstance(addr_, (int, long)):
                     continue
-                entries += self._create_entries(addr_, jumpkind, current_function_addr, None, addr_, cfg_node, None,
-                                                None
-                                                )
+                entries += self._create_jobs(addr_, jumpkind, current_function_addr, None, addr_, cfg_node, None,
+                                             None
+                                             )
 
         if not procedure.NO_RET:
             # it returns
@@ -1559,28 +1559,28 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         for suc in successors:
             stmt_idx, ins_addr, target, jumpkind = suc
 
-            entries += self._create_entries(target, jumpkind, function_addr, irsb, addr, cfg_node, ins_addr,
-                                            stmt_idx
-                                            )
+            entries += self._create_jobs(target, jumpkind, function_addr, irsb, addr, cfg_node, ins_addr,
+                                         stmt_idx
+                                         )
 
         return entries
 
-    def _create_entries(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx,
-                        fast_indirect_jump_resolution=True):
+    def _create_jobs(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx,
+                     fast_indirect_jump_resolution=True):
         """
-        Given a node and details of a successor, makes a list of CFGEntrys
+        Given a node and details of a successor, makes a list of CFGJobs
         and if it is a call or exit marks it appropriately so in the CFG
 
-        :param int target: The resultant entry's statement destination
-        :param str jumpkind: The jumpkind of the edge going to this node
+        :param int target:          Destination of the resultant job
+        :param str jumpkind:        The jumpkind of the edge going to this node
         :param int current_function_addr: Address of the current function
-        :param pyvex.IRSB irsb: IRSB of the predecessor node
-        :param int addr: The predecessor address
-        :param CFGNode cfg_node: The CFGNode of the predecessor node
-        :param int ins_addr: The resultant entry's address
-        :param int stmt_idx: The resultant entry's ID of their statement
-        :return: a list of CFGEntrys
-        :rtype: list
+        :param pyvex.IRSB irsb:     IRSB of the predecessor node
+        :param int addr:            The predecessor address
+        :param CFGNode cfg_node:    The CFGNode of the predecessor node
+        :param int ins_addr:        Address of the source instruction.
+        :param int stmt_idx:        ID of the source statement.
+        :return:                    a list of CFGJobs
+        :rtype:                     list
         """
 
         if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
@@ -1592,7 +1592,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         else:
             target_addr = None
 
-        entries = [ ]
+        jobs = [ ]
 
         if target_addr is None and (
                         jumpkind in ('Ijk_Boring', 'Ijk_Call') or jumpkind.startswith('Ijk_Sys'))\
@@ -1601,10 +1601,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, current_function_addr)
             if resolved:
                 for t in resolved_targets:
-                    ent = self._create_entries(t, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr,
-                                               stmt_idx, fast_indirect_jump_resolution=False)
-                    entries.extend(ent)
-                return entries
+                    ent = self._create_jobs(t, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr,
+                                            stmt_idx, fast_indirect_jump_resolution=False)
+                    jobs.extend(ent)
+                return jobs
 
         # pylint: disable=too-many-nested-blocks
         if jumpkind == 'Ijk_Boring':
@@ -1646,7 +1646,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 ce = CFGJob(target_addr, target_func_addr, jumpkind, last_addr=addr, src_node=cfg_node,
                             src_ins_addr=ins_addr, src_stmt_idx=stmt_idx)
-                entries.append(ce)
+                jobs.append(ce)
 
             else:
                 l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
@@ -1671,7 +1671,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     for resolved_target in ij.resolved_targets:
                         ce = CFGJob(resolved_target, resolved_target, jumpkind, last_addr=resolved_target,
                                     src_node=cfg_node, src_stmt_idx=stmt_idx, src_ins_addr=ins_addr)
-                        entries.append(ce)
+                        jobs.append(ce)
 
                         self._function_add_call_edge(resolved_target, None, None, resolved_target,
                                                      stmt_idx=stmt_idx, ins_addr=ins_addr
@@ -1696,7 +1696,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             if r:
                                 ce = CFGJob(jump_target, target_func_addr, jumpkind, last_addr=jump_target,
                                             src_node=cfg_node, src_stmt_idx=stmt_idx, src_ins_addr=ins_addr)
-                                entries.append(ce)
+                                jobs.append(ce)
 
                                 self._function_add_call_edge(jump_target, None, None, target_func_addr,
                                                              stmt_idx=stmt_idx, ins_addr=ins_addr
@@ -1719,9 +1719,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             is_syscall = jumpkind.startswith("Ijk_Sys")
 
             if target_addr is not None:
-                entries += self._create_entry_call(addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr,
-                                                   target_addr, jumpkind, is_syscall=is_syscall
-                                                   )
+                jobs += self._create_job_call(addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr,
+                                              target_addr, jumpkind, is_syscall=is_syscall
+                                              )
 
             else:
                 l.debug('(%s) Indirect jump at %#x.', jumpkind, addr)
@@ -1746,9 +1746,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self._indirect_jumps_to_resolve.add(ij)
                 self._register_analysis_job(current_function_addr, ij)
 
-                self._create_entry_call(addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, None,
-                                        jumpkind, is_syscall=is_syscall
-                                        )
+                self._create_job_call(addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, None,
+                                      jumpkind, is_syscall=is_syscall
+                                      )
 
         elif jumpkind == "Ijk_Ret":
             if current_function_addr != -1:
@@ -1761,26 +1761,28 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # TODO: Support more jumpkinds
             l.debug("Unsupported jumpkind %s", jumpkind)
 
-        return entries
+        return jobs
 
-    def _create_entry_call(self, addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, target_addr, jumpkind,
-                           is_syscall=False):
+    def _create_job_call(self, addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, target_addr, jumpkind,
+                         is_syscall=False):
         """
-        Generate a CFGEntry for target address, also adding to _pending_entries
+        Generate a CFGJob for target address, also adding to _pending_entries
         if returning to succeeding position (if irsb arg is populated)
 
-        :param int addr: The predecessor address
-        :param pyvex.IRSB irsb: IRSB of the predecessor node
-        :param CFGNode cfg_node: The CFGNode of the predecessor node
-        :param int stmt_idx: The ID of statement of resultant entry
-        :param int current_function_addr: Address of the entry function
-        :param int target_addr: The statement destination of resultant entry
-        :param str jumpkind: The jumpkind of the edge going to this node
-        :param bool is_syscall: is the jump kind (and thus this) a system call
-        :return: a list of CFGEntrys
-        :rtype: list
+        :param int addr:            Address of the predecessor node
+        :param pyvex.IRSB irsb:     IRSB of the predecessor node
+        :param CFGNode cfg_node:    The CFGNode instance of the predecessor node
+        :param int stmt_idx:        ID of the source statement
+        :param int ins_addr:        Address of the source instruction
+        :param int current_function_addr: Address of the current function
+        :param int target_addr:     Destination of the call
+        :param str jumpkind:        The jumpkind of the edge going to this node
+        :param bool is_syscall:     Is the jump kind (and thus this) a system call
+        :return:                    A list of CFGJobs
+        :rtype:                     list
         """
-        entries = [ ]
+
+        jobs = [ ]
 
         if is_syscall:
             # Fix the target_addr for syscalls
@@ -1809,14 +1811,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # Keep tracing from the call
             ce = CFGJob(target_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
                         src_stmt_idx=stmt_idx, src_ins_addr=ins_addr, syscall=is_syscall)
-            entries.append(ce)
+            jobs.append(ce)
 
         if return_site is not None:
             # Also, keep tracing from the return site
             ce = CFGJob(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
                         src_stmt_idx=stmt_idx, src_ins_addr=ins_addr, returning_source=new_function_addr,
                         syscall=is_syscall)
-            self._pending_entries.append(ce)
+            self._pending_jobs.append(ce)
             # register this job to this function
             self._register_analysis_job(current_function_addr, ce)
 
@@ -1839,7 +1841,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     if fr not in self._function_returns[new_function_addr]:
                         self._function_returns[new_function_addr].append(fr)
 
-        return entries
+        return jobs
 
     # Data reference processing
 
@@ -2379,8 +2381,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self._deregister_analysis_job(jump.func_addr, jump)
 
             if not resolved:
-                # add a node from this entry to the Unresolv
-                # ableTarget node
+                # add a node from this node to the UnresolvableTarget node
                 src_node = self._nodes[jump.addr]
                 dst_node = CFGNode(self._unresolvable_target_addr, 0, self,
                                    function_address=self._unresolvable_target_addr,
@@ -2923,6 +2924,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 continue
 
             b = sorted_nodes[i]
+            if self.project.is_hooked(b.addr):
+                continue
 
             if b in removed_nodes:
                 # skip all removed nodes
@@ -3163,7 +3166,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         pending_exits_to_remove = []
 
-        for i, pe in enumerate(self._pending_entries):
+        for i, pe in enumerate(self._pending_jobs):
 
             if pe.returning_source is None:
                 # The original call failed. This pending exit must be followed.
@@ -3182,9 +3185,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 pending_exits_to_remove.append(i)
 
         for index in reversed(pending_exits_to_remove):
-            job = self._pending_entries[index]
+            job = self._pending_jobs[index]
             self._deregister_analysis_job(job.func_addr, job)
-            del self._pending_entries[index]
+            del self._pending_jobs[index]
 
     #
     # Graph utils

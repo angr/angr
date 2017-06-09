@@ -5,6 +5,8 @@ import networkx
 
 
 class SCCPlaceholder(object):
+    __slots__ = ['scc_id']
+
     def __init__(self, scc_id):
         self.scc_id = scc_id
 
@@ -125,6 +127,10 @@ class CFGUtils(object):
         :rtype: list
         """
 
+        # fast path for single node graphs
+        if graph.number_of_nodes() == 1:
+            return graph.nodes()
+
         # make a copy to the graph since we are gonna modify it
         graph_copy = networkx.DiGraph()
 
@@ -153,7 +159,7 @@ class CFGUtils(object):
         ordered_nodes = [ ]
         for n in tmp_nodes:
             if isinstance(n, SCCPlaceholder):
-                ordered_nodes += list(sccs[n.scc_id])
+                CFGUtils._append_scc(graph, ordered_nodes, sccs[n.scc_id])
             else:
                 ordered_nodes.append(n)
 
@@ -171,3 +177,36 @@ class CFGUtils(object):
             if node in comp:
                 return i
         return None
+
+    @staticmethod
+    def _append_scc(graph, ordered_nodes, scc):
+        """
+        Append all nodes from a strongly connected component to a list of ordered nodes and ensure the topological
+        order.
+
+        :param networkx.DiGraph graph: The graph where all nodes belong to.
+        :param list ordered_nodes:     Ordered nodes.
+        :param iterable scc:           A set of nodes that forms a strongly connected component in the graph.
+        :return:                       None
+        """
+
+        # find the first node in the strongly connected component that is the successor to any node in ordered_nodes
+        loop_head = None
+        for parent_node in reversed(ordered_nodes):
+            for n in scc:
+                if n in graph[parent_node]:
+                    loop_head = n
+                    break
+
+            if loop_head is not None:
+                break
+
+        if loop_head is None:
+            # randomly pick one
+            loop_head = next(iter(scc))
+
+        subgraph = graph.subgraph(scc)  # type: networkx.DiGraph
+        for src, _ in subgraph.in_edges(loop_head):
+            subgraph.remove_edge(src, loop_head)
+
+        ordered_nodes.extend(CFGUtils.quasi_topological_sort_nodes(subgraph))

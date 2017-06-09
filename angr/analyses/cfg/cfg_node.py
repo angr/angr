@@ -1,5 +1,6 @@
 import pyvex
 import simuvex
+import archinfo
 
 
 class CFGNode(object):
@@ -49,6 +50,8 @@ class CFGNode(object):
             if self.callstack is not None else callstack_key
 
         self.name = simprocedure_name or cfg.project.loader.find_symbol_name(addr)
+        if self.name is None and isinstance(cfg.project.arch, archinfo.ArchARM) and addr & 1:
+            self.name = cfg.project.loader.find_symbol_name(addr - 1)
         if function_address and self.name is None:
             self.name = cfg.project.loader.find_symbol_name(function_address)
             if self.name is not None:

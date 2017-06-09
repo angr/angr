@@ -73,7 +73,7 @@ def run_vfg_0(arch):
     cfg = proj.analyses.CFG(normalize=True)
     main = cfg.functions.function(name='main')
     vfg = proj.analyses.VFG(cfg, start=main.addr, context_sensitivity_level=1, interfunction_level=3,
-                            record_function_final_states=True
+                            record_function_final_states=True, max_iterations=80,
                             )
 
     function_final_states = vfg._function_final_states
