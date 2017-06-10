@@ -951,7 +951,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
 
         pending_job_key = self._pending_jobs.keys()[0]
-        pending_job = self._pending_jobs.pop(pending_job_key)
+        pending_job = self._pending_jobs.pop(pending_job_key)  # type: PendingJob
         pending_job_state = pending_job.state
         pending_job_call_stack = pending_job.call_stack
         pending_job_src_block_id = pending_job.src_block_id
@@ -1169,7 +1169,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # in the graph.
 
                 pending_job = self._pending_jobs.pop(block_id)
-                self._deregister_analysis_job(pending_job.function_address, pending_job)
+                self._deregister_analysis_job(pending_job.caller_func_addr, pending_job)
                 self._graph_add_edge(pending_job.src_block_id, block_id, jumpkind='Ijk_FakeRet',
                                      stmt_idx=pending_job.src_exit_stmt_idx,
                                      ins_addr=pending_job.src_exit_ins_addr
@@ -1208,8 +1208,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
             # in the graph.
 
-            pending_job = self._pending_jobs.pop(block_id)
-            self._deregister_analysis_job(pending_job.function_address, pending_job)
+            pending_job = self._pending_jobs.pop(block_id)  # type: PendingJob
+            self._deregister_analysis_job(pending_job.caller_func_addr, pending_job)
             self._graph_add_edge(pending_job.src_block_id, block_id, jumpkind='Ijk_FakeRet',
                                  stmt_idx=pending_job.src_exit_stmt_idx, ins_addr=src_ins_addr
                                  )
