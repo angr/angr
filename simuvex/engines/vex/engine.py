@@ -293,7 +293,8 @@ class SimEngineVEX(SimEngine):
         It annotates the request with a final state, last imark, and a list of SimIRStmts
         """
         if type(stmt) == pyvex.IRStmt.IMark:
-            state.scratch.ins_addr = stmt.addr + stmt.delta
+            ins_addr = stmt.addr + stmt.delta
+            state.scratch.ins_addr = ins_addr
 
             # Raise an exception if we're suddenly in self-modifying code
             for subaddr in xrange(stmt.len):
@@ -303,7 +304,7 @@ class SimEngineVEX(SimEngine):
 
             l.debug("IMark: %#x", stmt.addr)
             state.scratch.num_insns += 1
-            state._inspect('instruction', BP_BEFORE, instruction=stmt.addr)
+            state._inspect('instruction', BP_BEFORE, instruction=ins_addr)
 
         # process it!
         s_stmt = translate_stmt(stmt, state)
