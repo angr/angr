@@ -150,6 +150,8 @@ class Instruction(DisassemblyPiece):
         cs_op_num = -1
 
         # iterate over operands in reverse order
+        bracket_stack = []
+        comma_stack = []
         while i >= 0:
             c = insn_pieces[i]
             if c == '':
@@ -198,7 +200,14 @@ class Instruction(DisassemblyPiece):
                     # XXX STILL A HACK
                     cur_operand.append(c if c[-1] == ':' else c + ' ')
 
-            elif c == ',':
+            elif c == ']':
+                bracket_stack.append(True)
+                cur_operand.append(c)
+            elif c == '[':
+                bracket_stack.pop()
+                cur_operand.append(c)
+
+            elif c == ',' and not bracket_stack and not comma_stack:
                 cs_op_num -= 1
                 cur_operand = None
             elif c == ':': # XXX this is a hack! fix this later
@@ -214,6 +223,9 @@ class Instruction(DisassemblyPiece):
 
         self.opcode = Opcode(self)
         self.operands.reverse()
+        if len(self.operands) != len(self.insn.operands):
+            self.operands = [ ]
+            return
         for i, o in enumerate(self.operands):
             o.reverse()
             self.operands[i] = Operand.build(
