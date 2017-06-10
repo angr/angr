@@ -973,12 +973,16 @@ class CFGBase(Analysis):
                         next_node = lst[i + 1]
                         if node.addr <= next_node.addr < node.addr + node.size:
                             # umm, those nodes are overlapping, but they must have different end addresses
-                            # misuse end_addresses_to_nodes
-                            end_addresses_to_nodes[(node.addr + node.size, callstack_key)].add(node)
-                            end_addresses_to_nodes[(node.addr + node.size, callstack_key)].add(next_node)
+                            nodekey_a = node.addr + node.size, callstack_key
+                            nodekey_b = next_node.addr + next_node.size, callstack_key
 
-                            del smallest_nodes[(node.addr + node.size, callstack_key)]
-                            del smallest_nodes[(next_node.addr + next_node.size, callstack_key)]
+                            if nodekey_a in smallest_nodes and nodekey_b in smallest_nodes:
+                                # misuse end_addresses_to_nodes
+                                end_addresses_to_nodes[(node.addr + node.size, callstack_key)].add(node)
+                                end_addresses_to_nodes[(node.addr + node.size, callstack_key)].add(next_node)
+
+                            smallest_nodes.pop(nodekey_a, None)
+                            smallest_nodes.pop(nodekey_b, None)
 
         self._normalized = True
 
@@ -1028,6 +1032,9 @@ class CFGBase(Analysis):
             original_predecessors = list(graph.in_edges_iter([n], data=True))
             original_successors = list(graph.out_edges_iter([n], data=True))
 
+            if smallest_node not in graph:
+                continue
+
             for _, d, data in original_successors:
                 if d not in graph[smallest_node]:
                     if d is n:
@@ -1037,7 +1044,8 @@ class CFGBase(Analysis):
 
             for p, _, _ in original_predecessors:
                 graph.remove_edge(p, n)
-            graph.remove_node(n)
+            if n in graph:
+                graph.remove_node(n)
 
             # Update nodes dict
             self._nodes[n.block_id] = new_node
