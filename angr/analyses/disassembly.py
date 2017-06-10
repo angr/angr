@@ -2,6 +2,8 @@
 from collections import defaultdict
 import logging
 
+import archinfo
+
 from ..analysis import Analysis, register_analysis
 from ..block import CapstoneInsn
 
@@ -576,8 +578,14 @@ class Disassembly(Analysis):
             self.raw_result_map['hooks'][block.addr] = hook
 
         else:
-            cs = self.project.arch.capstone
-            bytestr = ''.join(self.project.loader.memory.read_bytes(block.addr, block.size))
+            # special handling for ARM THUMB mode
+            block_addr_real = block.addr
+            if isinstance(self.project.arch, archinfo.ArchARM) and block_addr_real % 2 == 1:
+                block_addr_real = block_addr_real - 1
+                cs = self.project.arch.capstone_thumb
+            else:
+                cs = self.project.arch.capstone
+            bytestr = ''.join(self.project.loader.memory.read_bytes(block_addr_real, block.size))
             self.block_to_insn_addrs[block.addr] = []
             for cs_insn in cs.disasm(bytestr, block.addr):
                 if cs_insn.address in self.kb.labels:
