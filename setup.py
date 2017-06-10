@@ -9,7 +9,7 @@ except ImportError:
 
 setup(
     name='angr',
-    version='6.7.4.12',
+    version='6.7.6.9',
     description='The next-generation binary analysis platform from UC Santa Barbara\'s Seclab!',
     packages=packages,
     install_requires=[
@@ -20,11 +20,11 @@ setup(
         'mulpyplexer',
         'cooldict',
         'ana',
-        'archinfo>=6.7.4.12',
-        'pyvex>=6.7.4.12',
-        'claripy>=6.7.4.12',
-        'simuvex>=6.7.4.12',
-        'cle>=6.7.4.12',
+        'archinfo>=6.7.6.9',
+        'pyvex>=6.7.6.9',
+        'claripy>=6.7.6.9',
+        'simuvex>=6.7.6.9',
+        'cle>=6.7.6.9',
         'cachetools',
     ],
 )
