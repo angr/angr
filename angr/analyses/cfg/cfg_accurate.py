@@ -1164,7 +1164,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             # This is the real return exit
             # Check if this retn is inside our pending_exits set
-            if (job.jumpkind == 'Ijk_Call' or job.is_syscall) and block_id in self._pending_jobs:
+            if job.jumpkind == 'Ijk_Ret' and block_id in self._pending_jobs:
                 # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
                 # in the graph.
 
@@ -1204,7 +1204,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             del self._pending_edges[block_id]
 
         # See if this job cancels another FakeRet
-        if (job.jumpkind == 'Ijk_Call' or job.is_syscall) and block_id in self._pending_jobs:
+        if job.jumpkind == 'Ijk_Ret' and block_id in self._pending_jobs:
             # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
             # in the graph.
 
@@ -1214,7 +1214,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                  stmt_idx=pending_job.src_exit_stmt_idx, ins_addr=src_ins_addr
                                  )
             self._update_function_transition_graph(pending_job.src_block_id, block_id, jumpkind='Ijk_FakeRet',
-                                                   ins_addr=src_ins_addr, stmt_idx=pending_job.src_exit_stmt_idx
+                                                   ins_addr=src_ins_addr, stmt_idx=pending_job.src_exit_stmt_idx,
+                                                   confirmed=True
                                                    )
 
         block_info = self.project.arch.gather_info_from_state(sim_successors.initial_state)
@@ -1876,7 +1877,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self.graph.add_edge(src_node, dst_node, **kwargs)
 
     def _update_function_transition_graph(self, src_node_key, dst_node_key, jumpkind='Ijk_Boring', ins_addr=None,
-                                          stmt_idx=None):
+                                          stmt_idx=None, confirmed=None):
         """
         Update transition graphs of functions in function manager based on information passed in.
 
@@ -1945,7 +1946,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self.kb.functions._add_fakeret_to(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
-                to_node=dst_node.to_codenode()
+                to_node=dst_node.to_codenode(),
+                confirmed=confirmed,
             )
 
         elif jumpkind == 'Ijk_Boring':
