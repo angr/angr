@@ -1,9 +1,0 @@
-dpkt-fix
-pyvex
-archinfo
-claripy
-cooldict
-ana
-bintrees
-unicorn
-cachetools
