@@ -702,6 +702,17 @@ class CFGBase(Analysis):
 
         return obj.find_segment_containing(addr)
 
+    def _addr_hooked_or_syscall(self, addr):
+        """
+        Check whether the address belongs to a hook or a syscall.
+
+        :param int addr:    The address to check.
+        :return:            True if the address is hooked or belongs to a syscall. False otherwise.
+        :rtype:             bool
+        """
+
+        return self.project.is_hooked(addr) or self.project._simos.syscall_table.get_by_addr(addr) is not None
+
     def _fast_memory_load(self, addr):
         """
         Perform a fast memory loading of static content from static regions, a.k.a regions that are mapped to the
