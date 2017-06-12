@@ -1382,7 +1382,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if addr in self._function_addresses_from_symbols:
             current_function_addr = addr
 
-        if self.project.is_hooked(addr) or self.project._simos.syscall_table.get_by_addr(addr) is not None:
+        if self._addr_hooked_or_syscall(addr):
             entries = self._scan_procedure(addr, current_function_addr, previous_jumpkind, previous_src_node,
                                            previous_src_ins_addr, previous_src_stmt_idx)
 
@@ -2856,7 +2856,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         nodes_to_append = {}
         # pylint:disable=too-many-nested-blocks
         for a in sorted_nodes:
-            if a.addr in self.functions and a.addr not in all_plt_stub_addrs and not self.project.is_hooked(a.addr):
+            if a.addr in self.functions and a.addr not in all_plt_stub_addrs and \
+                    not self._addr_hooked_or_syscall(a.addr):
                 all_in_edges = self.graph.in_edges(a, data=True)
                 if not any([data['jumpkind'] == 'Ijk_Call' for _, _, data in all_in_edges]):
                     # no one is calling it
@@ -2924,7 +2925,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 continue
 
             b = sorted_nodes[i]
-            if self.project.is_hooked(b.addr):
+            if self._addr_hooked_or_syscall(b.addr):
                 continue
 
             if b in removed_nodes:
