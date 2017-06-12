@@ -330,6 +330,23 @@ def test_max_steps():
 
     nose.tools.assert_less_equal(max(depth_map.itervalues()), 5)
 
+
+def test_armel_final_missing_block():
+
+    # Due to a stupid bug in CFGAccurate, the last block of a function might go missing in the function graph if the
+    # only entry edge to that block is an Ijk_Ret edge. See #475 on GitHub.
+    # Thank @gergo for reporting and providing this test binary.
+
+    binary_path = os.path.join(test_location, 'armel', 'last_block')
+    b = angr.Project(binary_path, auto_load_libs=False)
+    cfg = b.analyses.CFGAccurate()
+
+    blocks = list(cfg.kb.functions[0x8000].blocks)
+
+    nose.tools.assert_equal(len(blocks), 3)
+    nose.tools.assert_set_equal(set([ block.addr for block in blocks ]), { 0x8000, 0x8014, 0x8020 })
+
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))

@@ -951,7 +951,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
 
         pending_job_key = self._pending_jobs.keys()[0]
-        pending_job = self._pending_jobs.pop(pending_job_key)
+        pending_job = self._pending_jobs.pop(pending_job_key)  # type: PendingJob
         pending_job_state = pending_job.state
         pending_job_call_stack = pending_job.call_stack
         pending_job_src_block_id = pending_job.src_block_id
@@ -1164,12 +1164,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             # This is the real return exit
             # Check if this retn is inside our pending_exits set
-            if (job.jumpkind == 'Ijk_Call' or job.is_syscall) and block_id in self._pending_jobs:
+            if job.jumpkind == 'Ijk_Ret' and block_id in self._pending_jobs:
                 # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
                 # in the graph.
 
                 pending_job = self._pending_jobs.pop(block_id)
-                self._deregister_analysis_job(pending_job.function_address, pending_job)
+                self._deregister_analysis_job(pending_job.caller_func_addr, pending_job)
                 self._graph_add_edge(pending_job.src_block_id, block_id, jumpkind='Ijk_FakeRet',
                                      stmt_idx=pending_job.src_exit_stmt_idx,
                                      ins_addr=pending_job.src_exit_ins_addr
@@ -1204,17 +1204,18 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             del self._pending_edges[block_id]
 
         # See if this job cancels another FakeRet
-        if (job.jumpkind == 'Ijk_Call' or job.is_syscall) and block_id in self._pending_jobs:
+        if job.jumpkind == 'Ijk_Ret' and block_id in self._pending_jobs:
             # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
             # in the graph.
 
-            pending_job = self._pending_jobs.pop(block_id)
-            self._deregister_analysis_job(pending_job.function_address, pending_job)
+            pending_job = self._pending_jobs.pop(block_id)  # type: PendingJob
+            self._deregister_analysis_job(pending_job.caller_func_addr, pending_job)
             self._graph_add_edge(pending_job.src_block_id, block_id, jumpkind='Ijk_FakeRet',
                                  stmt_idx=pending_job.src_exit_stmt_idx, ins_addr=src_ins_addr
                                  )
             self._update_function_transition_graph(pending_job.src_block_id, block_id, jumpkind='Ijk_FakeRet',
-                                                   ins_addr=src_ins_addr, stmt_idx=pending_job.src_exit_stmt_idx
+                                                   ins_addr=src_ins_addr, stmt_idx=pending_job.src_exit_stmt_idx,
+                                                   confirmed=True
                                                    )
 
         block_info = self.project.arch.gather_info_from_state(sim_successors.initial_state)
@@ -1876,7 +1877,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self.graph.add_edge(src_node, dst_node, **kwargs)
 
     def _update_function_transition_graph(self, src_node_key, dst_node_key, jumpkind='Ijk_Boring', ins_addr=None,
-                                          stmt_idx=None):
+                                          stmt_idx=None, confirmed=None):
         """
         Update transition graphs of functions in function manager based on information passed in.
 
@@ -1945,7 +1946,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self.kb.functions._add_fakeret_to(
                 function_addr=src_node.function_address,
                 from_node=src_node.to_codenode(),
-                to_node=dst_node.to_codenode()
+                to_node=dst_node.to_codenode(),
+                confirmed=confirmed,
             )
 
         elif jumpkind == 'Ijk_Boring':
