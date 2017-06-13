@@ -1,11 +1,12 @@
+import importlib
+import logging
 import os
 from collections import defaultdict
-import importlib
 
-import logging
 l = logging.getLogger("angr.procedures.procedure_dict")
+l.setLevel(logging.DEBUG)
 
-from .sim_procedure import SimProcedure
+from ..sim_procedure import SimProcedure
 
 # Import all classes under the current directory, and group them based on
 # lib names.
@@ -13,6 +14,8 @@ SIM_PROCEDURES = defaultdict(dict)
 path = os.path.dirname(os.path.abspath(__file__))
 skip_dirs = ['__init__.py', '__pycache__']
 skip_procs = ['__init__']
+
+print "HOLY FUCK"
 
 for lib_module_name in os.listdir(path):
     if lib_module_name in skip_dirs:
@@ -27,7 +30,7 @@ for lib_module_name in os.listdir(path):
     libname = lib_module_name.replace("___", ".")
 
     try:
-        lib_module = importlib.import_module(".%s" % lib_module_name, 'simuvex.procedures')
+        lib_module = importlib.import_module(".%s" % lib_module_name, 'angr.procedures')
     except ImportError:
         l.warning("Unable to import (possible) SimProcedure library %s", lib_module_name, exc_info=True)
         continue
@@ -40,7 +43,7 @@ for lib_module_name in os.listdir(path):
             continue
 
         try:
-            proc_module = importlib.import_module(".%s.%s" % (lib_module_name, proc_module_name), 'simuvex.procedures')
+            proc_module = importlib.import_module(".%s.%s" % (lib_module_name, proc_module_name), 'angr.procedures')
         except ImportError:
             l.warning("Unable to import procedure %s from SimProcedure library %s", proc_module_name, lib_module_name, exc_info=True)
             continue

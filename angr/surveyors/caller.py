@@ -1,5 +1,5 @@
 from .explorer import Explorer
-import simuvex
+from ..calling_convention import DEFAULT_CC
 
 class Callable(object):
     """
@@ -33,7 +33,7 @@ class Callable(object):
         self._base_state = base_state
         self._toc = toc
         self._caller = None
-        self._cc = cc if cc is not None else simuvex.DefaultCC[project.arch.name](project.arch)
+        self._cc = cc if cc is not None else DEFAULT_CC[project.arch.name](project.arch)
         self._deadend_addr = project._simos.return_deadend
 
         self.result_path_group = None
@@ -96,7 +96,7 @@ class Caller(Explorer):
         """
 
         self._fake_return_addr = project.entry
-        self._cc = simuvex.DefaultCC[project.arch.name](project.arch)
+        self._cc = DEFAULT_CC[project.arch.name](project.arch)
         self._concrete_only = concrete_only
 
         start_paths = [ ]

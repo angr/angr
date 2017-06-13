@@ -5,10 +5,12 @@ Manage OS-level configuration.
 import logging
 from collections import defaultdict
 from archinfo import ArchARM, ArchMIPS32, ArchMIPS64, ArchX86, ArchAMD64, ArchPPC32, ArchPPC64, ArchAArch64
-from simuvex import SimState, SimStateSystem, SimActionData
-from simuvex import s_options as o, s_cc
-from simuvex import SimProcedures
-from simuvex.s_procedure import SimProcedure
+from .sim_state import SimState
+from .state_plugins import SimStateSystem, SimActionData
+from . import sim_options as o
+from .calling_conventions import DEFAULT_CC
+from .procedures import SIM_PROCEDURES
+from .sim_procedure import SimProcedure
 from cle import MetaELF, BackedCGC
 import claripy
 
@@ -208,7 +210,7 @@ class SimOS(object):
         self.continue_addr = None
         self.return_deadend = None
 
-        unknown_syscall = SimProcedures['syscalls']['stub']
+        unknown_syscall = SIM_PROCEDURES['syscalls']['stub']
         unknown_syscall_number = 1
         self.syscall_table = SyscallTable(unknown_syscall_number=unknown_syscall_number)
         self.syscall_table[unknown_syscall_number] = SyscallEntry('_unsupported', self.proj._syscall_obj.rebase_addr,
@@ -236,22 +238,22 @@ class SimOS(object):
 
             if syscall_number in syscall_table:
                 name, simproc_name = syscall_table[syscall_number]
-                if isinstance(simproc_name, str) and simproc_name in SimProcedures[syscall_lib]:
+                if isinstance(simproc_name, str) and simproc_name in SIM_PROCEDURES[syscall_lib]:
                     # They give us a string, do resolution
-                    simproc = SimProcedures[syscall_lib][simproc_name]
+                    simproc = SIM_PROCEDURES[syscall_lib][simproc_name]
                 elif isinstance(simproc_name, type):
                     # If they give us the type, just take it
                     simproc = simproc_name
                 else:
                     # no SimProcedure is implemented for this syscall
-                    simproc = SimProcedures["syscalls"]["stub"]
+                    simproc = SIM_PROCEDURES["syscalls"]["stub"]
 
                 self.syscall_table[syscall_number] = SyscallEntry(name, syscall_addr, simproc)
 
             else:
                 # no syscall number available in the pre-defined syscall table
                 self.syscall_table[syscall_number] = SyscallEntry("_unsupported", syscall_addr,
-                                                                  SimProcedures["syscalls"]["stub"],
+                                                                  SIM_PROCEDURES["syscalls"]["stub"],
                                                                   supported=False
                                                                   )
 
@@ -261,7 +263,7 @@ class SimOS(object):
         # set unknown_syscall_number
         self.syscall_table.unknown_syscall_number = unknown_syscall_number
         self.syscall_table[unknown_syscall_number] = SyscallEntry("_unknown", unknown_syscall_addr,
-                                                                   SimProcedures["syscalls"]["stub"],
+                                                                   SIM_PROCEDURES["syscalls"]["stub"],
                                                                    supported=False
                                                                    )
 
@@ -270,16 +272,16 @@ class SimOS(object):
         Get information about the syscall that is about to be called. Note that symbolic syscalls are not supported -
         the syscall number *must* have only one solution.
 
-        :param simuvex.s_state.SimState state: the program state.
+        :param SimState state: the program state.
         :return: A tuple of (cc, syscall_addr, syscall_name, syscall_class)
         :rtype: tuple
         """
 
-        if state.os_name in s_cc.SyscallCC[state.arch.name]:
-            cc = s_cc.SyscallCC[state.arch.name][state.os_name](state.arch)
+        if state.os_name in SYSCALL_CC[state.arch.name]:
+            cc = SYSCALL_CC[state.arch.name][state.os_name](state.arch)
         else:
             # Use the default syscall calling convention - it may bring problems
-            cc = s_cc.SyscallCC[state.arch.name]['default'](state.arch)
+            cc = SYSCALL_CC[state.arch.name]['default'](state.arch)
 
         syscall_num = cc.syscall_num(state)
 
@@ -313,9 +315,9 @@ class SimOS(object):
         Handle a state whose immediate preceding jumpkind is syscall by creating a new SimRun. Note that symbolic
         syscalls are not supported - the syscall number *must* have only one solution.
 
-        :param simuvex.s_state.SimState state: the program state.
+        :param SimState state: the program state.
         :return: an instanciated, but not executed SimProcedure for this syscall
-        :rtype: simuvex.s_procedure.SimProcedure
+        :rtype: SimProcedure
         """
 
         cc, syscall_addr, syscall_name, syscall_class = self.syscall_info(state)
@@ -356,7 +358,7 @@ class SimOS(object):
         :param addr:            The execution start address.
         :param initial_prefix:
         :return:                The initialized SimState.
-        :rtype:                 simuvex.SimState
+        :rtype:                 SimState
         """
         if kwargs.get('mode', None) is None:
             kwargs['mode'] = self.proj._default_analysis_mode
@@ -440,7 +442,7 @@ class SimOS(object):
         return self.state_entry(**kwargs)
 
     def state_call(self, addr, *args, **kwargs):
-        cc = kwargs.pop('cc', s_cc.DefaultCC[self.arch.name](self.proj.arch))
+        cc = kwargs.pop('cc', DEFAULT_CC[self.arch.name](self.proj.arch))
         state = kwargs.pop('base_state', None)
         toc = kwargs.pop('toc', None)
 

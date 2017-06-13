@@ -4,6 +4,10 @@
 import logging
 logging.getLogger("angr.")
 
+# this must happen first, prior to initializing analyses
+from .sim_procedure import SimProcedure
+from .procedures import SIM_PROCEDURES, SimProcedures
+
 from .misc import Loggers
 import sys
 i = 0
@@ -23,7 +27,6 @@ while True:
 del sys, i, module
 
 from . import sim_options
-from .procedures import SIM_PROCEDURES, SimProcedures
 
 from .project import *
 from .path import *
@@ -44,5 +47,4 @@ from . import exploration_techniques
 from .sim_state import SimState
 from .engines import SimEngineVEX
 from .calling_conventions import DefaultCC
-from .procedures.sim_procedure import SimProcedure
 from . import sim_options as options

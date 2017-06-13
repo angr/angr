@@ -1011,7 +1011,7 @@ class SimCCUnknown(SimCC):
         return "<SimCCUnknown - %s %s sp_delta=%d>" % (self.arch.name, self.args, self.sp_delta)
 
 CC = [ SimCCCdecl, SimCCSystemVAMD64, SimCCARM, SimCCO32, SimCCO64, SimCCPowerPC, SimCCPowerPC64, SimCCAArch64 ]
-DefaultCC = {
+DEFAULT_CC = {
     'AMD64': SimCCSystemVAMD64,
     'X86': SimCCCdecl,
     'ARMEL': SimCCARM,
@@ -1027,9 +1027,9 @@ DefaultCC = {
 
 
 def register_default_cc(arch, cc):
-    DefaultCC[arch] = cc
+    DEFAULT_CC[arch] = cc
 
-SyscallCC = {
+SYSCALL_CC = {
     'X86': {
         'default': SimCCX86LinuxSyscall,
         'Linux': SimCCX86LinuxSyscall,
@@ -1073,6 +1073,9 @@ SyscallCC = {
 
 
 def register_syscall_cc(arch, os, cc):
-    if not SyscallCC.has_key(arch):
-        SyscallCC[arch] = {}
-    SyscallCC[arch][os] = cc
+    if not SYSCALL_CC.has_key(arch):
+        SYSCALL_CC[arch] = {}
+    SYSCALL_CC[arch][os] = cc
+
+SyscallCC = SYSCALL_CC
+DefaultCC = DEFAULT_CC

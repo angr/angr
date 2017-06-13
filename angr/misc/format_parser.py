@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from ..procedures import SimProcedure
+from ..sim_procedure import SimProcedure
 import string
 import claripy
 import logging

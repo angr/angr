@@ -1,5 +1,5 @@
-from simuvex.s_errors import UnsupportedIRStmtError, UnsupportedDirtyError, SimStatementError
-from simuvex import s_options as o
+from ....errors import UnsupportedIRStmtError, UnsupportedDirtyError, SimStatementError
+from .... import sim_options as o
 
 from .base import SimIRStmt
 from .noop import SimIRStmt_NoOp

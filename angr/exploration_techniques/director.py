@@ -4,9 +4,10 @@ from collections import defaultdict
 
 import networkx
 
-import simuvex
 import claripy
 
+from ..sim_type import SimType
+from ..calling_convention import DEFAULT_CC
 from ..knowledge_base import KnowledgeBase
 from ..errors import AngrDirectorError
 from . import ExplorationTechnique
@@ -206,8 +207,8 @@ class CallFunctionGoal(BaseGoal):
 
                     arg_type, expected_value = arg
 
-                    if not isinstance(arg_type, simuvex.s_type.SimType):
-                        raise AngrDirectorError('Each argument type must be an instance of simuvex.SimType.')
+                    if not isinstance(arg_type, SimType):
+                        raise AngrDirectorError('Each argument type must be an instance of SimType.')
 
                     if isinstance(expected_value, claripy.ast.Base) and expected_value.symbolic:
                         raise AngrDirectorError('Symbolic arguments are not supported.')
@@ -286,7 +287,7 @@ class CallFunctionGoal(BaseGoal):
         # TODO: add calling convention detection to individual functions, and use that instead of the
         # TODO: default calling convention of the platform
 
-        cc = simuvex.DefaultCC[arch.name](arch)  # type: simuvex.s_cc.SimCC
+        cc = DEFAULT_CC[arch.name](arch)  # type: simuvex.s_cc.SimCC
 
         for i, expected_arg in enumerate(self.arguments):
             if expected_arg is None:
