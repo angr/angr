@@ -1,11 +1,11 @@
-import simuvex
+import angr
 
 ######################################
 # Caller
 ######################################
 
 
-class Caller(simuvex.SimProcedure):
+class Caller(angr.SimProcedure):
     """
     Caller stub. Creates a Ijk_Call exit to the specified function
     """

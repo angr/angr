@@ -1,6 +1,6 @@
-import simuvex
+import angr
 
-class srand(simuvex.SimProcedure):
+class srand(angr.SimProcedure):
     IS_FUNCTION = True
     def run(self, seed):
         self.ret()

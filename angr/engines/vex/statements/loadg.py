@@ -1,6 +1,6 @@
-from simuvex import s_options as o
-from simuvex.s_action_object import SimActionObject
-from simuvex.s_action import SimActionData
+from .... import sim_options as o
+from ....state_plugins.sim_action_object import SimActionObject
+from ....state_plugins.sim_action import SimActionData
 
 from . import SimIRStmt, SimStatementError
 from .. import size_bytes, size_bits

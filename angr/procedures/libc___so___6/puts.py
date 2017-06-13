@@ -1,19 +1,19 @@
-import simuvex
-from simuvex.s_type import SimTypeString, SimTypeInt
+import angr
+from angr.sim_type import SimTypeString, SimTypeInt
 
 ######################################
 # puts
 ######################################
 
-class puts(simuvex.SimProcedure):
+class puts(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, string):
         self.argument_types = {0: self.ty_ptr(SimTypeString())}
         self.return_type = SimTypeInt(32, True)
 
-        write = simuvex.SimProcedures['syscalls']['write']
-        strlen = simuvex.SimProcedures['libc.so.6']['strlen']
+        write = angr.SimProcedures['syscalls']['write']
+        strlen = angr.SimProcedures['libc.so.6']['strlen']
 
         length = self.inline_call(strlen, string).ret_expr
         self.inline_call(write, self.state.se.BVV(1, self.state.arch.bits), string, length)

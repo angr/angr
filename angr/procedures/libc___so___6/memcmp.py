@@ -1,10 +1,10 @@
-import simuvex
-from simuvex.s_type import SimTypeTop, SimTypeLength, SimTypeInt
+import angr
+from angr.sim_type import SimTypeTop, SimTypeLength, SimTypeInt
 
 import logging
 l = logging.getLogger("angr.procedures.libc___so___6.memcmp")
 
-class memcmp(simuvex.SimProcedure):
+class memcmp(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, s1_addr, s2_addr, n):

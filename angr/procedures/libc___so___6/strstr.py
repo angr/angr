@@ -1,10 +1,10 @@
-import simuvex
-from simuvex.s_type import SimTypeString
+import angr
+from angr.sim_type import SimTypeString
 
 import logging
 l = logging.getLogger("angr.procedures.libc___so___6.strstr")
 
-class strstr(simuvex.SimProcedure):
+class strstr(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, haystack_addr, needle_addr, haystack_strlen=None, needle_strlen=None):
@@ -12,8 +12,8 @@ class strstr(simuvex.SimProcedure):
                                 1: self.ty_ptr(SimTypeString())}
         self.return_type = self.ty_ptr(SimTypeString())
 
-        strlen = simuvex.SimProcedures['libc.so.6']['strlen']
-        strncmp = simuvex.SimProcedures['libc.so.6']['strncmp']
+        strlen = angr.SimProcedures['libc.so.6']['strlen']
+        strncmp = angr.SimProcedures['libc.so.6']['strncmp']
 
         haystack_strlen = self.inline_call(strlen, haystack_addr) if haystack_strlen is None else haystack_strlen
         needle_strlen = self.inline_call(strlen, needle_addr) if needle_strlen is None else needle_strlen

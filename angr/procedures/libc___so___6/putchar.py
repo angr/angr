@@ -1,10 +1,10 @@
-import simuvex
+import angr
 
 ######################################
 # putchar
 ######################################
 
-class putchar(simuvex.SimProcedure):
+class putchar(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, string):

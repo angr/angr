@@ -1,4 +1,4 @@
-import simuvex
+import angr
 
 ######################################
 # NoReturnUnconstrained
@@ -6,7 +6,7 @@ import simuvex
 # But the function shouldn't actually return
 ######################################
 
-class NoReturnUnconstrained(simuvex.SimProcedure): #pylint:disable=redefined-builtin
+class NoReturnUnconstrained(angr.SimProcedure): #pylint:disable=redefined-builtin
     use_cases = {'exit_group', 'exit', 'abort', 'longjmp', 'pthread_exit', 'siglongjmp',
                  '__longjmp_chk', '__siglongjmp_chk', '__assert_fail'}
     NO_RET = True

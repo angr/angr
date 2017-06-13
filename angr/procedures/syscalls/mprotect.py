@@ -1,6 +1,6 @@
-import simuvex
+import angr
 
-class mprotect(simuvex.SimProcedure):
+class mprotect(angr.SimProcedure):
 
     IS_SYSCALL = True
 

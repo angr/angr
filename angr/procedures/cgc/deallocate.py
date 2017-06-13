@@ -1,9 +1,9 @@
-import simuvex
+import angr
 
 import logging
 l = logging.getLogger("angr.procedures.cgc.deallocate")
 
-class deallocate(simuvex.SimProcedure):
+class deallocate(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     IS_SYSCALL = True

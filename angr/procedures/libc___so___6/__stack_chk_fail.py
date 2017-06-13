@@ -1,11 +1,11 @@
-import simuvex
+import angr
 
 ######################################
 # __stack_chk_fail
 ######################################
 
 
-class __stack_chk_fail(simuvex.SimProcedure):
+class __stack_chk_fail(angr.SimProcedure):
 
     NO_RET = True
 

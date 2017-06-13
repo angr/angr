@@ -1,11 +1,11 @@
-import simuvex
-from simuvex.s_type import SimTypeLength, SimTypeArray, SimTypeTop
+import angr
+from angr.sim_type import SimTypeLength, SimTypeArray, SimTypeTop
 
 ######################################
 # calloc
 ######################################
 
-class calloc(simuvex.SimProcedure):
+class calloc(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, sim_nmemb, sim_size):

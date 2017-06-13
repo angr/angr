@@ -1,4 +1,4 @@
-import simuvex
+
 from ..libc___so___6.__libc_start_main import __libc_start_main as fucker
 
 ######################################

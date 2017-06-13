@@ -1,10 +1,10 @@
-import simuvex
+import angr
 
 ######################################
 # Returns an unconstrained byte
 ######################################
 
-class ReturnUnconstrained(simuvex.SimProcedure):
+class ReturnUnconstrained(angr.SimProcedure):
     def run(self, resolves=None): #pylint:disable=arguments-differ
         #pylint:disable=attribute-defined-outside-init
         self.resolves = resolves

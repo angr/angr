@@ -1,6 +1,6 @@
-import simuvex
+import angr
 
-class uname(simuvex.SimProcedure):
+class uname(angr.SimProcedure):
 
     IS_SYSCALL = True
 

@@ -1,10 +1,10 @@
-import simuvex
+import angr
 
 ######################################
 # write
 ######################################
 
-class write(simuvex.SimProcedure):
+class write(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     IS_SYSCALL = True

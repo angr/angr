@@ -1,10 +1,10 @@
-import simuvex
+import angr
 
 ######################################
 # read
 ######################################
 
-class read(simuvex.SimProcedure):
+class read(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     IS_SYSCALL = True

@@ -1,6 +1,6 @@
-import simuvex
+import angr
 
-class manyargs(simuvex.SimProcedure):
+class manyargs(angr.SimProcedure):
     NO_RET = True
 
     def run(self):

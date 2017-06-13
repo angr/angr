@@ -1,11 +1,11 @@
-import simuvex
+import angr
 
 ######################################
 # Unresolvable Target
 ######################################
 
 
-class UnresolvableTarget(simuvex.SimProcedure):
+class UnresolvableTarget(angr.SimProcedure):
     NO_RET = True
 
     def run(self):

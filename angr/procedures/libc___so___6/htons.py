@@ -1,9 +1,9 @@
-import simuvex
+import angr
 ######################################
 # htons (yes, really)
 ######################################
 
-class htons(simuvex.SimProcedure):
+class htons(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, to_convert):

@@ -1,7 +1,7 @@
 from .base import SimIRExpr
 from .. import size_bytes, size_bits
-from simuvex import s_options as o
-from simuvex.s_action import SimActionData
+from .... import sim_options as o
+from ....state_plugins.sim_action import SimActionData
 
 class SimIRExpr_Get(SimIRExpr):
     def _execute(self):

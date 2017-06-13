@@ -1,6 +1,6 @@
-import simuvex
+import angr
 
-class munmap(simuvex.SimProcedure):
+class munmap(angr.SimProcedure):
 
     IS_SYSCALL = True
 

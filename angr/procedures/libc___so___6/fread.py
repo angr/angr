@@ -1,4 +1,4 @@
-import simuvex
+import angr
 
 from . import io_file_data_for_arch
 
@@ -6,7 +6,7 @@ from . import io_file_data_for_arch
 # fread
 ######################################
 
-class fread(simuvex.SimProcedure):
+class fread(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, dst, size, nm, file_ptr):

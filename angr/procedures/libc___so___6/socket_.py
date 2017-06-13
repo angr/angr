@@ -1,10 +1,10 @@
-import simuvex
+import angr
 
 ######################################
 # socket
 ######################################
 
-class socket(simuvex.SimProcedure):
+class socket(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, sim_sock_type):

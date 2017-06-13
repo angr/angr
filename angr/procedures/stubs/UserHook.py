@@ -1,6 +1,6 @@
-import simuvex
+import angr
 
-class UserHook(simuvex.SimProcedure):
+class UserHook(angr.SimProcedure):
     NO_RET = True
 
     # pylint: disable=arguments-differ

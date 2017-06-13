@@ -1,11 +1,11 @@
-import simuvex
-from simuvex.s_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
+import angr
+from angr.sim_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 
 ######################################
 # read
 ######################################
 
-class read(simuvex.SimProcedure):
+class read(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, fd, dst, length):

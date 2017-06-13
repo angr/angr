@@ -1,4 +1,4 @@
-from simuvex.s_procedure import SimProcedureError
+from angr.errors import SimProcedureError
 
 #
 # offsets in struct _IO_FILE

@@ -1,4 +1,4 @@
-import simuvex
+import angr
 
 from . import io_file_data_for_arch
 
@@ -6,7 +6,7 @@ from . import io_file_data_for_arch
 # fputc
 ######################################
 
-class fputc(simuvex.SimProcedure):
+class fputc(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, c, file_ptr):

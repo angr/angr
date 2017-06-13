@@ -1,10 +1,10 @@
-import simuvex
+import angr
 
 ######################################
 # exit
 ######################################
 
-class exit(simuvex.SimProcedure): #pylint:disable=redefined-builtin
+class exit(angr.SimProcedure): #pylint:disable=redefined-builtin
     #pylint:disable=arguments-differ
 
     NO_RET = True

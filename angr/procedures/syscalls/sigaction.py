@@ -1,6 +1,6 @@
-import simuvex
+import angr
 
-class sigaction(simuvex.SimProcedure):
+class sigaction(angr.SimProcedure):
 
     IS_SYSCALL = True
 

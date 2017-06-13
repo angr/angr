@@ -1,10 +1,10 @@
-import simuvex
+import angr
 
 ######################################
 # close
 ######################################
 
-class close(simuvex.SimProcedure):
+class close(angr.SimProcedure):
     def run(self, fd):  # pylint:disable=arguments-differ
 
         self.state.posix.close(fd)

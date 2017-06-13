@@ -1,11 +1,11 @@
-import simuvex
-from simuvex.s_type import SimTypeString
+import angr
+from angr.sim_type import SimTypeString
 import logging
 
 l = logging.getLogger("angr.procedures.libc___so___6.inet_ntoa")
 
 
-class inet_ntoa(simuvex.SimProcedure):
+class inet_ntoa(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, addr_in): #pylint:disable=unused-argument

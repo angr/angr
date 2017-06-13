@@ -1,11 +1,11 @@
 import claripy
-import simuvex
-from simuvex.s_type import SimTypeString, SimTypeLength
+import angr
+from angr.sim_type import SimTypeString, SimTypeLength
 
 import logging
 l = logging.getLogger("angr.procedures.libc___so___6.strlen")
 
-class strlen(simuvex.SimProcedure):
+class strlen(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, s):
@@ -49,7 +49,7 @@ class strlen(simuvex.SimProcedure):
                 r, c, i = self.state.memory.find(s, self.state.se.BVV(0, 8), search_len, max_symbolic_bytes=max_symbolic_bytes)
                 # stop searching after some reasonable limit
                 if search_len > 0x10000:
-                    raise simuvex.SimMemoryLimitError("strlen hit limit of 0x10000")
+                    raise angr.SimMemoryLimitError("strlen hit limit of 0x10000")
 
             self.max_null_index = max(i)
             self.state.add_constraints(*c)

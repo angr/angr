@@ -1,11 +1,11 @@
-import simuvex
-from simuvex.s_type import SimTypeInt
+import angr
+from angr.sim_type import SimTypeInt
 import logging
 
 l = logging.getLogger("angr.procedures.libc___so___6.usleep")
 
 
-class usleep(simuvex.SimProcedure):
+class usleep(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, n): #pylint:disable=unused-argument

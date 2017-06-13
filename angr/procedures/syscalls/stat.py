@@ -1,6 +1,6 @@
-import simuvex
+import angr
 
-class stat(simuvex.SimProcedure):
+class stat(angr.SimProcedure):
 
     IS_SYSCALL = True
 

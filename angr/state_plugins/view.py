@@ -247,7 +247,7 @@ class SimMemView(SimStatePlugin):
 
         return self._type.store(self.state, self._addr, value)
 
-from ..s_type import ALL_TYPES, SimTypeFixedSizeArray
+from ..sim_type import ALL_TYPES, SimTypeFixedSizeArray
 SimMemView.types = ALL_TYPES # identity purposefully here
 
 SimStatePlugin.register_default('regs', SimRegNameView)

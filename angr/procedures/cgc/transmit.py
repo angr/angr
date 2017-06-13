@@ -1,13 +1,13 @@
-import simuvex
+import angr
 
-class transmit(simuvex.SimProcedure):
+class transmit(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     IS_SYSCALL = True
 
     def run(self, fd, buf, count, tx_bytes):
 
-        if simuvex.options.CGC_ENFORCE_FD in self.state.options:
+        if angr.options.CGC_ENFORCE_FD in self.state.options:
             fd = 1
 
         if self.state.mode == 'fastpath':
@@ -32,7 +32,7 @@ class transmit(simuvex.SimProcedure):
 
                 try:
                     readable = self.state.se.any_int(self.state.memory.permissions(self.state.se.any_int(buf))) & 1 != 0
-                except simuvex.SimMemoryError:
+                except angr.SimMemoryError:
                     readable = False
                 if not readable:
                     return 2
@@ -49,4 +49,4 @@ class transmit(simuvex.SimProcedure):
         # TODO: transmit failure
         return self.state.se.BVV(0, self.state.arch.bits)
 
-from simuvex.s_options import ABSTRACT_MEMORY
+from ...sim_options import ABSTRACT_MEMORY

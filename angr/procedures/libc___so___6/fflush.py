@@ -1,10 +1,10 @@
-import simuvex
-from simuvex.s_type import SimTypeFd, SimTypeLength
+import angr
+from angr.sim_type import SimTypeFd, SimTypeLength
 
 import logging
 l = logging.getLogger("angr.procedures.libc___so___6.fflush")
 
-class fflush(simuvex.SimProcedure):
+class fflush(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, fd):

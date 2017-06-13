@@ -1,6 +1,6 @@
-import simuvex
-from simuvex.s_format import FormatParser
-from simuvex.s_type import SimTypeInt, SimTypeString
+
+from angr.misc.format_parser import FormatParser
+from angr.sim_type import SimTypeInt, SimTypeString
 
 import logging
 l = logging.getLogger("angr.procedures.libc___so___6.__isoc99_scanf")

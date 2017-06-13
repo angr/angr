@@ -1,6 +1,6 @@
-import simuvex
+import angr
 
-class sigprocmask(simuvex.SimProcedure):
+class sigprocmask(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     IS_SYSCALL = True

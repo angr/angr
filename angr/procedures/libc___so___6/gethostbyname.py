@@ -1,8 +1,8 @@
-import simuvex
+import angr
 
 from .malloc import malloc
 
-class gethostbyname(simuvex.SimProcedure):
+class gethostbyname(angr.SimProcedure):
     def run(self, name):
         place = self.inline_call(malloc, 32).ret_expr
         self.state.memory.store(place, self.state.se.BVS('h_name', 64), endness='Iend_LE')

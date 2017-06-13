@@ -1,6 +1,6 @@
-import simuvex
+import angr
 
-class _terminate(simuvex.SimProcedure): #pylint:disable=redefined-builtin
+class _terminate(angr.SimProcedure): #pylint:disable=redefined-builtin
     #pylint:disable=arguments-differ
 
     NO_RET = True

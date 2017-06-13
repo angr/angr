@@ -1,5 +1,5 @@
-import simuvex
-from simuvex.s_type import SimTypeInt
+import angr
+from angr.sim_type import SimTypeInt
 
 from . import io_file_data_for_arch
 
@@ -8,7 +8,7 @@ from . import io_file_data_for_arch
 ######################################
 
 
-class fgetc(simuvex.SimProcedure):
+class fgetc(angr.SimProcedure):
     # pylint:disable=arguments-differ
 
     def run(self, file_ptr):
@@ -18,5 +18,5 @@ class fgetc(simuvex.SimProcedure):
         fd = self.state.mem[file_ptr + fd_offset : ].int.resolved
 
         data = self.inline_call(
-            simuvex.SimProcedures['libc.so.6']['_IO_getc'], fd).ret_expr
+            angr.SimProcedures['libc.so.6']['_IO_getc'], fd).ret_expr
         return data

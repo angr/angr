@@ -1,5 +1,5 @@
-import simuvex
-from simuvex.s_type import SimTypeFd, SimTypeTop
+import angr
+from angr.sim_type import SimTypeFd, SimTypeTop
 
 from . import io_file_data_for_arch
 
@@ -12,7 +12,7 @@ l = logging.getLogger("angr.procedures.libc___so___6.fileno")
 ######################################
 
 
-class fileno(simuvex.SimProcedure):
+class fileno(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, f):

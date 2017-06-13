@@ -1,10 +1,10 @@
-import simuvex
+import angr
 
 ######################################
 # open
 ######################################
 
-class open(simuvex.SimProcedure): #pylint:disable=W0622
+class open(angr.SimProcedure): #pylint:disable=W0622
     #pylint:disable=arguments-differ
 
     IS_SYSCALL = True

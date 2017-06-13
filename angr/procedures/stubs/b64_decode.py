@@ -1,10 +1,10 @@
-import simuvex
+import angr
 
-class b64_decode(simuvex.SimProcedure):
+class b64_decode(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, src, dst, length):
-        strncpy = simuvex.SimProcedures['libc.so.6']['strncpy']
+        strncpy = angr.SimProcedures['libc.so.6']['strncpy']
 
         cpy = self.inline_call(strncpy, dst, src, length)
         self.state.memory.store(dst+16, self.state.se.BVV(0, 8))
@@ -23,7 +23,7 @@ class b64_decode(simuvex.SimProcedure):
 #
 #
 #
-#         memcpy = simuvex.SimProcedures['libc.so.6']['memcpy']
+#         memcpy = angr.SimProcedures['libc.so.6']['memcpy']
 #
 #         fmt = self.get_arg_expr(1) #pylint:disable=unused-variable
 #         one = self.get_arg_expr(2)
@@ -37,7 +37,7 @@ class b64_decode(simuvex.SimProcedure):
 #         self.inline_call(memcpy, three, src+6+8193, 12)
 #         self.state.memory.store(three+11, self.state.se.BVV(0, 8))
 #
-#         if simuvex.o.SYMBOLIC in self.state.options:
+#         if angr.o.SYMBOLIC in self.state.options:
 #             crazy_str = "index.asp?authorization=M3NhZG1pbjoyNzk4ODMwMw==&yan=yes\x00"
 #             self.state.add_constraints(self.state.memory.load(two, len(crazy_str)) == self.state.se.BVV(crazy_str))
 #

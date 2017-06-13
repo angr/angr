@@ -1,9 +1,9 @@
-import simuvex
+import angr
 
-class mmap(simuvex.SimProcedure):
+class mmap(angr.SimProcedure):
     def run(self, addr, length, prot, flags, fd, offset): #pylint:disable=arguments-differ,unused-argument
 
-        return self.inline_call(simuvex.SimProcedures['syscalls']['mmap'],
+        return self.inline_call(angr.SimProcedures['syscalls']['mmap'],
                                 addr,
                                 length,
                                 prot,

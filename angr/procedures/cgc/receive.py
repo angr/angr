@@ -1,16 +1,16 @@
-import simuvex
+import angr
 from itertools import count
 
 fastpath_data_counter = count()
 
-class receive(simuvex.SimProcedure):
+class receive(angr.SimProcedure):
     #pylint:disable=arguments-differ,attribute-defined-outside-init,redefined-outer-name
 
     IS_SYSCALL = True
 
     def run(self, fd, buf, count, rx_bytes):
 
-        if simuvex.options.CGC_ENFORCE_FD in self.state.options:
+        if angr.options.CGC_ENFORCE_FD in self.state.options:
             fd = 0
 
         if self.state.mode == 'fastpath':
@@ -36,7 +36,7 @@ class receive(simuvex.SimProcedure):
                 return 2
             try:
                 writable = self.state.se.any_int(self.state.memory.permissions(self.state.se.any_int(buf))) & 2 != 0
-            except simuvex.SimMemoryError:
+            except angr.SimMemoryError:
                 writable = False
             if not writable:
                 return 2
@@ -84,4 +84,4 @@ class receive(simuvex.SimProcedure):
             )
 
 from ...sim_options import ABSTRACT_MEMORY, CGC_NO_SYMBOLIC_RECEIVE_LENGTH
-from ...s_action import SimActionData
+from ...state_plugins.sim_action import SimActionData

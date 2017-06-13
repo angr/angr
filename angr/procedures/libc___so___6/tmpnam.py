@@ -1,11 +1,11 @@
-import simuvex
+import angr
 import tempfile
 
 ######################################
 # tmpnam
 ######################################
 
-class tmpnam(simuvex.SimProcedure):
+class tmpnam(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, tmp_file_path_addr):
@@ -15,7 +15,7 @@ class tmpnam(simuvex.SimProcedure):
             return tmp_file_path_addr
 
         tmp_file_path = tempfile.mktemp()
-        malloc = simuvex.SimProcedures['libc.so.6']['malloc']
+        malloc = angr.SimProcedures['libc.so.6']['malloc']
         addr = self.inline_call(malloc, L_tmpnam).ret_expr
         self.state.memory.store(addr,
                                 tmp_file_path + '\x00')

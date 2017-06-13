@@ -1,10 +1,10 @@
-import simuvex
+import angr
 
 ######################################
 # send
 ######################################
 
-class send(simuvex.SimProcedure):
+class send(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, fd, src, length):

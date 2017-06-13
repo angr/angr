@@ -1,4 +1,3 @@
-import simuvex
 
 from .__isoc99_sscanf import __isoc99_sscanf
 

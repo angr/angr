@@ -1,6 +1,6 @@
-import simuvex
+import angr
 
-class getpid(simuvex.SimProcedure):
+class getpid(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     IS_SYSCALL = True

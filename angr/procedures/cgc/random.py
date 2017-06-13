@@ -1,9 +1,9 @@
-import simuvex
+import angr
 
 import itertools
 rand_count = itertools.count()
 
-class random(simuvex.SimProcedure):
+class random(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     IS_SYSCALL = True

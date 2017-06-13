@@ -1,6 +1,6 @@
-import simuvex
-from simuvex.s_type import SimTypeString, SimTypeInt
-from simuvex.s_procedure import SimProcedureError
+import angr
+from angr.sim_type import SimTypeString, SimTypeInt
+from angr.errors import SimProcedureError
 
 import logging
 l = logging.getLogger("angr.procedures.libc___so___6.strtol")
@@ -8,7 +8,7 @@ l = logging.getLogger("angr.procedures.libc___so___6.strtol")
 
 # note: this does not handle skipping white space
 
-class strtol(simuvex.SimProcedure):
+class strtol(angr.SimProcedure):
 
     @staticmethod
     def strtol_inner(s, state, region, base, signed, read_length=None):

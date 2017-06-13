@@ -1,6 +1,6 @@
-import simuvex
+import angr
 
-class retreg(simuvex.SimProcedure):
+class retreg(angr.SimProcedure):
     def run(self, reg=None):
         r = self.state.registers.load(reg)
         #print self.state.options

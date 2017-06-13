@@ -7,7 +7,7 @@ from archinfo import ArchARM
 
 from ... import sim_options as o
 from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
-from ...s_action import SimActionExit, SimActionObject
+from ...state_plugins.sim_action import SimActionExit, SimActionObject
 from ...errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException,
                        UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
                        SimMemoryError)

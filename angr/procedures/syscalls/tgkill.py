@@ -1,6 +1,6 @@
-import simuvex
+import angr
 
-class tgkill(simuvex.SimProcedure):
+class tgkill(angr.SimProcedure):
 
     IS_SYSCALL = True
 

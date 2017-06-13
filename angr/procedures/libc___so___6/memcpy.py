@@ -1,10 +1,10 @@
-import simuvex
-from simuvex.s_type import SimTypeTop, SimTypeLength
+import angr
+from angr.sim_type import SimTypeTop, SimTypeLength
 
 import logging
 l = logging.getLogger("angr.procedures.libc___so___6.memcpy")
 
-class memcpy(simuvex.SimProcedure):
+class memcpy(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, dst_addr, src_addr, limit):
@@ -38,4 +38,4 @@ class memcpy(simuvex.SimProcedure):
 
         return dst_addr
 
-from simuvex.s_options import ABSTRACT_MEMORY
+from angr.s_options import ABSTRACT_MEMORY

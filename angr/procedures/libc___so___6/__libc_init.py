@@ -1,4 +1,4 @@
-import simuvex
+import angr
 
 ######################################
 # __libc_init
@@ -10,7 +10,7 @@ import simuvex
 # slingshot points to main()
 # structors points to PRE_INIT_ARRAY, INIT_ARRAY, and FINI_ARRAY
 ######################################
-class __libc_init(simuvex.SimProcedure):
+class __libc_init(angr.SimProcedure):
     #pylint:disable=arguments-differ,unused-argument,attribute-defined-outside-init
 
     ADDS_EXITS = True

@@ -1,5 +1,5 @@
-import simuvex
-from simuvex.s_type import SimTypeLength, SimTypeTop
+import angr
+from angr.sim_type import SimTypeLength, SimTypeTop
 import itertools
 
 ######################################
@@ -8,7 +8,7 @@ import itertools
 
 malloc_mem_counter = itertools.count()
 
-class malloc(simuvex.SimProcedure):
+class malloc(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, sim_size):

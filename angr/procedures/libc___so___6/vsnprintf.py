@@ -1,10 +1,10 @@
-import simuvex
+import angr
 
 ######################################
 # __vsnprintf
 ######################################
 
-class vsnprintf(simuvex.SimProcedure):
+class vsnprintf(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, str_ptr, size, fmt, ap): #pylint:disable=unused-argument

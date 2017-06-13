@@ -1,10 +1,10 @@
-import simuvex
+import angr
 
 ######################################
 # accept (but not really)
 ######################################
 
-class accept(simuvex.SimProcedure):
+class accept(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, sockfd):

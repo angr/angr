@@ -1,11 +1,11 @@
-import simuvex
+import angr
 
 ######################################
 # stub, for unsupported syscalls
 ######################################
 
 #pylint:disable=redefined-builtin,arguments-differ
-class stub(simuvex.SimProcedure):
+class stub(angr.SimProcedure):
 
     IS_SYSCALL = True
 

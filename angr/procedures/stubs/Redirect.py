@@ -1,10 +1,10 @@
-import simuvex
+import angr
 
 ######################################
 # Redirect the control flow to some other places
 ######################################
 
-class Redirect(simuvex.SimProcedure):
+class Redirect(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     NO_RET = True

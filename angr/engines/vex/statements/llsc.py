@@ -44,6 +44,6 @@ class SimIRStmt_LLSC(SimIRStmt):
             self.state.memory.store(addr.expr, store_data.expr, action=a)
             self.state.scratch.store_tmp(self.stmt.result, result, addr.reg_deps() | store_data.reg_deps(), addr.tmp_deps() | store_data.tmp_deps())
 
-from simuvex.s_action_object import SimActionObject
-from simuvex.s_action import SimActionData
-from simuvex import s_options as o
+from ....state_plugins.sim_action_object import SimActionObject
+from ....state_plugins.sim_action import SimActionData
+from .... import sim_options as o

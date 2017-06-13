@@ -1,6 +1,6 @@
-import simuvex
+import angr
 
-class rand(simuvex.SimProcedure):
+class rand(angr.SimProcedure):
     IS_FUNCTION = True
     def run(self):
         rval = self.state.se.BVS('rand', 31)

@@ -1,11 +1,11 @@
-import simuvex
-from simuvex.s_type import SimTypeString, SimTypeInt
+import angr
+from angr.sim_type import SimTypeString, SimTypeInt
 
 import logging
 l = logging.getLogger("angr.procedures.libc___so___6.atoi")
 
 
-class atoi(simuvex.SimProcedure):
+class atoi(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, s):
@@ -14,5 +14,5 @@ class atoi(simuvex.SimProcedure):
         self.argument_types = {0: self.ty_ptr(SimTypeString())}
         self.return_type = SimTypeInt(self.state.arch, True)
 
-        strtol = simuvex.SimProcedures['libc.so.6']['strtol']
+        strtol = angr.SimProcedures['libc.so.6']['strtol']
         return strtol.strtol_inner(s, self.state, self.state.memory, 10, True)[1]

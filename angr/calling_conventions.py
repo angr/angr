@@ -1,9 +1,18 @@
 import logging
 
 import claripy
-from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
+import archinfo
 
-from . import sim_type
+from .sim_type import SimTypeChar
+from .sim_type import SimTypePointer
+from .sim_type import SimTypeFixedSizeArray
+from .sim_type import SimTypeArray
+from .sim_type import SimTypeString
+from .sim_type import SimTypeFunction
+from .sim_type import SimTypeFloat
+from .sim_type import SimTypeDouble
+from .sim_type import SimStruct
+
 from .state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger("angr.calling_conventions")
@@ -224,7 +233,7 @@ class SimCC(object):
         :parmm func_ty:     A SimType for the function itself
         """
         if func_ty is not None:
-            if not isinstance(func_ty, sim_type.SimTypeFunction):
+            if not isinstance(func_ty, SimTypeFunction):
                 raise TypeError("Function prototype must be a function!")
 
         self.arch = arch
@@ -434,7 +443,7 @@ class SimCC(object):
                 if self.func_ty is None:
                     raise ValueError("You must either customize this CC or pass a value to is_fp!")
                 else:
-                    is_fp = [isinstance(arg, sim_type.SimTypeFloat) for arg in self.func_ty.args]
+                    is_fp = [isinstance(arg, SimTypeFloat) for arg in self.func_ty.args]
             else:
                 arg_locs = self.args
 
@@ -487,7 +496,7 @@ class SimCC(object):
         arg_locs = [None]*len(args)
         for i, (arg, val) in enumerate(zip(args, vals)):
             if self.is_fp_value(arg) or \
-                    (self.func_ty is not None and isinstance(self.func_ty.args[i], sim_type.SimTypeFloat)):
+                    (self.func_ty is not None and isinstance(self.func_ty.args[i], SimTypeFloat)):
                 arg_locs[i] = arg_session.next_arg(is_fp=True, size=val.length/8)
                 continue
             if val.length > state.arch.bits or (self.func_ty is None and isinstance(arg, (str, unicode, list, tuple))):
@@ -520,7 +529,7 @@ class SimCC(object):
         elif is_fp is not None:
             loc = self.FP_RETURN_VAL if is_fp else self.RETURN_VAL
         elif ty is not None:
-            loc = self.FP_RETURN_VAL if isinstance(ty, sim_type.SimTypeFloat) else self.RETURN_VAL
+            loc = self.FP_RETURN_VAL if isinstance(ty, SimTypeFloat) else self.RETURN_VAL
         else:
             loc = self.RETURN_VAL
 
@@ -528,7 +537,7 @@ class SimCC(object):
             raise NotImplementedError("This SimCC doesn't know how to get this value - should be implemented")
 
         val = loc.get_value(state, stack_base=stack_base, size=None if ty is None else ty.size/8)
-        if self.is_fp_arg(loc) or self.is_fp_value(val) or isinstance(ty, sim_type.SimTypeFloat):
+        if self.is_fp_arg(loc) or self.is_fp_value(val) or isinstance(ty, SimTypeFloat):
             val = val.raw_to_fp()
         return val
 
@@ -547,7 +556,7 @@ class SimCC(object):
         elif is_fp is not None:
             loc = self.FP_RETURN_VAL if is_fp else self.RETURN_VAL
         elif ty is not None:
-            loc = self.FP_RETURN_VAL if isinstance(ty, sim_type.SimTypeFloat) else self.RETURN_VAL
+            loc = self.FP_RETURN_VAL if isinstance(ty, SimTypeFloat) else self.RETURN_VAL
         else:
             loc = self.FP_RETURN_VAL if self.is_fp_value(val) else self.RETURN_VAL
 
@@ -566,7 +575,7 @@ class SimCC(object):
         if isinstance(arg, SimActionObject):
             return SimCC._standardize_value(arg.ast, ty, state, alloc)
         elif isinstance(arg, PointerWrapper):
-            if check and not isinstance(ty, sim_type.SimTypePointer):
+            if check and not isinstance(ty, SimTypePointer):
                 raise TypeError("Type mismatch: expected %s, got pointer-wrapper" % ty.name)
 
             real_value = SimCC._standardize_value(arg.value, ty.pts_to if check else None, state, alloc)
@@ -578,30 +587,30 @@ class SimCC(object):
             arg += '\0'
             ref = False
             if check:
-                if isinstance(ty, sim_type.SimTypePointer) and \
-                        isinstance(ty.pts_to, sim_type.SimTypeChar):
+                if isinstance(ty, SimTypePointer) and \
+                        isinstance(ty.pts_to, SimTypeChar):
                     ref = True
-                elif isinstance(ty, sim_type.SimTypeFixedSizeArray) and \
-                        isinstance(ty.elem_type, sim_type.SimTypeChar):
+                elif isinstance(ty, SimTypeFixedSizeArray) and \
+                        isinstance(ty.elem_type, SimTypeChar):
                     ref = False
                     if len(arg) > ty.length:
                         raise TypeError("String %s is too long for %s" % (repr(arg), ty.name))
                     arg = arg.ljust(ty.length, '\0')
-                elif isinstance(ty, sim_type.SimTypeArray) and \
-                        isinstance(ty.elem_type, sim_type.SimTypeChar):
+                elif isinstance(ty, SimTypeArray) and \
+                        isinstance(ty.elem_type, SimTypeChar):
                     ref = True
                     if ty.length is not None:
                         if len(arg) > ty.length:
                             raise TypeError("String %s is too long for %s" % (repr(arg), ty.name))
                         arg = arg.ljust(ty.length, '\0')
-                elif isinstance(ty, sim_type.SimTypeString):
+                elif isinstance(ty, SimTypeString):
                     ref = False
                     if len(arg) > ty.length + 1:
                         raise TypeError("String %s is too long for %s" % (repr(arg), ty.name))
                     arg = arg.ljust(ty.length + 1, '\0')
                 else:
                     raise TypeError("Type mismatch: Expected %s, got char*" % ty.name)
-            val = SimCC._standardize_value(map(ord, arg), sim_type.SimTypeFixedSizeArray(sim_type.SimTypeChar(), len(arg)), state, alloc)
+            val = SimCC._standardize_value(map(ord, arg), SimTypeFixedSizeArray(SimTypeChar(), len(arg)), state, alloc)
             if ref:
                 val = alloc(val, state)
             return val
@@ -610,15 +619,15 @@ class SimCC(object):
             ref = False
             subty = None
             if check:
-                if isinstance(ty, sim_type.SimTypePointer):
+                if isinstance(ty, SimTypePointer):
                     ref = True
                     subty = ty.pts_to
-                elif isinstance(ty, sim_type.SimTypeFixedSizeArray):
+                elif isinstance(ty, SimTypeFixedSizeArray):
                     ref = False
                     subty = ty.elem_type
                     if len(arg) != ty.length:
                         raise TypeError("Array %s is the wrong length for %s" % (repr(arg), ty.name))
-                elif isinstance(ty, sim_type.SimTypeArray):
+                elif isinstance(ty, SimTypeArray):
                     ref = True
                     subty = ty.elem_type
                     if ty.length is not None:
@@ -638,7 +647,7 @@ class SimCC(object):
 
         elif isinstance(arg, tuple):
             if check:
-                if not isinstance(ty, sim_type.SimStruct):
+                if not isinstance(ty, SimStruct):
                     raise TypeError("Type mismatch: Expected %s, got tuple (i.e. struct)" % ty.name)
                 if len(arg) != len(ty.fields):
                     raise TypeError("Wrong number of fields in struct, expected %d got %d" % (len(ty.fields), len(arg)))
@@ -649,7 +658,7 @@ class SimCC(object):
                 return claripy.Concat(*[SimCC._standardize_value(sarg, None, state, alloc) for sarg in arg])
 
         elif isinstance(arg, (int, long)):
-            if check and isinstance(ty, sim_type.SimTypeFloat):
+            if check and isinstance(ty, SimTypeFloat):
                 return SimCC._standardize_value(float(arg), ty, state, alloc)
 
             val = state.se.BVV(arg, ty.size if check else state.arch.bits)
@@ -660,9 +669,9 @@ class SimCC(object):
         elif isinstance(arg, float):
             sort = claripy.FSORT_FLOAT
             if check:
-                if isinstance(ty, sim_type.SimTypeDouble):
+                if isinstance(ty, SimTypeDouble):
                     sort = claripy.FSORT_DOUBLE
-                elif isinstance(ty, sim_type.SimTypeFloat):
+                elif isinstance(ty, SimTypeFloat):
                     pass
                 else:
                     raise TypeError("Type mismatch: expectd %s, got float" % ty.name)
@@ -747,13 +756,13 @@ class SimCCCdecl(SimCC):
     RETURN_VAL = SimRegArg('eax', 4)
     FP_RETURN_VAL = SimLyingRegArg('st0')
     RETURN_ADDR = SimStackArg(0, 4)
-    ARCH = ArchX86
+    ARCH = archinfo.ArchX86
 
 class SimCCX86LinuxSyscall(SimCC):
     ARG_REGS = ['ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp']
     FP_ARG_REGS = []
     RETURN_VAL = SimRegArg('eax', 4)
-    ARCH = ArchX86
+    ARCH = archinfo.ArchX86
 
     @classmethod
     def _match(cls, arch, args, sp_delta): # pylint: disable=unused-argument
@@ -769,7 +778,7 @@ class SimCCX86WindowsSyscall(SimCC):
     ARG_REGS = [ ]
     FP_ARG_REGS = [ ]
     RETURN_VAL = SimRegArg('eax', 4)
-    ARCH = ArchX86
+    ARCH = archinfo.ArchX86
 
     @classmethod
     def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
@@ -787,7 +796,7 @@ class SimCCSystemVAMD64(SimCC):
     RETURN_ADDR = SimStackArg(0, 8)
     RETURN_VAL = SimRegArg('rax', 8)
     FP_RETURN_VAL = SimRegArg('xmm0', 32)
-    ARCH = ArchAMD64
+    ARCH = archinfo.ArchAMD64
 
     def __init__(self, arch, args=None, ret_val=None, sp_delta=None, func_ty=None):
         super(SimCCSystemVAMD64, self).__init__(arch, args, ret_val, sp_delta, func_ty)
@@ -820,7 +829,7 @@ class SimCCSystemVAMD64(SimCC):
 class SimCCAMD64LinuxSyscall(SimCC):
     ARG_REGS = ['rdi', 'rsi', 'rdx', 'r10', 'r8', 'r9']
     RETURN_VAL = SimRegArg('rax', 8)
-    ARCH = ArchAMD64
+    ARCH = archinfo.ArchAMD64
 
     @staticmethod
     def _match(arch, args, sp_delta):   # pylint: disable=unused-argument
@@ -836,7 +845,7 @@ class SimCCAMD64WindowsSyscall(SimCC):
     ARG_REGS = [ ]
     FP_ARG_REGS = [ ]
     RETURN_VAL = SimRegArg('rax', 8)
-    ARCH = ArchAMD64
+    ARCH = archinfo.ArchAMD64
 
     @classmethod
     def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
@@ -852,7 +861,7 @@ class SimCCARM(SimCC):
     FP_ARG_REGS = []    # TODO: ???
     RETURN_ADDR = SimRegArg('lr', 4)
     RETURN_VAL = SimRegArg('r0', 4)
-    ARCH = ArchARM
+    ARCH = archinfo.ArchARM
 
 class SimCCARMLinuxSyscall(SimCC):
     # TODO: Make sure all the information is correct
@@ -860,7 +869,7 @@ class SimCCARMLinuxSyscall(SimCC):
     FP_ARG_REGS = []    # TODO: ???
     RETURN_ADDR = SimRegArg('lr', 4)
     RETURN_VAL = SimRegArg('r0', 4)
-    ARCH = ArchARM
+    ARCH = archinfo.ArchARM
 
     @classmethod
     def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
@@ -876,14 +885,14 @@ class SimCCAArch64(SimCC):
     FP_ARG_REGS = []    # TODO: ???
     RETURN_ADDR = SimRegArg('lr', 8)
     RETURN_VAL = SimRegArg('x0', 8)
-    ARCH = ArchAArch64
+    ARCH = archinfo.ArchAArch64
 
 class SimCCAArch64LinuxSyscall(SimCC):
     # TODO: Make sure all the information is correct
     ARG_REGS = [ 'x0', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7' ]
     FP_ARG_REGS = []    # TODO: ???
     RETURN_VAL = SimRegArg('x0', 8)
-    ARCH = ArchAArch64
+    ARCH = archinfo.ArchAArch64
 
     @classmethod
     def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
@@ -900,14 +909,14 @@ class SimCCO32(SimCC):
     STACKARG_SP_BUFF = 16
     RETURN_ADDR = SimRegArg('lr', 4)
     RETURN_VAL = SimRegArg('v0', 4)
-    ARCH = ArchMIPS32
+    ARCH = archinfo.ArchMIPS32
 
 class SimCCO32LinuxSyscall(SimCC):
     # TODO: Make sure all the information is correct
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
     FP_ARG_REGS = []    # TODO: ???
     RETURN_VAL = SimRegArg('v0', 4)
-    ARCH = ArchMIPS32
+    ARCH = archinfo.ArchMIPS32
 
     @classmethod
     def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
@@ -924,13 +933,13 @@ class SimCCO64(SimCC):      # TODO: add n32 and n64
     STACKARG_SP_BUFF = 32
     RETURN_ADDR = SimRegArg('lr', 8)
     RETURN_VAL = SimRegArg('v0', 8)
-    ARCH = ArchMIPS64
+    ARCH = archinfo.ArchMIPS64
 
 class SimCCO64LinuxSyscall(SimCC):
     # TODO: Make sure all the information is correct
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
     FP_ARG_REGS = []    # TODO: ???
-    ARCH = ArchMIPS64
+    ARCH = archinfo.ArchMIPS64
 
     @classmethod
     def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
@@ -947,14 +956,14 @@ class SimCCPowerPC(SimCC):
     STACKARG_SP_BUFF = 8
     RETURN_ADDR = SimRegArg('lr', 4)
     RETURN_VAL = SimRegArg('r3', 4)
-    ARCH = ArchPPC32
+    ARCH = archinfo.ArchPPC32
 
 class SimCCPowerPCLinuxSyscall(SimCC):
     # TODO: Make sure all the information is correct
     ARG_REGS = ['r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10']
     FP_ARG_REGS = [ ]
     RETURN_VAL = SimRegArg('r3', 4)
-    ARCH = ArchPPC32
+    ARCH = archinfo.ArchPPC32
 
     @classmethod
     def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
@@ -971,14 +980,14 @@ class SimCCPowerPC64(SimCC):
     STACKARG_SP_BUFF = 0x70
     RETURN_ADDR = SimRegArg('lr', 8)
     RETURN_VAL = SimRegArg('r3', 8)
-    ARCH = ArchPPC64
+    ARCH = archinfo.ArchPPC64
 
 class SimCCPowerPC64LinuxSyscall(SimCC):
     # TODO: Make sure all the information is correct
     ARG_REGS = [ ]
     FP_ARG_REGS = [ ]
     RETURN_VAL = SimRegArg('r3', 8)
-    ARCH = ArchPPC64
+    ARCH = archinfo.ArchPPC64
 
     @classmethod
     def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument

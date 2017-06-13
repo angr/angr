@@ -1,10 +1,10 @@
-import simuvex
-from simuvex.s_type import SimTypeTop, SimTypeLength
+import angr
+from angr.sim_type import SimTypeTop, SimTypeLength
 
 import logging
 l = logging.getLogger("angr.procedures.libc___so___6.memmove")
 
-class memmove(simuvex.SimProcedure):
+class memmove(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, dst_addr, src_addr, limit):
@@ -14,7 +14,7 @@ class memmove(simuvex.SimProcedure):
                                2: SimTypeLength(self.state.arch)}
         self.return_type = self.ty_ptr(SimTypeTop())
 
-        memcpy = simuvex.SimProcedures['libc.so.6']['memcpy']
+        memcpy = angr.SimProcedures['libc.so.6']['memcpy']
 
         self.inline_call(memcpy, dst_addr, src_addr, limit)
         return dst_addr

@@ -1,5 +1,5 @@
-import simuvex
-from simuvex.s_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
+import angr
+from angr.sim_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 
 from . import io_file_data_for_arch
 
@@ -7,7 +7,7 @@ from . import io_file_data_for_arch
 # fgets
 ######################################
 
-class fgets(simuvex.SimProcedure):
+class fgets(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, dst, size, file_ptr):
@@ -60,7 +60,7 @@ class fgets(simuvex.SimProcedure):
             distance = read_size
 
         # read in up to the newline
-        ret = self.inline_call(simuvex.SimProcedures['libc.so.6']['read'], fd, dst, distance).ret_expr
+        ret = self.inline_call(angr.SimProcedures['libc.so.6']['read'], fd, dst, distance).ret_expr
 
         # in case there's no newline
         c = self.state.se.Or(ret == read_size, *c)

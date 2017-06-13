@@ -1,4 +1,4 @@
-import simuvex
+import angr
 
 from . import io_file_data_for_arch
 
@@ -11,23 +11,23 @@ def mode_to_flag(mode):
     if mode[-1] == 'b': # lol who uses windows
         mode = mode[:-1]
     all_modes = {
-        "r"  : simuvex.storage.file.Flags.O_RDONLY,
-        "r+" : simuvex.storage.file.Flags.O_RDWR,
-        "w"  : simuvex.storage.file.Flags.O_WRTONLY | simuvex.storage.file.Flags.O_CREAT,
-        "w+" : simuvex.storage.file.Flags.O_RDWR | simuvex.storage.file.Flags.O_CREAT,
-        "a"  : simuvex.storage.file.Flags.O_WRTONLY | simuvex.storage.file.Flags.O_CREAT | simuvex.storage.file.Flags.O_APPEND,
-        "a+" : simuvex.storage.file.Flags.O_RDWR | simuvex.storage.file.Flags.O_CREAT | simuvex.storage.file.Flags.O_APPEND
+        "r"  : angr.storage.file.Flags.O_RDONLY,
+        "r+" : angr.storage.file.Flags.O_RDWR,
+        "w"  : angr.storage.file.Flags.O_WRTONLY | angr.storage.file.Flags.O_CREAT,
+        "w+" : angr.storage.file.Flags.O_RDWR | angr.storage.file.Flags.O_CREAT,
+        "a"  : angr.storage.file.Flags.O_WRTONLY | angr.storage.file.Flags.O_CREAT | angr.storage.file.Flags.O_APPEND,
+        "a+" : angr.storage.file.Flags.O_RDWR | angr.storage.file.Flags.O_CREAT | angr.storage.file.Flags.O_APPEND
         }
     if mode not in all_modes:
-        raise simuvex.SimProcedureError('unsupported file open mode %s' % mode)
+        raise angr.SimProcedureError('unsupported file open mode %s' % mode)
 
     return all_modes[mode]
 
-class fopen(simuvex.SimProcedure):
+class fopen(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, p_addr, m_addr):
-        strlen = simuvex.SimProcedures['libc.so.6']['strlen']
+        strlen = angr.SimProcedures['libc.so.6']['strlen']
 
         p_strlen = self.inline_call(strlen, p_addr)
         m_strlen = self.inline_call(strlen, m_addr)
@@ -44,7 +44,7 @@ class fopen(simuvex.SimProcedure):
             return 0
         else:
             # Allocate a FILE struct in heap
-            malloc = simuvex.SimProcedures['libc.so.6']['malloc']
+            malloc = angr.SimProcedures['libc.so.6']['malloc']
             io_file_data = io_file_data_for_arch(self.state.arch)
             file_struct_ptr = self.inline_call(malloc, io_file_data['size']).ret_expr
 

@@ -1,9 +1,9 @@
-import simuvex
+import angr
 
 import logging
 l = logging.getLogger("angr.procedures.syscalls.lseek")
 
-class lseek(simuvex.SimProcedure):
+class lseek(angr.SimProcedure):
 
     IS_SYSCALL = True
 
@@ -12,14 +12,14 @@ class lseek(simuvex.SimProcedure):
         if self.state.se.symbolic(whence):
             err = "Symbolic whence is not supported in lseek syscall."
             l.error(err)
-            raise simuvex.s_errors.SimPosixError(err)
+            raise angr.errors.SimPosixError(err)
 
         whence = self.state.se.any_int(whence)
 
         if self.state.se.symbolic(seek):
             err = "Symbolic seek is not supported in lseek syscall."
             l.error(err)
-            raise simuvex.s_errors.SimPosixError(err)
+            raise angr.errors.SimPosixError(err)
 
         seek = self.state.se.any_int(seek)
 

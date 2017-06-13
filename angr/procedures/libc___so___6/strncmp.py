@@ -1,10 +1,10 @@
-import simuvex
-from simuvex.s_type import SimTypeString, SimTypeLength, SimTypeInt
+import angr
+from angr.sim_type import SimTypeString, SimTypeLength, SimTypeInt
 
 import logging
 l = logging.getLogger("angr.procedures.libc___so___6.strncmp")
 
-class strncmp(simuvex.SimProcedure):
+class strncmp(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, a_addr, b_addr, limit, a_len=None, b_len=None): #pylint:disable=arguments-differ
@@ -14,7 +14,7 @@ class strncmp(simuvex.SimProcedure):
                        2: SimTypeLength(self.state.arch)}
         self.return_type = SimTypeInt(32, True)
 
-        strlen = simuvex.SimProcedures['libc.so.6']['strlen']
+        strlen = angr.SimProcedures['libc.so.6']['strlen']
 
         a_strlen = a_len if a_len is not None else self.inline_call(strlen, a_addr)
         b_strlen = b_len if b_len is not None else self.inline_call(strlen, b_addr)

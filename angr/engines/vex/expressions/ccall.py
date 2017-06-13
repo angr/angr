@@ -1,8 +1,8 @@
 from .base import SimIRExpr
 from .. import size_bits
-from simuvex import s_options as o
+from .... import sim_options as o
 from .. import ccall
-from simuvex.s_errors import SimCCallError, UnsupportedCCallError
+from ....errors import SimCCallError, UnsupportedCCallError
 
 import logging
 l = logging.getLogger("angr.engines.vex.expressions.ccall")

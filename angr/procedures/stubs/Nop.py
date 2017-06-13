@@ -1,10 +1,10 @@
-import simuvex
+import angr
 
 ######################################
 # Doing nothing
 ######################################
 
 
-class Nop(simuvex.SimProcedure):
+class Nop(angr.SimProcedure):
     def run(self):
         pass

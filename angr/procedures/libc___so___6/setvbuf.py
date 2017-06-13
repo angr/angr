@@ -1,5 +1,5 @@
-import simuvex
+import angr
 
-class setvbuf(simuvex.SimProcedure):
+class setvbuf(angr.SimProcedure):
     def run(self, stream, buf, type_, size):
         return 0

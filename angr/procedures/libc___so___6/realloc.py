@@ -1,5 +1,5 @@
-import simuvex
-from simuvex.s_type import SimTypeLength, SimTypeTop
+import angr
+from angr.sim_type import SimTypeLength, SimTypeTop
 
 import logging
 l = logging.getLogger("angr.procedures.libc___so___6.realloc")
@@ -8,7 +8,7 @@ l = logging.getLogger("angr.procedures.libc___so___6.realloc")
 # realloc
 ######################################
 
-class realloc(simuvex.SimProcedure):
+class realloc(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, ptr, size):

@@ -1,5 +1,5 @@
-import simuvex
-from simuvex.s_type import SimTypeTop, SimTypeInt, SimTypeLength
+import angr
+from angr.sim_type import SimTypeTop, SimTypeInt, SimTypeLength
 
 import logging
 l = logging.getLogger("angr.procedures.libc___so___6.memset")
@@ -8,7 +8,7 @@ l = logging.getLogger("angr.procedures.libc___so___6.memset")
 # memset
 ######################################
 
-class memset(simuvex.SimProcedure):
+class memset(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     @staticmethod

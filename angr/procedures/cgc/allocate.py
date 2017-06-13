@@ -1,10 +1,10 @@
 import claripy
-import simuvex
+import angr
 import logging
 
 l = logging.getLogger("angr.procedures.cgc.allocate")
 
-class allocate(simuvex.SimProcedure):
+class allocate(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     IS_SYSCALL = True

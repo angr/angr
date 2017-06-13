@@ -1,10 +1,10 @@
-import simuvex
-from simuvex.s_type import SimTypeTop
+import angr
+from angr.sim_type import SimTypeTop
 
 ######################################
 # free
 ######################################
-class free(simuvex.SimProcedure):
+class free(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, ptr): #pylint:disable=unused-argument

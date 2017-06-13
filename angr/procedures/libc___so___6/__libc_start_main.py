@@ -2,14 +2,14 @@
 import logging
 
 import pyvex
-import simuvex
+import angr
 
 l = logging.getLogger("angr.procedures.libc___so___6.__libc_start_main")
 
 ######################################
 # __libc_start_main
 ######################################
-class __libc_start_main(simuvex.SimProcedure):
+class __libc_start_main(angr.SimProcedure):
     #pylint:disable=arguments-differ,unused-argument,attribute-defined-outside-init
 
     ADDS_EXITS = True
@@ -23,7 +23,7 @@ class __libc_start_main(simuvex.SimProcedure):
 
         See __ctype_b_loc.c in libc implementation
         """
-        malloc = simuvex.SimProcedures['libc.so.6']['malloc']
+        malloc = angr.SimProcedures['libc.so.6']['malloc']
         table = self.inline_call(malloc, 768).ret_expr
         table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
 
@@ -54,7 +54,7 @@ class __libc_start_main(simuvex.SimProcedure):
 
         See __ctype_tolower_loc.c in libc implementation
         """
-        malloc = simuvex.SimProcedures['libc.so.6']['malloc']
+        malloc = angr.SimProcedures['libc.so.6']['malloc']
         # 384 entries, 4 bytes each
         table = self.inline_call(malloc, 384*4).ret_expr
         table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
@@ -85,7 +85,7 @@ class __libc_start_main(simuvex.SimProcedure):
 
         See __ctype_toupper_loc.c in libc implementation
         """
-        malloc = simuvex.SimProcedures['libc.so.6']['malloc']
+        malloc = angr.SimProcedures['libc.so.6']['malloc']
         # 384 entries, 4 bytes each
         table = self.inline_call(malloc, 384*4).ret_expr
         table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
@@ -145,7 +145,7 @@ class __libc_start_main(simuvex.SimProcedure):
 
     def static_exits(self, blocks):
         # Execute those blocks with a blank state, and then dump the arguments
-        blank_state = simuvex.SimState(arch=self.arch, mode="fastpath")
+        blank_state = angr.SimState(arch=self.arch, mode="fastpath")
         # set up the stack pointer
         blank_state.regs.sp = 0x7fffffff
 
@@ -153,14 +153,14 @@ class __libc_start_main(simuvex.SimProcedure):
         state = blank_state
         for b in blocks:
             # state.regs.ip = next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr
-            irsb = simuvex.SimEngineVEX().process(state, b,
+            irsb = angr.SimEngineVEX().process(state, b,
                     force_addr=next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr)
             if irsb.successors:
                 state = irsb.successors[0]
             else:
                 break
 
-        cc = simuvex.DefaultCC[self.arch.name](self.arch)
+        cc = angr.DefaultCC[self.arch.name](self.arch)
         args = [ cc.arg(state, _) for _ in xrange(5) ]
         main, _, _, init, fini = self._extract_args(blank_state, *args)
 
@@ -177,7 +177,7 @@ class __libc_start_main(simuvex.SimProcedure):
         """
         Extract arguments and set them to
 
-        :param simuvex.s_state.SimState state: The program state.
+        :param angr.sim_state.SimState state: The program state.
         :param main: An argument to __libc_start_main.
         :param argc: An argument to __libc_start_main.
         :param argv: An argument to __libc_start_main.

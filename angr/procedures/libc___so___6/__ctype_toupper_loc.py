@@ -1,10 +1,10 @@
-import simuvex
+import angr
 
 ######################################
 # __ctype_toupper_loc
 ######################################
 
-class __ctype_toupper_loc(simuvex.SimProcedure):
+class __ctype_toupper_loc(angr.SimProcedure):
     """
     Following is the description from linuxfoundation.org:
 

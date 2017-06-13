@@ -865,7 +865,7 @@ def translate(state, op, s_args):
     raise UnsupportedIROpError("Unsupported operation: %s" % op)
 
 from . import size_bits
-from simuvex.s_errors import UnsupportedIROpError, SimOperationError, SimValueError
-from simuvex import s_options as options
+from ...errors import UnsupportedIROpError, SimOperationError, SimValueError
+from ... import sim_options as options
 
 make_operations()

@@ -1,4 +1,4 @@
-import simuvex
+import angr
 
 import logging
 l = logging.getLogger("angr.procedures.syscalls.mmap")
@@ -14,7 +14,7 @@ MAP_ANONYMOUS   = 0x20 #    /* Don't use a file.  */
 MAP_FIXED       = 0x10 #    /* Interpret addr exactly.  */
 
 
-class mmap(simuvex.SimProcedure):
+class mmap(angr.SimProcedure):
 
     IS_SYSCALL = True
 
@@ -43,7 +43,7 @@ class mmap(simuvex.SimProcedure):
         if len(addrs) == 2:
             err = "Cannot handle symbolic addr argument for mmap."
             l.error(err)
-            raise simuvex.s_errors.SimPosixError(err)
+            raise angr.errors.SimPosixError(err)
 
         addr = addrs[0]
 
@@ -61,7 +61,7 @@ class mmap(simuvex.SimProcedure):
         if len(flags) == 2:
             err = "Cannot handle symbolic flags arugment for mmap."
             l.error(err)
-            raise simuvex.s_errors.SimPosixError(err)
+            raise angr.errors.SimPosixError(err)
 
         flags =  flags[0]
 
@@ -74,7 +74,7 @@ class mmap(simuvex.SimProcedure):
                 self.state.memory.map_region(addr, size, prot[2:0], init_zero=bool(flags & MAP_ANONYMOUS))
                 return addr
 
-            except simuvex.SimMemoryError:
+            except angr.SimMemoryError:
                 # This page is already mapped
 
                 if flags & MAP_FIXED:

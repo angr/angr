@@ -1,15 +1,15 @@
-import simuvex
+import angr
 
 ######################################
 # __errno_location
 ######################################
 
-class __errno_location(simuvex.SimProcedure):
+class __errno_location(angr.SimProcedure):
 
     def run(self):  #pylint:disable=arguments-differ
 
         if self.state.libc._errno_location is None:
-            malloc = simuvex.SimProcedures['libc.so.6']['malloc']
+            malloc = angr.SimProcedures['libc.so.6']['malloc']
             errno_loc = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
 
             self.state.libc._errno_location = errno_loc

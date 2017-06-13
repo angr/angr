@@ -1,14 +1,14 @@
-import simuvex
+import angr
 from collections import namedtuple
 
 from .malloc import malloc
 
 import logging
-l = logging.getLogger("angr.procedures.libc___so___6.readdir")
+l = logging.getLogger('angr.procedures.libc___so___6.readdir')
 
 Dirent = namedtuple('dirent', ('d_ino', 'd_off', 'd_reclen', 'd_type', 'd_name'))
 
-class readdir(simuvex.SimProcedure):
+class readdir(angr.SimProcedure):
     struct = None
     condition = None
 

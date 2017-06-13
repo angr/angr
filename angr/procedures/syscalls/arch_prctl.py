@@ -1,9 +1,9 @@
-import simuvex
+import angr
 
 ######################################
 # arch_prctl
 ######################################
-class arch_prctl(simuvex.SimProcedure):
+class arch_prctl(angr.SimProcedure):
 
     IS_SYSCALL = True
     """
@@ -12,7 +12,7 @@ class arch_prctl(simuvex.SimProcedure):
     """
     def run(self, code, addr):  # pylint: disable=arguments-differ
         if self.state.se.symbolic(code):
-            raise simuvex.SimValueError("Code value passed to arch_prctl must be concrete.")
+            raise angr.errors.SimValueError("Code value passed to arch_prctl must be concrete.")
 
         code = self.state.se.any_int(code)
 

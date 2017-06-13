@@ -1,4 +1,4 @@
-import simuvex
+import angr
 
 ######################################
 # bind (but not really)
@@ -6,7 +6,7 @@ import simuvex
 import logging
 l = logging.getLogger("angr.procedures.libc___so___6.bind")
 
-class bind(simuvex.SimProcedure):
+class bind(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, fd): #pylint:disable=unused-argument

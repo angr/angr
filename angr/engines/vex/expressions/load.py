@@ -1,9 +1,9 @@
 from .base import SimIRExpr, _nonset
 from .. import size_bytes, size_bits
-from simuvex import s_options as o
-from simuvex.s_action import SimActionData
-from simuvex.s_action_object import SimActionObject
-from simuvex.s_errors import SimUninitializedAccessError
+from .... import sim_options as o
+from ....state_plugins.sim_action import SimActionData
+from ....state_plugins.sim_action_object import SimActionObject
+from ....errors import SimUninitializedAccessError
 
 class SimIRExpr_Load(SimIRExpr):
     def _execute(self):

@@ -1,5 +1,5 @@
-import simuvex
-from simuvex.s_type import SimTypeFd, SimTypeInt
+import angr
+from angr.sim_type import SimTypeFd, SimTypeInt
 from claripy import BVV
 
 ######################################
@@ -7,14 +7,14 @@ from claripy import BVV
 ######################################
 
 
-class _IO_getc(simuvex.SimProcedure):
+class _IO_getc(angr.SimProcedure):
     # pylint:disable=arguments-differ
 
     def run(self, f_p):
         self.argument_types = {0: SimTypeFd()}
         self.return_type = SimTypeInt(32, True)
 
-        fileno = simuvex.SimProcedures['libc.so.6']['fileno']
+        fileno = angr.SimProcedures['libc.so.6']['fileno']
         fd = self.inline_call(fileno, f_p).ret_expr
 
         # let's get the memory back for the file we're interested in and find

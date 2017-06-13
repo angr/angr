@@ -1,5 +1,5 @@
 import logging
-from simuvex.s_format import FormatParser
+from angr.misc.format_parser import FormatParser
 from . import io_file_data_for_arch
 
 l = logging.getLogger("angr.procedures.libc___so___6.fprintf")

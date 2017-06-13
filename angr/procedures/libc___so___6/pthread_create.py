@@ -1,11 +1,11 @@
-import simuvex
+import angr
 import pyvex
 
 ######################################
 # pthread_create
 # obviously adapted from __libc_start_main
 ######################################
-class pthread_create(simuvex.SimProcedure):
+class pthread_create(angr.SimProcedure):
     ADDS_EXITS = True
 
     def run(self):
@@ -25,12 +25,12 @@ class pthread_create(simuvex.SimProcedure):
 
     def static_exits(self, blocks):
         # Execute those blocks with a blank state, and then dump the arguments
-        blank_state = simuvex.SimState(arch=self.arch, mode="fastpath")
+        blank_state = angr.SimState(arch=self.arch, mode="fastpath")
 
         # Execute each block
         state = blank_state
         for b in blocks:
-            irsb = simuvex.SimEngineVEX().process(state, b,
+            irsb = angr.SimEngineVEX().process(state, b,
                     force_addr=next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr
                                                   )
             if irsb.successors:
@@ -38,7 +38,7 @@ class pthread_create(simuvex.SimProcedure):
             else:
                 break
 
-        cc = simuvex.DefaultCC[self.arch.name](self.arch)
+        cc = angr.DefaultCC[self.arch.name](self.arch)
         callfunc = cc.arg(state, 2)
         retaddr = state.memory.load(state.regs.sp, self.arch.bytes)
 

@@ -1,6 +1,6 @@
-import simuvex
+import angr
 
-class brk(simuvex.SimProcedure):
+class brk(angr.SimProcedure):
     """
     This implements the brk system call.
     """

@@ -1,10 +1,10 @@
-import simuvex
+import angr
 
 ######################################
 # recv
 ######################################
 
-class recv(simuvex.SimProcedure):
+class recv(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, fd, dst, length):

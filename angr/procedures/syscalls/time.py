@@ -1,6 +1,6 @@
-import simuvex
+import angr
 
-class time(simuvex.SimProcedure):
+class time(angr.SimProcedure):
     IS_SYSCALL = True
     KEY = 'sys_last_time'
 

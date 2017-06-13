@@ -1,12 +1,11 @@
 import os
-import sys
 from collections import defaultdict
 import importlib
 
 import logging
 l = logging.getLogger("angr.procedures.procedure_dict")
 
-from ..engines import SimProcedure
+from .sim_procedure import SimProcedure
 
 # Import all classes under the current directory, and group them based on
 # lib names.

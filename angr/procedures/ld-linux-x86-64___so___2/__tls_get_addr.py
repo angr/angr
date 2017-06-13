@@ -1,6 +1,6 @@
-import simuvex
+import angr
 
-class __tls_get_addr(simuvex.SimProcedure):
+class __tls_get_addr(angr.SimProcedure):
     def run(self, index):
         mod_id = self.state.memory.load(index, self.state.arch.bits / 8, endness=self.state.arch.memory_endness)
 

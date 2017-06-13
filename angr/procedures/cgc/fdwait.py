@@ -1,9 +1,9 @@
-import simuvex
+import angr
 
 import itertools
 fdcount = itertools.count()
 
-class fdwait(simuvex.SimProcedure):
+class fdwait(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     IS_SYSCALL = True
@@ -15,7 +15,7 @@ class fdwait(simuvex.SimProcedure):
 
         read_fds = [ ]
         for fd in range(32):
-            if simuvex.options.CGC_NON_BLOCKING_FDS in self.state.options:
+            if angr.options.CGC_NON_BLOCKING_FDS in self.state.options:
                 sym_bit = self.state.se.BVV(1, 1)
             else:
                 sym_bit = self.state.se.Unconstrained('fdwait_read_%d_%d'%(run_count,fd), 1)
@@ -27,7 +27,7 @@ class fdwait(simuvex.SimProcedure):
 
         write_fds = [ ]
         for fd in range(32):
-            if simuvex.options.CGC_NON_BLOCKING_FDS in self.state.options:
+            if angr.options.CGC_NON_BLOCKING_FDS in self.state.options:
                 sym_bit = self.state.se.BVV(1, 1)
             else:
                 sym_bit = self.state.se.Unconstrained('fdwait_write_%d_%d' % (run_count, fd), 1)

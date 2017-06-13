@@ -1,10 +1,10 @@
-import simuvex
+import angr
 
 ######################################
 # abort
 ######################################
 
-class abort(simuvex.SimProcedure):
+class abort(angr.SimProcedure):
     NO_RET = True
 
     def run(self):
