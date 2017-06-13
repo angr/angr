@@ -52,6 +52,7 @@ from .surveyors.caller import Callable
 from . import knowledge
 from . import exploration_techniques
 from . import type_backend
+from . import sim_type as types
 
 from .sim_state import SimState
 from .engines import SimEngineVEX
