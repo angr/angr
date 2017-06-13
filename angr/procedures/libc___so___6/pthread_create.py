@@ -38,7 +38,7 @@ class pthread_create(angr.SimProcedure):
             else:
                 break
 
-        cc = angr.DefaultCC[self.arch.name](self.arch)
+        cc = angr.DEFAULT_CC[self.arch.name](self.arch)
         callfunc = cc.arg(state, 2)
         retaddr = state.memory.load(state.regs.sp, self.arch.bytes)
 

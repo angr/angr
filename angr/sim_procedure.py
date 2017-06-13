@@ -53,8 +53,8 @@ class SimProcedure(object):
         # calling convention
         if cc is None:
             # default conventions
-            if self.arch.name in DefaultCC:
-                self.cc = DefaultCC[self.arch.name](self.arch)
+            if self.arch.name in DEFAULT_CC:
+                self.cc = DEFAULT_CC[self.arch.name](self.arch)
             else:
                 raise SimProcedureError('There is no default calling convention for architecture %s.' +
                                         ' You must specify a calling convention.', arch.name)
@@ -369,4 +369,4 @@ from angr import sim_options as o
 from angr.errors import SimProcedureError, SimProcedureArgumentError
 from angr.sim_type import SimTypePointer
 from angr.state_plugins.sim_action import SimActionExit
-from angr.calling_conventions import DefaultCC
+from angr.calling_conventions import DEFAULT_CC

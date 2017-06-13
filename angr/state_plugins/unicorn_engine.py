@@ -175,11 +175,11 @@ class _VexArchInfo(ctypes.Structure):
 
 def _load_native():
     if sys.platform == 'darwin':
-        libfile = 'sim_unicorn.dylib'
+        libfile = 'angr_native.dylib'
     elif sys.platform in ('win32', 'cygwin'):
-        libfile = 'sim_unicorn.dll'
+        libfile = 'angr_native.dll'
     else:
-        libfile = 'sim_unicorn.so'
+        libfile = 'angr_native.so'
 
     try:
         angr_path = pkg_resources.resource_filename('angr', os.path.join('lib', libfile))

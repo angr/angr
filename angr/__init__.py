@@ -54,4 +54,4 @@ from . import exploration_techniques
 
 from .sim_state import SimState
 from .engines import SimEngineVEX
-from .calling_conventions import DefaultCC
+from .calling_conventions import DEFAULT_CC, SYSCALL_CC

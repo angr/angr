@@ -14,3 +14,6 @@ from .cgc import *
 from .gdb import *
 from .uc_manager import *
 from .unicorn_engine import Unicorn
+from .sim_action import *
+from .sim_action_object import *
+from .sim_event import *

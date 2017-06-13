@@ -241,11 +241,11 @@ class SimSuccessors(object):
     # misc stuff
     @staticmethod
     def _resolve_syscall(state):
-        if state.os_name in SyscallCC[state.arch.name]:
-            cc = SyscallCC[state.arch.name][state.os_name](state.arch)
+        if state.os_name in SYSCALL_CC[state.arch.name]:
+            cc = SYSCALL_CC[state.arch.name][state.os_name](state.arch)
         else:
             # Use the default syscall calling convention - it may bring problems
-            cc = SyscallCC[state.arch.name]['default'](state.arch)
+            cc = SYSCALL_CC[state.arch.name]['default'](state.arch)
 
         syscall_num = cc.syscall_num(state)
 
@@ -285,6 +285,6 @@ class SimSuccessors(object):
 
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
 from ..errors import SimSolverModeError, UnsupportedSyscallError
-from ..calling_conventions import SyscallCC
+from ..calling_conventions import SYSCALL_CC
 from ..state_plugins.sim_action_object import _raw_ast
 from .. import sim_options as o

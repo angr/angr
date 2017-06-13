@@ -160,7 +160,7 @@ class __libc_start_main(angr.SimProcedure):
             else:
                 break
 
-        cc = angr.DefaultCC[self.arch.name](self.arch)
+        cc = angr.DEFAULT_CC[self.arch.name](self.arch)
         args = [ cc.arg(state, _) for _ in xrange(5) ]
         main, _, _, init, fini = self._extract_args(blank_state, *args)
 

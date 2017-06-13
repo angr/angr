@@ -1,5 +1,5 @@
 from .sim_state import SimState
-from .calling_conventions import DefaultCC, SimRegArg, SimStackArg, PointerWrapper
+from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
 from .surveyors.caller import Callable
 
 import logging
@@ -24,7 +24,7 @@ class AngrObjectFactory(object):
         # currently the default engine MUST be a vex engine... this assumption is hardcoded
         # but this can totally be changed with some interface generalization
         self._project = project
-        self._default_cc = DefaultCC[project.arch.name]
+        self._default_cc = DEFAULT_CC[project.arch.name]
 
         self.default_engine = default_engine
         self.procedure_engine = procedure_engine
