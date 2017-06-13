@@ -3,9 +3,7 @@ import collections
 from itertools import dropwhile
 import logging
 
-import simuvex
-
-from .errors import AngrError
+from .errors import AngrError, SimUnsatError, SimSolverModeError
 
 l = logging.getLogger("angr.call_stack")
 
@@ -27,7 +25,7 @@ class CallFrame(object):
             try:
                 self.func_addr = state.se.any_int(state.ip)
                 self.stack_ptr = state.se.any_int(state.regs.sp)
-            except (simuvex.SimUnsatError, simuvex.SimSolverModeError, AttributeError):
+            except (SimUnsatError, SimSolverModeError, AttributeError):
                 self.func_addr = None
                 self.stack_ptr = None
 
@@ -50,7 +48,7 @@ class CallFrame(object):
                     self.ret_addr = None
                 else:
                     self.ret_addr = state.se.any_int(self.ret_addr)
-            except (simuvex.SimUnsatError, simuvex.SimSolverModeError):
+            except (SimUnsatError, SimSolverModeError):
                 self.ret_addr = None
         else:
             self.func_addr = func_addr

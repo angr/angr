@@ -52,7 +52,7 @@ class SimEngine(object):
         You should only override this method in a subclass in order to provide the correct method signature and
         docstring. You should override the ``_check`` method to do your actual execution.
 
-        :param simuvex.SimState state: The state with which to execute.
+        :param SimState state: The state with which to execute.
         :param args:                   Positional arguments that will be passed to process().
         :param kwargs:                 Keyword arguments that will be passed to process().
         :return:                       True if the state can be handled by the current engine, False otherwise.
@@ -85,5 +85,5 @@ class SimEngine(object):
     def __getstate__(self):
         return { }
 
-from simuvex import s_options as o
+from .. import sim_options as o
 from .successors import SimSuccessors

@@ -22,6 +22,7 @@ while True:
 
 del sys, i, module
 
+from . import sim_options
 from .procedures import SIM_PROCEDURES, SimProcedures
 
 from .project import *

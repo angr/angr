@@ -110,10 +110,10 @@ class SimIRExpr(object):
             return frozenset.union(*[r.tmp_deps for r in self.actions if type(r) in (SimActionData, SimActionOperation)])
 
 # simuvex imports
-from simuvex import s_options as o
-from simuvex.plugins.inspect import BP_AFTER, BP_BEFORE
-from simuvex.s_errors import SimExpressionError
-from simuvex.s_action import SimActionData, SimActionOperation
+from .... import sim_options as o
+from ....state_plugins.inspect import BP_AFTER, BP_BEFORE
+from ....errors import SimExpressionError
+from ....state_plugins.sim_action import SimActionData, SimActionOperation
 
 # VEX subpackage imports
 from .. import size_bits

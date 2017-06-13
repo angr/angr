@@ -16,7 +16,7 @@ class SimEngineHook(SimEngineProcedure):
         """
         Check if SimEngineHook can handle the current state or not.
 
-        :param simuvex.SimState state: The state to work with.
+        :param SimState state: The state to work with.
         :param SimProcedure procedure: An instance of a SimProcedure to run. Optional.
         :param kwargs:                 Other arguments.
         :return:                       True or False.
