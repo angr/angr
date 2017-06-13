@@ -2,14 +2,15 @@ from collections import defaultdict
 
 import pyvex
 import claripy
-import simuvex
 import functools
 
 import logging
 l = logging.getLogger("angr.exploration_techniques.oppologist")
 
-from ..errors import AngrError
-exc_list = (AngrError, simuvex.SimError, claripy.ClaripyError, TypeError, ValueError, ArithmeticError, MemoryError)
+from ..errors import AngrError, SimError, SimUnsupportedError, SimCCallError
+from .. import sim_options
+
+exc_list = (AngrError, SimError, claripy.ClaripyError, TypeError, ValueError, ArithmeticError, MemoryError)
 
 from . import ExplorationTechnique
 class Oppologist(ExplorationTechnique):
@@ -37,8 +38,8 @@ class Oppologist(ExplorationTechnique):
         else:
             stops = None
 
-        pn.state.options.add(simuvex.options.UNICORN)
-        pn.state.options.add(simuvex.options.UNICORN_AGGRESSIVE_CONCRETIZATION)
+        pn.state.options.add(sim_options.UNICORN)
+        pn.state.options.add(sim_options.UNICORN_AGGRESSIVE_CONCRETIZATION)
         pn.state.unicorn.max_steps = 1
         pn.state.unicorn.countdown_symbolic_registers = 0
         pn.state.unicorn.countdown_symbolic_memory = 0
@@ -85,7 +86,7 @@ class Oppologist(ExplorationTechnique):
         try:
             path.step(throw=True, **kwargs)
             return None
-        except (simuvex.SimUnsupportedError, simuvex.SimCCallError) as e:
+        except (SimUnsupportedError, SimCCallError) as e:
             l.debug("Errored on path %s after %d instructions", path, e.executed_instruction_count)
             try:
                 if e.executed_instruction_count:

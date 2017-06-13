@@ -1,5 +1,5 @@
 
-from simuvex.s_errors import SimError
+from ..errors import SimError
 
 class ExplorationTechnique(object):
     """

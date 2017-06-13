@@ -6,8 +6,8 @@ import networkx
 
 import claripy
 
-from ..sim_type import SimType
-from ..calling_convention import DEFAULT_CC
+from ..sim_type import SimType, SimTypePointer, SimTypeChar, SimTypeString, SimTypeReg
+from ..calling_conventions import DEFAULT_CC
 from ..knowledge_base import KnowledgeBase
 from ..errors import AngrDirectorError
 from . import ExplorationTechnique
@@ -287,7 +287,7 @@ class CallFunctionGoal(BaseGoal):
         # TODO: add calling convention detection to individual functions, and use that instead of the
         # TODO: default calling convention of the platform
 
-        cc = DEFAULT_CC[arch.name](arch)  # type: simuvex.s_cc.SimCC
+        cc = DEFAULT_CC[arch.name](arch)  # type: s_cc.SimCC
 
         for i, expected_arg in enumerate(self.arguments):
             if expected_arg is None:
@@ -305,7 +305,7 @@ class CallFunctionGoal(BaseGoal):
     def _compare_arguments(state, arg_type, expected_value, real_value):
         """
 
-        :param simuvex.SimState state:
+        :param SimState state:
         :param simvuex.s_type.SimType arg_type:
         :param claripy.ast.Base expected_value:
         :param claripy.ast.Base real_value:
@@ -317,11 +317,11 @@ class CallFunctionGoal(BaseGoal):
             # we do not support symbolic arguments yet
             return False
 
-        if isinstance(arg_type, simuvex.s_type.SimTypePointer):
+        if isinstance(arg_type, SimTypePointer):
             # resolve the pointer and compare the content
             points_to_type = arg_type.pts_to
 
-            if isinstance(points_to_type, simuvex.s_type.SimTypeChar):
+            if isinstance(points_to_type, SimTypeChar):
                 # char *
                 # perform a concrete string comparison
                 ptr = real_value
@@ -330,12 +330,12 @@ class CallFunctionGoal(BaseGoal):
             else:
                 l.error('Unsupported argument type %s in _compare_arguments(). Please bug Fish to implement.', arg_type)
 
-        elif isinstance(arg_type, simuvex.s_type.SimTypeString):
+        elif isinstance(arg_type, SimTypeString):
             # resolve the pointer and compare the content
             ptr = real_value
             return CallFunctionGoal._compare_pointer_content(state, ptr, expected_value)
 
-        elif isinstance(arg_type, simuvex.s_type.SimTypeReg):
+        elif isinstance(arg_type, SimTypeReg):
             # directly compare the numbers
             return CallFunctionGoal._compare_integer_content(state, real_value, expected_value)
 
