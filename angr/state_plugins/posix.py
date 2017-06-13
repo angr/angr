@@ -497,5 +497,5 @@ class SimStateSystem(SimStatePlugin):
 
 SimStatePlugin.register_default('posix', SimStateSystem)
 
-from ..plugins.symbolic_memory import SimSymbolicMemory
-from ..s_errors import SimPosixError, SimError
+from ..state_plugins.symbolic_memory import SimSymbolicMemory
+from ..errors import SimPosixError, SimError

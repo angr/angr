@@ -3,7 +3,8 @@ import logging
 import claripy
 from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
 
-from . import s_type, s_action_object
+from . import sim_type
+from .state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger("angr.calling_conventions")
 
@@ -223,7 +224,7 @@ class SimCC(object):
         :parmm func_ty:     A SimType for the function itself
         """
         if func_ty is not None:
-            if not isinstance(func_ty, s_type.SimTypeFunction):
+            if not isinstance(func_ty, sim_type.SimTypeFunction):
                 raise TypeError("Function prototype must be a function!")
 
         self.arch = arch
@@ -433,7 +434,7 @@ class SimCC(object):
                 if self.func_ty is None:
                     raise ValueError("You must either customize this CC or pass a value to is_fp!")
                 else:
-                    is_fp = [isinstance(arg, s_type.SimTypeFloat) for arg in self.func_ty.args]
+                    is_fp = [isinstance(arg, sim_type.SimTypeFloat) for arg in self.func_ty.args]
             else:
                 arg_locs = self.args
 
@@ -486,7 +487,7 @@ class SimCC(object):
         arg_locs = [None]*len(args)
         for i, (arg, val) in enumerate(zip(args, vals)):
             if self.is_fp_value(arg) or \
-                    (self.func_ty is not None and isinstance(self.func_ty.args[i], s_type.SimTypeFloat)):
+                    (self.func_ty is not None and isinstance(self.func_ty.args[i], sim_type.SimTypeFloat)):
                 arg_locs[i] = arg_session.next_arg(is_fp=True, size=val.length/8)
                 continue
             if val.length > state.arch.bits or (self.func_ty is None and isinstance(arg, (str, unicode, list, tuple))):
@@ -519,7 +520,7 @@ class SimCC(object):
         elif is_fp is not None:
             loc = self.FP_RETURN_VAL if is_fp else self.RETURN_VAL
         elif ty is not None:
-            loc = self.FP_RETURN_VAL if isinstance(ty, s_type.SimTypeFloat) else self.RETURN_VAL
+            loc = self.FP_RETURN_VAL if isinstance(ty, sim_type.SimTypeFloat) else self.RETURN_VAL
         else:
             loc = self.RETURN_VAL
 
@@ -527,7 +528,7 @@ class SimCC(object):
             raise NotImplementedError("This SimCC doesn't know how to get this value - should be implemented")
 
         val = loc.get_value(state, stack_base=stack_base, size=None if ty is None else ty.size/8)
-        if self.is_fp_arg(loc) or self.is_fp_value(val) or isinstance(ty, s_type.SimTypeFloat):
+        if self.is_fp_arg(loc) or self.is_fp_value(val) or isinstance(ty, sim_type.SimTypeFloat):
             val = val.raw_to_fp()
         return val
 
@@ -546,7 +547,7 @@ class SimCC(object):
         elif is_fp is not None:
             loc = self.FP_RETURN_VAL if is_fp else self.RETURN_VAL
         elif ty is not None:
-            loc = self.FP_RETURN_VAL if isinstance(ty, s_type.SimTypeFloat) else self.RETURN_VAL
+            loc = self.FP_RETURN_VAL if isinstance(ty, sim_type.SimTypeFloat) else self.RETURN_VAL
         else:
             loc = self.FP_RETURN_VAL if self.is_fp_value(val) else self.RETURN_VAL
 
@@ -562,10 +563,10 @@ class SimCC(object):
     @staticmethod
     def _standardize_value(arg, ty, state, alloc):
         check = ty is not None
-        if isinstance(arg, s_action_object.SimActionObject):
+        if isinstance(arg, SimActionObject):
             return SimCC._standardize_value(arg.ast, ty, state, alloc)
         elif isinstance(arg, PointerWrapper):
-            if check and not isinstance(ty, s_type.SimTypePointer):
+            if check and not isinstance(ty, sim_type.SimTypePointer):
                 raise TypeError("Type mismatch: expected %s, got pointer-wrapper" % ty.name)
 
             real_value = SimCC._standardize_value(arg.value, ty.pts_to if check else None, state, alloc)
@@ -577,30 +578,30 @@ class SimCC(object):
             arg += '\0'
             ref = False
             if check:
-                if isinstance(ty, s_type.SimTypePointer) and \
-                        isinstance(ty.pts_to, s_type.SimTypeChar):
+                if isinstance(ty, sim_type.SimTypePointer) and \
+                        isinstance(ty.pts_to, sim_type.SimTypeChar):
                     ref = True
-                elif isinstance(ty, s_type.SimTypeFixedSizeArray) and \
-                        isinstance(ty.elem_type, s_type.SimTypeChar):
+                elif isinstance(ty, sim_type.SimTypeFixedSizeArray) and \
+                        isinstance(ty.elem_type, sim_type.SimTypeChar):
                     ref = False
                     if len(arg) > ty.length:
                         raise TypeError("String %s is too long for %s" % (repr(arg), ty.name))
                     arg = arg.ljust(ty.length, '\0')
-                elif isinstance(ty, s_type.SimTypeArray) and \
-                        isinstance(ty.elem_type, s_type.SimTypeChar):
+                elif isinstance(ty, sim_type.SimTypeArray) and \
+                        isinstance(ty.elem_type, sim_type.SimTypeChar):
                     ref = True
                     if ty.length is not None:
                         if len(arg) > ty.length:
                             raise TypeError("String %s is too long for %s" % (repr(arg), ty.name))
                         arg = arg.ljust(ty.length, '\0')
-                elif isinstance(ty, s_type.SimTypeString):
+                elif isinstance(ty, sim_type.SimTypeString):
                     ref = False
                     if len(arg) > ty.length + 1:
                         raise TypeError("String %s is too long for %s" % (repr(arg), ty.name))
                     arg = arg.ljust(ty.length + 1, '\0')
                 else:
                     raise TypeError("Type mismatch: Expected %s, got char*" % ty.name)
-            val = SimCC._standardize_value(map(ord, arg), s_type.SimTypeFixedSizeArray(s_type.SimTypeChar(), len(arg)), state, alloc)
+            val = SimCC._standardize_value(map(ord, arg), sim_type.SimTypeFixedSizeArray(sim_type.SimTypeChar(), len(arg)), state, alloc)
             if ref:
                 val = alloc(val, state)
             return val
@@ -609,15 +610,15 @@ class SimCC(object):
             ref = False
             subty = None
             if check:
-                if isinstance(ty, s_type.SimTypePointer):
+                if isinstance(ty, sim_type.SimTypePointer):
                     ref = True
                     subty = ty.pts_to
-                elif isinstance(ty, s_type.SimTypeFixedSizeArray):
+                elif isinstance(ty, sim_type.SimTypeFixedSizeArray):
                     ref = False
                     subty = ty.elem_type
                     if len(arg) != ty.length:
                         raise TypeError("Array %s is the wrong length for %s" % (repr(arg), ty.name))
-                elif isinstance(ty, s_type.SimTypeArray):
+                elif isinstance(ty, sim_type.SimTypeArray):
                     ref = True
                     subty = ty.elem_type
                     if ty.length is not None:
@@ -637,7 +638,7 @@ class SimCC(object):
 
         elif isinstance(arg, tuple):
             if check:
-                if not isinstance(ty, s_type.SimStruct):
+                if not isinstance(ty, sim_type.SimStruct):
                     raise TypeError("Type mismatch: Expected %s, got tuple (i.e. struct)" % ty.name)
                 if len(arg) != len(ty.fields):
                     raise TypeError("Wrong number of fields in struct, expected %d got %d" % (len(ty.fields), len(arg)))
@@ -648,7 +649,7 @@ class SimCC(object):
                 return claripy.Concat(*[SimCC._standardize_value(sarg, None, state, alloc) for sarg in arg])
 
         elif isinstance(arg, (int, long)):
-            if check and isinstance(ty, s_type.SimTypeFloat):
+            if check and isinstance(ty, sim_type.SimTypeFloat):
                 return SimCC._standardize_value(float(arg), ty, state, alloc)
 
             val = state.se.BVV(arg, ty.size if check else state.arch.bits)
@@ -659,9 +660,9 @@ class SimCC(object):
         elif isinstance(arg, float):
             sort = claripy.FSORT_FLOAT
             if check:
-                if isinstance(ty, s_type.SimTypeDouble):
+                if isinstance(ty, sim_type.SimTypeDouble):
                     sort = claripy.FSORT_DOUBLE
-                elif isinstance(ty, s_type.SimTypeFloat):
+                elif isinstance(ty, sim_type.SimTypeFloat):
                     pass
                 else:
                     raise TypeError("Type mismatch: expectd %s, got float" % ty.name)

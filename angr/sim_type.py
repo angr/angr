@@ -952,4 +952,4 @@ except ImportError:
     pass
 
 
-from .plugins.view import SimMemView
+from .state_plugins.view import SimMemView

@@ -22,7 +22,7 @@ def arch_overrideable(f):
             return f(self, *args, **kwargs)
     return wrapped_f
 
-from .plugins import default_plugins
+from .state_plugins import default_plugins
 
 # This is a counter for the state-merging symbolic variables
 merge_counter = itertools.count()
@@ -750,10 +750,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
         else:
             return conditions.__class__((self._adjust_condition(self.se.And(*conditions)),))
 
-from .plugins.symbolic_memory import SimSymbolicMemory
-from .plugins.fast_memory import SimFastMemory
-from .plugins.abstract_memory import SimAbstractMemory
-from .s_errors import SimMergeError, SimValueError, SimStateError
-from .plugins.inspect import BP_AFTER, BP_BEFORE
+from .state_plugins.symbolic_memory import SimSymbolicMemory
+from .state_plugins.fast_memory import SimFastMemory
+from .state_plugins.abstract_memory import SimAbstractMemory
+from .errors import SimMergeError, SimValueError, SimStateError
+from .state_plugins.inspect import BP_AFTER, BP_BEFORE
 from .s_action import SimActionConstraint
-from . import s_options as o
+from . import sim_options as o

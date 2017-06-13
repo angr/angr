@@ -283,8 +283,8 @@ class SimSuccessors(object):
             self.flat_successors[0].scratch.avoidable = False
 
 
-from ..plugins.inspect import BP_BEFORE, BP_AFTER
-from ..s_errors import SimSolverModeError, UnsupportedSyscallError
-from ..s_cc import SyscallCC
-from ..s_action_object import _raw_ast
-from .. import s_options as o
+from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
+from ..errors import SimSolverModeError, UnsupportedSyscallError
+from ..calling_conventions import SyscallCC
+from ..state_plugins.sim_action_object import _raw_ast
+from .. import sim_options as o

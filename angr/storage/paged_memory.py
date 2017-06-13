@@ -1042,4 +1042,4 @@ class SimPagedMemory(object):
             del self._pages[base_page_num + page]
             del self._symbolic_addrs[base_page_num + page]
 
-from .. import s_options as o
+from .. import sim_options as o

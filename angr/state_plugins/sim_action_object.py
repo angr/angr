@@ -117,4 +117,4 @@ def make_methods():
         _operator(SimActionObject, name)
 make_methods()
 
-from .s_errors import SimActionError
+from ..errors import SimActionError

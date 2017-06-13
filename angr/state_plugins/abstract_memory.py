@@ -6,10 +6,10 @@ import claripy
 from claripy.vsa import ValueSet, RegionAnnotation
 
 from ..storage.memory import SimMemory, AddressWrapper, MemoryStoreRequest
-from ..s_errors import SimMemoryError, SimAbstractMemoryError
-from ..s_options import KEEP_MEMORY_READS_DISCRETE, AVOID_MULTIVALUED_READS, REGION_MAPPING
+from ..errors import SimMemoryError, SimAbstractMemoryError
+from ..sim_options import KEEP_MEMORY_READS_DISCRETE, AVOID_MULTIVALUED_READS, REGION_MAPPING
 from .symbolic_memory import SimSymbolicMemory
-from ..s_action_object import _raw_ast
+from ..state_plugins.sim_action_object import _raw_ast
 
 
 l = logging.getLogger("angr.state_plugins.abstract_memory")

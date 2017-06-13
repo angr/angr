@@ -1,6 +1,6 @@
-from ..plugins.plugin import SimStatePlugin
-from ..s_action_object import SimActionObject
-from .. import s_options
+from ..state_plugins.plugin import SimStatePlugin
+from ..state_plugins.sim_action_object import SimActionObject
+from .. import sim_options
 
 import claripy
 import logging
@@ -116,7 +116,7 @@ class SimFile(SimStatePlugin):
 
         # check if we need to concretize the length
         if (
-            s_options.CONCRETIZE_SYMBOLIC_FILE_READ_SIZES in self.state.options and
+            sim_options.CONCRETIZE_SYMBOLIC_FILE_READ_SIZES in self.state.options and
             (self.state.se.symbolic(orig_length) or self.state.se.symbolic(max_length))
         ):
             orig_max = self.state.se.max_int(orig_length)
@@ -295,5 +295,5 @@ class SimDialogue(SimFile):
     def copy(self):
         return SimDialogue(self.name, mode=self.mode, pos=self.pos, content=self.content.copy(), size=self.size, dialogue_entries=list(self.dialogue_entries))
 
-from ..plugins.symbolic_memory import SimSymbolicMemory
-from ..s_errors import SimMergeError
+from ..state_plugins.symbolic_memory import SimSymbolicMemory
+from ..errors import SimMergeError

@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger("angr.storage.memory")
 
 import claripy
-from ..plugins.plugin import SimStatePlugin
+from ..state_plugins.plugin import SimStatePlugin
 
 stn_map = { 'st%d' % n: n for n in xrange(8) }
 tag_map = { 'tag%d' % n: n for n in xrange(8) }
@@ -849,8 +849,8 @@ class SimMemory(SimStatePlugin):
         raise NotImplementedError()
 
 from bintrees import AVLTree
-from .. import s_options as o
-from ..s_action import SimActionData
-from ..s_action_object import SimActionObject, _raw_ast
-from ..s_errors import SimMemoryError, SimRegionMapError
-from ..plugins.inspect import BP_BEFORE, BP_AFTER
+from .. import sim_options as o
+from ..state_plugins.sim_action import SimActionData
+from ..state_plugins.sim_action_object import SimActionObject, _raw_ast
+from ..errors import SimMemoryError, SimRegionMapError
+from ..state_plugins.inspect import BP_BEFORE, BP_AFTER

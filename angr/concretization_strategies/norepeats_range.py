@@ -36,4 +36,4 @@ class SimConcretizationStrategyNorepeatsRange(SimConcretizationStrategy):
             max(o._repeat_granularity for o in others)
         )
 
-from ..s_errors import SimMergeError
+from ..errors import SimMergeError

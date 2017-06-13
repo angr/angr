@@ -1,5 +1,5 @@
 import claripy
-from ..s_errors import SimMemoryError
+from ..errors import SimMemoryError
 
 class SimMemoryObject(object):
     """

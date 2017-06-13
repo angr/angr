@@ -5,12 +5,12 @@ import pyvex
 import claripy
 from archinfo import ArchARM
 
-from ... import s_options as o
-from ...plugins.inspect import BP_AFTER, BP_BEFORE
+from ... import sim_options as o
+from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
 from ...s_action import SimActionExit, SimActionObject
-from ...s_errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException,
-                         UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
-                         SimMemoryError)
+from ...errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException,
+                       UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
+                       SimMemoryError)
 from ..engine import SimEngine
 from .statements import translate_stmt
 from .expressions import translate_expr

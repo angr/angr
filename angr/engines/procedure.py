@@ -84,5 +84,5 @@ class SimEngineProcedure(SimEngine):
 
         successors.processed = True
 
-from .. import s_options as o
-from ..plugins.inspect import BP_BEFORE, BP_AFTER
+from .. import sim_options as o
+from ..state_plugins.inspect import BP_BEFORE, BP_AFTER

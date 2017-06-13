@@ -268,5 +268,5 @@ class SimStateLibc(SimStatePlugin):
 
 SimStatePlugin.register_default('libc', SimStateLibc)
 
-from ..s_errors import SimMemoryError
-from .. import s_options as o
+from ..errors import SimMemoryError
+from .. import sim_options as o

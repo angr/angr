@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from .plugin import SimStatePlugin
-from ..s_action_object import ast_stripping_decorator, SimActionObject
+from .sim_action_object import ast_stripping_decorator, SimActionObject
 
 import sys
 import functools
@@ -598,6 +598,6 @@ class SimSolver(SimStatePlugin):
         return e.variables
 
 SimStatePlugin.register_default('solver_engine', SimSolver)
-from .. import s_options as o
+from .. import sim_options as o
 from .inspect import BP_AFTER
-from ..s_errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError
+from ..errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError

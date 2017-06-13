@@ -5,7 +5,7 @@ l = logging.getLogger("angr.state_plugins.sim_action")
 
 _noneset = frozenset()
 
-from .s_event import SimEvent
+from .sim_event import SimEvent
 
 
 class SimAction(SimEvent):
@@ -248,4 +248,4 @@ class SimActionData(SimAction):
         c.fallback = self._copy_object(self.fallback)
         c.fd = self._copy_object(self.fd)
 
-from .s_action_object import SimActionObject
+from .sim_action_object import SimActionObject

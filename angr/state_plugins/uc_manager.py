@@ -3,7 +3,7 @@ import logging
 l = logging.getLogger("angr.state_plugins.uc_manager")
 
 from .plugin import SimStatePlugin
-from ..s_errors import SimUCManagerAllocationError
+from ..errors import SimUCManagerAllocationError
 
 class SimUCManager(SimStatePlugin):
     def __init__(self, man=None):

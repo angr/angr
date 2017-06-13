@@ -83,5 +83,5 @@ class receive(simuvex.SimProcedure):
                 self.state.se.BVV(0, self.state.arch.bits)
             )
 
-from ...s_options import ABSTRACT_MEMORY, CGC_NO_SYMBOLIC_RECEIVE_LENGTH
+from ...sim_options import ABSTRACT_MEMORY, CGC_NO_SYMBOLIC_RECEIVE_LENGTH
 from ...s_action import SimActionData

@@ -9,7 +9,7 @@ import pkg_resources
 
 import logging
 
-from ..s_options import UNICORN_HANDLE_TRANSMIT_SYSCALL
+from ..sim_options import UNICORN_HANDLE_TRANSMIT_SYSCALL
 
 l = logging.getLogger("angr.state_plugins.unicorn_engine")
 
@@ -24,7 +24,7 @@ _install_warning = False
 import pyvex
 import claripy
 from .plugin import SimStatePlugin
-from ..s_errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError
+from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError
 
 class MEM_PATCH(ctypes.Structure): # mem_update_t
     pass
@@ -1295,5 +1295,5 @@ class Unicorn(SimStatePlugin):
 
 
 from ..engines.vex import ccall
-from .. import s_options as options
+from .. import sim_options as options
 SimStatePlugin.register_default('unicorn', Unicorn)

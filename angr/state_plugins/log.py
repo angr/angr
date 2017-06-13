@@ -74,8 +74,8 @@ class SimStateLog(SimStatePlugin):
         #self.used_variables.clear()
         #self.input_variables.clear()
 
-from ..s_errors import SimEventError
-from ..s_event import SimEvent
-from ..s_action import SimAction, SimActionConstraint
+from ..errors import SimEventError
+from .sim_event import SimEvent
+from .sim_action import SimAction, SimActionConstraint
 
 SimStateLog.register_default('log', SimStateLog)

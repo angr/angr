@@ -1,7 +1,7 @@
 
 import pyvex
 
-from .s_errors import SimSlicerError
+from .errors import SimSlicerError
 
 class SimLightState(object):
     def __init__(self, temps=None, regs=None, stack_offsets=None, options=None):

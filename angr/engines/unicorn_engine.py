@@ -129,5 +129,5 @@ class SimEngineUnicorn(SimEngine):
         s['base_stop_points'] = self.base_stop_points
         return s
 
-from ..plugins.unicorn_engine import STOP
-from .. import s_options as o
+from ..state_plugins.unicorn_engine import STOP
+from .. import sim_options as o

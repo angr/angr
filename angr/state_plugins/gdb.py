@@ -1,7 +1,7 @@
 import os
 import re
 from .plugin import SimStatePlugin
-from ..s_errors import SimStateError
+from ..errors import SimStateError
 import libc as libc
 import logging
 import claripy
