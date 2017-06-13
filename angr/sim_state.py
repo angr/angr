@@ -32,11 +32,11 @@ class SimState(ana.Storable): # pylint: disable=R0904
     The SimState represents the state of a program, including its memory, registers, and so forth.
 
     :ivar regs:         A convenient view of the state's registers, where each register is a property
-    :ivar mem:          A convenient view of the state's memory, a :class:`simuvex.plugins.view.SimMemView`
+    :ivar mem:          A convenient view of the state's memory, a :class:`angr.state_plugins.view.SimMemView`
     :ivar registers:    The state's register file as a flat memory region
     :ivar memory:       The state's memory as a flat memory region
     :ivar se:           The solver engine for this state
-    :ivar inspect:      The breakpoint manager, a :class:`simuvex.plugins.inspect.SimInspector`
+    :ivar inspect:      The breakpoint manager, a :class:`angr.state_plugins.inspect.SimInspector`
     :ivar log:          Information about the state's history
     :ivar scratch:      Information about the current execution step
     :ivar posix:        MISNOMER: information about the operating system or environment model
@@ -755,5 +755,5 @@ from .state_plugins.fast_memory import SimFastMemory
 from .state_plugins.abstract_memory import SimAbstractMemory
 from .errors import SimMergeError, SimValueError, SimStateError
 from .state_plugins.inspect import BP_AFTER, BP_BEFORE
-from .s_action import SimActionConstraint
+from .state_plugins.sim_action import SimActionConstraint
 from . import sim_options as o

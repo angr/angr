@@ -3,9 +3,9 @@ import logging
 
 import pyvex
 import archinfo
-import simuvex
 
 
+from .... import options, BP_BEFORE
 from ....blade import Blade
 from ....annocfg import AnnotatedCFG
 from ....surveyors import Slicecutor
@@ -50,7 +50,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         annotated_cfg.from_digraph(b.slice)
 
         state = project.factory.blank_state(addr=source_addr, mode="fastpath",
-                                            remove_options=simuvex.options.refs
+                                            remove_options=options.refs
                                             )
         func = cfg.kb.functions.function(addr=func_addr)
 
@@ -77,7 +77,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
                         isinstance(stmt.data, pyvex.IRExpr.RdTmp):
                     tmp_offset = stmt.data.tmp  # pylint:disable=cell-var-from-loop
                     # we must make sure value of that temporary variable equals to the correct gp value
-                    state.inspect.make_breakpoint('tmp_write', when=simuvex.BP_BEFORE,
+                    state.inspect.make_breakpoint('tmp_write', when=BP_BEFORE,
                                                   condition=lambda s, bbl_addr_=block_addr_in_slice,
                                                                    tmp_offset_=tmp_offset:
                                                   s.scratch.bbl_addr == bbl_addr_ and s.inspect.tmp_write_num == tmp_offset_,

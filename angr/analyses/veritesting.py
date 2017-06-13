@@ -3,9 +3,8 @@ from collections import defaultdict
 
 import networkx
 
-from simuvex import SimProcedures, o
-
-from .. import KnowledgeBase
+from .. import SIM_PROCEDURES, KnowledgeBase
+from .. import options as o
 from ..errors import AngrError, AngrCFGError
 from ..analysis import Analysis, register_analysis
 from ..path_group import PathGroup
@@ -24,9 +23,9 @@ class CallTracingFilter(object):
     depth
     """
     whitelist = {
-        SimProcedures['cgc']['receive'],
-        SimProcedures['cgc']['transmit'],
-        SimProcedures['libc.so.6']['read'],
+        SIM_PROCEDURES['cgc']['receive'],
+        SIM_PROCEDURES['cgc']['transmit'],
+        SIM_PROCEDURES['libc.so.6']['read'],
     }
 
     cfg_cache = { }
@@ -673,6 +672,6 @@ class Veritesting(Analysis):
 
 register_analysis(Veritesting, 'Veritesting')
 
-from simuvex import SimValueError, SimSolverModeError, SimError
-from simuvex.s_options import BYPASS_VERITESTING_EXCEPTIONS
+from ..errors import SimValueError, SimSolverModeError, SimError
+from ..sim_options import BYPASS_VERITESTING_EXCEPTIONS
 from claripy import ClaripyError

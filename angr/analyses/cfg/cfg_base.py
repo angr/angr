@@ -8,12 +8,12 @@ import networkx
 
 from cle import ELF, PE, Blob, TLSObj
 import pyvex
-import simuvex
 from claripy.utils.orderedset import OrderedSet
 
+from ... import SIM_PROCEDURES
 from ...knowledge import HookNode, BlockNode, FunctionManager
 from ...analysis import Analysis
-from ...errors import AngrCFGError
+from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError
 from ...extern_obj import AngrExternObject
 
 from .cfg_node import CFGNode
@@ -96,7 +96,7 @@ class CFGBase(Analysis):
         # but we do not want to hook the same symbol multiple times
         if not self.project.is_symbol_hooked('UnresolvableTarget'):
             ut_addr = self.project.hook_symbol('UnresolvableTarget',
-                                               simuvex.SimProcedures['stubs']['UnresolvableTarget']
+                                               SIM_PROCEDURES['stubs']['UnresolvableTarget']
                                                )
         else:
             ut_addr = self.project.hooked_symbol_addr('UnresolvableTarget')
@@ -365,7 +365,7 @@ class CFGBase(Analysis):
 
         :param int addr: Address of the IRSB to get.
         :return:         An arbitrary IRSB located at `addr`.
-        :rtype:          simuvex.IRSB
+        :rtype:          IRSB
         """
         raise DeprecationWarning('"get_any_irsb()" is deprecated since SimIRSB does not exist anymore.')
 
@@ -1422,7 +1422,7 @@ class CFGBase(Analysis):
 
                     last_addr = b.addr + b.artifacts['irsb_size']
 
-                except (simuvex.SimTranslationError, simuvex.SimMemoryError, simuvex.SimIRSBError, simuvex.SimEngineError):
+                except (SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError):
                     break
 
             # find all functions that are between [ startpoint, endpoint ]

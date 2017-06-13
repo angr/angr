@@ -1,7 +1,9 @@
 import logging
 import weakref
-import simuvex
 import claripy
+
+from .state_plugins.sim_action import SimAction
+from . import sim_options as o
 
 l = logging.getLogger("angr.path_history")
 
@@ -93,10 +95,10 @@ class PathHistory(object):
                 # FIXME: redesign so this does not happen
                 l.warning("Encountered a path to a SimProcedure with a symbolic target address.")
 
-        if simuvex.o.UNICORN in state.options:
+        if o.UNICORN in state.options:
             self.extra_length += state.scratch.executed_block_count - 1
 
-        if simuvex.o.TRACK_ACTION_HISTORY in state.options:
+        if o.TRACK_ACTION_HISTORY in state.options:
             self._events = state.log.events
 
         # record constraints, added constraints, and satisfiability
@@ -160,7 +162,7 @@ class PathHistory(object):
 
     @property
     def actions(self):
-        return [ ev for ev in self.events if isinstance(ev, simuvex.SimAction) ]
+        return [ ev for ev in self.events if isinstance(ev, SimAction) ]
 
     @property
     def addr(self):

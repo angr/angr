@@ -1,12 +1,14 @@
 import nose
-import simuvex
 
 import logging
-l = logging.getLogger('simuvex.syscalls.mmap')
+
+from angr import SimState
+
+l = logging.getLogger('angr.tests.syscalls.mmap')
 
 
 def test_mmap_base_copy():
-    state = simuvex.SimState(arch="AMD64", mode="symbolic")
+    state = SimState(arch="AMD64", mode="symbolic")
 
     mmap_base = 0x12345678
 

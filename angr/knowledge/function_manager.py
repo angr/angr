@@ -3,7 +3,7 @@ import collections
 
 import networkx
 
-from simuvex import SimEngineError
+from ..errors import SimEngineError
 
 from .function import Function
 

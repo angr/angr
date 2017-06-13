@@ -8,15 +8,17 @@ from collections import defaultdict
 
 import cle
 import claripy
-import simuvex
 import pyvex
-from simuvex.s_errors import SimEngineError, SimMemoryError, SimTranslationError
 
 from ...blade import Blade
 from ...analysis import register_analysis
 from ...surveyors import Slicecutor
 from ...annocfg import AnnotatedCFG
-from ...errors import AngrCFGError
+from ...errors import AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError, \
+    SimSolverModeError
+from ... import sim_options as o
+from ...engines import SimEngineVEX
+from ... import BP, BP_BEFORE
 from ..forward_analysis import ForwardAnalysis
 from .cfg_node import CFGNode
 from .cfg_base import CFGBase, IndirectJump
@@ -964,7 +966,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         break
                     sz += chr(val)
                     next_addr += 1
-                except simuvex.SimValueError:
+                except SimValueError:
                     # Not concretizable
                     l.debug("Address 0x%08x is not concretizable!", next_addr)
                     break
@@ -1026,9 +1028,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Create an initial state. Store it to self so we can use it globally.
         self._initial_state = self.project.factory.blank_state(mode="fastpath")
-        initial_options = self._initial_state.options - {simuvex.o.TRACK_CONSTRAINTS} - simuvex.o.refs
-        initial_options |= {simuvex.o.SUPER_FASTPATH}
-        # initial_options.remove(simuvex.o.COW_STATES)
+        initial_options = self._initial_state.options - {o.TRACK_CONSTRAINTS} - o.refs
+        initial_options |= {o.SUPER_FASTPATH}
+        # initial_options.remove(o.COW_STATES)
         self._initial_state.options = initial_options
 
         starting_points = set()
@@ -2316,7 +2318,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return False
 
         # try to resolve the jump target
-        simsucc = simuvex.SimEngineVEX().process(self._initial_state, irsb, force_addr=addr)
+        simsucc = SimEngineVEX().process(self._initial_state, irsb, force_addr=addr)
         if len(simsucc.successors) == 1:
             ip = simsucc.successors[0].ip
             if ip._model_concrete is not ip:
@@ -2541,13 +2543,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     addr=src_irsb,
                     mode='static',
                     add_options={
-                        simuvex.o.DO_RET_EMULATION,
-                        simuvex.o.TRUE_RET_EMULATION_GUARD,
-                        simuvex.o.AVOID_MULTIVALUED_READS,
+                        o.DO_RET_EMULATION,
+                        o.TRUE_RET_EMULATION_GUARD,
+                        o.AVOID_MULTIVALUED_READS,
                     },
                     remove_options={
-                        simuvex.o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY,
-                        simuvex.o.UNINITIALIZED_ACCESS_AWARENESS,
+                        o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY,
+                        o.UNINITIALIZED_ACCESS_AWARENESS,
                     }
             )
             # any read from an uninitialized segment should be unconstrained
@@ -2556,13 +2558,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             for section in self.project.loader.main_bin.sections:
                 if section.name == '.bss':
                     bss_regions.append((self.project.loader.main_bin.rebase_addr + section.vaddr, section.memsize))
-                    bss_memory_read_bp = simuvex.BP(when=simuvex.BP_BEFORE, enabled=True, action=bss_memory_read_hook)
+                    bss_memory_read_bp = BP(when=BP_BEFORE, enabled=True, action=bss_memory_read_hook)
                     start_state.inspect.add_breakpoint('mem_read', bss_memory_read_bp)
                     break
 
             start_state.regs.bp = start_state.arch.initial_sp + 0x2000
 
-            init_registers_on_demand_bp = simuvex.BP(when=simuvex.BP_BEFORE, enabled=True, action=init_registers_on_demand)
+            init_registers_on_demand_bp = BP(when=BP_BEFORE, enabled=True, action=init_registers_on_demand)
             start_state.inspect.add_breakpoint('mem_read', init_registers_on_demand_bp)
 
             start_path = self.project.factory.path(start_state)
@@ -2673,9 +2675,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     addr=src_irsb,
                     mode='static',
                     add_options={
-                        simuvex.o.DO_RET_EMULATION,
-                        simuvex.o.TRUE_RET_EMULATION_GUARD,
-                        simuvex.o.KEEP_MEMORY_READS_DISCRETE, # Please do not merge values that are read out of the
+                        o.DO_RET_EMULATION,
+                        o.TRUE_RET_EMULATION_GUARD,
+                        o.KEEP_MEMORY_READS_DISCRETE, # Please do not merge values that are read out of the
                                                               # memory
                     }
             )
@@ -2754,7 +2756,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             if jumpkind == "Ijk_Call":
                 state = self.project.factory.blank_state(addr=irsb_addr, mode="concrete",
-                                                         add_options={simuvex.o.SYMBOLIC_INITIAL_VALUES}
+                                                         add_options={o.SYMBOLIC_INITIAL_VALUES}
                                                          )
                 path = self.project.factory.path(state)
                 print hex(irsb_addr)
@@ -2765,7 +2767,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                     function_starts.add(ip)
                     continue
-                except simuvex.SimSolverModeError:
+                except SimSolverModeError:
                     pass
 
                 # Not resolved
@@ -2799,8 +2801,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     start_state = self.project.factory.blank_state(
                             addr=src_irsb,
                             add_options={
-                                simuvex.o.DO_RET_EMULATION,
-                                simuvex.o.TRUE_RET_EMULATION_GUARD
+                                o.DO_RET_EMULATION,
+                                o.TRUE_RET_EMULATION_GUARD
                             }
                     )
 
@@ -3768,7 +3770,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 # Prudently search for $gp values
                 state = self.project.factory.blank_state(addr=addr, mode="fastpath",
-                                                         remove_options={simuvex.options.OPTIMIZE_IR}
+                                                         remove_options={o.OPTIMIZE_IR}
                                                          )
                 state.regs.t9 = func_addr
                 state.regs.gp = 0xffffffff

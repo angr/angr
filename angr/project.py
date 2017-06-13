@@ -8,21 +8,24 @@ import logging
 import weakref
 from collections import defaultdict
 import cle
-import simuvex
 import archinfo
+
+from . import engines, SIM_PROCEDURES, procedures
+from .sim_procedure import SimProcedure
+
 l = logging.getLogger("angr.project")
 
-# This holds the default SimuVEX engine for a given CLE loader backend.
+# This holds the default execution engine for a given CLE loader backend.
 # All the builtins right now use SimEngineVEX.  This may not hold for long.
 
 
-def global_default(): return {'any': simuvex.engines.SimEngineVEX}
+def global_default(): return {'any': engines.SimEngineVEX}
 default_engines = defaultdict(global_default)
 
 
 def register_default_engine(loader_backend, engine, arch='any'):
     """
-    Register the default SimuVEX engine to be used with a given CLE backend.
+    Register the default execution engine to be used with a given CLE backend.
     Usually this is the SimEngineVEX, but if you're operating on something that isn't
     going to be lifted to VEX, you'll need to make sure the desired engine is registered here.
 
@@ -200,7 +203,7 @@ class Project(object):
         procedure_engine = SimEngineHook(self)
         failure_engine = SimEngineFailure(self)
         syscall_engine = SimEngineSyscall(self)
-        unicorn_engine = simuvex.SimEngineUnicorn(self._sim_procedures)
+        unicorn_engine = engines.SimEngineUnicorn(self._sim_procedures)
 
         self.entry = self.loader.main_bin.entry
         self.factory = AngrObjectFactory(
@@ -237,7 +240,7 @@ class Project(object):
         It's too big to just get pasted into the initializer.
         """
 
-        # Step 1: Get the appropriate libraries of SimProcedures from simuvex
+        # Step 1: Get the appropriate libraries of SimProcedures
         libs = []
         for lib_name in self.loader.requested_objects:
             if isinstance(self.loader.main_bin, cle.backends.pe.PE):
@@ -250,7 +253,7 @@ class Project(object):
             if lib_name == 'ld-uClibc.so.0':
                 lib_name = 'ld-uClibc.so.6'
 
-            if lib_name not in simuvex.procedures.SimProcedures:
+            if lib_name not in SIM_PROCEDURES:
                 l.debug("There are no simprocedures for library %s :(", lib_name)
             else:
                 libs.append(lib_name)
@@ -278,7 +281,7 @@ class Project(object):
 
                 elif self._should_use_sim_procedures:
                     for lib in libs:
-                        simfuncs = simuvex.procedures.SimProcedures[lib]
+                        simfuncs = SIM_PROCEDURES[lib]
                         if func.name in simfuncs:
                             l.info("Providing %s from %s with SimProcedure", func.name, lib)
                             pending_hooks[func.name] = Hook(simfuncs[func.name])
@@ -305,9 +308,9 @@ class Project(object):
             if func.is_weak:
                 continue
             l.info("[U] %s", func.name)
-            procedure = simuvex.SimProcedures['stubs']['NoReturnUnconstrained']
+            procedure = SIM_PROCEDURES['stubs']['NoReturnUnconstrained']
             if func.name not in procedure.use_cases:
-                procedure = simuvex.SimProcedures['stubs']['ReturnUnconstrained']
+                procedure = SIM_PROCEDURES['stubs']['ReturnUnconstrained']
             pending_hooks[func.name] = Hook(procedure, resolves=func.name)
 
         self.hook_symbol_batch(pending_hooks)
@@ -364,10 +367,10 @@ class Project(object):
         if not isinstance(hook, Hook):
             if kwargs is None: kwargs = {}
 
-            if isinstance(hook, type) and issubclass(hook, simuvex.s_procedure.SimProcedure):
+            if isinstance(hook, type) and issubclass(hook, SimProcedure):
                 hook = Hook(hook, **kwargs)
             elif callable(hook):
-                hook = Hook(simuvex.procedures.stubs.UserHook.UserHook,
+                hook = Hook(procedures.stubs.UserHook.UserHook,
                             user_func=hook,
                             length=length)
             else:
@@ -610,7 +613,7 @@ class Hook(object):
     An instance of this class may be passed to `angr.Project.hook` along with the address at which
     to hook.
 
-    More specifically, a hook is a wrapper for a SimProcedure, a simuvex object that contains a lot
+    More specifically, a hook is a wrapper for a SimProcedure, an object that contains a lot
     of logic for how to mutate a state in common ways. The SimProcedure base class is subclassed
     to produce a SimProcedure that may be used for hooking. If the SimProcedure class is too heavy
     for your use case, there is a class method `wrap` on this class that can be used to wrap a
@@ -639,7 +642,7 @@ class Hook(object):
         kwargs['continuation_addr'] = self._continuation_addr
         if self.cc: kwargs['cc'] = self.cc
         return self.procedure(*args, **kwargs)
-    instantiate.__doc__ = simuvex.s_procedure.SimProcedure.__init__.__doc__
+    instantiate.__doc__ = SimProcedure.__init__.__doc__
 
     def __repr__(self):
         try:
@@ -701,7 +704,7 @@ class Hook(object):
                   This will usually be `Ijk_Boring`, which signifies an ordinary jump or branch.
         """
         def inner(function):
-            return Hook(simuvex.procedures.stubs.UserHook.UserHook,
+            return Hook(procedures.stubs.UserHook.UserHook,
                         user_func=function,
                         length=length)
         return inner

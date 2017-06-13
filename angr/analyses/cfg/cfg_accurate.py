@@ -5,12 +5,16 @@ from collections import defaultdict
 import claripy
 import networkx
 import pyvex
-import simuvex
 from archinfo import ArchARM
-from simuvex import SimEngineProcedure
 
+from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
+from ... import options as o
 from ...analysis import register_analysis
-from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice
+from ...state_plugins.sim_action import SimActionData
+from ...engines import SimEngineProcedure
+from ...sim_state import SimState
+from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice, SimError, SimValueError, SimSolverModeError, \
+    SimFastPathError, SimIRSBError
 from ...path import Path
 from ..forward_analysis import ForwardAnalysis
 from .cfg_job_base import BlockID, CFGJobBase
@@ -780,7 +784,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 elif isinstance(item, (int, long)):
                     new_starts.append((item, None))
 
-                elif isinstance(item, (simuvex.SimState, Path)):
+                elif isinstance(item, (SimState, Path)):
                     new_starts.append(item)
 
                 else:
@@ -840,8 +844,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 ip = item[0]
                 state = self._create_initial_state(item[0], item[1])
 
-            elif isinstance(item, simuvex.SimState):
-                # simuvex.SimState
+            elif isinstance(item, SimState):
+                # SimState
                 state = item.copy()  # pylint: disable=no-member
                 ip = state.se.exactly_int(state.ip)
                 state.set_mode('fastpath')
@@ -914,7 +918,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param int ip: The instruction pointer
         :param str jumpkind: The jumpkind upon executing the block
         :return: The newly-generated state
-        :rtype: simuvex.SimState
+        :rtype: SimState
         """
 
         jumpkind = "Ijk_Boring" if jumpkind is None else jumpkind
@@ -1092,7 +1096,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             should_skip = True
 
         # SimInspect breakpoints support
-        job.state._inspect('cfg_handle_job', simuvex.BP_BEFORE)
+        job.state._inspect('cfg_handle_job', BP_BEFORE)
 
         # Get a SimSuccessors out of current job
         sim_successors, error_occurred, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
@@ -1302,7 +1306,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self._push_unresolvable_run(addr)
 
             if sim_successors.sort == 'SimProcedure' and isinstance(sim_successors.artifacts['procedure'],
-                    simuvex.procedures.SimProcedures["stubs"]["PathTerminator"]):
+                    SIM_PROCEDURES["stubs"]["PathTerminator"]):
                 # If there is no valid exit in this branch and it's not
                 # intentional (e.g. caused by a SimProcedure that does not
                 # do_return) , we should make it return to its call-site. However,
@@ -1380,14 +1384,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self._post_handle_job_debug(job, successors)
 
         # SimInspect breakpoints support
-        job.state._inspect('cfg_handle_job', simuvex.BP_AFTER)
+        job.state._inspect('cfg_handle_job', BP_AFTER)
 
     def _post_process_successors(self, input_state, sim_successors, successors):
         """
         Filter the list of successors
 
-        :param simuvex.SimState      input_state:    Input state.
-        :param simuvex.SimSuccessors sim_successors: The SimSuccessors instance.
+        :param SimState      input_state:            Input state.
+        :param SimSuccessors sim_successors:         The SimSuccessors instance.
         :param list successors:                      A list of successors generated after processing the current block.
         :return:                                     A list of successors.
         :rtype:                                      list
@@ -1454,7 +1458,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             try:
                 l.debug("|    target: %#x %s [%s] %s", suc.se.exactly_int(suc.ip), successor_status[suc],
                         exit_type_str, jumpkind)
-            except (simuvex.SimValueError, simuvex.SimSolverModeError):
+            except (SimValueError, SimSolverModeError):
                 l.debug("|    target cannot be concretized. %s [%s] %s", successor_status[suc], exit_type_str,
                         jumpkind)
         l.debug("%d exits remaining, %d exits pending.", len(self._job_info_queue), len(self._pending_jobs))
@@ -1612,7 +1616,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # Get target address
         try:
             target_addr = state.se.exactly_n_int(state.ip, 1)[0]
-        except (simuvex.SimValueError, simuvex.SimSolverModeError):
+        except (SimValueError, SimSolverModeError):
             # It cannot be concretized currently. Maybe we can handle it later, maybe it just cannot be concretized
             target_addr = None
             if suc_jumpkind == "Ijk_Ret":
@@ -1766,8 +1770,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         For a given state and current location of of execution, will update a function by adding the offets of
         appropriate actions to the stack variable or argument registers for the fnc.
 
-        :param simuvex.s_state.SimState state: upcoming state.
-        :param simuvex.SimSuccessors current_run: possible result states.
+        :param SimState state: upcoming state.
+        :param SimSuccessors current_run: possible result states.
         :param knowledge.Function func: current function.
         :param int sp_addr: stack pointer address.
         :param set accessed_registers: set of before accessed registers.
@@ -2070,7 +2074,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
         Resolve indirect jumps specified by sim_successors.addr.
 
-        :param simuvex.SimSuccessors sim_successors: The SimSuccessors instance.
+        :param SimSuccessors sim_successors: The SimSuccessors instance.
         :param CFGNode cfg_node:                     The CFGNode instance.
         :param int func_addr:                        Current function address.
         :param list successors:                      A list of successors.
@@ -2185,7 +2189,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             resolved = True if not symbolic_successors else False
             if symbolic_successors:
                 for suc in symbolic_successors:
-                    if simuvex.o.SYMBOLIC in suc.options:
+                    if o.SYMBOLIC in suc.options:
                         targets = suc.se.any_n_int(suc.ip, 32)
                         if len(targets) < 32:
                             all_successors = []
@@ -2368,7 +2372,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         Symbolically executes from ancestor nodes (2-5 times removed) finding paths of execution through the given
         CFGNode.
 
-        :param simuvex.SimSuccessors current_block: SimSuccessor with address to attempt to navigate to.
+        :param SimSuccessors current_block: SimSuccessor with address to attempt to navigate to.
         :param dict block_artifacts:  Container of IRSB data - specifically used for known persistant register values.
         :param CFGNode cfg_node:      Current node interested around.
         :returns:                     Double checked concrete successors.
@@ -2389,7 +2393,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 """
                 Writes over given registers from self._info_coollection (taken from block_artifacts)
 
-                :param simuvex.SimSuccessors state_: state to update registers for
+                :param SimSuccessors state_: state to update registers for
                 """
                 if state_.inspect.address is None:
                     l.error('state.inspect.address is None. It will be fixed by Yan later.')
@@ -2445,9 +2449,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 state = self.project.factory.blank_state(addr=n.addr,
                                                          mode='symbolic',
                                                          add_options={
-                                                                         simuvex.o.DO_RET_EMULATION,
-                                                                         simuvex.o.CONSERVATIVE_READ_STRATEGY,
-                                                                     } | simuvex.o.resilience_options
+                                                                         o.DO_RET_EMULATION,
+                                                                         o.CONSERVATIVE_READ_STRATEGY,
+                                                                     } | o.resilience_options
                                                          )
                 # Avoid concretization of any symbolic read address that is over a certain limit
                 # TODO: test case is needed for this option
@@ -2459,8 +2463,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 for reg in state.arch.persistent_regs:
                     reg_protector = register_protector(reg, block_artifacts)
                     state.inspect.add_breakpoint('reg_write',
-                                                 simuvex.BP(
-                                                     simuvex.BP_AFTER,
+                                                 BP(
+                                                     BP_AFTER,
                                                      reg_write_offset=state.arch.registers[reg][0],
                                                      action=reg_protector.write_persistent_register
                                                  )
@@ -2530,7 +2534,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         path = self.project.factory.path(symbolic_initial_state)
         try:
             sim_successors = self.project.factory.successors(path.state, num_inst=num_instr)
-        except (simuvex.SimError, AngrError):
+        except (SimError, AngrError):
             return None
 
         # We execute all but the last instruction in this basic block, so we have a cleaner
@@ -2557,7 +2561,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
         Scan for constants that might be used as exit targets later, and add them into pending_exits.
 
-        :param simuvex.SimState successor_state: A successing state.
+        :param SimState successor_state: A successing state.
         :return:                                 A list of discovered code addresses.
         :rtype:                                  list
         """
@@ -2573,7 +2577,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 continue
 
             # Enumerate actions
-            if isinstance(action, simuvex.s_action.SimActionData):
+            if isinstance(action, SimActionData):
                 data = action.data
                 if data is not None:
                     # TODO: Check if there is a proper way to tell whether this const falls in the range of code
@@ -2613,7 +2617,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param CFGJob job:                The CFG job instance with an input state inside.
         :param int current_function_addr: Address of the current function.
         :return:                          A SimSuccessors instance
-        :rtype:                           simuvex.SimSuccessors
+        :rtype:                           SimSuccessors
         """
 
         error_occurred = False
@@ -2662,11 +2666,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     old_name = None
 
                     if old_proc.IS_SYSCALL:
-                        new_stub = simuvex.procedures.SimProcedures["syscalls"]["stub"]
+                        new_stub = SIM_PROCEDURES["syscalls"]["stub"]
                         ret_to = state.regs.ip_at_syscall
                     else:
                         # normal SimProcedures
-                        new_stub = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"]
+                        new_stub = SIM_PROCEDURES["stubs"]["ReturnUnconstrained"]
                         ret_to = None
 
                     if old_proc is new_stub and self.project.is_hooked(addr):
@@ -2698,7 +2702,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         size=block_size,
                         opt_level=self._iropt_level)
 
-        except (simuvex.SimFastPathError, simuvex.SimSolverModeError) as ex:
+        except (SimFastPathError, SimSolverModeError) as ex:
 
             if saved_state.mode == 'fastpath':
                 # Got a SimFastPathError or SimSolverModeError in FastPath mode.
@@ -2715,7 +2719,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 if new_state is None:
                     new_state = state.copy()
                     new_state.set_mode('symbolic')
-                new_state.options.add(simuvex.o.DO_RET_EMULATION)
+                new_state.options.add(o.DO_RET_EMULATION)
                 # Remove bad constraints
                 # FIXME: This is so hackish...
                 new_state.se._solver.constraints = [c for c in new_state.se.constraints if
@@ -2730,31 +2734,31 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # Skip this IRSB
                 l.debug("Caught a SimIRSBError %s. Don't panic, this is usually expected.", ex)
                 error_occurred = True
-                inst = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](addr, self.project.arch)
+                inst = SIM_PROCEDURES["stubs"]["PathTerminator"](addr, self.project.arch)
                 sim_successors = SimEngineProcedure().process(state, inst)
 
 
-        except simuvex.SimIRSBError:
+        except SimIRSBError:
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
             l.debug("Caught a SimIRSBError during CFG recovery. Creating a PathTerminator.", exc_info=True)
             error_occurred = True
-            inst = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](addr, self.project.arch)
+            inst = SIM_PROCEDURES["stubs"]["PathTerminator"](addr, self.project.arch)
             sim_successors = SimEngineProcedure().process(state, inst)
 
         except claripy.ClaripyError:
             l.debug("Caught a ClaripyError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             error_occurred = True
             # Generate a PathTerminator to terminate the current path
-            inst = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](addr, self.project.arch)
+            inst = SIM_PROCEDURES["stubs"]["PathTerminator"](addr, self.project.arch)
             sim_successors = SimEngineProcedure().process(state, inst)
 
-        except simuvex.SimError:
+        except SimError:
             l.debug("Caught a SimError when during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
 
             error_occurred = True
             # Generate a PathTerminator to terminate the current path
-            inst = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](addr, self.project.arch)
+            inst = SIM_PROCEDURES["stubs"]["PathTerminator"](addr, self.project.arch)
             sim_successors = SimEngineProcedure().process(state,
                                                           inst
                                                           )
@@ -2782,7 +2786,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         Creates a new call stack, and according to the jumpkind performs appropriate actions.
 
         :param int addr:                          Address to create at.
-        :param simuvex.Simsuccessors all_jobs:    Jobs to get stack pointer from or return address.
+        :param Simsuccessors all_jobs:            Jobs to get stack pointer from or return address.
         :param CFGJob job:                        CFGJob to copy current call stack from.
         :param int exit_target:                   Address of exit target.
         :param str jumpkind:                      The type of jump performed.
@@ -2858,7 +2862,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # although the jumpkind is not Ijk_Call, it may still jump to a new function... let's see
             if self.project.is_hooked(exit_target):
                 hooker = self.project.hooked_by(exit_target)
-                if not hooker is simuvex.procedures.stubs.UserHook.UserHook:
+                if not hooker is procedures.stubs.UserHook.UserHook:
                     # if it's not a UserHook, it must be a function
                     # Update the function address of the most recent call stack frame
                     new_call_stack = job.call_stack_copy()
@@ -2880,7 +2884,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
         Create a context-sensitive CFGNode instance for a specific block.
 
-        :param simuvex.SimSuccessors sim_successors: The SimSuccessors object.
+        :param SimSuccessors sim_successors:         The SimSuccessors object.
         :param CallStack call_stack_suffix:          The call stack.
         :param int func_addr:                        Address of the current function.
         :param BlockID block_id:                     The block ID of this CFGNode.
@@ -3036,7 +3040,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 func.prepared_registers.add(tuple(regs_overwritten))
                 func.prepared_stack_variables.add(tuple(stack_overwritten))
 
-            except (simuvex.SimError, AngrError):
+            except (SimError, AngrError):
                 pass
 
             try:
@@ -3062,7 +3066,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                     func.registers_read_afterwards.add(tuple(regs_read))
 
-            except (simuvex.SimError, AngrError):
+            except (SimError, AngrError):
                 pass
 
     # Private methods - dominators and post-dominators

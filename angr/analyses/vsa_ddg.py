@@ -3,7 +3,7 @@ from collections import defaultdict
 
 import networkx
 
-from simuvex import SimRegisterVariable, SimMemoryVariable
+from ..sim_variable import SimRegisterVariable, SimMemoryVariable
 
 from ..errors import AngrDDGError
 from ..analysis import Analysis, register_analysis

@@ -23,7 +23,7 @@ class __libc_start_main(angr.SimProcedure):
 
         See __ctype_b_loc.c in libc implementation
         """
-        malloc = angr.SimProcedures['libc.so.6']['malloc']
+        malloc = angr.SIM_PROCEDURES['libc.so.6']['malloc']
         table = self.inline_call(malloc, 768).ret_expr
         table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
 
@@ -54,7 +54,7 @@ class __libc_start_main(angr.SimProcedure):
 
         See __ctype_tolower_loc.c in libc implementation
         """
-        malloc = angr.SimProcedures['libc.so.6']['malloc']
+        malloc = angr.SIM_PROCEDURES['libc.so.6']['malloc']
         # 384 entries, 4 bytes each
         table = self.inline_call(malloc, 384*4).ret_expr
         table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
@@ -85,7 +85,7 @@ class __libc_start_main(angr.SimProcedure):
 
         See __ctype_toupper_loc.c in libc implementation
         """
-        malloc = angr.SimProcedures['libc.so.6']['malloc']
+        malloc = angr.SIM_PROCEDURES['libc.so.6']['malloc']
         # 384 entries, 4 bytes each
         table = self.inline_call(malloc, 384*4).ret_expr
         table_ptr = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr

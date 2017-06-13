@@ -4,6 +4,8 @@ import string
 import claripy
 import logging
 
+from .. import sim_type
+
 l = logging.getLogger("angr.misc.format_parser")
 
 class FormatString(object):
@@ -212,7 +214,7 @@ class FormatParser(SimProcedure):
     For SimProcedures relying on format strings.
     """
 
-    # Basic conversion specifiers for format strings, mapped to Simuvex s_types
+    # Basic conversion specifiers for format strings, mapped to sim_types
     # TODO: support for C and S that are deprecated.
     # TODO: We only consider POSIX locales here.
     basic_spec = {
@@ -258,7 +260,7 @@ class FormatParser(SimProcedure):
         't' : ('ptrdiff_t', 'ptrdiff_t'), # TODO: implement in s_type
     }
 
-    # Types that are not known by Simuvex.s_types
+    # Types that are not known by sim_types
     # Maps to (size, signedness)
     other_types = {
         ('string',): lambda _:(0, True) # special value for strings, we need to count
@@ -329,12 +331,12 @@ class FormatParser(SimProcedure):
         # is it an actual format?
         for spec in all_spec:
             if nugget.startswith(spec):
-                # this is gross coz simuvex.s_type is gross..
+                # this is gross coz sim_type is gross..
                 nugget = nugget[:len(spec)]
                 original_nugget = original_nugget[:(length_spec_str_len + len(spec))]
                 nugtype = all_spec[nugget]
                 try:
-                    typeobj = simuvex.s_type.parse_type(nugtype).with_arch(self.state.arch)
+                    typeobj = sim_type.parse_type(nugtype).with_arch(self.state.arch)
                 except:
                     raise SimProcedureError("format specifier uses unknown type '%s'" % repr(nugtype))
                 return FormatSpecifier(original_nugget, length_spec, typeobj.size / 8, typeobj.signed)
@@ -386,7 +388,8 @@ class FormatParser(SimProcedure):
         Return the result of invoking the atoi simprocedure on `str_addr`.
         """
 
-        strtol = simuvex.SimProcedures['libc.so.6']['strtol']
+        from .. import SIM_PROCEDURES
+        strtol = SIM_PROCEDURES['libc.so.6']['strtol']
 
         return strtol.strtol_inner(str_addr, self.state, region, base, True, read_length=read_length)
 
@@ -396,7 +399,8 @@ class FormatParser(SimProcedure):
         Return the result of invoking the strlen simprocedure on `str_addr`.
         """
 
-        strlen = simuvex.SimProcedures['libc.so.6']['strlen']
+        from .. import SIM_PROCEDURES
+        strlen = SIM_PROCEDURES['libc.so.6']['strlen']
 
         return self.inline_call(strlen, str_addr).ret_expr
 

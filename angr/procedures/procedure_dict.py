@@ -4,7 +4,6 @@ import os
 from collections import defaultdict
 
 l = logging.getLogger("angr.procedures.procedure_dict")
-l.setLevel(logging.DEBUG)
 
 from ..sim_procedure import SimProcedure
 
@@ -15,7 +14,6 @@ path = os.path.dirname(os.path.abspath(__file__))
 skip_dirs = ['__init__.py', '__pycache__']
 skip_procs = ['__init__']
 
-print "HOLY FUCK"
 
 for lib_module_name in os.listdir(path):
     if lib_module_name in skip_dirs:

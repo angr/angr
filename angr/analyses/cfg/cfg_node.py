@@ -1,6 +1,7 @@
 import pyvex
-import simuvex
 import archinfo
+
+from ...engines.successors import SimSuccessors
 
 
 class CFGNode(object):
@@ -138,7 +139,7 @@ class CFGNode(object):
         return s
 
     def __eq__(self, other):
-        if isinstance(other, simuvex.SimSuccessors):
+        if isinstance(other, SimSuccessors):
             raise ValueError("You do not want to be comparing a SimSuccessors instance to a CFGNode.")
         if not isinstance(other, CFGNode):
             return False

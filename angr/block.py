@@ -3,7 +3,7 @@ l = logging.getLogger("angr.block")
 
 import pyvex
 from archinfo import ArchARM
-from simuvex import SimEngineVEX
+from .engines import SimEngineVEX
 
 DEFAULT_VEX_ENGINE = SimEngineVEX()  # this is only used when Block is not initialized with a project
 

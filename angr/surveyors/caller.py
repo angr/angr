@@ -1,5 +1,5 @@
 from .explorer import Explorer
-from ..calling_convention import DEFAULT_CC
+from ..calling_conventions import DEFAULT_CC
 
 class Callable(object):
     """

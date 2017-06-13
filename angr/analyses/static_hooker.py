@@ -1,4 +1,5 @@
-import simuvex
+
+from .. import SIM_PROCEDURES
 from ..analysis import register_analysis, Analysis
 from ..errors import AngrValueError
 
@@ -23,11 +24,11 @@ class StaticHooker(Analysis):
         for func in self.project.loader.main_bin._symbol_cache.values():
             if not func.is_function: continue
             try:
-                self.project.hook(func.rebased_addr, simuvex.SimProcedures['libc.so.6'][func.name])
+                self.project.hook(func.rebased_addr, SIM_PROCEDURES['libc.so.6'][func.name])
             except:     # pylint: disable=bare-except
                 l.debug("Failed to hook %s at %#x", func.name, func.rebased_addr)
             else:
                 l.info("Hooked %s at %#x", func.name, func.rebased_addr)
-                self.results[func.rebased_addr] = simuvex.SimProcedures['libc.so.6'][func.name]
+                self.results[func.rebased_addr] = SIM_PROCEDURES['libc.so.6'][func.name]
 
 register_analysis(StaticHooker, 'StaticHooker')

@@ -12,7 +12,7 @@ import networkx
 import pyvex
 import cle
 
-from simuvex import SimMemoryVariable, SimTemporaryVariable
+from ..sim_variable import SimMemoryVariable, SimTemporaryVariable
 from ..analysis import Analysis, register_analysis
 from ..knowledge_base import KnowledgeBase
 from ..extern_obj import AngrExternObject
@@ -2744,7 +2744,7 @@ class Reassembler(Analysis):
                                                     keep_state=True,
                                                     base_graph=base_graph
                                                     )
-            candidate_irsb = cfg.get_any_irsb(candidate.irsb_addr)  # type: simuvex.SimIRSB
+            candidate_irsb = cfg.get_any_irsb(candidate.irsb_addr)  # type: SimIRSB
             ddg = self.project.analyses.DDG(kb=tmp_kb, cfg=cfg)
 
             mem_var_node = None

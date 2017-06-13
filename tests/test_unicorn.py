@@ -6,8 +6,8 @@ import re
 import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../'))
 
-import simuvex
-from simuvex import s_options as so
+import angr
+from angr import options as so
 
 
 def _remove_addr_from_trace_item(trace_item_str):
@@ -135,7 +135,7 @@ def test_similarity_fauxware():
     run_similarity("binaries/tests/i386/fauxware", 1000, prehook=cooldown)
 
 def test_fp():
-    type_cache = simuvex.s_type.parse_defns(open(os.path.join(test_location, 'binaries/tests_src/manyfloatsum.c')).read())
+    type_cache = angr.sim_type.parse_defns(open(os.path.join(test_location, 'binaries/tests_src/manyfloatsum.c')).read())
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/manyfloatsum'))
 
     for function in ('sum_floats', 'sum_combo', 'sum_segregated', 'sum_doubles', 'sum_combo_doubles', 'sum_segregated_doubles'):
@@ -163,7 +163,7 @@ def test_unicorn_pickle():
         return s_unicorn
 
     pg = p.factory.path_group(_uni_state())
-    pg.one_active.state.options.update(simuvex.o.unicorn)
+    pg.one_active.state.options.update(so.unicorn)
     pg.step(until=lambda lpg: "Unicorn" in lpg.one_active.history._runstr)
     assert len(pg.active) > 0
 
@@ -217,8 +217,8 @@ def test_concrete_transmits():
 
 if __name__ == '__main__':
     #import logging
-    #logging.getLogger('simuvex.plugins.unicorn').setLevel('DEBUG')
-    #logging.getLogger('simuvex.s_unicorn').setLevel('INFO')
+    #logging.getLogger('angr.state_plugins.unicorn_engine').setLevel('DEBUG')
+    #logging.getLogger('angr.engines.unicorn_engine').setLevel('INFO')
     #logging.getLogger('angr.factory').setLevel('DEBUG')
     #logging.getLogger('angr.project').setLevel('DEBUG')
 

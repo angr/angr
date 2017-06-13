@@ -24,6 +24,9 @@ class SimEngineFailure(SimEngine): #pylint:disable=abstract-method
         return False
 
     def process(self, state, **kwargs):
+
+        from ..procedures import SIM_PROCEDURES
+
         addr = state.se.any_int(state._ip)
 
         if state.scratch.jumpkind in ("Ijk_EmFail", "Ijk_MapFail") or "Ijk_Sig" in state.scratch.jumpkind:
@@ -58,4 +61,3 @@ class SimEngineFailure(SimEngine): #pylint:disable=abstract-method
 
 from ..errors import AngrExitError
 from .successors import SimSuccessors
-# from ..procedures import SIM_PROCEDURES

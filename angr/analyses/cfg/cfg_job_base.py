@@ -1,8 +1,8 @@
 
 import logging
 
-import simuvex
 
+from ...errors import SimValueError, SimSolverModeError
 from ...call_stack import CallStack
 
 l = logging.getLogger("angr.analyses.cfg.cfg_job_base")
@@ -141,7 +141,7 @@ class CFGJobBase(object):
             # If the sp_expr cannot be concretized, the stack pointer cannot be traced anymore.
             try:
                 sp = se.exactly_n_int(sp_expr, 1)[0]
-            except (simuvex.SimValueError, simuvex.SimSolverModeError):
+            except (SimValueError, SimSolverModeError):
                 l.warning("Stack pointer cannot be concretized. CallStack cannot track the stack pointer changes.")
 
                 # Set the stack pointer to None

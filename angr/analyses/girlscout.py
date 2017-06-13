@@ -10,12 +10,13 @@ from collections import defaultdict
 import networkx
 import progressbar
 
-import simuvex
 import cle
 import pyvex
-from simuvex.s_errors import SimMemoryError, SimEngineError
 
-from ..errors import AngrError
+from .. import options as o
+from ..state_plugins.sim_action import SimActionData
+from ..errors import SimMemoryError, SimEngineError, AngrError, SimValueError, SimIRSBError, SimSolverModeError, \
+    SimError
 from ..analysis import Analysis, register_analysis
 from ..surveyors import Explorer, Slicecutor
 from ..annocfg import AnnotatedCFG
@@ -144,7 +145,7 @@ class GirlScout(Analysis):
                         break
                     sz += chr(val)
                     next_addr += 1
-                except simuvex.SimValueError:
+                except SimValueError:
                     # Not concretizable
                     l.debug("Address 0x%08x is not concretizable!", next_addr)
                     break
@@ -181,7 +182,7 @@ class GirlScout(Analysis):
         """
         state = self.project.factory.blank_state(addr=addr,
                                                   mode="symbolic",
-                                                  add_options={simuvex.o.CALLLESS}
+                                                  add_options={o.CALLLESS}
                                                  )
         initial_exit = self.project.factory.path(state)
         explorer = Explorer(self.project,
@@ -196,12 +197,12 @@ class GirlScout(Analysis):
             return []
 
     def _static_memory_slice(self, run):
-        if isinstance(run, simuvex.SimIRSB):
+        if isinstance(run, SimIRSB):
             for stmt in run.statements:
                 refs = stmt.actions
                 if len(refs) > 0:
                     real_ref = refs[-1]
-                    if type(real_ref) == simuvex.SimActionData:
+                    if type(real_ref) == SimActionData:
                         if real_ref.action == 'write':
                             addr = real_ref.addr
                             if not run.initial_state.se.symbolic(addr):
@@ -306,23 +307,23 @@ class GirlScout(Analysis):
         s_path = self.project.factory.path(state)
         try:
             s_run = s_path.next_run
-        except simuvex.SimIRSBError, ex:
+        except SimIRSBError, ex:
             l.debug(ex)
             return
         except AngrError, ex:
             # "No memory at xxx"
             l.debug(ex)
             return
-        except (simuvex.SimValueError, simuvex.SimSolverModeError), ex:
+        except (SimValueError, SimSolverModeError), ex:
             # Cannot concretize something when executing the SimRun
             l.debug(ex)
             return
-        except simuvex.SimError as ex:
+        except SimError as ex:
             # Catch all simuvex errors
             l.debug(ex)
             return
 
-        if type(s_run) is simuvex.SimIRSB:
+        if type(s_run) is SimIRSB:
             # Calculate its entropy to avoid jumping into uninitialized/all-zero space
             bytes = s_run.irsb._state[1]['bytes']
             size = s_run.irsb.size
@@ -334,7 +335,7 @@ class GirlScout(Analysis):
         # self._static_memory_slice(s_run)
 
         # Mark that part as occupied
-        if isinstance(s_run, simuvex.SimIRSB):
+        if isinstance(s_run, SimIRSB):
             self._seg_list.occupy(addr, s_run.irsb.size)
         successors = s_run.flat_successors + s_run.unsat_successors
         has_call_exit = False
@@ -356,7 +357,7 @@ class GirlScout(Analysis):
                 # Try to concretize the target. If we can't, just move on
                 # to the next target
                 next_addr = suc.se.exactly_n_int(suc.ip, 1)[0]
-            except (simuvex.SimValueError, simuvex.SimSolverModeError) as ex:
+            except (SimValueError, SimSolverModeError) as ex:
                 # Undecidable jumps (might be a function return, or a conditional branch, etc.)
 
                 # We log it
@@ -488,7 +489,7 @@ class GirlScout(Analysis):
 
             if jumpkind == "Ijk_Call":
                 state = self.project.factory.blank_state(addr=irsb_addr, mode="concrete",
-                                                    add_options={simuvex.o.SYMBOLIC_INITIAL_VALUES}
+                                                    add_options={o.SYMBOLIC_INITIAL_VALUES}
                                                    )
                 path = self.project.factory.path(state)
                 print hex(irsb_addr)
@@ -499,7 +500,7 @@ class GirlScout(Analysis):
 
                     function_starts.add(ip)
                     continue
-                except simuvex.SimSolverModeError as ex:
+                except SimSolverModeError as ex:
                     pass
 
                 # Not resolved
@@ -533,8 +534,8 @@ class GirlScout(Analysis):
 
                     start_state = self.project.factory.blank_state(addr=src_irsb,
                                                               add_options=
-                                                              {simuvex.o.DO_RET_EMULATION,
-                                                               simuvex.o.TRUE_RET_EMULATION_GUARD}
+                                                              {o.DO_RET_EMULATION,
+                                                               o.TRUE_RET_EMULATION_GUARD}
                                                              )
 
                     start_path = self.project.factory.path(start_state)
@@ -626,9 +627,9 @@ class GirlScout(Analysis):
         self.call_map = networkx.DiGraph()
         self.cfg = networkx.DiGraph()
         initial_state = self.project.factory.blank_state(mode="fastpath")
-        initial_options = initial_state.options - { simuvex.o.TRACK_CONSTRAINTS } - simuvex.o.refs
-        initial_options |= { simuvex.o.SUPER_FASTPATH }
-        # initial_options.remove(simuvex.o.COW_STATES)
+        initial_options = initial_state.options - { o.TRACK_CONSTRAINTS } - o.refs
+        initial_options |= { o.SUPER_FASTPATH }
+        # initial_options.remove(o.COW_STATES)
         initial_state.options = initial_options
         # Sadly, not all calls to functions are explicitly made by call
         # instruction - they could be a jmp or b, or something else. So we
@@ -711,9 +712,9 @@ class GirlScout(Analysis):
         self.call_map = networkx.DiGraph()
         self.cfg = networkx.DiGraph()
         initial_state = self.project.factory.blank_state(mode="fastpath")
-        initial_options = initial_state.options - {simuvex.o.TRACK_CONSTRAINTS} - simuvex.o.refs
-        initial_options |= {simuvex.o.SUPER_FASTPATH}
-        # initial_options.remove(simuvex.o.COW_STATES)
+        initial_options = initial_state.options - {o.TRACK_CONSTRAINTS} - o.refs
+        initial_options |= {o.SUPER_FASTPATH}
+        # initial_options.remove(o.COW_STATES)
         initial_state.options = initial_options
         # Sadly, not all calls to functions are explicitly made by call
         # instruction - they could be a jmp or b, or something else. So we

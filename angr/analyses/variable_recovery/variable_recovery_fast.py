@@ -3,7 +3,7 @@ import logging
 from collections import defaultdict
 
 import pyvex
-from simuvex.s_variable import SimStackVariable, SimRegisterVariable
+from ...sim_variable import SimStackVariable, SimRegisterVariable
 
 from ...knowledge.keyed_region import KeyedRegion
 from ..code_location import CodeLocation

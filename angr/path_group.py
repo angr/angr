@@ -4,9 +4,10 @@ import itertools
 from collections import defaultdict
 
 import ana
-import simuvex
 import claripy
 import mulpyplexer
+
+from .errors import SimError, SimMergeError
 
 l = logging.getLogger("angr.path_group")
 
@@ -232,7 +233,7 @@ class PathGroup(ana.Storable):
                 return self._make_stashes_dict(active=successors,
                                                unconstrained=a.unconstrained_successors,
                                                unsat=a.unsat_successors)
-            except (AngrError, simuvex.SimError, claripy.ClaripyError):
+            except (AngrError, SimError, claripy.ClaripyError):
                 if not self._resilience:
                     raise
                 else:
@@ -716,7 +717,7 @@ class PathGroup(ana.Storable):
             try:
                 m = self._merge_paths(g) if merge_func is None else merge_func(*g)
                 not_to_merge.append(m)
-            except simuvex.SimMergeError:
+            except SimMergeError:
                 l.warning("SimMergeError while merging %d paths", len(g), exc_info=True)
                 not_to_merge.extend(g)
 

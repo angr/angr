@@ -4,10 +4,9 @@ import string
 import itertools
 from collections import defaultdict
 
-import simuvex
-import simuvex.s_cc
 import claripy
-from simuvex.s_errors import SimEngineError, SimMemoryError
+from .. import SIM_PROCEDURES
+from ..errors import SimEngineError, SimMemoryError
 
 l = logging.getLogger("angr.knowledge.function")
 
@@ -63,7 +62,7 @@ class Function(object):
         if name is None:
             if project.is_hooked(addr):
                 hooker = project.hooked_by(addr)
-                if hooker.procedure is simuvex.SimProcedures['stubs']['ReturnUnconstrained']:
+                if hooker.procedure is SIM_PROCEDURES['stubs']['ReturnUnconstrained']:
                     kwargs_dict = project._sim_procedures[addr].kwargs
                     if 'resolves' in kwargs_dict:
                         name = kwargs_dict['resolves']

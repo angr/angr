@@ -4,8 +4,8 @@ import collections
 import networkx
 import logging
 
-import simuvex
-from simuvex.s_errors import SimMemoryError, SimEngineError
+from .. import SimProcedure
+from ..errors import SimMemoryError, SimEngineError
 
 from ..surveyor import Surveyor
 
@@ -192,7 +192,7 @@ class Explorer(Surveyor):
         elif not isinstance(self._find, (tuple, set, list)) or len(self._find) == 0:
             l.warning("Explorer ignoring CFG because find is not a sequence of addresses.")
             return False
-        elif isinstance(self._cfg.get_any_irsb(p.addr), simuvex.SimProcedure):
+        elif isinstance(self._cfg.get_any_irsb(p.addr), SimProcedure):
             l.debug("Path %s is pointing to a SimProcedure. Counting as not lost.", p)
             return False
         elif p.length > 0 and self._cfg.get_any_irsb(p.addr_trace[-1]) is None:

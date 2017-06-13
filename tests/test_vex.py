@@ -1,10 +1,13 @@
 import nose
-from simuvex import SimState, SimEngineVEX
-import simuvex.engines.vex.ccall as s_ccall
+import logging
+
 import pyvex
 import claripy
-import logging
-l = logging.getLogger('simuvex.tests.test_vex')
+
+from angr import SimState, SimEngineVEX
+import angr.engines.vex.ccall as s_ccall
+
+l = logging.getLogger('angr.tests.test_vex')
 
 #@nose.tools.timed(10)
 def test_ccall():
@@ -127,7 +130,7 @@ def test_ccall():
     nose.tools.assert_true(s.se.is_true(of == 0))
 
 def test_some_vector_ops():
-    from simuvex.engines.vex.irop import translate
+    from angr.engines.vex.irop import translate
 
     s = SimState()
 

@@ -752,7 +752,8 @@ class SimPagedMemory(object):
         """
 
         if options.REVERSE_MEMORY_NAME_MAP not in self.state.options:
-            raise SimMemoryError("replace_all is not doable without a reverse name mapping. Please add simuvex.o.REVERSE_MEMORY_NAME_MAP to the state options")
+            raise SimMemoryError("replace_all is not doable without a reverse name mapping. Please add "
+                                 "sim_options.REVERSE_MEMORY_NAME_MAP to the state options")
 
         if not isinstance(old, claripy.ast.BV) or not isinstance(new, claripy.ast.BV):
             raise SimMemoryError("old and new arguments to replace_all() must be claripy.BV objects")

@@ -568,7 +568,7 @@ class SimMemory(SimStatePlugin):
         :param add_constraints: Add constraints resulting from the merge (default: True)
         :param endness:         The endianness for contents as well as fallback.
         :param action:          A SimActionData to fill out with the final written value and constraints.
-        :type action:           simuvex.s_action.SimActionData
+        :type action:           SimActionData
         """
 
         if fallback is None and all(c is None for c in contents):

@@ -38,4 +38,4 @@ class memcpy(angr.SimProcedure):
 
         return dst_addr
 
-from angr.s_options import ABSTRACT_MEMORY
+from ...sim_options import ABSTRACT_MEMORY

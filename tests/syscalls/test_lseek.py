@@ -1,14 +1,16 @@
 import nose
 import archinfo
-import simuvex
 
 import logging
-l = logging.getLogger('simuvex.syscalls.lseek')
+l = logging.getLogger('angr.tests.syscalls.lseek')
+
+from angr import SIM_PROCEDURES
+from angr import SimState, SimPosixError
 
 
 FAKE_ADDR = 0x100000
 
-lseek = lambda state, arguments: simuvex.SimProcedures['syscalls']['lseek'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+lseek = lambda state, arguments: SIM_PROCEDURES['syscalls']['lseek'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
 
 # Taken from unistd.h
 SEEK_SET = 0 # Seek from beginning of file.
@@ -19,7 +21,7 @@ SEEK_DATA = 3 # Seek to next data.
 SEEK_HOLE = 4 # Seek to next hole.
 
 def test_lseek_set():
-    state = simuvex.SimState(arch="AMD64", mode="symbolic")
+    state = SimState(arch="AMD64", mode="symbolic")
 
     # This could be any number above 2 really
     fd = 3
@@ -55,7 +57,7 @@ def test_lseek_set():
     nose.tools.assert_equal(current_pos,3)
 
 def test_lseek_cur():
-    state = simuvex.SimState(arch="AMD64", mode="symbolic")
+    state = SimState(arch="AMD64", mode="symbolic")
 
     # This could be any number above 2 really
     fd = 3
@@ -82,7 +84,7 @@ def test_lseek_cur():
     nose.tools.assert_equal(current_pos,9)
 
 def test_lseek_end():
-    state = simuvex.SimState(arch="AMD64", mode="symbolic")
+    state = SimState(arch="AMD64", mode="symbolic")
 
     # This could be any number above 2 really
     fd = 3
@@ -112,7 +114,7 @@ def test_lseek_end():
     nose.tools.assert_equal(current_pos,10)
 
 def test_lseek_unseekable():
-    state = simuvex.SimState(arch="AMD64", mode="symbolic")
+    state = SimState(arch="AMD64", mode="symbolic")
 
     # Illegal seek
     current_pos = lseek(state,[0,0,SEEK_SET]).ret_expr
@@ -135,10 +137,10 @@ def test_lseek_unseekable():
     # Assert we have a negative return value
     nose.tools.assert_true(current_pos & (1 << 63) != 0)
 
-@nose.tools.raises(simuvex.SimPosixError)
+@nose.tools.raises(SimPosixError)
 def test_lseek_symbolic_whence():
     # symbolic whence is currently not possible
-    state = simuvex.SimState(arch="AMD64", mode="symbolic")
+    state = SimState(arch="AMD64", mode="symbolic")
 
     # This could be any number above 2 really
     fd = 3
@@ -151,10 +153,10 @@ def test_lseek_symbolic_whence():
     # This should cause the exception
     lseek(state,[fd,0,whence])
 
-@nose.tools.raises(simuvex.SimPosixError)
+@nose.tools.raises(SimPosixError)
 def test_lseek_symbolic_seek():
     # symbolic seek is currently not possible
-    state = simuvex.SimState(arch="AMD64", mode="symbolic")
+    state = SimState(arch="AMD64", mode="symbolic")
 
     # This could be any number above 2 really
     fd = 3

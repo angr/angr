@@ -2,14 +2,14 @@
 import logging
 from collections import defaultdict
 
-from simuvex import BP, BP_AFTER
-from simuvex.s_variable import SimRegisterVariable, SimStackVariable, SimStackVariablePhi
 
+from ... import BP, BP_AFTER
+from ...sim_variable import SimRegisterVariable, SimStackVariable, SimStackVariablePhi
 from ...knowledge.keyed_region import KeyedRegion
-from .annotations import StackLocationAnnotation
+from ...analysis import Analysis, register_analysis
 from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
-from ...analysis import Analysis, register_analysis
+from .annotations import StackLocationAnnotation
 
 l = logging.getLogger("angr.analyses.variable_recovery.variable_recovery")
 

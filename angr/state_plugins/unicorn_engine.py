@@ -182,8 +182,8 @@ def _load_native():
         libfile = 'sim_unicorn.so'
 
     try:
-        simuvex_path = pkg_resources.resource_filename('simuvex', os.path.join('lib', libfile))
-        h = ctypes.CDLL(simuvex_path)
+        angr_path = pkg_resources.resource_filename('angr', os.path.join('lib', libfile))
+        h = ctypes.CDLL(angr_path)
 
         VexArch = ctypes.c_int
         uc_err = ctypes.c_int
@@ -270,7 +270,7 @@ class Unicorn(SimStatePlugin):
         max_steps=1000000,
     ):
         """
-        Initializes the Unicorn plugin for SimuVEX. This plugin handles communication with
+        Initializes the Unicorn plugin for angr. This plugin handles communication with
         UnicornEngine.
         """
 
@@ -1285,7 +1285,8 @@ class Unicorn(SimStatePlugin):
         if unicorn is None or _UC_NATIVE is None:
             global _install_warning
             if not _install_warning:
-                l.error("You are attempting to use unicorn engine support even though it or the simuvex compatibility layer isn't installed")
+                l.error("You are attempting to use unicorn engine support even though it or the angr native layer "
+                        "isn't installed")
                 _install_warning = True
             return False
 

@@ -1,10 +1,13 @@
 import time
 
-import simuvex
 import claripy
 import nose
 
-from simuvex import SimState, SimProcedures
+from angr.storage.paged_memory import SimPagedMemory
+from angr import SimState, SIM_PROCEDURES
+from angr import options as o
+
+
 def test_copy():
     s = SimState()
     s.memory.store(0x100, "ABCDEFGHIJKLMNOP")
@@ -38,7 +41,7 @@ def test_copy():
     x = s.se.BVS('size', s.arch.bits)
     s.add_constraints(s.se.ULT(x, 10))
 
-    read_proc = SimProcedures['libc.so.6']['read'](0x100000, s.arch)
+    read_proc = SIM_PROCEDURES['libc.so.6']['read'](0x100000, s.arch)
     ret_x = read_proc.execute(s, arguments=(0, 0x200, x)).ret_expr
     nose.tools.assert_equals(sorted(s.se.any_n_int(x, 100)), range(10))
     result = s.memory.load(0x200, 5)
@@ -96,7 +99,7 @@ def _concrete_memory_tests(s):
 #@nose.tools.timed(10)
 def test_memory():
     initial_memory = { 0: 'A', 1: 'A', 2: 'A', 3: 'A', 10: 'B' }
-    s = SimState(arch="AMD64", memory_backer=initial_memory, add_options={simuvex.o.REVERSE_MEMORY_NAME_MAP, simuvex.o.REVERSE_MEMORY_HASH_MAP})
+    s = SimState(arch="AMD64", memory_backer=initial_memory, add_options={o.REVERSE_MEMORY_NAME_MAP, o.REVERSE_MEMORY_HASH_MAP})
 
     _concrete_memory_tests(s)
     # concrete address and partially symbolic result
@@ -319,7 +322,7 @@ def test_abstract_memory():
     s = SimState(mode='static',
                  arch="AMD64",
                  memory_backer=initial_memory,
-                 add_options={simuvex.o.ABSTRACT_SOLVER, simuvex.o.ABSTRACT_MEMORY})
+                 add_options={o.ABSTRACT_SOLVER, o.ABSTRACT_MEMORY})
     se = s.se
 
     def to_vs(region, offset):
@@ -363,12 +366,12 @@ def test_abstract_memory():
     nose.tools.assert_true(claripy.backends.vsa.identical(expr, s.se.BVS('unnamed', 32, 8000, 9000, 2)))
 
     # Test default values
-    s.options.remove(simuvex.o.SYMBOLIC_INITIAL_VALUES)
+    s.options.remove(o.SYMBOLIC_INITIAL_VALUES)
     expr = s.memory.load(to_vs('global', 100), 4)
     nose.tools.assert_true(claripy.backends.vsa.identical(expr, s.se.BVS('unnamed', 32, 0, 0, 0)))
 
     # Test default values (symbolic)
-    s.options.add(simuvex.o.SYMBOLIC_INITIAL_VALUES)
+    s.options.add(o.SYMBOLIC_INITIAL_VALUES)
     expr = s.memory.load(to_vs('global', 104), 4)
     nose.tools.assert_true(claripy.backends.vsa.identical(expr, s.se.BVS('unnamed', 32, 0, 0xffffffff, 1)))
     nose.tools.assert_true(claripy.backends.vsa.identical(expr, s.se.BVS('unnamed', 32, -0x80000000, 0x7fffffff, 1)))
@@ -433,7 +436,7 @@ def test_abstract_memory_find():
     s = SimState(mode='static',
                  arch="AMD64",
                  memory_backer=initial_memory,
-                 add_options={simuvex.o.ABSTRACT_SOLVER, simuvex.o.ABSTRACT_MEMORY})
+                 add_options={o.ABSTRACT_SOLVER, o.ABSTRACT_MEMORY})
 
     se = s.se
     BVV = se.BVV
@@ -477,7 +480,7 @@ def test_abstract_memory_find():
 
 #@nose.tools.timed(10)
 def test_registers():
-    s = simuvex.SimState(arch='AMD64')
+    s = SimState(arch='AMD64')
     expr = s.registers.load('rax')
     nose.tools.assert_true(s.se.symbolic(expr))
 
@@ -487,7 +490,7 @@ def test_registers():
     nose.tools.assert_equals(s.se.any_int(expr), 0x00000031)
 
 def test_fullpage_write():
-    s = simuvex.SimState(arch='AMD64')
+    s = SimState(arch='AMD64')
     a = s.se.BVV('A'*0x2000)
     s.memory.store(0, a)
     #assert len(s.memory.mem._pages) == 2
@@ -496,7 +499,7 @@ def test_fullpage_write():
     assert s.memory.load(0, 0x2000) is a
     assert a.variables != s.memory.load(0x2000, 1).variables
 
-    s = simuvex.SimState(arch='AMD64')
+    s = SimState(arch='AMD64')
     a = s.se.BVV('A'*2)
     s.memory.store(0x1000, a)
     s.memory.store(0x2000, a)
@@ -504,7 +507,7 @@ def test_fullpage_write():
     assert a.variables == s.memory.load(0x2001, 1).variables
     assert a.variables != s.memory.load(0x2002, 1).variables
 
-    s = simuvex.SimState(arch='AMD64')
+    s = SimState(arch='AMD64')
     x = s.se.BVV('X')
     a = s.se.BVV('A'*0x1000)
     s.memory.store(1, x)
@@ -512,7 +515,7 @@ def test_fullpage_write():
     s2.memory.store(0, a)
     assert len(s.memory.changed_bytes(s2.memory)) == 0x1000
 
-    s = simuvex.SimState(arch='AMD64')
+    s = SimState(arch='AMD64')
     s.memory._maximum_symbolic_size = 0x2000000
     a = s.se.BVS('A', 0x1000000*8)
     s.memory.store(0, a)
@@ -520,7 +523,7 @@ def test_fullpage_write():
     assert b is a
 
 def test_symbolic_write():
-    s = simuvex.SimState(arch='AMD64', add_options={simuvex.options.SYMBOLIC_WRITE_ADDRESSES})
+    s = SimState(arch='AMD64', add_options={o.SYMBOLIC_WRITE_ADDRESSES})
     x = s.se.BVS('x', 64)
     y = s.se.BVS('y', 64)
     a = s.se.BVV('A'*0x10)
@@ -550,7 +553,7 @@ def test_concrete_memset():
     def _individual_test(state, base, val, size):
         # time it
         start = time.time()
-        memset = simuvex.SimProcedures['libc.so.6']['memset'](0x100000, state.arch).execute(
+        memset = SIM_PROCEDURES['libc.so.6']['memset'](0x100000, state.arch).execute(
             state, arguments=[base, state.se.BVV(val, 8), size]
         )
         elapsed = time.time() - start
@@ -570,16 +573,16 @@ def test_concrete_memset():
 
     # Writes many zeros
     VAL = 0
-    s = simuvex.SimState(arch='AMD64')
+    s = SimState(arch='AMD64')
     _individual_test(s, BASE, VAL, SIZE)
 
     # Writes many ones
     VAL = 1
-    s = simuvex.SimState(arch='AMD64')
+    s = SimState(arch='AMD64')
     _individual_test(s, BASE, VAL, SIZE)
 
 def test_false_condition():
-    s = simuvex.SimState(arch='AMD64')
+    s = SimState(arch='AMD64')
 
     asdf = s.se.BVV('asdf')
     fdsa = s.se.BVV('fdsa')
@@ -593,11 +596,11 @@ def test_false_condition():
 def test_paged_memory_membacker_equal_size():
     membacker = {0: claripy.BVV(0, 8), 1: claripy.BVV(1, 8), 2: claripy.BVV(2, 8)}
 
-    simmem = simuvex.storage.SimPagedMemory(memory_backer=membacker, page_size=len(membacker))
+    simmem = SimPagedMemory(memory_backer=membacker, page_size=len(membacker))
     simmem[0] #pylint:disable=pointless-statement
 
 def test_load_bytes():
-    s = simuvex.SimState(arch='AMD64')
+    s = SimState(arch='AMD64')
     asdf = s.se.BVS('asdf', 0x1000*8)
     s.memory.store(0x4000, asdf)
     items = s.memory.mem.load_objects(0x4000, 0x1000)
@@ -612,7 +615,7 @@ def test_load_bytes():
     assert len(items) == 0
 
 def test_fast_memory():
-    s = simuvex.SimState(add_options={simuvex.o.FAST_REGISTERS, simuvex.o.FAST_MEMORY})
+    s = SimState(add_options={o.FAST_REGISTERS, o.FAST_MEMORY})
 
     s.regs.rax = 0x4142434445464748
     s.regs.rbx = 0x5555555544444444

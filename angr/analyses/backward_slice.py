@@ -4,12 +4,12 @@ from itertools import ifilter
 
 import networkx
 
-import simuvex
 import pyvex
 
 from ..annocfg import AnnotatedCFG
 from ..analysis import Analysis, register_analysis
 from ..errors import AngrBackwardSlicingError
+from ..state_plugins.sim_action import SimActionExit
 from .code_location import CodeLocation
 
 l = logging.getLogger("angr.analyses.backward_slice")
@@ -671,7 +671,7 @@ class BackwardSlice(Analysis):
             # Ugly implementation here
             has_code_action = False
             for a in actions:
-                if isinstance(a, simuvex.SimActionExit):
+                if isinstance(a, SimActionExit):
                     has_code_action = True
                     break
             if has_code_action:

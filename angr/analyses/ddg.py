@@ -5,10 +5,9 @@ from collections import defaultdict
 import networkx
 
 import pyvex
-from simuvex import SimRegisterVariable, SimMemoryVariable, SimTemporaryVariable, SimConstantVariable, SimStackVariable
-from simuvex import SimSolverModeError, SimUnsatError
 
-from ..errors import AngrDDGError
+from ..sim_variable import SimRegisterVariable, SimMemoryVariable, SimTemporaryVariable, SimConstantVariable, SimStackVariable
+from ..errors import SimSolverModeError, SimUnsatError, AngrDDGError
 from ..analysis import Analysis, register_analysis
 from .code_location import CodeLocation
 

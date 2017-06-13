@@ -1,5 +1,5 @@
-from simuvex import SimState
-from simuvex import s_cc
+from .sim_state import SimState
+from .calling_conventions import DefaultCC, SimRegArg, SimStackArg, PointerWrapper
 from .surveyors.caller import Callable
 
 import logging
@@ -24,7 +24,7 @@ class AngrObjectFactory(object):
         # currently the default engine MUST be a vex engine... this assumption is hardcoded
         # but this can totally be changed with some interface generalization
         self._project = project
-        self._default_cc = s_cc.DefaultCC[project.arch.name]
+        self._default_cc = DefaultCC[project.arch.name]
 
         self.default_engine = default_engine
         self.procedure_engine = procedure_engine
@@ -100,7 +100,7 @@ class AngrObjectFactory(object):
                                 when concrete_fs is set to True.
         :param kwargs:          Any additional keyword args will be passed to the SimState constructor.
         :return:                The blank state.
-        :rtype:                 simuvex.s_state.SimState
+        :rtype:                 SimState
         """
         return self._project._simos.state_blank(**kwargs)
 
@@ -121,7 +121,7 @@ class AngrObjectFactory(object):
         :param env:             a dictionary to use as the environment for the program. Both keys and values may be
                                 mixed strings and bitvectors.
         :return:                The entry state.
-        :rtype:                 simuvex.s_state.SimState
+        :rtype:                 SimState
         """
 
         return self._project._simos.state_entry(**kwargs)
@@ -145,7 +145,7 @@ class AngrObjectFactory(object):
         :param env:             a dictionary to use as the environment for the program. Both keys and values may be
                                 mixed strings and bitvectors.
         :return:                The fully initialized state.
-        :rtype:                 simuvex.s_state.SimState
+        :rtype:                 SimState
         """
         return self._project._simos.state_full_init(**kwargs)
 
@@ -173,7 +173,7 @@ class AngrObjectFactory(object):
                                 when concrete_fs is set to True.
         :param kwargs:          Any additional keyword args will be passed to the SimState constructor.
         :return:                The state at the beginning of the function.
-        :rtype:                 simuvex.s_state.SimState
+        :rtype:                 SimState
 
         The idea here is that you can provide almost any kind of python type in `args` and it'll be translated to a
         binary format to be placed into simulated memory. Lists (representing arrays) must be entirely elements of the
@@ -221,7 +221,7 @@ class AngrObjectFactory(object):
 
         * If nothing is passed in, the path group is seeded with a path containing a state initialized for the program
           entry point, i.e. :meth:`entry_state()`.
-        * If a :class:`simuvex.s_state.SimState` is passed in, the path group is seeded with a path wrapping that state.
+        * If a :class:`SimState` is passed in, the path group is seeded with a path wrapping that state.
         * If a :class:`angr.path.Path` is passed in, the path group is seeded with that path.
         * If a list is passed in, the list must contain only SimStates and Paths, each SimState will be wrapped in a
           Path, and the whole list will be used to seed the path group.
@@ -327,11 +327,11 @@ class AngrObjectFactory(object):
     def fresh_block(self, addr, size):
         return Block(addr, project=self._project, size=size)
 
-    cc.SimRegArg = s_cc.SimRegArg
-    cc.SimStackArg = s_cc.SimStackArg
+    cc.SimRegArg = SimRegArg
+    cc.SimStackArg = SimStackArg
     _default_cc = None
-    callable.PointerWrapper = s_cc.PointerWrapper
-    call_state.PointerWrapper = s_cc.PointerWrapper
+    callable.PointerWrapper = PointerWrapper
+    call_state.PointerWrapper = PointerWrapper
 
 
     #
@@ -343,7 +343,7 @@ class AngrObjectFactory(object):
         Resolve syscall information from the state, get the IP address of the syscall SimProcedure, and set the IP of
         the state accordingly. Don't do anything if the resolution fails.
 
-        :param simuvex.s_state.SimState state: the program state.
+        :param SimState state: the program state.
         :return: None
         """
 

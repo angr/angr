@@ -1,8 +1,10 @@
 import nose
 import pyvex
-import simuvex
 import claripy
 import archinfo
+
+from angr import SimState, BP_AFTER, BP_BEFORE, SIM_PROCEDURES, concretization_strategies
+from angr.engines import SimEngineProcedure, SimEngineVEX
 
 def test_inspect():
     class counts: #pylint:disable=no-init
@@ -43,28 +45,28 @@ def test_inspect():
 #       counts.constraints += 1
 
 
-    s = simuvex.SimState(arch="AMD64", mode="symbolic")
+    s = SimState(arch="AMD64", mode="symbolic")
 
-    s.inspect.b('mem_write', when=simuvex.BP_AFTER, action=act_mem_write)
+    s.inspect.b('mem_write', when=BP_AFTER, action=act_mem_write)
     nose.tools.assert_equals(counts.mem_write, 0)
     s.memory.store(100, s.se.BVV(10, 32))
     nose.tools.assert_equals(counts.mem_write, 1)
 
-    s.inspect.b('mem_read', when=simuvex.BP_AFTER, action=act_mem_read)
-    s.inspect.b('mem_read', when=simuvex.BP_AFTER, action=act_mem_read, mem_read_address=100)
-    s.inspect.b('mem_read', when=simuvex.BP_AFTER, action=act_mem_read, mem_read_address=123)
-    s.inspect.b('mem_read', when=simuvex.BP_BEFORE, action=act_mem_read, mem_read_length=3)
+    s.inspect.b('mem_read', when=BP_AFTER, action=act_mem_read)
+    s.inspect.b('mem_read', when=BP_AFTER, action=act_mem_read, mem_read_address=100)
+    s.inspect.b('mem_read', when=BP_AFTER, action=act_mem_read, mem_read_address=123)
+    s.inspect.b('mem_read', when=BP_BEFORE, action=act_mem_read, mem_read_length=3)
     nose.tools.assert_equals(counts.mem_read, 0)
     s.memory.load(123, 4)
     s.memory.load(223, 3)
     nose.tools.assert_equals(counts.mem_read, 4)
 
-    s.inspect.b('reg_read', when=simuvex.BP_AFTER, action=act_reg_read)
+    s.inspect.b('reg_read', when=BP_AFTER, action=act_reg_read)
     nose.tools.assert_equals(counts.reg_read, 0)
     s.registers.load(16)
     nose.tools.assert_equals(counts.reg_read, 1)
 
-    s.inspect.b('reg_write', when=simuvex.BP_AFTER, action=act_reg_write)
+    s.inspect.b('reg_write', when=BP_AFTER, action=act_reg_write)
     nose.tools.assert_equals(counts.reg_write, 0)
     s.registers.store(16, s.se.BVV(10, 32))
     nose.tools.assert_equals(counts.reg_write, 1)
@@ -72,15 +74,15 @@ def test_inspect():
     nose.tools.assert_equals(counts.mem_read, 4)
     nose.tools.assert_equals(counts.reg_read, 1)
 
-    s.inspect.b('tmp_read', when=simuvex.BP_AFTER, action=act_tmp_read, tmp_read_num=0)
-    s.inspect.b('tmp_write', when=simuvex.BP_AFTER, action=act_tmp_write, tmp_write_num=0)
-    s.inspect.b('expr', when=simuvex.BP_AFTER, action=act_expr, expr=1016, expr_unique=False)
-    s.inspect.b('statement', when=simuvex.BP_AFTER, action=act_statement)
-    s.inspect.b('instruction', when=simuvex.BP_AFTER, action=act_instruction, instruction=1001)
-    s.inspect.b('instruction', when=simuvex.BP_AFTER, action=act_instruction, instruction=1000)
+    s.inspect.b('tmp_read', when=BP_AFTER, action=act_tmp_read, tmp_read_num=0)
+    s.inspect.b('tmp_write', when=BP_AFTER, action=act_tmp_write, tmp_write_num=0)
+    s.inspect.b('expr', when=BP_AFTER, action=act_expr, expr=1016, expr_unique=False)
+    s.inspect.b('statement', when=BP_AFTER, action=act_statement)
+    s.inspect.b('instruction', when=BP_AFTER, action=act_instruction, instruction=1001)
+    s.inspect.b('instruction', when=BP_AFTER, action=act_instruction, instruction=1000)
     irsb = pyvex.IRSB("\x90\x90\x90\x90\xeb\x0a", mem_addr=1000, arch=archinfo.ArchAMD64(), opt_level=0)
     irsb.pp()
-    simuvex.SimEngineVEX().process(s, irsb)
+    SimEngineVEX().process(s, irsb)
     nose.tools.assert_equals(counts.reg_write, 7)
     nose.tools.assert_equals(counts.reg_read, 2)
     nose.tools.assert_equals(counts.tmp_write, 1)
@@ -92,8 +94,8 @@ def test_inspect():
     nose.tools.assert_equals(counts.mem_write, 1)
     nose.tools.assert_equals(counts.mem_read, 4)
 
-    s = simuvex.SimState(arch="AMD64", mode="symbolic")
-    s.inspect.b('symbolic_variable', when=simuvex.BP_AFTER, action=act_variables)
+    s = SimState(arch="AMD64", mode="symbolic")
+    s.inspect.b('symbolic_variable', when=BP_AFTER, action=act_variables)
     s.memory.load(0, 10)
     nose.tools.assert_equals(counts.variables, 1)
 
@@ -115,15 +117,15 @@ def test_inspect_exit():
     def handle_exit_after(state): #pylint:disable=unused-argument
         counts.exit_after += 1
 
-    s = simuvex.SimState(arch="AMD64", mode="symbolic")
+    s = SimState(arch="AMD64", mode="symbolic")
     irsb = pyvex.IRSB("\x90\x90\x90\x90\xeb\x0a", mem_addr=1000, arch=archinfo.ArchAMD64())
 
     # break on exit
-    s.inspect.b('exit', simuvex.BP_BEFORE, action=handle_exit_before)
-    s.inspect.b('exit', simuvex.BP_AFTER, action=handle_exit_after)
+    s.inspect.b('exit', BP_BEFORE, action=handle_exit_before)
+    s.inspect.b('exit', BP_AFTER, action=handle_exit_after)
 
     # step it
-    succ = simuvex.SimEngineVEX().process(s, irsb).flat_successors
+    succ = SimEngineVEX().process(s, irsb).flat_successors
 
     # check
     nose.tools.assert_equal( succ[0].se.any_int(succ[0].ip), 0x41414141)
@@ -146,18 +148,18 @@ def test_inspect_syscall():
         syscall_name = state.inspect.syscall_name
         nose.tools.assert_equal(syscall_name, "close")
 
-    s = simuvex.SimState(arch="AMD64", mode="symbolic")
+    s = SimState(arch="AMD64", mode="symbolic")
     # set up to call so syscall close
     s.regs.rax = 3
     s.regs.rdi = 2
 
     # break on syscall
-    s.inspect.b('syscall', simuvex.BP_BEFORE, action=handle_syscall_before)
-    s.inspect.b('syscall', simuvex.BP_AFTER, action=handle_syscall_after)
+    s.inspect.b('syscall', BP_BEFORE, action=handle_syscall_before)
+    s.inspect.b('syscall', BP_AFTER, action=handle_syscall_after)
 
     # step it
-    proc = simuvex.SimProcedures['syscalls']['close'](s.se.any_int(s.ip), archinfo.arch_from_id('AMD64'))
-    simuvex.SimEngineProcedure().process(s, proc, ret_to=s.ip)
+    proc = SIM_PROCEDURES['syscalls']['close'](s.se.any_int(s.ip), archinfo.arch_from_id('AMD64'))
+    SimEngineProcedure().process(s, proc, ret_to=s.ip)
 
     # check counts
     nose.tools.assert_equal(counts.exit_before, 1)
@@ -177,8 +179,8 @@ def test_inspect_concretization():
         if state.inspect.address_concretization_action == 'store':
             state.inspect.address_concretization_expr = claripy.BVV(0x1000, state.arch.bits)
 
-    s = simuvex.SimState()
-    s.inspect.b('address_concretization', simuvex.BP_BEFORE, action=change_symbolic_target)
+    s = SimState()
+    s.inspect.b('address_concretization', BP_BEFORE, action=change_symbolic_target)
     s.memory.store(x, 'A')
     assert list(s.se.eval(x, 10)) == [ 0x1000 ]
     assert list(s.se.eval(s.memory.load(0x1000, 1), 10)) == [ 0x41 ]
@@ -190,8 +192,8 @@ def test_inspect_concretization():
     def dont_add_constraints(state):
         state.inspect.address_concretization_add_constraints = False
 
-    s = simuvex.SimState()
-    s.inspect.b('address_concretization', simuvex.BP_BEFORE, action=dont_add_constraints)
+    s = SimState()
+    s.inspect.b('address_concretization', BP_BEFORE, action=dont_add_constraints)
     s.memory.store(x, 'A')
     assert len(s.se.eval(x, 10)) == 10
 
@@ -210,19 +212,19 @@ def test_inspect_concretization():
         if (
             isinstance(
                 state.inspect.address_concretization_strategy,
-                simuvex.concretization_strategies.SimConcretizationStrategyRange
+                concretization_strategies.SimConcretizationStrategyRange
             ) and state.inspect.address_concretization_result is None
         ):
             raise UnconstrainedAbort("uh oh", state)
 
-    s = simuvex.SimState()
+    s = SimState()
     s.memory.write_strategies.insert(
-        0, simuvex.concretization_strategies.SimConcretizationStrategyRange(128)
+        0, concretization_strategies.SimConcretizationStrategyRange(128)
     )
     s.memory._write_address_range = 1
     s.memory._write_address_range_approx = 1
     s.add_constraints(y == 10)
-    s.inspect.b('address_concretization', simuvex.BP_AFTER, action=abort_unconstrained)
+    s.inspect.b('address_concretization', BP_AFTER, action=abort_unconstrained)
     s.memory.store(y, 'A')
     assert list(s.se.eval(s.memory.load(y, 1), 10)) == [ 0x41 ]
 

@@ -8,7 +8,7 @@ from archinfo import ArchARM, ArchMIPS32, ArchMIPS64, ArchX86, ArchAMD64, ArchPP
 from .sim_state import SimState
 from .state_plugins import SimStateSystem, SimActionData
 from . import sim_options as o
-from .calling_conventions import DEFAULT_CC
+from .calling_conventions import DEFAULT_CC, SYSCALL_CC
 from .procedures import SIM_PROCEDURES
 from .sim_procedure import SimProcedure
 from cle import MetaELF, BackedCGC

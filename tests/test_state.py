@@ -1,4 +1,4 @@
-import simuvex
+
 import logging
 import claripy
 import pickle
@@ -6,10 +6,10 @@ import nose
 import ana
 import gc
 
-from simuvex import SimState
+from angr import SimState
 
 def test_state():
-    s = simuvex.SimState(arch='AMD64')
+    s = SimState(arch='AMD64')
     s.registers.store('sp', 0x7ffffffffff0000)
     nose.tools.assert_equals(s.se.any_int(s.registers.load('sp')), 0x7ffffffffff0000)
 
@@ -52,9 +52,9 @@ def test_state_merge():
     nose.tools.assert_true(b.se.unique(b.memory.load(2, 1)))
     nose.tools.assert_true(c.se.unique(c.memory.load(2, 1)))
 
-    logging.getLogger('simuvex.plugins.symbolic_memory').setLevel(logging.DEBUG)
+    logging.getLogger('angr.state_plugins.symbolic_memory').setLevel(logging.DEBUG)
     m, merge_conditions, merging_occurred = a.merge(b, c)
-    logging.getLogger('simuvex.plugins.symbolic_memory').setLevel(logging.WARNING)
+    logging.getLogger('angr.state_plugins.symbolic_memory').setLevel(logging.WARNING)
 
     nose.tools.assert_true(merging_occurred)
     #nose.tools.assert_equals(sorted(m.se.any_n_int(merge_flag, 10)), [ 0,1,2 ])
@@ -149,7 +149,7 @@ def test_state_pickle():
         ana.dl = old_dl
 
 def test_global_condition():
-    s = simuvex.SimState()
+    s = SimState()
 
     s.regs.rax = 10
     old_rax = s.regs.rax

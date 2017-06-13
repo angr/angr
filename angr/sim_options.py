@@ -1,6 +1,6 @@
 # This module contains the analysis options
 
-# DEBUG options: these options cause SimuVEX to set breakpoints in various
+# DEBUG options: these options cause angr to set breakpoints in various
 # places or raise exceptions when checks fail.
 BREAK_SIRSB_START = "BREAK_SIRSB_START"
 BREAK_SIRSB_END = "BREAK_SIRSB_END"
@@ -73,10 +73,10 @@ CONCRETIZE = "CONCRETIZE"
 # This option causes the analysis to stop executing a basic block when the first taken exit is encountered.
 SINGLE_EXIT = "SINGLE_EXIT"
 
-# This option prevents simuvex from doing hundreds of constraint solves to resolve symbolic jump targets
+# This option prevents angr from doing hundreds of constraint solves to resolve symbolic jump targets
 NO_SYMBOLIC_JUMP_RESOLUTION = "NO_SYMBOLIC_JUMP_RESOLUTION"
 
-# This option prevents simuvex from doing hundreds of constraint solves when it hits a symbolic syscall
+# This option prevents angr from doing hundreds of constraint solves when it hits a symbolic syscall
 NO_SYMBOLIC_SYSCALL_RESOLUTION = "NO_SYMBOLIC_SYSCALL_RESOLUTION"
 
 # The absense of this option causes the analysis to avoid reasoning about most symbolic values.
@@ -85,7 +85,7 @@ SYMBOLIC = "SYMBOLIC"
 # Generate symbolic values for non-existent values. The absence of this option causes Unconstrained() to return default concrete values (like 0)
 SYMBOLIC_INITIAL_VALUES = "SYMBOLIC_INITIAL_VALUES"
 
-# this causes SimuVEX to use SimAbstractMemory for the memory region
+# this causes angr to use SimAbstractMemory for the memory region
 ABSTRACT_MEMORY = "ABSTRACT_MEMORY"
 
 # This causes symbolic memory to avoid performing symbolic reads and writes. Unconstrained results
@@ -164,7 +164,7 @@ LAZY_SOLVES = "LAZY_SOLVES"
 # This controls whether state executes in native or python mode
 NATIVE_EXECUTION = "NATIVE_EXECUTION"
 
-# This makes simuvex downsize solvers wherever reasonable.
+# This makes angr downsize solvers wherever reasonable.
 DOWNSIZE_Z3 = "DOWNSIZE_Z3"
 
 # Concretize certain registers if they're unique

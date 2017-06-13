@@ -5,7 +5,7 @@ import math
 import networkx
 import types
 
-from simuvex.s_errors import SimEngineError, SimMemoryError
+from ..errors import SimEngineError, SimMemoryError
 
 from ..analysis import Analysis, register_analysis
 

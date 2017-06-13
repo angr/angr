@@ -1,7 +1,8 @@
 import networkx
 
 import pyvex
-import simuvex
+
+from .slicer import SimSlicer
 
 
 class Blade(object):
@@ -119,7 +120,7 @@ class Blade(object):
 
     def _get_irsb(self, v):
         """
-        Get the IRSB object from an address, a simuvex.SimRun, or a CFGNode.
+        Get the IRSB object from an address, a SimRun, or a CFGNode.
         :param v: Can be one of the following: an address, or a CFGNode.
         :return: The IRSB instance.
         :rtype: pyvex.IRSB
@@ -234,15 +235,15 @@ class Blade(object):
 
             prev = (self._get_addr(self._dst_run), 'default')
 
-        slicer = simuvex.SimSlicer(self.project.arch, stmts,
-                                   target_tmps=temps,
-                                   target_regs=regs,
-                                   target_stack_offsets=None,
-                                   inslice_callback=self._inslice_callback,
-                                   inslice_callback_infodict={
-                                       'irsb_addr':  self._get_irsb(self._dst_run)._addr,
-                                       'prev': prev,
-                                   })
+        slicer = SimSlicer(self.project.arch, stmts,
+                           target_tmps=temps,
+                           target_regs=regs,
+                           target_stack_offsets=None,
+                           inslice_callback=self._inslice_callback,
+                           inslice_callback_infodict={
+                               'irsb_addr':  self._get_irsb(self._dst_run)._addr,
+                               'prev': prev,
+                           })
         regs = slicer.final_regs
         if self._ignore_sp and self.project.arch.sp_offset in regs:
             regs.remove(self.project.arch.sp_offset)
@@ -297,13 +298,13 @@ class Blade(object):
                     'has_statement': False
                     }
 
-        slicer = simuvex.SimSlicer(self.project.arch, stmts,
-                                   target_tmps=temps,
-                                   target_regs=regs,
-                                   target_stack_offsets=stack_offsets,
-                                   inslice_callback=self._inslice_callback,
-                                   inslice_callback_infodict=infodict
-                                   )
+        slicer = SimSlicer(self.project.arch, stmts,
+                           target_tmps=temps,
+                           target_regs=regs,
+                           target_stack_offsets=stack_offsets,
+                           inslice_callback=self._inslice_callback,
+                           inslice_callback_infodict=infodict
+                           )
 
         if not infodict['has_statement']:
             # put this block into the slice
