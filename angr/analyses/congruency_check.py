@@ -4,7 +4,7 @@ import claripy
 import simuvex
 from ..analysis import Analysis, register_analysis
 
-l = logging.getLogger('angr.analyses.congruency_check')
+l = logging.getLogger("angr.analyses.congruency_check")
 #l.setLevel(logging.DEBUG)
 
 class CongruencyCheck(Analysis):

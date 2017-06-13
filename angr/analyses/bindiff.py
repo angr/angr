@@ -13,7 +13,7 @@ from ..analysis import Analysis, register_analysis
 # todo include a method that detects any change other than constants
 # todo use function names / string references where available
 
-l = logging.getLogger(name="angr.analyses.bindiff")
+l = logging.getLogger("angr.analyses.bindiff")
 
 # basic block changes
 DIFF_TYPE = "type"

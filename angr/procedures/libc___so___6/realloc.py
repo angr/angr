@@ -2,7 +2,7 @@ import simuvex
 from simuvex.s_type import SimTypeLength, SimTypeTop
 
 import logging
-l = logging.getLogger("simuvex.procedures.libc.realloc")
+l = logging.getLogger("angr.procedures.libc___so___6.realloc")
 
 ######################################
 # realloc

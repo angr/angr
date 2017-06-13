@@ -7,7 +7,7 @@ import simuvex
 
 from .errors import AngrError
 
-l = logging.getLogger('angr.call_stack')
+l = logging.getLogger("angr.call_stack")
 
 class CallFrame(object):
     """

@@ -1,5 +1,5 @@
 import logging
-l = logging.getLogger("simuvex.vex.statements")
+l = logging.getLogger("angr.engines.vex.statements.base")
 
 class SimIRStmt(object):
     """A class for symbolically translating VEX IRStmts."""

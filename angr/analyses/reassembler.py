@@ -17,7 +17,7 @@ from ..analysis import Analysis, register_analysis
 from ..knowledge_base import KnowledgeBase
 from ..extern_obj import AngrExternObject
 
-l = logging.getLogger('angr.analyses.reassembler')
+l = logging.getLogger("angr.analyses.reassembler")
 
 #
 # Exceptions

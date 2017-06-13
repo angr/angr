@@ -11,7 +11,7 @@ import logging
 
 from ..s_options import UNICORN_HANDLE_TRANSMIT_SYSCALL
 
-l = logging.getLogger('simuvex.plugins.unicorn')
+l = logging.getLogger("angr.state_plugins.unicorn_engine")
 
 try:
     import unicorn

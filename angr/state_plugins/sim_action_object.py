@@ -1,5 +1,5 @@
 import logging
-l = logging.getLogger('simuvex.s_action')
+l = logging.getLogger("angr.state_plugins.sim_action_object")
 
 import claripy
 import functools

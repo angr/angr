@@ -5,7 +5,7 @@ import simuvex
 
 from ...call_stack import CallStack
 
-l = logging.getLogger(name="angr.entry_wrapper")
+l = logging.getLogger("angr.analyses.cfg.cfg_job_base")
 
 # TODO: Make callsite an object and use it in BlockID and FunctionKey
 

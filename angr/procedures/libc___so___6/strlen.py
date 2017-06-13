@@ -3,7 +3,7 @@ import simuvex
 from simuvex.s_type import SimTypeString, SimTypeLength
 
 import logging
-l = logging.getLogger("simuvex.procedures.libc.strlen")
+l = logging.getLogger("angr.procedures.libc___so___6.strlen")
 
 class strlen(simuvex.SimProcedure):
     #pylint:disable=arguments-differ

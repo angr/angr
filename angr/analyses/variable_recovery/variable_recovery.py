@@ -11,7 +11,7 @@ from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 from ...analysis import Analysis, register_analysis
 
-l = logging.getLogger('angr.analyses.variable_recovery')
+l = logging.getLogger("angr.analyses.variable_recovery.variable_recovery")
 
 
 class VariableRecoveryState(object):

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import logging
-l = logging.getLogger("simuvex.plugins.log")
+l = logging.getLogger("angr.state_plugins.log")
 
 import sys
 import itertools

@@ -2,7 +2,7 @@ import simuvex
 from simuvex.s_type import SimTypeString
 import logging
 
-l = logging.getLogger("simuvex.procedures.libc.inet_ntoa")
+l = logging.getLogger("angr.procedures.libc___so___6.inet_ntoa")
 
 
 class inet_ntoa(simuvex.SimProcedure):

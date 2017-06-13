@@ -11,7 +11,7 @@ from ..analysis import Analysis, register_analysis
 from ..path_group import PathGroup
 from ..path import Path, AngrPathError
 
-l = logging.getLogger('angr.analyses.veritesting')
+l = logging.getLogger("angr.analyses.veritesting")
 
 
 class VeritestingError(Exception):

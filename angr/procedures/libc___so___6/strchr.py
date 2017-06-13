@@ -3,7 +3,7 @@ from simuvex.plugins.symbolic_memory import MultiwriteAnnotation
 from simuvex.s_type import SimTypeString, SimTypeInt, SimTypeChar
 
 import logging
-l = logging.getLogger("simuvex.procedures.libc.strchr")
+l = logging.getLogger("angr.procedures.libc___so___6.strchr")
 
 class strchr(simuvex.SimProcedure):
     #pylint:disable=arguments-differ

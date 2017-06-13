@@ -2,7 +2,7 @@ import simuvex
 from simuvex.s_type import SimTypeString, SimTypeLength
 
 import logging
-l = logging.getLogger("simuvex.procedures.libc.strcpy")
+l = logging.getLogger("angr.procedures.libc___so___6.strncpy")
 
 class strncpy(simuvex.SimProcedure):
     #pylint:disable=arguments-differ

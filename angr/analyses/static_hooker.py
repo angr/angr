@@ -3,7 +3,7 @@ from ..analysis import register_analysis, Analysis
 from ..errors import AngrValueError
 
 import logging
-l = logging.getLogger('angr.analyses.static_hooker')
+l = logging.getLogger("angr.analyses.static_hooker")
 
 class StaticHooker(Analysis):
     """

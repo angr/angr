@@ -13,7 +13,7 @@ from ....surveyors import Slicecutor
 from .resolver import IndirectJumpResolver
 
 
-l = logging.getLogger('resolvers.mips_elf_fast')
+l = logging.getLogger("angr.analyses.cfg.indirect_jump_resolvers.mips_elf_fast")
 
 
 class MipsElfFastResolver(IndirectJumpResolver):

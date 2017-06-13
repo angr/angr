@@ -6,7 +6,7 @@ import contextlib
 import weakref
 
 import logging
-l = logging.getLogger("simuvex.s_state")
+l = logging.getLogger("angr.sim_state")
 
 import claripy
 import ana

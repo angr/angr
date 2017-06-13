@@ -2,7 +2,7 @@
 
 import logging
 
-l = logging.getLogger("simuvex.storage.memory")
+l = logging.getLogger("angr.storage.memory")
 
 import claripy
 from ..plugins.plugin import SimStatePlugin

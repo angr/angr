@@ -8,7 +8,7 @@ import os
 import claripy
 
 import logging
-l = logging.getLogger('simuvex.s_type')
+l = logging.getLogger("angr.sim_type")
 
 try:
     import pycparser

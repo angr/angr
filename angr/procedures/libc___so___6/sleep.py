@@ -2,7 +2,7 @@ import simuvex
 from simuvex.s_type import SimTypeInt
 
 import logging
-l = logging.getLogger("simuvex.procedures.libc.sleep")
+l = logging.getLogger("angr.procedures.libc___so___6.sleep")
 
 class sleep(simuvex.SimProcedure):
     #pylint:disable=arguments-differ

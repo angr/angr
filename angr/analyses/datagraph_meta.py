@@ -3,7 +3,7 @@ import logging
 
 import simuvex
 
-l = logging.getLogger(name="angr.analyses.vsa_ddg")
+l = logging.getLogger("angr.analyses.datagraph_meta")
 
 class DataGraphMeta(object):
     def __init__(self):

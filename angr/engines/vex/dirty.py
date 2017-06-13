@@ -1,5 +1,5 @@
 import logging
-l = logging.getLogger("simuvex.vex.dirty")
+l = logging.getLogger("angr.engines.vex.dirty")
 
 import claripy
 

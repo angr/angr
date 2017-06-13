@@ -5,7 +5,7 @@ from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchM
 
 from . import s_type, s_action_object
 
-l = logging.getLogger("simuvex.s_cc")
+l = logging.getLogger("angr.calling_conventions")
 
 
 class PointerWrapper(object):

@@ -1,7 +1,7 @@
 import logging
 from simuvex.s_format import FormatParser
 
-l = logging.getLogger("simuvex.procedures.snprintf")
+l = logging.getLogger("angr.procedures.libc___so___6.snprintf")
 
 ######################################
 # snprintf

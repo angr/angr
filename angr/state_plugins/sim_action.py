@@ -1,7 +1,7 @@
 # This module contains data structures for handling memory, code, and register references.
 
 import logging
-l = logging.getLogger('simuvex.s_action')
+l = logging.getLogger("angr.state_plugins.sim_action")
 
 _noneset = frozenset()
 

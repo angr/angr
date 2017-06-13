@@ -4,7 +4,7 @@ import string
 import claripy
 import logging
 
-l = logging.getLogger("angr.misc.format_string")
+l = logging.getLogger("angr.misc.format_parser")
 
 class FormatString(object):
     """

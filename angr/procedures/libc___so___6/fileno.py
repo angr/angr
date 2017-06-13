@@ -4,7 +4,7 @@ from simuvex.s_type import SimTypeFd, SimTypeTop
 from . import io_file_data_for_arch
 
 import logging
-l = logging.getLogger("simuvex.procedures.fileno")
+l = logging.getLogger("angr.procedures.libc___so___6.fileno")
 
 
 ######################################

@@ -19,7 +19,7 @@ from .cfg_node import CFGNode
 from .cfg_utils import CFGUtils
 
 
-l = logging.getLogger(name="angr.analyses.cfg_accurate")
+l = logging.getLogger("angr.analyses.cfg.cfg_accurate")
 
 
 class CFGJob(CFGJobBase):

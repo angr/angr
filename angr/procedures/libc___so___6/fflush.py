@@ -2,7 +2,7 @@ import simuvex
 from simuvex.s_type import SimTypeFd, SimTypeLength
 
 import logging
-l = logging.getLogger("simuvex.procedures.libc.fflush")
+l = logging.getLogger("angr.procedures.libc___so___6.fflush")
 
 class fflush(simuvex.SimProcedure):
     #pylint:disable=arguments-differ

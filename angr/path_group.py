@@ -8,7 +8,7 @@ import simuvex
 import claripy
 import mulpyplexer
 
-l = logging.getLogger('angr.path_group')
+l = logging.getLogger("angr.path_group")
 
 class PathGroup(ana.Storable):
     """

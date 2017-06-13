@@ -2,7 +2,7 @@
 """This module handles constraint generation."""
 
 import logging
-l = logging.getLogger("simuvex.vex.expressions.base")
+l = logging.getLogger("angr.engines.vex.expressions.base")
 
 _nonset = frozenset()
 

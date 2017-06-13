@@ -2,7 +2,7 @@ import simuvex
 from simuvex.s_type import SimTypeInt
 import logging
 
-l = logging.getLogger("simuvex.procedures.usleep")
+l = logging.getLogger("angr.procedures.libc___so___6.usleep")
 
 
 class usleep(simuvex.SimProcedure):

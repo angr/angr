@@ -1,7 +1,7 @@
 import simuvex
 
 import logging
-l = logging.getLogger('simuvex.procedures.syscalls.mmap')
+l = logging.getLogger("angr.procedures.syscalls.mmap")
 
 
 PROT_READ       = 0x1  #    /* Page can be read.  */

@@ -4,7 +4,7 @@ from simuvex import s_options as o
 from simuvex.s_errors import UnsupportedDirtyError
 
 import logging
-l = logging.getLogger('simuvex.vex.statements.dirty')
+l = logging.getLogger("angr.engines.vex.statements.dirty")
 
 class SimIRStmt_Dirty(SimIRStmt):
     # Example:

@@ -8,7 +8,7 @@ import simuvex
 from .resolver import IndirectJumpResolver
 
 
-l = logging.getLogger('resolvers.x86_elf_pic_plt')
+l = logging.getLogger("angr.analyses.cfg.indirect_jump_resolvers.x86_elf_pic_plt")
 
 
 class X86ElfPicPltResolver(IndirectJumpResolver):

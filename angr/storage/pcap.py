@@ -1,7 +1,7 @@
 import dpkt
 import socket
 import logging
-l = logging.getLogger("simuvex.s_pcap")
+l = logging.getLogger("angr.storage.pcap")
 
 
 class PCAP(object):

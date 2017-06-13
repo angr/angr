@@ -1,5 +1,5 @@
 import logging
-l = logging.getLogger('angr.engines.syscall')
+l = logging.getLogger("angr.engines.syscall")
 
 from .engine import SimEngine
 class SimEngineSyscall(SimEngine): #pylint:disable=abstract-method

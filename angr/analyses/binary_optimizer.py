@@ -9,7 +9,7 @@ from ..analysis import Analysis, register_analysis
 from .. import KnowledgeBase
 from ..knowledge import HookNode
 
-l = logging.getLogger('angr.analyses.binary_optimizer')
+l = logging.getLogger("angr.analyses.binary_optimizer")
 
 
 class ConstantPropagation(object):

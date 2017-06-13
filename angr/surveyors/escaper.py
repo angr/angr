@@ -5,7 +5,7 @@ from . import Explorer
 
 import logging
 
-l = logging.getLogger("angr.surveyors.Escaper")
+l = logging.getLogger("angr.surveyors.escaper")
 
 
 class Escaper(Surveyor):

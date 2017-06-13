@@ -1,7 +1,7 @@
 from . import ExplorationTechnique
 
 import logging
-l = logging.getLogger('angr.exploration_techniques.explorer')
+l = logging.getLogger("angr.exploration_techniques.explorer")
 
 class Explorer(ExplorationTechnique):
     """

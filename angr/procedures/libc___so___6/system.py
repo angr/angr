@@ -2,7 +2,7 @@ import simuvex
 from simuvex.s_type import SimTypeInt, SimTypeTop
 
 import logging
-l = logging.getLogger("simuvex.procedures.libc.system")
+l = logging.getLogger("angr.procedures.libc___so___6.system")
 
 class system(simuvex.SimProcedure):
     #pylint:disable=arguments-differ

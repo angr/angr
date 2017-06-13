@@ -4,7 +4,7 @@ import simuvex
 # listen (but not really)
 ######################################
 import logging
-l = logging.getLogger("simuvex.procedures.libc.listen")
+l = logging.getLogger("angr.procedures.libc___so___6.listen")
 
 class listen(simuvex.SimProcedure):
     #pylint:disable=arguments-differ

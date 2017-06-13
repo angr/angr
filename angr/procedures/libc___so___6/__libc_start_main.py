@@ -4,7 +4,7 @@ import logging
 import pyvex
 import simuvex
 
-l = logging.getLogger("simuvex.procedures.libc___so___6.__libc_start_main")
+l = logging.getLogger("angr.procedures.libc___so___6.__libc_start_main")
 
 ######################################
 # __libc_start_main

@@ -4,7 +4,7 @@ import simuvex
 # bind (but not really)
 ######################################
 import logging
-l = logging.getLogger("simuvex.procedures.libc.bind")
+l = logging.getLogger("angr.procedures.libc___so___6.bind")
 
 class bind(simuvex.SimProcedure):
     #pylint:disable=arguments-differ

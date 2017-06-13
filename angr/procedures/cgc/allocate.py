@@ -2,7 +2,7 @@ import claripy
 import simuvex
 import logging
 
-l = logging.getLogger("simuvex.procedures.cgc.allocate")
+l = logging.getLogger("angr.procedures.cgc.allocate")
 
 class allocate(simuvex.SimProcedure):
     #pylint:disable=arguments-differ

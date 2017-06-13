@@ -3,7 +3,7 @@
 import logging
 import itertools
 
-l = logging.getLogger("simuvex.plugins.symbolic_memory")
+l = logging.getLogger("angr.state_plugins.symbolic_memory")
 
 import claripy
 from ..storage.memory import SimMemory

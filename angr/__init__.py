@@ -2,7 +2,7 @@
 # pylint: disable=wildcard-import
 
 import logging
-logging.getLogger("angr").addHandler(logging.NullHandler())
+logging.getLogger("angr.")
 
 from .misc import Loggers
 import sys

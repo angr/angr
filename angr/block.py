@@ -1,5 +1,5 @@
 import logging
-l = logging.getLogger('angr.block')
+l = logging.getLogger("angr.block")
 
 import pyvex
 from archinfo import ArchARM

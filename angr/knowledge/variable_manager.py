@@ -11,7 +11,7 @@ from .keyed_region import KeyedRegion
 from .variable_access import VariableAccess
 
 
-l = logging.getLogger('angr.knowledge.variable_manager')
+l = logging.getLogger("angr.knowledge.variable_manager")
 
 
 class VariableType(object):

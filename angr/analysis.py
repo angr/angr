@@ -3,7 +3,7 @@ import contextlib
 from collections import defaultdict
 
 import logging
-l = logging.getLogger('angr.analysis')
+l = logging.getLogger("angr.analysis")
 
 import progressbar
 

@@ -1,7 +1,7 @@
 import simuvex
 
 import logging
-l = logging.getLogger('simuvex.procedures.syscalls.lseek')
+l = logging.getLogger("angr.procedures.syscalls.lseek")
 
 class lseek(simuvex.SimProcedure):
 

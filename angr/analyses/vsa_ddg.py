@@ -9,7 +9,7 @@ from ..errors import AngrDDGError
 from ..analysis import Analysis, register_analysis
 from .code_location import CodeLocation
 
-l = logging.getLogger(name="angr.analyses.vsa_ddg")
+l = logging.getLogger("angr.analyses.vsa_ddg")
 
 class DefUseChain(object):
     """

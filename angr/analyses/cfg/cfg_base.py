@@ -18,7 +18,7 @@ from ...extern_obj import AngrExternObject
 
 from .cfg_node import CFGNode
 
-l = logging.getLogger(name="angr.cfg_base")
+l = logging.getLogger("angr.analyses.cfg.cfg_base")
 
 
 class IndirectJump(object):

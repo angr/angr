@@ -16,7 +16,7 @@ from .cfg.cfg_utils import CFGUtils
 from .forward_analysis import ForwardAnalysis, AngrSkipJobNotice, AngrDelayJobNotice
 
 
-l = logging.getLogger(name="angr.analyses.vfg")
+l = logging.getLogger("angr.analyses.vfg")
 
 
 class VFGJob(CFGJobBase):

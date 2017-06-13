@@ -1,7 +1,7 @@
 import simuvex
 
 import logging
-l = logging.getLogger("simuvex.procedures.cgc.deallocate")
+l = logging.getLogger("angr.procedures.cgc.deallocate")
 
 class deallocate(simuvex.SimProcedure):
     #pylint:disable=arguments-differ

@@ -5,7 +5,7 @@ from .. import ccall
 from simuvex.s_errors import SimCCallError, UnsupportedCCallError
 
 import logging
-l = logging.getLogger('simuvex.vex.expressions.ccall')
+l = logging.getLogger("angr.engines.vex.expressions.ccall")
 
 class SimIRExpr_CCall(SimIRExpr):
     def _execute(self):

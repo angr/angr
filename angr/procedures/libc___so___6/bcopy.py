@@ -3,7 +3,7 @@ from simuvex.s_type import SimTypeTop, SimTypeLength
 
 import itertools
 import logging
-l = logging.getLogger("simuvex.procedures.libc.bcopy")
+l = logging.getLogger("angr.procedures.libc___so___6.bcopy")
 
 bcopy_counter = itertools.count()
 

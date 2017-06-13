@@ -5,7 +5,7 @@ import itertools
 
 import claripy
 
-l = logging.getLogger('angr.path_hierarchy')
+l = logging.getLogger("angr.path_hierarchy")
 
 class PathHierarchy(object):
     def __init__(self, weakkey_path_mapping=False):

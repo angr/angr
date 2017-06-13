@@ -25,7 +25,7 @@ from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_res
 
 VEX_IRSB_MAX_SIZE = 400
 
-l = logging.getLogger("angr.analyses.cfg_fast")
+l = logging.getLogger("angr.analyses.cfg.cfg_fast")
 
 
 class Segment(object):

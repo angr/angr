@@ -1,6 +1,6 @@
 import logging
 
-l = logging.getLogger('simuvex.engines.engine')
+l = logging.getLogger("angr.engines.engine")
 
 
 class SimEngine(object):

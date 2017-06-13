@@ -1,6 +1,6 @@
 
 import logging
-l = logging.getLogger('simuvex.plugins.uc_manager')
+l = logging.getLogger("angr.state_plugins.uc_manager")
 
 from .plugin import SimStatePlugin
 from ..s_errors import SimUCManagerAllocationError

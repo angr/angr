@@ -12,7 +12,7 @@ from ..analysis import Analysis, register_analysis
 from ..errors import AngrBackwardSlicingError
 from .code_location import CodeLocation
 
-l = logging.getLogger(name="angr.analyses.backward_slice")
+l = logging.getLogger("angr.analyses.backward_slice")
 
 class BackwardSlice(Analysis):
     """

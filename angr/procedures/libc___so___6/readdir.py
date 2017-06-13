@@ -4,7 +4,7 @@ from collections import namedtuple
 from .malloc import malloc
 
 import logging
-l = logging.getLogger('simuvex.procedures.libc___so___6.readdir')
+l = logging.getLogger("angr.procedures.libc___so___6.readdir")
 
 Dirent = namedtuple('dirent', ('d_ino', 'd_off', 'd_reclen', 'd_type', 'd_name'))
 

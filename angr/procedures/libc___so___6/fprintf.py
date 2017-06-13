@@ -2,7 +2,7 @@ import logging
 from simuvex.s_format import FormatParser
 from . import io_file_data_for_arch
 
-l = logging.getLogger("simuvex.procedures.libc_so_6.fprintf")
+l = logging.getLogger("angr.procedures.libc___so___6.fprintf")
 
 ######################################
 # fprintf

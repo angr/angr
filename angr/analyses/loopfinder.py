@@ -3,7 +3,7 @@ import logging
 
 from ..analysis import Analysis, register_analysis
 
-l = logging.getLogger('angr.analyses.loops')
+l = logging.getLogger("angr.analyses.loopfinder")
 
 class Loop(object):
     def __init__(self, entry, entry_edges, break_edges, continue_edges, body_nodes, graph, subloops):

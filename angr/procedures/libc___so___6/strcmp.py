@@ -2,7 +2,7 @@ import simuvex
 from simuvex.s_type import SimTypeString, SimTypeInt
 
 import logging
-l = logging.getLogger("simuvex.procedures.strcmp")
+l = logging.getLogger("angr.procedures.libc___so___6.strcmp")
 
 class strcmp(simuvex.SimProcedure):
     #pylint:disable=arguments-differ

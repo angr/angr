@@ -18,7 +18,7 @@ from simuvex.s_errors import UnsupportedIRExprError
 from simuvex import s_options as o
 
 import logging
-l = logging.getLogger('simuvex.vex.expressions')
+l = logging.getLogger("angr.engines.vex.expressions.")
 
 from .base import SimIRExpr
 

@@ -6,7 +6,7 @@ from ..s_action_object import ast_stripping_decorator, SimActionObject
 import sys
 import functools
 import logging
-l = logging.getLogger('simuvex.plugins.solver')
+l = logging.getLogger("angr.state_plugins.solver")
 
 #pylint:disable=unidiomatic-typecheck
 
@@ -17,7 +17,7 @@ l = logging.getLogger('simuvex.plugins.solver')
 _timing_enabled = False
 
 import time
-lt = logging.getLogger('simuvex.plugins.solver.timing')
+lt = logging.getLogger("angr.state_plugins.solver")
 def timed_function(f):
     if _timing_enabled:
         @functools.wraps(f)

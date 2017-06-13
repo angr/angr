@@ -9,7 +9,7 @@ import simuvex.s_cc
 import claripy
 from simuvex.s_errors import SimEngineError, SimMemoryError
 
-l = logging.getLogger(name="angr.knowledge.function")
+l = logging.getLogger("angr.knowledge.function")
 
 
 class Function(object):

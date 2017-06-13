@@ -3,7 +3,7 @@ from simuvex.s_format import FormatParser
 from simuvex.s_type import SimTypeInt, SimTypeString
 
 import logging
-l = logging.getLogger("simuvex.procedures.libc.system")
+l = logging.getLogger("angr.procedures.libc___so___6.__isoc99_scanf")
 
 class __isoc99_scanf(FormatParser):
     #pylint:disable=arguments-differ

@@ -4,7 +4,7 @@ from .. import s_options
 
 import claripy
 import logging
-l = logging.getLogger("simuvex.storage.file")
+l = logging.getLogger("angr.storage.file")
 
 # TODO: symbolic file positions
 import itertools

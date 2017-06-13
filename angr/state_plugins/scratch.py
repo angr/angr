@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import logging
-l = logging.getLogger("simuvex.plugins.scratch")
+l = logging.getLogger("angr.state_plugins.scratch")
 
 import claripy
 

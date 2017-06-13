@@ -1,7 +1,7 @@
 import claripy
 
 import logging
-l = logging.getLogger('simuvex.engine.successors')
+l = logging.getLogger("angr.engines.successors")
 
 class SimSuccessors(object):
     """

@@ -4,7 +4,7 @@ from collections import defaultdict
 import importlib
 
 import logging
-l = logging.getLogger('angr.procedures.procedure_dict')
+l = logging.getLogger("angr.procedures.procedure_dict")
 
 from ..engines import SimProcedure
 

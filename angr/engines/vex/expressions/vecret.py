@@ -1,7 +1,7 @@
 from .base import SimIRExpr
 
 import logging
-l = logging.getLogger('simuvex.vex.expressions.vecret')
+l = logging.getLogger("angr.engines.vex.expressions.vecret")
 
 class SimIRExpr_VECRET(SimIRExpr):
     def _execute(self):

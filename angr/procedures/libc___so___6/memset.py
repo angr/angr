@@ -2,7 +2,7 @@ import simuvex
 from simuvex.s_type import SimTypeTop, SimTypeInt, SimTypeLength
 
 import logging
-l = logging.getLogger("simuvex.procedures.libc.memset")
+l = logging.getLogger("angr.procedures.libc___so___6.memset")
 
 ######################################
 # memset

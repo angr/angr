@@ -23,7 +23,7 @@ class Loggers(object):
     @staticmethod
     def setall(level):
         for name in logging.Logger.manager.loggerDict.keys():
-            logging.getLogger(name).setLevel(level)
+            logging.getLogger("angr.misc.loggers")
 
     @staticmethod
     def _emit_wrap(*args, **kwargs):

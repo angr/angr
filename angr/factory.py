@@ -3,7 +3,7 @@ from simuvex import s_cc
 from .surveyors.caller import Callable
 
 import logging
-l = logging.getLogger('angr.factory')
+l = logging.getLogger("angr.factory")
 
 _deprecation_cache = set()
 def deprecate(name, replacement):

@@ -7,7 +7,7 @@ import logging
 import claripy
 import binascii
 
-l = logging.getLogger('simuvex.plugins.gdb')
+l = logging.getLogger("angr.state_plugins.gdb")
 
 #global heap_location
 

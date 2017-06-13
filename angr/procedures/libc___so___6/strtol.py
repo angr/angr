@@ -3,7 +3,7 @@ from simuvex.s_type import SimTypeString, SimTypeInt
 from simuvex.s_procedure import SimProcedureError
 
 import logging
-l = logging.getLogger("simuvex.procedures.libc.strtol")
+l = logging.getLogger("angr.procedures.libc___so___6.strtol")
 
 
 # note: this does not handle skipping white space

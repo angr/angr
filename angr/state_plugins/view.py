@@ -2,7 +2,7 @@ import claripy
 from .plugin import SimStatePlugin
 
 import logging
-l = logging.getLogger('simuvex.plugins.view')
+l = logging.getLogger("angr.state_plugins.view")
 
 class SimRegNameView(SimStatePlugin):
     def __init__(self):

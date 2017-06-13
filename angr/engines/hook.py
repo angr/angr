@@ -1,7 +1,7 @@
 # pylint: disable=abstract-method,unused-argument
 
 import logging
-l = logging.getLogger('angr.engines.hook')
+l = logging.getLogger("angr.engines.hook")
 
 from .procedure import SimEngineProcedure
 class SimEngineHook(SimEngineProcedure):
