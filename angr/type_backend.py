@@ -1,6 +1,6 @@
 import claripy
 
-from .s_type import SimTypePointer as Ptr, SimTypeTop as Top
+from .sim_type import SimTypePointer as Ptr, SimTypeTop as Top
 
 class TypedValue(claripy.BackendObject):
     def __init__(self, ty, value):
