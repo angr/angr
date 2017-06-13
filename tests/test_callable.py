@@ -1,7 +1,7 @@
 import nose
 import angr
 import claripy
-from simuvex.s_type import SimTypePointer, SimTypeFunction, SimTypeChar, SimTypeInt, parse_defns
+from angr.sim_type import SimTypePointer, SimTypeFunction, SimTypeChar, SimTypeInt, parse_defns
 from angr.surveyors.caller import Callable
 from angr.errors import AngrCallableMultistateError
 
@@ -13,7 +13,7 @@ location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../
 
 addresses_fauxware = {
     'armel': 0x8524,
-    'armhf': 0x104c9,   # addr+1 to force thumb
+    'armhf': 0x104c9,    # addr+1 to force thumb
     'i386': 0x8048524,
     'mips': 0x400710,
     'mipsel': 0x4006d0,

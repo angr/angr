@@ -1,6 +1,5 @@
 import nose
 import angr
-import simuvex
 import subprocess
 import sys
 
@@ -18,7 +17,7 @@ def run_strtol(threads):
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/strtol_test")
     b = angr.Project(test_bin)
 
-    initial_state = b.factory.entry_state(remove_options={simuvex.o.LAZY_SOLVES})
+    initial_state = b.factory.entry_state(remove_options={angr.options.LAZY_SOLVES})
     pg = b.factory.path_group(thing=initial_state, immutable=False, threads=threads)
 
     # find the end of main

@@ -2,31 +2,31 @@ import nose
 import random
 
 import archinfo
-import simuvex
-from simuvex import SimState, SimProcedures
+import angr
+from angr import SimState, SIM_PROCEDURES
 
 FAKE_ADDR = 0x100000
 
-strstr = lambda state, arguments: SimProcedures['libc.so.6']['strstr'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-strtok_r = lambda state, arguments: SimProcedures['libc.so.6']['strtok_r'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-strcmp = lambda state, arguments: SimProcedures['libc.so.6']['strcmp'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-strchr = lambda state, arguments: SimProcedures['libc.so.6']['strchr'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-strncmp = lambda state, arguments: SimProcedures['libc.so.6']['strncmp'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-strlen = lambda state, arguments: SimProcedures['libc.so.6']['strlen'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-strncpy = lambda state, arguments: SimProcedures['libc.so.6']['strncpy'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-strcpy = lambda state, arguments: SimProcedures['libc.so.6']['strcpy'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-sprintf = lambda state, arguments: SimProcedures['libc.so.6']['sprintf'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-memset = lambda state, arguments: SimProcedures['libc.so.6']['memset'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-memcpy = lambda state, arguments: SimProcedures['libc.so.6']['memcpy'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-memcmp = lambda state, arguments: SimProcedures['libc.so.6']['memcmp'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-getc = lambda state, arguments: SimProcedures['libc.so.6']['_IO_getc'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-fgetc = lambda state, arguments: SimProcedures['libc.so.6']['fgetc'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-getchar = lambda state, arguments: SimProcedures['libc.so.6']['getchar'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-scanf = lambda state, arguments: SimProcedures['libc.so.6']['scanf'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+strstr = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['strstr'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+strtok_r = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['strtok_r'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+strcmp = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['strcmp'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+strchr = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['strchr'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+strncmp = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['strncmp'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+strlen = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['strlen'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+strncpy = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['strncpy'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+strcpy = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['strcpy'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+sprintf = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['sprintf'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+memset = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['memset'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+memcpy = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['memcpy'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+memcmp = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['memcmp'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+getc = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['_IO_getc'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+fgetc = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['fgetc'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+getchar = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['getchar'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+scanf = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['scanf'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
 
 
 import logging
-l = logging.getLogger('simuvex.test.string')
+l = logging.getLogger('angr.tests.string')
 
 #@nose.tools.timed(10)
 def test_inline_strlen():
@@ -316,7 +316,7 @@ def test_memcpy():
     nose.tools.assert_equal(s.se.any_n_str(new_dst, 2), [ "BBBB" ])
 
     l.info("giant copy")
-    s = SimState(arch="AMD64", mode="symbolic", remove_options=simuvex.o.simplification)
+    s = SimState(arch="AMD64", mode="symbolic", remove_options=angr.options.simplification)
     s.memory._maximum_symbolic_size = 0x2000000
     size = s.se.BVV(0x1000000, 64)
     dst_addr = s.se.BVV(0x2000000, 64)

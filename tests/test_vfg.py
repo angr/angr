@@ -6,7 +6,6 @@ import logging
 import nose
 
 import angr
-import simuvex
 import claripy
 
 l = logging.getLogger("angr_tests")
@@ -34,7 +33,7 @@ def run_vfg_buffer_overflow(arch):
     start = time.time()
     function_start = vfg_buffer_overflow_addresses[arch]
     vfg = proj.analyses.VFG(cfg, function_start=function_start, context_sensitivity_level=2, interfunction_level=4,
-                            remove_options={ simuvex.s_options.OPTIMIZE_IR }
+                            remove_options={ angr.options.OPTIMIZE_IR }
                             )
     end = time.time()
     duration = end - start
@@ -161,10 +160,10 @@ def test_vfg_1():
         yield run_vfg_1, arch
 
 if __name__ == "__main__":
-    # logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
-    # logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
-    # logging.getLogger("simuvex.s_state").setLevel(logging.DEBUG)
-    # logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
+    # logging.getLogger("angr.state_plugins.abstract_memory").setLevel(logging.DEBUG)
+    # logging.getLogger("angr.state_plugins.symbolic_memory").setLevel(logging.DEBUG)
+    # logging.getLogger("angr.sim_state").setLevel(logging.DEBUG)
+    # logging.getLogger("angr.state_plugins.symbolic_memory").setLevel(logging.DEBUG)
     # logging.getLogger("angr.analyses.cfg").setLevel(logging.DEBUG)
     logging.getLogger("angr.analyses.vfg").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend

@@ -1,5 +1,5 @@
 from claripy import BVS
-from simuvex import SimFile
+from angr.storage import SimFile
 import pickle
 import nose
 import angr

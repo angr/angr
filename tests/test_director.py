@@ -6,7 +6,7 @@ import logging
 import nose.tools
 
 import angr
-from simuvex.s_type import SimTypePointer, SimTypeChar
+from angr.sim_type import SimTypePointer, SimTypeChar
 
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
 

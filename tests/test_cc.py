@@ -1,5 +1,5 @@
 import nose
-from simuvex import SimState, SimProcedures
+from angr import SimState, SimProcedures
 
 FAKE_ADDR = 0x100000
 
@@ -9,7 +9,7 @@ def test_calling_conventions():
     # SimProcedures
     #
 
-    from simuvex.s_cc import SimCCCdecl
+    from angr.calling_conventions import SimCCCdecl
 
     args = [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 1000, 100000, 1000000, 2000000, 14, 15, 16 ]
     arches = [

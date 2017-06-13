@@ -3,7 +3,7 @@ import sys
 
 import nose.tools
 
-from simuvex import SimState
+from angr import SimState
 
 def test_file_create():
     # Create a state first

@@ -1,5 +1,5 @@
 import angr
-from simuvex import o
+from angr import options as o
 import claripy
 import nose
 import os

@@ -1,7 +1,5 @@
-import simuvex
+import angr
 import nose
-
-from simuvex import SimState
 
 #def broken_symvalue():
 #   # concrete symvalue
@@ -22,7 +20,7 @@ from simuvex import SimState
 def test_concretization_strategies():
     initial_memory = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
 
-    s = SimState(memory_backer=initial_memory)
+    s = angr.SimState(memory_backer=initial_memory)
 
     # sanity check
     nose.tools.assert_equal(s.se.any_n_str(s.memory.load(3, 1), 2), ['D'])
@@ -37,12 +35,12 @@ def test_concretization_strategies():
     ss = s.copy()
     x = s.se.BVS('x', s.arch.bits)
     s.add_constraints(x >= 1)
-    ss.options.add(simuvex.o.CONSERVATIVE_READ_STRATEGY)
+    ss.options.add(angr.options.CONSERVATIVE_READ_STRATEGY)
     ss.memory._create_default_read_strategies()
     nose.tools.assert_true('symbolic' in next(iter(ss.memory.load(x, 1).variables)))
 
 #def test_concretization():
-#   s = SimState(arch="AMD64", mode="symbolic")
+#   s = angr.SimState(arch="AMD64", mode="symbolic")
 #   dst = s.se.BVV(0x41424300, 32)
 #   dst_addr = s.se.BVV(0x1000, 64)
 #   s.memory.store(dst_addr, dst, 4)
@@ -68,7 +66,7 @@ def test_concretization_strategies():
 
 #@nose.tools.timed(10)
 def broken_symbolic_write():
-    s = SimState(arch='AMD64', mode='symbolic')
+    s = angr.SimState(arch='AMD64', mode='symbolic')
 
     addr = s.se.BVS('addr', 64)
     s.add_constraints(s.se.Or(addr == 10, addr == 20, addr == 30))
@@ -120,7 +118,7 @@ def broken_symbolic_write():
     nose.tools.assert_items_equal(sv.se.any_n_int(sv.memory.load(30, 1), 3), [ 3 ])
     nose.tools.assert_items_equal(sv.se.any_n_int(addr, 10), [ 10, 20 ])
 
-    s = SimState(arch='AMD64', mode='symbolic')
+    s = angr.SimState(arch='AMD64', mode='symbolic')
     s.memory.store(0, s.se.BVV(0x4141414141414141, 64))
     length = s.se.BVS("length", 32)
     #s.memory.store(0, s.se.BVV(0x4242424242424242, 64), symbolic_length=length)
@@ -135,7 +133,7 @@ def broken_symbolic_write():
 
 def test_unsat_core():
 
-    s = SimState(arch='AMD64', mode='symbolic', add_options={ simuvex.options.CONSTRAINT_TRACKING_IN_SOLVER })
+    s = angr.SimState(arch='AMD64', mode='symbolic', add_options={ angr.options.CONSTRAINT_TRACKING_IN_SOLVER })
     x = s.se.BVS('x', 32)
     s.add_constraints(s.se.BVV(0, 32) == x)
     s.add_constraints(s.se.BVV(1, 32) == x)

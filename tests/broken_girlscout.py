@@ -4,7 +4,6 @@ import logging
 import nose
 
 import angr
-import simuvex
 
 def main():
     if len(sys.argv) == 2:
@@ -12,7 +11,7 @@ def main():
     else:
         f = "/home/angr/angr/rearentry/tests/dell-2e0048/dell-2e0048.out"
     # TODO: Determine the architecture and endness
-    p = angr.Project(f, arch=simuvex.SimARM(endness="Iend_BE"),
+    p = angr.Project(f, arch=angr.SimARM(endness="Iend_BE"),
         load_options={
             'backend': 'blob',
             'custom_base_addr': 0x10000,

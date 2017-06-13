@@ -1,7 +1,6 @@
 import angr
 import resource
 import time
-import simuvex
 
 import os
 
