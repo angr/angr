@@ -51,6 +51,7 @@ from .path_group import PathGroup
 from .surveyors.caller import Callable
 from . import knowledge
 from . import exploration_techniques
+from . import type_backend
 
 from .sim_state import SimState
 from .engines import SimEngineVEX
