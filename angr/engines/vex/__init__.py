@@ -34,5 +34,7 @@ from .statements import SimIRStmt, translate_stmt
 from .engine import SimEngineVEX
 from . import ccall
 
+from .irop import operations
+
 from ...errors import SimExpressionError, UnsupportedIRExprError
 from ... import sim_options as options
