@@ -13,7 +13,7 @@ class open(angr.SimProcedure): #pylint:disable=W0622
                                1: SimTypeInt(32, True)}
         self.return_type = SimTypeFd()
 
-        strlen = angr.SimProcedures['libc.so.6']['strlen']
+        strlen = angr.SIM_PROCEDURES['libc.so.6']['strlen']
 
         p_strlen = self.inline_call(strlen, p_addr)
         p_expr = self.state.memory.load(p_addr, p_strlen.max_null_index, endness='Iend_BE')

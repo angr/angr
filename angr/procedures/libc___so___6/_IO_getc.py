@@ -14,7 +14,7 @@ class _IO_getc(angr.SimProcedure):
         self.argument_types = {0: SimTypeFd()}
         self.return_type = SimTypeInt(32, True)
 
-        fileno = angr.SimProcedures['libc.so.6']['fileno']
+        fileno = angr.SIM_PROCEDURES['libc.so.6']['fileno']
         fd = self.inline_call(fileno, f_p).ret_expr
 
         # let's get the memory back for the file we're interested in and find

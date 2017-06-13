@@ -15,7 +15,7 @@ class strchr(angr.SimProcedure):
                        1: SimTypeInt(32, True)} # ?
         self.return_type = self.ty_ptr(SimTypeChar()) # ?
 
-        s_strlen = self.inline_call(angr.SimProcedures['libc.so.6']['strlen'], s_addr)
+        s_strlen = self.inline_call(angr.SIM_PROCEDURES['libc.so.6']['strlen'], s_addr)
 
         if self.state.se.symbolic(s_strlen.ret_expr):
             l.debug("symbolic strlen")

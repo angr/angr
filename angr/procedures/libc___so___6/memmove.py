@@ -14,7 +14,7 @@ class memmove(angr.SimProcedure):
                                2: SimTypeLength(self.state.arch)}
         self.return_type = self.ty_ptr(SimTypeTop())
 
-        memcpy = angr.SimProcedures['libc.so.6']['memcpy']
+        memcpy = angr.SIM_PROCEDURES['libc.so.6']['memcpy']
 
         self.inline_call(memcpy, dst_addr, src_addr, limit)
         return dst_addr

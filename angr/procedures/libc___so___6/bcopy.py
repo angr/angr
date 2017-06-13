@@ -16,4 +16,4 @@ class bcopy(angr.SimProcedure):
                                1: self.ty_ptr(SimTypeTop()),
                                2: SimTypeLength(self.state.arch)}
 
-        return self.inline_call(angr.SimProcedures['libc.so.6']['memcpy'], dst_addr, src_addr, limit).ret_expr
+        return self.inline_call(angr.SIM_PROCEDURES['libc.so.6']['memcpy'], dst_addr, src_addr, limit).ret_expr

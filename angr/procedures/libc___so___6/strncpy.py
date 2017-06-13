@@ -13,8 +13,8 @@ class strncpy(angr.SimProcedure):
                                2: SimTypeLength(self.state.arch)}
         self.return_type = self.ty_ptr(SimTypeString())
 
-        strlen = angr.SimProcedures['libc.so.6']['strlen']
-        memcpy = angr.SimProcedures['libc.so.6']['memcpy']
+        strlen = angr.SIM_PROCEDURES['libc.so.6']['strlen']
+        memcpy = angr.SIM_PROCEDURES['libc.so.6']['memcpy']
 
         src_len = src_len if src_len is not None else self.inline_call(strlen, src_addr).ret_expr
         cpy_size = self.state.se.If(self.state.se.ULE(limit, src_len + 1), limit, src_len + 1)

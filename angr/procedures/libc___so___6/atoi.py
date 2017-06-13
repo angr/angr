@@ -14,5 +14,5 @@ class atoi(angr.SimProcedure):
         self.argument_types = {0: self.ty_ptr(SimTypeString())}
         self.return_type = SimTypeInt(self.state.arch, True)
 
-        strtol = angr.SimProcedures['libc.so.6']['strtol']
+        strtol = angr.SIM_PROCEDURES['libc.so.6']['strtol']
         return strtol.strtol_inner(s, self.state, self.state.memory, 10, True)[1]

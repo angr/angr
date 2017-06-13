@@ -60,7 +60,7 @@ class fgets(angr.SimProcedure):
             distance = read_size
 
         # read in up to the newline
-        ret = self.inline_call(angr.SimProcedures['libc.so.6']['read'], fd, dst, distance).ret_expr
+        ret = self.inline_call(angr.SIM_PROCEDURES['libc.so.6']['read'], fd, dst, distance).ret_expr
 
         # in case there's no newline
         c = self.state.se.Or(ret == read_size, *c)

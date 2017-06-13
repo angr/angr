@@ -4,7 +4,7 @@ class crazy_scanf(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, src, fmt, one, two, three): #pylint:disable=unused-argument
-        memcpy = angr.SimProcedures['libc.so.6']['memcpy']
+        memcpy = angr.SIM_PROCEDURES['libc.so.6']['memcpy']
 
         self.inline_call(memcpy, one, src, 5)
         self.state.memory.store(one+4, self.state.se.BVV(0, 8))

@@ -27,7 +27,7 @@ class fopen(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, p_addr, m_addr):
-        strlen = angr.SimProcedures['libc.so.6']['strlen']
+        strlen = angr.SIM_PROCEDURES['libc.so.6']['strlen']
 
         p_strlen = self.inline_call(strlen, p_addr)
         m_strlen = self.inline_call(strlen, m_addr)
@@ -44,7 +44,7 @@ class fopen(angr.SimProcedure):
             return 0
         else:
             # Allocate a FILE struct in heap
-            malloc = angr.SimProcedures['libc.so.6']['malloc']
+            malloc = angr.SIM_PROCEDURES['libc.so.6']['malloc']
             io_file_data = io_file_data_for_arch(self.state.arch)
             file_struct_ptr = self.inline_call(malloc, io_file_data['size']).ret_expr
 

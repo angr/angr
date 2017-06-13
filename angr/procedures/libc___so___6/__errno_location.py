@@ -9,7 +9,7 @@ class __errno_location(angr.SimProcedure):
     def run(self):  #pylint:disable=arguments-differ
 
         if self.state.libc._errno_location is None:
-            malloc = angr.SimProcedures['libc.so.6']['malloc']
+            malloc = angr.SIM_PROCEDURES['libc.so.6']['malloc']
             errno_loc = self.inline_call(malloc, self.state.arch.bits / 8).ret_expr
 
             self.state.libc._errno_location = errno_loc

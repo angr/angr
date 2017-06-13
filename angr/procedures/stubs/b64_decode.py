@@ -4,7 +4,7 @@ class b64_decode(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, src, dst, length):
-        strncpy = angr.SimProcedures['libc.so.6']['strncpy']
+        strncpy = angr.SIM_PROCEDURES['libc.so.6']['strncpy']
 
         cpy = self.inline_call(strncpy, dst, src, length)
         self.state.memory.store(dst+16, self.state.se.BVV(0, 8))
@@ -23,7 +23,7 @@ class b64_decode(angr.SimProcedure):
 #
 #
 #
-#         memcpy = angr.SimProcedures['libc.so.6']['memcpy']
+#         memcpy = angr.SIM_PROCEDURES['libc.so.6']['memcpy']
 #
 #         fmt = self.get_arg_expr(1) #pylint:disable=unused-variable
 #         one = self.get_arg_expr(2)
