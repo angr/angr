@@ -1,4 +1,4 @@
-from simuvex.procedures.cgc.receive import receive
+from angr.procedures.cgc.receive import receive
 
 import logging
 l = logging.getLogger("tracer.simprocedures.FixedInReceive")

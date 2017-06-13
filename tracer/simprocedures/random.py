@@ -1,5 +1,5 @@
 import claripy
-import simuvex
+import angr
 
 import itertools
 rand_count = itertools.count()
@@ -7,7 +7,7 @@ rand_count = itertools.count()
 import logging
 l = logging.getLogger("tracer.simprocedures.FixedRandom")
 
-class FixedRandom(simuvex.SimProcedure):
+class FixedRandom(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     IS_SYSCALL = True

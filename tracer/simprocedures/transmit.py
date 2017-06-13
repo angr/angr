@@ -1,4 +1,4 @@
-from simuvex.procedures.cgc.transmit import transmit
+from angr.procedures.cgc.transmit import transmit
 
 import logging
 l = logging.getLogger("tracer.simprocedures.FixedOutTransmit")

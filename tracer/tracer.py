@@ -3,7 +3,6 @@ import time
 import angr
 import socket
 import claripy
-import simuvex
 import tempfile
 import signal
 import subprocess
@@ -12,8 +11,7 @@ from .tracerpov import TracerPoV
 from .cachemanager import LocalCacheManager
 from .simprocedures import receive
 from .simprocedures import FixedOutTransmit, FixedInReceive, FixedRandom
-from simuvex import s_options as so
-from simuvex import s_cc
+from angr import sim_options as so
 
 import logging
 
@@ -47,7 +45,7 @@ class Tracer(object):
     Trace an angr path with a concrete input
     '''
 
-    def __init__(self, binary, input=None, pov_file=None, simprocedures=None,
+    def __init__(self, binary, input=None, pov_file=None, simprocedures=None, #pylint:disable=redefined-builtin
                  hooks=None, seed=None, preconstrain_input=True,
                  preconstrain_flag=True, resiliency=True, chroot=None,
                  add_options=None, remove_options=None, trim_history=True,
@@ -218,6 +216,9 @@ class Tracer(object):
         # this is used to track constrained addresses
         self._address_concretization = []
 
+        # init for pylint
+        self.prev_path_group = None
+
 # EXPOSED
 
     def next_branch(self):
@@ -328,7 +329,7 @@ class Tracer(object):
                     target_to_jumpkind = bl.vex.constant_jump_targets_and_jumpkinds
                     if target_to_jumpkind[self.trace[self.bb_cnt]] == "Ijk_Boring":
                         bbl_max_bytes = 800
-            except (simuvex.s_errors.SimMemoryError, simuvex.s_errors.SimEngineError):
+            except (angr.errors.SimMemoryError, angr.errors.SimEngineError):
                 bbl_max_bytes = 800
 
             # if we're not in crash mode we don't care about the history
@@ -337,7 +338,7 @@ class Tracer(object):
 
             self.prev_path_group = self.path_group
             self.path_group = self.path_group.step(size=bbl_max_bytes)
-        
+
             if self.crash_type == EXEC_STACK:
                 self.path_group = self.path_group.stash(from_stash='active',
                         to_stash='crashed')
@@ -516,12 +517,12 @@ class Tracer(object):
 
                 bp1 = self.previous.state.inspect.b(
                     'address_concretization',
-                    simuvex.BP_BEFORE,
+                    angr.BP_BEFORE,
                     action=self._dont_add_constraints)
 
                 bp2 = self.previous.state.inspect.b(
                     'address_concretization',
-                    simuvex.BP_AFTER,
+                    angr.BP_AFTER,
                     action=self._grab_concretization_results)
 
                 # step to the end of the crashing basic block,
@@ -878,7 +879,7 @@ class Tracer(object):
 
     def _set_cgc_simprocedures(self):
         for symbol in self.simprocedures:
-            simuvex.SimProcedures['cgc'][symbol] = self.simprocedures[symbol]
+            angr.SIM_PROCEDURES['cgc'][symbol] = self.simprocedures[symbol]
 
     def _set_linux_simprocedures(self, project):
         for symbol in self.simprocedures:
@@ -930,7 +931,7 @@ class Tracer(object):
         prepare a simdialogue entry for stdin
         '''
 
-        s = simuvex.storage.file.SimDialogue("/dev/stdin")
+        s = angr.storage.file.SimDialogue("/dev/stdin")
         for write in self.pov_file.writes:
             s.add_dialogue_entry(len(write))
 
@@ -943,9 +944,9 @@ class Tracer(object):
         '''
 
         # FixedRandom, FixedInReceive, and FixedOutTransmit always are applied as defaults
-        simuvex.SimProcedures['cgc']['random'] = FixedRandom
-        simuvex.SimProcedures['cgc']['receive'] = FixedInReceive
-        simuvex.SimProcedures['cgc']['transmit'] = FixedOutTransmit
+        angr.SIM_PROCEDURES['cgc']['random'] = FixedRandom
+        angr.SIM_PROCEDURES['cgc']['receive'] = FixedInReceive
+        angr.SIM_PROCEDURES['cgc']['transmit'] = FixedOutTransmit
 
         # if we're in crash mode we want the authentic system calls
         if not self.crash_mode:
@@ -956,7 +957,7 @@ class Tracer(object):
         self._set_hooks(project)
 
         if not self.pov:
-            fs = {'/dev/stdin': simuvex.storage.file.SimFile(
+            fs = {'/dev/stdin': angr.storage.file.SimFile(
                 "/dev/stdin", "r",
                 size=self.input_max_size)}
 
@@ -1021,8 +1022,8 @@ class Tracer(object):
         entry_state.memory.store(0x4347c000, claripy.Concat(*self.cgc_flag_bytes))
 
         if self._dump_syscall:
-            entry_state.inspect.b('syscall', when=simuvex.BP_BEFORE, action=self.syscall)
-        entry_state.inspect.b('path_step', when=simuvex.BP_AFTER,
+            entry_state.inspect.b('syscall', when=angr.BP_BEFORE, action=self.syscall)
+        entry_state.inspect.b('path_step', when=angr.BP_AFTER,
                 action=self.check_stack)
         pg = project.factory.path_group(
             entry_state,
@@ -1040,7 +1041,7 @@ class Tracer(object):
         syscall_addr = state.se.any_int(state.ip)
         # 0xa000008 is terminate, which we exclude from syscall statistics.
         if syscall_addr != 0xa000008:
-            args = s_cc.SyscallCC['X86']['CGC'](self._p.arch).get_args(state, 4)
+            args = angr.SYSCALL_CC['X86']['CGC'](self._p.arch).get_args(state, 4)
             d = {'addr': syscall_addr}
             for i in xrange(4):
                 d['arg_%d' % i] = args[i]
@@ -1070,7 +1071,7 @@ class Tracer(object):
         self._set_hooks(project)
 
         # fix stdin to the size of the input being traced
-        fs = {'/dev/stdin': simuvex.storage.file.SimFile(
+        fs = {'/dev/stdin': angr.storage.file.SimFile(
             "/dev/stdin", "r",
             size=self.input_max_size)}
 
