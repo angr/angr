@@ -4,13 +4,13 @@ from collections import defaultdict
 import importlib
 
 import logging
-l = logging.getLogger('simuvex.procedures')
+l = logging.getLogger('angr.procedures.procedure_dict')
 
-from .. import SimProcedure
+from ..engines import SimProcedure
 
 # Import all classes under the current directory, and group them based on
 # lib names.
-SimProcedures = defaultdict(dict)
+SIM_PROCEDURES = defaultdict(dict)
 path = os.path.dirname(os.path.abspath(__file__))
 skip_dirs = ['__init__.py', '__pycache__']
 skip_procs = ['__init__']
@@ -49,4 +49,14 @@ for lib_module_name in os.listdir(path):
         for attr_name in dir(proc_module):
             attr = getattr(proc_module, attr_name)
             if isinstance(attr, type) and issubclass(attr, SimProcedure):
-                SimProcedures[libname][attr_name] = attr
+                SIM_PROCEDURES[libname][attr_name] = attr
+
+class _SimProcedures(object):
+    def __getitem__(self, k):
+        l.critical("the SimProcedures dictionary is DEPRECATED. Please use the angr.SIM_PROCEDURES global dict instead.")
+        return SIM_PROCEDURES[k]
+
+    def __setitem__(self, k, v):
+        l.critical("the SimProcedures dictionary is DEPRECATED. Please use the angr.SIM_PROCEDURES global dict instead.")
+        SIM_PROCEDURES[k] = v
+SimProcedures = _SimProcedures()

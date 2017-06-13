@@ -4,7 +4,7 @@
 import logging
 logging.getLogger("angr").addHandler(logging.NullHandler())
 
-from .log import Loggers
+from .misc import Loggers
 import sys
 i = 0
 while True:

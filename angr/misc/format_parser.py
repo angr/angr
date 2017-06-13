@@ -1,11 +1,10 @@
 #!/usr/bin/env python
-from .s_procedure import SimProcedure, SimProcedureError
+from ..procedures import SimProcedure
 import string
-import simuvex
 import claripy
 import logging
 
-l = logging.getLogger("simuvex.parseformat")
+l = logging.getLogger("angr.misc.format_string")
 
 class FormatString(object):
     """
@@ -446,4 +445,4 @@ class FormatParser(SimProcedure):
 
         return fmt_str
 
-from s_errors import SimProcedureArgumentError
+from ..errors import SimProcedureArgumentError, SimProcedureError

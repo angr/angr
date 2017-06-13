@@ -4,8 +4,8 @@ import claripy
 import cffi
 import cle
 
-from ..s_errors import SimMemoryError, SimSegfaultError
-from .. import s_options as options
+from ..errors import SimMemoryError, SimSegfaultError
+from .. import sim_options as options
 from .memory_object import SimMemoryObject
 from claripy.ast.bv import BV
 

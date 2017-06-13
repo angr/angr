@@ -2,10 +2,9 @@ import inspect
 import itertools
 
 import logging
-l = logging.getLogger("simuvex.s_procedure")
+l = logging.getLogger("angr.procedures.sim_procedure")
 
 symbolic_count = itertools.count()
-
 
 class SimProcedure(object):
     """
@@ -367,7 +366,7 @@ class SimProcedure(object):
         return SimTypePointer(self.arch, ty)
 
 from . import s_options as o
-from .s_errors import SimProcedureError, SimProcedureArgumentError
+from ..errors import SimProcedureError, SimProcedureArgumentError
 from .s_type import SimTypePointer
 from .s_action import SimActionExit
 from .s_cc import DefaultCC
