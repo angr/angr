@@ -1,9 +1,9 @@
 UNAME := $(shell uname)
 ifeq ($(UNAME), Darwin)
-	LIB_SIM_UNICORN=sim_unicorn.dylib
+	LIB_ANGR_NATIVE=angr_native.dylib
 endif
 ifeq ($(UNAME), Linux)
-	LIB_SIM_UNICORN=sim_unicorn.so
+	LIB_ANGR_NATIVE=angr_native.so
 endif
 
 CC := gcc
@@ -15,13 +15,13 @@ CFLAGS := -I ${UNICORN_INCLUDE_PATH} -I ${PYVEX_INCLUDE_PATH} \
 OBJS := log.o
 LIBS := `pkg-config --libs glib-2.0` -lunicorn -lpyvex
 
-all: ${LIB_SIM_UNICORN}
+all: ${LIB_ANGR_NATIVE}
 
 log.o: log.c log.h
 	${CC} -fPIC -c -O3 -o $@ $<
 
-${LIB_SIM_UNICORN}: ${OBJS} sim_unicorn.cpp
+${LIB_ANGR_NATIVE}: ${OBJS} sim_unicorn.cpp
 	${C++C} ${CFLAGS} -shared -o $@ $^ ${LIBS}
 
 clean:
-	rm -f ${LIB_SIM_UNICORN} *.o arch/*.o
+	rm -f ${LIB_ANGR_NATIVE} *.o arch/*.o
