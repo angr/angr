@@ -537,7 +537,7 @@ class SimMemory(SimStatePlugin):
                 action = SimActionData(self.state, region_type, 'write', addr=addr_e, data=data_e, size=ref_size,
                                        condition=condition
                                        )
-                self.state.log.add_action(action)
+                self.state.history.add_action(action)
 
             if request.completed and action is not None:
                 action.actual_addrs = request.actual_addresses
@@ -602,7 +602,7 @@ class SimMemory(SimStatePlugin):
             action = SimActionData(self.state, region_type, 'write', addr=addr_e, data=req.stored_values[-1],
                                    size=max_bits, condition=self.state.se.Or(*conditions), fallback=fallback
                                    )
-            self.state.log.add_action(action)
+            self.state.history.add_action(action)
 
         if req.completed and action is not None:
             action.actual_addrs = req.actual_addresses
@@ -760,7 +760,7 @@ class SimMemory(SimStatePlugin):
                     region_type = self.id
                 action = SimActionData(self.state, region_type, 'read', addr=addr, data=r, size=ref_size,
                                        condition=condition, fallback=fallback)
-                self.state.log.add_action(action)
+                self.state.history.add_action(action)
 
             if action is not None:
                 action.actual_addrs = a

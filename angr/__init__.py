@@ -37,18 +37,17 @@ from .state_plugins.inspect import BP_BEFORE, BP_AFTER, BP_BOTH, BP_IPDB, BP_IPY
 from .state_plugins.inspect import BP
 
 from .project import *
-from .path import *
 from .errors import *
-from .surveyor import *
+#from .surveyor import *
 from .service import *
 from .analyses import *
 from .analysis import *
 from .tablespecs import *
-from . import surveyors
+#from . import surveyors
 from .blade import Blade
 from .simos import SimOS
 from .path_group import PathGroup
-from .surveyors.caller import Callable
+from .callable import Callable
 from . import knowledge
 from . import exploration_techniques
 from . import type_backend

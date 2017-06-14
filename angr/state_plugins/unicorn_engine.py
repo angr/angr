@@ -962,7 +962,7 @@ class Unicorn(SimStatePlugin):
         stack_pointers = _UC_NATIVE.stack_pointers(self._uc_state)
         self.state.scratch.stack_pointer_list = stack_pointers[ : self.steps]
         # syscall counts
-        self.state.scratch.executed_syscall_count = _UC_NATIVE.syscall_count(self._uc_state)
+        self.state.history.recent_syscall_count = _UC_NATIVE.syscall_count(self._uc_state)
 
     def destroy(self):
         #l.debug("Unhooking.")

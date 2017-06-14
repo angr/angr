@@ -1,6 +1,6 @@
 from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
-from .surveyors.caller import Callable
+from .callable import Callable
 
 import logging
 l = logging.getLogger("angr.factory")
@@ -69,7 +69,7 @@ class AngrObjectFactory(object):
             if addr is not None:
                 state.ip = addr
             if jumpkind is not None:
-                state.scratch.jumpkind = jumpkind
+                state.history.last_jumpkind = jumpkind
 
         r = None
         for engine in engines:
@@ -82,7 +82,7 @@ class AngrObjectFactory(object):
             raise AngrExitError("All engines failed to execute!")
 
         # Peek and fix the IP for syscalls
-        if r.successors and r.successors[0].scratch.jumpkind.startswith('Ijk_Sys'):
+        if r.successors and r.successors[0].history.last_jumpkind.startswith('Ijk_Sys'):
             self._fix_syscall_ip(r.successors[0])
 
         return r
@@ -193,57 +193,33 @@ class AngrObjectFactory(object):
         """
         return self._project._simos.state_call(addr, *args, **kwargs)
 
-    def path(self, state=None, **kwargs):
+    def sim_context(self, thing=None, **kwargs):
         """
-        Constructs a new path.
+        Constructs a new simulation context.
 
-        :param state:           Optional - The state to start the new path at. If not provided, an
-                                :meth:`entry_state()` will be constructed using any additional keyword arguments
-                                provided.
-        :return:                The new path.
-        :rtype:                 angr.path.Path
-        """
-        if state is None:
-            state = self.entry_state(**kwargs)
-
-        return Path(self._project, state)
-
-    def path_group(self, thing=None, **kwargs):
-        """
-        Constructs a new path group.
-
-        :param thing:           Optional - What to put in the new path group's active stash.
-        :param kwargs:          Any additional keyword arguments will be passed to the PathGroup constructor
-        :returns:               The new path group
-        :rtype:                 angr.path_group.PathGroup
+        :param thing:           Optional - What to put in the new SimContext's active stash (either a SimState or a list of SimStates).
+        :param kwargs:          Any additional keyword arguments will be passed to the SimContext constructor
+        :returns:               The new SimContext
+        :rtype:                 angr.sim_context.SimContext
 
         Many different types can be passed to this method:
 
-        * If nothing is passed in, the path group is seeded with a path containing a state initialized for the program
+        * If nothing is passed in, the SimContext is seeded with a state initialized for the program
           entry point, i.e. :meth:`entry_state()`.
-        * If a :class:`SimState` is passed in, the path group is seeded with a path wrapping that state.
-        * If a :class:`angr.path.Path` is passed in, the path group is seeded with that path.
-        * If a list is passed in, the list must contain only SimStates and Paths, each SimState will be wrapped in a
-          Path, and the whole list will be used to seed the path group.
+        * If a :class:`SimState` is passed in, the SimContext is seeded with that state.
+        * If a list is passed in, the list must contain only SimStates and the whole list will be used to seed the SimContext.
         """
         if thing is None:
-            thing = [self.path()]
-
-        if isinstance(thing, (list, tuple)):
-            thing = list(thing)
-            for i, val in enumerate(thing):
-                if isinstance(val, SimState):
-                    thing[i] = self.path(val)
-                elif not isinstance(val, Path):
-                    raise AngrError("Bad type to initialize path group: %s" % repr(val))
-        elif isinstance(thing, Path):
-            thing = [thing]
+            thing = [ self.full_init_state() ]
+        elif isinstance(thing, (list, tuple)):
+            if any(not isinstance(val, SimState) for val in thing):
+                raise AngrError("Bad type to initialize SimContext")
         elif isinstance(thing, SimState):
-            thing = [self.path(thing)]
+            thing = [ thing ]
         else:
-            raise AngrError("BadType to initialze path group: %s" % repr(thing))
+            raise AngrError("BadType to initialze SimContext: %s" % repr(thing))
 
-        return PathGroup(self._project, active_paths=thing, **kwargs)
+        return SimContext(self._project, active_states=thing, **kwargs)
 
     def callable(self, addr, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
         """
@@ -251,7 +227,7 @@ class AngrObjectFactory(object):
         function.
 
         :param addr:            The address of the function to use
-        :param concrete_only:   Throw an exception if the execution splits into multiple paths
+        :param concrete_only:   Throw an exception if the execution splits into multiple states
         :param perform_merge:   Merge all result states into one at the end (only relevant if concrete_only=False)
         :param base_state:      The state from which to do these runs
         :param toc:             The address of the table of contents for ppc64
@@ -367,7 +343,6 @@ class AngrObjectFactory(object):
         return self.successors(*args, **kwargs)
 
 from .errors import AngrExitError, AngrError, AngrUnsupportedSyscallError
-from .path import Path
-from .path_group import PathGroup
+from .sim_context import SimContext
 from .knowledge import HookNode
 from .block import Block

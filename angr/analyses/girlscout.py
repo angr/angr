@@ -341,11 +341,11 @@ class GirlScout(Analysis):
         has_call_exit = False
         tmp_exit_set = set()
         for suc in successors:
-            if suc.scratch.jumpkind == "Ijk_Call":
+            if suc.history.jumpkind == "Ijk_Call":
                 has_call_exit = True
 
         for suc in successors:
-            jumpkind = suc.scratch.jumpkind
+            jumpkind = suc.history.jumpkind
 
             if has_call_exit and jumpkind == "Ijk_Ret":
                 jumpkind = "Ijk_FakeRet"
@@ -361,8 +361,8 @@ class GirlScout(Analysis):
                 # Undecidable jumps (might be a function return, or a conditional branch, etc.)
 
                 # We log it
-                self._indirect_jumps.add((suc.scratch.jumpkind, addr))
-                l.info("IRSB 0x%x has an indirect exit %s.", addr, suc.scratch.jumpkind)
+                self._indirect_jumps.add((suc.history.jumpkind, addr))
+                l.info("IRSB 0x%x has an indirect exit %s.", addr, suc.history.jumpkind)
 
                 continue
 

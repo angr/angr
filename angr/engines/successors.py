@@ -98,7 +98,7 @@ class SimSuccessors(object):
         state._inspect('exit', BP_BEFORE, exit_target=target, exit_guard=guard, exit_jumpkind=jumpkind)
         state.scratch.target = state._inspect_getattr("exit_target", target)
         state.scratch.guard = state._inspect_getattr("exit_guard", guard)
-        state.scratch.jumpkind = state._inspect_getattr("exit_jumpkind", jumpkind)
+        state.history.last_jumpkind = state._inspect_getattr("exit_jumpkind", jumpkind)
 
         # track some vex-specific stuff here for now
         state.scratch.source = source if source is not None else self.addr
@@ -171,11 +171,11 @@ class SimSuccessors(object):
             self.unsat_successors.append(state)
         elif o.NO_SYMBOLIC_JUMP_RESOLUTION in state.options and state.se.symbolic(target):
             self.unconstrained_successors.append(state)
-        elif not state.se.symbolic(target) and not state.scratch.jumpkind.startswith("Ijk_Sys"):
+        elif not state.se.symbolic(target) and not state.history.last_jumpkind.startswith("Ijk_Sys"):
             # a successor with a concrete IP, and it's not a syscall
             self.successors.append(state)
             self.flat_successors.append(state)
-        elif state.scratch.jumpkind.startswith("Ijk_Sys"):
+        elif state.history.last_jumpkind.startswith("Ijk_Sys"):
             # syscall
             self.successors.append(state)
 

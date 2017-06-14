@@ -5,15 +5,10 @@ import itertools
 
 import claripy
 
-l = logging.getLogger("angr.path_hierarchy")
+l = logging.getLogger("angr.state_hierarchy")
 
-class PathHierarchy(object):
-    def __init__(self, weakkey_path_mapping=False):
-
-        if weakkey_path_mapping:
-            self._path_mapping = weakref.WeakKeyDictionary()
-        else:
-            self._path_mapping = weakref.WeakValueDictionary()
+class StateHierarchy(object):
+    def __init__(self):
 
         # The New Order
         self._graph = networkx.DiGraph()
@@ -22,17 +17,16 @@ class PathHierarchy(object):
 
     def __getstate__(self):
         histories = [ h() for h in networkx.algorithms.dfs_postorder_nodes(self._graph) ]
-        return dict(self._path_mapping), histories
+        return (histories,)
 
     def __setstate__(self, s):
         self._graph = networkx.DiGraph()
         self._leaves = set()
         self._twigs = set()
 
-        path_mapping, nodes = s
+        nodes = s[0]
         for n in nodes:
             self.add_history(n)
-        self._path_mapping = weakref.WeakValueDictionary(path_mapping)
 
     #
     # Graph management
@@ -52,13 +46,11 @@ class PathHierarchy(object):
 
         self._leaves.discard(h)
         self._twigs.discard(h)
-        self._path_mapping.pop(h(), None)
         if h() is not None:
             h().demote()
 
-    def add_path(self, p):
-        h = p.history
-        self._path_mapping[h] = p
+    def add_state(self, s):
+        h = s.history
         self.add_history(h)
 
     def add_history(self, h):
@@ -129,7 +121,7 @@ class PathHierarchy(object):
         bad = len(lineage) - 1
 
         while True:
-            l.debug("... looking between %d and %d in %d paths", good, bad, len(lineage))
+            l.debug("... looking between %d and %d in %d states", good, bad, len(lineage))
             cur = (bad+good)/2
 
             if cur == good or cur == bad:
@@ -158,7 +150,7 @@ class PathHierarchy(object):
                 n().state.add_constraints(claripy.false)
         self._graph.remove_nodes_from(all_children)
 
-    def unreachable_path(self, p):
+    def unreachable_state(self, p):
         self.unreachable_history(p.history)
 
     def unreachable_history(self, h):
@@ -173,24 +165,24 @@ class PathHierarchy(object):
     # Smart merging support
     #
 
-    def most_mergeable(self, paths):
+    def most_mergeable(self, states):
         """
-        Find the "most mergeable" set of paths from those provided.
+        Find the "most mergeable" set of states from those provided.
 
-        :param paths: a list of paths
-        :returns: a tuple of: (a list of paths to merge, those paths' common history, a list of paths to not merge yet)
+        :param states: a list of states
+        :returns: a tuple of: (a list of states to merge, those states' common history, a list of states to not merge yet)
         """
 
-        histories = set(weakref.ref(p.history) for p in paths)
+        histories = set(weakref.ref(s.history) for s in states)
 
         for n in networkx.algorithms.dfs_postorder_nodes(self._graph):
             intersection = histories.intersection(self.all_successors(n))
             if len(intersection) > 1:
                 return (
-                    [ p for p in paths if weakref.ref(p.history) in intersection ],
+                    [ s for s in states if weakref.ref(s.history) in intersection ],
                     n(),
-                    [ p for p in paths if weakref.ref(p.history) not in intersection ]
+                    [ s for s in states if weakref.ref(s.history) not in intersection ]
                 )
 
         # didn't find any?
-        return set(), None, paths
+        return set(), None, states

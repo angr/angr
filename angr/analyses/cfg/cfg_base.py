@@ -1409,7 +1409,7 @@ class CFGBase(Analysis):
                     b = self.project.factory.successors(tmp_state, jumpkind='Ijk_Boring')
                     if len(b.successors) != 1:
                         break
-                    if b.successors[0].scratch.jumpkind != 'Ijk_Boring':
+                    if b.successors[0].history.last_jumpkind != 'Ijk_Boring':
                         break
                     if b.successors[0].ip.symbolic:
                         break

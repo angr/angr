@@ -46,7 +46,7 @@ class SimEngineHook(SimEngineProcedure):
                 force_addr=force_addr)
 
     def _check(self, state, procedure=None, **kwargs):
-        if state.scratch.jumpkind == 'Ijk_NoHook':
+        if state.history.last_jumpkind == 'Ijk_NoHook':
             return False
 
         if state._ip.symbolic:
@@ -63,7 +63,7 @@ class SimEngineHook(SimEngineProcedure):
 
     def _process(self, state, successors, procedure=None, **kwargs):
         addr = successors.addr
-        if state.scratch.jumpkind == 'Ijk_NoHook':
+        if state.history.last_jumpkind == 'Ijk_NoHook':
             return
 
         if procedure is None:

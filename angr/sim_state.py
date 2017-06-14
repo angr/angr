@@ -336,7 +336,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             if o.TRACK_CONSTRAINT_ACTIONS in self.options:
                 for c in added:
                     sac = SimActionConstraint(self, c)
-                    self.log.add_action(sac)
+                    self.history.add_action(sac)
         else:
             # preserve the old action logic for when we don't track constraints (why?)
             if (
@@ -346,7 +346,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 for arg in args:
                     if self.se.symbolic(arg):
                         sac = SimActionConstraint(self, arg)
-                        self.log.add_action(sac)
+                        self.history.add_action(sac)
 
         if o.ABSTRACT_SOLVER in self.options and len(args) > 0:
             for arg in args:

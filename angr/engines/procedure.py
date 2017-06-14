@@ -51,7 +51,7 @@ class SimEngineProcedure(SimEngine):
 
         # Update state.scratch
         state.scratch.sim_procedure = procedure
-        state.scratch.executed_block_count = 1
+        state.history.recent_block_count = 1
 
         # prepare and run!
         state._inspect('simprocedure',

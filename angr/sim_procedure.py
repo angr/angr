@@ -107,7 +107,7 @@ class SimProcedure(object):
         # check to see if this is a syscall and if we should override its return value
         override = None
         if self.is_syscall:
-            state.scratch.executed_syscall_count = 1
+            state.history.recent_syscall_count = 1
             if len(state.posix.queued_syscall_returns):
                 override = state.posix.queued_syscall_returns.pop(0)
 
@@ -350,13 +350,13 @@ class SimProcedure(object):
 
         if isinstance(exit_code, (int, long)):
             exit_code = self.state.se.BVV(exit_code, self.state.arch.bits)
-        self.state.log.add_event('terminate', exit_code=exit_code)
+        self.state.history.add_event('terminate', exit_code=exit_code)
         self.successors.add_successor(self.state, self.state.regs.ip, self.state.se.true, 'Ijk_Exit')
 
     @staticmethod
     def _exit_action(state, addr):
         if o.TRACK_JMP_ACTIONS in state.options:
-            state.log.add_action(SimActionExit(state, addr))
+            state.history.add_action(SimActionExit(state, addr))
 
     #
     # misc

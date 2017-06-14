@@ -10,4 +10,4 @@ class UserHook(angr.SimProcedure):
             self.successors.add_successor(self.state, self.addr+length, self.state.se.true, 'Ijk_NoHook')
         else:
             for state in result:
-                self.successors.add_successor(state, state.ip, state.scratch.guard, state.scratch.jumpkind)
+                self.successors.add_successor(state, state.ip, state.scratch.guard, state.history.last_jumpkind)

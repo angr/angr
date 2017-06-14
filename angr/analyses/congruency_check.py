@@ -67,8 +67,8 @@ class CongruencyCheck(Analysis):
         l.debug("Sync-stepping pathgroup...")
         l.debug(
             "... left width: %s, right width: %s",
-            pg.left[0].weighted_length if len(pg.left) > 0 else None,
-            pg.right[0].weighted_length if len(pg.right) > 0 else None,
+            pg.left[0].history.weighted_depth if len(pg.left) > 0 else None,
+            pg.right[0].history.weighted_depth if len(pg.right) > 0 else None,
         )
 
         if len(pg.errored) != 0 and (len(pg.left) == 0 or len(pg.right) == 0):
@@ -83,21 +83,21 @@ class CongruencyCheck(Analysis):
         elif len(pg.right) == 0 and len(pg.left) == 0:
             l.debug("... both deadended.")
             return pg
-        elif pg.left[0].weighted_length == pg.right[0].weighted_length:
+        elif pg.left[0].history.weighted_depth == pg.right[0].history.weighted_depth:
             l.debug("... synced")
             return pg
-        elif pg.left[0].weighted_length < pg.right[0].weighted_length:
+        elif pg.left[0].history.weighted_depth < pg.right[0].history.weighted_depth:
             l.debug("... right is ahead; stepping left up to %s times", max_steps)
             npg = pg.step(
                 stash='left',
-                until=lambda lpg: lpg.left[0].weighted_length >= pg.right[0].weighted_length,
+                until=lambda lpg: lpg.left[0].history.weighted_depth >= pg.right[0].history.weighted_depth,
                 n=max_steps
             )
-        elif pg.right[0].weighted_length < pg.left[0].weighted_length:
+        elif pg.right[0].history.weighted_depth < pg.left[0].history.weighted_depth:
             l.debug("... left is ahead; stepping right up to %s times", max_steps)
             npg = pg.step(
                 stash='right',
-                until=lambda lpg: lpg.right[0].weighted_length >= pg.left[0].weighted_length,
+                until=lambda lpg: lpg.right[0].history.weighted_depth >= pg.left[0].history.weighted_depth,
                 n=max_steps
             )
 
@@ -137,7 +137,7 @@ class CongruencyCheck(Analysis):
                         return True
 
                     new_unicorn = npg.found[0]
-                    delta = new_unicorn.weighted_length - normal_path.weighted_length
+                    delta = new_unicorn.history.weighted_depth - normal_path.history.weighted_depth
                     normal_path.extra_length += delta
                     new_normal = normal_path
                 elif unicorn_path.state.arch.name == "MIPS32":
@@ -160,7 +160,7 @@ class CongruencyCheck(Analysis):
                         return True
 
                     new_normal = npg.found[0]
-                    delta = new_normal.weighted_length - unicorn_path.weighted_length
+                    delta = new_normal.history.weighted_depth - unicorn_path.history.weighted_depth
                     unicorn_path.extra_length += delta
                     new_unicorn = unicorn_path
                 else:
@@ -213,7 +213,7 @@ class CongruencyCheck(Analysis):
 
         while len(self.pg.left) > 0 and len(self.pg.right) > 0:
             if depth is not None:
-                self._update_progress(100. * float(self.pg.one_left.weighted_length) / depth)
+                self._update_progress(100. * float(self.pg.one_left.history.weighted_depth) / depth)
 
             if len(self.pg.deadended) != 0:
                 self._report_incongruency("Unexpected deadended paths before step.")
@@ -228,7 +228,7 @@ class CongruencyCheck(Analysis):
             # do a step
             l.debug(
                 "Stepping right path with weighted length %d/%s",
-                self.pg.right[0].weighted_length,
+                self.pg.right[0].history.weighted_depth,
                 depth
             )
             self.prev_pg = self.pg.copy() #pylint:disable=unused-variable
@@ -248,8 +248,8 @@ class CongruencyCheck(Analysis):
                     raise
 
             if depth is not None:
-                self.pg.drop(stash='left', filter_func=lambda p: p.weighted_length >= depth)
-                self.pg.drop(stash='right', filter_func=lambda p: p.weighted_length >= depth)
+                self.pg.drop(stash='left', filter_func=lambda p: p.history.weighted_depth >= depth)
+                self.pg.drop(stash='right', filter_func=lambda p: p.history.weighted_depth >= depth)
 
             self.pg.right.sort(key=lambda p: p.addr)
             self.pg.left.sort(key=lambda p: p.addr)
@@ -344,7 +344,7 @@ class CongruencyCheck(Analysis):
             self._report_incongruency("Failed state similarity check!")
             return False
 
-        if pr.weighted_length != pl.weighted_length:
+        if pr.history.weighted_depth != pl.history.weighted_depth:
             self._report_incongruency("Different weights!")
             return False
 

@@ -64,7 +64,7 @@ class Path(object):
 
             # the previous run
             self.previous_run = None
-            self.history._jumpkind = state.scratch.jumpkind
+            self.history._jumpkind = state.history.last_jumpkind
 
             # A custom information store that will be passed to all its descendents
             self.info = {}
@@ -489,17 +489,17 @@ class Path(object):
         else:
             # there is only one block
             call_site_addr = self.previous_run.addr if self.previous_run else None
-            if state.scratch.jumpkind == "Ijk_Call":
+            if state.history.last_jumpkind == "Ijk_Call":
                 self._manage_callstack_call(state=state, call_site_addr=call_site_addr)
                 if o.REGION_MAPPING in self.state.options and o.ABSTRACT_MEMORY not in self.state.options:
                     self._add_stack_region_mapping(state)
 
-            elif state.scratch.jumpkind.startswith('Ijk_Sys'):
+            elif state.history.last_jumpkind.startswith('Ijk_Sys'):
                 self._manage_callstack_sys(state=state, call_site_addr=call_site_addr)
                 if o.REGION_MAPPING in self.state.options and o.ABSTRACT_MEMORY not in self.state.options:
                     self._add_stack_region_mapping(state)
 
-            elif state.scratch.jumpkind == "Ijk_Ret":
+            elif state.history.last_jumpkind == "Ijk_Ret":
                 ret_site_addr = call_site_addr
                 self._manage_callstack_ret(ret_site_addr)
 

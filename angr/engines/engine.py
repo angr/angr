@@ -36,7 +36,7 @@ class SimEngine(object):
 
         # clear the log (unless we're inlining)
         if not inline:
-            new_state.log.clear()
+            new_state.history.clear()
             new_state.scratch.clear()
             new_state.scratch.bbl_addr = addr
 

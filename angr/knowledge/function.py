@@ -327,7 +327,7 @@ class Function(object):
             p.step()
             if p.next_run is not None:
                 for succ in p.next_run.flat_successors + p.next_run.unsat_successors:
-                    for a in succ.log.actions:
+                    for a in succ.history.last_actions:
                         for ao in a.all_objects:
                             if not isinstance(ao.ast, claripy.ast.Base):
                                 constants.add(ao.ast)
@@ -374,7 +374,7 @@ class Function(object):
         for b in self.block_addrs:
             for sirsb in self._function_manager._cfg.get_all_irsbs(b):
                 for s in sirsb.successors + sirsb.unsat_successors:
-                    for a in s.log.actions:
+                    for a in s.history.last_actions:
                         for ao in a.all_objects:
                             if not isinstance(ao.ast, claripy.ast.Base):
                                 constants.add(ao.ast)

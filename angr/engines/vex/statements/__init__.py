@@ -32,4 +32,4 @@ def translate_stmt(stmt, state):
         l.error("Unsupported statement type %s", (type(stmt)))
         if o.BYPASS_UNSUPPORTED_IRSTMT not in state.options:
             raise UnsupportedIRStmtError("Unsupported statement type %s" % (type(stmt)))
-        state.log.add_event('resilience', resilience_type='irstmt', stmt=type(stmt).__name__, message='unsupported IRStmt')
+        state.history.add_event('resilience', resilience_type='irstmt', stmt=type(stmt).__name__, message='unsupported IRStmt')

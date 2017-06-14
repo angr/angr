@@ -101,7 +101,7 @@ class SimEngineUnicorn(SimEngine):
             successors.initial_state.unicorn.countdown_nonunicorn_blocks = state.unicorn.countdown_nonunicorn_blocks
             return
 
-        state.scratch.executed_block_count += state.unicorn.steps
+        state.history.recent_block_count += state.unicorn.steps
 
         if state.unicorn.jumpkind.startswith('Ijk_Sys'):
             state.ip = state.unicorn._syscall_pc

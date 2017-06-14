@@ -493,6 +493,6 @@ class Surveyor(object):
         return p
 
 from .errors import AngrError, PathUnreachableError
-from .path import Path
-from .path_hierarchy import PathHierarchy
+#from .path import Path
+#from .path_hierarchy import PathHierarchy
 from .surveyors import all_surveyors

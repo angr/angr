@@ -121,7 +121,7 @@ class SimStateScratch(SimStatePlugin):
             data_ao = SimActionObject(content, reg_deps=reg_deps, tmp_deps=tmp_deps)
             r = SimActionData(self.state, SimActionData.TMP, SimActionData.WRITE, tmp=tmp, data=data_ao, size=content.length)
             if action_holder is None:
-                self.state.log.events.append(r)
+                self.state.history.add_event(r)
             else:
                 action_holder.append(r)
 

@@ -13,7 +13,10 @@ class AngrExitError(AngrError):
 class AngrPathError(AngrError):
     pass
 
-class AngrPathGroupError(AngrError):
+class PathUnreachableError(AngrPathError):
+    pass
+
+class SimContextError(AngrError):
     pass
 
 class AngrInvalidArgumentError(AngrError):
@@ -23,9 +26,6 @@ class AngrSurveyorError(AngrError):
     pass
 
 class AngrAnalysisError(AngrError):
-    pass
-
-class PathUnreachableError(AngrError):
     pass
 
 class AngrBladeError(AngrError):
@@ -140,7 +140,7 @@ class SimError(Exception):
         self.bbl_addr = state.scratch.bbl_addr
         self.stmt_idx = state.scratch.stmt_idx
         self.ins_addr = state.scratch.ins_addr
-        self.executed_instruction_count = state.scratch.executed_instruction_count
+        self.executed_instruction_count = state.history.recent_instruction_count
         return self
 
 #

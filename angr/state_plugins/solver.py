@@ -17,7 +17,7 @@ l = logging.getLogger("angr.state_plugins.solver")
 _timing_enabled = False
 
 import time
-lt = logging.getLogger("angr.state_plugins.solver")
+lt = logging.getLogger("angr.state_plugins.solver_timing")
 def timed_function(f):
     if _timing_enabled:
         @functools.wraps(f)
@@ -255,7 +255,7 @@ class SimSolver(SimStatePlugin):
 
         r = claripy.BVS(name, size, min=min, max=max, stride=stride, uninitialized=uninitialized, explicit_name=explicit_name, **kwargs)
         self.state._inspect('symbolic_variable', BP_AFTER, symbolic_name=next(iter(r.variables)), symbolic_size=size, symbolic_expr=r)
-        self.state.log.add_event('unconstrained', name=iter(r.variables).next(), bits=size, **kwargs)
+        self.state.history.add_event('unconstrained', name=iter(r.variables).next(), bits=size, **kwargs)
         if o.TRACK_SOLVER_VARIABLES in self.state.options:
             self.all_variables = list(self.all_variables)
             self.all_variables.append(r)

@@ -142,7 +142,7 @@ class VSA_DDG(Analysis):
 
             successing_nodes = self._vfg.graph.successors(node)
             for state in final_states:
-                if state.scratch.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
+                if state.history.last_jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
                     # Skip fakerets if there are other control flow transitions available
                     continue
 
@@ -198,7 +198,7 @@ class VSA_DDG(Analysis):
         # Make a copy of live_defs
         live_defs = live_defs.copy()
 
-        action_list = list(state.log.actions)
+        action_list = list(state.history.last_actions)
 
         # Since all temporary variables are local, we simply track them in a local dict
         temps = { }

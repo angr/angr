@@ -333,7 +333,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         min_size = self.state.se.min_int(size)
 
         if min_size > self._maximum_symbolic_size:
-            self.state.log.add_event('memory_limit', message="Symbolic size %d outside of allowable limits" % min_size, size=size)
+            self.state.history.add_event('memory_limit', message="Symbolic size %d outside of allowable limits" % min_size, size=size)
             if options.BEST_EFFORT_MEMORY_STORING not in self.state.options:
                 raise SimMemoryLimitError("Symbolic size %d outside of allowable limits" % min_size)
             else:
@@ -441,7 +441,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             all_missing = [ a.reversed for a in all_missing ]
         b = self.state.se.Concat(*all_missing) if len(all_missing) > 1 else all_missing[0]
 
-        self.state.log.add_event('uninitialized', memory_id=self.id, addr=addr, size=num_bytes)
+        self.state.history.add_event('uninitialized', memory_id=self.id, addr=addr, size=num_bytes)
         default_mo = SimMemoryObject(b, addr)
         self.state.scratch.push_priv(True)
         self.mem.store_memory_object(default_mo, overwrite=False)
@@ -499,7 +499,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             self.state.add_constraints(size == max_size, action=True)
 
         if max_size == 0:
-            self.state.log.add_event('memory_limit', message="0-length read")
+            self.state.history.add_event('memory_limit', message="0-length read")
 
         size = max_size
         if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:

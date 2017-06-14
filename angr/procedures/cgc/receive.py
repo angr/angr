@@ -56,7 +56,7 @@ class receive(angr.SimProcedure):
 
             if self.state.se.solution(count != 0, True):
                 read_length = self.state.posix.read(fd, buf, actual_size)
-                action_list = list(self.state.log.actions)
+                action_list = list(self.state.history.last_actions)
 
                 try:
                     # get and fix up the memory write
