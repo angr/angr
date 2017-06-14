@@ -283,7 +283,7 @@ class HistoryIter(TreeIter):
 
 class LambdaAttrIter(TreeIter):
     def __init__(self, start, f, **kwargs):
-        TreeIter.__init__(self, start, f, **kwargs)
+        TreeIter.__init__(self, start, **kwargs)
         self._f = f
 
     def __reversed__(self):
