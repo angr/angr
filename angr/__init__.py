@@ -46,7 +46,7 @@ from .tablespecs import *
 #from . import surveyors
 from .blade import Blade
 from .simos import SimOS
-from .path_group import PathGroup
+from .sim_context import SimContext
 from .callable import Callable
 from . import knowledge
 from . import exploration_techniques

@@ -34,12 +34,6 @@ class SimEngine(object):
         else:
             new_state = state
 
-        # clear the log (unless we're inlining)
-        if not inline:
-            new_state.history.clear()
-            new_state.scratch.clear()
-            new_state.scratch.bbl_addr = addr
-
         successors = SimSuccessors(addr, state)
         self._process(new_state, successors, *args, **kwargs)
         return successors

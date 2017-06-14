@@ -15,7 +15,7 @@ class SimStateHistory(SimStatePlugin):
         # attributes handling the progeny of this history object
         self.parent = parent if clone is None else clone.parent
         self.merged_from = [ ] if clone is None else list(clone.merged_from)
-        self.merge_conditions = [ ] if clone is None else list(clone.merged_conditions)
+        self.merge_conditions = [ ] if clone is None else list(clone.merge_conditions)
         self.depth = (0 if parent is None else parent.length + 1) if clone is None else clone.depth
         self.extra_depth = (0 if parent is None else parent.extra_depth) if clone is None else clone.depth
 
@@ -25,15 +25,15 @@ class SimStateHistory(SimStatePlugin):
         # the control flow transfer information from this history onwards (to the current state)
         self.jump_target = None if clone is None else clone.jump_target
         self.jump_source = None if clone is None else clone.jump_source
-        self.jump_avoidable = None if clone is None else clone.jump_avoidance
+        self.jump_avoidable = None if clone is None else clone.jump_avoidable
         self.jump_guard = None if clone is None else clone.jump_guard
         self.jumpkind = None if clone is None else clone.jumpkind
 
         # the execution log for this history
-        self.recent_events = [ ] if clone is None else list(self.recent_events)
-        self.recent_bbl_addrs = [ ] if clone is None else list(self.recent_bbl_addrs)
-        self.recent_ins_addrs = [ ] if clone is None else list(self.recent_ins_addrs)
-        self.last_stmt_idx = None if clone is None else self.last_stmt_idx
+        self.recent_events = [ ] if clone is None else list(clone.recent_events)
+        self.recent_bbl_addrs = [ ] if clone is None else list(clone.recent_bbl_addrs)
+        self.recent_ins_addrs = [ ] if clone is None else list(clone.recent_ins_addrs)
+        self.last_stmt_idx = None if clone is None else clone.last_stmt_idx
 
         # numbers of blocks, syscalls, and instructions that were executed in this step
         self.recent_block_count = 0 if clone is None else clone.recent_block_count

@@ -56,8 +56,8 @@ class StateHierarchy(object):
     def add_history(self, h):
         cur_node = weakref.ref(h, self._remove_history)
         self._graph.add_node(cur_node)
-        if h._parent is not None:
-            prev_node = weakref.ref(h._parent, self._remove_history)
+        if h.parent is not None:
+            prev_node = weakref.ref(h.parent, self._remove_history)
             self._graph.add_edge(prev_node, cur_node)
 
             self._leaves.discard(prev_node)
