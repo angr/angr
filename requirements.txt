@@ -12,3 +12,4 @@ pyvex
 claripy
 simuvex
 cle
+shellphish-afl
