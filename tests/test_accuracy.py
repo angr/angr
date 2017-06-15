@@ -26,26 +26,26 @@ def emulate(arch):
     #     state = p.factory.full_init_state(args=['./test_arrays'], add_options={angr.options.STRICT_PAGE_ACCESS})
     state = p.factory.full_init_state(args=['./test_arrays'], add_options={angr.options.STRICT_PAGE_ACCESS, angr.options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
 
-    pg = p.factory.path_group(state)
+    pg = p.factory.simgr(state)
     pg2 = pg.step(until=lambda lpg: len(lpg.active) != 1,
                   step_func=lambda lpg: lpg if len(lpg.active) == 1 else lpg.prune()
                  )
 
     is_finished = False
     if len(pg2.active) > 0:
-        path = pg2.active[0]
+        state = pg2.active[0]
     elif len(pg2.deadended) > 0:
-        path = pg2.deadended[0]
+        state = pg2.deadended[0]
         is_finished = True
     elif len(pg2.errored) > 0:
-        path = pg2.errored[0]
+        state = pg2.errored[0].state
     else:
-        raise ValueError("This pathgroup does not contain a path we can use for this test?")
+        raise ValueError("The result does not contain a state we can use for this test?")
 
-    nose.tools.assert_greater_equal(path.length, steps)
+    nose.tools.assert_greater_equal(state.history.depth, steps)
 
-    # this is some wonky control flow that asserts that the items in hit_addrs appear in the path in order.
-    trace = path.addr_trace.hardcopy
+    # this is some wonky control flow that asserts that the items in hit_addrs appear in the state in order.
+    trace = state.history.bbl_addrs.hardcopy
     reqs = list(hit_addrs)
     while len(reqs) > 0:
         req = reqs.pop(0)
@@ -66,14 +66,14 @@ def test_emulation():
 def test_locale():
     p = angr.Project(test_location + 'i386/isalnum', use_sim_procedures=False)
     state = p.factory.full_init_state(args=['./isalnum'], add_options={angr.options.STRICT_PAGE_ACCESS})
-    pg = p.factory.path_group(state)
+    pg = p.factory.simgr(state)
     pg2 = pg.step(until=lambda lpg: len(lpg.active) != 1,
                   step_func=lambda lpg: lpg if len(lpg.active) == 1 else lpg.prune()
                  )
     nose.tools.assert_equal(len(pg2.active), 0)
     nose.tools.assert_equal(len(pg2.deadended), 1)
-    nose.tools.assert_equal(pg2.deadended[0].events[-1].type, 'terminate')
-    nose.tools.assert_equal(pg2.deadended[0].events[-1].objects['exit_code'].ast._model_concrete.value, 0)
+    nose.tools.assert_equal(pg2.deadended[0].history.events[-1].type, 'terminate')
+    nose.tools.assert_equal(pg2.deadended[0].history.events[-1].objects['exit_code'].ast._model_concrete.value, 0)
 
 
 if __name__ == '__main__':

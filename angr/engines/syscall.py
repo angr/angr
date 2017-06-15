@@ -9,7 +9,7 @@ class SimEngineSyscall(SimEngine): #pylint:disable=abstract-method
         self.project = project
 
     def _check(self, state, **kwargs):
-        if not state.history.last_jumpkind.startswith('Ijk_Sys'):
+        if not state.history.jumpkind.startswith('Ijk_Sys'):
             return False
 
         return True

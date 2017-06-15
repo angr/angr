@@ -16,7 +16,7 @@ class AngrPathError(AngrError):
 class PathUnreachableError(AngrPathError):
     pass
 
-class SimContextError(AngrError):
+class SimulationManagerError(AngrError):
     pass
 
 class AngrInvalidArgumentError(AngrError):

@@ -46,7 +46,7 @@ from .tablespecs import *
 #from . import surveyors
 from .blade import Blade
 from .simos import SimOS
-from .sim_context import SimContext
+from .manager import SimulationManager
 from .callable import Callable
 from . import knowledge
 from . import exploration_techniques

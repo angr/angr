@@ -65,7 +65,7 @@ class Callable(object):
                 raise AngrCallableMultistateError("Execution split on symbolic condition!")
             return pg2
 
-        caller = self._project.factory.path_group(state, immutable=True)
+        caller = self._project.factory.simgr(state, immutable=True)
         caller_end_unpruned = caller.step(until=lambda pg: len(pg.active) == 0, step_func=step_func if self._concrete_only else None).unstash(from_stash='deadended')
         caller_end_unmerged = caller_end_unpruned.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
 
@@ -76,6 +76,6 @@ class Callable(object):
 
         if self._perform_merge:
             caller_end = caller_end_unmerged.merge()
-            self.result_state = caller_end.active[0].state
+            self.result_state = caller_end.active[0]
 
 from .errors import AngrCallableError, AngrCallableMultistateError

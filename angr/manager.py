@@ -1,3 +1,4 @@
+import sys
 import inspect
 import logging
 import itertools
@@ -9,13 +10,13 @@ import mulpyplexer
 
 from .errors import SimError, SimMergeError
 
-l = logging.getLogger("angr.sim_context")
+l = logging.getLogger("angr.manager")
 
-class SimContext(ana.Storable):
+class SimulationManager(ana.Storable):
     """
-    The Simulation Context is the future future.
+    The Simulation Manager is the future future.
 
-    Simulation contexts groups allow you to wrangle multiple states in a slick way.
+    Simulation managers allow you to wrangle multiple states in a slick way.
     States are organized into "stashes", which you can
     step forward, filter, merge, and move around as you wish.
     This allows you to, for example, step two different
@@ -25,7 +26,7 @@ class SimContext(ana.Storable):
     A mulpyplexed stash can be retrieved by prepending the name
     with `mp_` (e.g., `sc.mp_active`).
 
-    Note that you shouldn't usually be constructing SimContexts directly - there is
+    Note that you shouldn't usually be constructing SimulationManagers directly - there is
     a convenient shortcuts for creating them in ``Project.factory``: see :class:`angr.factory.AngrObjectFactory`.
 
     Multithreading your search can be useful in constraint-solving-intensive situations.
@@ -39,7 +40,7 @@ class SimContext(ana.Storable):
 
     def __init__(self, project, active_states=None, stashes=None, hierarchy=None, veritesting=None,
                  veritesting_options=None, immutable=None, resilience=None, save_unconstrained=None,
-                 save_unsat=None, threads=None):
+                 save_unsat=None, threads=None, errored=None):
         """
         :param project:         A Project instance.
         :type  project:         angr.project.Project
@@ -49,8 +50,8 @@ class SimContext(ana.Storable):
         :param active_states:   Active states to seed the "active" stash with.
         :param stashes:         A dictionary to use as the stash store.
         :param hierarchy:       A StateHierarchy object to use to track the relationships between states.
-        :param immutable:       If True, all operations will return a new SimContext. Otherwise (default), all operations
-                                will modify the SimContext (and return it, for consistency and chaining).
+        :param immutable:       If True, all operations will return a new SimulationManager. Otherwise (default), all operations
+                                will modify the SimulationManager (and return it, for consistency and chaining).
         :param threads:         the number of worker threads to concurrently analyze states (useful in z3-intensive situations).
         """
         self._project = project
@@ -75,6 +76,7 @@ class SimContext(ana.Storable):
                 **({} if veritesting_options is None else veritesting_options)
             ))
 
+        self.errored = [] if errored is None else list(errored)
         self.stashes = self._make_stashes_dict(active=active_states) if stashes is None else stashes
 
     #
@@ -99,25 +101,28 @@ class SimContext(ana.Storable):
 
     def copy(self, stashes=None):
         stashes = stashes if stashes is not None else self._copy_stashes(immutable=True)
-        out = SimContext(self._project, stashes=stashes, hierarchy=self._hierarchy, immutable=self._immutable, resilience=self._resilience, save_unconstrained=self.save_unconstrained, save_unsat=self.save_unsat)
+        out = SimulationManager(self._project, stashes=stashes, hierarchy=self._hierarchy, immutable=self._immutable, resilience=self._resilience, save_unconstrained=self.save_unconstrained, save_unsat=self.save_unsat, errored=self.errored)
         out._hooks_step = list(self._hooks_step)
         out._hooks_step_state = list(self._hooks_step_state)
         out._hooks_filter = list(self._hooks_filter)
         out._hooks_complete = list(self._hooks_complete)
         return out
 
-    @staticmethod
-    def _make_stashes_dict(
-        active=None, unconstrained=None, unsat=None, pruned=None, errored=None, deadended=None, **kwargs
+    def _make_stashes_dict(self,
+        active=None, unconstrained=None, unsat=None, pruned=None, deadended=None, orig=None, **kwargs
     ):
+        for key in kwargs:
+            if hasattr(self, key):
+                raise SimulationManagerError("'%s' is an illegal stash name - already in use as attribute")
 
         always_present = {'active': active or [],
                           'unconstrained': unconstrained or [],
                           'unsat': unsat or [],
                           'pruned': pruned or [],
-                          'errored': errored or [],
                           'deadended': deadended or []
                           }
+        if not active and not unconstrained and orig:
+            always_present['deadended'].append(orig)
 
         result = defaultdict(list, always_present, **kwargs)
         return result
@@ -146,10 +151,10 @@ class SimContext(ana.Storable):
 
     def _successor(self, new_stashes):
         """
-        Creates a new SimContext with the provided stashes (if immutable), or sets the stashes (if not immutable). Used
+        Creates a new SimulationManager with the provided stashes (if immutable), or sets the stashes (if not immutable). Used
         to abstract away immutability.
 
-        :returns:   A SimContext.
+        :returns:   A SimulationManager.
         """
         if self.DROP in new_stashes:
             del new_stashes[self.DROP]
@@ -201,11 +206,17 @@ class SimContext(ana.Storable):
         :returns:               A dict mapping stash names to state lists
         """
 
+        # this is our baby. we fill it with our results.
+        new_stashes = {}
+
         # we keep a strong reference here since the hierarchy handles trimming it
         if self._hierarchy:
             kwargs["strong_reference"] = True
 
+        # wrap any call we make out to user code in this try-except for resilliance
         try:
+            # if we have a hook, use it. If we succeed at using the hook, we will break out of this loop
+            # otherwise we execute the else-clause, which does the normal step procedure
             for hook in self._hooks_step_state:
                 # FIXME hack to handle some hooks not expecting strong_reference
                 argspec = inspect.getargspec(hook)
@@ -217,7 +228,7 @@ class SimContext(ana.Storable):
                     if isinstance(out, tuple):
                         l.warning('step_state returning a tuple has been deprecated! Please return a dict of stashes instead.')
                         a, unconst, unsat, p, e = out
-                        out = {'active': a, 'unconstrained': unconst, 'unsat': unsat, 'pruned': p, 'errored': e}
+                        out = {'active': a, 'unconstrained': unconst, 'unsat': unsat, 'pruned': p}
                     new_stashes = self._make_stashes_dict(**out)
                     break
             else:
@@ -229,24 +240,24 @@ class SimContext(ana.Storable):
                 new_stashes = self._make_stashes_dict(
                     active=ss.flat_successors,
                     unconstrained=ss.unconstrained_successors,
-                    unsat=ss.unsat_successors
+                    unsat=ss.unsat_successors,
+                    orig=a
                 )
         except (SimUnsatError, claripy.UnsatError) as e:
             new_stashes = self._make_stashes_dict(pruned=[a])
             if self._hierarchy:
                 self._hierarchy.unreachable_state(a)
                 self._hierarchy.simplify()
-        except (
-            AngrError, SimError, claripy.ClaripyError,
-            TypeError, ValueError, ArithmeticError, MemoryError
-        ):
-            new_stashes = self._make_stashes_dict(errored=[a])
+        except (AngrError, SimError, claripy.ClaripyError) as e:
+            self.errored.append(ErroredState(a, e, sys.exc_info()[2]))
+        except (TypeError, ValueError, ArithmeticError, MemoryError) as e:
             if resilience is False or not self._resilience:
                 raise
+            self.errored.append(ErroredState(a, e, sys.exc_info()[2]))
 
         return new_stashes
 
-    def _record_step_results(self, new_stashes, new_active, a, successor_stashes):
+    def _record_step_results(self, new_stashes, new_active, successor_stashes):
         """
         Take a whole bunch of intermediate values and smushes them together
 
@@ -262,22 +273,19 @@ class SimContext(ana.Storable):
             self._hierarchy.simplify()
 
         if len(self._hooks_filter) == 0:
-            new_active.extend(successor_stashes['active'])
+            new_active.extend(successor_stashes.get('active', []))
         else:
-            for state in successor_stashes['active']:
+            for state in successor_stashes.get('active', []):
                 self._apply_filter_hooks(state,new_stashes,new_active)
 
         if self.save_unconstrained:
-            new_stashes['unconstrained'] += successor_stashes['unconstrained']
+            new_stashes['unconstrained'] += successor_stashes.get('unconstrained', [])
         if self.save_unsat:
-            new_stashes['unsat'] += successor_stashes['unsat']
-        new_stashes['pruned'] += successor_stashes['pruned']
-        new_stashes['errored'] += successor_stashes['errored']
+            new_stashes['unsat'] += successor_stashes.get('unsat', [])
 
-        if a not in successor_stashes['pruned'] \
-                and a not in successor_stashes['errored'] \
-                and len(successor_stashes['active']) == 0:
-            new_stashes['deadended'].append(a)
+        for key in successor_stashes:
+            if key not in ('unconstrained', 'unsat', 'active'):
+                new_stashes[key].extend(successor_stashes[key])
 
     def _apply_filter_hooks(self,state,new_stashes,new_active):
 
@@ -309,14 +317,14 @@ class SimContext(ana.Storable):
         :param selector_func:   If provided, should be a lambda that takes a state and returns a boolean. If True, the
                                 state will be stepped. Otherwise, it will be kept as-is.
 
-        :returns:               The successor SimContext.
-        :rtype:                 SimContext
+        :returns:               The successor SimulationManager.
+        :rtype:                 SimulationManager
         """
+        # hooking step is a bit of an ordeal, how are you supposed to compose stepping operations?
+        # the answer is that you nest them - any stepping hook must eventually call step itself,
+        # at which point it calls the next hook, and so on, until we fall through to the
+        # basic stepping operation.
         if len(self._hooks_step) != 0:
-            # hooking step is a bit of an ordeal, how are you supposed to compose stepping operations?
-            # the answer is that you nest them - any stepping hook must eventually call step itself,
-            # at which point it calls the next hook, and so on, until we fall through to the
-            # basic stepping operation.
             hook = self._hooks_step.pop()
             pg = self.copy() if self._immutable else self
             pg._immutable = False       # this is a performance consideration
@@ -327,13 +335,15 @@ class SimContext(ana.Storable):
                 out._hooks_step.append(hook)
             return out
 
+        # this is going to be the new stashes dictionary when we're done.
+        # We will construct it incrementally.
         new_stashes = self._copy_stashes()
 
+        # Pick which states to tick, putting them in the new_active list
+        new_active = []
         if selector_func is None:
-            new_active = []
             to_tick = list(self.stashes[stash])
         else:
-            new_active = []
             to_tick = []
             for a in self.stashes[stash]:
                 if selector_func(a):
@@ -341,11 +351,17 @@ class SimContext(ana.Storable):
                 else:
                     new_active.append(a)
 
+        # wipe out the stash we're drawing from. we will replenish it.
+        new_stashes[stash] = []
+
+        # for each state we want to tick, tick it!
+        # each tick produces a dict of stashes. use _record_step_results to dump them into the result pool.
         for a in to_tick:
             result_stashes = self._one_state_step(a, successor_func=successor_func, **kwargs)
-            self._record_step_results(new_stashes, new_active, a, result_stashes)
+            self._record_step_results(new_stashes, new_active, result_stashes)
 
-        new_stashes[stash] = new_active
+        # finish up and return our result! this may just be the same as self because of mutability optimizations
+        new_stashes[stash].extend(new_active)
         return self._successor(new_stashes)
 
     @staticmethod
@@ -355,30 +371,30 @@ class SimContext(ana.Storable):
 
         :returns: A new stashes dictionary.
         """
-        if dst == SimContext.ALL:
-            raise SimContextError("Can't handle '_ALL' as a target stash.")
-        if src == SimContext.DROP:
-            raise SimContextError("Can't handle '_DROP' as a source stash.")
+        if dst == SimulationManager.ALL:
+            raise SimulationManagerError("Can't handle '_ALL' as a target stash.")
+        if src == SimulationManager.DROP:
+            raise SimulationManagerError("Can't handle '_DROP' as a source stash.")
 
-        if src == SimContext.ALL:
+        if src == SimulationManager.ALL:
             srces = [ a for a in stashes.keys() if a != dst ]
         else:
             srces = [ src ]
 
         matches = [ ]
         for f in srces:
-            to_move, to_keep = SimContext._filter_states(filter_func, stashes[f])
+            to_move, to_keep = SimulationManager._filter_states(filter_func, stashes[f])
             stashes[f] = to_keep
             matches.extend(to_move)
 
-        if dst != SimContext.DROP:
+        if dst != SimulationManager.DROP:
             if dst not in stashes:
                 stashes[dst] = [ ]
             stashes[dst].extend(matches)
         return stashes
 
     def __repr__(self):
-        s = "<SimContext with "
+        s = "<SimulationManager with "
         s += ', '.join(("%d %s" % (len(v),k)) for k,v in self.stashes.items() if len(v) != 0)
         s += ">"
         return s
@@ -394,9 +410,9 @@ class SimContext(ana.Storable):
         return mulpyplexer.MP(list(itertools.chain.from_iterable(self.stashes[s] for s in stashes)))
 
     def __getattr__(self, k):
-        if k == SimContext.ALL:
+        if k == SimulationManager.ALL:
             return [ p for p in itertools.chain.from_iterable(s for s in self.stashes.values()) ]
-        elif k == 'mp_' + SimContext.ALL:
+        elif k == 'mp_' + SimulationManager.ALL:
             return mulpyplexer.MP([ p for p in itertools.chain.from_iterable(s for s in self.stashes.values()) ])
         elif k.startswith('mp_'):
             return mulpyplexer.MP(self.stashes[k[3:]])
@@ -410,7 +426,7 @@ class SimContext(ana.Storable):
     def __dir__(self):
         return sorted(set(
             self.__dict__.keys() +
-            dir(super(SimContext, self)) +
+            dir(super(SimulationManager, self)) +
             dir(type(self)) +
             self.stashes.keys() +
             ['mp_'+k for k in self.stashes.keys()] +
@@ -435,8 +451,8 @@ class SimContext(ana.Storable):
                             If both state_func and stash_func are provided state_func is applied first, then stash_func
                             is applied on the results.
 
-        :returns:           The resulting SimContext.
-        :rtype:             SimContext
+        :returns:           The resulting SimulationManager.
+        :rtype:             SimulationManager
         """
         stash = 'active' if stash is None else stash
 
@@ -479,8 +495,8 @@ class SimContext(ana.Storable):
         :param from_stash:      The stash to split (default: 'active')
         :param to_stash:        The stash to write to (default: 'stashed')
 
-        :returns:               The resulting SimContext.
-        :rtype:                 SimContext
+        :returns:               The resulting SimulationManager.
+        :rtype:                 SimulationManager
         """
 
         limit = 8 if limit is None else limit
@@ -516,12 +532,12 @@ class SimContext(ana.Storable):
         :param n:               The number of times to step (default: 1 if "until" is not provided)
         :param selector_func:   If provided, should be a function that takes a state and returns a boolean. If True, the
                                 state will be stepped. Otherwise, it will be kept as-is.
-        :param step_func:       If provided, should be a function that takes a SimContext and returns a SimContext. Will
-                                be called with the SimContext at every step. Note that this function should not actually
+        :param step_func:       If provided, should be a function that takes a SimulationManager and returns a SimulationManager. Will
+                                be called with the SimulationManager at every step. Note that this function should not actually
                                 perform any stepping - it is meant to be a maintenance function called after each step.
         :param successor_func:  If provided, should be a function that takes a state and return its successors.
                                 Otherwise, project.factory.successors will be used.
-        :param until:           If provided, should be a function that takes a SimContext and returns True or False.
+        :param until:           If provided, should be a function that takes a SimulationManager and returns True or False.
                                 Stepping will terminate when it is True.
 
         Additionally, you can pass in any of the following keyword args for project.factory.sim_run:
@@ -538,8 +554,8 @@ class SimContext(ana.Storable):
         :param num_inst:        The maximum number of instructions.
         :param traceflags:      traceflags to be passed to VEX. Default: 0
 
-        :returns:               The resulting SimContext.
-        :rtype:                 SimContext
+        :returns:               The resulting SimulationManager.
+        :rtype:                 SimulationManager
         """
         stash = 'active' if stash is None else stash
         n = n if n is not None else 1 if until is None else 100000
@@ -572,14 +588,14 @@ class SimContext(ana.Storable):
     def prune(self, filter_func=None, from_stash=None, to_stash=None):
         """
         Prune unsatisfiable states from a stash.
-        This function will move all unsatisfiable or errored states in the given stash into a different stash.
+        This function will move all unsatisfiable states in the given stash into a different stash.
 
         :param filter_func: Only prune states that match this filter.
         :param from_stash:  Prune states from this stash. (default: 'active')
         :param to_stash:    Put pruned states in this stash. (default: 'pruned')
 
-        :returns:           The resulting SimContext.
-        :rtype:             SimContext
+        :returns:           The resulting SimulationManager.
+        :rtype:             SimulationManager
         """
         to_stash = 'pruned' if to_stash is None else to_stash
         from_stash = 'active' if from_stash is None else from_stash
@@ -587,16 +603,16 @@ class SimContext(ana.Storable):
         to_prune, new_active = self._filter_states(filter_func, self.stashes[from_stash])
         new_stashes = self._copy_stashes()
 
-        for p in to_prune:
-            if p.errored or not p.state.satisfiable():
+        for s in to_prune:
+            if not s.satisfiable():
                 if to_stash not in new_stashes:
                     new_stashes[to_stash] = [ ]
-                new_stashes[to_stash].append(p)
+                new_stashes[to_stash].append(s)
                 if self._hierarchy:
-                    self._hierarchy.unreachable_state(p)
+                    self._hierarchy.unreachable_state(s)
                     self._hierarchy.simplify()
             else:
-                new_active.append(p)
+                new_active.append(s)
 
         new_stashes[from_stash] = new_active
         return self._successor(new_stashes)
@@ -610,8 +626,8 @@ class SimContext(ana.Storable):
         :param filter_func: Stash states that match this filter. Should be a function that takes a state and returns
                             True or False. Default: stash all states
 
-        :returns:           The resulting SimContext.
-        :rtype:             SimContext
+        :returns:           The resulting SimulationManager.
+        :rtype:             SimulationManager
         """
         new_stashes = self._copy_stashes()
         self._move(new_stashes, filter_func, from_stash, to_stash)
@@ -626,8 +642,8 @@ class SimContext(ana.Storable):
         :param from_stash:  Take matching states from this stash. (default: 'active')
         :param to_stash:    Put matching states into this stash. (default: 'stashed')
 
-        :returns:           The resulting SimContext
-        :rtype:             SimContext
+        :returns:           The resulting SimulationManager
+        :rtype:             SimulationManager
         """
         to_stash = 'stashed' if to_stash is None else to_stash
         from_stash = 'active' if from_stash is None else from_stash
@@ -641,8 +657,8 @@ class SimContext(ana.Storable):
                             or False. (default: drop all states)
         :param stash:       Drop matching states from this stash. (default: 'active')
 
-        :returns:           The resulting SimContext
-        :rtype:             SimContext
+        :returns:           The resulting SimulationManager
+        :rtype:             SimulationManager
         """
         stash = 'active' if stash is None else stash
         return self.move(stash, self.DROP, filter_func=filter_func)
@@ -656,8 +672,8 @@ class SimContext(ana.Storable):
         :param from_stash:  take matching states from this stash. (default: 'stashed')
         :param to_stash:    put matching states into this stash. (default: 'active')
 
-        :returns:            The resulting SimContext.
-        :rtype:             SimContext
+        :returns:            The resulting SimulationManager.
+        :rtype:             SimulationManager
         """
         to_stash = 'active' if to_stash is None else to_stash
         from_stash = 'stashed' if from_stash is None else from_stash
@@ -678,7 +694,7 @@ class SimContext(ana.Storable):
             optimal, common_history, others = states, None, [ ]
 
         if len(optimal) < 2:
-            raise SimContextError("unable to find merge candidates")
+            raise SimulationManagerError("unable to find merge candidates")
         o = optimal.pop()
         m = o.merge(optimal, common_history)
         if self._hierarchy:
@@ -698,8 +714,8 @@ class SimContext(ana.Storable):
         :param merge_func:  If provided, instead of using state.merge, call this function with the states as the argument.
                             Should return the merged state.
 
-        :returns:           The result SimContext.
-        :rtype:             SimContext
+        :returns:           The result SimulationManager.
+        :rtype:             SimulationManager
         """
         stash = 'active' if stash is None else stash
         self.prune(from_stash=stash)
@@ -728,10 +744,10 @@ class SimContext(ana.Storable):
 
     def use_technique(self, tech):
         """
-        Use an exploration technique with this SimContext.
+        Use an exploration technique with this SimulationManager.
         Techniques can be found in :mod:`angr.exploration_techniques`.
 
-        :param tech:       An ExplorationTechnique object that contains code to modify this SimContext's behavior
+        :param tech:       An ExplorationTechnique object that contains code to modify this SimulationManager's behavior
         """
         # this might be the best worst code I've ever written in my life
         tech.project = self._project
@@ -849,7 +865,7 @@ class SimContext(ana.Storable):
 
     def run(self, stash=None, n=None, step_func=None):
         """
-        Run until the SimContext has reached a completed state, according to
+        Run until the SimulationManager has reached a completed state, according to
         the current exploration techniques.
 
         TODO: step_func doesn't work with veritesting, since veritesting replaces
@@ -857,18 +873,34 @@ class SimContext(ana.Storable):
 
         :param stash:       Operate on this stash
         :param n:           Step at most this many times
-        :param step_func:   If provided, should be a function that takes a SimContext and returns a new SimContext. Will
-                            be called with the current SimContext at every step.
-        :return:            The resulting SimContext.
-        :rtype:             SimContext
+        :param step_func:   If provided, should be a function that takes a SimulationManager and returns a new SimulationManager. Will
+                            be called with the current SimulationManager at every step.
+        :return:            The resulting SimulationManager.
+        :rtype:             SimulationManager
         """
         if len(self._hooks_complete) == 0 and n is None:
-            l.warn("No completion state defined for SimContext; stepping until all states deadend")
+            l.warn("No completion state defined for SimulationManager; stepping until all states deadend")
 
         until_func = lambda pg: any(h(pg) for h in self._hooks_complete)
         return self.step(n=n, step_func=step_func, until=until_func, stash=stash)
 
+
+class ErroredState(object):
+    def __init__(self, state, error, traceback):
+        self.state = state
+        self.error = error
+        self.traceback = traceback
+
+    def debug(self):
+        __import__('ipdb').post_mortem(self.traceback)
+
+    def __repr__(self):
+        return '<State errored with %s>' % self.error
+
+    def __eq__(self, other):
+        return self is other or self.state is other
+
 from .sim_state import SimState
 from .state_hierarchy import StateHierarchy
-from .errors import AngrError, SimUnsatError, SimContextError
+from .errors import AngrError, SimUnsatError, SimulationManagerError
 from . import exploration_techniques

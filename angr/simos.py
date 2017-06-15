@@ -14,7 +14,7 @@ from .sim_procedure import SimProcedure
 from cle import MetaELF, BackedCGC
 import claripy
 
-from .errors import AngrSyscallError, AngrUnsupportedSyscallError, AngrCallableError, AngrSimOSError
+from .errors import AngrSyscallError, AngrUnsupportedSyscallError, AngrCallableError, AngrCallableMultistateError, AngrSimOSError
 from .tablespecs import StringTableSpec
 
 l = logging.getLogger("angr.simos")
@@ -337,13 +337,13 @@ class SimOS(object):
             resolver = self.proj.factory.callable(resolver_addr, concrete_only=True)
             try:
                 val = resolver()
+            except AngrCallableMultistateError:
+                l.error("Resolver at %#x failed to resolve! (multivalued)", resolver_addr)
+                return None
             except AngrCallableError:
                 l.error("Resolver at %#x failed to resolve!", resolver_addr)
                 return None
 
-            if not val.singlevalued:
-                l.error("Resolver at %#x failed to resolve! (multivalued)", resolver_addr)
-                return None
 
             return val._model_concrete.value
 
@@ -427,10 +427,11 @@ class SimOS(object):
         if addr is None: addr = self.proj.entry
         state.regs.ip = addr
 
+        # set up the "root history" node
         state.scratch.ins_addr = addr
         state.scratch.bbl_addr = addr
         state.scratch.stmt_idx = 0
-        state.history.last_jumpkind = 'Ijk_Boring'
+        state.history.jumpkind = 'Ijk_Boring'
 
         state.procedure_data.hook_addr = self.continue_addr
         return state

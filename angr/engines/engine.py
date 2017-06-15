@@ -34,6 +34,11 @@ class SimEngine(object):
         else:
             new_state = state
 
+        # we have now officially begun the stepping process! now is where we "cycle" a state's
+        # data - move the "present" into the "past" by pushing an entry on the history stack.
+        new_state.register_plugin('history', new_state.history.make_child())
+        new_state.history.recent_bbl_addrs.append(addr)
+
         successors = SimSuccessors(addr, state)
         self._process(new_state, successors, *args, **kwargs)
         return successors

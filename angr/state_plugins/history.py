@@ -16,7 +16,7 @@ class SimStateHistory(SimStatePlugin):
         self.parent = parent if clone is None else clone.parent
         self.merged_from = [ ] if clone is None else list(clone.merged_from)
         self.merge_conditions = [ ] if clone is None else list(clone.merge_conditions)
-        self.depth = (0 if parent is None else parent.length + 1) if clone is None else clone.depth
+        self.depth = (0 if parent is None else parent.depth + 1) if clone is None else clone.depth
         self.extra_depth = (0 if parent is None else parent.extra_depth) if clone is None else clone.depth
 
         # a string description of this history
@@ -142,29 +142,37 @@ class SimStateHistory(SimStatePlugin):
             for p in self.parent.lineage:
                 yield p
     @property
-    def all_events(self):
+    def events(self):
         return LambdaIterIter(self, operator.attrgetter('recent_events'))
     @property
-    def all_actions(self):
+    def actions(self):
         return LambdaIterIter(self, operator.attrgetter('recent_actions'))
     @property
-    def all_jumpkinds(self):
+    def jumpkinds(self):
         return LambdaAttrIter(self, operator.attrgetter('jumpkind'))
     @property
-    def all_jump_guards(self):
+    def jump_guards(self):
         return LambdaAttrIter(self, operator.attrgetter('jump_guard'))
     @property
-    def all_jump_targets(self):
+    def jump_targets(self):
         return LambdaAttrIter(self, operator.attrgetter('jump_target'))
     @property
-    def all_descriptions(self):
+    def descriptions(self):
         return LambdaAttrIter(self, operator.attrgetter('description'))
     @property
-    def all_bbl_addrs(self):
+    def bbl_addrs(self):
         return LambdaIterIter(self, operator.attrgetter('recent_bbl_addrs'))
     @property
-    def all_ins_addrs(self):
+    def ins_addrs(self):
         return LambdaIterIter(self, operator.attrgetter('recent_ins_addrs'))
+    @property
+    def trace(self):
+        print ".trace is deprecated: please use .descriptions"
+        return self.descriptions
+    @property
+    def addr_trace(self):
+        print ".addr trace is deprecated: please use .bbl_addrs"
+        return self.bbl_addrs
 
     #
     # Merging support
@@ -224,6 +232,9 @@ class SimStateHistory(SimStatePlugin):
             cur = cur.parent
         return constraints
 
+    def make_child(self):
+        return SimStateHistory(parent=self)
+
 class TreeIter(object):
     def __init__(self, start, end=None):
         self._start = start
@@ -248,7 +259,8 @@ class TreeIter(object):
         return list(reversed(tuple(reversed(self))))
 
     def __len__(self):
-        return self._start.length
+        # TODO: this is wrong
+        return self._start.depth
 
     def __getitem__(self, k):
         if isinstance(k, slice):

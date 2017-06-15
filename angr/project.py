@@ -539,7 +539,7 @@ class Project(object):
           passed to project.factory.full_init_state.
 
         If symbolic execution finishes, this function returns the resulting
-        SimContext.
+        SimulationManager.
         """
 
         if args:
@@ -547,7 +547,7 @@ class Project(object):
         else:
             state = self.factory.full_init_state(**kwargs)
 
-        pg = self.factory.sim_context(state)
+        pg = self.factory.simgr(state)
         self._executing = True
         return pg.step(until=lambda lpg: not self._executing)
 
@@ -700,7 +700,7 @@ class Hook(object):
                 - `state.history.last_guard`: a symbolic boolean describing the condition necessary for
                   this successor to be taken. A shortcut to the symbolic `True` value is
                   `state.se.true`.
-                - `state.history.last_jumpkind`: The type of the jump to be taken, as a VEX enum string.
+                - `state.history.jumpkind`: The type of the jump to be taken, as a VEX enum string.
                   This will usually be `Ijk_Boring`, which signifies an ordinary jump or branch.
         """
         def inner(function):

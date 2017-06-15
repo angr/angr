@@ -69,7 +69,7 @@ class AngrObjectFactory(object):
             if addr is not None:
                 state.ip = addr
             if jumpkind is not None:
-                state.history.last_jumpkind = jumpkind
+                state.history.jumpkind = jumpkind
 
         r = None
         for engine in engines:
@@ -82,7 +82,7 @@ class AngrObjectFactory(object):
             raise AngrExitError("All engines failed to execute!")
 
         # Peek and fix the IP for syscalls
-        if r.successors and r.successors[0].history.last_jumpkind.startswith('Ijk_Sys'):
+        if r.successors and r.successors[0].history.jumpkind.startswith('Ijk_Sys'):
             self._fix_syscall_ip(r.successors[0])
 
         return r
@@ -193,33 +193,33 @@ class AngrObjectFactory(object):
         """
         return self._project._simos.state_call(addr, *args, **kwargs)
 
-    def sim_context(self, thing=None, **kwargs):
+    def simgr(self, thing=None, **kwargs):
         """
-        Constructs a new simulation context.
+        Constructs a new simulation manager.
 
-        :param thing:           Optional - What to put in the new SimContext's active stash (either a SimState or a list of SimStates).
-        :param kwargs:          Any additional keyword arguments will be passed to the SimContext constructor
-        :returns:               The new SimContext
-        :rtype:                 angr.sim_context.SimContext
+        :param thing:           Optional - What to put in the new SimulationManager's active stash (either a SimState or a list of SimStates).
+        :param kwargs:          Any additional keyword arguments will be passed to the SimulationManager constructor
+        :returns:               The new SimulationManager
+        :rtype:                 angr.manager.SimulationManager
 
         Many different types can be passed to this method:
 
-        * If nothing is passed in, the SimContext is seeded with a state initialized for the program
+        * If nothing is passed in, the SimulationManager is seeded with a state initialized for the program
           entry point, i.e. :meth:`entry_state()`.
-        * If a :class:`SimState` is passed in, the SimContext is seeded with that state.
-        * If a list is passed in, the list must contain only SimStates and the whole list will be used to seed the SimContext.
+        * If a :class:`SimState` is passed in, the SimulationManager is seeded with that state.
+        * If a list is passed in, the list must contain only SimStates and the whole list will be used to seed the SimulationManager.
         """
         if thing is None:
             thing = [ self.full_init_state() ]
         elif isinstance(thing, (list, tuple)):
             if any(not isinstance(val, SimState) for val in thing):
-                raise AngrError("Bad type to initialize SimContext")
+                raise AngrError("Bad type to initialize SimulationManager")
         elif isinstance(thing, SimState):
             thing = [ thing ]
         else:
-            raise AngrError("BadType to initialze SimContext: %s" % repr(thing))
+            raise AngrError("BadType to initialze SimulationManager: %s" % repr(thing))
 
-        return SimContext(self._project, active_states=thing, **kwargs)
+        return SimulationManager(self._project, active_states=thing, **kwargs)
 
     def callable(self, addr, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
         """
@@ -343,6 +343,6 @@ class AngrObjectFactory(object):
         return self.successors(*args, **kwargs)
 
 from .errors import AngrExitError, AngrError, AngrUnsupportedSyscallError
-from .sim_context import SimContext
+from .manager import SimulationManager
 from .knowledge import HookNode
 from .block import Block

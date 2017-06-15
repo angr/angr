@@ -252,7 +252,7 @@ class SimEngineVEX(SimEngine):
 
         # do return emulation and calless stuff
         for exit_state in list(successors.all_successors):
-            exit_jumpkind = exit_state.history.last_jumpkind
+            exit_jumpkind = exit_state.history.jumpkind
             if exit_jumpkind is None: exit_jumpkind = ""
 
             if o.CALLLESS in state.options and exit_jumpkind == "Ijk_Call":
@@ -263,7 +263,7 @@ class SimEngineVEX(SimEngine):
                 exit_state.scratch.target = exit_state.se.BVV(
                     successors.addr + irsb.size, exit_state.arch.bits
                 )
-                exit_state.history.last_jumpkind = "Ijk_Ret"
+                exit_state.history.jumpkind = "Ijk_Ret"
                 exit_state.regs.ip = exit_state.scratch.target
 
             elif o.DO_RET_EMULATION in exit_state.options and \

@@ -18,7 +18,7 @@ class CallFrame(object):
         stack pointer, and return address
         """
 
-        self.jumpkind = jumpkind if jumpkind is not None else (state.history.last_jumpkind if state is not None else None)
+        self.jumpkind = jumpkind if jumpkind is not None else (state.history.jumpkind if state is not None else None)
         self.call_site_addr = call_site_addr
 
         if state is not None:

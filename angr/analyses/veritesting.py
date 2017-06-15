@@ -7,7 +7,7 @@ from .. import SIM_PROCEDURES, KnowledgeBase
 from .. import options as o
 from ..errors import AngrError, AngrCFGError
 from ..analysis import Analysis, register_analysis
-from ..sim_context import SimContext
+from ..manager import SimulationManager
 
 l = logging.getLogger("angr.analyses.veritesting")
 
@@ -188,7 +188,7 @@ class Veritesting(Analysis):
 
         # if we are not at a conditional jump, just do a normal step
         if not branches.values() == ['Ijk_Boring', 'Ijk_Boring']:
-            self.result, self.final_sim_context = False, None
+            self.result, self.final_manager = False, None
             return
         # otherwise do a veritesting step
 
@@ -216,38 +216,38 @@ class Veritesting(Analysis):
         else:
             l.debug("Function inlining is disabled.")
 
-        self.result, self.final_sim_context = self._veritesting()
+        self.result, self.final_manager = self._veritesting()
 
     def _veritesting(self):
         """
         Perform static symbolic execution starting from the given point.
-        returns (bool, SimContext): tuple of the success/failure of veritesting and the subsequent SimContext after
+        returns (bool, SimulationManager): tuple of the success/failure of veritesting and the subsequent SimulationManager after
                                    execution
         """
 
         s = self._input_state.copy()
 
         try:
-            new_sim_context = self._execute_and_merge(s)
+            new_manager = self._execute_and_merge(s)
 
         except (ClaripyError, SimError, AngrError):
             if not BYPASS_VERITESTING_EXCEPTIONS in s.options:
                 raise
             else:
                 l.warning("Veritesting caught an exception.", exc_info=True)
-            return False, SimContext(self.project, stashes={'deviated': [s]})
+            return False, SimulationManager(self.project, stashes={'deviated': [s]})
 
         except VeritestingError as ex:
             l.warning("Exception occurred: %s", str(ex))
-            return False, SimContext(self.project, stashes={'deviated': [s]})
+            return False, SimulationManager(self.project, stashes={'deviated': [s]})
 
         l.info(
             'Returning new paths: (successful: %s, deadended: %s, errored: %s, deviated: %s)',
-            len(new_sim_context.successful), len(new_sim_context.deadended),
-            len(new_sim_context.errored), len(new_sim_context.deviated)
+            len(new_manager.successful), len(new_manager.deadended),
+            len(new_manager.errored), len(new_manager.deviated)
         )
 
-        return True, new_sim_context
+        return True, new_manager
 
     def _execute_and_merge(self, state):
         """
@@ -275,7 +275,7 @@ class Veritesting(Analysis):
         initial_state = state
         initial_state.info['loop_ctrs'] = defaultdict(int)
 
-        sim_context = SimContext(
+        manager = SimulationManager(
             self.project,
             active_states=[ initial_state ],
             immutable=False,
@@ -284,41 +284,41 @@ class Veritesting(Analysis):
 
         # Initialize all stashes
         for stash in self.all_stashes:
-            sim_context.stashes[stash] = [ ]
+            manager.stashes[stash] = [ ]
         # immediate_dominators = cfg.immediate_dominators(cfg.get_any_node(ip_int))
 
-        while sim_context.active:
+        while manager.active:
             # Step one step forward
             l.debug('Steps %s with %d active states: [ %s ]',
-                    sim_context,
-                    len(sim_context.active),
-                    sim_context.active)
+                    manager,
+                    len(manager.active),
+                    manager.active)
 
             # Apply self.deviation_func on every single active state, and move them to deviated stash if needed
             if self._deviation_filter is not None:
-                sim_context.stash(filter_func=self._deviation_filter, from_stash='active', to_stash='deviated')
+                manager.stash(filter_func=self._deviation_filter, from_stash='active', to_stash='deviated')
 
             # Mark all those paths that are out of boundaries as successful
-            sim_context.stash(
+            manager.stash(
                 filter_func=self.is_overbound,
                 from_stash='active', to_stash='successful'
             )
 
-            sim_context.step(successor_func=self._get_successors)
+            manager.step(successor_func=self._get_successors)
 
-            if self._terminator is not None and self._terminator(sim_context):
-                for p in sim_context.unfuck:
+            if self._terminator is not None and self._terminator(manager):
+                for p in manager.unfuck:
                     self._unfuck(p)
                 break
 
             # Stash all paths that we do not see in our CFG
-            sim_context.stash(
+            manager.stash(
                 filter_func=self.is_not_in_cfg,
                 to_stash="deviated"
             )
 
             # Stash all paths that we do not care about
-            sim_context.stash(
+            manager.stash(
                 filter_func= lambda state: (
                     state.history.last_jumpkind not in
                     ('Ijk_Boring', 'Ijk_Call', 'Ijk_Ret', 'Ijk_NoHook')
@@ -327,39 +327,39 @@ class Veritesting(Analysis):
                 to_stash="deadended"
             )
 
-            if sim_context.deadended:
-                l.debug('Now we have some deadended paths: %s', sim_context.deadended)
+            if manager.deadended:
+                l.debug('Now we have some deadended paths: %s', manager.deadended)
 
             # Stash all possible states that we should merge later
             for merge_point_addr, merge_point_looping_times in merge_points:
-                sim_context.stash_addr(
+                manager.stash_addr(
                     merge_point_addr,
                     to_stash="_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
                 )
 
             # Try to merge a set of previously stashed paths, and then unstash them
-            if not sim_context.active:
-                sim_context = self._join_merge_points(sim_context, merge_points)
-        if any(len(sim_context.stashes[stash_name]) for stash_name in self.all_stashes):
+            if not manager.active:
+                manager = self._join_merge_points(manager, merge_points)
+        if any(len(manager.stashes[stash_name]) for stash_name in self.all_stashes):
             # Remove all stashes other than errored or deadended
-            sim_context.stashes = {
-                name: stash for name, stash in sim_context.stashes.items()
+            manager.stashes = {
+                name: stash for name, stash in manager.stashes.items()
                 if name in self.all_stashes
             }
 
-            for stash in sim_context.stashes:
-                sim_context.apply(self._unfuck, stash=stash)
+            for stash in manager.stashes:
+                manager.apply(self._unfuck, stash=stash)
 
-        return sim_context
+        return manager
 
-    def _join_merge_points(self, sim_context, merge_points):
+    def _join_merge_points(self, manager, merge_points):
         """
         Merges together the appropriate execution points and unstashes them from the intermidiate merge_x_y stashes to
         pruned (dropped), deadend or active stashes
 
-        param SimContext sim_context:        current simulation context being stepped through
+        param SimulationManager manager:        current simulation context being stepped through
         param [(int, int)] merge_points: list of address and loop counters of execution points to merge
-        returns SimContext:              new sim_context with edited stashes
+        returns SimulationManager:              new manager with edited stashes
         """
         merged_anything = False
         for merge_point_addr, merge_point_looping_times in merge_points:
@@ -367,70 +367,70 @@ class Veritesting(Analysis):
                 break
 
             stash_name = "_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
-            if stash_name not in sim_context.stashes:
+            if stash_name not in manager.stashes:
                 continue
 
-            stash_size = len(sim_context.stashes[stash_name])
+            stash_size = len(manager.stashes[stash_name])
             if stash_size == 0:
                 continue
             if stash_size == 1:
                 l.info("Skipping merge of 1 state in stash %s.", stash_size)
-                sim_context.move(stash_name, 'active')
+                manager.move(stash_name, 'active')
                 continue
 
             # let everyone know of the impending disaster
             l.info("Merging %d states in stash %s", stash_size, stash_name)
 
             # Try to prune the stash, so unsatisfiable states will be thrown away
-            sim_context.prune(from_stash=stash_name, to_stash='pruned')
-            if 'pruned' in sim_context.stashes and len(sim_context.pruned):
-                l.debug('... pruned %d paths from stash %s', len(sim_context.pruned), stash_name)
+            manager.prune(from_stash=stash_name, to_stash='pruned')
+            if 'pruned' in manager.stashes and len(manager.pruned):
+                l.debug('... pruned %d paths from stash %s', len(manager.pruned), stash_name)
             # Remove the pruned stash to save memory
-            sim_context.drop(stash='pruned')
+            manager.drop(stash='pruned')
 
             # merge things callstack by callstack
-            while len(sim_context.stashes[stash_name]):
-                r = sim_context.stashes[stash_name][0]
-                sim_context.move(
+            while len(manager.stashes[stash_name]):
+                r = manager.stashes[stash_name][0]
+                manager.move(
                     stash_name, 'merge_tmp',
                     lambda p: p.callstack == r.callstack #pylint:disable=cell-var-from-loop
                 )
 
-                old_count = len(sim_context.merge_tmp)
+                old_count = len(manager.merge_tmp)
                 l.debug("... trying to merge %d states.", old_count)
 
                 # merge the loop_ctrs
                 new_loop_ctrs = defaultdict(int)
-                for m in sim_context.merge_tmp:
+                for m in manager.merge_tmp:
                     for head_addr, looping_times in m.info['loop_ctrs'].iteritems():
                         new_loop_ctrs[head_addr] = max(
                             looping_times,
                             m.info['loop_ctrs'][head_addr]
                         )
 
-                sim_context.merge(stash='merge_tmp')
-                for m in sim_context.merge_tmp:
+                manager.merge(stash='merge_tmp')
+                for m in manager.merge_tmp:
                     m.info['loop_ctrs'] = new_loop_ctrs
 
-                new_count = len(sim_context.stashes['merge_tmp'])
+                new_count = len(manager.stashes['merge_tmp'])
                 l.debug("... after merge: %d states.", new_count)
 
                 merged_anything |= new_count != old_count
 
-                if len(sim_context.merge_tmp) > 1:
+                if len(manager.merge_tmp) > 1:
                     l.warning("More than 1 state after Veritesting merge.")
-                    sim_context.move('merge_tmp', 'active')
+                    manager.move('merge_tmp', 'active')
                 elif any(
                     loop_ctr >= self._loop_unrolling_limit + 1 for loop_ctr in
-                    sim_context.one_merge_tmp.info['loop_ctrs'].itervalues()
+                    manager.one_merge_tmp.info['loop_ctrs'].itervalues()
                 ):
                     l.debug("... merged state is overlooping")
-                    sim_context.move('merge_tmp', 'deadended')
+                    manager.move('merge_tmp', 'deadended')
                 else:
                     l.debug('... merged state going to active stash')
-                    sim_context.move('merge_tmp', 'active')
+                    manager.move('merge_tmp', 'active')
 
-        return sim_context
+        return manager
 
     #
     # Path management
@@ -456,7 +456,7 @@ class Veritesting(Analysis):
     def _get_successors(self, state):
         """
         Gets the successors to the current state by step, saves copy of state and finally stashes new unconstrained states
-        to sim_context.
+        to manager.
 
         :param SimState state:          Current state to step on from
         :returns SimSuccessors:         The SimSuccessors object

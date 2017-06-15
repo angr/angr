@@ -13,7 +13,7 @@ class SimEngineFailure(SimEngine): #pylint:disable=abstract-method
     def _check(self, state, **kwargs):
 
         addr = state.se.any_int(state._ip)
-        jumpkind = state.history.last_jumpkind
+        jumpkind = state.history.jumpkind
 
         if jumpkind in ('Ijk_EmFail', 'Ijk_MapFail') or jumpkind.startswith('Ijk_Sig'):
             return True
@@ -29,15 +29,15 @@ class SimEngineFailure(SimEngine): #pylint:disable=abstract-method
 
         addr = state.se.any_int(state._ip)
 
-        if state.history.last_jumpkind in ("Ijk_EmFail", "Ijk_MapFail") or "Ijk_Sig" in state.history.last_jumpkind:
-            raise AngrExitError("Cannot execute following jumpkind %s" % state.history.last_jumpkind)
+        if state.history.jumpkind in ("Ijk_EmFail", "Ijk_MapFail") or "Ijk_Sig" in state.history.jumpkind:
+            raise AngrExitError("Cannot execute following jumpkind %s" % state.history.jumpkind)
 
-        elif state.history.last_jumpkind == "Ijk_NoDecode" and not self.project.is_hooked(addr):
+        elif state.history.jumpkind == "Ijk_NoDecode" and not self.project.is_hooked(addr):
             raise AngrExitError("IR decoding error at %#x. You can hook this instruction with "
                                 "a python replacement using project.hook"
                                 "(%#x, your_function, length=length_of_instruction)." % (addr, addr))
 
-        elif state.history.last_jumpkind == 'Ijk_Exit':
+        elif state.history.jumpkind == 'Ijk_Exit':
             l.debug('Execution terminated at %#x', addr)
             terminator = SIM_PROCEDURES['stubs']['PathTerminator'](addr, state.arch)
             peng = self.project.factory.procedure_engine
