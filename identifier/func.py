@@ -29,10 +29,10 @@ class Func(object):
     def gen_input_output_pair(self):
         raise NotImplementedError()
 
-    def var_args(self):
+    def var_args():
         return False
 
-    def can_call_other_funcs(self):
+    def can_call_other_funcs():
         return True
 
     def pre_test(self, func, runner):

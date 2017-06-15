@@ -29,7 +29,8 @@ class receive_until_fd(Func):
     def num_args(self):
         return len(self.base_args())
 
-    def base_args(self):
+    @staticmethod
+    def base_args():
         return ["fd", "buf", "end_char", "max_len"]
 
     def args(self):
@@ -174,7 +175,8 @@ class receive_until(Func):
     def num_args(self):
         return len(self.base_args())
 
-    def base_args(self):
+    @staticmethod
+    def base_args():
         return ["buf", "end_char", "max_len"]
 
     def args(self):
@@ -312,4 +314,3 @@ class receive_until(Func):
         test.expected_output_args = [test.expected_output_args[o] for o in self.arg_order]
         if not self.has_return:
             test.expected_return_val = None
-

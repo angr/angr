@@ -53,7 +53,8 @@ class based_atoi(Func):
         self.allows_negative = True
         self.base = None
 
-    def rand_str(self, length, byte_list=None):
+    @staticmethod
+    def rand_str(length, byte_list=None):
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in xrange(length))
         return "".join(random.choice(byte_list) for _ in xrange(length))
@@ -61,7 +62,8 @@ class based_atoi(Func):
     def num_args(self):
         return OneTwoOrThree()
 
-    def args(self):
+    @staticmethod
+    def args():
         return ["buf", "size", "err"]
 
     def get_name(self):

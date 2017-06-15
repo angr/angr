@@ -29,7 +29,8 @@ class strtol(Func):
         self.skips_whitespace = False
         self.version = ""
 
-    def rand_str(self, length, byte_list=None):
+    @staticmethod
+    def rand_str(length, byte_list=None):
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in xrange(length))
         return "".join(random.choice(byte_list) for _ in xrange(length))
@@ -37,7 +38,8 @@ class strtol(Func):
     def num_args(self):
         return 3
 
-    def args(self):
+    @staticmethod
+    def args():
         return ["nptr", "endpointer", "base"]
 
     def get_name(self):
