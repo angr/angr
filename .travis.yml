@@ -1,7 +1,0 @@
-sudo: required
-dist: trusty
-env:
-  - PY=e ANGR_REPO=identifier
-  - PY=e ANGR_REPO=patcherex
-install: ( curl https://raw.githubusercontent.com/angr/angr-dev/$TRAVIS_BRANCH/tests/travis-install.sh | grep -v 404 || curl https://raw.githubusercontent.com/angr/angr-dev/master/tests/travis-install.sh ) | bash
-script: ~/angr-dev/tests/travis-test.sh
