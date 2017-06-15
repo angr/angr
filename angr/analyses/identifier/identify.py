@@ -1,4 +1,4 @@
-from angrop import rop_utils
+
 
 from collections import defaultdict
 
@@ -9,6 +9,8 @@ import simuvex
 import angr
 from simuvex.s_errors import SimEngineError, SimMemoryError
 import os
+
+from ...analysis import Analysis, register_analysis
 
 from networkx import NetworkXError
 
@@ -34,17 +36,19 @@ class FuncInfo(object):
         self.preamble_sp_change = None
 
 
-class Identifier(object):
+class Identifier(Analysis):
 
     _special_case_funcs = ["free"]
 
-    def __init__(self, project, cfg=None, require_predecessors=True, only_find=None):
-        self.project = project
+    def __init__(self, cfg=None, require_predecessors=True, only_find=None):
+        from angrop import rop_utils
+
+        # self.project = project
         if cfg is not None:
             self._cfg = cfg
         else:
-            self._cfg = project.analyses.CFGFast(resolve_indirect_jumps=True)
-        self._runner = Runner(project, self._cfg)
+            self._cfg = self.project.analyses.CFGFast(resolve_indirect_jumps=True)
+        self._runner = Runner(self.project, self._cfg)
 
         # only find if in this set
         self.only_find = only_find
@@ -292,6 +296,8 @@ class Identifier(object):
 
     def do_trace(self, addr_trace, reverse_accesses, func_info):
         # get to the callsite
+        from angrop import rop_utils
+        
         s = rop_utils.make_symbolic_state(self.project, self._reg_list, stack_length=200)
         s.options.discard(simuvex.o.AVOID_MULTIVALUED_WRITES)
         s.options.discard(simuvex.o.AVOID_MULTIVALUED_READS)
@@ -438,7 +444,7 @@ class Identifier(object):
 
         # calling _get_block() from `func` respects the size of the basic block
         # in extreme cases (like at the end of a section where VEX cannot disassemble the instruction beyond the
-        # section boundary), directly calling project.factory.block() on func.addr may lead to an AngrTranslationError.
+        # section boundary), directly calling self.project.factory.block() on func.addr may lead to an AngrTranslationError.
         bl = func._get_block(func.addr).vex
 
         if any(c.type.startswith("Ity_F") for c in bl.all_constants):
@@ -806,3 +812,5 @@ class Identifier(object):
             if arg != i*4:
                 return True
             return False
+
+register_analysis(Identifier, 'Identifier')

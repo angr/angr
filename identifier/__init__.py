@@ -1,1 +1,0 @@
-from identify import Identifier
