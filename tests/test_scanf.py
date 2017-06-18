@@ -43,8 +43,8 @@ class Checker(object):
         if self._dummy:
             return True
 
-        stdin_input = path.state.posix.files[0].content.load(1, 10) # skip the first char used in switch
-        some_strings = path.state.se.any_n_str(stdin_input, 1000)
+        stdin_input = path.posix.files[0].content.load(1, 10) # skip the first char used in switch
+        some_strings = path.se.any_n_str(stdin_input, 1000)
 
         for s in some_strings:
 
@@ -62,7 +62,7 @@ def run_scanf(threads):
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/scanf_test")
     b = angr.Project(test_bin)
 
-    pg = b.factory.path_group(immutable=False, threads=threads)
+    pg = b.factory.simgr(immutable=False, threads=threads)
 
     # find the end of main
     expected_outputs = {
@@ -82,7 +82,7 @@ def run_scanf(threads):
     # check the outputs
     total_outputs = 0
     for path in pg.found:
-        test_output = path.state.posix.dumps(1)
+        test_output = path.posix.dumps(1)
         if test_output in expected_outputs:
             nose.tools.assert_true(expected_outputs[test_output].check(path),
                                    "Test case failed. Output is %s." % test_output)

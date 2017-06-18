@@ -138,7 +138,7 @@ class Path(object):
         return self.history._jumpkind
 
     @property
-    def last_actions(self):
+    def recent_actions(self):
         return self.history.actions
 
     #

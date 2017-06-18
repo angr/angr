@@ -90,7 +90,8 @@ class SimStateHistory(SimStatePlugin):
         Demotes this PathHistory node, causing it to convert references to the state
         to weakrefs.
         """
-        print "TODO: demote", self
+        #print "TODO: demote", self
+        pass
 
     def reachable(self):
         if self._satisfiable is not None:

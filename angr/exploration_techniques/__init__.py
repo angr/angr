@@ -13,59 +13,59 @@ class ExplorationTechnique(object):
     """
     # pylint: disable=unused-argument, no-self-use
     def __init__(self):
-        # this attribute will be set from above by the path group
+        # this attribute will be set from above by the manager
         self.project = None
 
-    def setup(self, pg):
+    def setup(self, simgr):
         """
-        Perform any initialization on this path group you might need to do.
+        Perform any initialization on this manager you might need to do.
         """
         pass
 
-    def step_path(self, path, **kwargs):
+    def step_state(self, state, **kwargs):
         """
-        Perform the process of stepping a path forward.
+        Perform the process of stepping a state forward.
 
         If the stepping fails, return None to fall back to a default stepping procedure.
-        Otherwise, return a dict of stashes to merge into the path group. All the paths will be added to the
-        PathGroup's stashes based on the mapping in the returned dict.
+        Otherwise, return a dict of stashes to merge into the simulation manager. All the states
+        will be added to the PathGroup's stashes based on the mapping in the returned dict.
         """
         return None
 
-    def step(self, pg, stash, **kwargs):
+    def step(self, simgr, stash, **kwargs):
         """
-        Step this stash of this path group forward.
+        Step this stash of this manager forward.
 
-        Return the stepped path group.
+        Return the stepped manager.
         """
-        return pg.step(stash=stash, **kwargs)
+        return simgr.step(stash=stash, **kwargs)
 
-    def filter(self, path):
+    def filter(self, state):
         """
-        Perform filtering on a path.
+        Perform filtering on a state.
 
-        If the path should not be filtered, return None.
-        If the path should be filtered, return the name of the stash to move the path to.
-        If you want to modify the path before filtering it, return a tuple of the stash to move the path to and the
-        modified path.
+        If the state should not be filtered, return None.
+        If the state should be filtered, return the name of the stash to move the state to.
+        If you want to modify the state before filtering it, return a tuple of the stash to move the state to and the
+        modified state.
         """
         return None
 
     def complete(self, pg):
         """
-        Return whether or not this path group has reached a "completed" state, i.e. ``pathgroup.run()`` should halt.
+        Return whether or not this manager has reached a "completed" state, i.e. ``SimulationManager.run()`` should halt.
         """
         return False
 
     def _condition_to_lambda(self, condition, default=False):
         """
-        Translates an integer, set or list into a lambda that checks a path address against the given addresses, and the
+        Translates an integer, set or list into a lambda that checks a state address against the given addresses, and the
         other ones from the same basic block
 
         :param condition:   An integer, set, or list to convert to a lambda.
         :param default:     The default return value of the lambda (in case condition is None). Default: false.
 
-        :returns:           A lambda that takes a path and returns the set of addresses that it matched from the condition
+        :returns:           A lambda that takes a state and returns the set of addresses that it matched from the condition
         """
         if condition is None:
             condition_function = lambda p: default

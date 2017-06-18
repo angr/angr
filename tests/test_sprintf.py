@@ -11,7 +11,7 @@ def test_sprintf():
     p = angr.Project(os.path.join(test_location, "../../binaries/tests/x86_64/sprintf_test"))
     a = p.surveyors.Explorer(find=0x4005c0)
     a.run()
-    state = a.found[0].state
+    state = a.found[0]
 
     str1 = state.se.any_str(state.memory.load(0x600ad0, 13))
     nose.tools.assert_equal(str1, 'Immediate: 3\n')

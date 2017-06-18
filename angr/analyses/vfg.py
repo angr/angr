@@ -619,8 +619,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # set up some essential variables and parameters
         job.call_stack_suffix = job.get_call_stack_suffix()
-        job.jumpkind = 'Ijk_Boring' if job.state.history.last_jumpkind is None else \
-            job.state.history.last_jumpkind
+        job.jumpkind = 'Ijk_Boring' if job.state.history.jumpkind is None else \
+            job.state.history.jumpkind
 
         src_block_id = job.src_block_id
         src_exit_stmt_idx = job.src_exit_stmt_idx
@@ -705,11 +705,11 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # If this is a call exit, we shouldn't put the default exit (which
         # is artificial) into the CFG. The exits will be Ijk_Call and
         # Ijk_FakeRet, and Ijk_Call always goes first
-        job.is_call_jump = any([self._is_call_jumpkind(i.history.last_jumpkind) for i in all_successors])
-        call_targets = [i.se.exactly_int(i.ip) for i in all_successors if self._is_call_jumpkind(i.history.last_jumpkind)]
+        job.is_call_jump = any([self._is_call_jumpkind(i.history.jumpkind) for i in all_successors])
+        call_targets = [i.se.exactly_int(i.ip) for i in all_successors if self._is_call_jumpkind(i.history.jumpkind)]
         job.call_target = None if not call_targets else call_targets[0]
 
-        job.is_return_jump = len(all_successors) and all_successors[0].history.last_jumpkind == 'Ijk_Ret'
+        job.is_return_jump = len(all_successors) and all_successors[0].history.jumpkind == 'Ijk_Ret'
 
         if job.is_call_jump:
             # create the call task
@@ -735,7 +735,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # Initialize parameters
         addr = job.addr
-        jumpkind = successor.history.last_jumpkind
+        jumpkind = successor.history.jumpkind
 
         #
         # Get instruction pointer
@@ -1326,8 +1326,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         restart_analysis = False
 
         jumpkind = 'Ijk_Boring'
-        if state.history.last_jumpkind:
-            jumpkind = state.history.last_jumpkind
+        if state.history.jumpkind:
+            jumpkind = state.history.jumpkind
 
         try:
             node = self._cfg.get_any_node(addr)
@@ -1382,7 +1382,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # TODO: basic block stack is probably useless
 
-        jumpkind = successor.history.last_jumpkind
+        jumpkind = successor.history.jumpkind
         # Make a copy of the state in case we use it later
         successor_state = successor.copy()
         successor_addr = successor_state.se.any_int(successor_state.ip)
@@ -1440,7 +1440,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         else:
             if sim_options.ABSTRACT_MEMORY in successor.options:
-                if self._is_call_jumpkind(successor.history.last_jumpkind):
+                if self._is_call_jumpkind(successor.history.jumpkind):
                     # If this is a call, we create a new stack address mapping
                     reg_sp_si = self._create_stack_region(successor_state, successor_addr)
 
@@ -1452,7 +1452,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                                                                        )
                     successor_state.regs.sp = new_reg_sp_expr
 
-                elif successor.history.last_jumpkind == "Ijk_Ret":
+                elif successor.history.jumpkind == "Ijk_Ret":
                     # Remove the existing stack address mapping
                     # FIXME: Now we are assuming the sp is restored to its original value
                     reg_sp_expr = successor_state.regs.sp
@@ -1469,11 +1469,11 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                              successor_state,
                              self._context_sensitivity_level,
                              block_id=new_block_id,
-                             jumpkind=successor_state.history.last_jumpkind,
+                             jumpkind=successor_state.history.jumpkind,
                              call_stack=new_call_stack,
                              )
 
-            if successor.history.last_jumpkind == 'Ijk_Ret':
+            if successor.history.jumpkind == 'Ijk_Ret':
                 # it's returning to the return site
 
                 # save the state as a final state of the function that we are returning from
@@ -1496,7 +1496,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                     job.dbg_exit_status[successor] = "Discarded (no call analysis task)"
 
             else:
-                if self._is_call_jumpkind(successor.history.last_jumpkind):
+                if self._is_call_jumpkind(successor.history.jumpkind):
                     # create a function analysis task
                     # TODO: the return address
                     task = FunctionAnalysis(new_job.addr, None)
@@ -1570,9 +1570,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
             try:
                 l.debug("-  successor: %#08x of %s [%s]", suc.se.exactly_int(suc.ip),
-                        suc.history.last_jumpkind, job.dbg_exit_status[suc])
+                        suc.history.jumpkind, job.dbg_exit_status[suc])
             except SimValueError:
-                l.debug("-  target cannot be concretized. %s [%s]", job.dbg_exit_status[suc], suc.history.last_jumpkind)
+                l.debug("-  target cannot be concretized. %s [%s]", job.dbg_exit_status[suc], suc.history.jumpkind)
         l.debug("Remaining/pending jobs: %d/%d", len(self._job_info_queue), len(self._pending_returns))
         l.debug("Remaining jobs: %s", [ "%s %d" % (ent.job, id(ent.job)) for ent in self._job_info_queue])
         l.debug("Task stack: %s", self._task_stack)
@@ -1706,7 +1706,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                      state,
                      self._context_sensitivity_level,
                      block_id=block_id,
-                     jumpkind=state.history.last_jumpkind,
+                     jumpkind=state.history.jumpkind,
                      call_stack=call_stack,
                      )
         self._insert_job(job)

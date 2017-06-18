@@ -18,7 +18,7 @@ def run_strtol(threads):
     b = angr.Project(test_bin)
 
     initial_state = b.factory.entry_state(remove_options={angr.options.LAZY_SOLVES})
-    pg = b.factory.path_group(thing=initial_state, immutable=False, threads=threads)
+    pg = b.factory.simgr(thing=initial_state, immutable=False, threads=threads)
 
     # find the end of main
     expected_outputs = {"base 8 worked\n", "base +8 worked\n", "0x worked\n", "+0x worked\n", "base +10 worked\n",
@@ -29,8 +29,8 @@ def run_strtol(threads):
     # check the outputs
     pipe = subprocess.PIPE
     for f in pg.found:
-        test_input = f.state.posix.dumps(0)
-        test_output = f.state.posix.dumps(1)
+        test_input = f.posix.dumps(0)
+        test_output = f.posix.dumps(1)
         expected_outputs.remove(test_output)
 
         # check the output works as expected

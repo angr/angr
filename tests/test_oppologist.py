@@ -10,7 +10,7 @@ def _ultra_oppologist(p, s):
         angr.engines.vex.irop.operations.clear()
         angr.engines.vex.irop.operations['Iop_Add32'] = old_ops['Iop_Add32']
 
-        pg = p.factory.path_group(s)
+        pg = p.factory.simgr(s)
         pg.use_technique(angr.exploration_techniques.Oppologist())
         pg.explore()
 
@@ -26,8 +26,8 @@ def test_fauxware_oppologist():
 
     pg = _ultra_oppologist(p, s)
     assert len(pg.deadended) == 1
-    assert len(pg.deadended[0].state.posix.dumps(0)) == 18
-    assert pg.deadended[0].state.posix.dumps(1).count("\n") == 3
+    assert len(pg.deadended[0].posix.dumps(0)) == 18
+    assert pg.deadended[0].posix.dumps(1).count("\n") == 3
 
 def test_cromu_70():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/cgc/CROMU_00070'))
@@ -41,7 +41,7 @@ def test_cromu_70():
     s.posix.files[0].size = len(inp)
 
     #import traceit
-    pg = p.factory.path_group(s)
+    pg = p.factory.simgr(s)
     pg.use_technique(angr.exploration_techniques.Oppologist())
     pg.explore()
     assert pg.one_deadended.weighted_length > 1500

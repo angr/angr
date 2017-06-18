@@ -2,7 +2,7 @@ import nose
 import angr
 
 import logging
-l = logging.getLogger("angr_tests.path_groups")
+l = logging.getLogger("angr_tests.managers")
 
 import os
 location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
@@ -21,24 +21,24 @@ addresses_fauxware = {
 def run_fauxware(arch, threads):
     p = angr.Project(os.path.join(location, arch, 'fauxware'), load_options={'auto_load_libs': False})
 
-    pg = p.factory.path_group(threads=threads)
+    pg = p.factory.simgr(threads=threads)
     nose.tools.assert_equal(len(pg.active), 1)
-    nose.tools.assert_equal(pg.active[0].length, 0)
+    nose.tools.assert_equal(pg.active[0].history.depth, 0)
 
     # step until the backdoor split occurs
     pg2 = pg.step(until=lambda lpg: len(lpg.active) > 1, step_func=lambda lpg: lpg.prune())
     nose.tools.assert_equal(len(pg2.active), 2)
-    nose.tools.assert_true(any("SOSNEAKY" in s for s in pg2.mp_active.state.posix.dumps(0).mp_items))
-    nose.tools.assert_false(all("SOSNEAKY" in s for s in pg2.mp_active.state.posix.dumps(0).mp_items))
+    nose.tools.assert_true(any("SOSNEAKY" in s for s in pg2.mp_active.posix.dumps(0).mp_items))
+    nose.tools.assert_false(all("SOSNEAKY" in s for s in pg2.mp_active.posix.dumps(0).mp_items))
 
     # separate out the backdoor and normal paths
-    pg3 = pg2.stash(lambda path: "SOSNEAKY" in path.state.posix.dumps(0), to_stash="backdoor").stash_all(to_stash="auth")
+    pg3 = pg2.stash(lambda path: "SOSNEAKY" in path.posix.dumps(0), to_stash="backdoor").stash_all(to_stash="auth")
     nose.tools.assert_equal(len(pg3.active), 0)
     nose.tools.assert_equal(len(pg3.backdoor), 1)
     nose.tools.assert_equal(len(pg3.auth), 1)
 
     # step the backdoor path until it returns to main
-    pg4 = pg3.step(until=lambda lpg: lpg.backdoor[0].jumpkinds[-1] == 'Ijk_Ret', stash='backdoor')
+    pg4 = pg3.step(until=lambda lpg: lpg.backdoor[0].history.jumpkinds[-1] == 'Ijk_Ret', stash='backdoor')
     main_addr = pg4.backdoor[0].addr
 
     nose.tools.assert_equal(len(pg4.active), 0)
@@ -70,7 +70,7 @@ def run_fauxware(arch, threads):
     #print pg2.mp_active.addr.mp_map(hex).mp_items
 
     # test selecting paths to step
-    pg_a = p.factory.path_group(immutable=True)
+    pg_a = p.factory.simgr(immutable=True)
     pg_b = pg_a.step(until=lambda lpg: len(lpg.active) > 1, step_func=lambda lpg: lpg.prune().drop(stash='pruned'))
     pg_c = pg_b.step(selector_func=lambda p: p is pg_b.active[0], step_func=lambda lpg: lpg.prune().drop(stash='pruned'))
     nose.tools.assert_is(pg_b.active[1], pg_c.active[0])
@@ -101,7 +101,7 @@ def test_find_to_middle():
     # Test the ability of PathGroup to execute until an instruction in the middle of a basic block
     p = angr.Project(os.path.join(location, 'x86_64', 'fauxware'), load_options={'auto_load_libs': False})
 
-    pg = p.factory.path_group(immutable=False)
+    pg = p.factory.simgr(immutable=False)
     pg.explore(find=(0x4006ee,))
 
     nose.tools.assert_equal(len(pg.found), 1)
@@ -112,7 +112,7 @@ def test_explore_with_cfg():
 
     cfg = p.analyses.CFGAccurate()
 
-    pg = p.factory.path_group()
+    pg = p.factory.simgr()
     pg.use_technique(angr.exploration_techniques.Explorer(find=0x4006ED, cfg=cfg, num_find=3))
     pg.run()
 

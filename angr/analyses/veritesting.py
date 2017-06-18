@@ -320,9 +320,9 @@ class Veritesting(Analysis):
             # Stash all paths that we do not care about
             manager.stash(
                 filter_func= lambda state: (
-                    state.history.last_jumpkind not in
+                    state.history.jumpkind not in
                     ('Ijk_Boring', 'Ijk_Call', 'Ijk_Ret', 'Ijk_NoHook')
-                    and not state.history.last_jumpkind.startswith('Ijk_Sys')
+                    and not state.history.jumpkind.startswith('Ijk_Sys')
                 ),
                 to_stash="deadended"
             )

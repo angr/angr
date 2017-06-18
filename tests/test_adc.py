@@ -12,10 +12,10 @@ def test_adc_i386():
 
     state = proj.factory.blank_state(addr=start, remove_options={angr.options.LAZY_SOLVES,}, add_options={angr.options.SYMBOLIC_WRITE_ADDRESSES})
 
-    pg = proj.factory.path_group(state, veritesting=False)
+    pg = proj.factory.simgr(state, veritesting=False)
     pg.explore(find=end)
 
-    found_state = pg.found[0].state
+    found_state = pg.found[0]
     result = found_state.se.any_int(found_state.regs.eax)
     nose.tools.assert_equal(result, 0x1)
 

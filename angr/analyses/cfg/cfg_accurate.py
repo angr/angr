@@ -35,8 +35,8 @@ class CFGJob(CFGJobBase):
 
         if self.jumpkind is None:
             # load jumpkind from path.state.scratch
-            self.jumpkind = 'Ijk_Boring' if self.state.history.last_jumpkind is None else \
-                self.state.history.last_jumpkind
+            self.jumpkind = 'Ijk_Boring' if self.state.history.jumpkind is None else \
+                self.state.history.jumpkind
 
         self.call_stack_suffix = None
         self.current_function = None
@@ -918,12 +918,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         else:
             # FIXME: self._initial_state is deprecated. This branch will be removed soon
             state = self._initial_state
-            state.history.last_jumpkind = jumpkind
+            state.history.jumpkind = jumpkind
             state.set_mode('fastpath')
             state.ip = state.se.BVV(ip, self.project.arch.bits)
 
         if jumpkind is not None:
-            state.history.last_jumpkind = jumpkind
+            state.history.jumpkind = jumpkind
 
         state_info = None
         # THIS IS A HACK FOR MIPS and ALSO PPC64
@@ -967,7 +967,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                 return None
 
-        pending_job_state.history.last_jumpkind = 'Ijk_FakeRet'
+        pending_job_state.history.jumpkind = 'Ijk_FakeRet'
 
         job = CFGJob(pending_job_state.addr,
                      pending_job_state,
@@ -1251,8 +1251,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         all_successors = successors + sim_successors.unconstrained_successors
 
         # make sure FakeRets are at the last
-        all_successors = [ suc for suc in all_successors if suc.history.last_jumpkind != 'Ijk_FakeRet' ] + \
-                         [ suc for suc in all_successors if suc.history.last_jumpkind == 'Ijk_FakeRet' ]
+        all_successors = [ suc for suc in all_successors if suc.history.jumpkind != 'Ijk_FakeRet' ] + \
+                         [ suc for suc in all_successors if suc.history.jumpkind == 'Ijk_FakeRet' ]
 
         if self._keep_state:
             job.cfg_node.final_states = all_successors[::]
@@ -1406,7 +1406,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Post-process jumpkind before touching all_successors
         for suc in sim_successors.all_successors:  # we process all successors here to include potential unsat successors
-            suc_jumpkind = suc.history.last_jumpkind
+            suc_jumpkind = suc.history.jumpkind
             if self._is_call_jumpkind(suc_jumpkind):
                 extra_info['is_call_jump'] = True
                 break
@@ -1440,7 +1440,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         l.debug("|    Call jump: %s", extra_info['is_call_jump'] if extra_info is not None else 'unknown')
 
         for suc in successors:
-            jumpkind = suc.history.last_jumpkind
+            jumpkind = suc.history.jumpkind
             if jumpkind == "Ijk_FakeRet":
                 exit_type_str = "Simulated Ret"
             else:
@@ -1585,7 +1585,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         job.successor_status[state] = ""
 
         new_state = state.copy()
-        suc_jumpkind = state.history.last_jumpkind
+        suc_jumpkind = state.history.jumpkind
         suc_exit_stmt_idx = state.scratch.exit_stmt_idx
         suc_exit_ins_addr = state.scratch.exit_ins_addr
 
@@ -1773,7 +1773,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # Fix the stack pointer (for example, skip the return address on the stack)
             new_sp_addr = sp_addr + self.project.arch.call_sp_fix
 
-            actions = [a for a in state.history.last_actions if a.bbl_addr == current_run.addr]
+            actions = [a for a in state.history.recent_actions if a.bbl_addr == current_run.addr]
 
             for a in actions:
                 if a.type == "mem" and a.action == "read":
@@ -2111,14 +2111,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # - It's a call (Ijk_Call), and its target is fully symbolic
                 # TODO: This is very hackish, please refactor this part of code later
                 should_resolve = True
-                legit_successors = [suc for suc in successors if suc.history.last_jumpkind in ('Ijk_Boring', 'Ijk_Call')]
+                legit_successors = [suc for suc in successors if suc.history.jumpkind in ('Ijk_Boring', 'Ijk_Call')]
                 if legit_successors:
                     legit_successor = legit_successors[0]
                     if legit_successor.ip.symbolic:
-                        if not legit_successor.history.last_jumpkind == 'Ijk_Call':
+                        if not legit_successor.history.jumpkind == 'Ijk_Call':
                             should_resolve = False
                     else:
-                        if legit_successor.history.last_jumpkind == 'Ijk_Call':
+                        if legit_successor.history.jumpkind == 'Ijk_Call':
                             should_resolve = False
                         else:
                             concrete_target = legit_successor.se.any_int(legit_successor.ip)
@@ -2166,10 +2166,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Try to find more successors if we failed to resolve the indirect jump before
         if not error_occurred and (cfg_node.is_simprocedure or self._is_indirect_jump(cfg_node, sim_successors)):
-            has_call_jumps = any(suc_state.history.last_jumpkind == 'Ijk_Call' for suc_state in successors)
+            has_call_jumps = any(suc_state.history.jumpkind == 'Ijk_Call' for suc_state in successors)
             if has_call_jumps:
                 concrete_successors = [suc_state for suc_state in successors if
-                                       suc_state.history.last_jumpkind != 'Ijk_FakeRet' and not suc_state.se.symbolic(
+                                       suc_state.history.jumpkind != 'Ijk_FakeRet' and not suc_state.se.symbolic(
                                            suc_state.ip)]
             else:
                 concrete_successors = [suc_state for suc_state in successors if
@@ -2212,10 +2212,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     else:
                         self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
                         # keep fake_rets
-                        successors = [s for s in successors if s.history.last_jumpkind == "Ijk_FakeRet"]
+                        successors = [s for s in successors if s.history.jumpkind == "Ijk_FakeRet"]
 
                 elif sim_successors.sort == 'IRSB'and \
-                        any([ex.history.last_jumpkind != 'Ijk_Ret' for ex in successors]):
+                        any([ex.history.jumpkind != 'Ijk_Ret' for ex in successors]):
                     # We cannot properly handle Return as that requires us start execution from the caller...
                     l.debug("Try traversal backwards in symbolic mode on %s.", cfg_node)
                     if self._enable_symbolic_back_traversal:
@@ -2235,7 +2235,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
                         successors = []
 
-                elif successors and all([ex.history.last_jumpkind == 'Ijk_Ret' for ex in successors]):
+                elif successors and all([ex.history.jumpkind == 'Ijk_Ret' for ex in successors]):
                     l.debug('All exits are returns (Ijk_Ret). It will be handled by pending exits.')
 
                 else:
@@ -2306,7 +2306,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     for n in cfg_nodes:
                         if not n.final_states:
                             continue
-                        actions = [ac for ac in n.final_states[0].history.last_actions
+                        actions = [ac for ac in n.final_states[0].history.recent_actions
                                    # Normally it's enough to only use the first final state
                                    if ac.bbl_addr == cl.block_addr and
                                    ac.stmt_idx == cl.stmt_idx
@@ -2481,7 +2481,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         new_concrete_successors = []
         for c in concrete_exits:
             unsat_state = current_block.unsat_successors[0].copy()
-            unsat_state.history.last_jumpkind = c.history.last_jumpkind
+            unsat_state.history.jumpkind = c.history.jumpkind
             for reg in unsat_state.arch.persistent_regs + ['ip']:
                 unsat_state.registers.store(reg, c.registers.load(reg))
             new_concrete_successors.append(unsat_state)
@@ -2558,7 +2558,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         function_hints = []
 
-        for action in successor_state.history.last_actions:
+        for action in successor_state.history.recent_actions:
             if action.type == 'reg' and action.offset == self.project.arch.ip_offset:
                 # Skip all accesses to IP registers
                 continue
@@ -2684,7 +2684,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     )
 
             if sim_successors is None:
-                jumpkind = state.history.last_jumpkind
+                jumpkind = state.history.jumpkind
                 jumpkind = 'Ijk_Boring' if jumpkind is None else jumpkind
                 sim_successors = self.project.factory.successors(
                         state,
@@ -2792,7 +2792,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # It should give us three exits: Ijk_Call, Ijk_Boring, and
             # Ijk_Ret. The last exit is simulated.
             # Notice: We assume the last exit is the simulated one
-            if len(all_jobs) > 1 and all_jobs[-1].history.last_jumpkind == "Ijk_FakeRet":
+            if len(all_jobs) > 1 and all_jobs[-1].history.jumpkind == "Ijk_FakeRet":
                 se = all_jobs[-1].se
                 retn_target_addr = se.exactly_int(all_jobs[-1].ip, default=0)
                 sp = se.exactly_int(all_jobs[-1].regs.sp, default=0)
@@ -3015,7 +3015,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 suc = all_successors[0]
                 se = suc.se
                 # Examine the path log
-                actions = suc.history.last_actions
+                actions = suc.history.recent_actions
                 sp = se.exactly_int(suc.regs.sp, default=0) + self.project.arch.call_sp_fix
                 for ac in actions:
                     if ac.type == "reg" and ac.action == "write":
@@ -3043,7 +3043,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         continue
 
                     suc = all_successors[0]
-                    actions = suc.history.last_actions
+                    actions = suc.history.recent_actions
                     for ac in actions:
                         if ac.type == "reg" and ac.action == "read" and ac.offset not in regs_written:
                             regs_read.add(ac.offset)

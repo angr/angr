@@ -29,14 +29,14 @@ def run_test_file_struct_funcs():
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/file_func_test")
     b = angr.Project(test_bin)
 
-    pg = b.factory.path_group()
-    pg.active[0].state.options.discard("LAZY_SOLVES")
+    pg = b.factory.simgr()
+    pg.active[0].options.discard("LAZY_SOLVES")
     pg.explore()
 
     nose.tools.assert_equal(len(pg.deadended), 3)
 
     for p in pg.deadended:
-        nose.tools.assert_true(check_state_1(p.state) or check_state_2(p.state) or check_state_3(p.state))
+        nose.tools.assert_true(check_state_1(p) or check_state_2(p) or check_state_3(p))
 
 def test_file_struct_funcs():
     yield run_test_file_struct_funcs

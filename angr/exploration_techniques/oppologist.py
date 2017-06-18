@@ -82,7 +82,7 @@ class Oppologist(ExplorationTechnique):
         results += map(functools.partial(self._oppologize, p, **kwargs), need_oppologizing)
         return self._combine_results(*results)
 
-    def step_path(self, path, **kwargs):
+    def step_state(self, path, **kwargs):
         try:
             path.step(throw=True, **kwargs)
             return None

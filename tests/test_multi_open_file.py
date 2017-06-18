@@ -11,8 +11,8 @@ def run_test_multi_open_file():
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/test_multi_open_file")
     b = angr.Project(test_bin)
 
-    pg = b.factory.path_group()
-    pg.active[0].state.options.discard("LAZY_SOLVES")
+    pg = b.factory.simgr()
+    pg.active[0].options.discard("LAZY_SOLVES")
     pg.explore()
 
     nose.tools.assert_equal(len(pg.deadended), 1)
@@ -20,12 +20,12 @@ def run_test_multi_open_file():
     # See the source file in binaries/tests_src/test_multi_open_file.c
     # for the tests run
     for p in pg.deadended:
-        nose.tools.assert_true(p.state.posix.dumps(2) == "")
+        nose.tools.assert_true(p.posix.dumps(2) == "")
 
         # Check that the temp file has what should be written to it
-        for path, f in p.state.posix.fs.iteritems():
+        for path, f in p.posix.fs.iteritems():
             if 'tmp' in path:
-                nose.tools.assert_true(p.state.posix.dump_file_by_path(path) == "foobar and baz")
+                nose.tools.assert_true(p.posix.dump_file_by_path(path) == "foobar and baz")
 
 
 def test_multi_open_file():

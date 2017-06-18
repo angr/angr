@@ -17,7 +17,7 @@ def run_sscanf(threads):
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/sscanf_test")
     b = angr.Project(test_bin)
 
-    pg = b.factory.path_group(immutable=False, threads=threads)
+    pg = b.factory.simgr(immutable=False, threads=threads)
 
     # find the end of main
     expected_outputs = {
@@ -33,8 +33,8 @@ def run_sscanf(threads):
     # check the outputs
     pipe = subprocess.PIPE
     for f in pg.found:
-        test_input = f.state.posix.dumps(0)
-        test_output = f.state.posix.dumps(1)
+        test_input = f.posix.dumps(0)
+        test_output = f.posix.dumps(1)
         expected_outputs.remove(test_output)
 
         # check the output works as expected

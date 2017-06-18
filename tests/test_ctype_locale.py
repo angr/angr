@@ -40,12 +40,12 @@ def test_ctype_b_loc():
 
     b = angr.Project(bin_path)
     p = b.factory.full_init_state()
-    pg = b.factory.path_group(p)
+    pg = b.factory.simgr(p)
 
     # Find main located at 0x400596 to let libc_start_main do its thing
     main = pg.explore(find=0x400596)
 
-    state = main.found[0].state
+    state = main.found[0]
     b_loc_array_ptr = ctype_b_loc(state, []).ret_expr
     table_ptr = state.memory.load(b_loc_array_ptr, state.arch.bits/8, endness=state.arch.memory_endness)
 
@@ -90,12 +90,12 @@ def test_ctype_tolower_loc():
 
     b = angr.Project(bin_path)
     p = b.factory.full_init_state()
-    pg = b.factory.path_group(p)
+    pg = b.factory.simgr(p)
 
     # Find main located at 0x400596 to let libc_start_main do its thing
     main = pg.explore(find=0x400596)
 
-    state = main.found[0].state
+    state = main.found[0]
     tolower_loc_array_ptr = ctype_tolower_loc(state, []).ret_expr
     table_ptr = state.memory.load(tolower_loc_array_ptr, state.arch.bits/8, endness=state.arch.memory_endness)
 
@@ -139,12 +139,12 @@ def test_ctype_toupper_loc():
 
     b = angr.Project(bin_path)
     p = b.factory.full_init_state()
-    pg = b.factory.path_group(p)
+    pg = b.factory.simgr(p)
 
     # Find main located at 0x400596 to let libc_start_main do its thing
     main = pg.explore(find=0x400596)
 
-    state = main.found[0].state
+    state = main.found[0]
     toupper_loc_array_ptr = ctype_toupper_loc(state, []).ret_expr
     table_ptr = state.memory.load(toupper_loc_array_ptr, state.arch.bits/8, endness=state.arch.memory_endness)
 

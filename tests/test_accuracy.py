@@ -38,7 +38,7 @@ def emulate(arch):
         state = pg2.deadended[0]
         is_finished = True
     elif len(pg2.errored) > 0:
-        state = pg2.errored[0].state
+        state = pg2.errored[0].state # ErroredState object!
     else:
         raise ValueError("The result does not contain a state we can use for this test?")
 

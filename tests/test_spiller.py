@@ -13,7 +13,7 @@ def test_basic():
     def unpickle_callback(path): path.info['unpickled'] = True
 
     project = angr.Project(_bin('tests/cgc/sc2_0b32aa01_01'))
-    path = project.factory.path()
+    path = project.factory.entry_state()
     spiller = angr.exploration_techniques.Spiller(pickle_callback=pickle_callback, unpickle_callback=unpickle_callback)
     spiller._pickle([path])
     del path
@@ -26,8 +26,8 @@ def test_palindrome2():
     ana.set_dl(ana.DictDataLayer())
 
     project = angr.Project(_bin('tests/cgc/sc2_0b32aa01_01'))
-    pg = project.factory.path_group()
-    pg.active[0].state.options.discard('LAZY_SOLVES')
+    pg = project.factory.simgr()
+    pg.active[0].options.discard('LAZY_SOLVES')
     limiter = angr.exploration_techniques.LengthLimiter(max_length=250)
     pg.use_technique(limiter)
 
