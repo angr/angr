@@ -2567,10 +2567,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             init_registers_on_demand_bp = BP(when=BP_BEFORE, enabled=True, action=init_registers_on_demand)
             start_state.inspect.add_breakpoint('mem_read', init_registers_on_demand_bp)
 
-            start_path = self.project.factory.path(start_state)
-
             # Create the slicecutor
-            slicecutor = Slicecutor(self.project, annotatedcfg, start=start_path, targets=(load_stmt_loc[0],),
+            slicecutor = Slicecutor(self.project, annotatedcfg, start=start_state, targets=(load_stmt_loc[0],),
                                     force_taking_exit=True
                                     )
 

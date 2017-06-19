@@ -195,7 +195,7 @@ class Explorer(Surveyor):
         elif isinstance(self._cfg.get_any_irsb(p.addr), SimProcedure):
             l.debug("Path %s is pointing to a SimProcedure. Counting as not lost.", p)
             return False
-        elif p.length > 0 and self._cfg.get_any_irsb(p.addr_trace[-1]) is None:
+        elif p.history.depth > 0 and self._cfg.get_any_irsb(p.history.bbl_addrs[-1]) is None:
             l.debug("not trimming, because %s is currently outside of the CFG", p)
             return False
         else:
@@ -216,7 +216,7 @@ class Explorer(Surveyor):
             self.lost.append(p)
             return False
 
-        if p.length < self._min_depth:
+        if p.history.depth < self._min_depth:
             l.debug("path %s has less than the minimum depth", p)
             return True
 
@@ -238,7 +238,7 @@ class Explorer(Surveyor):
             self.avoided.append(p)
             return False
         elif self._match(self._find, p, imark_set):
-            if not p.state.satisfiable():
+            if not p.satisfiable():
                 l.debug("Discarding 'found' path %s because it is unsat", p)
                 self.deadended.append(p)
                 return False
@@ -250,12 +250,13 @@ class Explorer(Surveyor):
             l.debug("Path %s is not on the restricted addresses!", p)
             self.deviating.append(p)
             return False
-        elif p.detect_loops(self._max_repeats) >= self._max_repeats:
-            # discard any paths that loop too much
-            l.debug("Path %s appears to be looping!", p)
-            self.looping.append(p)
-            return False
-        elif self._max_depth is not None and p.length > self._max_depth:
+        # TODO: something about this
+        #elif p.detect_loops(self._max_repeats) >= self._max_repeats:
+        #    # discard any paths that loop too much
+        #    l.debug("Path %s appears to be looping!", p)
+        #    self.looping.append(p)
+        #    return False
+        elif self._max_depth is not None and p.history.depth > self._max_depth:
             l.debug('Path %s exceeds the maximum depth(%d) allowed.', p, self._max_depth)
             return False
         else:

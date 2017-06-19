@@ -52,6 +52,7 @@ from . import knowledge
 from . import exploration_techniques
 from . import type_backend
 from . import sim_type as types
+from .state_hierarchy import StateHierarchy
 
 from .sim_state import SimState
 from .engines import SimEngineVEX

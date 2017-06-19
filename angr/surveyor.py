@@ -5,6 +5,10 @@ import multiprocessing
 import logging
 import weakref
 import functools
+import claripy
+import sys
+
+from .sim_state import SimState
 
 l = logging.getLogger("angr.surveyor")
 
@@ -120,6 +124,7 @@ class Surveyor(object):
 
     # TODO: what about errored? It's a problem cause those paths are duplicates, and could cause confusion...
     path_lists = ['active', 'deadended', 'spilled', 'errored', 'unconstrained', 'suspended', 'pruned' ]
+
     def __init__(self, project, start=None, max_active=None, max_concurrency=None, pickle_paths=None,
                  save_deadends=None, enable_veritesting=False, veritesting_options=None, keep_pruned=None):
         """
@@ -157,14 +162,14 @@ class Surveyor(object):
 
         self.split_paths = {}
         self._current_step = 0
-        self._hierarchy = PathHierarchy()
+        self._hierarchy = StateHierarchy()
 
-        if isinstance(start, Path):
+        if isinstance(start, SimState):
             self.active.append(start)
         elif isinstance(start, (tuple, list, set)):
             self.active.extend(start)
         elif start is None:
-            self.active.append(self._project.factory.path())
+            self.active.append(self._project.factory.entry_state())
         else:
             raise AngrError('invalid "start" argument')
 
@@ -286,21 +291,32 @@ class Surveyor(object):
         #       p = future_to_path[future]
         #       successors = future.result()
 
-        for p in self.active:
-            if p.errored:
-                if isinstance(p.error, PathUnreachableError):
-                    if self._keep_pruned:
-                        self.pruned.append(p)
-                else:
-                    self._hierarchy.unreachable_path(p)
-                    self._hierarchy.simplify()
-                    self.errored.append(p)
-                continue
-            self._step_path(p)
-            if len(p.successors) == 0 and len(p.unconstrained_successor_states) == 0:
-                l.debug("Path %s has deadended.", p)
-                self.suspend_path(p)
-                self.deadended.append(p)
+        for state in self.active:
+            #if state.errored:
+            #    if isinstance(state.error, PathUnreachableError):
+            #        if self._keep_pruned:
+            #            self.pruned.append(state)
+            #    else:
+            #        self._hierarchy.unreachable_state(state)
+            #        self._hierarchy.simplify()
+            #        self.errored.append(state)
+            #    continue
+            try:
+                all_successors = self._step_path(state)
+            except (SimUnsatError, claripy.UnsatError, PathUnreachableError):
+                if self._keep_pruned:
+                    self.pruned.append(state)
+                self._hierarchy.unreachable_state(state)
+                self._hierarchy.simplify()
+            except (AngrError, SimError, claripy.ClaripyError) as e:
+                self.errored.append(ErroredState(state, e, sys.exc_info()[2]))
+            except (TypeError, ValueError, ArithmeticError, MemoryError) as e:
+                self.errored.append(ErroredState(state, e, sys.exc_info()[2]))
+
+            if not all_successors.flat_successors and not all_successors.unconstrained_successors:
+                l.debug("State %s has deadended.", state)
+                self.suspend_path(state)
+                self.deadended.append(state)
             else:
                 if self._enable_veritesting: # and len(p.successors) > 1:
                     # Try to use Veritesting!
@@ -311,102 +327,103 @@ class Surveyor(object):
                             boundaries.extend(list(self._find))
                         if self._avoid is not None:
                             boundaries.extend(list(self._avoid))
-                        veritesting = self._project.analyses.Veritesting(p,
+                        veritesting = self._project.analyses.Veritesting(state,
                                                                          boundaries=boundaries,
                                                                          **self._veritesting_options)
                     else:
-                        veritesting = self._project.analyses.Veritesting(p,
+                        veritesting = self._project.analyses.Veritesting(state,
                                                                          **self._veritesting_options)
-                    if veritesting.result and veritesting.final_path_group:
-                        pg = veritesting.final_path_group
+                    if veritesting.result and veritesting.final_manager:
+                        pg = veritesting.final_manager
                         self.deadended.extend(pg.deadended)
                         self.errored.extend(pg.errored)
-                        successors = pg.successful + pg.deviated
-                        for suc in successors:
+                        succ_list = pg.successful + pg.deviated
+                        for suc in succ_list:
                             l.info('Veritesting yields a new IP: 0x%x', suc.addr)
-                        successors = self._tick_path(p, successors=successors)
+                        successors = self._tick_path(state, successors=succ_list)
 
                     else:
-                        successors = self.tick_path(p)
+                        successors = self.tick_path(state, successors=all_successors.flat_successors)
 
                 else:
-                    successors = self.tick_path(p)
+                    successors = self.tick_path(state, successors=all_successors.flat_successors)
                 new_active.extend(successors)
 
-            if len(p.unconstrained_successor_states) > 0:
-                self.unconstrained.append(p)
+            if len(all_successors.unconstrained_successors) > 0:
+                self.unconstrained.append(state)
 
         self.active = new_active
         return self
 
-    def _step_path(self, p):  #pylint:disable=no-self-use
-        p.step()
+    def _step_path(self, state):  #pylint:disable=no-self-use
+        return self._project.factory.successors(state)
 
-    def _tick_path(self, p, successors=None):
+    def _tick_path(self, state, successors=None):
         if successors is None:
-            successors = p.successors
+            successors = self._step_path(state).flat_successors
 
-        l.debug("Ticking path %s", p)
+        l.debug("Ticking state %s", state)
         for s in successors:
-            self._hierarchy.add_path(s)
+            self._hierarchy.add_state(s)
         self._hierarchy.simplify()
 
-        l.debug("... path %s has produced %d successors.", p, len(successors))
-        l.debug("... addresses: %s", ["0x%x" % s.addr for s in successors])
+        l.debug("... state %s has produced %d successors.", state, len(successors))
+        l.debug("... addresses: %s", ["%#x" % s.addr for s in successors])
         filtered_successors = self.filter_paths(successors)
         l.debug("Remaining: %d successors out of %d", len(filtered_successors), len(successors))
 
         # track the path ID for visualization
-        if len(filtered_successors) == 1:
-            filtered_successors[0].path_id = p.path_id
-        else:
-            self.split_paths[p.path_id] = [sp.path_id for sp in filtered_successors]
+        # TODO: what on earth do we do about this
+        #if len(filtered_successors) == 1:
+        #    filtered_successors[0].path_id = p.path_id
+        #else:
+        #    self.split_paths[p.path_id] = [sp.path_id for sp in filtered_successors]
 
         return filtered_successors
 
-    def tick_path(self, p):
+    def tick_path(self, state, **kwargs):
         """
-        Ticks a single path forward. Returns a sequence of successor paths.
+        Ticks a single state forward. Returns a SimSuccessors object.
         """
 
-        return self._tick_path(p)
+        return self._tick_path(state, **kwargs)
 
     def prune(self):
         """
         Prune unsat paths.
         """
 
-        for p in list(self.active):
-            if not p.reachable:
-                self._hierarchy.unreachable_path(p)
+        for state in list(self.active):
+            if not state.satisfiable():
+                self._hierarchy.unreachable_state(state)
                 self._hierarchy.simplify()
-                self.active.remove(p)
-                self.pruned.append(p)
+                self.active.remove(state)
+                self.pruned.append(state)
 
-        for p in list(self.spilled):
-            if not p.reachable:
-                self._hierarchy.unreachable_path(p)
+        for state in list(self.spilled):
+            if not state.satisfiable():
+                self._hierarchy.unreachable_state(state)
                 self._hierarchy.simplify()
-                self.spilled.remove(p)
-                self.pruned.append(p)
+                self.spilled.remove(state)
+                self.pruned.append(state)
 
 
     ###
     ### Path termination.
     ###
 
-    def filter_path(self, p):  # pylint: disable=W0613,R0201
+    def filter_path(self, state):  # pylint: disable=W0613,R0201
         """
         Returns True if the given path should be kept in the analysis, False
         otherwise.
         """
         return True
 
-    def filter_paths(self, paths):
+    def filter_paths(self, states):
         """
         Given a list of paths, returns filters them and returns the rest.
         """
-        return [p for p in paths if self.filter_path(p)]
+        return [state for state in states if self.filter_path(state)]
 
     #def filter(self):
     #   """
@@ -480,19 +497,20 @@ class Surveyor(object):
 
         self.active, self.spilled = new_active, new_spilled
 
-    def suspend_path(self, p): #pylint:disable=no-self-use
+    def suspend_path(self, state): #pylint:disable=no-self-use
         """
         Suspends and returns a state.
 
-        :param p: the path
-        :returns: the path
+        :param state: the state
+        :returns: the state
         """
         # TODO: Path doesn't provide suspend() now. What should we replace it with?
         # p.suspend(do_pickle=self._pickle_paths)
-        p.state.downsize()
-        return p
+        # TODO: that todo was from... at least 3 or 4 refactors ago, what is this supposed to do
+        state.downsize()
+        return state
 
-from .errors import AngrError, PathUnreachableError
-#from .path import Path
-#from .path_hierarchy import PathHierarchy
+from .errors import AngrError, PathUnreachableError, SimUnsatError, SimError
+from .state_hierarchy import StateHierarchy
 from .surveyors import all_surveyors
+from .manager import ErroredState

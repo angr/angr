@@ -2,7 +2,6 @@ import nose
 import angr
 import claripy
 from angr.sim_type import SimTypePointer, SimTypeFunction, SimTypeChar, SimTypeInt, parse_defns
-from angr.surveyors.caller import Callable
 from angr.errors import AngrCallableMultistateError
 
 import logging
@@ -49,7 +48,7 @@ def run_manysum(arch):
     inttype = SimTypeInt()
     prototype = SimTypeFunction([inttype]*11, inttype)
     cc = p.factory.cc(func_ty=prototype)
-    sumlots = Callable(p, addr, cc=cc)
+    sumlots = p.factory.callable(addr, cc=cc)
     result = sumlots(1,2,3,4,5,6,7,8,9,10,11)
     nose.tools.assert_false(result.symbolic)
     nose.tools.assert_equal(result._model_concrete.value, sum(xrange(12)))

@@ -150,8 +150,8 @@ class StateHierarchy(object):
                 n().state.add_constraints(claripy.false)
         self._graph.remove_nodes_from(all_children)
 
-    def unreachable_state(self, p):
-        self.unreachable_history(p.history)
+    def unreachable_state(self, state):
+        self.unreachable_history(state.history)
 
     def unreachable_history(self, h):
         href = weakref.ref(h)

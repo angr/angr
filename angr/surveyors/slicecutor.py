@@ -50,6 +50,7 @@ class HappyGraph(object):
     def path_priority(self, path): # pylint: disable=W0613,R0201,
         return 1
 
+
 class Slicecutor(Surveyor):
     """The Slicecutor is a surveyor that executes provided code slices."""
 
@@ -162,12 +163,12 @@ class Slicecutor(Surveyor):
     def pre_tick(self):
 
         # Set whitelists and last statements
-        for p in self.active:
-            addr = p.state.se.exactly_n_int(p.state.ip, 1)[0]
+        for s in self.active:
+            addr = s.se.exactly_n_int(s.ip, 1)[0]
             whitelist = self._annotated_cfg.get_whitelisted_statements(addr)
             last_stmt = self._annotated_cfg.get_last_statement_index(addr)
-            p._whitelist = whitelist
-            p._last_stmt = last_stmt
+            s._whitelist = whitelist
+            s._last_stmt = last_stmt
 
         done_addrs = [ ]
         for addr, count in self._merge_countdowns.iteritems():
@@ -197,14 +198,16 @@ class Slicecutor(Surveyor):
 
     def _step_path(self, p):  #pylint:disable=no-self-use
         if p._last_stmt is not None:
-            p.step(whitelist=p._whitelist, last_stmt=p._last_stmt)
+            return self._project.successors(p, whitelist=p._whitelist, last_stmt=p._last_stmt)
         else:
-            p.step(whitelist=p._whitelist)
+            return self._project.successors(p, whitelist=p._whitelist)
 
     def path_comparator(self, a, b):
         if a.weighted_length != b.weighted_length:
             return b.weighted_length - a.weighted_length
-        return a.addr_trace.count(a.addr_trace[-1]) - b.addr_trace.count(b.addr_trace[-1])
+        a_len = a.history.bbl_addrs.hardcopy.count(a.history.bbl_addrs[-1])
+        b_len = b.history.bbl_addrs.hardcopy.count(b.history.bbl_addrs[-1])
+        return a_len - b_len
         #return self._annotated_cfg.path_priority(a) - self._annotated_cfg.path_priority(b)
 
     def __repr__(self):
