@@ -1,11 +1,8 @@
 from ..func import Func, TestData
 import random
-import itertools
-import struct
 from simuvex.s_type import SimTypeFunction, SimTypeInt
 
 
-from ..errors import FunctionNotInitialized
 from ..custom_callable import Callable
 
 def rand_str(length, byte_list=None):
@@ -18,10 +15,10 @@ class memcpy(Func):
     non_null = [chr(i) for i in range(1, 256)]
 
     def __init__(self):
-        super(memcpy, self).__init__()
+        super(memcpy, self).__init__() #pylint disable=useless-super-delegation
         self.memmove_safe = False
 
-    def get_name(self):
+    def get_name(self): #pylint disable=no-self-use
         if self.memmove_safe:
             return "memmove"
         return "memcpy"
@@ -32,7 +29,7 @@ class memcpy(Func):
     def args(self):
         return ["dst", "src", "len"]
 
-    def can_call_other_funcs(self):
+    def can_call_other_funcs(self): #pylint disable=no-self-use
         return False
 
     def gen_input_output_pair(self):
@@ -70,10 +67,7 @@ class memcpy(Func):
                         cc=cc, base_state=s, max_steps=20)
         _ = call(*[0x2003, 0x2000, 5])
         result_state = call.result_state
-        if result_state.se.any_str(result_state.memory.load(0x2000, 8)) == "ABCABC\x00\x00":
-            self.memmove_safe = True
-        else:
-            self.memmove_safe = False
+        self.memmove_safe = bool(result_state.se.any_str(result_state.memory.load(0x2000, 8)) == "ABCABC\x00\x00")
 
         s = runner.get_base_call_state(func, test)
         s.memory.store(0x2000, "\x00\x00\x00\x00\x00CBA")

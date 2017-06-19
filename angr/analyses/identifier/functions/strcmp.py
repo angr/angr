@@ -1,9 +1,5 @@
 from ..func import Func, TestData
 import random
-import itertools
-import struct
-
-from ..errors import FunctionNotInitialized
 
 def rand_str(length, byte_list=None):
     if byte_list is None:
@@ -15,7 +11,7 @@ class strcmp(Func):
     non_null = [chr(i) for i in range(1, 256)]
 
     def __init__(self):
-        super(strcmp, self).__init__()
+        super(strcmp, self).__init__() #pylint disable=useless-super-delegation
 
     def get_name(self):
         return "strcmp"
@@ -23,12 +19,13 @@ class strcmp(Func):
     def num_args(self):
         return 2
 
-    def args(self):
+    def args(self): #pylint disable=no-self-use
         return ["buf1", "buf2"]
 
     def gen_input_output_pair(self):
         l = 5
         s = rand_str(l, strcmp.non_null)
+         #pylint disable=unused-variable
 
         return None
 

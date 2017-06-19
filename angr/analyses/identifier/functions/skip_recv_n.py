@@ -1,9 +1,6 @@
 from ..func import Func, TestData
 import random
-import itertools
 import struct
-
-from ..errors import FunctionNotInitialized
 
 def rand_str(length, byte_list=None):
     if byte_list is None:
@@ -16,7 +13,7 @@ class receive_n4(Func):
     # fd buf size
     # buf size
     def __init__(self):
-        super(receive_n4, self).__init__()
+        super(receive_n4, self).__init__()  #pylint disable=useless-super-delegation
 
     def get_name(self):
         return "receive_n4"
@@ -27,7 +24,7 @@ class receive_n4(Func):
     def args(self):
         return ["fd", "buf", "len", "rxbytes"]
 
-    def gen_input_output_pair(self):
+    def gen_input_output_pair(self): #pylint disable=no-self-use
         max_len = random.randint(1, 10)
         buf = rand_str(max_len+5)
         result_buf = "ZZZZ"
@@ -49,7 +46,7 @@ class receive_n3(Func):
     # fd buf size
     # buf size
     def __init__(self):
-        super(receive_n3, self).__init__()
+        super(receive_n3, self).__init__()  #pylint disable=useless-super-delegation
 
     def get_name(self):
         return "receive_n3"
@@ -60,7 +57,7 @@ class receive_n3(Func):
     def args(self):
         return ["fd", "buf", "len"]
 
-    def gen_input_output_pair(self):
+    def gen_input_output_pair(self): #pylint disable=no-self-use
         max_len = random.randint(1, 10)
         buf = rand_str(max_len+5)
         test_input = [0, buf, max_len]
@@ -80,7 +77,7 @@ class receive_n2(Func):
     # fd buf size
     # buf size
     def __init__(self):
-        super(receive_n2, self).__init__()
+        super(receive_n2, self).__init__()  #pylint disable=useless-super-delegation
 
     def get_name(self):
         return "receive_n2"
@@ -91,7 +88,7 @@ class receive_n2(Func):
     def args(self):
         return ["buf", "len"]
 
-    def gen_input_output_pair(self):
+    def gen_input_output_pair(self): #pylint disable=no-self-use
         max_len = random.randint(1, 10)
         buf = rand_str(max_len+5)
         test_input = [buf, max_len]

@@ -56,8 +56,7 @@ class Callable(object):
         self.perform_call(*args)
         if self.result_state is not None:
             return self.result_state.se.simplify(self._cc.get_return_val(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF))
-        else:
-            return None
+        return None
 
     def get_base_state(self, *args):
         self._base_state.ip = self._addr
@@ -84,19 +83,19 @@ class Callable(object):
 
         caller = self._project.factory.path_group(state, immutable=True)
         for _ in xrange(self._max_steps):
-            if len(caller.active) == 0:
+            if len(caller.active) == 0: #pylint disable=len-as-condition
                 break
             if caller.active[0].weighted_length > 100000:
                 l.debug("super long path %s", caller.active[0])
                 raise AngrCallableError("Super long path")
             caller = caller.step(step_func=step_func if self._concrete_only else None)
-        if len(caller.active) > 0:
+        if len(caller.active) > 0: #pylint disable=len-as-condition
             raise AngrCallableError("didn't make it to the end of the function")
 
         caller_end_unpruned = caller.unstash(from_stash='deadended')
         caller_end_unmerged = caller_end_unpruned.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
 
-        if len(caller_end_unmerged.active) == 0:
+        if len(caller_end_unmerged.active) == 0: #pylint disable=len-as-condition
             raise AngrCallableError("No paths returned from function")
 
         self.result_path_group = caller_end_unmerged

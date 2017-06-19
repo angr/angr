@@ -29,15 +29,15 @@ class strtol(Func):
         self.skips_whitespace = False
         self.version = ""
 
-    def rand_str(self, length, byte_list=None):
+    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in xrange(length))
         return "".join(random.choice(byte_list) for _ in xrange(length))
 
-    def num_args(self):
+    def num_args(self): #pylint disable=no-self-use
         return 3
 
-    def args(self):
+    def args(self): #pylint disable=no-self-use
         return ["nptr", "endpointer", "base"]
 
     def get_name(self):

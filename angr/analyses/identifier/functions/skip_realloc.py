@@ -1,6 +1,4 @@
 from ..func import Func, TestData
-import random
-from ..errors import IdentifierException
 from simuvex import SimMemoryError
 
 import logging
@@ -8,12 +6,12 @@ l = logging.getLogger("identifier.functions.free")
 
 class realloc(Func):
     def __init__(self):
-        super(realloc, self).__init__()
+        super(realloc, self).__init__() #pylint disable=useless-super-delegation
 
     def num_args(self):
         return 2
 
-    def args(self):
+    def args(self): #pylint disable=no-self-use
         return ["ptr", "size"]
 
     def get_name(self):
@@ -48,12 +46,11 @@ class realloc(Func):
             return False
         returned_locs.append(state.se.any_int(state.regs.eax))
 
-        for i in range(10):
+        for i in range(10): #pylint disable=unused-variable
             state = runner.get_out_state(func, test, initial_state=state)
             if state is None:
                 return False
             returned_locs.append(state.se.any_int(state.regs.eax))
-            pass
 
         # if we got the same value 2x it didnt work
         if len(set(returned_locs)) != len(returned_locs):
@@ -92,10 +89,8 @@ class realloc(Func):
             if state is None:
                 return False
             returned_locs2.append(state.se.any_int(state.regs.eax))
-            pass
 
         if returned_locs == returned_locs2:
             return False
 
         return True
-

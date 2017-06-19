@@ -9,7 +9,7 @@ class atoi(Func):
         self.skips_whitespace = False
         self.allows_negative = True
 
-    def rand_str(self, length, byte_list=None):
+    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in xrange(length))
         return "".join(random.choice(byte_list) for _ in xrange(length))
@@ -24,8 +24,7 @@ class atoi(Func):
             suffix = "_no_signs"
         if self.skips_whitespace:
             return "atoi_whitespace_skip" + suffix
-        else:
-            return "atoi" + suffix
+        return "atoi" + suffix
 
     def gen_input_output_pair(self):
         num = random.randint(-(2**26), 2**26-1)

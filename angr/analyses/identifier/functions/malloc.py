@@ -1,11 +1,9 @@
 from ..func import Func, TestData
-import random
-import string
 from simuvex import SimMemoryError
 
 class malloc(Func):
     def __init__(self):
-        super(malloc, self).__init__()
+        super(malloc, self).__init__() #pylint disable=useless-super-delegation
 
     def num_args(self):
         return 1
@@ -42,14 +40,13 @@ class malloc(Func):
             return False
         returned_locs.append(state.se.any_int(state.regs.eax))
 
-        for i in range(6):
+        for i in range(6): #pylint disable=unused-variable
             state = runner.get_out_state(func, test, initial_state=state, concrete_rand=True)
             if state is None:
                 return False
             returned_locs.append(state.se.any_int(state.regs.eax))
             if any(a < 0x3000 for a in returned_locs):
                 return False
-            pass
 
         # if we got the same value 2x it didnt work
         if len(set(returned_locs)) != len(returned_locs):
@@ -108,7 +105,6 @@ class malloc(Func):
             returned_locs2.append(state.se.any_int(state.regs.eax))
             if any(a < 0x3000 for a in returned_locs2):
                 return False
-            pass
 
         if returned_locs == returned_locs2:
             return False

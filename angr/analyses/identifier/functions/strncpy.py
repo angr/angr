@@ -1,9 +1,5 @@
 from ..func import Func, TestData
 import random
-import itertools
-import struct
-
-from ..errors import FunctionNotInitialized
 
 def rand_str(length, byte_list=None):
     if byte_list is None:
@@ -26,7 +22,7 @@ class strncpy(Func):
     def num_args(self):
         return 3
 
-    def args(self):
+    def args(self): #pylint disable=no-self-use
         return ["dst", "src", "len"]
 
     def can_call_other_funcs(self):

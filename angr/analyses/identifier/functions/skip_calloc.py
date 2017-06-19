@@ -3,7 +3,7 @@ from simuvex import SimMemoryError
 
 class calloc(Func):
     def __init__(self):
-        super(calloc, self).__init__()
+        super(calloc, self).__init__() #pylint disable=useless-super-delegation
 
     def num_args(self):
         return 2
@@ -11,7 +11,7 @@ class calloc(Func):
     def get_name(self):
         return "calloc"
 
-    def args(self):
+    def args(self): #pylint disable=no-self-use
         return ["nmemb", "size"]
 
     def gen_input_output_pair(self):
@@ -43,12 +43,11 @@ class calloc(Func):
             return False
         returned_locs.append(state.se.any_int(state.regs.eax))
 
-        for i in range(6):
+        for i in range(6): #pylint disable=unused-variable
             state = runner.get_out_state(func, test, initial_state=state)
             if state is None:
                 return False
             returned_locs.append(state.se.any_int(state.regs.eax))
-            pass
 
         # if we got the same value 2x it didnt work
         if len(set(returned_locs)) != len(returned_locs):

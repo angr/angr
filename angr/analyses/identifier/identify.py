@@ -2,13 +2,12 @@
 
 from collections import defaultdict
 
-from functions import Functions
-from errors import IdentifierException
-from runner import Runner
+from angr.analyses.identifier.functions import Functions
+from angr.analyses.identifier.errors import IdentifierException
+from angr.analyses.identifier.runner import Runner
 import simuvex
 import angr
 from simuvex.s_errors import SimEngineError, SimMemoryError
-import os
 
 from ...analysis import Analysis, register_analysis
 
@@ -88,6 +87,7 @@ class Identifier(Analysis):
             # skip if no predecessors
             try:
                 if require_predecessors and len(self._cfg.functions.callgraph.predecessors(f.addr)) == 0:
+                    #pylint disable=len-as-condition
                     continue
             except NetworkXError:
                 if require_predecessors:
@@ -260,7 +260,7 @@ class Identifier(Analysis):
         try:
             if not match_func.pre_test(cfg_func, self._runner):
                 return False
-            for i in xrange(NUM_TESTS):
+            for i in xrange(NUM_TESTS): #pylint disable=unused-variable
                 test_data = match_func.gen_input_output_pair()
                 if test_data is not None and not self._runner.test(cfg_func, test_data):
                     return False
@@ -294,10 +294,10 @@ class Identifier(Analysis):
             for b in f.graph.nodes():
                 self.block_to_func[b.addr] = f
 
-    def do_trace(self, addr_trace, reverse_accesses, func_info):
+    def do_trace(self, addr_trace, reverse_accesses, func_info): #pylint disable=unused-argument
         # get to the callsite
         from angrop import rop_utils
-        
+
         s = rop_utils.make_symbolic_state(self.project, self._reg_list, stack_length=200)
         s.options.discard(simuvex.o.AVOID_MULTIVALUED_WRITES)
         s.options.discard(simuvex.o.AVOID_MULTIVALUED_READS)
@@ -313,7 +313,7 @@ class Identifier(Analysis):
         s.regs.ip = addr_trace[0]
         addr_trace = addr_trace[1:]
         p = self.project.factory.path(s)
-        while len(addr_trace) > 0:
+        while len(addr_trace) > 0: #pylint disable=len-as-condition
             p.step()
             stepped = False
             for ss in p.successors:
@@ -326,7 +326,7 @@ class Identifier(Analysis):
                     p = ss
                     stepped = True
             if not stepped:
-                if len(p.unconstrained_successors) > 0:
+                if len(p.unconstrained_successors) > 0: #pylint disable=len-as-condition
                     p = p.unconstrained_successors[0]
                     if p.jumpkind == "Ijk_Call":
                         p.state.regs.eax = p.state.se.BVS("unconstrained_ret_%#x" % p.addr, p.state.arch.bits)
@@ -340,7 +340,7 @@ class Identifier(Analysis):
 
         # step one last time to the call
         p.step()
-        if len(p.successors) == 0:
+        if len(p.successors) == 0: #pylint disable=len-as-condition
             IdentifierException("Didn't succeed call")
         return p.successors[0]
 
@@ -358,12 +358,13 @@ class Identifier(Analysis):
         stack_var_accesses = calling_func_info.stack_var_accesses
         for stack_var, v in stack_var_accesses.items():
             for addr, type in v:
+                #pylint disable=redefined-builtin
                 reverse_accesses[addr] = (stack_var, type)
 
         # we need to step back as far as possible
         start = calling_func.get_node(callsite)
         addr_trace = []
-        while len(calling_func.transition_graph.predecessors(start)) == 1:
+        while len(calling_func.transition_graph.predecessors(start)) == 1: #pylint disable=len-as-condition
             # stop at a call, could continue farther if no stack addr passed etc
             prev_block = calling_func.transition_graph.predecessors(start)[0]
             addr_trace = [start.addr] + addr_trace
@@ -371,13 +372,13 @@ class Identifier(Analysis):
 
         addr_trace = [start.addr] + addr_trace
         succ = None
-        while len(addr_trace):
+        while len(addr_trace): #pylint disable=len-as-condition
             try:
                 succ = self.do_trace(addr_trace, reverse_accesses, calling_func_info)
                 break
             except IdentifierException:
                 addr_trace = addr_trace[1:]
-        if len(addr_trace) == 0:
+        if len(addr_trace) == 0: #pylint disable=len-as-condition
             return None
 
         succ_state = succ.state
@@ -440,7 +441,7 @@ class Identifier(Analysis):
         state.regs.bp = input_state.regs.bp
         return state
 
-    def _prefilter_floats(self, func):
+    def _prefilter_floats(self, func): #pylint disable=no-self-use
 
         # calling _get_block() from `func` respects the size of the basic block
         # in extreme cases (like at the end of a section where VEX cannot disassemble the instruction beyond the
@@ -546,10 +547,7 @@ class Identifier(Analysis):
         if num_preamble_inst is None or succ is None:
             raise IdentifierException("preamble checks failed for %#x" % func.startpoint.addr)
 
-        if len(succ.state.se.any_n_int((initial_path.state.regs.sp - succ.state.regs.bp), 2)) == 1:
-            bp_based = True
-        else:
-            bp_based = False
+        bp_based = bool(len(succ.state.se.any_n_int((initial_path.state.regs.sp - succ.state.regs.bp), 2)) == 1)
 
         preamble_sp_change = succ.state.regs.sp - initial_path.state.regs.sp
         if preamble_sp_change.symbolic:
@@ -696,6 +694,7 @@ class Identifier(Analysis):
         stack_vars = sorted(stack_vars)
 
         if len(stack_args) > 0 and any(a[1] == "load" for a in stack_arg_accesses[stack_args[-1]]):
+            #pylint disable=len-as-condition
             # print "DETECTED VAR_ARGS"
             var_args = True
             del stack_arg_accesses[stack_args[-1]]
@@ -763,23 +762,6 @@ class Identifier(Analysis):
             return True
 
         return False
-
-    @staticmethod
-    def get_reg_name(arch, reg_offset):
-        """
-        :param reg_offset: Tries to find the name of a register given the offset in the registers.
-        :return: The register name
-        """
-        if reg_offset is None:
-            return None
-
-        original_offset = reg_offset
-        while reg_offset >= 0 and reg_offset >= original_offset - (arch.bits/8):
-            if reg_offset in arch.register_names:
-                return arch.register_names[reg_offset]
-            else:
-                reg_offset -= 1
-        return None
 
     def _no_sp_or_bp(self, bl):
         for s in bl.vex.statements:

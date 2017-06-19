@@ -5,7 +5,7 @@ import random
 class strlen(Func):
     non_null = [chr(i) for i in range(1, 256)]
 
-    def rand_str(self, length, byte_list=None):
+    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in xrange(length))
         return "".join(random.choice(byte_list) for _ in xrange(length))

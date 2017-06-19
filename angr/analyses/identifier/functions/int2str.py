@@ -58,7 +58,7 @@ class int2str(Func):
         super(int2str, self).__init__()
         self.is_signed = False
 
-    def rand_str(self, length, byte_list=None):
+    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in xrange(length))
         return "".join(random.choice(byte_list) for _ in xrange(length))
@@ -66,14 +66,13 @@ class int2str(Func):
     def num_args(self):
         return 3
 
-    def args(self):
+    def args(self): #pylint disable=no-self-use
         return ["buf", "len", "val"]
 
     def get_name(self):
         if self.is_signed:
             return "int2str"
-        else:
-            return "uint2str"
+        return "uint2str"
 
     def gen_input_output_pair(self):
         num = random.randint(-(2 ** 26), 2 ** 26 - 1)
@@ -121,7 +120,7 @@ class int2str_v2(Func):
         super(int2str_v2, self).__init__()
         self.is_signed = False
 
-    def rand_str(self, length, byte_list=None):
+    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in xrange(length))
         return "".join(random.choice(byte_list) for _ in xrange(length))
@@ -129,14 +128,13 @@ class int2str_v2(Func):
     def num_args(self):
         return TwoOrThree()
 
-    def args(self):
+    def args(self): #pylint disable=no-self-use
         return ["val", "buf", "max"]
 
     def get_name(self):
         if self.is_signed:
             return "int2str_v2"
-        else:
-            return "uint2str_v2"
+        return "uint2str_v2"
 
     def gen_input_output_pair(self):
         num = random.randint(-(2 ** 26), 2 ** 26 - 1)
@@ -183,7 +181,7 @@ class int2str_v3(Func):
         super(int2str_v3, self).__init__()
         self.is_signed = False
 
-    def rand_str(self, length, byte_list=None):
+    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in xrange(length))
         return "".join(random.choice(byte_list) for _ in xrange(length))
@@ -191,14 +189,13 @@ class int2str_v3(Func):
     def num_args(self):
         return TwoOrThree()
 
-    def args(self):
+    def args(self): #pylint disable=no-self-use
         return ["buf", "val", "max"]
 
     def get_name(self):
         if self.is_signed:
             return "int2str_v3"
-        else:
-            return "uint2str_v3"
+        return "uint2str_v3"
 
     def gen_input_output_pair(self):
         num = random.randint(-(2 ** 26), 2 ** 26 - 1)
@@ -245,7 +242,7 @@ class int2str_v4(Func):
         super(int2str_v4, self).__init__()
         self.is_signed = False
 
-    def rand_str(self, length, byte_list=None):
+    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in xrange(length))
         return "".join(random.choice(byte_list) for _ in xrange(length))
@@ -253,14 +250,13 @@ class int2str_v4(Func):
     def num_args(self):
         return ThreeOrFour()
 
-    def args(self):
+    def args(self): #pylint disable=no-self-use
         return ["buf", "val", "base"]
 
     def get_name(self):
         if self.is_signed:
             return "int2str_v4"
-        else:
-            return "uint2str_v4"
+        return "uint2str_v4"
 
     def gen_input_output_pair(self):
         num = random.randint(-(2 ** 26), 2 ** 26 - 1)

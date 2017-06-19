@@ -1,5 +1,3 @@
-import string
-
 import angr
 import simuvex
 import simuvex.s_options as so
@@ -62,7 +60,7 @@ class Runner(object):
 
             pg = self.project.factory.path_group(entry_state)
             num_steps = 0
-            while len(pg.active) > 0:
+            while len(pg.active) > 0: #pylint disable=len-as-condition
                 syscall = self.project._simos.syscall_table.get_by_addr(pg.one_active.addr)
                 if syscall is not None and syscall.name == 'receive':
                     # execute until receive
@@ -75,9 +73,9 @@ class Runner(object):
                 num_steps += 1
                 if num_steps > 50:
                     break
-            if len(pg.active) > 0:
+            if len(pg.active) > 0: #pylint disable=len-as-condition
                 out_state = pg.one_active.state
-            elif len(pg.deadended) > 0:
+            elif len(pg.deadended) > 0: #pylint disable=len-as-condition
                 out_state = pg.deadended[0].state
             else:
                 return self.project.factory.entry_state()
@@ -114,7 +112,7 @@ class Runner(object):
 
         # set stdin
         entry_state.cgc.input_size = len(test_data.preloaded_stdin)
-        if len(test_data.preloaded_stdin) > 0:
+        if len(test_data.preloaded_stdin) > 0: #pylint disable=len-as-condition
             entry_state.posix.files[0].content.store(0, test_data.preloaded_stdin)
 
         entry_state.options.add(so.STRICT_PAGE_ACCESS)
@@ -195,7 +193,7 @@ class Runner(object):
         s = self.setup_state(function, test_data, initial_state, concrete_rand=concrete_rand)
 
         for i in test_data.input_args:
-            if isinstance(i, str) or isinstance(i, claripy.ast.BV):
+            if isinstance(i, (str, claripy.ast.BV)):
                 s.memory.store(curr_buf_loc, i)
                 mapped_input.append(curr_buf_loc)
                 curr_buf_loc += max(len(i), 0x1000)
@@ -256,7 +254,7 @@ class Runner(object):
         outputs = []
         for i, out in enumerate(test_data.expected_output_args):
             if isinstance(out, str):
-                if len(out) == 0:
+                if len(out) == 0: #pylint disable=len-as-condition
                     raise Exception("len 0 out")
                 outputs.append(result_state.memory.load(mapped_input[i], len(out)))
             else:

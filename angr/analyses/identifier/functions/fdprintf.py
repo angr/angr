@@ -16,7 +16,7 @@ class fdprintf(Func):
         self.string_spec_char = None
         self.allows_n = False
 
-    def rand_str(self, length, byte_list=None):
+    def rand_str(self, length, byte_list=None): #pylint disable=no-self-use
         if byte_list is None:
             return "".join(chr(random.randint(0, 255)) for _ in xrange(length))
         return "".join(random.choice(byte_list) for _ in xrange(length))
@@ -24,7 +24,7 @@ class fdprintf(Func):
     def num_args(self):
         return 2
 
-    def args(self):
+    def args(self): #pylint disable=no-self-use
         return ["fd", "str"]
 
     def get_name(self):

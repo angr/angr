@@ -1,5 +1,4 @@
 from ..func import Func, TestData
-import random
 from ..errors import IdentifierException
 
 import logging
@@ -7,7 +6,7 @@ l = logging.getLogger("identifier.functions.free")
 
 class free(Func):
     def __init__(self):
-        super(free, self).__init__()
+        super(free, self).__init__() #pylint disable=useless-super-delegation
 
     def num_args(self):
         return 1
@@ -22,7 +21,7 @@ class free(Func):
         # free should not be identified here
         return False
 
-    def try_match(self, func, identifier, runner):
+    def try_match(self, func, identifier, runner): #pylint disable=no-self-use
         malloc = None
         for k, v in identifier.matches.iteritems():
             if v[0] == "malloc":
@@ -39,7 +38,7 @@ class free(Func):
 
         malloc_vals = []
         state = None
-        for i in range(10):
+        for i in range(10): #pylint disable=unused-variable
             state = runner.get_out_state(malloc, malloc_test, initial_state=state)
             if state is None:
                 l.critical("malloc failed")
@@ -60,4 +59,3 @@ class free(Func):
             return False
 
         return True
-
