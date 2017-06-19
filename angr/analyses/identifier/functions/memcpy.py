@@ -3,7 +3,7 @@ import random
 from simuvex.s_type import SimTypeFunction, SimTypeInt
 
 
-from ..custom_callable import Callable
+from ..custom_callable import IdentifierCallable
 
 def rand_str(length, byte_list=None):
     if byte_list is None:
@@ -63,7 +63,7 @@ class memcpy(Func):
         inttype = SimTypeInt(runner.project.arch.bits, False)
         func_ty = SimTypeFunction([inttype] * 3, inttype)
         cc = runner.project.factory.cc(func_ty=func_ty)
-        call = Callable(runner.project, func.startpoint.addr, concrete_only=True,
+        call = IdentifierCallable(runner.project, func.startpoint.addr, concrete_only=True,
                         cc=cc, base_state=s, max_steps=20)
         _ = call(*[0x2003, 0x2000, 5])
         result_state = call.result_state
@@ -74,7 +74,7 @@ class memcpy(Func):
         inttype = SimTypeInt(runner.project.arch.bits, False)
         func_ty = SimTypeFunction([inttype] * 3, inttype)
         cc = runner.project.factory.cc(func_ty=func_ty)
-        call = Callable(runner.project, func.startpoint.addr, concrete_only=True,
+        call = IdentifierCallable(runner.project, func.startpoint.addr, concrete_only=True,
                         cc=cc, base_state=s, max_steps=20)
         _ = call(*[0x2000, 0x2003, 5])
         result_state = call.result_state

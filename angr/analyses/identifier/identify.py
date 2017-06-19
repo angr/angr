@@ -1,5 +1,3 @@
-
-
 from collections import defaultdict
 
 from angr.analyses.identifier.functions import Functions
@@ -8,6 +6,7 @@ from angr.analyses.identifier.runner import Runner
 import simuvex
 import angr
 from simuvex.s_errors import SimEngineError, SimMemoryError
+from cle.backends.cgc import CGC
 
 from ...analysis import Analysis, register_analysis
 
@@ -43,6 +42,9 @@ class Identifier(Analysis):
         from angrop import rop_utils
 
         # self.project = project
+        if not isinstance(self.project.loader.main_bin, CGC):
+            l.critical("The identifier currently works only on CGC binaries. Results may be completely unexpected.")
+
         if cfg is not None:
             self._cfg = cfg
         else:

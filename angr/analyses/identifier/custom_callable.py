@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger("identifier.custom_callable")
 l.setLevel("DEBUG")
 
-class Callable(object):
+class IdentifierCallable(object):
     """
     Callable is a representation of a function in the binary that can be
     interacted with like a native python function.

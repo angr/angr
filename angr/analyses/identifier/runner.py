@@ -2,7 +2,7 @@ import angr
 import simuvex
 import simuvex.s_options as so
 from simuvex.s_type import SimTypeFunction, SimTypeInt
-from .custom_callable import Callable
+from .custom_callable import IdentifierCallable
 from angr.errors import AngrCallableMultistateError, AngrCallableError
 import claripy
 from tracer.simprocedures import FixedOutTransmit, FixedInReceive
@@ -205,7 +205,7 @@ class Runner(object):
         inttype = SimTypeInt(self.project.arch.bits, False)
         func_ty = SimTypeFunction([inttype] * len(mapped_input), inttype)
         cc = self.project.factory.cc(func_ty=func_ty)
-        call = Callable(self.project, function.startpoint.addr, concrete_only=True,
+        call = IdentifierCallable(self.project, function.startpoint.addr, concrete_only=True,
                         cc=cc, base_state=s, max_steps=test_data.max_steps)
         return call.get_base_state(*mapped_input)
 
@@ -239,7 +239,7 @@ class Runner(object):
         func_ty = SimTypeFunction([inttype] * len(mapped_input), inttype)
         cc = self.project.factory.cc(func_ty=func_ty)
         try:
-            call = Callable(self.project, function.startpoint.addr, concrete_only=True,
+            call = IdentifierCallable(self.project, function.startpoint.addr, concrete_only=True,
                             cc=cc, base_state=s, max_steps=test_data.max_steps)
             result = call(*mapped_input)
             result_state = call.result_state
@@ -337,7 +337,7 @@ class Runner(object):
         func_ty = SimTypeFunction([inttype] * len(mapped_input), inttype)
         cc = self.project.factory.cc(func_ty=func_ty)
         try:
-            call = Callable(self.project, function.startpoint.addr, concrete_only=True,
+            call = IdentifierCallable(self.project, function.startpoint.addr, concrete_only=True,
                             cc=cc, base_state=s, max_steps=test_data.max_steps)
             _ = call(*mapped_input)
             result_state = call.result_state
