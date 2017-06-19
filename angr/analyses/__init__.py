@@ -16,3 +16,4 @@ from .reassembler import Reassembler
 from .binary_optimizer import BinaryOptimizer
 from .disassembly import Disassembly
 from .variable_recovery import VariableRecovery
+from .identifier import Identifier
