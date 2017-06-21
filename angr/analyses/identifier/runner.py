@@ -1,24 +1,38 @@
-import angr
-import simuvex
-import simuvex.s_options as so
-from simuvex.s_type import SimTypeFunction, SimTypeInt
-from .custom_callable import IdentifierCallable
-from angr.errors import AngrCallableMultistateError, AngrCallableError
-import claripy
-from tracer.simprocedures import FixedOutTransmit, FixedInReceive
 
 import random
 import logging
+import os
+
+from simuvex.s_type import SimTypeFunction, SimTypeInt
+import simuvex.s_options as so
+import simuvex
+import claripy
+
+from ...errors import AngrCallableMultistateError, AngrCallableError, AngrError
+from .custom_callable import IdentifierCallable
+
+
 l = logging.getLogger("identifier.runner")
 
-import os
 flag_loc = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../example_flag_page'))
 with open(flag_loc, "rb") as f:
     FLAG_DATA = f.read()
 assert len(FLAG_DATA) == 0x1000
 
+
 class Runner(object):
     def __init__(self, project, cfg):
+
+        # Lazy import
+        try:
+            from tracer.simprocedures import FixedOutTransmit, FixedInReceive
+            self.FixedOutTransmit = FixedOutTransmit
+            self.FixedInReceive = FixedInReceive
+        except ImportError:
+            l.critical('Cannot import CGC-specific SimProcedures from tracer. If you want to use identifier on CGC '
+                       'binaries, please make sure tracer is installed.')
+            raise
+
         self.project = project
         self.cfg = cfg
         self.base_state = None
@@ -85,15 +99,15 @@ class Runner(object):
         except simuvex.SimError as e:
             l.warning("SimError in get recv state %s", e.message)
             return self.project.factory.entry_state()
-        except angr.AngrError as e:
+        except AngrError as e:
             l.warning("AngrError in get recv state %s", e.message)
             return self.project.factory.entry_state()
 
     def setup_state(self, function, test_data, initial_state=None, concrete_rand=False):
         # FIXME fdwait should do something concrete...
         # FixedInReceive and FixedOutReceive always are applied
-        simuvex.SimProcedures['cgc']['transmit'] = FixedOutTransmit
-        simuvex.SimProcedures['cgc']['receive'] = FixedInReceive
+        simuvex.SimProcedures['cgc']['transmit'] = self.FixedOutTransmit
+        simuvex.SimProcedures['cgc']['receive'] = self.FixedInReceive
 
         fs = {'/dev/stdin': simuvex.storage.file.SimFile(
             "/dev/stdin", "r",

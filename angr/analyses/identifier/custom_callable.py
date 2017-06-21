@@ -1,9 +1,13 @@
-import simuvex
-from angr.errors import AngrCallableError, AngrCallableMultistateError
 
 import logging
+
+import simuvex
+from ...errors import AngrCallableError, AngrCallableMultistateError
+
+
 l = logging.getLogger("identifier.custom_callable")
-l.setLevel("DEBUG")
+# l.setLevel("DEBUG")
+
 
 class IdentifierCallable(object):
     """

@@ -1,3 +1,4 @@
+
 class IdentifierException(Exception):
     pass
 

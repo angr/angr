@@ -1,3 +1,4 @@
+
 class TestData(object):
     def __init__(self, input_args, expected_output_args, expected_return_val, max_steps, preloaded_stdin=None,
                  expected_stdout=None):
