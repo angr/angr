@@ -306,6 +306,11 @@ class Operand(DisassemblyPiece):
             1: RegisterOperand,
             2: ConstantOperand,
             3: MemoryOperand,
+            4: Operand,  # ARM FP
+            64: Operand,  # ARM CIMM
+            65: Operand,  # ARM PIMM
+            66: Operand,  # ARM SETEND
+            67: Operand,  # ARM SYSREG
         }
 
         cls = MAPPING.get(operand_type, None)
