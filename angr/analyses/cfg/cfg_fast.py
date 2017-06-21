@@ -2583,7 +2583,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             # Get the jumping targets
             for r in slicecutor.reached_targets:
-                all_states = r.next_run.flat_successors
+                all_states = self.project.factory.successors(r).flat_successors
                 state = all_states[0] # Just take the first state
 
                 # Parse the memory load statement

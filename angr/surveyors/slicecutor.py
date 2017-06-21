@@ -101,38 +101,28 @@ class Slicecutor(Surveyor):
             l.debug("... limit reached")
             return False
 
-        l.debug("... checking if %s should wait for a merge.", path)
-        if path.addr in path._upcoming_merge_points:
-            l.debug("... it should!")
-            if path.addr not in self._merge_candidates:
-                self._merge_candidates[path.addr] = [ ]
-
-            self._merge_candidates[path.addr].append(path)
-            self._merge_countdowns[path.addr] = self.merge_countdown
-            return False
-
         return True
 
-    def tick_path(self, path):
-        path._upcoming_merge_points = self._annotated_cfg.merge_points(path)
+    def tick_path(self, state, successors=None):
+        if successors is None:
+            successors = Surveyor.tick_path(self, state)
 
-        path_successors = Surveyor.tick_path(self, path)
         new_paths = [ ]
 
         mystery = False
         cut = False
 
         # No new paths if the current path is already the target
-        if not path.errored and path.addr in self._targets:
-            self.reached_targets.append(self.suspend_path(path))
+        if state.addr in self._targets:
+            self.reached_targets.append(self.suspend_path(state))
             return []
 
-        l.debug("%s ticking path %s, last run is %s", self, path, path.previous_run)
-        for successor in path_successors:
+        l.debug("%s ticking state %s at address %#x.", self, state, state.addr)
+        for successor in successors.flat_successors:
             dst_addr = successor.addr
-            l.debug("... checking exit to 0x%x from %s", dst_addr, path.previous_run)
+            l.debug("... checking exit to %#x from %#x.", dst_addr, state.addr)
             try:
-                taken = self._annotated_cfg.should_take_exit(path.addr, dst_addr)
+                taken = self._annotated_cfg.should_take_exit(state.addr, dst_addr)
             except AngrExitError: # TODO: which exception?
                 l.debug("... annotated CFG did not know about it!")
                 mystery = True
@@ -147,16 +137,16 @@ class Slicecutor(Surveyor):
                 l.debug("... not taking the exit.")
                 cut = True
 
-        if not new_paths and path.unconstrained_successors and self._force_taking_exit:
+        if not new_paths and successors.unconstrained_successors and self._force_taking_exit:
             # somehow there is no feasible path. We are forced to create a successor based on our slice
-            for target in self._annotated_cfg.get_targets(path.addr):
-                successor = path.unconstrained_successors[0].copy()
+            for target in self._annotated_cfg.get_targets(state.addr):
+                successor = successors.unconstrained_successors[0].copy()
                 successor.addr = target
                 new_paths.append(successor)
             l.debug('%d new paths are created based on AnnotatedCFG.', len(new_paths))
 
-        if mystery: self.mysteries.append(self.suspend_path(path))
-        if cut: self.cut.append(self.suspend_path(path))
+        if mystery: self.mysteries.append(self.suspend_path(state))
+        if cut: self.cut.append(self.suspend_path(state))
 
         return new_paths
 
@@ -196,11 +186,11 @@ class Slicecutor(Surveyor):
     def done(self):
         return (len(self.active) + len(self._merge_countdowns)) == 0
 
-    def _step_path(self, p):  #pylint:disable=no-self-use
-        if p._last_stmt is not None:
-            return self._project.successors(p, whitelist=p._whitelist, last_stmt=p._last_stmt)
+    def _step_path(self, state):  #pylint:disable=no-self-use
+        if state._last_stmt is not None:
+            return self._project.factory.successors(state, whitelist=state._whitelist, last_stmt=state._last_stmt)
         else:
-            return self._project.successors(p, whitelist=p._whitelist)
+            return self._project.factory.successors(state, whitelist=state._whitelist)
 
     def path_comparator(self, a, b):
         if a.weighted_length != b.weighted_length:
