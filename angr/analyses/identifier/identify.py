@@ -1,18 +1,19 @@
+
 from collections import defaultdict
-
-from angr.analyses.identifier.functions import Functions
-from angr.analyses.identifier.errors import IdentifierException
-from angr.analyses.identifier.runner import Runner
-import simuvex
-import angr
-from simuvex.s_errors import SimEngineError, SimMemoryError
-from cle.backends.cgc import CGC
-
-from ...analysis import Analysis, register_analysis
+import logging
 
 from networkx import NetworkXError
 
-import logging
+from cle.backends.cgc import CGC
+import simuvex
+from simuvex.s_errors import SimEngineError, SimMemoryError
+
+from ...analysis import Analysis, register_analysis
+from ...errors import AngrError
+from .functions import Functions
+from .errors import IdentifierException
+from .runner import Runner
+
 l = logging.getLogger("identifier.identify")
 
 
@@ -162,7 +163,7 @@ class Identifier(Analysis):
                 except simuvex.SimError as e:
                     l.warning("SimError %s", e.message)
                     continue
-                except angr.AngrError as e:
+                except AngrError as e:
                     l.warning("AngrError %s", e.message)
                     continue
 
@@ -272,7 +273,7 @@ class Identifier(Analysis):
         except simuvex.SimError as e:
             l.warning("SimError %s", e.message)
             return False
-        except angr.AngrError as e:
+        except AngrError as e:
             l.warning("AngrError %s", e.message)
             return False
 
