@@ -212,6 +212,16 @@ class Instruction(DisassemblyPiece):
 
         self.opcode = Opcode(self)
         self.operands.reverse()
+
+        if len(self.operands) != len(self.insn.operands):
+            l.error("Operand parsing failed for instruction %s. %d operands are parsed, while %d are expected.",
+                    str(self.insn),
+                    len(self.operands),
+                    len(self.insn.operands)
+                    )
+            self.operands = [ ]
+            return
+
         for i, o in enumerate(self.operands):
             o.reverse()
             self.operands[i] = Operand.build(
