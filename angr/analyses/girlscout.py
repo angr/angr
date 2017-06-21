@@ -15,6 +15,7 @@ import cle
 import pyvex
 from simuvex.s_errors import SimMemoryError, SimEngineError
 
+from .cfg_fast import SegmentList
 from ..errors import AngrError
 from ..analysis import Analysis, register_analysis
 from ..surveyors import Explorer, Slicecutor
@@ -76,10 +77,6 @@ class GirlScout(Analysis):
 
         # Start working!
         self._reconnoiter()
-
-    @property
-    def call_map(self):
-        return self.call_map
 
     def _get_next_addr_to_search(self, alignment=None):
         # TODO: Take care of those functions that are already generated
