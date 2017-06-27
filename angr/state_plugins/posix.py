@@ -111,13 +111,24 @@ class SimStateSystem(SimStatePlugin):
         else:
             conc_start = self.state.se.any_int(self.brk)
             conc_end = self.state.se.any_int(new_brk)
-            # failure cases: new brk is less than old brk, or new brk is not page aligned
-            if conc_end < conc_start or conc_end % 0x1000 != 0:
+            # failure case: new brk is less than old brk
+            if conc_end < conc_start:
                 pass
             else:
-                # TODO: figure out what permissions to use
-                self.state.memory.map_region(conc_start, conc_end - conc_start, 7)
+                # set break! we might not actually need to allocate memory though... pages
                 self.brk = new_brk
+
+                # if the old and new are in different pages, map
+                # we check the byte before each of them since the "break" is the address of the first
+                # "unmapped" byte...
+                if ((conc_start-1) ^ (conc_end-1)) & ~0xfff:
+                    # align up
+                    if conc_start & 0xfff:
+                        conc_start = (conc_start & ~0xfff) + 0x1000
+                    if conc_end & 0xfff:
+                        conc_end = (conc_end & ~0xfff) + 0x1000
+                    # TODO: figure out what permissions to use
+                    self.state.memory.map_region(conc_start, conc_end - conc_start, 7)
 
         return self.brk
 
