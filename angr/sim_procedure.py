@@ -7,6 +7,7 @@ l = logging.getLogger("angr.procedures.sim_procedure")
 
 symbolic_count = itertools.count()
 
+
 class SimProcedure(object):
     """
     A SimProcedure is a wonderful object which describes a procedure to run on a state.
@@ -238,31 +239,6 @@ class SimProcedure(object):
         l.debug("returning argument")
         return r
 
-    def set_return_expr(self, expr):
-        """
-        Set this expression as the return value for the function.
-        If this is not an inline call, this will write the expression to the state via the
-        calling convention.
-        """
-        if isinstance(expr, (int, long)):
-            expr = self.state.se.BVV(expr, self.state.arch.bits)
-
-        if o.SIMPLIFY_RETS in self.state.options:
-            l.debug("... simplifying")
-            l.debug("... before: %s", expr)
-            expr = self.state.se.simplify(expr)
-            l.debug("... after: %s", expr)
-
-        if self.symbolic_return:
-            size = len(expr)
-            new_expr = self.state.se.Unconstrained("symbolic_return_" + self.__class__.__name__, size) #pylint:disable=maybe-no-member
-            self.state.add_constraints(new_expr == expr)
-            expr = new_expr
-
-        self.ret_expr = expr
-        if self.use_state_arguments:
-            self.cc.return_val.set_value(self.state, expr)
-
     #
     # Control Flow
     #
@@ -289,20 +265,36 @@ class SimProcedure(object):
         If this is not an inline call, set a return expression with the calling convention.
         """
         if expr is not None:
-            self.set_return_expr(expr)
+            if o.SIMPLIFY_RETS in self.state.options:
+                l.debug("... simplifying")
+                l.debug("... before: %s", expr)
+                expr = self.state.se.simplify(expr)
+                l.debug("... after: %s", expr)
+
+            if self.symbolic_return:
+                size = len(expr)
+                new_expr = self.state.se.Unconstrained("symbolic_return_" + self.__class__.__name__, size) #pylint:disable=maybe-no-member
+                self.state.add_constraints(new_expr == expr)
+                expr = new_expr
+
+            self.ret_expr = expr
+
+        ret_addr = None
+        if self.use_state_arguments:
+            ret_addr = self.cc.teardown_callsite(
+                    self.state,
+                    expr,
+                    arg_types=[False]*self.num_args if self.cc.args is None else None)
 
         if not self.should_add_successors:
             l.debug("Returning without setting exits due to 'internal' call.")
             return
 
         if self.ret_to is not None:
-            # TODO: If set ret_to, do we also want to pop an unused ret addr from the stack?
             ret_addr = self.ret_to
-        else:
-            if self.state.arch.call_pushes_ret:
-                ret_addr = self.state.stack_pop()
-            else:
-                ret_addr = self.state.registers.load(self.state.arch.lr_offset, self.state.arch.bytes)
+
+        if ret_addr is None:
+            raise SimProcedureError("No source for return address in ret() call!")
 
         self._exit_action(self.state, ret_addr)
         self.successors.add_successor(self.state, ret_addr, self.state.se.true, 'Ijk_Ret')
