@@ -5,7 +5,6 @@ env:
   - PY=e ANGR_REPO=fuzzer
   - PY=e ANGR_REPO=driller
   - PY=p ANGR_REPO=colorguard
-  - PY=e ANGR_REPO=identifier
 #  - PY=p ANGR_REPO=rex NOSE_OPTIONS="-x" NOSE_PROCESSES=1
 install: ( curl https://raw.githubusercontent.com/angr/angr-dev/$TRAVIS_BRANCH/tests/travis-install.sh | grep -v 404 || curl https://raw.githubusercontent.com/angr/angr-dev/master/tests/travis-install.sh ) | bash
 script: ~/angr-dev/tests/travis-test.sh
