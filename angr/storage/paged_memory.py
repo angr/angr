@@ -491,11 +491,11 @@ class SimPagedMemory(object):
                 if start_backer >= len(backer):
                     continue
 
-                # find permission backer associated with the address, there should be a
-                # memory backer that matches the start_backer. if not fall back to read-write
+                # find permission backer associated with the address
+                # fall back to read-write if we can't find any...
                 flags = Page.PROT_READ | Page.PROT_WRITE
                 for start, end in self._permission_map:
-                    if start == addr:
+                    if start <= new_page_addr < end:
                         flags = self._permission_map[(start, end)]
                         break
 
