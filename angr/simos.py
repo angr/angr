@@ -149,6 +149,7 @@ class SimOS(object):
 
         Any additional arguments will be passed to the SimState constructor
         """
+        # TODO: move ALL of this into the SimState constructor
         if kwargs.get('mode', None) is None:
             kwargs['mode'] = self.project._default_analysis_mode
         if kwargs.get('permissions_backer', None) is None:
@@ -673,6 +674,39 @@ class SimCGC(SimOS):
 
         return state
 
+
+class SimWindows(SimOS):
+    def state_entry(self, args=None, **kwargs):
+        if args is None: args = []
+        state = super(SimWindows, self).state_entry(**kwargs)
+
+        # yikes!!!
+        fun_stuff_addr = state.libc.mmap_base
+        if fun_stuff_addr & 0xffff != 0:
+            fun_stuff_addr += 0x10000 - (fun_stuff_addr & 0xffff)
+        state.libc.mmap_base = fun_stuff_addr + 0x2000
+        state.memory.map_region(fun_stuff_addr, 0x2000, claripy.BVV(3, 3))
+
+        TIB_addr = fun_stuff_addr
+        PEB_addr = fun_stuff_addr + 0x1000
+
+        if state.arch.name == 'X86':
+            state.mem[TIB_addr + 0].dword = 0 # Initial SEH frame
+            state.mem[TIB_addr + 4].dword = state.regs.sp # stack base (high addr)
+            state.mem[TIB_addr + 8].dword = state.regs.sp - 0x100000 # stack limit (low addr)
+            state.mem[TIB_addr + 0x18].dword = TIB_addr # myself!
+            state.mem[TIB_addr + 0x24].dword = 0xbad76ead # thread id
+            if self.project.loader.tls_object is not None:
+                state.mem[TIB_addr + 0x2c].dword = self.project.loader.tls_object.user_thread_pointer # tls array pointer
+            state.mem[TIB_addr + 0x30].dword = PEB_addr # PEB addr, of course
+
+            state.regs.fs = TIB_addr >> 16
+
+        return state
+
+
+
+
 os_mapping = defaultdict(lambda: SimOS)
 
 
@@ -680,5 +714,5 @@ def register_simos(name, cls):
     os_mapping[name] = cls
 
 register_simos('unix', SimLinux)
-register_simos('windows', SimOS)
+register_simos('windows', SimWindows)
 register_simos('cgc', SimCGC)
