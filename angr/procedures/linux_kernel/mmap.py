@@ -82,6 +82,7 @@ class mmap(angr.SimProcedure):
 
                 # Can't give you that address. Find a different one.
                 addr = self.allocate_memory(size)
+                self.state.memory.map_region(addr, size, prot[2:0], init_zero=bool(flags & MAP_ANONYMOUS))
 
 
     def allocate_memory(self,size):
