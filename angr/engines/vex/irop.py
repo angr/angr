@@ -770,8 +770,42 @@ class SimIROp(object):
             rounded_bv = claripy.fpToSBV(rm, args[1].raw_to_fp(), args[1].length)
             return claripy.fpToFP(claripy.fp.RM_RNE, rounded_bv, claripy.fp.FSort.from_size(args[1].length))
 
+    def _op_generic_pack_StoU_saturation(self, args, src_size, dst_size):
+        """
+        Generic pack with unsigned saturation.
+        Split args in chunks of src_size signed bits and in pack them into unsigned saturated chunks of dst_size bits.
+        Then chunks are concatenated resulting in a BV of len(args)*dst_size/src_size*len(args[0]) bits.
+        """
+        if src_size <= 0 or dst_size <= 0:
+            raise SimOperationError("Can't pack from or to zero or negative size" % self.name)
+        result = None
+        max_value = (2 << dst_size-1)-1 #max value for unsigned saturation, equivalement to pow(2, dst_size)-1, sizes can't be 0
+        for v in args:
+            for src_value in v.chop(src_size):
+                saturated_value = claripy.bv.BVV(src_value.args[0], src_value.args[1]).signed #best way to get the signed value of a claripy.ast.bv.BV?
+                saturated_value = SimIROp.saturate(saturated_value, 0, max_value)
+                dst_value = claripy.BVV(saturated_value, dst_size)
+                if result is None:
+                    result = dst_value
+                else:
+                    result = self._op_concat((result, dst_value))
+        return result
+
     def _op_Iop_64x4toV256(self, args) :
         return self._op_concat(args)
+
+    def _op_Iop_QNarrowBin16Sto8Ux16(self, args):
+        """
+        PACKUSWB Pack with Unsigned Saturation.Two 128 bits operands version.
+        VPACKUSWB Pack with Unsigned Saturation.Three 128 bits operands version.
+        """
+        return self._op_generic_pack_StoU_saturation(args, 16, 8)
+
+    def _op_Iop_QNarrowBin16Sto8Ux8(self, args):
+        """
+        PACKUSWB Pack with Unsigned Saturation.Two 64 bits operands version.
+        """
+        return self._op_generic_pack_StoU_saturation(args, 16, 8)
 
     #def _op_Iop_Yl2xF64(self, args):
     #   rm = self._translate_rm(args[0])
@@ -802,6 +836,17 @@ class SimIROp(object):
         for _ in xrange(n):
             out = claripy.fpMul(rm, arg, out)
         return out
+
+    @staticmethod
+    def saturate(value, min_value, max_value):
+        """
+        Generic saturation on numbers.
+        """
+        if value > max_value:
+            return max_value
+        if value < min_value:
+            return min_value
+        return value
 
     #def _op_Iop_SinF64(self, args):
     #   rm, arg = args

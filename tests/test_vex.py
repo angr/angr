@@ -173,6 +173,10 @@ def test_some_vector_ops():
     correct_result = s.se.BVV(0xffff0000000100020002000200020002, 128)
     nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
 
+    calc_result = translate(s, 'Iop_QNarrowBin16Sto8Ux16', (a, b))
+    correct_result = s.se.BVV(0x00000102030405060202020202020202, 128)
+    nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
+
     c =              s.se.BVV(0xff008877, 32)
     d =              s.se.BVV(0x11111111, 32)
 
@@ -194,6 +198,13 @@ def test_some_vector_ops():
 
     calc_result = translate(s, 'Iop_QSub8Ux4', (c, d))
     correct_result = s.se.BVV(0xee007766, 32)
+    nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
+
+    e =              s.se.BVV(0xff00887766554433, 64)
+    f =              s.se.BVV(0x0202000200020002, 64)
+
+    calc_result = translate(s, 'Iop_QNarrowBin16Sto8Ux8', (e, f))
+    correct_result = s.se.BVV(0x0000ffffff020202, 64)
     nose.tools.assert_true(s.se.is_true(calc_result == correct_result))
 
 def test_store_simplification():
