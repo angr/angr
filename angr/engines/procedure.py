@@ -38,9 +38,6 @@ class SimEngineProcedure(SimEngine):
 
     def _process(self, state, successors, procedure, ret_to=None):
         successors.sort = 'SimProcedure'
-        successors.description = 'SimProcedure ' + procedure.display_name
-        if procedure.is_syscall:
-            successors.description += ' (syscall)'
 
         # fill in artifacts
         successors.artifacts['is_syscall'] = procedure.is_syscall
@@ -82,6 +79,9 @@ class SimEngineProcedure(SimEngine):
                        simprocedure_addr=successors.addr
                        )
 
+        successors.description = 'SimProcedure ' + procedure.display_name
+        if procedure.is_syscall:
+            successors.description += ' (syscall)'
         successors.processed = True
 
 from .. import sim_options as o
