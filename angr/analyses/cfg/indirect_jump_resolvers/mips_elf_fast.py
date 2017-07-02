@@ -88,13 +88,12 @@ class MipsElfFastResolver(IndirectJumpResolver):
             if got_gp_stack_store:
                 break
 
-        path = project.factory.path(state)
-        slicecutor = Slicecutor(project, annotated_cfg=annotated_cfg, start=path)
-
+        slicecutor = Slicecutor(project, annotated_cfg=annotated_cfg, start=state)
         slicecutor.run()
 
         if slicecutor.cut:
-            target = slicecutor.cut[0].successors[0].addr
+            succ = project.factory.successors(slicecutor.cut[0])
+            target = succ.flat_successors[0].addr
 
             if self._is_target_valid(cfg, target):
                 l.debug("Indirect jump at %#x is resolved to target %#x.", addr, target)

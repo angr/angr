@@ -323,23 +323,21 @@ class Function(object):
             curr_ip = state.se.any_int(state.ip)
 
             # get runtime values from logs of successors
-            p = self._project.factory.path(state)
-            p.step()
-            if p.next_run is not None:
-                for succ in p.next_run.flat_successors + p.next_run.unsat_successors:
-                    for a in succ.history.recent_actions:
-                        for ao in a.all_objects:
-                            if not isinstance(ao.ast, claripy.ast.Base):
-                                constants.add(ao.ast)
-                            elif not ao.ast.symbolic:
-                                constants.add(succ.se.any_int(ao.ast))
+            successors = self._project.factory.successors(state)
+            for succ in successors.flat_successors + successors.unsat_successors:
+                for a in succ.history.recent_actions:
+                    for ao in a.all_objects:
+                        if not isinstance(ao.ast, claripy.ast.Base):
+                            constants.add(ao.ast)
+                        elif not ao.ast.symbolic:
+                            constants.add(succ.se.any_int(ao.ast))
 
-                    # add successors to the queue to analyze
-                    if not succ.se.symbolic(succ.ip):
-                        succ_ip = succ.se.any_int(succ.ip)
-                        if succ_ip in self and succ_ip not in analyzed:
-                            analyzed.add(succ_ip)
-                            q.insert(0, succ)
+                # add successors to the queue to analyze
+                if not succ.se.symbolic(succ.ip):
+                    succ_ip = succ.se.any_int(succ.ip)
+                    if succ_ip in self and succ_ip not in analyzed:
+                        analyzed.add(succ_ip)
+                        q.insert(0, succ)
 
             # force jumps to missing successors
             # (this is a slightly hacky way to force it to explore all the nodes in the function)
@@ -350,9 +348,10 @@ class Function(object):
             missing = set(x.addr for x in self.graph.successors(node)) - analyzed
             for succ_addr in missing:
                 l.info("Forcing jump to missing successor: %#x", succ_addr)
-                if succ_addr not in analyzed and p.next_run is not None:
-                    all_successors = p.next_run.unconstrained_successors + p.next_run.flat_successors + \
-                                     p.next_run.unsat_successors
+                if succ_addr not in analyzed:
+                    all_successors = successors.unconstrained_successors + \
+                                     successors.flat_successors + \
+                                     successors.unsat_successors
                     if len(all_successors) > 0:
                         # set the ip of a copied successor to the successor address
                         succ = all_successors[0].copy()

@@ -1788,12 +1788,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if is_syscall:
             # Fix the target_addr for syscalls
-            tmp_path = self.project.factory.path(self.project.factory.blank_state(mode="fastpath",
-                                                                                  addr=cfg_node.addr
-                                                                                  )
-                                                 )
-            tmp_path.step()
-            succ = tmp_path.successors[0]
+            tmp_state = self.project.factory.blank_state(mode="fastpath", addr=cfg_node.addr)
+            succ = self.project.factory.successors(tmp_state).flat_successors[0]
             _, syscall_addr, _, _ = self.project._simos.syscall_info(succ.state)
             target_addr = syscall_addr
 
@@ -2197,10 +2193,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         pointer_size = self.project.arch.bits / 8
 
         # who's using it?
-        plt_entry = self.project.loader.main_bin.reverse_plt.get(irsb_addr, None)
-        if plt_entry is not None:
-            # IRSB is owned by plt!
-            return "GOT PLT Entry", pointer_size
+        if isinstance(self.project.loader.main_bin, cle.MetaELF):
+            plt_entry = self.project.loader.main_bin.reverse_plt.get(irsb_addr, None)
+            if plt_entry is not None:
+                # IRSB is owned by plt!
+                return "GOT PLT Entry", pointer_size
 
         # try to decode it as a pointer array
         buf = self._fast_memory_load(data_addr)
@@ -2583,7 +2580,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             # Get the jumping targets
             for r in slicecutor.reached_targets:
-                all_states = self.project.factory.successors(r).flat_successors
+                succ = self.project.factory.successors(r)
+                all_states = succ.flat_successors + succ.unconstrained_successors
+                if not all_states:
+                    import ipdb; ipdb.set_trace()
                 state = all_states[0] # Just take the first state
 
                 # Parse the memory load statement
@@ -2681,10 +2681,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             )
             start_state.regs.bp = start_state.arch.initial_sp + 0x2000
 
-            start_path = self.project.factory.path(start_state)
-
             # Create the slicecutor
-            slicecutor = Slicecutor(self.project, annotatedcfg, start=start_path, targets=(addr,))
+            slicecutor = Slicecutor(self.project, annotatedcfg, start=start_state, targets=(addr,))
 
             # Run it!
             try:
@@ -2697,8 +2695,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             # Get the jumping targets
             for r in slicecutor.reached_targets:
-
-                all_states = r.unconstrained_successor_states + [ s.state for s in r.successors ]
+                succ = self.project.factory.successors(r)
+                all_states = succ.unconstrained_successors + r.flat_successors
                 state = all_states[0]
                 jump_target = state.ip
 
@@ -2756,11 +2754,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 state = self.project.factory.blank_state(addr=irsb_addr, mode="concrete",
                                                          add_options={o.SYMBOLIC_INITIAL_VALUES}
                                                          )
-                path = self.project.factory.path(state)
+                succ = self.project.factory.successors(state)
                 print hex(irsb_addr)
 
                 try:
-                    r = (path.next_run.successors + path.next_run.unsat_successors)[0]
+                    r = (succ.flat_successors + succ.unsat_successors)[0]
                     ip = r.se.exactly_n_int(r.ip, 1)[0]
 
                     function_starts.add(ip)
@@ -2804,10 +2802,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             }
                     )
 
-                    start_path = self.project.factory.path(start_state)
-
                     # Create the slicecutor
-                    slicecutor = Slicecutor(self.project, annotatedcfg, start=start_path, targets=(irsb_addr,))
+                    slicecutor = Slicecutor(self.project, annotatedcfg, start=start_state, targets=(irsb_addr,))
 
                     # Run it!
                     try:
@@ -3772,13 +3768,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                          )
                 state.regs.t9 = func_addr
                 state.regs.gp = 0xffffffff
-                p = self.project.factory.path(state)
-                p.step(num_inst=last_gp_setting_insn_id + 1)
+                succ = self.project.factory.successors(state, num_inst=last_gp_setting_insn_id + 1)
 
-                if not p.successors:
+                if not succ.flat_successors:
                     return
 
-                state = p.successors[0].state
+                state = succ.flat_successors[0]
                 if not state.regs.gp.symbolic and state.se.is_false(state.regs.gp == 0xffffffff):
                     function.info['gp'] = state.regs.gp._model_concrete.value
 

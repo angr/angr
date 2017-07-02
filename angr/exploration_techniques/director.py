@@ -29,11 +29,11 @@ class BaseGoal(object):
     # Public methods
     #
 
-    def check(self, cfg, path, peek_blocks):
+    def check(self, cfg, state, peek_blocks):
         """
 
         :param angr.analyses.CFGAccurate cfg:   An instance of CFGAccurate.
-        :param angr.Path path:                  The path to check.
+        :param angr.SimState state:             The state to check.
         :param int peek_blocks:                 Number of blocks to peek ahead from the current point.
         :return: True if we can determine that this condition is definitely satisfiable if the path is taken, False
                 otherwise.
@@ -42,11 +42,11 @@ class BaseGoal(object):
 
         raise NotImplementedError()
 
-    def check_path(self, path):
+    def check_state(self, state):
         """
-        Check if the current state of the path satisfies the goal.
+        Check if the current state satisfies the goal.
 
-        :param angr.Path path:                  The path to check.
+        :param angr.SimState state:                  The state to check.
         :return: True if it satisfies the goal, False otherwise.
         :rtype: bool
         """
@@ -58,30 +58,30 @@ class BaseGoal(object):
     #
 
     @staticmethod
-    def _get_cfg_node(cfg, path):
+    def _get_cfg_node(cfg, state):
         """
-        Get the CFGNode object on the control flow graph given an angr path.
+        Get the CFGNode object on the control flow graph given an angr state.
 
         :param angr.analyses.CFGAccurate cfg:   An instance of CFGAccurate.
-        :param angr.Path path:                  The current path.
+        :param angr.SimState state:             The current state.
         :return: A CFGNode instance if the node exists, or None if the node cannot be found.
         :rtype: CFGNode or None
         """
 
-        call_stack_suffix = path.callstack.stack_suffix(cfg.context_sensitivity_level)
-        is_syscall = path.jumpkind is not None and path.jumpkind.startswith('Ijk_Sys')
+        call_stack_suffix = state.callstack.stack_suffix(cfg.context_sensitivity_level)
+        is_syscall = state.history.jumpkind is not None and state.history.jumpkind.startswith('Ijk_Sys')
 
         continue_at = None
-        if cfg.project.is_hooked(path.addr) and \
-                cfg.project.hooked_by(path.addr).is_continuation:
-            if path.state.procedure_data.callstack:
-                continue_at = path.state.procedure_data.callstack[-1][1]
+        if cfg.project.is_hooked(state.addr) and \
+                cfg.project.hooked_by(state.addr).is_continuation:
+            if state.procedure_data.callstack:
+                continue_at = state.procedure_data.callstack[-1][1]
             else:
                 # umm why does this happen?
                 # TODO: figure it out
                 continue_at = None
 
-        block_id = cfg._generate_block_id(call_stack_suffix, path.addr,
+        block_id = cfg._generate_block_id(call_stack_suffix, state.addr,
                                               is_syscall, continue_at=continue_at
                                               )
 
@@ -129,7 +129,7 @@ class BaseGoal(object):
 
 class ExecuteAddressGoal(BaseGoal):
     """
-    A goal that prioritizes paths reaching (or are likely to reach) certain address in some specific steps.
+    A goal that prioritizes states reaching (or are likely to reach) certain address in some specific steps.
     """
 
     def __init__(self, addr):
@@ -140,49 +140,49 @@ class ExecuteAddressGoal(BaseGoal):
     def __repr__(self):
         return "<ExecuteAddressCondition targeting %#x>" % self.addr
 
-    def check(self, cfg, path, peek_blocks):
+    def check(self, cfg, state, peek_blocks):
         """
         Check if the specified address will be executed
 
         :param cfg:
-        :param path:
+        :param state:
         :param int peek_blocks:
         :return:
         :rtype: bool
         """
 
         # Get the current CFGNode from the CFG
-        node = self._get_cfg_node(cfg, path)
+        node = self._get_cfg_node(cfg, state)
 
         if node is None:
             # Umm it doesn't exist on the control flow graph - why?
-            l.error('Failed to find CFGNode for path %s on the control flow graph.', path)
+            l.error('Failed to find CFGNode for state %s on the control flow graph.', state)
             return False
 
         # crawl the graph to see if we can reach the target address next
         for src, dst in self._dfs_edges(cfg.graph, node, max_steps=peek_blocks):
             if src.addr == self.addr or dst.addr == self.addr:
-                l.debug("Path %s will reach %#x.", path, self.addr)
+                l.debug("State %s will reach %#x.", state, self.addr)
                 return True
 
-        l.debug('Path %s will not reach %#x.', path, self.addr)
+        l.debug('SimState %s will not reach %#x.', state, self.addr)
         return False
 
-    def check_path(self, path):
+    def check_state(self, state):
         """
         Check if the current address is the target address.
 
-        :param angr.Path path: The path to check.
+        :param angr.SimState state: The state to check.
         :return: True if the current address is the target address, False otherwise.
         :rtype: bool
         """
 
-        return path.addr == self.addr
+        return state.addr == self.addr
 
 
 class CallFunctionGoal(BaseGoal):
     """
-    A goal that prioritizes paths reaching certain function, and optionally with specific arguments.
+    A goal that prioritizes states reaching certain function, and optionally with specific arguments.
     Note that constraints on arguments (and on function address as well) have to be identifiable on an accurate CFG.
     For example, you may have a CallFunctionGoal saying "call printf with the first argument being 'Hello, world'", and
     CFGAccurate must be able to figure our the first argument to printf is in fact "Hello, world", not some symbolic
@@ -218,21 +218,21 @@ class CallFunctionGoal(BaseGoal):
     def __repr__(self):
         return "<FunctionCallCondition over %s>" % self.function
 
-    def check(self, cfg, path, peek_blocks):
+    def check(self, cfg, state, peek_blocks):
         """
         Check if the specified function will be reached with certain arguments.
 
         :param cfg:
-        :param path:
+        :param state:
         :param peek_blocks:
         :return:
         """
 
         # Get the current CFGNode
-        node = self._get_cfg_node(cfg, path)
+        node = self._get_cfg_node(cfg, state)
 
         if node is None:
-            l.error("Failed to find CFGNode for path %s on the control flow graph.", path)
+            l.error("Failed to find CFGNode for state %s on the control flow graph.", state)
             return False
 
         # crawl the graph to see if we can reach the target function within the limited steps
@@ -250,7 +250,7 @@ class CallFunctionGoal(BaseGoal):
 
                 else:
                     # check arguments
-                    arch = path.state.arch
+                    arch = state.arch
                     state = the_node.input_state
                     same_arguments = self._check_arguments(arch, state)
 
@@ -258,21 +258,20 @@ class CallFunctionGoal(BaseGoal):
                         # all arguments are the same!
                         return True
 
-        l.debug("Path %s will not reach function %s.", path, self.function)
+        l.debug("SimState %s will not reach function %s.", state, self.function)
         return False
 
-    def check_path(self, path):
+    def check_state(self, state):
         """
         Check if the specific function is reached with certain arguments
 
-        :param angr.Path path: The path to check
+        :param angr.SimState state: The state to check
         :return: True if the function is reached with certain arguments, False otherwise.
         :rtype: bool
         """
 
-        if path.addr == self.function.addr:
-            arch = path.state.arch
-            state = path.state
+        if state.addr == self.function.addr:
+            arch = state.arch
             if self._check_arguments(arch, state):
                 return True
 
@@ -377,17 +376,17 @@ class Director(ExplorationTechnique):
 
     A control flow graph (using CFGAccurate) is built and refined during symbolic execution. Each time the execution
     reaches a block that is outside of the CFG, the CFG recovery will be triggered with that state, with a maximum
-    recovery depth (100 by default). If we see a basic block during path stepping that is not yet in the control flow
+    recovery depth (100 by default). If we see a basic block during state stepping that is not yet in the control flow
     graph, we go back to control flow graph recovery and "peek" more blocks forward.
 
-    When stepping a path group, all paths are categorized into three different categories:
-    - Might reach the destination within the peek depth. Those paths are prioritized.
-    - Will not reach the destination within the peek depth. Those paths are de-prioritized. However, there is a little
-      chance for those paths to be explored as well in order to prevent over-fitting.
+    When stepping a simulation manager, all states are categorized into three different categories:
+    - Might reach the destination within the peek depth. Those states are prioritized.
+    - Will not reach the destination within the peek depth. Those states are de-prioritized. However, there is a little
+      chance for those states to be explored as well in order to prevent over-fitting.
     """
 
     def __init__(self, peek_blocks=100, peek_functions=5, goals=None, cfg_keep_states=False,
-                 goal_satisfied_callback=None, num_fallback_paths=5):
+                 goal_satisfied_callback=None, num_fallback_states=5):
         """
         Constructor.
         """
@@ -399,7 +398,7 @@ class Director(ExplorationTechnique):
         self._goals = goals if goals is not None else [ ]
         self._cfg_keep_states = cfg_keep_states
         self._goal_satisfied_callback = goal_satisfied_callback
-        self._num_fallback_paths = num_fallback_paths
+        self._num_fallback_states = num_fallback_states
 
         self._cfg = None
         self._cfg_kb = None
@@ -416,19 +415,19 @@ class Director(ExplorationTechnique):
         # make sure all current blocks are in the CFG
         self._peek_forward(pg)
 
-        # categorize all paths in the path group
-        self._categorize_paths(pg)
+        # categorize all states in the simulation manager
+        self._categorize_states(pg)
 
         if not pg.active:
-            # active paths are empty - none of our existing paths will reach the target for sure
-            self._load_fallback_paths(pg)
+            # active states are empty - none of our existing states will reach the target for sure
+            self._load_fallback_states(pg)
 
         if pg.active:
-            # step all active paths forward
+            # step all active states forward
             pg.step()
 
         if not pg.active:
-            self._load_fallback_paths(pg)
+            self._load_fallback_states(pg)
 
         return pg
 
@@ -448,7 +447,7 @@ class Director(ExplorationTechnique):
 
     def _peek_forward(self, pg):
         """
-        Make sure all current basic block on each path shows up in the CFG. For blocks that are not in the CFG, start
+        Make sure all current basic block on each state shows up in the CFG. For blocks that are not in the CFG, start
         CFG recovery from them with a maximum basic block depth of 100.
 
         :param pg:
@@ -457,7 +456,7 @@ class Director(ExplorationTechnique):
 
         if self._cfg is None:
 
-            starts = [ p.state for p in pg.active ]
+            starts = list(pg.active)
             self._cfg_kb = KnowledgeBase(self.project, self.project.loader.main_bin)
 
             self._cfg = self.project.analyses.CFGAccurate(kb=self._cfg_kb, starts=starts, max_steps=self._peek_blocks,
@@ -466,38 +465,38 @@ class Director(ExplorationTechnique):
 
         else:
 
-            starts = [ p for p in pg.active ]
+            starts = list(pg.active)
 
             self._cfg.resume(starts=starts, max_steps=self._peek_blocks)
 
-    def _load_fallback_paths(self, pg):
+    def _load_fallback_states(self, pg):
         """
-        Load the last N deprioritized paths will be extracted from the "deprioritized" stash and put to "active" stash.
-        N is controlled by 'num_fallback_paths'.
+        Load the last N deprioritized states will be extracted from the "deprioritized" stash and put to "active" stash.
+        N is controlled by 'num_fallback_states'.
 
-        :param PathGroup pg: The path group.
+        :param SimulationManager pg: The simulation manager.
         :return: None
         """
 
-        # take back some of the deprioritized paths
-        l.debug("No more active paths. Load some deprioritized paths to 'active' stash.")
+        # take back some of the deprioritized states
+        l.debug("No more active states. Load some deprioritized states to 'active' stash.")
         if 'deprioritized' in pg.stashes and pg.deprioritized:
-            pg.active.extend(pg.deprioritized[-self._num_fallback_paths : ])
-            pg.stashes['deprioritized'] = pg.deprioritized[ : -self._num_fallback_paths]
+            pg.active.extend(pg.deprioritized[-self._num_fallback_states : ])
+            pg.stashes['deprioritized'] = pg.deprioritized[ : -self._num_fallback_states]
 
-    def _categorize_paths(self, pg):
+    def _categorize_states(self, pg):
         """
-        Categorize all paths into two different groups: reaching the destination within the peek depth, and not
+        Categorize all states into two different groups: reaching the destination within the peek depth, and not
         reaching the destination within the peek depth.
 
-        :param PathGroup pg:    The path group that contains paths. All active paths (path belonging to "active" stash)
+        :param SimulationManager pg:    The simulation manager that contains states. All active states (state belonging to "active" stash)
                                 are subjected to categorization.
-        :return:                The categorized path group.
-        :rtype:                 angr.PathGroup
+        :return:                The categorized simulation manager.
+        :rtype:                 angr.SimulationManager
         """
 
-        past_active_paths = len(pg.active)
-        # past_deprioritized_paths = len(pg.deprioritized)
+        past_active_states = len(pg.active)
+        # past_deprioritized_states = len(pg.deprioritized)
 
         for goal in self._goals:
             for p in pg.active:
@@ -514,24 +513,24 @@ class Director(ExplorationTechnique):
         )
 
         if pg.active:
-            # TODO: pick some paths from depriorized stash to active stash to avoid overfitting
+            # TODO: pick some states from depriorized stash to active stash to avoid overfitting
             pass
 
-        active_paths = len(pg.active)
-        # deprioritized_paths = len(pg.deprioritized)
+        active_states = len(pg.active)
+        # deprioritized_states = len(pg.deprioritized)
 
-        l.debug('%d/%d active paths are deprioritized.', past_active_paths - active_paths, past_active_paths)
+        l.debug('%d/%d active states are deprioritized.', past_active_states - active_states, past_active_states)
 
         return pg
 
-    def _check_goals(self, goal, path):  # pylint:disable=no-self-use
+    def _check_goals(self, goal, state):  # pylint:disable=no-self-use
         """
-        Check if the path is satisfying the goal.
+        Check if the state is satisfying the goal.
 
         :param BaseGoal goal: The goal to check against.
-        :param angr.Path path: The path to check.
-        :return: True if the path satisfies the goal currently, False otherwise.
+        :param angr.SimState state: The state to check.
+        :return: True if the state satisfies the goal currently, False otherwise.
         :rtype: bool
         """
 
-        return goal.check_path(path)
+        return goal.check_state(state)

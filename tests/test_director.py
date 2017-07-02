@@ -17,7 +17,7 @@ def test_execute_address_brancher():
     pg = p.factory.simgr()
 
     # initialize the exploration technique
-    dm = angr.exploration_techniques.Director(num_fallback_paths=1)
+    dm = angr.exploration_techniques.Director(num_fallback_states=1)
     goal = angr.exploration_techniques.ExecuteAddressGoal(0x400594)
     dm.add_goal(goal)
     pg.use_technique(dm)
@@ -29,11 +29,11 @@ def test_execute_address_brancher():
 def test_call_function_brancher():
 
     class NonLocal(object):
-        the_path = None
+        the_state = None
         the_goal = None
 
     def goal_reached_callback(goal, p, pg):  # pylint:disable=unused-argument
-        NonLocal.the_path = p
+        NonLocal.the_state = p
         NonLocal.the_goal = goal
 
     p = angr.Project(os.path.join(test_location, 'x86_64', 'brancher'), load_options={'auto_load_libs': False})
@@ -42,7 +42,7 @@ def test_call_function_brancher():
 
     # initialize the exploration technique
     dm = angr.exploration_techniques.Director(cfg_keep_states=True, goal_satisfied_callback=goal_reached_callback,
-                                              num_fallback_paths=1
+                                              num_fallback_states=1
                                               )
     _ = p.analyses.CFG()
     puts_func = p.kb.functions.function(name='puts')
@@ -54,7 +54,7 @@ def test_call_function_brancher():
 
     nose.tools.assert_greater(len(pg.deprioritized), 0)
     nose.tools.assert_greater(len(pg.found), 0)
-    nose.tools.assert_is_not(NonLocal.the_path, None)
+    nose.tools.assert_is_not(NonLocal.the_state, None)
     nose.tools.assert_is(NonLocal.the_goal, goal)
 
 if __name__ == "__main__":
