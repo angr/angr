@@ -1,8 +1,10 @@
-from ..func import Func, TestData
+
 import random
 import itertools
 
+from ..func import Func, TestData
 from ..errors import FunctionNotInitialized
+
 
 def rand_str(length, byte_list=None):
     if byte_list is None:

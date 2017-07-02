@@ -1,9 +1,13 @@
-from ..func import Func, TestData
+
 import random
 import string
+import logging
+
 import claripy
 
-import logging
+from ..func import Func, TestData
+
+
 l = logging.getLogger("identifier.functions.printf")
 
 

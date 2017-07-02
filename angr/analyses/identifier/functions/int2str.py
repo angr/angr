@@ -1,6 +1,9 @@
-from ..func import Func, TestData
+
 import random
 import string
+
+from ..func import Func, TestData
+
 
 digs = string.digits + string.letters
 

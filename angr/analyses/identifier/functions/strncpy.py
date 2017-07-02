@@ -1,5 +1,8 @@
-from ..func import Func, TestData
+
 import random
+
+from ..func import Func, TestData
+
 
 def rand_str(length, byte_list=None):
     if byte_list is None:

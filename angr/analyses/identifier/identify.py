@@ -5,11 +5,10 @@ import logging
 from networkx import NetworkXError
 
 from cle.backends.cgc import CGC
-import simuvex
-from simuvex.s_errors import SimEngineError, SimMemoryError
 
 from ...analysis import Analysis, register_analysis
-from ...errors import AngrError
+from ...errors import AngrError, SimSegfaultError, SimEngineError, SimMemoryError, SimError
+from ... import options
 from .functions import Functions
 from .errors import IdentifierException
 from .runner import Runner
@@ -78,7 +77,7 @@ class Identifier(Analysis):
             return
 
         self.base_symbolic_state = rop_utils.make_symbolic_state(self.project, self._reg_list)
-        self.base_symbolic_state.options.discard(simuvex.o.SUPPORT_FLOATING_POINT)
+        self.base_symbolic_state.options.discard(options.SUPPORT_FLOATING_POINT)
         self.base_symbolic_state.regs.bp = self.base_symbolic_state.se.BVS("sreg_" + "ebp" + "-", self.project.arch.bits)
 
         for f in self._cfg.functions.values():
@@ -268,9 +267,9 @@ class Identifier(Analysis):
                 if test_data is not None and not self._runner.test(cfg_func, test_data):
                     return False
             return True
-        except simuvex.SimSegfaultError:
+        except SimSegfaultError:
             return False
-        except simuvex.SimError as e:
+        except SimError as e:
             l.warning("SimError %s", e.message)
             return False
         except AngrError as e:
@@ -302,10 +301,10 @@ class Identifier(Analysis):
         from angrop import rop_utils
 
         s = rop_utils.make_symbolic_state(self.project, self._reg_list, stack_length=200)
-        s.options.discard(simuvex.o.AVOID_MULTIVALUED_WRITES)
-        s.options.discard(simuvex.o.AVOID_MULTIVALUED_READS)
-        s.options.add(simuvex.o.UNDER_CONSTRAINED_SYMEXEC)
-        s.options.discard(simuvex.o.LAZY_SOLVES)
+        s.options.discard(options.AVOID_MULTIVALUED_WRITES)
+        s.options.discard(options.AVOID_MULTIVALUED_READS)
+        s.options.add(options.UNDER_CONSTRAINED_SYMEXEC)
+        s.options.discard(options.LAZY_SOLVES)
 
         func_info = self.func_info[self.block_to_func[addr_trace[0]]]
         for i in range(func_info.frame_size/self.project.arch.bytes+5):

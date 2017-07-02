@@ -1,10 +1,14 @@
-from ..func import Func, TestData
-import random
-import string
-import claripy
 
 import logging
-l = logging.getLogger("identifier.functions.printf")
+import random
+import string
+
+import claripy
+
+from ..func import Func, TestData
+
+
+l = logging.getLogger("angr.analyses.identifier.functions.printf")
 
 
 class printf(Func):

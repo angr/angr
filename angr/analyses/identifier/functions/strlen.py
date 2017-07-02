@@ -1,5 +1,7 @@
-from ..func import Func, TestData
+
 import random
+
+from ..func import Func, TestData
 
 
 class strlen(Func):

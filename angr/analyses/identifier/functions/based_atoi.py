@@ -1,6 +1,8 @@
-from ..func import Func, TestData
+
 import random
 import string
+
+from ..func import Func, TestData
 
 
 BASES = [8, 10, 16]

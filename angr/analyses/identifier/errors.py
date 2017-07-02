@@ -1,7 +1,10 @@
 
-class IdentifierException(Exception):
+from ...errors import AngrAnalysisError
+
+
+class IdentifierException(AngrAnalysisError):
     pass
 
 
-class FunctionNotInitialized(Exception):
+class FunctionNotInitialized(AngrAnalysisError):
     pass

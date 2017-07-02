@@ -3,7 +3,7 @@ from collections import defaultdict
 import importlib
 
 import logging
-l = logging.getLogger('simuvex.procedures')
+l = logging.getLogger('angr.procedures')
 
 from ..func import Func
 
