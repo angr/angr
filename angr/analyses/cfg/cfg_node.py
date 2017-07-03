@@ -63,7 +63,9 @@ class CFGNode(object):
         self.block_id = block_id
         self.depth = depth
 
-        self.creation_failure_info = CFGNodeCreationFailure(creation_failure_info)
+        self.creation_failure_info = None
+        if creation_failure_info is not None:
+            self.creation_failure_info = CFGNodeCreationFailure(creation_failure_info)
 
         self._callstack_key = self.callstack.stack_suffix(self._cfg.context_sensitivity_level) \
             if self.callstack is not None else callstack_key
