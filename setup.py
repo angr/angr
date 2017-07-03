@@ -110,6 +110,7 @@ setup(
         'networkx',
         'progressbar',
         'rpyc',
+        'cffi>=1.7.0',
         'unicorn',
         'archinfo>=6.7.6.9',
         'claripy>=6.7.6.9',
