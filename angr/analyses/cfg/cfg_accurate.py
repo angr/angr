@@ -2069,8 +2069,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param CFGNode cfg_node:                     The CFGNode instance.
         :param int func_addr:                        Current function address.
         :param list successors:                      A list of successors.
-        :param tuple exception_info:                  The sys.exc_info() of the exception or None if none occured.
-        :param artifacts:                      A container of collected information.
+        :param tuple exception_info:                 The sys.exc_info() of the exception or None if none occured.
+        :param artifacts:                            A container of collected information.
         :return:                                     Resolved successors
         :rtype:                                      list
         """
