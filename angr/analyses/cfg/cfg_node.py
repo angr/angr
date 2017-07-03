@@ -24,6 +24,9 @@ class CFGNodeCreationFailure(object):
             self.long_reason = to_copy.long_reason
             self.traceback = to_copy.traceback
 
+    def __hash__(self):
+        return hash((self.short_reason, self.long_reason, self.traceback))
+
 class CFGNode(object):
     """
     This class stands for each single node in CFG.
