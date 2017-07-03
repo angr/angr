@@ -1,11 +1,11 @@
 import itertools
 import logging
+import sys
 from collections import defaultdict
 
 import claripy
 import networkx
 import pyvex
-import sys
 from archinfo import ArchARM
 
 from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
