@@ -264,7 +264,9 @@ class Blade(object):
             for pred, _, data in in_edges:
                 if 'jumpkind' in data and data['jumpkind'] == 'Ijk_FakeRet':
                     continue
-                self._backward_slice_recursive(self._max_level - 1, pred, regs, stack_offsets, prev, data.get('stmt_idx', None))
+                self._backward_slice_recursive(self._max_level - 1, pred, regs, stack_offsets, prev,
+                                               data.get('stmt_idx', None)
+                                               )
 
     def _backward_slice_recursive(self, level, run, regs, stack_offsets, prev, exit_stmt_idx):
 

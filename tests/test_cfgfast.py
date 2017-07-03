@@ -70,7 +70,9 @@ def cfg_fast_edges_check(arch, binary_path, edges):
     for src, dst in edges:
         src_node = cfg.get_any_node(src)
         dst_node = cfg.get_any_node(dst)
-        nose.tools.assert_in(dst_node, src_node.successors)
+        nose.tools.assert_in(dst_node, src_node.successors,
+                             msg="CFG edge %s-%s is not found." % (src_node, dst_node)
+                             )
 
 def test_cfg_0():
     filename = 'cfg_0'
@@ -213,6 +215,59 @@ def test_cfg_loop_unrolling():
             (0x400658, 0x400661),
             (0x400651, 0x400636),
             (0x400651, 0x400661),
+        }
+    }
+
+    arches = edges.keys()
+
+    for arch in arches:
+        yield cfg_fast_edges_check, arch, filename, edges[arch]
+
+def test_cfg_switches():
+
+    #logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.INFO)
+    #logging.getLogger('angr.analyses.cfg.indirect_jump_resolvers.jumptable').setLevel(logging.DEBUG)
+
+    filename = "cfg_switches"
+
+    edges = {
+        'x86_64': {
+            # jump table 0 in func_0
+            (0x40053a, 0x400547),
+            (0x40053a, 0x400552),
+            (0x40053a, 0x40055d),
+            (0x40053a, 0x400568),
+            (0x40053a, 0x400573),
+            (0x40053a, 0x400580),
+            (0x40053a, 0x40058d),
+            # jump table 0 in func_1
+            (0x4005bc, 0x4005c9),
+            (0x4005bc, 0x4005d8),
+            (0x4005bc, 0x4005e7),
+            (0x4005bc, 0x4005f6),
+            (0x4005bc, 0x400605),
+            (0x4005bc, 0x400614),
+            (0x4005bc, 0x400623),
+            (0x4005bc, 0x400632),
+            (0x4005bc, 0x40063e),
+            (0x4005bc, 0x40064a),
+            (0x4005bc, 0x4006b0),
+            # jump table 1 in func_1
+            (0x40065a, 0x400667),
+            (0x40065a, 0x400673),
+            (0x40065a, 0x40067f),
+            (0x40065a, 0x40068b),
+            (0x40065a, 0x400697),
+            (0x40065a, 0x4006a3),
+            # jump table 0 in main
+            (0x4006e1, 0x4006ee),
+            (0x4006e1, 0x4006fa),
+            (0x4006e1, 0x40070b),
+            (0x4006e1, 0x40071c),
+            (0x4006e1, 0x40072d),
+            (0x4006e1, 0x40073e),
+            (0x4006e1, 0x40074f),
+            (0x4006e1, 0x40075b),
         }
     }
 
@@ -369,6 +424,9 @@ def run_all():
 
     for args in test_cfg_loop_unrolling():
         print args[0].__name__
+        args[0](*args[1:])
+
+    for args in test_cfg_switches():
         args[0](*args[1:])
 
     test_resolve_x86_elf_pic_plt()
