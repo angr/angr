@@ -26,7 +26,8 @@ class CFGNode(object):
                  irsb=None,
                  instruction_addrs=None,
                  depth=None,
-                 callstack_key=None):
+                 callstack_key=None,
+                 exception_info=None):
         """
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -46,6 +47,7 @@ class CFGNode(object):
         self.function_address = function_address
         self.block_id = block_id
         self.depth = depth
+        self.exception_info = exception_info
 
         self._callstack_key = self.callstack.stack_suffix(self._cfg.context_sensitivity_level) \
             if self.callstack is not None else callstack_key
@@ -89,6 +91,10 @@ class CFGNode(object):
         return self._cfg.get_predecessors(self)
 
     @property
+    def exception_occurred(self):
+        return self.exception_info is not None
+
+    @property
     def accessed_data_references(self):
         if self._cfg.sort != 'fast':
             raise ValueError("Memory data is currently only supported in CFGFast.")
@@ -121,7 +127,8 @@ class CFGNode(object):
                     is_syscall=self.is_syscall,
                     syscall=self.syscall,
                     function_address=self.function_address,
-                    final_states=self.final_states[ :: ]
+                    final_states=self.final_states[ :: ],
+                    exception_info=self.exception_info,
                     )
         c.instruction_addrs = self.instruction_addrs[ :: ]
         return c
@@ -135,6 +142,8 @@ class CFGNode(object):
             s += "[%d]" % self.size
         if self.looping_times > 0:
             s += " - %d" % self.looping_times
+        if self.exception_info is not None:
+            s += ' - exception: {}'.format(repr(self.exception_info[1]))
         s += ">"
         return s
 
@@ -151,7 +160,7 @@ class CFGNode(object):
                 )
 
     def __hash__(self):
-        return hash((self.callstack_key, self.addr, self.looping_times, self.simprocedure_name))
+        return hash((self.callstack_key, self.addr, self.looping_times, self.simprocedure_name, self.exception_info))
 
     def to_codenode(self):
         if self.is_simprocedure:
