@@ -2921,7 +2921,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                function_address=sim_successors.addr,
                                block_id=block_id,
                                depth=depth,
-                               exception_info=exception_info,
+                               creation_failure_info=exception_info,
                                )
 
         else:
@@ -2936,7 +2936,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                block_id=block_id,
                                depth=depth,
                                irsb=sim_successors.artifacts['irsb'],
-                               exception_info=exception_info,
+                               creation_failure_info=exception_info,
                                )
 
         return cfg_node
