@@ -2582,8 +2582,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             for r in slicecutor.reached_targets:
                 succ = self.project.factory.successors(r)
                 all_states = succ.flat_successors + succ.unconstrained_successors
-                if not all_states:
-                    import ipdb; ipdb.set_trace()
                 state = all_states[0] # Just take the first state
 
                 # Parse the memory load statement
