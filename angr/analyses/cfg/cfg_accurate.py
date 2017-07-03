@@ -5,6 +5,7 @@ from collections import defaultdict
 import claripy
 import networkx
 import pyvex
+import sys
 from archinfo import ArchARM
 
 from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
@@ -14,7 +15,7 @@ from ...state_plugins.sim_action import SimActionData
 from ...engines import SimEngineProcedure
 from ...sim_state import SimState
 from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice, SimError, SimValueError, SimSolverModeError, \
-    SimFastPathError, SimIRSBError
+    SimFastPathError, SimIRSBError, AngrExitError
 from ..forward_analysis import ForwardAnalysis
 from .cfg_job_base import BlockID, CFGJobBase
 from .cfg_base import CFGBase
@@ -43,7 +44,7 @@ class CFGJob(CFGJobBase):
 
         self.cfg_node = None
         self.sim_successors = None
-        self.error_occurred = None
+        self.exception_info = None
         self.successor_status = None
 
         self.extra_info = None
@@ -1089,7 +1090,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         job.state._inspect('cfg_handle_job', BP_BEFORE)
 
         # Get a SimSuccessors out of current job
-        sim_successors, error_occurred, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
+        sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
 
         # determine the depth of this basic block
         if self._max_steps is None:
@@ -1217,7 +1218,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         job.cfg_node = cfg_node
         job.sim_successors = sim_successors
-        job.error_occurred = error_occurred
+        job.exception_info = exception_info
 
         # For debugging purposes!
         job.successor_status = {}
@@ -1262,7 +1263,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                   job.cfg_node,
                                                   job.func_addr,
                                                   successors,
-                                                  job.error_occurred,
+                                                  job.exception_info,
                                                   self._block_artifacts
                                                   )
 
@@ -2060,7 +2061,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     # Private methods - resolving indirect jumps
 
-    def _resolve_indirect_jumps(self, sim_successors, cfg_node, func_addr, successors, error_occurred, artifacts):
+    def _resolve_indirect_jumps(self, sim_successors, cfg_node, func_addr, successors, exception_info, artifacts):
         """
         Resolve indirect jumps specified by sim_successors.addr.
 
@@ -2068,7 +2069,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param CFGNode cfg_node:                     The CFGNode instance.
         :param int func_addr:                        Current function address.
         :param list successors:                      A list of successors.
-        :param bool error_occurred:                  If an error has occurred or not.
+        :param tuple exception_info:                  The sys.exc_info() of the exception or None if none occured.
         :param artifacts:                      A container of collected information.
         :return:                                     Resolved successors
         :rtype:                                      list
@@ -2165,7 +2166,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                             cfg_node)
 
         # Try to find more successors if we failed to resolve the indirect jump before
-        if not error_occurred and (cfg_node.is_simprocedure or self._is_indirect_jump(cfg_node, sim_successors)):
+        if exception_info is None and (cfg_node.is_simprocedure or self._is_indirect_jump(cfg_node, sim_successors)):
             has_call_jumps = any(suc_state.history.jumpkind == 'Ijk_Call' for suc_state in successors)
             if has_call_jumps:
                 concrete_successors = [suc_state for suc_state in successors if
@@ -2610,7 +2611,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :rtype:                           SimSuccessors
         """
 
-        error_occurred = False
+        exception_info = None
         state = job.state
         saved_state = job.state  # We don't have to make a copy here
 
@@ -2717,44 +2718,47 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 new_state.se._solver._result = None
                 # Swap them
                 saved_state, job.state = job.state, new_state
-                sim_successors, error_occurred, _ = self._get_simsuccessors(addr, job)
+                sim_successors, exception_info, _ = self._get_simsuccessors(addr, job)
 
             else:
+                exception_info = sys.exc_info()
                 # Got a SimSolverModeError in symbolic mode. We are screwed.
                 # Skip this IRSB
                 l.debug("Caught a SimIRSBError %s. Don't panic, this is usually expected.", ex)
-                error_occurred = True
                 inst = SIM_PROCEDURES["stubs"]["PathTerminator"](addr, self.project.arch)
                 sim_successors = SimEngineProcedure().process(state, inst)
 
-
         except SimIRSBError:
+            exception_info = sys.exc_info()
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
             l.debug("Caught a SimIRSBError during CFG recovery. Creating a PathTerminator.", exc_info=True)
-            error_occurred = True
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"](addr, self.project.arch)
             sim_successors = SimEngineProcedure().process(state, inst)
 
         except claripy.ClaripyError:
+            exception_info = sys.exc_info()
             l.debug("Caught a ClaripyError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
-            error_occurred = True
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"](addr, self.project.arch)
             sim_successors = SimEngineProcedure().process(state, inst)
 
         except SimError:
-            l.debug("Caught a SimError when during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
-
-            error_occurred = True
+            exception_info = sys.exc_info()
+            l.debug("Caught a SimError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"](addr, self.project.arch)
-            sim_successors = SimEngineProcedure().process(state,
-                                                          inst
-                                                          )
+            sim_successors = SimEngineProcedure().process(state, inst)
 
+        except AngrExitError as ex:
+            exception_info = sys.exc_info()
+            l.debug("Caught a AngrExitError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
+            # Generate a PathTerminator to terminate the current path
+            inst = SIM_PROCEDURES["stubs"]["PathTerminator"](addr, self.project.arch)
+            sim_successors = SimEngineProcedure().process(state, inst)
 
         except AngrError:
+            exception_info = sys.exc_info()
             section = self.project.loader.main_bin.find_section_containing(addr)
             if section is None:
                 sec_name = 'No section'
@@ -2766,10 +2770,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # We might be on a wrong branch, and is likely to encounter the
             # "No bytes in memory xxx" exception
             # Just ignore it
-            error_occurred = True
             sim_successors = None
 
-        return sim_successors, error_occurred, saved_state
+        return sim_successors, exception_info, saved_state
 
     def _create_new_call_stack(self, addr, all_jobs, job, exit_target, jumpkind):
         """
@@ -2870,7 +2873,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return new_call_stack
 
-    def _create_cfgnode(self, sim_successors, call_stack, func_addr, block_id=None, depth=None):
+    def _create_cfgnode(self, sim_successors, call_stack, func_addr, block_id=None, depth=None, exception_info=None):
         """
         Create a context-sensitive CFGNode instance for a specific block.
 
@@ -2918,6 +2921,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                function_address=sim_successors.addr,
                                block_id=block_id,
                                depth=depth,
+                               exception_info=exception_info,
                                )
 
         else:
@@ -2932,6 +2936,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                block_id=block_id,
                                depth=depth,
                                irsb=sim_successors.artifacts['irsb'],
+                               exception_info=exception_info,
                                )
 
         return cfg_node
