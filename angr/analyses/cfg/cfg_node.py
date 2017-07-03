@@ -1,11 +1,16 @@
+import traceback
+
 import pyvex
 import archinfo
-import traceback
 
 from ...engines.successors import SimSuccessors
 
 
 class CFGNodeCreationFailure(object):
+    """
+    This class contains additional information for whenever creating a CFGNode failed. It includes a full traceback
+    and the exception messages.
+    """
     __slots__ = ['short_reason', 'long_reason', 'traceback']
 
     def __init__(self, exc_info=None, to_copy=None):
