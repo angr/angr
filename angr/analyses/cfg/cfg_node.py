@@ -1,8 +1,23 @@
 import pyvex
 import archinfo
+import traceback
 
 from ...engines.successors import SimSuccessors
 
+
+class CFGNodeCreationFailure(object):
+    __slots__ = ['short_reason', 'long_reason', 'traceback']
+
+    def __init__(self, exc_info=None, to_copy=None):
+        if to_copy is None:
+            e_type, e, e_traceback = exc_info
+            self.short_reason = str(e_type)
+            self.long_reason = repr(e)
+            self.traceback = traceback.format_exception(e_type, e, e_traceback)
+        else:
+            self.short_reason = to_copy.short_reason
+            self.long_reason = to_copy.long_reason
+            self.traceback = to_copy.traceback
 
 class CFGNode(object):
     """
@@ -27,7 +42,7 @@ class CFGNode(object):
                  instruction_addrs=None,
                  depth=None,
                  callstack_key=None,
-                 exception_info=None):
+                 creation_failure_info=None):
         """
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -47,7 +62,8 @@ class CFGNode(object):
         self.function_address = function_address
         self.block_id = block_id
         self.depth = depth
-        self.exception_info = exception_info
+
+        self.creation_failure_info = CFGNodeCreationFailure(creation_failure_info)
 
         self._callstack_key = self.callstack.stack_suffix(self._cfg.context_sensitivity_level) \
             if self.callstack is not None else callstack_key
@@ -91,8 +107,8 @@ class CFGNode(object):
         return self._cfg.get_predecessors(self)
 
     @property
-    def exception_occurred(self):
-        return self.exception_info is not None
+    def creation_failed(self):
+        return self.creation_failure_info is not None
 
     @property
     def accessed_data_references(self):
@@ -128,7 +144,7 @@ class CFGNode(object):
                     syscall=self.syscall,
                     function_address=self.function_address,
                     final_states=self.final_states[ :: ],
-                    exception_info=self.exception_info,
+                    creation_failure_info=self.creation_failure_info,
                     )
         c.instruction_addrs = self.instruction_addrs[ :: ]
         return c
@@ -142,8 +158,8 @@ class CFGNode(object):
             s += "[%d]" % self.size
         if self.looping_times > 0:
             s += " - %d" % self.looping_times
-        if self.exception_info is not None:
-            s += ' - exception: {}'.format(repr(self.exception_info[1]))
+        if self.creation_failure_info is not None:
+            s += ' - creation failed: {}'.format(self.creation_failure_info.long_reason)
         s += ">"
         return s
 
@@ -160,7 +176,7 @@ class CFGNode(object):
                 )
 
     def __hash__(self):
-        return hash((self.callstack_key, self.addr, self.looping_times, self.simprocedure_name, self.exception_info))
+        return hash((self.callstack_key, self.addr, self.looping_times, self.simprocedure_name, self.creation_failure_info))
 
     def to_codenode(self):
         if self.is_simprocedure:
