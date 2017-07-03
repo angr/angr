@@ -46,7 +46,7 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
 
         return self._got_addr_cache[obj]
 
-    def filter(self, cfg, addr, func_addr, block):
+    def filter(self, cfg, addr, func_addr, block, jumpkind):
 
         section = cfg._addr_belongs_to_section(addr)
         if section.name != '.plt':
@@ -62,7 +62,7 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
 
         return True
 
-    def resolve(self, cfg, addr, func_addr, block):
+    def resolve(self, cfg, addr, func_addr, block, jumpkind):
 
         obj = cfg.project.loader.addr_belongs_to_object(addr)
         if obj is None:

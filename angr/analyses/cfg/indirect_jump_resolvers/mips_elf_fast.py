@@ -20,16 +20,18 @@ class MipsElfFastResolver(IndirectJumpResolver):
     def __init__(self, arch=archinfo.ArchMIPS32(), project=None):  # pylint:disable=unused-argument
         super(MipsElfFastResolver, self).__init__(arch=arch, timeless=True)
 
-    def filter(self, cfg, addr, func_addr, block):
+    def filter(self, cfg, addr, func_addr, block, jumpkind):
         return True
 
-    def resolve(self, cfg, addr, func_addr, block):
+    def resolve(self, cfg, addr, func_addr, block, jumpkind):
         """
         Resolves the indirect jump in MIPS ELF binaries where all external function calls are indexed using gp.
 
-        :param int addr: irsb address
-        :param pyvex.IRSB block: irsb
-        :param int func_addr: instruction address
+        :param cfg: A CFG instance.
+        :param int addr: IRSB address.
+        :param int func_addr: The function address.
+        :param pyvex.IRSB block: The IRSB.
+        :param str jumpkind: The jumpkind.
         :return: If it was resolved and targets alongside it
         :rtype: tuple
         """

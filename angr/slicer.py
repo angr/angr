@@ -3,12 +3,14 @@ import pyvex
 
 from .errors import SimSlicerError
 
+
 class SimLightState(object):
     def __init__(self, temps=None, regs=None, stack_offsets=None, options=None):
         self.temps = temps if temps is not None else set()
         self.regs = regs if regs is not None else set()
         self.stack_offsets = stack_offsets if stack_offsets is not None else set()
         self.options = {} if options is None else options
+
 
 class SimSlicer(object):
     """

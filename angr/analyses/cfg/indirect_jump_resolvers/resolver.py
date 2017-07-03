@@ -5,7 +5,7 @@ class IndirectJumpResolver(object):
         self.arch = arch
         self.timeless = timeless
 
-    def filter(self, cfg, addr, func_addr, block):
+    def filter(self, cfg, addr, func_addr, block, jumpkind):
         """
         Check if this resolution method may be able to resolve the indirect jump or not.
 
@@ -13,6 +13,7 @@ class IndirectJumpResolver(object):
         :param int func_addr:   Address of the function that this indirect jump belongs to.
         :param block:           The basic block. The type is determined by the backend being used. It's pyvex.IRSB if
                                 pyvex is used as the backend.
+        :param str jumpkind:    The jumpkind.
         :return: True if it is possible for this resolution method to resolve the specific indirect jump, False
                  otherwise.
         :rtype:  bool
@@ -20,7 +21,7 @@ class IndirectJumpResolver(object):
 
         raise NotImplementedError()
 
-    def resolve(self, cfg, addr, func_addr, block):
+    def resolve(self, cfg, addr, func_addr, block, jumpkind):
         """
         Resolve an indirect jump.
 
@@ -29,6 +30,7 @@ class IndirectJumpResolver(object):
         :param int func_addr:   Address of the function that this indirect jump belongs to.
         :param block:           The basic block. The type is determined by the backend being used. It's pyvex.IRSB if
                                 pyvex is used as the backend.
+        :param str jumpkind:    The jumpkind.
         :return:                A tuple of a boolean indicating whether the resolution is successful or not, and a list
                                 of resolved targets (ints).
         :rtype:                 tuple
