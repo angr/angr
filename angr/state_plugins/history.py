@@ -45,10 +45,12 @@ class SimStateHistory(SimStatePlugin):
         self._satisfiable = None
 
     def merge(self, others, merge_conditions, common_ancestor=None):
-        raise Exception('TODO')
+        l.warning("history merging is not implemented!")
+        return # TODO
 
     def widen(self, others):
-        raise Exception('TODO')
+        l.warning("history widening is not implemented!")
+        return # TODO
 
     def copy(self):
         return SimStateHistory(clone=self)
