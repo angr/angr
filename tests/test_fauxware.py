@@ -1,8 +1,10 @@
 import gc
 import os
-import nose
 import pickle
 import logging
+import sys
+
+import nose
 
 import angr
 
@@ -128,9 +130,15 @@ def test_nodecode():
         yield run_nodecode, arch
 
 if __name__ == "__main__":
-    for r,a in test_merge():
-        r(a)
-    for r,a in test_fauxware():
-        r(a)
-    for r,a in test_pickling():
-        r(a)
+
+    if len(sys.argv) > 1:
+        func_name = "test_%s" % sys.argv[1]
+        for r, a in globals()[func_name]():
+            r(a)
+
+    else:
+        g = globals()
+        for func_name, func in g.iteritems():
+            if func_name.startswith("test_") and hasattr(func, '__call__'):
+                for r, a in func():
+                    r(a)

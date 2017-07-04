@@ -8,6 +8,7 @@ from ..analysis import Analysis, register_analysis
 l = logging.getLogger("angr.analyses.congruency_check")
 #l.setLevel(logging.DEBUG)
 
+
 class CongruencyCheck(Analysis):
     """
     This is an analysis to ensure that angr executes things identically with different execution backends (i.e., unicorn vs vex).
@@ -20,7 +21,7 @@ class CongruencyCheck(Analysis):
         :param throw: whether to raise an exception if an incongruency is found.
         """
         self._throw = throw
-        self.pg = None
+        self.simgr = None
         self.prev_pg = None
 
     def set_state_options(self, left_add_options=None, left_remove_options=None, right_add_options=None, right_remove_options=None):
@@ -38,66 +39,58 @@ class CongruencyCheck(Analysis):
 
     def set_states(self, left_state, right_state):
         """
-        Checks that the specified states stay the same over the next `depth` states.
-        """
-        p_right = self.project.factory.path(right_state)
-        p_left = self.project.factory.path(left_state)
-
-        return self.set_paths(p_left, p_right)
-
-    def set_paths(self, left_path, right_path):
-        """
         Checks that the specified paths stay the same over the next `depth` states.
         """
-        pg = self.project.factory.path_group(right_path)
-        pg.stash(to_stash='right')
-        pg.active.append(left_path)
-        pg.stash(to_stash='left')
-        pg.stash(to_stash='stashed_left')
-        pg.stash(to_stash='stashed_right')
 
-        return self.set_path_group(pg)
+        simgr = self.project.factory.simgr(right_state)
+        simgr.stash(to_stash='right')
+        simgr.active.append(left_state)
+        simgr.stash(to_stash='left')
+        simgr.stash(to_stash='stashed_left')
+        simgr.stash(to_stash='stashed_right')
 
-    def set_path_group(self, pg):
-        self.pg = pg
+        return self.set_simgr(simgr)
+
+    def set_simgr(self, simgr):
+        self.simgr = simgr
         return self
 
     @staticmethod
-    def _sync_steps(pg, max_steps=None):
+    def _sync_steps(simgr, max_steps=None):
         l.debug("Sync-stepping pathgroup...")
         l.debug(
             "... left width: %s, right width: %s",
-            pg.left[0].history.weighted_depth if len(pg.left) > 0 else None,
-            pg.right[0].history.weighted_depth if len(pg.right) > 0 else None,
+            simgr.left[0].history.weighted_depth if len(simgr.left) > 0 else None,
+            simgr.right[0].history.weighted_depth if len(simgr.right) > 0 else None,
         )
 
-        if len(pg.errored) != 0 and (len(pg.left) == 0 or len(pg.right) == 0):
+        if len(simgr.errored) != 0 and (len(simgr.left) == 0 or len(simgr.right) == 0):
             l.debug("... looks like a path errored")
-            return pg
-        if len(pg.left) == 0 and len(pg.right) != 0:
+            return simgr
+        if len(simgr.left) == 0 and len(simgr.right) != 0:
             l.debug("... left is deadended; stepping right %s times", max_steps)
-            npg = pg.step(stash='right', n=max_steps)
-        elif len(pg.right) == 0 and len(pg.left) != 0:
+            npg = simgr.step(stash='right', n=max_steps)
+        elif len(simgr.right) == 0 and len(simgr.left) != 0:
             l.debug("... right is deadended; stepping left %s times", max_steps)
-            npg = pg.step(stash='left', n=max_steps)
-        elif len(pg.right) == 0 and len(pg.left) == 0:
+            npg = simgr.step(stash='left', n=max_steps)
+        elif len(simgr.right) == 0 and len(simgr.left) == 0:
             l.debug("... both deadended.")
-            return pg
-        elif pg.left[0].history.weighted_depth == pg.right[0].history.weighted_depth:
+            return simgr
+        elif simgr.left[0].history.weighted_depth == simgr.right[0].history.weighted_depth:
             l.debug("... synced")
-            return pg
-        elif pg.left[0].history.weighted_depth < pg.right[0].history.weighted_depth:
+            return simgr
+        elif simgr.left[0].history.weighted_depth < simgr.right[0].history.weighted_depth:
             l.debug("... right is ahead; stepping left up to %s times", max_steps)
-            npg = pg.step(
+            npg = simgr.step(
                 stash='left',
-                until=lambda lpg: lpg.left[0].history.weighted_depth >= pg.right[0].history.weighted_depth,
+                until=lambda lpg: lpg.left[0].history.weighted_depth >= simgr.right[0].history.weighted_depth,
                 n=max_steps
             )
-        elif pg.right[0].history.weighted_depth < pg.left[0].history.weighted_depth:
+        elif simgr.right[0].history.weighted_depth < simgr.left[0].history.weighted_depth:
             l.debug("... left is ahead; stepping right up to %s times", max_steps)
-            npg = pg.step(
+            npg = simgr.step(
                 stash='right',
-                until=lambda lpg: lpg.right[0].history.weighted_depth >= pg.left[0].history.weighted_depth,
+                until=lambda lpg: lpg.right[0].history.weighted_depth >= simgr.left[0].history.weighted_depth,
                 n=max_steps
             )
 
@@ -115,16 +108,16 @@ class CongruencyCheck(Analysis):
             self._throw = False
             l.debug("Validating incongruency.")
 
-            if ("UNICORN" in self.pg.right[0].state.options) ^ ("UNICORN" in self.pg.left[0].state.options):
-                if "UNICORN" in self.pg.right[0].state.options:
+            if ("UNICORN" in self.simgr.right[0].state.options) ^ ("UNICORN" in self.simgr.left[0].state.options):
+                if "UNICORN" in self.simgr.right[0].state.options:
                     unicorn_stash = 'right'
                     normal_stash = 'left'
                 else:
                     unicorn_stash = 'left'
                     normal_stash = 'right'
 
-                unicorn_path = self.pg.stashes[unicorn_stash][0]
-                normal_path = self.pg.stashes[normal_stash][0]
+                unicorn_path = self.simgr.stashes[unicorn_stash][0]
+                normal_path = self.simgr.stashes[normal_stash][0]
 
                 if unicorn_path.state.arch.name in ("X86", "AMD64"):
                     # unicorn "falls behind" on loop and rep instructions, since
@@ -169,8 +162,8 @@ class CongruencyCheck(Analysis):
 
                 if self.compare_paths(new_unicorn, new_normal):
                     l.debug("Divergence accounted for by unicorn.")
-                    self.pg.stashes[unicorn_stash][0] = new_unicorn
-                    self.pg.stashes[normal_stash][0] = new_normal
+                    self.simgr.stashes[unicorn_stash][0] = new_unicorn
+                    self.simgr.stashes[normal_stash][0] = new_normal
                     return False
                 else:
                     l.warning("Divergence unaccounted for by unicorn.")
@@ -196,51 +189,51 @@ class CongruencyCheck(Analysis):
         path.
         """
         #pg_history = [ ]
-        if len(self.pg.right) != 1 or len(self.pg.left) != 1:
+        if len(self.simgr.right) != 1 or len(self.simgr.left) != 1:
             self._report_incongruency("Single path in pg.left and pg.right required.")
             return False
 
-        if "UNICORN" in self.pg.one_right.state.options and depth is not None:
-            self.pg.one_right.state.unicorn.max_steps = depth
+        if "UNICORN" in self.simgr.one_right.options and depth is not None:
+            self.simgr.one_right.unicorn.max_steps = depth
 
-        if "UNICORN" in self.pg.one_left.state.options and depth is not None:
-            self.pg.one_left.state.unicorn.max_steps = depth
+        if "UNICORN" in self.simgr.one_left.options and depth is not None:
+            self.simgr.one_left.unicorn.max_steps = depth
 
         l.debug("Performing initial path comparison.")
-        if not self.compare_paths(self.pg.left[0], self.pg.right[0]):
+        if not self.compare_paths(self.simgr.left[0], self.simgr.right[0]):
             self._report_incongruency("Initial path comparison check failed.")
             return False
 
-        while len(self.pg.left) > 0 and len(self.pg.right) > 0:
+        while len(self.simgr.left) > 0 and len(self.simgr.right) > 0:
             if depth is not None:
-                self._update_progress(100. * float(self.pg.one_left.history.weighted_depth) / depth)
+                self._update_progress(100. * float(self.simgr.one_left.history.weighted_depth) / depth)
 
-            if len(self.pg.deadended) != 0:
+            if len(self.simgr.deadended) != 0:
                 self._report_incongruency("Unexpected deadended paths before step.")
                 return False
-            if len(self.pg.right) == 0 and len(self.pg.left) == 0:
+            if len(self.simgr.right) == 0 and len(self.simgr.left) == 0:
                 l.debug("All done!")
                 return True
-            if len(self.pg.right) != 1 or len(self.pg.left) != 1:
+            if len(self.simgr.right) != 1 or len(self.simgr.left) != 1:
                 self._report_incongruency("Different numbers of paths in left and right stash..")
                 return False
 
             # do a step
             l.debug(
                 "Stepping right path with weighted length %d/%s",
-                self.pg.right[0].history.weighted_depth,
+                self.simgr.right[0].history.weighted_depth,
                 depth
             )
-            self.prev_pg = self.pg.copy() #pylint:disable=unused-variable
-            self.pg.step(stash='right')
-            CongruencyCheck._sync_steps(self.pg)
+            self.prev_pg = self.simgr.copy() #pylint:disable=unused-variable
+            self.simgr.step(stash='right')
+            CongruencyCheck._sync_steps(self.simgr)
 
-            if len(self.pg.errored) != 0:
+            if len(self.simgr.errored) != 0:
                 self._report_incongruency("Unexpected errored paths.")
                 return False
 
             try:
-                if not self.compare_path_group(self.pg) and self._validate_incongruency():
+                if not self.compare_path_group(self.simgr) and self._validate_incongruency():
                     self._report_incongruency("Path group comparison failed.")
                     return False
             except AngrIncongruencyError:
@@ -248,19 +241,19 @@ class CongruencyCheck(Analysis):
                     raise
 
             if depth is not None:
-                self.pg.drop(stash='left', filter_func=lambda p: p.history.weighted_depth >= depth)
-                self.pg.drop(stash='right', filter_func=lambda p: p.history.weighted_depth >= depth)
+                self.simgr.drop(stash='left', filter_func=lambda p: p.history.weighted_depth >= depth)
+                self.simgr.drop(stash='right', filter_func=lambda p: p.history.weighted_depth >= depth)
 
-            self.pg.right.sort(key=lambda p: p.addr)
-            self.pg.left.sort(key=lambda p: p.addr)
-            self.pg.stashed_right[:] = self.pg.stashed_right[::-1]
-            self.pg.stashed_left[:] = self.pg.stashed_left[::-1]
-            self.pg.move('stashed_right', 'right')
-            self.pg.move('stashed_left', 'left')
+            self.simgr.right.sort(key=lambda p: p.addr)
+            self.simgr.left.sort(key=lambda p: p.addr)
+            self.simgr.stashed_right[:] = self.simgr.stashed_right[::-1]
+            self.simgr.stashed_left[:] = self.simgr.stashed_left[::-1]
+            self.simgr.move('stashed_right', 'right')
+            self.simgr.move('stashed_left', 'left')
 
-            if len(self.pg.left) > 1:
-                self.pg.split(from_stash='left', limit=1, to_stash='stashed_left')
-                self.pg.split(from_stash='right', limit=1, to_stash='stashed_right')
+            if len(self.simgr.left) > 1:
+                self.simgr.split(from_stash='left', limit=1, to_stash='stashed_left')
+                self.simgr.split(from_stash='right', limit=1, to_stash='stashed_right')
 
     def compare_path_group(self, pg):
         if len(pg.left) != len(pg.right):
@@ -340,7 +333,7 @@ class CongruencyCheck(Analysis):
 
     def compare_paths(self, pl, pr):
         l.debug("Comparing paths...")
-        if not self.compare_states(pl.state, pr.state):
+        if not self.compare_states(pl, pr):
             self._report_incongruency("Failed state similarity check!")
             return False
 
