@@ -47,7 +47,7 @@ def test_empty_stack():
     cs = cs.ret(None)
 
     nose.tools.assert_equal(cs.current_function_address, 0)
-    nose.tools.assert_equal(cs.current_stack_pointer, None)
+    nose.tools.assert_equal(cs.current_stack_pointer, 0)
 
 if __name__ == "__main__":
     test_empty_stack()
