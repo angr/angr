@@ -452,11 +452,16 @@ class SimState(ana.Storable): # pylint: disable=R0904
         :param states: the states to merge
         :param merge_conditions: a tuple of the conditions under which each state holds
         :param common_ancestor: a state that represents the common history between the states being merged
+        :param plugin_whitelist: a list of plugin names that will be merged. If this option is given and is not None,
+                                 any plugin that is not inside this list will not be merged, and will be created as a
+                                 fresh instance in the new state.
         :return: (merged state, merge flag, a bool indicating if any merging occured)
         """
 
         merge_conditions = kwargs.pop('merge_conditions', None)
         common_ancestor = kwargs.pop('common_ancestor', None)
+        plugin_whitelist = kwargs.pop('plugin_whitelist', None)
+
         if len(kwargs) != 0:
             raise ValueError("invalid arguments: %s" % kwargs.keys())
 
@@ -475,6 +480,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
             raise SimMergeError("Unable to merge due to different architectures.")
 
         all_plugins = set(self.plugins.keys()) | set.union(*(set(o.plugins.keys()) for o in others))
+
+        if plugin_whitelist is not None:
+            all_plugins = all_plugins.intersection(set(plugin_whitelist))
 
         merged = self.copy()
         merging_occurred = False
