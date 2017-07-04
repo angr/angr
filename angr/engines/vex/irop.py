@@ -10,7 +10,7 @@ import itertools
 import operator
 
 import logging
-l = logging.getLogger("simuvex.vex.irop")
+l = logging.getLogger("angr.engines.vex.irop")
 
 import pyvex
 import claripy
