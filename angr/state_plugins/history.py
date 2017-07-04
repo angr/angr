@@ -33,6 +33,7 @@ class SimStateHistory(SimStatePlugin):
         self.recent_events = [ ] if clone is None else list(clone.recent_events)
         self.recent_bbl_addrs = [ ] if clone is None else list(clone.recent_bbl_addrs)
         self.recent_ins_addrs = [ ] if clone is None else list(clone.recent_ins_addrs)
+        self.recent_stack_actions = [ ] if clone is None else list(clone.recent_stack_actions)
         self.last_stmt_idx = None if clone is None else clone.last_stmt_idx
 
         # numbers of blocks, syscalls, and instructions that were executed in this step
@@ -176,6 +177,9 @@ class SimStateHistory(SimStatePlugin):
     def addr_trace(self):
         print ".addr trace is deprecated: please use .bbl_addrs"
         return self.bbl_addrs
+    @property
+    def stack_actions(self):
+        return LambdaIterIter(self, operator.attrgetter('recent_stack_actions'))
 
     #
     # Merging support

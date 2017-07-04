@@ -3,7 +3,7 @@ import logging
 
 
 from ...errors import SimValueError, SimSolverModeError
-from ...call_stack import CallStack
+from ...state_plugins.callstack import CallStack
 
 l = logging.getLogger("angr.analyses.cfg.cfg_job_base")
 
@@ -147,7 +147,7 @@ class CFGJobBase(object):
                 # Set the stack pointer to None
                 sp = None
 
-            self._call_stack.call(None, self.addr, retn_target=final_return_address, stack_pointer=sp)
+            self._call_stack = self._call_stack.call(None, self.addr, retn_target=final_return_address, stack_pointer=sp)
 
         else:
             self._call_stack = call_stack

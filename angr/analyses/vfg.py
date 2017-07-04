@@ -11,7 +11,7 @@ from ..procedures import SIM_PROCEDURES
 from .. import sim_options
 
 from ..analysis import Analysis, register_analysis
-from ..call_stack import CallStack
+from ..state_plugins.callstack import CallStack
 from ..errors import AngrVFGError, AngrError, AngrVFGRestartAnalysisNotice, AngrJobMergingFailureNotice, SimValueError, SimIRSBError, SimError
 from .cfg.cfg_job_base import BlockID, FunctionKey, CFGJobBase
 from .cfg.cfg_utils import CFGUtils
@@ -493,7 +493,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         if not self._start_at_function:
             # we should build a custom call stack
             call_stack = CallStack()
-            call_stack.call(None, self._function_start, retn_target=self._final_address)
+            call_stack = call_stack.call(None, self._function_start, retn_target=self._final_address)
 
         job = VFGJob(state.addr, state, self._context_sensitivity_level,
                      jumpkind='Ijk_Boring', final_return_address=self._final_address,
@@ -1535,7 +1535,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         while call_stack_copy.current_return_target is not None:
             ret_target = call_stack_copy.current_return_target
             # Remove the current call stack frame
-            call_stack_copy.ret(ret_target)
+            call_stack_copy = call_stack_copy.ret(ret_target)
             call_stack_suffix = call_stack_copy.stack_suffix(self._context_sensitivity_level)
             tpl = call_stack_suffix + (ret_target,)
             tpls_to_remove.append(tpl)
@@ -1634,12 +1634,12 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 retn_target_addr = fakeret_successor.se.exactly_n_int(fakeret_successor.ip, 1)[0]
 
             # Create call stack
-            new_call_stack.call(addr, successor_ip,
+            new_call_stack = new_call_stack.call(addr, successor_ip,
                                 retn_target=retn_target_addr)
 
         elif jumpkind == "Ijk_Ret":
             new_call_stack = job.call_stack_copy()
-            new_call_stack.ret(successor_ip)
+            new_call_stack = new_call_stack.ret(successor_ip)
 
         else:
             # Normal control flow transition

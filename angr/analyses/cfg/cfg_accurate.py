@@ -2800,7 +2800,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 retn_target_addr = se.exactly_int(all_jobs[-1].ip, default=0)
                 sp = se.exactly_int(all_jobs[-1].regs.sp, default=0)
 
-                new_call_stack.call(addr, exit_target,
+                new_call_stack = new_call_stack.call(addr, exit_target,
                                     retn_target=retn_target_addr,
                                     stack_pointer=sp)
 
@@ -2809,23 +2809,23 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 retn_target_addr = exit_target
                 se = all_jobs[0].se
                 sp = se.exactly_int(all_jobs[0].regs.sp, default=0)
-                new_call_stack.call(addr, exit_target,
+                new_call_stack = new_call_stack.call(addr, exit_target,
                                     retn_target=retn_target_addr,
                                     stack_pointer=sp)
 
             else:
                 # We don't have a fake return exit available, which means
                 # this call doesn't return.
-                new_call_stack.clear()
+                new_call_stack = CallStack()
                 se = all_jobs[-1].se
                 sp = se.exactly_int(all_jobs[-1].regs.sp, default=0)
 
-                new_call_stack.call(addr, exit_target, retn_target=None, stack_pointer=sp)
+                new_call_stack = new_call_stack.call(addr, exit_target, retn_target=None, stack_pointer=sp)
 
         elif jumpkind == "Ijk_Ret":
             # Normal return
             new_call_stack = job.call_stack_copy()
-            new_call_stack.ret(exit_target)
+            new_call_stack = new_call_stack.ret(exit_target)
 
             se = all_jobs[-1].se
             sp = se.exactly_int(all_jobs[-1].regs.sp, default=0)

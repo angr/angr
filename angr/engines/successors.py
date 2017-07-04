@@ -138,6 +138,24 @@ class SimSuccessors(object):
             state.add_constraints(state.scratch.guard)
         state.regs.ip = state.scratch.target
 
+        # manage the callstack
+        # condition for call = Ijk_Call
+        # condition for ret = stack pointer drops below call point
+        if state.history.jumpkind == 'Ijk_Call':
+            if state.arch.call_pushes_ret:
+                ret_addr = state.mem[state.regs.sp].long.concrete
+            else:
+                ret_addr = state.se.any_int(state.regs.lr)
+            new_frame = CallStack(
+                    call_site_addr=state.history.recent_bbl_addrs[-1],
+                    func_addr=state.se.any_int(state.regs.ip),
+                    stack_ptr=state.se.any_int(state.regs.sp),
+                    ret_addr=ret_addr,
+                    jumpkind='Ijk_Call')
+            state.callstack.push(new_frame)
+        elif state.se.is_true(state.regs.sp < state.callstack.top.stack_ptr):
+            state.callstack.pop()
+
         # clean up the state
         state.options.discard(o.AST_DEPS)
         state.options.discard(o.AUTO_REFS)
@@ -287,4 +305,5 @@ from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
 from ..errors import SimSolverModeError, UnsupportedSyscallError
 from ..calling_conventions import SYSCALL_CC
 from ..state_plugins.sim_action_object import _raw_ast
+from ..state_plugins.callstack import CallStack
 from .. import sim_options as o

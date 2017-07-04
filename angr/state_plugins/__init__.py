@@ -18,3 +18,4 @@ from .unicorn_engine import Unicorn
 from .sim_action import *
 from .sim_action_object import *
 from .sim_event import *
+from .callstack import *
