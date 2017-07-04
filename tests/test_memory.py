@@ -561,11 +561,11 @@ def test_concrete_memset():
         # should be done within 1 second
         nose.tools.assert_less_equal(elapsed, 5)
         # the result should be good
-        byt_0 = memset.memory.load(base, 1)
+        byt_0 = memset.state.memory.load(base, 1)
         nose.tools.assert_equal(s.se.any_n_int(byt_0, 10), [val])
-        byt_1 = memset.memory.load(base+1, 1)
+        byt_1 = memset.state.memory.load(base+1, 1)
         nose.tools.assert_equal(s.se.any_n_int(byt_1, 10), [val])
-        byt_2 = memset.memory.load(base+size-1, 1)
+        byt_2 = memset.state.memory.load(base+size-1, 1)
         nose.tools.assert_equal(s.se.any_n_int(byt_2, 10), [val])
 
     BASE = 0x800000
