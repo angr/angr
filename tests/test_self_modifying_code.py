@@ -18,7 +18,7 @@ def test_self_modifying_code():
     retval = pgu.one_deadended.regs.ebx
     nose.tools.assert_true(claripy.is_true(retval == 65))
 
-    nose.tools.assert_true(pg.one_deadended.addr_trace.hardcopy == pgu.one_deadended.addr_trace.hardcopy)
+    nose.tools.assert_true(pg.one_deadended.history.bbl_addrs.hardcopy == pgu.one_deadended.history.bbl_addrs.hardcopy)
 
 
 if __name__ == '__main__':

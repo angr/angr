@@ -957,7 +957,7 @@ class Unicorn(SimStatePlugin):
 
         # get the address list out of the state
         bbl_addrs = _UC_NATIVE.bbl_addrs(self._uc_state)
-        self.state.scratch.bbl_addr_list = bbl_addrs[:self.steps]
+        self.state.history.recent_bbl_addrs = bbl_addrs[:self.steps]
         # get the stack pointers
         stack_pointers = _UC_NATIVE.stack_pointers(self._uc_state)
         self.state.scratch.stack_pointer_list = stack_pointers[ : self.steps]
