@@ -12,6 +12,7 @@ from .errors import SimError, SimMergeError
 
 l = logging.getLogger("angr.manager")
 
+
 class SimulationManager(ana.Storable):
     """
     The Simulation Manager is the future future.
@@ -112,8 +113,8 @@ class SimulationManager(ana.Storable):
         active=None, unconstrained=None, unsat=None, pruned=None, deadended=None, orig=None, **kwargs
     ):
         for key in kwargs:
-            if hasattr(self, key):
-                raise SimulationManagerError("'%s' is an illegal stash name - already in use as attribute")
+            if key not in self.stashes and hasattr(self, key):
+                raise SimulationManagerError("'%s' is an illegal stash name - already in use as attribute" % key)
 
         always_present = {'active': active or [],
                           'unconstrained': unconstrained or [],
