@@ -124,7 +124,7 @@ def run_similarity(binpath, depth, prehook=None):
         right_remove_options={so.LAZY_SOLVES, so.TRACK_MEMORY_MAPPING, so.COMPOSITE_SOLVER}
     )
     if prehook:
-        cc.pg = prehook(cc.pg)
+        cc.simgr = prehook(cc.simgr)
     cc.run(depth=depth)
 
 def test_similarity_fauxware():
