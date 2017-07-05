@@ -187,10 +187,10 @@ class SimStateHistory(SimStatePlugin):
 
     def closest_common_ancestor(self, other):
         """
-        Find the common ancestor between this PathHistory and 'other'.
+        Find the common ancestor between this history node and 'other'.
 
         :param other:    the PathHistory to find a common ancestor with.
-        :return:        the common ancestor PathHistory, or None if there isn't one
+        :return:        the common ancestor SimStateHistory, or None if there isn't one
         """
         our_history_iter = reversed(HistoryIter(self))
         their_history_iter = reversed(HistoryIter(other))
