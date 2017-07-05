@@ -59,8 +59,14 @@ class SimStateHistory(SimStatePlugin):
             self.strongref_state = state
 
     def merge(self, others, merge_conditions, common_ancestor=None):
-        l.warning("history merging is not implemented!")
-        return # TODO
+
+        if not others:
+            return False
+
+        self.merged_from.extend(h for h in others)
+        self.merge_conditions = merge_conditions
+
+        return True
 
     def widen(self, others):
         l.warning("history widening is not implemented!")
