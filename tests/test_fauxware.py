@@ -54,9 +54,9 @@ def run_fauxware(arch):
 
     # test the divergence detection
     ancestor = results.found[0].history.closest_common_ancestor((results.avoid + results.active)[0].history)
-    divergent_point = list(angr.path.HistoryIter(results.found[0].history, end=ancestor))[0]
+    divergent_point = list(angr.state_plugins.history.HistoryIter(results.found[0].history, end=ancestor))[0]
     #p.factory.block(divergent_point.addr).pp()
-    assert divergent_point.addr == divergences[arch]
+    assert divergent_point.recent_bbl_addrs[0] == divergences[arch]
 
 def run_pickling(arch):
     p = angr.Project(os.path.join(test_location, arch, "fauxware"))
