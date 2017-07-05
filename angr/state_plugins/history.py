@@ -318,10 +318,12 @@ class TreeIter(object):
                 ctr += 1
         return ctr
 
+
 class HistoryIter(TreeIter):
     def __reversed__(self):
         for hist in self._iter_nodes():
             yield hist
+
 
 class LambdaAttrIter(TreeIter):
     def __init__(self, start, f, **kwargs):
@@ -333,6 +335,7 @@ class LambdaAttrIter(TreeIter):
             a = self._f(hist)
             if a is not None:
                 yield a
+
 
 class LambdaIterIter(LambdaAttrIter):
     def __init__(self, start, f, reverse=True, **kwargs):

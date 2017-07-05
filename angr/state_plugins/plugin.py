@@ -1,8 +1,13 @@
 default_plugins = { }
 
-# This is a base class for SimState plugins. A SimState plugin will be copied along with the state when the state is branched. They
-# are intended to be used for things such as tracking open files, tracking heap details, and providing storage and persistence for SimProcedures.
+
 class SimStatePlugin(object):
+    """
+    This is a base class for SimState plugins. A SimState plugin will be copied along with the state when the state is
+    branched. They are intended to be used for things such as tracking open files, tracking heap details, and providing
+    storage and persistence for SimProcedures.
+    """
+
     #__slots__ = [ 'state' ]
 
     STRONGREF_STATE = False

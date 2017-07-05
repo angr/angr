@@ -269,8 +269,8 @@ class SimulationManager(ana.Storable):
         """
 
         if self._hierarchy:
-            for p in successor_stashes.get('active', []):
-                self._hierarchy.add_state(p)
+            for s in successor_stashes.get('active', []):
+                self._hierarchy.add_state(s)
             self._hierarchy.simplify()
 
         if len(self._hooks_filter) == 0:
@@ -730,7 +730,7 @@ class SimulationManager(ana.Storable):
 
         merge_groups = [ ]
         while len(to_merge) > 0:
-            g, to_merge = self._filter_states(lambda p: p.addr == to_merge[0].addr, to_merge)
+            g, to_merge = self._filter_states(lambda s: s.addr == to_merge[0].addr, to_merge)
             if len(g) <= 1:
                 not_to_merge.extend(g)
             else:
