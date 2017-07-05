@@ -6,6 +6,7 @@ import claripy
 l = logging.getLogger("angr.state_plugins.history")
 
 from .plugin import SimStatePlugin
+from .. import sim_options
 
 
 class SimStateHistory(SimStatePlugin):
@@ -54,7 +55,8 @@ class SimStateHistory(SimStatePlugin):
         self.strongref_state = None
 
     def set_strongref_state(self, state):
-        self.strongref_state = state
+        if sim_options.EFFICIENT_STATE_MERGING in state.options:
+            self.strongref_state = state
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         l.warning("history merging is not implemented!")
@@ -101,11 +103,9 @@ class SimStateHistory(SimStatePlugin):
 
     def demote(self):
         """
-        Demotes this PathHistory node, causing it to convert references to the state
-        to weakrefs.
+        Demotes this history node, causing it to drop the strong state reference.
         """
-        #print "TODO: demote", self
-        pass
+        self.strongref_state = None
 
     def reachable(self):
         if self._satisfiable is not None:

@@ -702,7 +702,7 @@ class SimulationManager(ana.Storable):
         if len(optimal) < 2:
             raise SimulationManagerError("unable to find merge candidates")
         o = optimal.pop()
-        m = o.merge(optimal, common_history)
+        m, _, _ = o.merge(*optimal, common_ancestor=common_history.strongref_state)
         if self._hierarchy:
             self._hierarchy.add_state(m)
 

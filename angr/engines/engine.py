@@ -41,6 +41,10 @@ class SimEngine(object):
 
         successors = SimSuccessors(addr, state)
         self._process(new_state, successors, *args, **kwargs)
+
+        if len(successors.flat_successors) == 1:
+            successors.flat_successors[0].history.demote()
+
         return successors
 
     def check(self, state, *args, **kwargs):
