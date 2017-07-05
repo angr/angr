@@ -395,10 +395,15 @@ class SimulationManager(ana.Storable):
         return stashes
 
     def __repr__(self):
-        s = "<SimulationManager with "
-        s += ', '.join(("%d %s" % (len(v),k)) for k,v in self.stashes.items() if len(v) != 0)
-        s += ">"
-        return s
+        state_list = ', '.join(("%d %s" % (len(v),k)) for k,v in self.stashes.items() if len(v) != 0)
+        if state_list == '':
+            state_list = '(empty)'
+        else:
+            state_list = 'with ' + state_list
+
+        errored_part = '(%d errored)' if self.errored else ''
+
+        return "<SimulationManager %s%s>" % (state_list, errored_part)
 
     def mulpyplex(self, *stashes):
         """
