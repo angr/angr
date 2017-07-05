@@ -55,11 +55,11 @@ class CallStack(SimStatePlugin):
     def set_state(self, state):
         self.state = state
 
-    def merge(self, others):
+    def merge(self, others, merge_conditions, common_ancestor=None):
         l.warning("Merging not implemented for callstacks!")
         return
 
-    def widen(self):
+    def widen(self, others):
         l.warning("Widening not implemented for callstacks")
 
     def __iter__(self):
