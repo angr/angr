@@ -12,6 +12,7 @@ from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
 from ... import options as o
 from ...analysis import register_analysis
 from ...state_plugins.sim_action import SimActionData
+from ...state_plugins.callstack import CallStack
 from ...engines import SimEngineProcedure
 from ...sim_state import SimState
 from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice, SimError, SimValueError, SimSolverModeError, \
