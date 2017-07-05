@@ -142,17 +142,17 @@ class SimSuccessors(object):
         # condition for ret = stack pointer drops below call point
         if state.history.jumpkind == 'Ijk_Call':
             if state.arch.call_pushes_ret:
-                ret_addr = state.mem[state.regs.sp].long.concrete
+                ret_addr = state.mem[state.regs._sp].long.concrete
             else:
-                ret_addr = state.se.any_int(state.regs.lr)
+                ret_addr = state.se.any_int(state.regs._lr)
             new_frame = CallStack(
                     call_site_addr=state.history.recent_bbl_addrs[-1],
-                    func_addr=state.se.any_int(state.regs.ip),
-                    stack_ptr=state.se.any_int(state.regs.sp),
+                    func_addr=state.se.any_int(state.regs._ip),
+                    stack_ptr=state.se.any_int(state.regs._sp),
                     ret_addr=ret_addr,
                     jumpkind='Ijk_Call')
             state.callstack.push(new_frame)
-        elif state.se.is_true(state.regs.sp < state.callstack.top.stack_ptr):
+        elif state.se.is_true(state.regs._sp < state.callstack.top.stack_ptr):
             state.callstack.pop()
 
         # clean up the state
