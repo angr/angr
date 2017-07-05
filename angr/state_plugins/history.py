@@ -58,6 +58,12 @@ class SimStateHistory(SimStatePlugin):
         if sim_options.EFFICIENT_STATE_MERGING in state.options:
             self.strongref_state = state
 
+    @property
+    def addr(self):
+        if not self.recent_bbl_addrs:
+            return None
+        return self.recent_bbl_addrs[-1]
+
     def merge(self, others, merge_conditions, common_ancestor=None):
 
         if not others:
