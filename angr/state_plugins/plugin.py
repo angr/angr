@@ -5,12 +5,17 @@ default_plugins = { }
 class SimStatePlugin(object):
     #__slots__ = [ 'state' ]
 
+    STRONGREF_STATE = False
+
     def __init__(self):
         self.state = None
 
     # Sets a new state (for example, if the state has been branched)
     def set_state(self, state):
         self.state = state
+
+    def set_strongref_state(self, state):
+        raise NotImplementedError()
 
     def __getstate__(self):
         d = dict(self.__dict__)

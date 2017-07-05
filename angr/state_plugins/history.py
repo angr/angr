@@ -1,13 +1,19 @@
 import operator
-import claripy
 import logging
+
+import claripy
+
 l = logging.getLogger("angr.state_plugins.history")
 
 from .plugin import SimStatePlugin
+
+
 class SimStateHistory(SimStatePlugin):
     """
     This class keeps track of historically-relevant information for paths.
     """
+
+    STRONGREF_STATE = True
 
     def __init__(self, parent=None, clone=None):
         SimStatePlugin.__init__(self)
@@ -44,6 +50,11 @@ class SimStateHistory(SimStatePlugin):
         # satness stuff
         self._all_constraints = ()
         self._satisfiable = None
+
+        self.strongref_state = None
+
+    def set_strongref_state(self, state):
+        self.strongref_state = state
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         l.warning("history merging is not implemented!")
