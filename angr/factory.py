@@ -213,7 +213,7 @@ class AngrObjectFactory(object):
         * If a list is passed in, the list must contain only SimStates and the whole list will be used to seed the SimulationManager.
         """
         if thing is None:
-            thing = [ self.full_init_state() ]
+            thing = [ self.entry_state() ]
         elif isinstance(thing, (list, tuple)):
             if any(not isinstance(val, SimState) for val in thing):
                 raise AngrError("Bad type to initialize SimulationManager")
