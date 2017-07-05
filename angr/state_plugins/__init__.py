@@ -10,7 +10,6 @@ from .fast_memory import *
 from .log import *
 from .history import *
 from .scratch import *
-from .procedure_data import *
 from .cgc import *
 from .gdb import *
 from .uc_manager import *
@@ -19,3 +18,4 @@ from .sim_action import *
 from .sim_action_object import *
 from .sim_event import *
 from .callstack import *
+from .globals import *

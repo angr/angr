@@ -9,8 +9,8 @@ def _bin(s):
 def test_basic():
     ana.set_dl(ana.DictDataLayer())
 
-    def pickle_callback(path): path.info['pickled'] = True
-    def unpickle_callback(path): path.info['unpickled'] = True
+    def pickle_callback(path): path.globals['pickled'] = True
+    def unpickle_callback(path): path.globals['unpickled'] = True
 
     project = angr.Project(_bin('tests/cgc/sc2_0b32aa01_01'))
     path = project.factory.entry_state()
@@ -19,21 +19,20 @@ def test_basic():
     del path
     gc.collect()
     path = spiller._unpickle(1)[0]
-    assert path.info['pickled']
-    assert path.info['unpickled']
+    assert path.globals['pickled']
+    assert path.globals['unpickled']
 
 def test_palindrome2():
     ana.set_dl(ana.DictDataLayer())
 
     project = angr.Project(_bin('tests/cgc/sc2_0b32aa01_01'))
     pg = project.factory.simgr()
-    pg.active[0].options.discard('LAZY_SOLVES')
     limiter = angr.exploration_techniques.LengthLimiter(max_length=250)
     pg.use_technique(limiter)
 
-    def pickle_callback(path): path.info['pickled'] = True
-    def unpickle_callback(path): path.info['unpickled'] = True
-    def priority_key(path): return hash(tuple(path.addr_trace)) # to help ensure determinism
+    def pickle_callback(path): path.globals['pickled'] = True
+    def unpickle_callback(path): path.globals['unpickled'] = True
+    def priority_key(path): return hash(tuple(path.history.bbl_addrs)) # to help ensure determinism
     spiller = angr.exploration_techniques.Spiller(
         pickle_callback=pickle_callback, unpickle_callback=unpickle_callback,
         priority_key=priority_key
@@ -45,4 +44,8 @@ def test_palindrome2():
     pg.run()
     assert spiller._ever_pickled > 0
     assert spiller._ever_unpickled == spiller._ever_pickled
-    assert all(('pickled' not in path.info and 'unpickled' not in path.info) or (path.info['pickled'] and path.info['unpickled']) for path in pg.cut)
+    assert all(('pickled' not in path.globals and 'unpickled' not in path.globals) or (path.globals['pickled'] and path.globals['unpickled']) for path in pg.cut)
+
+if __name__ == '__main__':
+    test_basic()
+    test_palindrome2()

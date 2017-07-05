@@ -24,7 +24,7 @@ class SimStateHistory(SimStatePlugin):
         self.merged_from = [ ] if clone is None else list(clone.merged_from)
         self.merge_conditions = [ ] if clone is None else list(clone.merge_conditions)
         self.depth = (0 if parent is None else parent.depth + 1) if clone is None else clone.depth
-        self.extra_depth = (0 if parent is None else parent.extra_depth) if clone is None else clone.depth
+        self.extra_depth = (0 if parent is None else parent.extra_depth) if clone is None else clone.extra_depth
 
         # a string description of this history
         self.description = None if clone is None else clone.description

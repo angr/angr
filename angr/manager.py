@@ -401,7 +401,7 @@ class SimulationManager(ana.Storable):
         else:
             state_list = 'with ' + state_list
 
-        errored_part = '(%d errored)' if self.errored else ''
+        errored_part = ' (%d errored)' % len(self.errored) if self.errored else ''
 
         return "<SimulationManager %s%s>" % (state_list, errored_part)
 

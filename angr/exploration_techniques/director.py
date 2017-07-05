@@ -74,11 +74,12 @@ class BaseGoal(object):
         continue_at = None
         if cfg.project.is_hooked(state.addr) and \
                 cfg.project.hooked_by(state.addr).is_continuation:
-            if state.procedure_data.callstack:
-                continue_at = state.procedure_data.callstack[-1][1]
+            if state.callstack.top.procedure_data:
+                continue_at = state.callstack.top.procedure_data[0] # TODO: this originally said [1], which was the return address. I changed it to 0, because that actually makes sense, and it's what cfgaccurate uses. is that right?
             else:
                 # umm why does this happen?
                 # TODO: figure it out
+                # note from rhelmot: if this happens post-endtimes, check if state.regs.sp == callstack.stack_ptr and if so talk to me
                 continue_at = None
 
         block_id = cfg._generate_block_id(call_stack_suffix, state.addr,

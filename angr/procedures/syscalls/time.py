@@ -6,11 +6,11 @@ class time(angr.SimProcedure):
 
     @property
     def last_time(self):
-        return self.state.procedure_data.global_variables.get(self.KEY, None)
+        return self.state.globals.get(self.KEY, None)
 
     @last_time.setter
     def last_time(self, v):
-        self.state.procedure_data.global_variables[self.KEY] = v
+        self.state.globals[self.KEY] = v
 
     def run(self, pointer):
         result = self.state.se.BVS('sys_time', self.state.arch.bits)

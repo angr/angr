@@ -432,8 +432,6 @@ class SimOS(object):
         state.scratch.bbl_addr = addr
         state.scratch.stmt_idx = 0
         state.history.jumpkind = 'Ijk_Boring'
-
-        state.procedure_data.hook_addr = self.continue_addr
         return state
 
     def state_entry(self, **kwargs):

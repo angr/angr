@@ -135,29 +135,56 @@ class SimSuccessors(object):
         # apply the guard constraint and new program counter to the state
         if add_guard:
             state.add_constraints(state.scratch.guard)
+        # trigger inspect breakpoints here since this statement technically shows up in the IRSB as the "next"
         state.regs.ip = state.scratch.target
 
-        # manage the callstack
+        self._manage_callstack(state)
+
+        # clean up the state
+        state.options.discard(o.AST_DEPS)
+        state.options.discard(o.AUTO_REFS)
+
+    def _manage_callstack(self, state):
         # condition for call = Ijk_Call
         # condition for ret = stack pointer drops below call point
         if state.history.jumpkind == 'Ijk_Call':
+            func_addr = state.se.any_int(state.regs._ip)
+            state._inspect('call', BP_BEFORE, function_address=func_addr)
+            new_func_addr = state._inspect_getattr('function_address', None)
+            if not claripy.is_true(new_func_addr == state.regs._ip):
+                state.regs._ip = func_addr
+
             if state.arch.call_pushes_ret:
                 ret_addr = state.mem[state.regs._sp].long.concrete
             else:
                 ret_addr = state.se.any_int(state.regs._lr)
             new_frame = CallStack(
                     call_site_addr=state.history.recent_bbl_addrs[-1],
-                    func_addr=state.se.any_int(state.regs._ip),
+                    func_addr=func_addr,
                     stack_ptr=state.se.any_int(state.regs._sp),
                     ret_addr=ret_addr,
                     jumpkind='Ijk_Call')
             state.callstack.push(new_frame)
-        elif state.se.is_true(state.regs._sp < state.callstack.top.stack_ptr):
-            state.callstack.pop()
 
-        # clean up the state
-        state.options.discard(o.AST_DEPS)
-        state.options.discard(o.AUTO_REFS)
+            state._inspect('call', BP_AFTER)
+        else:
+            while state.se.is_true(state.regs._sp > state.callstack.top.stack_ptr):
+                state._inspect('return', BP_BEFORE, function_address=state.callstack.top.func_addr)
+                state.callstack.pop()
+                state._inspect('return', BP_AFTER)
+
+            if not state.arch.call_pushes_ret and \
+                    claripy.is_true(state.regs._ip == state.callstack.ret_addr) and \
+                    claripy.is_true(state.regs._sp == state.callstack.stack_ptr):
+                # very weird edge case that's not actually weird or on the edge at all:
+                # if we use a link register for the return address, the stack pointer will be the same
+                # before and after the call. therefore we have to check for equality with the marker
+                # along with this other check with the instruction pointer to guess whether it's time
+                # to pop a callframe. Still better than relying on Ijk_Ret.
+                state._inspect('return', BP_BEFORE, function_address=state.callstack.top.func_addr)
+                state.callstack.pop()
+                state._inspect('return', BP_AFTER)
+
 
     def _categorize_successor(self, state):
         """

@@ -857,8 +857,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             continue_at = None
             if self.project.is_hooked(ip) and \
                     self.project.hooked_by(ip).is_continuation and \
-                    state.procedure_data.callstack:
-                continue_at = state.procedure_data.callstack[-1][0]
+                    state.callstack.top.procedure_data:
+                continue_at = state.callstack.top.procedure_data[0]
 
             path_wrapper = CFGJob(ip, state, self._context_sensitivity_level, None, None, call_stack=callstack,
                                   continue_at=continue_at,
@@ -1678,8 +1678,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         continue_at = None
         if self.project.is_hooked(target_addr) and \
                 self.project.hooked_by(target_addr).is_continuation and \
-                successor.procedure_data.callstack:
-            continue_at = successor.procedure_data.callstack[-1][0]  # TODO: Use a named tuple or a class in simuvex instead
+                successor.callstack.top.procedure_data:
+            continue_at = successor.callstack.top.procedure_data[0]  # TODO: Use a named tuple or a class in simuvex instead
         new_tpl = self._generate_block_id(new_call_stack_suffix, target_addr, suc_jumpkind.startswith('Ijk_Sys'),
                                             continue_at=continue_at
                                             )

@@ -13,17 +13,19 @@ class CallStack(SimStatePlugin):
     Stores the address of the function you're in and the value of SP
     at the VERY BOTTOM of the stack, i.e. points to the return address.
     """
-    def __init__(self, call_site_addr=0, func_addr=0, stack_ptr=0, ret_addr=0, jumpkind='Ijk_Call', next_frame=None, block_counter=None):
+    def __init__(self, call_site_addr=0, func_addr=0, stack_ptr=None, ret_addr=0, jumpkind='Ijk_Call', next_frame=None):
+        super(CallStack, self).__init__()
         self.state = None
         self.call_site_addr = call_site_addr
         self.func_addr = func_addr
         self.stack_ptr = stack_ptr
         self.ret_addr = ret_addr
         self.jumpkind = jumpkind
-
         self.next = next_frame
-        self.block_counter = collections.Counter() if block_counter is not None else block_counter
 
+        self.block_counter = collections.Counter()
+        self.procedure_data = None
+        self.locals = {}
 
     # deprecated as SHIT
     @property
@@ -43,17 +45,22 @@ class CallStack(SimStatePlugin):
     #
 
     def copy(self, with_tail=True):
-        return CallStack(
+        n = CallStack(
                 call_site_addr=self.call_site_addr,
                 func_addr=self.func_addr,
                 stack_ptr=self.stack_ptr,
                 ret_addr=self.ret_addr,
                 jumpkind=self.jumpkind,
-                next_frame=self.next if with_tail else None,
-                block_counter=collections.Counter(self.block_counter))
+                next_frame=self.next if with_tail else None)
+        n.block_counter = collections.Counter(self.block_counter)
+        n.procedure_data = self.procedure_data
+        n.locals = dict(self.locals)
+        return n
 
     def set_state(self, state):
         self.state = state
+        if self.stack_ptr is None:
+            self.stack_ptr = 2**(state.arch.bits) - 1
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         l.warning("Merging not implemented for callstacks!")

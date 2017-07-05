@@ -129,10 +129,10 @@ class SimProcedure(object):
 
             # handle if this is a continuation from a return
             if self.is_continuation:
-                if len(state.procedure_data.callstack) == 0:
-                    raise SimProcedureError("Tried to run simproc continuation with empty stack")
+                if state.callstack.top.procedure_data is None:
+                    raise SimProcedureError("Tried to return to a simprocedure in an inapplicable stack frame!")
 
-                continue_at, saved_sp, saved_local_vars = state.procedure_data.callstack.pop()
+                continue_at, saved_sp, saved_local_vars = state.callstack.top.procedure_data
                 run_func = getattr(self, continue_at)
                 state.regs.sp = saved_sp
                 for name, val in saved_local_vars:
@@ -316,8 +316,9 @@ class SimProcedure(object):
         saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
         simcallstack_entry = (continue_at, self.state.regs.sp, saved_local_vars)
         cc.setup_callsite(call_state, ret_addr, args)
-        call_state.procedure_data.callstack.append(simcallstack_entry)
+        call_state.callstack.top.procedure_data = simcallstack_entry
 
+        # TODO: Move this to setup_callsite?
         if call_state.libc.ppc64_abiv == 'ppc64_1':
             call_state.regs.r2 = self.state.mem[addr + 8:].long.resolved
             addr = call_state.mem[addr:].long.resolved
@@ -328,9 +329,10 @@ class SimProcedure(object):
         self.successors.add_successor(call_state, addr, call_state.se.true, 'Ijk_Call')
 
         if o.DO_RET_EMULATION in self.state.options:
+            # we need to set up the call because the continuation will try to tear it down
             ret_state = self.state.copy()
             cc.setup_callsite(ret_state, ret_addr, args)
-            ret_state.procedure_data.callstack.append(simcallstack_entry)
+            ret_state.callstack.top.procedure_data = simcallstack_entry
             guard = ret_state.se.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else ret_state.se.false
             self.successors.add_successor(ret_state, ret_addr, guard, 'Ijk_FakeRet')
 
