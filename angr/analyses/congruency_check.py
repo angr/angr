@@ -108,8 +108,8 @@ class CongruencyCheck(Analysis):
             self._throw = False
             l.debug("Validating incongruency.")
 
-            if ("UNICORN" in self.simgr.right[0].state.options) ^ ("UNICORN" in self.simgr.left[0].state.options):
-                if "UNICORN" in self.simgr.right[0].state.options:
+            if ("UNICORN" in self.simgr.right[0].options) ^ ("UNICORN" in self.simgr.left[0].options):
+                if "UNICORN" in self.simgr.right[0].options:
                     unicorn_stash = 'right'
                     normal_stash = 'left'
                 else:
@@ -119,11 +119,11 @@ class CongruencyCheck(Analysis):
                 unicorn_path = self.simgr.stashes[unicorn_stash][0]
                 normal_path = self.simgr.stashes[normal_stash][0]
 
-                if unicorn_path.state.arch.name in ("X86", "AMD64"):
+                if unicorn_path.arch.name in ("X86", "AMD64"):
                     # unicorn "falls behind" on loop and rep instructions, since
                     # it sees them as ending a basic block. Here, we will
                     # step the unicorn until it's caught up
-                    npg = self.project.factory.path_group(unicorn_path)
+                    npg = self.project.factory.simgr(unicorn_path)
                     npg.explore(find=lambda p: p.addr == normal_path.addr, n=200)
                     if len(npg.found) == 0:
                         l.debug("Validator failed to sync paths.")
@@ -133,7 +133,7 @@ class CongruencyCheck(Analysis):
                     delta = new_unicorn.history.weighted_depth - normal_path.history.weighted_depth
                     normal_path.extra_length += delta
                     new_normal = normal_path
-                elif unicorn_path.state.arch.name == "MIPS32":
+                elif unicorn_path.arch.name == "MIPS32":
                     # unicorn gets ahead here, because VEX falls behind for unknown reasons
                     # for example, this block:
                     #
@@ -146,7 +146,7 @@ class CongruencyCheck(Analysis):
                     # 0x1016f38:      sw      $gp, 0x10($sp)
                     # 0x1016f3c:      lw      $v0, -0x6cf0($gp)
                     # 0x1016f40:      move    $at, $at
-                    npg = self.project.factory.path_group(normal_path)
+                    npg = self.project.factory.simgr(normal_path)
                     npg.explore(find=lambda p: p.addr == unicorn_path.addr, n=200)
                     if len(npg.found) == 0:
                         l.debug("Validator failed to sync paths.")

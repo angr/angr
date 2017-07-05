@@ -37,37 +37,37 @@ def test_stops():
     s_normal.unicorn.max_steps = 100
     pg_normal = p.factory.simgr(s_normal).run()
     p_normal = pg_normal.one_deadended
-    _compare_trace(p_normal.trace, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_NORMAL after 100 steps) from 0x80484b6: 1 sat>', '<Unicorn (STOP_STOPPOINT after 8 steps) from 0x804844a: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>'])
+    _compare_trace(p_normal.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_NORMAL after 100 steps) from 0x80484b6: 1 sat>', '<Unicorn (STOP_STOPPOINT after 8 steps) from 0x804844a: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>'])
 
     s_normal_angr = p.factory.entry_state(args=['a'])
     pg_normal_angr = p.factory.simgr(s_normal_angr).run()
     p_normal_angr = pg_normal_angr.one_deadended
-    nose.tools.assert_equal(p_normal_angr.addr_trace.hardcopy, p_normal.addr_trace.hardcopy)
+    nose.tools.assert_equal(p_normal_angr.history.bbl_addrs.hardcopy, p_normal.history.bbl_addrs.hardcopy)
 
     # test STOP_SYMBOLIC
     s_symbolic = p.factory.entry_state(args=['a', 'a'], add_options=so.unicorn)
     pg_symbolic = p.factory.simgr(s_symbolic).run()
     p_symbolic = pg_symbolic.one_deadended
-    _compare_trace(p_symbolic.trace, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_SYMBOLIC_MEM after 3 steps) from 0x80484b6: 1 sat>', '<IRSB from 0x8048457: 1 sat 3 unsat>', '<IRSB from 0x804848c: 1 sat>', '<IRSB from 0x80484e8: 1 sat>', '<IRSB from 0x804850c: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>'])
+    _compare_trace(p_symbolic.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_SYMBOLIC_MEM after 3 steps) from 0x80484b6: 1 sat>', '<IRSB from 0x8048457: 1 sat 3 unsat>', '<IRSB from 0x804848c: 1 sat>', '<IRSB from 0x80484e8: 1 sat>', '<IRSB from 0x804850c: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>'])
 
     s_symbolic_angr = p.factory.entry_state(args=['a', 'a'])
     pg_symbolic_angr = p.factory.simgr(s_symbolic_angr).run()
     p_symbolic_angr = pg_symbolic_angr.one_deadended
-    nose.tools.assert_equal(p_symbolic_angr.addr_trace.hardcopy, p_symbolic.addr_trace.hardcopy)
+    nose.tools.assert_equal(p_symbolic_angr.history.bbl_addrs.hardcopy, p_symbolic.history.bbl_addrs.hardcopy)
 
     # test STOP_SEGFAULT
     s_segfault = p.factory.entry_state(args=['a', 'a', 'a', 'a', 'a', 'a', 'a'], add_options=so.unicorn | {so.STRICT_PAGE_ACCESS})
     pg_segfault = p.factory.simgr(s_segfault).run()
-    p_segfault = pg_segfault.one_errored
+    p_segfault = pg_segfault.errored[0].state
     # TODO: fix the permissions segfault to commit if it's a MEM_FETCH
     # this will extend the last simunicorn one more block
-    _compare_trace(p_segfault.trace, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_SEGFAULT after 3 steps) from 0x80484b6: 1 sat>', '<IRSB from 0x80484a6: 1 sat>'])
+    _compare_trace(p_segfault.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_SEGFAULT after 3 steps) from 0x80484b6: 1 sat>', '<IRSB from 0x80484a6: 1 sat>'])
 
     s_segfault_angr = p.factory.entry_state(args=['a', 'a', 'a', 'a', 'a', 'a', 'a'], add_options={so.STRICT_PAGE_ACCESS})
     pg_segfault_angr = p.factory.simgr(s_segfault_angr).run()
-    p_segfault_angr = pg_segfault_angr.one_errored
-    nose.tools.assert_equal(p_segfault_angr.addr_trace.hardcopy, p_segfault.addr_trace.hardcopy)
-    nose.tools.assert_equal(p_segfault_angr.error.addr, p_segfault.error.addr)
+    p_segfault_angr = pg_segfault_angr.errored[0].state
+    nose.tools.assert_equal(p_segfault_angr.history.bbl_addrs.hardcopy, p_segfault.history.bbl_addrs.hardcopy)
+    nose.tools.assert_equal(pg_segfault_angr.errored[0].error.addr, pg_segfault.errored[0].error.addr)
 
 def run_longinit(arch):
     p = angr.Project(os.path.join(test_location, 'binaries/tests/' + arch + '/longinit'))
@@ -92,7 +92,7 @@ def test_fauxware():
     pg = p.factory.simgr(s_unicorn)
     pg.explore()
 
-    assert all("Unicorn" in ''.join(p.trace.hardcopy) for p in pg.deadended)
+    assert all("Unicorn" in ''.join(p.history.descriptions.hardcopy) for p in pg.deadended)
     nose.tools.assert_equal(sorted(pg.mp_deadended.posix.dumps(1).mp_items), sorted((
         'Username: \nPassword: \nWelcome to the admin console, trusted user!\n',
         'Username: \nPassword: \nGo away!',
@@ -164,7 +164,7 @@ def test_unicorn_pickle():
 
     pg = p.factory.simgr(_uni_state())
     pg.one_active.options.update(so.unicorn)
-    pg.step(until=lambda lpg: "Unicorn" in lpg.one_active.history._runstr)
+    pg.step(until=lambda lpg: "Unicorn" in lpg.one_active.history.description)
     assert len(pg.active) > 0
 
     pgp = pickle.dumps(pg, -1)
@@ -184,14 +184,12 @@ def test_unicorn_pickle():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
     pg = p.factory.simgr(_uni_state())
     pg.step(n=2)
-    pg.one_active.step()
-    assert pg.one_active._run.sort == 'Unicorn'
+    assert p.factory.successors(pg.one_active).sort == 'Unicorn'
 
     pgp = pickle.dumps(pg, -1)
     del pg
     gc.collect()
     pg2 = pickle.loads(pgp)
-    assert pg2.one_active._run.sort == 'Unicorn'
     pg2.explore()
 
     nose.tools.assert_equal(sorted(pg2.mp_deadended.posix.dumps(1).mp_items), sorted((

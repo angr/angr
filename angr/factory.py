@@ -84,6 +84,9 @@ class AngrObjectFactory(object):
         # Peek and fix the IP for syscalls
         if r.successors and r.successors[0].history.jumpkind.startswith('Ijk_Sys'):
             self._fix_syscall_ip(r.successors[0])
+        # fix up the descriptions... TODO do something better than this
+        for succ in r.successors:
+            succ.history.description = str(r)
 
         return r
 

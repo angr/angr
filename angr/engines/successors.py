@@ -113,8 +113,7 @@ class SimSuccessors(object):
     # Successor management
     #
 
-    @staticmethod
-    def _preprocess_successor(state, add_guard=True): #pylint:disable=unused-argument
+    def _preprocess_successor(self, state, add_guard=True): #pylint:disable=unused-argument
         """
         Preprocesses the successor state.
 
