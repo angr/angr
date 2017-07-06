@@ -54,6 +54,11 @@ class SimStateHistory(SimStatePlugin):
 
         self.strongref_state = None
 
+    def __getstate__(self):
+        d = super(SimStateHistory, self).__getstate__()
+        d['strongref_state'] = None
+        return d
+
     def __repr__(self):
         addr = self.addr
         if addr is None:
@@ -89,6 +94,14 @@ class SimStateHistory(SimStatePlugin):
 
     def copy(self):
         return SimStateHistory(clone=self)
+
+    def trim(self):
+        """
+        Discard the ancestry of this state.
+        """
+        new_hist = self.copy()
+        new_hist.parent = None
+        self.state.register_plugin('history', new_hist)
 
     #def _record_state(self, state, strong_reference=True):
     #   else:
