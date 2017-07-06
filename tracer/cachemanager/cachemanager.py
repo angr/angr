@@ -22,7 +22,7 @@ class CacheManager(object):
     def _prepare_cache_data(self, simstate):
 
         if self.tracer.previous != None:
-            state = self.tracer.previous.state
+            state = self.tracer.previous
         else:
             state = None
 

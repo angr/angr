@@ -105,8 +105,6 @@ class Tracer(object):
         self.constrained_addrs = []
         # the final state after execution with input/pov_file
         self.final_state = None
-        # the path after execution with input/pov_file
-        self.path = None
 
         cm = LocalCacheManager(dump_cache=dump_cache) if GlobalCacheManager is None else GlobalCacheManager
         # cache managers need the tracer to be set for them
@@ -211,13 +209,13 @@ class Tracer(object):
         if self._dump_syscall:
             self._syscall = []
 
-        self.path_group = self._prepare_paths()
+        self.simgr = self._prepare_paths()
 
         # this is used to track constrained addresses
         self._address_concretization = []
 
         # init for pylint
-        self.prev_path_group = None
+        self.prev_simgr = None
 
 # EXPOSED
 
@@ -225,19 +223,20 @@ class Tracer(object):
         """
         windup the tracer to the next branch
 
-        :return: a path_group describing the possible paths at the next branch
+        :return: a simgr describing the possible paths at the next branch
                  branches which weren't taken by the dynamic trace are placed
                  into the 'missed' stash. Paths in the 'missed' stash still
                  have preconstraints which should be removed using the
                  remove_preconstraints method.
         """
-        while len(self.path_group.active) == 1:
-            current = self.path_group.active[0]
+        while len(self.simgr.active) == 1:
+            current = self.simgr.active[0]
+            project = self.simgr._project
 
             try:
-                if current.state.scratch.executed_block_count > 1:
+                if current.history.recent_block_count > 1:
                     # executed unicorn fix bb_cnt
-                    self.bb_cnt += current.state.scratch.executed_block_count - 1 - current.state.scratch.executed_syscall_count
+                    self.bb_cnt += current.history.recent_block_count - 1 - current.history.recent_syscall_count
             except AttributeError:
                 pass
 
@@ -246,7 +245,7 @@ class Tracer(object):
                 # expected behavor, the dynamic trace and symbolic trace hit
                 # the same basic block
                 if self.bb_cnt >= len(self.trace):
-                    return self.path_group
+                    return self.simgr
 
                 if current.addr == self.trace[self.bb_cnt]:
                     self.bb_cnt += 1
@@ -254,14 +253,14 @@ class Tracer(object):
                 # angr steps through the same basic block twice when a syscall
                 # occurs
                 elif current.addr == self.previous_addr or \
-                        self._p._simos.syscall_table.get_by_addr(self.previous_addr) is not None:
+                        project._simos.syscall_table.get_by_addr(self.previous_addr) is not None:
                     pass
-                elif current.jumpkind.startswith("Ijk_Sys"):
+                elif current.history.jumpkind.startswith("Ijk_Sys"):
                     self.bb_cnt += 1
 
                 # handle library calls and simprocedures
-                elif self._p.is_hooked(current.addr) or \
-                        self._p._simos.syscall_table.get_by_addr(current.addr) is not None \
+                elif project.is_hooked(current.addr) or \
+                        project._simos.syscall_table.get_by_addr(current.addr) is not None \
                         or not self._address_in_binary(current.addr):
 
                     # If dynamic trace is in the PLT stub, update bb_cnt until it's out
@@ -269,9 +268,8 @@ class Tracer(object):
                         self.bb_cnt += 1
 
                 # handle hooked functions
-                # we use current._project since it seems to be different than self._p
-                elif current._project.is_hooked(self.previous_addr) and self.previous_addr in self._hooks:
-                    l.debug("ending hook for %s", current._project.hooked_by(self.previous_addr))
+                elif project.is_hooked(self.previous_addr) and self.previous_addr in self._hooks:
+                    l.debug("ending hook for %s", project.hooked_by(self.previous_addr))
                     l.debug("previous addr %#x", self.previous_addr)
                     l.debug("bb_cnt %d", self.bb_cnt)
                     # we need step to the return
@@ -282,7 +280,7 @@ class Tracer(object):
                     self.bb_cnt += 1
                     l.debug("bb_cnt after the correction %d", self.bb_cnt)
                     if self.bb_cnt >= len(self.trace):
-                        return self.path_group
+                        return self.simgr
 
                 else:
                     l.error(
@@ -322,8 +320,8 @@ class Tracer(object):
             # this might still break for huge basic blocks with back loops
             # but it seems unlikely
             try:
-                bl = self._p.factory.block(self.trace[self.bb_cnt-1],
-                        backup_state=current.state)
+                bl = project.factory.block(self.trace[self.bb_cnt-1],
+                        backup_state=current)
                 back_targets = set(bl.vex.constant_jump_targets) & set(bl.instruction_addrs)
                 if self.bb_cnt < len(self.trace) and self.trace[self.bb_cnt] in back_targets:
                     target_to_jumpkind = bl.vex.constant_jump_targets_and_jumpkinds
@@ -334,26 +332,26 @@ class Tracer(object):
 
             # if we're not in crash mode we don't care about the history
             if self.trim_history and not self.crash_mode:
-                current.trim_history()
+                pass #current.history.trim()
 
-            self.prev_path_group = self.path_group
-            self.path_group = self.path_group.step(size=bbl_max_bytes)
+            self.prev_simgr = self.simgr
+            self.simgr = self.simgr.step(size=bbl_max_bytes)
 
             if self.crash_type == EXEC_STACK:
-                self.path_group = self.path_group.stash(from_stash='active',
+                self.simgr = self.simgr.stash(from_stash='active',
                         to_stash='crashed')
-                return self.path_group
+                return self.simgr
             # if our input was preconstrained we have to keep on the lookout
             # for unsat paths
             if self.preconstrain_input:
-                self.path_group = self.path_group.stash(from_stash='unsat',
+                self.simgr = self.simgr.stash(from_stash='unsat',
                                                         to_stash='active')
 
-            self.path_group = self.path_group.drop(stash='unsat')
+            self.simgr = self.simgr.drop(stash='unsat')
 
             # check to see if we reached a deadend
             if self.bb_cnt >= len(self.trace):
-                tpg = self.path_group.step()
+                tpg = self.simgr.step()
                 # if we're in crash mode let's populate the crashed stash
                 if self.crash_mode:
                     self.crash_type = QEMU_CRASH
@@ -363,46 +361,46 @@ class Tracer(object):
                 # the deadend
                 else:
                     if len(tpg.active) == 0:
-                        self.path_group = tpg
-                        return self.path_group
+                        self.simgr = tpg
+                        return self.simgr
 
         # if we stepped to a point where there are no active paths,
-        # return the path_group
-        if len(self.path_group.active) == 0:
+        # return the simgr
+        if len(self.simgr.active) == 0:
             # possibly we want to have different behaviour if we're in
             # crash mode
-            return self.path_group
+            return self.simgr
 
         # if we have to ditch the trace we use satisfiability
         # or if a split occurs in a library routine
-        a_paths = self.path_group.active
+        a_paths = self.simgr.active
 
         if self.no_follow or all(map(
                 lambda p: not self._address_in_binary(p.addr), a_paths
                 )):
-            self.path_group = self.path_group.prune(to_stash='missed')
+            self.simgr = self.simgr.prune(to_stash='missed')
         else:
             l.debug("bb %d / %d", self.bb_cnt, len(self.trace))
-            self.path_group = self.path_group.stash_not_addr(
+            self.simgr = self.simgr.stash_not_addr(
                                            self.trace[self.bb_cnt],
                                            to_stash='missed')
-        if len(self.path_group.active) > 1: # rarely we get two active paths
-            self.path_group = self.path_group.prune(to_stash='missed')
+        if len(self.simgr.active) > 1: # rarely we get two active paths
+            self.simgr = self.simgr.prune(to_stash='missed')
 
-        if len(self.path_group.active) > 1: # might still be two active
-            self.path_group = self.path_group.stash(
+        if len(self.simgr.active) > 1: # might still be two active
+            self.simgr = self.simgr.stash(
                     to_stash='missed',
                     filter_func=lambda x: x.jumpkind == "Ijk_EmWarn"
             )
 
         # make sure we only have one or zero active paths at this point
-        assert len(self.path_group.active) < 2
+        assert len(self.simgr.active) < 2
 
-        rpg = self.path_group
+        rpg = self.simgr
 
         # something weird... maybe we hit a rep instruction?
         # qemu and vex have slightly different behaviors...
-        if not self.path_group.active[0].state.se.satisfiable():
+        if not self.simgr.active[0].se.satisfiable():
             l.info("detected small discrepancy between qemu and angr, "
                     "attempting to fix known cases")
 
@@ -410,26 +408,26 @@ class Tracer(object):
             corrected = False
 
             # did our missed branch try to go back to a rep?
-            target = self.path_group.missed[0].addr
-            if self._p.arch.name == 'X86' or self._p.arch.name == 'AMD64':
+            target = self.simgr.missed[0].addr
+            if project.arch.name == 'X86' or project.arch.name == 'AMD64':
 
                 # does it looks like a rep? rep ret doesn't count!
-                if self._p.factory.block(target).bytes.startswith("\xf3") and \
-                   not self._p.factory.block(target).bytes.startswith("\xf3\xc3"):
+                if project.factory.block(target).bytes.startswith("\xf3") and \
+                   not project.factory.block(target).bytes.startswith("\xf3\xc3"):
 
                     l.info("rep discrepency detected, repairing...")
                     # swap the stashes
-                    s = self.path_group.move('missed', 'chosen')
+                    s = self.simgr.move('missed', 'chosen')
                     s = s.move('active', 'missed')
                     s = s.move('chosen', 'active')
-                    self.path_group = s
+                    self.simgr = s
 
                     corrected = True
 
             if not corrected:
                 l.warning("Unable to correct discrepancy between qemu and angr.")
 
-        self.path_group = self.path_group.drop(stash='missed')
+        self.simgr = self.simgr.drop(stash='missed')
 
         return rpg
 
@@ -495,11 +493,12 @@ class Tracer(object):
         branches = None
         while (branches is None or len(branches.active)) and self.bb_cnt < len(self.trace):
             branches = self.next_branch()
+            project = branches._project
 
             # if we spot a crashed path in crash mode return the goods
             if self.crash_mode and 'crashed' in branches.stashes:
                 if self.crash_type == EXEC_STACK:
-                    return self.path_group.crashed[0], self.crash_state
+                    return self.simgr.crashed[0], self.crash_state
                 elif self.crash_type == QEMU_CRASH:
                     last_block = self.trace[self.bb_cnt - 1]
                     l.info("crash occured in basic block %x", last_block)
@@ -515,61 +514,57 @@ class Tracer(object):
                 else:
                     self.constrained_addrs = constrained_addrs
 
-                bp1 = self.previous.state.inspect.b(
+                bp1 = self.previous.inspect.b(
                     'address_concretization',
                     angr.BP_BEFORE,
                     action=self._dont_add_constraints)
 
-                bp2 = self.previous.state.inspect.b(
+                bp2 = self.previous.inspect.b(
                     'address_concretization',
                     angr.BP_AFTER,
                     action=self._grab_concretization_results)
 
                 # step to the end of the crashing basic block,
-                # to capture its actions
-                self.previous.step()
+                # to capture its actions with those breakpoints
+                project.factory.successors(self.previous)
 
                 # Add the constraints from concretized addrs back
-                self.previous._run = None
                 for var, concrete_vals in self._address_concretization:
                     if len(concrete_vals) > 0:
                         l.debug("constraining addr to be %#x", concrete_vals[0])
-                        self.previous.state.add_constraints(var == concrete_vals[0])
+                        self.previous.add_constraints(var == concrete_vals[0])
 
                 # then we step again up to the crashing instruction
-                p_block = self._p.factory.block(self.previous.addr,
-                        backup_state=self.previous.state)
+                p_block = project.factory.block(self.previous.addr, backup_state=self.previous)
                 inst_cnt = len(p_block.instruction_addrs)
                 insts = 0 if inst_cnt == 0 else inst_cnt - 1
-                succs = self.previous.step(num_inst=insts)
+                succs = project.factory.successors(self.previous, num_inst=insts).flat_successors
                 if len(succs) > 0:
                     if len(succs) > 1:
-                        succs = [s for s in succs if s.state.se.satisfiable()]
+                        succs = [s for s in succs if s.se.satisfiable()]
                     self.previous = succs[0]
 
                 # remove the preconstraints
                 l.debug("removing preconstraints")
                 self.remove_preconstraints(self.previous)
-                self.previous._run = None
 
                 l.debug("reconstraining... ")
                 self.reconstrain(self.previous)
 
                 l.debug("final step...")
-                self.previous.step()
+                succs = project.factory.successors(self.previous)
 
                 # now remove our breakpoints since other people might not want them
-                self.previous.state.inspect.remove_breakpoint("address_concretization", bp1)
-                self.previous.state.inspect.remove_breakpoint("address_concretization", bp2)
+                self.previous.inspect.remove_breakpoint("address_concretization", bp1)
+                self.previous.inspect.remove_breakpoint("address_concretization", bp2)
 
-                successors = self.previous.next_run.successors
-                successors += self.previous.next_run.unconstrained_successors
+                successors = succs.flat_successors + succs.unconstrained_successors
                 state = successors[0]
 
                 l.debug("tracing done!")
                 self.final_state = state
-                self.path = self.previous
                 return (self.previous, state)
+        import ipdb; ipdb.set_trace()
 
         # this is a concrete trace, there should only be ONE path
         all_paths = branches.active + branches.deadended
@@ -579,10 +574,9 @@ class Tracer(object):
 
         # the caller is responsible for removing preconstraints
         self.final_state = None
-        self.path = all_paths[0]
         return all_paths[0], None
 
-    def remove_preconstraints(self, path, to_composite_solver=True, simplify=True):
+    def remove_preconstraints(self, state, to_composite_solver=True, simplify=True):
 
         if not (self.preconstrain_input or self.preconstrain_flag):
             return
@@ -594,44 +588,44 @@ class Tracer(object):
             precon_cache_keys.add(con.cache_key)
 
         # if we used the replacement solver we didn't add constraints we need to remove so keep all constraints
-        if so.REPLACEMENT_SOLVER in path.state.options:
-            new_constraints = path.state.se.constraints
+        if so.REPLACEMENT_SOLVER in state.options:
+            new_constraints = state.se.constraints
         else:
-            new_constraints = filter(lambda x: x.cache_key not in precon_cache_keys, path.state.se.constraints)
+            new_constraints = filter(lambda x: x.cache_key not in precon_cache_keys, state.se.constraints)
 
 
-        if path.state.has_plugin("zen_plugin"):
-            new_constraints = path.state.get_plugin("zen_plugin").filter_constraints(new_constraints)
+        if state.has_plugin("zen_plugin"):
+            new_constraints = state.get_plugin("zen_plugin").filter_constraints(new_constraints)
 
         if to_composite_solver:
-            path.state.options.discard(so.REPLACEMENT_SOLVER)
-            path.state.options.add(so.COMPOSITE_SOLVER)
-        path.state.release_plugin('solver_engine')
-        path.state.add_constraints(*new_constraints)
+            state.options.discard(so.REPLACEMENT_SOLVER)
+            state.options.add(so.COMPOSITE_SOLVER)
+        state.release_plugin('solver_engine')
+        state.add_constraints(*new_constraints)
         l.debug("downsizing unpreconstrained state")
-        path.state.downsize()
+        state.downsize()
         if simplify:
             l.debug("simplifying solver")
-            path.state.se.simplify()
+            state.se.simplify()
             l.debug("simplification done")
 
-        path.state.se._solver.result = None
+        state.se._solver.result = None
 
-    def reconstrain(self, path):
+    def reconstrain(self, state):
         '''
         re-apply preconstraints to improve solver time, hopefully these
         constraints still allow us to do meaningful things to state
         '''
 
         # test all solver splits
-        subsolvers = path.state.se._solver.split()
+        subsolvers = state.se._solver.split()
 
         for solver in subsolvers:
             solver.timeout = 1000 * 10  # 10 seconds
             if not solver.satisfiable():
                 for var in solver.variables:
                     if var in self.variable_map:
-                        path.state.add_constraints(self.variable_map[var])
+                        state.add_constraints(self.variable_map[var])
                     else:
                         l.warning("var %s not found in self.variable_map", var)
 
@@ -1025,7 +1019,7 @@ class Tracer(object):
             entry_state.inspect.b('syscall', when=angr.BP_BEFORE, action=self.syscall)
         entry_state.inspect.b('path_step', when=angr.BP_AFTER,
                 action=self.check_stack)
-        pg = project.factory.path_group(
+        pg = project.factory.simgr(
             entry_state,
             immutable=True,
             save_unsat=True,
@@ -1101,7 +1095,7 @@ class Tracer(object):
         entry_state.libc.buf_symbolic_bytes = 1024
         entry_state.libc.max_str_len = 1024
 
-        pg = project.factory.path_group(
+        pg = project.factory.simgr(
                 entry_state,
                 immutable=True,
                 save_unsat=True,
