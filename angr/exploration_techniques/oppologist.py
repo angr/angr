@@ -13,6 +13,8 @@ from .. import sim_options
 exc_list = (AngrError, SimError, claripy.ClaripyError, TypeError, ValueError, ArithmeticError, MemoryError)
 
 from . import ExplorationTechnique
+
+
 class Oppologist(ExplorationTechnique):
     """
     The Oppologist is an exploration technique that forces uncooperative code through qemu.
@@ -22,13 +24,13 @@ class Oppologist(ExplorationTechnique):
         ExplorationTechnique.__init__(self)
 
     @staticmethod
-    def _restore_path(old, new):
-        new.state.release_plugin('unicorn')
-        new.state.register_plugin('unicorn', old.state.unicorn.copy())
-        new.state.options = set(old.state.options)
+    def _restore_state(old, new):
+        new.release_plugin('unicorn')
+        new.register_plugin('unicorn', old.state.unicorn.copy())
+        new.options = set(old.state.options)
         return new
 
-    def _oppologize(self, p, pn, **kwargs):
+    def _oppologize(self, state, pn, **kwargs):
         l.debug("... pn: %s", pn)
 
         irsb = self.project.factory.block(pn.addr).vex
@@ -38,22 +40,22 @@ class Oppologist(ExplorationTechnique):
         else:
             stops = None
 
-        pn.state.options.add(sim_options.UNICORN)
-        pn.state.options.add(sim_options.UNICORN_AGGRESSIVE_CONCRETIZATION)
-        pn.state.unicorn.max_steps = 1
-        pn.state.unicorn.countdown_symbolic_registers = 0
-        pn.state.unicorn.countdown_symbolic_memory = 0
-        pn.state.unicorn.countdown_nonunicorn_blocks = 0
-        pn.step(extra_stop_points=stops, throw=True, **kwargs)
+        pn.options.add(sim_options.UNICORN)
+        pn.options.add(sim_options.UNICORN_AGGRESSIVE_CONCRETIZATION)
+        pn.unicorn.max_steps = 1
+        pn.unicorn.countdown_symbolic_registers = 0
+        pn.unicorn.countdown_symbolic_memory = 0
+        pn.unicorn.countdown_nonunicorn_blocks = 0
+        ss = self.project.factory.successors(pn, extra_stop_points=stops, throw=True, **kwargs)
 
-        fixup = functools.partial(self._restore_path, p)
+        fixup = functools.partial(self._restore_state, state)
 
-        l.debug("... successors: %s", pn.successors)
+        l.debug("... successors: %s", ss)
 
-        return {'active': map(fixup, [ pp for pp in pn.successors if not pp.errored ]),
-                'unconstrained': map(fixup, pn.unconstrained_successors),
-                'unsat': map(fixup, pn.unsat_successors),
-                'errored': map(fixup, [ pp for pp in pn.successors if pp.errored ]),
+        return {'active': map(fixup, [ s for s in ss.flat_successors if not s.errored ]),
+                'unconstrained': map(fixup, ss.unconstrained_successors),
+                'unsat': map(fixup, ss.unsat_successors),
+                'errored': map(fixup, [ s for s in ss if s.errored ]),
                 }
 
     @staticmethod
@@ -66,33 +68,40 @@ class Oppologist(ExplorationTechnique):
 
         return {stash: paths for stash, paths in all_results.iteritems()}
 
-    def _delayed_oppology(self, p, e, **kwargs):
+    def _delayed_oppology(self, state, e, **kwargs):
         try:
-            p.step(num_inst=e.executed_instruction_count, throw=True, **kwargs)
+            ss = self.project.factory.successors(state, num_inst=e.executed_instruction_count, throw=True, **kwargs)
         except Exception: #pylint:disable=broad-except
-            return {'errored': p.step(num_inst=e.executed_instruction_count, **kwargs)}
+            ss = self.project.factory.successors(state, num_inst=e.executed_instruction_count, **kwargs)
+            return {'errored': ss.all_successors}
 
-        need_oppologizing = [ pp for pp in p.successors if pp.addr == e.ins_addr ]
+        need_oppologizing = [ s for s in ss.flat_successors if s.addr == e.ins_addr ]
 
-        results = [{'active': [ pp for pp in p.successors if pp.addr != e.ins_addr ],
-                    'unconstrained': p.unconstrained_successors,
-                    'unsat': p.unsat_successors,
+        results = [{'active': [ s for s in ss.flat_successors if s.addr != e.ins_addr ],
+                    'unconstrained': ss.unconstrained_successors,
+                    'unsat': ss.unsat_successors,
                   }]
 
-        results += map(functools.partial(self._oppologize, p, **kwargs), need_oppologizing)
+        results += map(functools.partial(self._oppologize, state, **kwargs), need_oppologizing)
         return self._combine_results(*results)
 
-    def step_state(self, path, **kwargs):
+    def step_state(self, state, **kwargs):
         try:
-            path.step(throw=True, **kwargs)
-            return None
+            kwargs.pop('throw', None)
+            ss = self.project.factory.successors(state, throw=True, **kwargs)
+
+            return {'active': ss.flat_successors,
+                    'unconstrained': ss.unconstrained_successors,
+                    'unsat': ss.unsat_successors,
+                    'orig': state,
+                    }
         except (SimUnsupportedError, SimCCallError) as e:
-            l.debug("Errored on path %s after %d instructions", path, e.executed_instruction_count)
+            l.debug("Errored on path %s after %d instructions", state, e.executed_instruction_count)
             try:
                 if e.executed_instruction_count:
-                    return self._delayed_oppology(path, e, **kwargs)
+                    return self._delayed_oppology(state, e, **kwargs)
                 else:
-                    return self._oppologize(path, path.copy(), **kwargs)
+                    return self._oppologize(state, state.copy(), **kwargs)
             except exc_list: #pylint:disable=broad-except
                 l.error("Oppologizer hit an error.", exc_info=True)
                 return None
