@@ -89,7 +89,6 @@ class Identifier(Analysis):
             # skip if no predecessors
             try:
                 if require_predecessors and len(self._cfg.functions.callgraph.predecessors(f.addr)) == 0:
-                    #pylint disable=len-as-condition
                     continue
             except NetworkXError:
                 if require_predecessors:
@@ -314,37 +313,36 @@ class Identifier(Analysis):
             s.regs.bp = s.regs.sp + func_info.bp_sp_diff
         s.regs.ip = addr_trace[0]
         addr_trace = addr_trace[1:]
-        p = self.project.factory.path(s)
-        while len(addr_trace) > 0: #pylint disable=len-as-condition
-            p.step()
+        while len(addr_trace) > 0:
+            succ = self.project.factory.successors(s)
             stepped = False
-            for ss in p.successors:
+            for ss in succ.flat_successors:
                 # todo could write symbolic data to pointers passed to functions
-                if ss.jumpkind == "Ijk_Call":
-                    ss.state.regs.eax = ss.state.se.BVS("unconstrained_ret_%#x" % ss.addr, ss.state.arch.bits)
-                    ss.state.regs.ip = ss.state.stack_pop()
-                    ss.state.scratch.jumpkind = "Ijk_Ret"
+                if ss.history.jumpkind == "Ijk_Call":
+                    ss.regs.eax = ss.se.BVS("unconstrained_ret_%#x" % ss.addr, ss.arch.bits)
+                    ss.regs.ip = ss.stack_pop()
+                    ss.history.jumpkind = "Ijk_Ret"
                 if ss.addr == addr_trace[0]:
-                    p = ss
+                    s = ss
                     stepped = True
             if not stepped:
-                if len(p.unconstrained_successors) > 0: #pylint disable=len-as-condition
-                    p = p.unconstrained_successors[0]
-                    if p.jumpkind == "Ijk_Call":
-                        p.state.regs.eax = p.state.se.BVS("unconstrained_ret_%#x" % p.addr, p.state.arch.bits)
-                        p.state.regs.ip = p.state.stack_pop()
-                        p.state.scratch.jumpkind = "Ijk_Ret"
-                    p.state.regs.ip = addr_trace[0]
+                if len(succ.unconstrained_successors) > 0:
+                    s = succ.unconstrained_successors[0]
+                    if s.history.jumpkind == "Ijk_Call":
+                        s.regs.eax = s.se.BVS("unconstrained_ret_%#x" % s.addr, s.arch.bits)
+                        s.regs.ip = s.stack_pop()
+                        s.history.jumpkind = "Ijk_Ret"
+                    s.regs.ip = addr_trace[0]
                     stepped = True
             if not stepped:
                 raise IdentifierException("could not get call args")
             addr_trace = addr_trace[1:]
 
         # step one last time to the call
-        p.step()
-        if len(p.successors) == 0: #pylint disable=len-as-condition
+        succ = self.project.factory.succesors(s)
+        if len(succ.flat_successors) == 0:
             IdentifierException("Didn't succeed call")
-        return p.successors[0]
+        return succ.flat_successors[0]
 
     def get_call_args(self, func, callsite):
         if isinstance(func, (int, long)):
@@ -366,24 +364,23 @@ class Identifier(Analysis):
         # we need to step back as far as possible
         start = calling_func.get_node(callsite)
         addr_trace = []
-        while len(calling_func.transition_graph.predecessors(start)) == 1: #pylint disable=len-as-condition
+        while len(calling_func.transition_graph.predecessors(start)) == 1:
             # stop at a call, could continue farther if no stack addr passed etc
             prev_block = calling_func.transition_graph.predecessors(start)[0]
             addr_trace = [start.addr] + addr_trace
             start = prev_block
 
         addr_trace = [start.addr] + addr_trace
-        succ = None
-        while len(addr_trace): #pylint disable=len-as-condition
+        succ_state = None
+        while len(addr_trace):
             try:
-                succ = self.do_trace(addr_trace, reverse_accesses, calling_func_info)
+                succ_state = self.do_trace(addr_trace, reverse_accesses, calling_func_info)
                 break
             except IdentifierException:
                 addr_trace = addr_trace[1:]
-        if len(addr_trace) == 0: #pylint disable=len-as-condition
+        if len(addr_trace) == 0:
             return None
 
-        succ_state = succ.state
         arch_bytes = self.project.arch.bytes
         args = []
         for arg in func_info.stack_args:
@@ -481,52 +478,44 @@ class Identifier(Analysis):
             reg_dict[hash(initial_state.registers.load(r))] = r
 
         initial_state.regs.ip = func.startpoint.addr
-        initial_path = self.project.factory.path(initial_state)
 
         # find index where stack value is constant
-        initial_path.step()
-        succ = (initial_path.successors + initial_path.unconstrained_successors)[0]
+        succs = self.project.factory.successors(initial_state)
+        succ = succs.all_successors[0]
 
-        if succ.state.scratch.jumpkind == "Ijk_Call":
-            goal_sp = succ.state.se.any_int(succ.state.regs.sp + self.project.arch.bytes)
+        if succ.scratch.jumpkind == "Ijk_Call":
+            goal_sp = succ.se.any_int(succ.regs.sp + self.project.arch.bytes)
             # could be that this is wrong since we could be pushing args...
             # so let's do a hacky check for pushes after a sub
             bl = self.project.factory.block(func.startpoint.addr)
             # find the sub sp
             for i, insn in enumerate(bl.capstone.insns):
                 if str(insn.mnemonic) == "sub" and str(insn.op_str).startswith("esp"):
-                    initial_path = self.project.factory.path(initial_state)
-                    initial_path.step(num_inst=i+1)
-                    succ = (initial_path.successors + initial_path.unconstrained_successors)[0]
-                    goal_sp = succ.state.se.any_int(succ.state.regs.sp)
+                    succ = self.project.factory.successors(succ, num_inst=i+1).all_successors[0]
+                    goal_sp = succ.se.any_int(succ.regs.sp)
 
-        elif succ.state.scratch.jumpkind == "Ijk_Ret":
+        elif succ.scratch.jumpkind == "Ijk_Ret":
             # here we need to know the min sp val
             min_sp = initial_state.se.any_int(initial_state.regs.sp)
             for i in xrange(self.project.factory.block(func.startpoint.addr).instructions):
-                test_p = self.project.factory.path(initial_state)
-                test_p.step(num_inst=i)
-                succ = (test_p.successors + test_p.unconstrained_successors)[0]
-                test_sp = succ.state.se.any_int(succ.state.regs.sp)
+                succ = self.project.factory.successors(succ, num_inst=i).all_successors[0]
+                test_sp = succ.se.any_int(succ.regs.sp)
                 if test_sp < min_sp:
                     min_sp = test_sp
                 elif test_sp > min_sp:
                     break
             goal_sp = min_sp
         else:
-            goal_sp = succ.state.se.any_int(succ.state.regs.sp)
+            goal_sp = succ.se.any_int(succ.regs.sp)
 
         # find the end of the preamble
         num_preamble_inst = None
         succ = None
         for i in xrange(0, self.project.factory.block(func.startpoint.addr).instructions):
-            test_p = self.project.factory.path(initial_state)
-            if i == 0:
-                succ = test_p
-            else:
-                test_p.step(num_inst=i)
-                succ = (test_p.successors + test_p.unconstrained_successors)[0]
-            test_sp = succ.state.se.any_int(succ.state.regs.sp)
+            succ = initial_state
+            if i != 0:
+                succ = self.project.factory.successors(succ, num_inst=i).all_successors[0]
+            test_sp = succ.se.any_int(succ.regs.sp)
             if test_sp == goal_sp:
                 num_preamble_inst = i
                 break
@@ -539,9 +528,7 @@ class Identifier(Analysis):
             end_addr = func.startpoint.addr + self.project.factory.block(func.startpoint.addr, num_inst=num_preamble_inst).size
         if self._sets_ebp_from_esp(initial_state, end_addr):
             num_preamble_inst += 1
-            test_p = self.project.factory.path(initial_state)
-            test_p.step(num_inst=num_preamble_inst)
-            succ = (test_p.successors + test_p.unconstrained_successors)[0]
+            succ = self.project.factory.successors(initial_state, num_inst=num_preamble_inst).all_successors[0]
 
         min_sp = goal_sp
         initial_sp = initial_state.se.any_int(initial_state.regs.sp)
@@ -549,21 +536,21 @@ class Identifier(Analysis):
         if num_preamble_inst is None or succ is None:
             raise IdentifierException("preamble checks failed for %#x" % func.startpoint.addr)
 
-        bp_based = bool(len(succ.state.se.any_n_int((initial_path.state.regs.sp - succ.state.regs.bp), 2)) == 1)
+        bp_based = bool(len(succ.se.any_n_int((initial_state.regs.sp - succ.regs.bp), 2)) == 1)
 
-        preamble_sp_change = succ.state.regs.sp - initial_path.state.regs.sp
+        preamble_sp_change = succ.regs.sp - initial_state.regs.sp
         if preamble_sp_change.symbolic:
             raise IdentifierException("preamble sp change")
-        preamble_sp_change = initial_path.state.se.any_int(preamble_sp_change)
+        preamble_sp_change = initial_state.se.any_int(preamble_sp_change)
 
-        main_state = self._make_regs_symbolic(succ.state, self._reg_list, self.project)
+        main_state = self._make_regs_symbolic(succ, self._reg_list, self.project)
         if bp_based:
             main_state = self._make_regs_symbolic(main_state, [self._bp_reg], self.project)
 
         pushed_regs = []
-        for a in succ.last_actions:
+        for a in succ.history.recent_actions:
             if a.type == "mem" and a.action == "write":
-                addr = succ.state.se.any_int(a.addr.ast)
+                addr = succ.se.any_int(a.addr.ast)
                 if min_sp <= addr <= initial_sp:
                     if hash(a.data.ast) in reg_dict:
                         pushed_regs.append(reg_dict[hash(a.data.ast)])
@@ -586,9 +573,7 @@ class Identifier(Analysis):
                 addr = end_preamble
             if self.project.factory.block(addr).vex.jumpkind == "Ijk_Ret":
                 main_state.ip = addr
-                test_p = self.project.factory.path(main_state)
-                test_p.step()
-                for a in (test_p.successors + test_p.unconstrained_successors)[0].last_actions:
+                for a in self.project.factory.successors(main_state).all_successors[0].history.recent_actions:
                     if a.type == "reg" and a.action == "write":
                         if self.get_reg_name(self.project.arch, a.offset) == self._sp_reg:
                             ends.add(a.ins_addr)
@@ -622,13 +607,11 @@ class Identifier(Analysis):
             if self._no_sp_or_bp(bl):
                 continue
             main_state.ip = addr
-            test_p = self.project.factory.path(main_state)
-            test_p.step(num_inst=1)
-            succ = (test_p.successors + test_p.unconstrained_successors)[0]
+            succ = self.project.factory.successors(main_state, num_inst=1).all_successors[0]
 
             written_regs = set()
             # we can get stack variables via memory actions
-            for a in succ.last_actions:
+            for a in succ.history.recent_actions:
                 if a.type == "mem":
                     if "sym_sp" in a.addr.ast.variables or (bp_based and "sym_bp" in a.addr.ast.variables):
                         possible_stack_vars.append((addr, a.addr.ast, a.action))
@@ -649,13 +632,13 @@ class Identifier(Analysis):
         for addr, ast, action in possible_stack_vars:
             if "sym_sp" in ast.variables:
                 # constrain all to be zero so we detect the base address of buffers
-                simplified = succ.state.se.simplify(ast - sp)
-                if succ.state.se.symbolic(simplified):
-                    self.constrain_all_zero(test_p.state, succ.state, self._reg_list)
+                simplified = succ.se.simplify(ast - sp)
+                if succ.se.symbolic(simplified):
+                    self.constrain_all_zero(main_state, succ, self._reg_list)
                     is_buffer = True
                 else:
                     is_buffer = False
-                sp_off = succ.state.se.any_int(simplified)
+                sp_off = succ.se.any_int(simplified)
                 if sp_off > 2 ** (self.project.arch.bits - 1):
                     sp_off = 2 ** self.project.arch.bits - sp_off
 
@@ -671,13 +654,13 @@ class Identifier(Analysis):
                 if is_buffer:
                     buffers.add(bp_off)
             else:
-                simplified = succ.state.se.simplify(ast - bp)
-                if succ.state.se.symbolic(simplified):
-                    self.constrain_all_zero(test_p.state, succ.state, self._reg_list)
+                simplified = succ.se.simplify(ast - bp)
+                if succ.se.symbolic(simplified):
+                    self.constrain_all_zero(main_state, succ, self._reg_list)
                     is_buffer = True
                 else:
                     is_buffer = False
-                bp_off = succ.state.se.any_int(simplified)
+                bp_off = succ.se.any_int(simplified)
                 if bp_off > 2 ** (self.project.arch.bits - 1):
                     bp_off = -(2 ** self.project.arch.bits - bp_off)
                 stack_var_accesses[bp_off].add((addr, action))
@@ -696,7 +679,6 @@ class Identifier(Analysis):
         stack_vars = sorted(stack_vars)
 
         if len(stack_args) > 0 and any(a[1] == "load" for a in stack_arg_accesses[stack_args[-1]]):
-            #pylint disable=len-as-condition
             # print "DETECTED VAR_ARGS"
             var_args = True
             del stack_arg_accesses[stack_args[-1]]
@@ -734,16 +716,14 @@ class Identifier(Analysis):
         state = state.copy()
         state.regs.ip = addr
         state.regs.sp = state.se.BVS("sym_sp", 32, explicit_name=True)
-        p = self.project.factory.path(state)
-        p.step()
-        succ = (p.successors + p.unconstrained_successors)[0]
+        succ = self.project.factory.successors(state).all_successors[0]
 
-        diff = state.regs.sp - succ.state.regs.bp
+        diff = state.regs.sp - succ.regs.bp
         if not diff.symbolic:
             return True
         if len(diff.variables) > 1 or any("ebp" in v for v in diff.variables):
             return False
-        if len(succ.state.se.any_n_int((state.regs.sp - succ.state.regs.bp), 2)) == 1:
+        if len(succ.se.any_n_int((state.regs.sp - succ.regs.bp), 2)) == 1:
             return True
         return False
 
