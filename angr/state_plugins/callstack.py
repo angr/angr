@@ -13,7 +13,7 @@ class CallStack(SimStatePlugin):
     Stores the address of the function you're in and the value of SP
     at the VERY BOTTOM of the stack, i.e. points to the return address.
     """
-    def __init__(self, call_site_addr=0, func_addr=0, stack_ptr=None, ret_addr=0, jumpkind='Ijk_Call', next_frame=None):
+    def __init__(self, call_site_addr=0, func_addr=0, stack_ptr=0, ret_addr=0, jumpkind='Ijk_Call', next_frame=None):
         super(CallStack, self).__init__()
         self.state = None
         self.call_site_addr = call_site_addr
@@ -59,7 +59,8 @@ class CallStack(SimStatePlugin):
 
     def set_state(self, state):
         self.state = state
-        if self.stack_ptr is None:
+        # make the stack pointer as large as possible as soon as we know how large that actually is
+        if self.stack_ptr == 0:
             self.stack_ptr = 2**(state.arch.bits) - 1
 
     def merge(self, others, merge_conditions, common_ancestor=None):

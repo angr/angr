@@ -19,6 +19,7 @@ event_types = {
     'exit',
     'symbolic_variable',
     'call',
+    'return',
     'simprocedure',
     'syscall',
     'path_step',
@@ -55,7 +56,7 @@ inspect_attributes = {
     'instruction',
     'address',
     'added_constraints',
-    'function_name',
+    'function_address',
 
     'exit_target',
     'exit_guard',

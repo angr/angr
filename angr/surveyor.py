@@ -308,10 +308,13 @@ class Surveyor(object):
                     self.pruned.append(state)
                 self._hierarchy.unreachable_state(state)
                 self._hierarchy.simplify()
+                continue
             except (AngrError, SimError, claripy.ClaripyError) as e:
                 self.errored.append(ErroredState(state, e, sys.exc_info()[2]))
+                continue
             except (TypeError, ValueError, ArithmeticError, MemoryError) as e:
                 self.errored.append(ErroredState(state, e, sys.exc_info()[2]))
+                continue
 
             if not all_successors.flat_successors and not all_successors.unconstrained_successors:
                 l.debug("State %s has deadended.", state)
