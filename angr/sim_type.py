@@ -771,40 +771,15 @@ def register_types(mapping):
 
 def do_preprocess(defn):
     """
-    Run a string through the C preprocessor installed on your system
+    Run a string through the C preprocessor that ships with pycparser but is weirdly inaccessable?
     """
-    tf = tempfile.NamedTemporaryFile(delete=False)
-    tf.write(defn)
-    tf.close()
-
-    cpplist = ['cl', 'cpp']
-    cpp = os.getenv("CPP")
-    if cpp:
-        cpplist.insert(0, cpp)
-    errs = []
-    for cpp in cpplist:
-        cmd = [cpp, tf.name]
-        if cpp == 'cl':
-            cmd.append("-E")
-        try:
-            p = subprocess.Popen(cmd,
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
-            defn, error = p.communicate()
-            if p.returncode != 0 or error:
-                errs.append((" ".join(cmd), error))
-                continue
-            else:
-                break
-        except OSError:
-            continue
-    else:
-        l.error("Unable to preprocess struct (tried running: %s)", ", ".join(e[0] for e in errs))
-
-    os.remove(tf.name)
-
-    defn = '\n'.join(x for x in defn.replace('\r\n', '\n').split('\n') if not x.startswith('#line'))
-    return defn
+    import pycparser.ply.lex as lex
+    import pycparser.ply.cpp as cpp
+    lexer = lex.lex(cpp)
+    p = cpp.Preprocessor(lexer)
+    # p.add_path(dir) will add dir to the include search path
+    p.parse(defn)
+    return ''.join(tok.value for tok in p.parser if tok.type not in p.ignore)
 
 def parse_defns(defn, preprocess=True):
     """
