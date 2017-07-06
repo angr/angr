@@ -491,6 +491,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
         merged = self.copy()
         merging_occurred = False
 
+        # fix parent
+        merged.history.parent = self.history
+
         # plugins
         for p in all_plugins:
             our_plugin = merged.plugins[p] if p in merged.plugins else None
