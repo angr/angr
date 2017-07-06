@@ -193,8 +193,8 @@ class Slicecutor(Surveyor):
             return self._project.factory.successors(state, whitelist=state._whitelist)
 
     def path_comparator(self, a, b):
-        if a.weighted_length != b.weighted_length:
-            return b.weighted_length - a.weighted_length
+        if a.history.weighted_depth != b.history.weighted_depth:
+            return b.history.weighted_depth - a.history.weighted_depth
         a_len = a.history.bbl_addrs.hardcopy.count(a.history.bbl_addrs[-1])
         b_len = b.history.bbl_addrs.hardcopy.count(b.history.bbl_addrs[-1])
         return a_len - b_len
