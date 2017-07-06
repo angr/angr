@@ -573,7 +573,6 @@ class SimulationManager(ana.Storable):
             self._apply_filter_hooks(state,pg.stashes,new_active)
         pg.stashes[stash] = new_active
 
-
         for i in range(n):
             l.debug("Round %d: stepping %s", i, pg)
 

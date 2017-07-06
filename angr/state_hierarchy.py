@@ -7,6 +7,7 @@ import claripy
 
 l = logging.getLogger("angr.state_hierarchy")
 
+
 class StateHierarchy(object):
     def __init__(self):
 
