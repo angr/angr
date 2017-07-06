@@ -58,11 +58,11 @@ class printf(Func):
         test_output = [None]
         test = TestData(test_input, test_output, None, max_steps)
         s = runner.get_base_call_state(func, test)
-        pg = runner.project.factory.path_group(s)
+        pg = runner.project.factory.simgr(s)
         pg.step(18)
         interesting_chars = set()
         for p in pg.active:
-            for g in p.guards:
+            for g in p.history.jump_guards:
                 if g.op == "__ne__" or g.op == "__eq__":
                     for a in g.args:
                         if not a.symbolic:

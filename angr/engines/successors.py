@@ -99,6 +99,8 @@ class SimSuccessors(object):
         state.scratch.target = state._inspect_getattr("exit_target", target)
         state.scratch.guard = state._inspect_getattr("exit_guard", guard)
         state.history.jumpkind = state._inspect_getattr("exit_jumpkind", jumpkind)
+        state.history.jump_target = state.scratch.target
+        state.history.jump_guard = state.scratch.guard
 
         # track some vex-specific stuff here for now
         state.scratch.source = source if source is not None else self.addr

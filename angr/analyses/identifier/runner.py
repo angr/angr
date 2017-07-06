@@ -74,7 +74,7 @@ class Runner(object):
             entry_state.unicorn.cooldown_nonunicorn_blocks = 1
             entry_state.unicorn.max_steps = 10000
 
-            pg = self.project.factory.path_group(entry_state)
+            pg = self.project.factory.simgr(entry_state)
             num_steps = 0
             while len(pg.active) > 0:
                 syscall = self.project._simos.syscall_table.get_by_addr(pg.one_active.addr)
@@ -84,7 +84,7 @@ class Runner(object):
 
                 if len(pg.active) > 1:
                     pp = pg.one_active
-                    pg = self.project.factory.path_group(pp)
+                    pg = self.project.factory.simgr(pp)
                 pg.step()
                 num_steps += 1
                 if num_steps > 50:
@@ -96,7 +96,7 @@ class Runner(object):
             else:
                 return self.project.factory.entry_state()
             out_state.scratch.clear()
-            out_state.scratch.jumpkind = "Ijk_Boring"
+            out_state.history.jumpkind = "Ijk_Boring"
             return out_state
         except SimError as e:
             l.warning("SimError in get recv state %s", e.message)

@@ -483,7 +483,7 @@ class Identifier(Analysis):
         succs = self.project.factory.successors(initial_state)
         succ = succs.all_successors[0]
 
-        if succ.scratch.jumpkind == "Ijk_Call":
+        if succ.history.jumpkind == "Ijk_Call":
             goal_sp = succ.se.any_int(succ.regs.sp + self.project.arch.bytes)
             # could be that this is wrong since we could be pushing args...
             # so let's do a hacky check for pushes after a sub
@@ -494,7 +494,7 @@ class Identifier(Analysis):
                     succ = self.project.factory.successors(succ, num_inst=i+1).all_successors[0]
                     goal_sp = succ.se.any_int(succ.regs.sp)
 
-        elif succ.scratch.jumpkind == "Ijk_Ret":
+        elif succ.history.jumpkind == "Ijk_Ret":
             # here we need to know the min sp val
             min_sp = initial_state.se.any_int(initial_state.regs.sp)
             for i in xrange(self.project.factory.block(func.startpoint.addr).instructions):
@@ -514,7 +514,7 @@ class Identifier(Analysis):
         for i in xrange(0, self.project.factory.block(func.startpoint.addr).instructions):
             succ = initial_state
             if i != 0:
-                succ = self.project.factory.successors(succ, num_inst=i).all_successors[0]
+                succ = self.project.factory.successors(succ, num_inst=i+1).all_successors[0]
             test_sp = succ.se.any_int(succ.regs.sp)
             if test_sp == goal_sp:
                 num_preamble_inst = i
