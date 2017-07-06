@@ -3,10 +3,10 @@ import logging
 
 import claripy
 
-l = logging.getLogger("angr.state_plugins.history")
-
 from .plugin import SimStatePlugin
 from .. import sim_options
+
+l = logging.getLogger("angr.state_plugins.history")
 
 
 class SimStateHistory(SimStatePlugin):
@@ -53,6 +53,15 @@ class SimStateHistory(SimStatePlugin):
         self._satisfiable = None
 
         self.strongref_state = None
+
+    def __repr__(self):
+        addr = self.addr
+        if addr is None:
+            addr_str = "Unknown"
+        else:
+            addr_str = "%#x" % addr
+
+        return "<StateHistory @ %s>" % addr_str
 
     def set_strongref_state(self, state):
         if sim_options.EFFICIENT_STATE_MERGING in state.options:
