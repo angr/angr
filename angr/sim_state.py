@@ -132,6 +132,14 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def _get_strongref(self):
         return self
 
+    def __repr__(self):
+        try:
+            ip_str = "%#x" % self.addr
+        except (SimValueError, SimSolverModeError):
+            ip_str = repr(self.regs.ip)
+
+        return "<SimState @ %s>" % ip_str
+
     #
     # Some temporary backwards compatibility
     #
@@ -145,6 +153,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         l.critical("DEPRECATION WARNING: SimState.BVV() has been deprecated and will soon be removed. Please use state.se.BVV().")
         print "DEPRECATION WARNING: SimState.BVV() has been deprecated and will soon be removed. Please use state.se.BVV()."
         return self.se.BVV(value, size=self.arch.bits if size is None and not isinstance(value, str) else size)
+
     #
     # Easier access to some properties
     #
@@ -772,7 +781,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 from .state_plugins.symbolic_memory import SimSymbolicMemory
 from .state_plugins.fast_memory import SimFastMemory
 from .state_plugins.abstract_memory import SimAbstractMemory
-from .errors import SimMergeError, SimValueError, SimStateError
+from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError
 from .state_plugins.inspect import BP_AFTER, BP_BEFORE
 from .state_plugins.sim_action import SimActionConstraint
 from . import sim_options as o
