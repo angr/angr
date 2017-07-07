@@ -101,13 +101,16 @@ class SimEngineUnicorn(SimEngine):
             successors.initial_state.unicorn.countdown_nonunicorn_blocks = state.unicorn.countdown_nonunicorn_blocks
             return
 
+        description = 'Unicorn (%s after %d steps)' % (STOP.name_stop(state.unicorn.stop_reason), state.unicorn.steps)
+
         state.history.recent_block_count += state.unicorn.steps
+        state.history.description = description
 
         if state.unicorn.jumpkind.startswith('Ijk_Sys'):
             state.ip = state.unicorn._syscall_pc
         successors.add_successor(state, state.ip, state.se.true, state.unicorn.jumpkind)
 
-        successors.description = 'Unicorn (%s after %d steps)' % (STOP.name_stop(state.unicorn.stop_reason), state.unicorn.steps)
+        successors.description = description
         successors.processed = True
 
     @staticmethod
