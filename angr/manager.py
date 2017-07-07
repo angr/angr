@@ -698,10 +698,27 @@ class SimulationManager(ana.Storable):
         else:
             optimal, common_history, others = states, None, [ ]
 
-        if len(optimal) < 2:
-            raise SimulationManagerError("unable to find merge candidates")
-        o = optimal.pop()
-        m, _, _ = o.merge(*optimal, common_ancestor=common_history.strongref_state)
+        if len(optimal) >= 2:
+            # We found optimal states (states that share a common ancestor) to merge
+
+            # compute constraints for each state starting from the common ancestor, and use them as merge conditions
+            constraints = [ s.history.constraints_since(common_history) for s in optimal ]
+
+            o = optimal.pop()
+            m, _, _ = o.merge(*optimal,
+                              merge_conditions=constraints,
+                              common_ancestor=common_history.strongref_state
+                              )
+
+        else:
+            l.warning("Cannot find states with common history line to merge. Fall back to the naive merging strategy"
+                      "and merge all states."
+                      )
+            s = states[0]
+            m, _, _ = s.merge(*states[1:])
+
+            others = [ ]
+
         if self._hierarchy:
             self._hierarchy.add_state(m)
 

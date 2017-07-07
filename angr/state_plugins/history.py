@@ -53,7 +53,7 @@ class SimStateHistory(SimStatePlugin):
         self._all_constraints = ()
         self._satisfiable = None
 
-        self.strongref_state = None
+        self.strongref_state = None if clone is None else clone.strongref_state
 
     def __getstate__(self):
         d = super(SimStateHistory, self).__getstate__()

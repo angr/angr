@@ -288,12 +288,10 @@ class SimSolver(SimStatePlugin):
 
     @error_converter
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=W0613
-        #import ipdb; ipdb.set_trace()
         merging_occurred, self._stored_solver = self._solver.merge(
             [ oc._solver for oc in others ], merge_conditions,
-            # common_ancestor=common_ancestor._solver if common_ancestor is not None else None
+            common_ancestor=common_ancestor._solver if common_ancestor is not None else None
         )
-        #import ipdb; ipdb.set_trace()
         return merging_occurred
 
     @error_converter
