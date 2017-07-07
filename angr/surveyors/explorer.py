@@ -7,7 +7,7 @@ import logging
 from .. import SimProcedure
 from ..errors import SimMemoryError, SimEngineError
 
-from ..surveyor import Surveyor
+from .surveyor import Surveyor
 
 l = logging.getLogger("angr.surveyors.explorer")
 

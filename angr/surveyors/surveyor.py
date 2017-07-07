@@ -8,7 +8,7 @@ import functools
 import claripy
 import sys
 
-from .sim_state import SimState
+from ..sim_state import SimState
 
 l = logging.getLogger("angr.surveyor")
 
@@ -513,7 +513,7 @@ class Surveyor(object):
         state.downsize()
         return state
 
-from .errors import AngrError, PathUnreachableError, SimUnsatError, SimError
-from .state_hierarchy import StateHierarchy
-from .surveyors import all_surveyors
-from .manager import ErroredState
+from ..errors import AngrError, PathUnreachableError, SimUnsatError, SimError
+from ..state_hierarchy import StateHierarchy
+from . import all_surveyors
+from ..manager import ErroredState

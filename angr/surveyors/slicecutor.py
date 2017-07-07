@@ -3,7 +3,7 @@
 import logging
 l = logging.getLogger("angr.surveyors.slicecutor")
 
-from ..surveyor import Surveyor
+from .surveyor import Surveyor
 from ..errors import AngrExitError
 
 from collections import defaultdict

@@ -708,6 +708,6 @@ from .factory import AngrObjectFactory
 from .simos import SimOS, os_mapping
 from .extern_obj import AngrExternObject
 from .analyses.analysis import Analyses
-from .surveyor import Surveyors
+from .surveyors import Surveyors
 from .knowledge_base import KnowledgeBase
 from .engines import SimEngineFailure, SimEngineSyscall, SimEngineHook

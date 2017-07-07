@@ -1,5 +1,6 @@
 all_surveyors = { }
 
+from .surveyor import Surveyor, Surveyors
 from .explorer import Explorer
 from .executor import Executor
 from .escaper import Escaper
