@@ -346,10 +346,10 @@ class Surveyor(object):
                         successors = self._tick_path(state, successors=succ_list)
 
                     else:
-                        successors = self.tick_path(state, successors=all_successors)
+                        successors = self.tick_path(state, successors=all_successors.flat_successors)
 
                 else:
-                    successors = self.tick_path(state, successors=all_successors)
+                    successors = self.tick_path(state, successors=all_successors.flat_successors)
                 new_active.extend(successors)
 
             if len(all_successors.unconstrained_successors) > 0:
@@ -363,18 +363,17 @@ class Surveyor(object):
 
     def _tick_path(self, state, successors=None):
         if successors is None:
-            successors = self._step_path(state)
-        flat_successors = successors.flat_successors
+            successors = self._step_path(state).flat_successors
 
         l.debug("Ticking state %s", state)
-        for s in flat_successors:
+        for s in successors:
             self._hierarchy.add_state(s)
         self._hierarchy.simplify()
 
-        l.debug("... state %s has produced %d successors.", state, len(flat_successors))
-        l.debug("... addresses: %s", ["%#x" % s.addr for s in flat_successors])
-        filtered_successors = self.filter_paths(flat_successors)
-        l.debug("Remaining: %d successors out of %d", len(filtered_successors), len(flat_successors))
+        l.debug("... state %s has produced %d successors.", state, len(successors))
+        l.debug("... addresses: %s", ["%#x" % s.addr for s in successors])
+        filtered_successors = self.filter_paths(successors)
+        l.debug("Remaining: %d successors out of %d", len(filtered_successors), len(successors))
 
         # track the path ID for visualization
         # TODO: what on earth do we do about this
