@@ -11,7 +11,7 @@ class LengthLimiter(ExplorationTechnique):
         self._drop = drop
 
     def _filter(self, s):
-        return s.history.weighted_depth > self._max_length
+        return s.history.block_count > self._max_length
 
     def step(self, pg, stash, **kwargs):
         pg = pg.step(stash=stash, **kwargs)

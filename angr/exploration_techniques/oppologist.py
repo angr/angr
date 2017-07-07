@@ -26,8 +26,8 @@ class Oppologist(ExplorationTechnique):
     @staticmethod
     def _restore_state(old, new):
         new.release_plugin('unicorn')
-        new.register_plugin('unicorn', old.state.unicorn.copy())
-        new.options = set(old.state.options)
+        new.register_plugin('unicorn', old.unicorn.copy())
+        new.options = set(old.options)
         return new
 
     def _oppologize(self, state, pn, **kwargs):
@@ -52,10 +52,9 @@ class Oppologist(ExplorationTechnique):
 
         l.debug("... successors: %s", ss)
 
-        return {'active': map(fixup, [ s for s in ss.flat_successors if not s.errored ]),
+        return {'active': map(fixup, [ s for s in ss.flat_successors ]),
                 'unconstrained': map(fixup, ss.unconstrained_successors),
                 'unsat': map(fixup, ss.unsat_successors),
-                'errored': map(fixup, [ s for s in ss if s.errored ]),
                 }
 
     @staticmethod

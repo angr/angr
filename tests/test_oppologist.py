@@ -44,7 +44,7 @@ def test_cromu_70():
     pg = p.factory.simgr(s)
     pg.use_technique(angr.exploration_techniques.Oppologist())
     pg.explore()
-    assert pg.one_deadended.weighted_length > 1500
+    assert pg.one_deadended.history.block_count > 1500
 
 
 if __name__ == '__main__':

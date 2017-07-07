@@ -60,8 +60,8 @@ class CongruencyCheck(Analysis):
         l.debug("Sync-stepping pathgroup...")
         l.debug(
             "... left width: %s, right width: %s",
-            simgr.left[0].history.weighted_depth if len(simgr.left) > 0 else None,
-            simgr.right[0].history.weighted_depth if len(simgr.right) > 0 else None,
+            simgr.left[0].history.block_count if len(simgr.left) > 0 else None,
+            simgr.right[0].history.block_count if len(simgr.right) > 0 else None,
         )
 
         if len(simgr.errored) != 0 and (len(simgr.left) == 0 or len(simgr.right) == 0):
@@ -76,21 +76,21 @@ class CongruencyCheck(Analysis):
         elif len(simgr.right) == 0 and len(simgr.left) == 0:
             l.debug("... both deadended.")
             return simgr
-        elif simgr.left[0].history.weighted_depth == simgr.right[0].history.weighted_depth:
+        elif simgr.left[0].history.block_count == simgr.right[0].history.block_count:
             l.debug("... synced")
             return simgr
-        elif simgr.left[0].history.weighted_depth < simgr.right[0].history.weighted_depth:
+        elif simgr.left[0].history.block_count < simgr.right[0].history.block_count:
             l.debug("... right is ahead; stepping left up to %s times", max_steps)
             npg = simgr.step(
                 stash='left',
-                until=lambda lpg: lpg.left[0].history.weighted_depth >= simgr.right[0].history.weighted_depth,
+                until=lambda lpg: lpg.left[0].history.block_count >= simgr.right[0].history.block_count,
                 n=max_steps
             )
-        elif simgr.right[0].history.weighted_depth < simgr.left[0].history.weighted_depth:
+        elif simgr.right[0].history.block_count < simgr.left[0].history.block_count:
             l.debug("... left is ahead; stepping right up to %s times", max_steps)
             npg = simgr.step(
                 stash='right',
-                until=lambda lpg: lpg.right[0].history.weighted_depth >= simgr.left[0].history.weighted_depth,
+                until=lambda lpg: lpg.right[0].history.block_count >= simgr.left[0].history.block_count,
                 n=max_steps
             )
 
@@ -130,7 +130,7 @@ class CongruencyCheck(Analysis):
                         return True
 
                     new_unicorn = npg.found[0]
-                    delta = new_unicorn.history.weighted_depth - normal_path.history.weighted_depth
+                    delta = new_unicorn.history.block_count - normal_path.history.block_count
                     normal_path.extra_length += delta
                     new_normal = normal_path
                 elif unicorn_path.arch.name == "MIPS32":
@@ -153,7 +153,7 @@ class CongruencyCheck(Analysis):
                         return True
 
                     new_normal = npg.found[0]
-                    delta = new_normal.history.weighted_depth - unicorn_path.history.weighted_depth
+                    delta = new_normal.history.block_count - unicorn_path.history.block_count
                     unicorn_path.extra_length += delta
                     new_unicorn = unicorn_path
                 else:
@@ -206,7 +206,7 @@ class CongruencyCheck(Analysis):
 
         while len(self.simgr.left) > 0 and len(self.simgr.right) > 0:
             if depth is not None:
-                self._update_progress(100. * float(self.simgr.one_left.history.weighted_depth) / depth)
+                self._update_progress(100. * float(self.simgr.one_left.history.block_count) / depth)
 
             if len(self.simgr.deadended) != 0:
                 self._report_incongruency("Unexpected deadended paths before step.")
@@ -221,7 +221,7 @@ class CongruencyCheck(Analysis):
             # do a step
             l.debug(
                 "Stepping right path with weighted length %d/%s",
-                self.simgr.right[0].history.weighted_depth,
+                self.simgr.right[0].history.block_count,
                 depth
             )
             self.prev_pg = self.simgr.copy() #pylint:disable=unused-variable
@@ -241,8 +241,8 @@ class CongruencyCheck(Analysis):
                     raise
 
             if depth is not None:
-                self.simgr.drop(stash='left', filter_func=lambda p: p.history.weighted_depth >= depth)
-                self.simgr.drop(stash='right', filter_func=lambda p: p.history.weighted_depth >= depth)
+                self.simgr.drop(stash='left', filter_func=lambda p: p.history.block_count >= depth)
+                self.simgr.drop(stash='right', filter_func=lambda p: p.history.block_count >= depth)
 
             self.simgr.right.sort(key=lambda p: p.addr)
             self.simgr.left.sort(key=lambda p: p.addr)
@@ -337,7 +337,7 @@ class CongruencyCheck(Analysis):
             self._report_incongruency("Failed state similarity check!")
             return False
 
-        if pr.history.weighted_depth != pl.history.weighted_depth:
+        if pr.history.block_count != pl.history.block_count:
             self._report_incongruency("Different weights!")
             return False
 

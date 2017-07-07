@@ -89,7 +89,7 @@ class IdentifierCallable(object):
         for _ in xrange(self._max_steps):
             if len(caller.active) == 0:
                 break
-            if caller.active[0].history.weighted_depth > 100000:
+            if caller.active[0].history.block_count > 100000:
                 l.debug("super long path %s", caller.active[0])
                 raise AngrCallableError("Super long path")
             caller = caller.step(step_func=step_func if self._concrete_only else None)

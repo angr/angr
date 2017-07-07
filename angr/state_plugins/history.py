@@ -24,7 +24,8 @@ class SimStateHistory(SimStatePlugin):
         self.merged_from = [ ] if clone is None else list(clone.merged_from)
         self.merge_conditions = [ ] if clone is None else list(clone.merge_conditions)
         self.depth = (0 if parent is None else parent.depth + 1) if clone is None else clone.depth
-        self.extra_depth = (0 if parent is None else parent.extra_depth) if clone is None else clone.extra_depth
+        self.previous_block_count = (0 if parent is None else parent.block_count) if clone is None else \
+            clone.previous_block_count
 
         # a string description of this history
         self.description = None if clone is None else clone.description
@@ -180,8 +181,8 @@ class SimStateHistory(SimStatePlugin):
         return [ ev for ev in self.recent_events if isinstance(ev, SimAction) ]
 
     @property
-    def weighted_depth(self):
-        return self.depth + self.extra_depth
+    def block_count(self):
+        return self.previous_block_count + self.recent_block_count
 
     @property
     def lineage(self):
