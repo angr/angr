@@ -1,9 +1,11 @@
 import logging
-l = logging.getLogger("angr.engines.unicorn_engine")
 
 from ..engines import SimEngine
 
 #pylint: disable=arguments-differ
+
+l = logging.getLogger("angr.engines.unicorn")
+
 
 class SimEngineUnicorn(SimEngine):
     """
