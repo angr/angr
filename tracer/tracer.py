@@ -564,7 +564,6 @@ class Tracer(object):
                 l.debug("tracing done!")
                 self.final_state = state
                 return (self.previous, state)
-        import ipdb; ipdb.set_trace()
 
         # this is a concrete trace, there should only be ONE path
         all_paths = branches.active + branches.deadended
