@@ -11,6 +11,10 @@
 *.nam
 *.til
 *.swp
+*.dll
+*.obj
+*.lib
+*.exp
 angr/tests/*.png
 screenlog.0
 angr/tests/screenlog.0

@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-from ..sim_procedure import SimProcedure
+from angr.sim_procedure import SimProcedure
 import string
 import claripy
 import logging
 
-from .. import sim_type
+from angr import sim_type
 
-l = logging.getLogger("angr.misc.format_parser")
+l = logging.getLogger("angr.procedures.stubs.format_parser")
 
 class FormatString(object):
     """
@@ -449,4 +449,4 @@ class FormatParser(SimProcedure):
 
         return fmt_str
 
-from ..errors import SimProcedureArgumentError, SimProcedureError
+from angr.errors import SimProcedureArgumentError, SimProcedureError

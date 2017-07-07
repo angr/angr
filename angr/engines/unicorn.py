@@ -1,6 +1,7 @@
 import logging
 
 from ..engines import SimEngine
+from ..state_plugins.inspect import BP_AFTER
 
 #pylint: disable=arguments-differ
 
@@ -9,7 +10,7 @@ l = logging.getLogger("angr.engines.unicorn")
 
 class SimEngineUnicorn(SimEngine):
     """
-    Concrete exection in the Unicorn Engine, a fork of qemu.
+    Concrete execution in the Unicorn Engine, a fork of qemu.
     """
     def __init__(self, base_stop_points=None):
 
@@ -40,10 +41,16 @@ class SimEngineUnicorn(SimEngine):
                 force_addr=force_addr)
 
     def _check(self, state, **kwargs):
-
         if o.UNICORN not in state.options:
             l.debug('Unicorn-engine is not enabled.')
             return False
+
+        if uc_module is None or _UC_NATIVE is None:
+            if once('unicorn_install_warning'):
+                l.error("You are attempting to use unicorn engine support even though it or the angr native layer "
+                        "isn't installed")
+            return False
+
 
         unicorn = state.unicorn  # shorthand
         if state.regs.ip.symbolic:
@@ -108,6 +115,9 @@ class SimEngineUnicorn(SimEngine):
         state.history.recent_block_count += state.unicorn.steps
         state.history.description = description
 
+        for bbl_addr in state.history.recent_bbl_addrs:
+            state._inspect('irsb', BP_AFTER, address=bbl_addr)
+
         if state.unicorn.jumpkind.startswith('Ijk_Sys'):
             state.ip = state.unicorn._syscall_pc
         successors.add_successor(state, state.ip, state.se.true, state.unicorn.jumpkind)
@@ -117,7 +127,9 @@ class SimEngineUnicorn(SimEngine):
 
     @staticmethod
     def _countdown(state, *args, **kwargs):  # pylint:disable=unused-argument
-        state.unicorn.decrement_countdowns()
+        self.countdown_nonunicorn_blocks -= 1
+        self.countdown_symbolic_registers -= 1
+        self.countdown_symbolic_memory -= 1
 
     #
     # Pickling
@@ -134,5 +146,6 @@ class SimEngineUnicorn(SimEngine):
         s['base_stop_points'] = self.base_stop_points
         return s
 
-from ..state_plugins.unicorn_engine import STOP
+from ..state_plugins.unicorn_engine import STOP, _UC_NATIVE, unicorn as uc_module
 from .. import sim_options as o
+from ..misc.ux import once

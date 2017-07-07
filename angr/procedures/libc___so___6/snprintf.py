@@ -1,5 +1,6 @@
 import logging
-from angr.misc.format_parser import FormatParser
+
+from angr.procedures.stubs.format_parser import FormatParser
 
 l = logging.getLogger("angr.procedures.libc___so___6.snprintf")
 

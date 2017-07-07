@@ -19,8 +19,6 @@ except ImportError:
     l.warning("Unicorn is not installed. Support disabled.")
     unicorn = None
 
-_install_warning = False
-
 import pyvex
 import claripy
 from .plugin import SimStatePlugin
@@ -1276,23 +1274,6 @@ class Unicorn(SimStatePlugin):
         #l.debug('passed quick check')
         return True
 
-    def decrement_countdowns(self):
-        """
-        Decrement all cool-down counters. This method is called whenever a path is stepped forward.
-
-        :return: None
-        """
-        if unicorn is None or _UC_NATIVE is None:
-            global _install_warning
-            if not _install_warning:
-                l.error("You are attempting to use unicorn engine support even though it or the angr native layer "
-                        "isn't installed")
-                _install_warning = True
-            return False
-
-        self.countdown_nonunicorn_blocks -= 1
-        self.countdown_symbolic_registers -= 1
-        self.countdown_symbolic_memory -= 1
 
 
 from ..engines.vex import ccall

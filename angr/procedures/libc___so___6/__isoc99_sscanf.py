@@ -1,8 +1,9 @@
 
-from angr.misc.format_parser import FormatParser
+import logging
+
+from angr.procedures.stubs.format_parser import FormatParser
 from angr.sim_type import SimTypeInt, SimTypeString
 
-import logging
 l = logging.getLogger("angr.procedures.libc___so___6.__isoc99_sscanf")
 
 class __isoc99_sscanf(FormatParser):

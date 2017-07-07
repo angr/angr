@@ -2,13 +2,14 @@
 
 # pylint: disable=W0703
 
+import logging
 import os
 import types
-import logging
 import weakref
 from collections import defaultdict
-import cle
+
 import archinfo
+import cle
 
 from . import engines, SIM_PROCEDURES, procedures
 from .sim_procedure import SimProcedure
@@ -62,13 +63,6 @@ def fake_project_unpickler(name):
         raise AngrError("Project %s has not been opened." % name)
     return projects[name]
 fake_project_unpickler.__safe_for_unpickling__ = True
-
-
-def deprecated(f):
-    def deprecated_wrapper(*args, **kwargs):
-        print "ERROR: FUNCTION %s IS DEPRECATED. PLEASE UPDATE YOUR CODE." % f
-        return f(*args, **kwargs)
-    return deprecated_wrapper
 
 
 class Project(object):
