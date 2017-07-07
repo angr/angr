@@ -173,10 +173,11 @@ class SimStateHistory(SimStatePlugin):
 
     @property
     def recent_constraints(self):
-        return ( ev.constraint for ev in self.recent_events if isinstance(ev, SimActionConstraint) )
+        # this and the below MUST be lists, not generators, because we need to reverse them
+        return [ ev.constraint for ev in self.recent_events if isinstance(ev, SimActionConstraint) ]
     @property
     def recent_actions(self):
-        return ( ev for ev in self.recent_events if isinstance(ev, SimAction) )
+        return [ ev for ev in self.recent_events if isinstance(ev, SimAction) ]
 
     @property
     def weighted_depth(self):
