@@ -5,18 +5,18 @@ import angr
 import archinfo
 import claripy
 import networkx
-from ..engines import SimEngineProcedure
-from ..engines import SimSuccessors
-from ..procedures import SIM_PROCEDURES
-from .. import sim_options
+from . import Analysis, register_analysis
 
-from ..analysis import Analysis, register_analysis
-from ..state_plugins.callstack import CallStack
-from ..errors import AngrVFGError, AngrError, AngrVFGRestartAnalysisNotice, AngrJobMergingFailureNotice, SimValueError, SimIRSBError, SimError
 from .cfg.cfg_job_base import BlockID, FunctionKey, CFGJobBase
 from .cfg.cfg_utils import CFGUtils
 from .forward_analysis import ForwardAnalysis, AngrSkipJobNotice, AngrDelayJobNotice
-
+from .. import sim_options
+from ..engines import SimEngineProcedure
+from ..engines import SimSuccessors
+from ..errors import AngrVFGError, AngrError, AngrVFGRestartAnalysisNotice, AngrJobMergingFailureNotice, SimValueError, \
+    SimIRSBError, SimError
+from ..procedures import SIM_PROCEDURES
+from ..state_plugins.callstack import CallStack
 
 l = logging.getLogger("angr.analyses.vfg")
 

@@ -1,18 +1,14 @@
 import sys
 import contextlib
 from collections import defaultdict
-
+import progressbar
 import logging
+
+from ..errors import AngrAnalysisError
+from . import registered_analyses
+
 l = logging.getLogger("angr.analysis")
 
-import progressbar
-
-from .errors import AngrAnalysisError
-
-registered_analyses = {}
-
-def register_analysis(analysis, name):
-    registered_analyses[name] = analysis
 
 class AnalysisLogEntry(object):
     def __init__(self, message, exc_info=False):
@@ -52,6 +48,7 @@ class AnalysisLogEntry(object):
                 if msg_str[0] in ('"', "'"):
                     msg_str += msg_str[0]
             return '<AnalysisLogEntry %s with %s: %s>' % (msg_str, self.exc_type.__name__, self.exc_value)
+
 
 class Analyses(object):
     """

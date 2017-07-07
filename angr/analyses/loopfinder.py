@@ -1,7 +1,7 @@
-import networkx
 import logging
 
-from ..analysis import Analysis, register_analysis
+import networkx
+from . import Analysis, register_analysis
 
 l = logging.getLogger("angr.analyses.loopfinder")
 

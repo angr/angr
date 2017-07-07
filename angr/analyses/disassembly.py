@@ -1,11 +1,11 @@
 
-from collections import defaultdict
 import logging
+from collections import defaultdict
 
-from ..analysis import Analysis, register_analysis
-from ..block import CapstoneInsn
+from . import Analysis, register_analysis
 
 from .disassembly_utils import decode_instruction
+from ..block import CapstoneInsn
 
 l = logging.getLogger("angr.analyses.disassembly")
 

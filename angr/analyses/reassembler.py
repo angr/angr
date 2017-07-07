@@ -1,21 +1,21 @@
 
-import struct
-from itertools import count
-from collections import defaultdict
+import logging
 import re
 import string
-import logging
+import struct
+from collections import defaultdict
+from itertools import count
 
-import cffi
 import capstone
+import cffi
+import cle
 import networkx
 import pyvex
-import cle
+from . import Analysis, register_analysis
 
-from ..sim_variable import SimMemoryVariable, SimTemporaryVariable
-from ..analysis import Analysis, register_analysis
-from ..knowledge_base import KnowledgeBase
 from ..extern_obj import AngrExternObject
+from ..knowledge_base import KnowledgeBase
+from ..sim_variable import SimMemoryVariable, SimTemporaryVariable
 
 l = logging.getLogger("angr.analyses.reassembler")
 

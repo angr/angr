@@ -1,25 +1,24 @@
 import logging
-import string
 import math
-import re
 import os
 import pickle
-from datetime import datetime
+import re
+import string
 from collections import defaultdict
-
-import networkx
-import progressbar
+from datetime import datetime
 
 import cle
+import networkx
+import progressbar
 import pyvex
+from . import Analysis, register_analysis
 
 from .. import options as o
-from ..state_plugins.sim_action import SimActionData
+from ..annocfg import AnnotatedCFG
 from ..errors import SimMemoryError, SimEngineError, AngrError, SimValueError, SimIRSBError, SimSolverModeError, \
     SimError
-from ..analysis import Analysis, register_analysis
+from ..state_plugins.sim_action import SimActionData
 from ..surveyors import Explorer, Slicecutor
-from ..annocfg import AnnotatedCFG
 
 l = logging.getLogger("angr.analyses.girlscout")
 

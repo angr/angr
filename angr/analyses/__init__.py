@@ -1,3 +1,10 @@
+registered_analyses = {}
+
+def register_analysis(cls, name):
+    registered_analyses[name] = cls
+
+from .analysis import Analysis
+
 from .cfg import CFGFast, CFGAccurate, CFG, CFGArchOptions
 from .cdg import CDG
 from .ddg import DDG

@@ -2,12 +2,11 @@ import logging
 from collections import defaultdict
 
 import networkx
+from . import Analysis, register_analysis
 
-from ..sim_variable import SimRegisterVariable, SimMemoryVariable
-
-from ..errors import AngrDDGError
-from ..analysis import Analysis, register_analysis
 from .code_location import CodeLocation
+from ..errors import AngrDDGError
+from ..sim_variable import SimRegisterVariable, SimMemoryVariable
 
 l = logging.getLogger("angr.analyses.vsa_ddg")
 

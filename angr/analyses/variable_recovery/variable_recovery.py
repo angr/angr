@@ -2,14 +2,14 @@
 import logging
 from collections import defaultdict
 
+from .. import Analysis, register_analysis
 
-from ... import BP, BP_AFTER
-from ...sim_variable import SimRegisterVariable, SimStackVariable, SimStackVariablePhi
-from ...knowledge.keyed_region import KeyedRegion
-from ...analysis import Analysis, register_analysis
+from .annotations import StackLocationAnnotation
 from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
-from .annotations import StackLocationAnnotation
+from ... import BP, BP_AFTER
+from ...knowledge.keyed_region import KeyedRegion
+from ...sim_variable import SimRegisterVariable, SimStackVariable, SimStackVariablePhi
 
 l = logging.getLogger("angr.analyses.variable_recovery.variable_recovery")
 

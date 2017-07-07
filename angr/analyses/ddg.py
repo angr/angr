@@ -1,15 +1,14 @@
 import logging
-import re
 from collections import defaultdict
 
 import networkx
-
 import pyvex
+from . import Analysis, register_analysis
 
-from ..sim_variable import SimRegisterVariable, SimMemoryVariable, SimTemporaryVariable, SimConstantVariable, SimStackVariable
-from ..errors import SimSolverModeError, SimUnsatError, AngrDDGError
-from ..analysis import Analysis, register_analysis
 from .code_location import CodeLocation
+from ..errors import SimSolverModeError, SimUnsatError, AngrDDGError
+from ..sim_variable import SimRegisterVariable, SimMemoryVariable, SimTemporaryVariable, SimConstantVariable, \
+    SimStackVariable
 
 l = logging.getLogger("angr.analyses.ddg")
 

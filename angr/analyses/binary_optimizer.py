@@ -1,13 +1,14 @@
 
+import logging
 import re
 from collections import defaultdict
-import logging
 
-from ..sim_variable import SimConstantVariable, SimRegisterVariable, SimMemoryVariable, SimStackVariable
+from . import Analysis, register_analysis
+
+from ..knowledge_base import KnowledgeBase
 from .. import SIM_PROCEDURES
-from ..analysis import Analysis, register_analysis
-from .. import KnowledgeBase
 from ..knowledge import HookNode
+from ..sim_variable import SimConstantVariable, SimRegisterVariable, SimMemoryVariable, SimStackVariable
 
 l = logging.getLogger("angr.analyses.binary_optimizer")
 

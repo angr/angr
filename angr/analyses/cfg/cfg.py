@@ -1,8 +1,10 @@
 
 import sys
 
-from ...analysis import register_analysis
+from .. import register_analysis
+
 from .cfg_fast import CFGFast
+
 
 class OutdatedError(Exception):
     pass

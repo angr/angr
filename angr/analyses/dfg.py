@@ -1,8 +1,8 @@
 import logging
-
-from ..analysis import Analysis, register_analysis
-from networkx import DiGraph
 from copy import copy
+
+from . import Analysis, register_analysis
+from networkx import DiGraph
 
 l = logging.getLogger("angr.analyses.dfg")
 

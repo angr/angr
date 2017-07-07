@@ -1,29 +1,28 @@
+import itertools
 import logging
-import string
 import math
 import re
+import string
 import struct
-import itertools
 from collections import defaultdict
 
-import cle
 import claripy
+import cle
 import pyvex
+from .. import register_analysis
 
-from ...blade import Blade
-from ...analysis import register_analysis
-from ...surveyors import Slicecutor
+from .cfg_arch_options import CFGArchOptions
+from .cfg_base import CFGBase, IndirectJump
+from .cfg_node import CFGNode
+from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
+from ..forward_analysis import ForwardAnalysis
+from ... import sim_options as o
 from ...annocfg import AnnotatedCFG
+from ...blade import Blade
+from ...engines import SimEngineVEX
 from ...errors import AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError, \
     SimSolverModeError
-from ... import sim_options as o
-from ...engines import SimEngineVEX
-from ... import BP, BP_BEFORE
-from ..forward_analysis import ForwardAnalysis
-from .cfg_node import CFGNode
-from .cfg_base import CFGBase, IndirectJump
-from .cfg_arch_options import CFGArchOptions
-from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
+from ...surveyors import Slicecutor
 
 VEX_IRSB_MAX_SIZE = 400
 

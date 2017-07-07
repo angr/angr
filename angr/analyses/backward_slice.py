@@ -3,14 +3,13 @@ from collections import defaultdict
 from itertools import ifilter
 
 import networkx
-
 import pyvex
+from . import Analysis, register_analysis
 
+from .code_location import CodeLocation
 from ..annocfg import AnnotatedCFG
-from ..analysis import Analysis, register_analysis
 from ..errors import AngrBackwardSlicingError
 from ..state_plugins.sim_action import SimActionExit
-from .code_location import CodeLocation
 
 l = logging.getLogger("angr.analyses.backward_slice")
 

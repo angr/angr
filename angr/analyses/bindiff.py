@@ -1,13 +1,13 @@
 
-from collections import deque
 import logging
 import math
-import networkx
 import types
+from collections import deque
+
+import networkx
+from . import Analysis, register_analysis
 
 from ..errors import SimEngineError, SimMemoryError
-
-from ..analysis import Analysis, register_analysis
 
 # todo include an explanation of the algorithm
 # todo include a method that detects any change other than constants

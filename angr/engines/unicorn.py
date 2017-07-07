@@ -14,7 +14,7 @@ class SimEngineUnicorn(SimEngine):
     """
     def __init__(self, base_stop_points=None):
 
-        super(SimEngineUnicorn, self).__init__(check_failed=self._countdown)
+        super(SimEngineUnicorn, self).__init__()
 
         self.base_stop_points = base_stop_points
 
@@ -51,6 +51,7 @@ class SimEngineUnicorn(SimEngine):
                         "isn't installed")
             return False
 
+        self._countdown(state)
 
         unicorn = state.unicorn  # shorthand
         if state.regs.ip.symbolic:
@@ -126,10 +127,10 @@ class SimEngineUnicorn(SimEngine):
         successors.processed = True
 
     @staticmethod
-    def _countdown(state, *args, **kwargs):  # pylint:disable=unused-argument
-        self.countdown_nonunicorn_blocks -= 1
-        self.countdown_symbolic_registers -= 1
-        self.countdown_symbolic_memory -= 1
+    def _countdown(state):
+        state.unicorn.countdown_nonunicorn_blocks -= 1
+        state.unicorn.countdown_symbolic_registers -= 1
+        state.unicorn.countdown_symbolic_memory -= 1
 
     #
     # Pickling

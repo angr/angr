@@ -1,17 +1,16 @@
 
-from collections import defaultdict
 import logging
+from collections import defaultdict
 
+from .. import Analysis, register_analysis
+from cle.backends.cgc import CGC
 from networkx import NetworkXError
 
-from cle.backends.cgc import CGC
-
-from ...analysis import Analysis, register_analysis
-from ...errors import AngrError, SimSegfaultError, SimEngineError, SimMemoryError, SimError
-from ... import options
-from .functions import Functions
 from .errors import IdentifierException
+from .functions import Functions
 from .runner import Runner
+from ... import options
+from ...errors import AngrError, SimSegfaultError, SimEngineError, SimMemoryError, SimError
 
 l = logging.getLogger("identifier.identify")
 

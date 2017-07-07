@@ -1,22 +1,20 @@
 
 import logging
 import struct
-import cffi
 from collections import defaultdict
 
+import cffi
 import networkx
-
-from cle import ELF, PE, Blob, TLSObj
 import pyvex
+from .. import Analysis
 from claripy.utils.orderedset import OrderedSet
-
-from ... import SIM_PROCEDURES
-from ...knowledge import HookNode, BlockNode, FunctionManager
-from ...analysis import Analysis
-from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError
-from ...extern_obj import AngrExternObject
+from cle import ELF, PE, Blob, TLSObj
 
 from .cfg_node import CFGNode
+from ... import SIM_PROCEDURES
+from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError
+from ...extern_obj import AngrExternObject
+from ...knowledge import HookNode, BlockNode, FunctionManager
 
 l = logging.getLogger("angr.analyses.cfg.cfg_base")
 

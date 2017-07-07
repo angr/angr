@@ -28,12 +28,12 @@ from .errors import *
 from .blade import Blade
 from .simos import SimOS
 from .manager import SimulationManager
-from .analysis import Analysis, register_analysis
+from .analyses import Analysis, register_analysis
+from . import analyses
 from . import knowledge
 from . import exploration_techniques
 from . import type_backend
 from . import sim_type as types
-from . import analyses
 from .state_hierarchy import StateHierarchy
 
 from .sim_state import SimState

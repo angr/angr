@@ -6,23 +6,22 @@ from collections import defaultdict
 import claripy
 import networkx
 import pyvex
+from .. import register_analysis
 from archinfo import ArchARM
 
-from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
-from ... import options as o
-from ...analysis import register_analysis
-from ...state_plugins.sim_action import SimActionData
-from ...state_plugins.callstack import CallStack
-from ...engines import SimEngineProcedure
-from ...sim_state import SimState
-from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice, SimError, SimValueError, SimSolverModeError, \
-    SimFastPathError, SimIRSBError, AngrExitError
-from ..forward_analysis import ForwardAnalysis
-from .cfg_job_base import BlockID, CFGJobBase
 from .cfg_base import CFGBase
+from .cfg_job_base import BlockID, CFGJobBase
 from .cfg_node import CFGNode
 from .cfg_utils import CFGUtils
-
+from ..forward_analysis import ForwardAnalysis
+from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
+from ... import options as o
+from ...engines import SimEngineProcedure
+from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice, SimError, SimValueError, SimSolverModeError, \
+    SimFastPathError, SimIRSBError, AngrExitError
+from ...sim_state import SimState
+from ...state_plugins.callstack import CallStack
+from ...state_plugins.sim_action import SimActionData
 
 l = logging.getLogger("angr.analyses.cfg.cfg_accurate")
 

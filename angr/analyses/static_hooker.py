@@ -1,9 +1,11 @@
 
+import logging
+
+from . import Analysis, register_analysis
+
 from .. import SIM_PROCEDURES
-from ..analysis import register_analysis, Analysis
 from ..errors import AngrValueError
 
-import logging
 l = logging.getLogger("angr.analyses.static_hooker")
 
 class StaticHooker(Analysis):

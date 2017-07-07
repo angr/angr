@@ -2,11 +2,12 @@ import logging
 from collections import defaultdict
 
 import networkx
+from . import Analysis, register_analysis
 
-from .. import SIM_PROCEDURES, KnowledgeBase
+from .. import SIM_PROCEDURES
 from .. import options as o
+from ..knowledge_base import KnowledgeBase
 from ..errors import AngrError, AngrCFGError
-from ..analysis import Analysis, register_analysis
 from ..manager import SimulationManager
 
 l = logging.getLogger("angr.analyses.veritesting")
