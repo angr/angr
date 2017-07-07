@@ -1,7 +1,10 @@
-from .plugin import SimStatePlugin
 
 import logging
+
+from .plugin import SimStatePlugin
+
 l = logging.getLogger('angr.state_plugins.globals')
+
 
 class SimStateGlobals(SimStatePlugin):
     def __init__(self, backer=None):
@@ -11,11 +14,16 @@ class SimStateGlobals(SimStatePlugin):
     def set_state(self, state):
         pass
 
-    def merge(self, other):
-        l.warning("Merging is unimplemented for globals")
-        return False
+    def merge(self, others, merge_conditions, common_ancestor=None):
 
-    def widen(self):
+        for other in others:
+            for k in other.keys():
+                if k not in self:
+                    self[k] = other[k]
+
+        return True
+
+    def widen(self, others):
         l.warning("Widening is unimplemented for globals")
         return False
 

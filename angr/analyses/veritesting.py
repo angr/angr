@@ -273,13 +273,13 @@ class Veritesting(Analysis):
 
         # Initialize the beginning state
         initial_state = state
-        initial_state.info['loop_ctrs'] = defaultdict(int)
+        initial_state.globals['loop_ctrs'] = defaultdict(int)
 
         manager = SimulationManager(
             self.project,
             active_states=[ initial_state ],
             immutable=False,
-            resilience=o.BYPASS_VERITESTING_EXCEPTIONS in initial_state.state.options
+            resilience=o.BYPASS_VERITESTING_EXCEPTIONS in initial_state.options
         )
 
         # Initialize all stashes
@@ -402,15 +402,15 @@ class Veritesting(Analysis):
                 # merge the loop_ctrs
                 new_loop_ctrs = defaultdict(int)
                 for m in manager.merge_tmp:
-                    for head_addr, looping_times in m.info['loop_ctrs'].iteritems():
+                    for head_addr, looping_times in m.globals['loop_ctrs'].iteritems():
                         new_loop_ctrs[head_addr] = max(
                             looping_times,
-                            m.info['loop_ctrs'][head_addr]
+                            m.globals['loop_ctrs'][head_addr]
                         )
 
                 manager.merge(stash='merge_tmp')
                 for m in manager.merge_tmp:
-                    m.info['loop_ctrs'] = new_loop_ctrs
+                    m.globals['loop_ctrs'] = new_loop_ctrs
 
                 new_count = len(manager.stashes['merge_tmp'])
                 l.debug("... after merge: %d states.", new_count)
@@ -422,7 +422,7 @@ class Veritesting(Analysis):
                     manager.move('merge_tmp', 'active')
                 elif any(
                     loop_ctr >= self._loop_unrolling_limit + 1 for loop_ctr in
-                    manager.one_merge_tmp.info['loop_ctrs'].itervalues()
+                    manager.one_merge_tmp.globals['loop_ctrs'].itervalues()
                 ):
                     l.debug("... merged state is overlooping")
                     manager.move('merge_tmp', 'deadended')
@@ -462,7 +462,7 @@ class Veritesting(Analysis):
         :returns SimSuccessors:         The SimSuccessors object
         """
         size_of_next_irsb = self._cfg.get_any_node(state.addr).size
-        return self.project.successors(state, size=size_of_next_irsb)
+        return self.project.factory.successors(state, size=size_of_next_irsb)
 
     def is_overbound(self, state):
         """
@@ -482,8 +482,8 @@ class Veritesting(Analysis):
             ip in self._loop_heads # This is the beginning of the loop
             or state.history.jumpkind == 'Ijk_Call' # We also wanna catch recursive function calls
         ):
-            state.info['loop_ctrs'][ip] += 1
-            if state.info['loop_ctrs'][ip] >= self._loop_unrolling_limit + 1:
+            state.globals['loop_ctrs'][ip] += 1
+            if state.globals['loop_ctrs'][ip] >= self._loop_unrolling_limit + 1:
                 l.debug('... terminating Veritesting due to overlooping')
                 return True
 
@@ -498,7 +498,7 @@ class Veritesting(Analysis):
         :param SimState s: SimState instance to update
         :returns SimState: same SimState with deleted loop counter
         """
-        del s.info['loop_ctrs']
+        del s.globals['loop_ctrs']
         return s
 
     #
