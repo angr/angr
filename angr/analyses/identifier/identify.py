@@ -156,9 +156,9 @@ class Identifier(Analysis):
                     l.warning('Encountered IdentifierException trying to analyze %#x, reason: %s',
                             f.addr, e.message)
                     continue
-                except simuvex.SimSegfaultError:
+                except SimSegfaultError:
                     continue
-                except simuvex.SimError as e:
+                except SimError as e:
                     l.warning("SimError %s", e.message)
                     continue
                 except AngrError as e:
@@ -339,7 +339,7 @@ class Identifier(Analysis):
             addr_trace = addr_trace[1:]
 
         # step one last time to the call
-        succ = self.project.factory.succesors(s)
+        succ = self.project.factory.successors(s)
         if len(succ.flat_successors) == 0:
             IdentifierException("Didn't succeed call")
         return succ.flat_successors[0]
@@ -491,14 +491,14 @@ class Identifier(Analysis):
             # find the sub sp
             for i, insn in enumerate(bl.capstone.insns):
                 if str(insn.mnemonic) == "sub" and str(insn.op_str).startswith("esp"):
-                    succ = self.project.factory.successors(succ, num_inst=i+1).all_successors[0]
+                    succ = self.project.factory.successors(initial_state, num_inst=i+1).all_successors[0]
                     goal_sp = succ.se.any_int(succ.regs.sp)
 
         elif succ.history.jumpkind == "Ijk_Ret":
             # here we need to know the min sp val
             min_sp = initial_state.se.any_int(initial_state.regs.sp)
             for i in xrange(self.project.factory.block(func.startpoint.addr).instructions):
-                succ = self.project.factory.successors(succ, num_inst=i).all_successors[0]
+                succ = self.project.factory.successors(initial_state, num_inst=i).all_successors[0]
                 test_sp = succ.se.any_int(succ.regs.sp)
                 if test_sp < min_sp:
                     min_sp = test_sp
@@ -512,9 +512,10 @@ class Identifier(Analysis):
         num_preamble_inst = None
         succ = None
         for i in xrange(0, self.project.factory.block(func.startpoint.addr).instructions):
-            succ = initial_state
+            if i == 0:
+                succ = initial_state
             if i != 0:
-                succ = self.project.factory.successors(succ, num_inst=i+1).all_successors[0]
+                succ = self.project.factory.successors(initial_state, num_inst=i).all_successors[0]
             test_sp = succ.se.any_int(succ.regs.sp)
             if test_sp == goal_sp:
                 num_preamble_inst = i
