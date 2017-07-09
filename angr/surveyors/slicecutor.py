@@ -106,6 +106,14 @@ class Slicecutor(Surveyor):
     def tick_path(self, state, successors=None):
         if successors is None:
             successors = Surveyor.tick_path(self, state)
+            flat_successors = successors.flat_successors
+            unconstrained_successors = successors.unconstrained_successors
+        elif type(successors) in (list, tuple, set):
+            flat_successors = successors
+            unconstrained_successors = [ ]
+        else:
+            flat_successors = successors.flat_successors
+            unconstrained_successors = successors.unconstrained_successors
 
         new_paths = [ ]
 
@@ -118,7 +126,7 @@ class Slicecutor(Surveyor):
             return []
 
         l.debug("%s ticking state %s at address %#x.", self, state, state.addr)
-        for successor in successors.flat_successors:
+        for successor in flat_successors:
             dst_addr = successor.addr
             l.debug("... checking exit to %#x from %#x.", dst_addr, state.addr)
             try:
@@ -137,10 +145,10 @@ class Slicecutor(Surveyor):
                 l.debug("... not taking the exit.")
                 cut = True
 
-        if not new_paths and successors.unconstrained_successors and self._force_taking_exit:
+        if not new_paths and unconstrained_successors and self._force_taking_exit:
             # somehow there is no feasible path. We are forced to create a successor based on our slice
             for target in self._annotated_cfg.get_targets(state.addr):
-                successor = successors.unconstrained_successors[0].copy()
+                successor = unconstrained_successors[0].copy()
                 successor.addr = target
                 new_paths.append(successor)
             l.debug('%d new paths are created based on AnnotatedCFG.', len(new_paths))

@@ -364,6 +364,8 @@ class Surveyor(object):
     def _tick_path(self, state, successors=None):
         if successors is None:
             successors = self._step_path(state).flat_successors
+        elif type(successors) not in (list, tuple, set):
+            successors = successors.flat_successors
 
         l.debug("Ticking state %s", state)
         for s in successors:
