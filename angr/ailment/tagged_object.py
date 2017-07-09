@@ -1,0 +1,21 @@
+
+
+class TaggedObject(object):
+    """
+    A class that takes arbitrary tags.
+    """
+
+    def __init__(self, **kwargs):
+        self.tags = { }
+        if kwargs:
+            self.initialize_tags(kwargs)
+
+    def initialize_tags(self, tags):
+        for k, v in tags.iteritems():
+            self.tags[k] = v
+
+    def __getattr__(self, item):
+        try:
+            return self.tags[item]
+        except KeyError:
+            return super(TaggedObject, self).__getattribute__(item)

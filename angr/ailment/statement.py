@@ -1,11 +1,17 @@
 
-class Statement(object):
+from .tagged_object import TaggedObject
+
+
+class Statement(TaggedObject):
     """
     The base class of all AIL statements.
     """
 
-    def __init__(self, idx):
+    def __init__(self, idx, **kwargs):
+        super(Statement, self).__init__(**kwargs)
+
         self.idx = idx
+        self.tags = { }
 
     def __repr__(self):
         raise NotImplementedError()
@@ -18,8 +24,8 @@ class Assignment(Statement):
     """
     Assignment statement: expr_a = expr_b
     """
-    def __init__(self, idx, dst, src):
-        super(Assignment, self).__init__(idx)
+    def __init__(self, idx, dst, src, **kwargs):
+        super(Assignment, self).__init__(idx, **kwargs)
 
         self.dst = dst
         self.src = src
@@ -31,12 +37,23 @@ class Assignment(Statement):
         return "%s = %s" % (str(self.dst), str(self.src))
 
 
+class Store(Statement):
+    def __init__(self, idx, address, data, **kwargs):
+        super(Store, self).__init__(idx, **kwargs)
+
+        self.address = address
+        self.data = data
+
+    def __str__(self):
+        return "STORE(addr=%s, data=%s)" % (self.address, str(self.data))
+
+
 class DirtyStatement(Statement):
     """
-    Wrapper around the original statement, which is usually not convertible (temporiraly).
+    Wrapper around the original statement, which is usually not convertible (temporarily).
     """
-    def __init__(self, idx, dirty_stmt):
-        super(DirtyStatement, self).__init__(idx)
+    def __init__(self, idx, dirty_stmt, **kwargs):
+        super(DirtyStatement, self).__init__(idx, **kwargs)
         self.dirty_stmt = dirty_stmt
 
     def __repr__(self):
