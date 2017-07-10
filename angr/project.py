@@ -10,6 +10,7 @@ from collections import defaultdict
 
 import archinfo
 import cle
+from cle.address_translator import AT
 
 from . import engines, SIM_PROCEDURES, procedures
 from .sim_procedure import SimProcedure
@@ -482,7 +483,7 @@ class Project(object):
             # This is pretty intensely sketchy
             pseudo_addr = obj
 
-        self.loader.provide_symbol(self._extern_obj, symbol_name, pseudo_vaddr)
+        self.loader.provide_symbol(self._extern_obj, symbol_name, AT.from_mva(pseudo_addr, self._extern_obj).to_lva())
 
         return pseudo_addr
 
@@ -505,7 +506,7 @@ class Project(object):
                 self.unhook(pseudo_addr)
 
             self.hook(pseudo_addr, obj)
-            provisions[name] = (pseudo_vaddr, 0, None)
+            provisions[name] = (AT.from_mva(pseudo_addr, self._extern_obj).to_lva(), 0, None)
 
         self.loader.provide_symbol_batch(self._extern_obj, provisions)
 
