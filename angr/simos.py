@@ -12,6 +12,7 @@ from .calling_conventions import DEFAULT_CC, SYSCALL_CC
 from .procedures import SIM_PROCEDURES
 from .sim_procedure import SimProcedure
 from cle import MetaELF, BackedCGC
+from cle.address_translator import AT
 import claripy
 
 from .errors import AngrSyscallError, AngrUnsupportedSyscallError, AngrCallableError, AngrCallableMultistateError, AngrSimOSError
@@ -213,7 +214,7 @@ class SimOS(object):
         unknown_syscall = SIM_PROCEDURES['syscalls']['stub']
         unknown_syscall_number = 1
         self.syscall_table = SyscallTable(unknown_syscall_number=unknown_syscall_number)
-        self.syscall_table[unknown_syscall_number] = SyscallEntry('_unsupported', self.proj._syscall_obj.rebase_addr,
+        self.syscall_table[unknown_syscall_number] = SyscallEntry('_unsupported', self.proj._syscall_obj.mapped_base,
                                                                   unknown_syscall
                                                                   )
 
@@ -229,7 +230,7 @@ class SimOS(object):
 
         self.syscall_table.clear()
 
-        base_addr = self.proj._syscall_obj.rebase_addr
+        base_addr = self.proj._syscall_obj.mapped_base
 
         syscall_entry_count = 0 if not syscall_table else max(syscall_table.keys()) + 1
         for syscall_number in xrange(syscall_entry_count):
@@ -375,7 +376,7 @@ class SimOS(object):
                         perms |= 2 # PROT_WRITE
                     if seg.is_executable:
                         perms |= 4 # PROT_EXEC
-                    permission_map[(obj.rebase_addr + seg.min_addr, obj.rebase_addr + seg.max_addr)] = perms
+                    permission_map[(seg.min_addr, seg.max_addr)] = perms
             permissions_backer = (self.proj.loader.main_bin.execstack, permission_map)
             kwargs['permissions_backer'] = permissions_backer
         if kwargs.get('memory_backer', None) is None:
@@ -647,7 +648,7 @@ class SimLinux(SimOS):
                                 continue
                         except AttributeError:
                             continue
-                        gotaddr = reloc.addr + binary.rebase_addr
+                        gotaddr = reloc.addr
                         gotvalue = self.proj.loader.memory.read_addr_at(gotaddr)
                         if self.proj.is_hooked(gotvalue):
                             continue

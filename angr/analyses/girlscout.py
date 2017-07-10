@@ -36,8 +36,8 @@ class GirlScout(Analysis):
 
     def __init__(self, binary=None, start=None, end=None, pickle_intermediate_results=False, perform_full_code_scan=False):
         self._binary = binary if binary is not None else self.project.loader.main_bin
-        self._start = start if start is not None else (self._binary.rebase_addr + self._binary.get_min_addr())
-        self._end = end if end is not None else (self._binary.rebase_addr + self._binary.get_max_addr())
+        self._start = start if start is not None else self._binary.get_min_addr()
+        self._end = end if end is not None else self._binary.get_max_addr()
         self._pickle_intermediate_results = pickle_intermediate_results
         self._perform_full_code_scan = perform_full_code_scan
 
@@ -45,8 +45,7 @@ class GirlScout(Analysis):
 
         # Valid memory regions
         self._valid_memory_regions = sorted(
-            [ (self._binary.rebase_addr+start, self._binary.rebase_addr+start+len(cbacker))
-                for start, cbacker in self.project.loader.memory.cbackers ],
+            [ (start, start+len(cbacker)) for start, cbacker in self.project.loader.memory.cbackers ],
             key=lambda x: x[0]
         )
         self._valid_memory_region_size = sum([ (end - start) for start, end in self._valid_memory_regions ])

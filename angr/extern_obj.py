@@ -1,4 +1,5 @@
 from cle import Backend, Clemory, Segment
+from cle.address_translator import AT
 
 class AngrExternObject(Backend):
     def __init__(self, arch, alloc_size=0x4000, granularity=16):
@@ -16,22 +17,22 @@ class AngrExternObject(Backend):
         self.segments[0].is_executable = True
 
     def get_max_addr(self):
-        return self._alloc_size + self.rebase_addr
+        return self._alloc_size + self.mapped_base
 
     def get_min_addr(self):
-        return self.rebase_addr
+        return self.mapped_base
 
     def contains_addr(self, addr):
-        return addr >= self.get_min_addr() and addr < self.get_max_addr()
+        return self.get_min_addr() <= addr < self.get_max_addr()
 
     def get_pseudo_addr(self, ident, size=16):
         if ident not in self._lookup_table:
             self._lookup_table[ident] = self._next_addr
             self._next_addr += size + ((self._granularity - size) % self._granularity)
-        return self._lookup_table[ident] + self.rebase_addr
+        return self._lookup_table[ident]
 
     def anon_allocation(self, size=16):
-        out = self._next_addr + self.rebase_addr
+        out = self._next_addr
         self._next_addr += size + ((self._granularity - size) % self._granularity)
         return out
 
@@ -42,4 +43,8 @@ class AngrExternObject(Backend):
         if ident not in self._lookup_table:
             return None
 
-        return self._lookup_table[ident] + self.rebase_addr
+        return self._lookup_table[ident]
+
+    def rebase(self):
+        super(AngrExternObject, self).rebase()
+        self._next_addr = AT.from_lva(self._next_addr, self).to_mva()
