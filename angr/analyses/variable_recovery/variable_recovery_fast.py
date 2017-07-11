@@ -2,59 +2,15 @@
 import logging
 from collections import defaultdict
 
-import pyvex
 from .. import Analysis
 
+from ...engines.light import SpOffset, SimEngineLight
 from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 from ...keyed_region import KeyedRegion
 from ...sim_variable import SimStackVariable, SimRegisterVariable
 
 l = logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast")
-
-
-class RegAndOffset(object):
-    def __init__(self, bits, reg, offset):
-        self._bits = bits
-        self.reg = reg
-        self.offset = offset
-
-    def __repr__(self):
-        return "%s%s" % (self.reg, '' if self.offset == 0 else '%+x' % self.offset)
-
-    def __add__(self, other):
-        if type(other) in (int, long):
-            return RegAndOffset(self._bits, self.reg, self._to_signed(self.offset + other))
-        raise TypeError()
-
-    def __sub__(self, other):
-        if type(other) in (int, long):
-            return RegAndOffset(self._bits, self.reg, self._to_signed(self.offset - other))
-        raise TypeError()
-
-    def _to_signed(self, n):
-        if n >= 2 ** (self._bits - 1):
-            return n - 2 ** self._bits
-        return n
-
-
-class SpAndOffset(RegAndOffset):
-    def __init__(self, bits, offset, is_base=False):
-        super(SpAndOffset, self).__init__(bits, 'sp', offset)
-        self.is_base = is_base
-
-    def __repr__(self):
-        return "%s%s" % ('BP' if self.is_base else 'SP', '' if self.offset == 0 else '%+x' % self.offset)
-
-    def __add__(self, other):
-        if type(other) in (int, long):
-            return SpAndOffset(self._bits, self._to_signed(self.offset + other))
-        raise TypeError()
-
-    def __sub__(self, other):
-        if type(other) in (int, long):
-            return SpAndOffset(self._bits, self._to_signed(self.offset - other))
-        raise TypeError()
 
 
 class ProcessorState(object):
@@ -91,61 +47,33 @@ class ProcessorState(object):
         return self
 
 
-class BlockProcessor(object):
-    def __init__(self, state, block):
+class SimEngineVR(SimEngineLight):
+    def __init__(self):
+        super(SimEngineVR, self).__init__()
 
-        self.state = state
+        self.processor_state = None
+        self.variable_manager = None
+
+    def _process(self, state, successors,
+                 block=None, func_addr=None):
+
         self.processor_state = state.processor_state
-        self.arch = state.arch
-        self.func_addr = state.function.addr
         self.variable_manager = state.variable_manager
-        self.block = block
-        self.vex_block = block.vex
-        self.tyenv = self.vex_block.tyenv
 
-        self.stmt_idx = None
-        self.ins_addr = None
-        self.tmps = { }
-
-    def process(self):
-
-        for stmt_idx, stmt in enumerate(self.vex_block.statements):
-            # print stmt.__str__(arch=self.arch, tyenv=self.vex_block.tyenv)
-
-            self.stmt_idx = stmt_idx
-            if type(stmt) is pyvex.IRStmt.IMark:
-                self.ins_addr = stmt.addr + stmt.delta
-                continue
-
-            handler = "_handle_%s" % type(stmt).__name__
-            if hasattr(self, handler):
-                getattr(self, handler)(stmt)
-
-        #print ""
-        #print self.tmps
-        #print ""
-
-        self.stmt_idx = None
-        self.ins_addr = None
+        super(SimEngineVR, self)._process(state, successors, block=block)
 
     #
     # Statement handlers
     #
 
-    def _handle_WrTmp(self, stmt):
-        data = self._expr(stmt.data)
-        if data is None:
-            return
-
-        self.tmps[stmt.tmp] = data
 
     def _handle_Put(self, stmt):
         offset = stmt.offset
-        codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
+        codeloc = self._codeloc()
 
         if offset == self.arch.sp_offset:
             data = self._expr(stmt.data)
-            if type(data) is SpAndOffset:
+            if type(data) is SpOffset:
                 sp_offset = data.offset
                 self.processor_state.sp_adjusted = True
                 self.processor_state.sp_adjustment = sp_offset
@@ -164,7 +92,7 @@ class BlockProcessor(object):
 
         # handle register writes
         data = self._expr(stmt.data)
-        if type(data) is SpAndOffset:
+        if type(data) is SpOffset:
             # lea
             stack_offset = data.offset
             existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr, self.stmt_idx,
@@ -218,7 +146,7 @@ class BlockProcessor(object):
     def _handle_Store(self, stmt):
         addr = self._expr(stmt.addr)
 
-        if type(addr) is SpAndOffset:
+        if type(addr) is SpOffset:
             # Storing data to stack
             size = stmt.data.result_size(self.tyenv) / 8
             stack_offset = addr.offset
@@ -251,28 +179,14 @@ class BlockProcessor(object):
     # Expression handlers
     #
 
-    def _expr(self, expr):
-
-        handler = "_handle_%s" % type(expr).__name__
-        if hasattr(self, handler):
-            return getattr(self, handler)(expr)
-        return None
-
-    def _handle_RdTmp(self, expr):
-        tmp = expr.tmp
-
-        if tmp in self.tmps:
-            return self.tmps[tmp]
-        return None
-
     def _handle_Get(self, expr):
         reg_offset = expr.offset
         reg_size = expr.result_size(self.tyenv) / 8
-        codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
+        codeloc = self._codeloc()
 
         if reg_offset == self.arch.sp_offset:
             # loading from stack pointer
-            return SpAndOffset(self.arch.bits, self.processor_state.sp_adjustment, is_base=False)
+            return SpOffset(self.arch.bits, self.processor_state.sp_adjustment, is_base=False)
         elif reg_offset == self.arch.bp_offset:
             return self.processor_state.bp
 
@@ -292,7 +206,7 @@ class BlockProcessor(object):
     def _handle_Load(self, expr):
         addr = self._expr(expr.addr)
 
-        if type(addr) is SpAndOffset:
+        if type(addr) is SpOffset:
             # Loading data from stack
             size = expr.result_size(self.tyenv) / 8
             stack_offset = addr.offset
@@ -321,49 +235,6 @@ class BlockProcessor(object):
                                                             codeloc,
                                                             # overwrite=True
                                                             )
-
-    def _handle_Binop(self, expr):
-        if expr.op.startswith('Iop_Add'):
-            return self._handle_Add(*expr.args)
-        elif expr.op.startswith('Iop_Sub'):
-            return self._handle_Sub(*expr.args)
-        elif expr.op.startswith('Const'):
-            return self._handle_Const(*expr.args)
-
-        return None
-
-    #
-    # Binary operation handlers
-    #
-
-    def _handle_Add(self, arg0, arg1):
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
-
-        try:
-            return expr_0 + expr_1
-        except TypeError:
-            return None
-
-    def _handle_Sub(self, arg0, arg1):
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
-
-        try:
-            return expr_0 - expr_1
-        except TypeError:
-            return None
-
-    def _handle_Const(self, arg):  #pylint:disable=no-self-use
-        return arg.con.value
 
 
 class VariableRecoveryFastState(object):
@@ -590,8 +461,8 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
 
         l.debug('Processing block %#x.', block.addr)
 
-        processor = BlockProcessor(state, block)
-        processor.process()
+        processor = SimEngineVR()
+        processor.process(state, block=block)
 
     def _make_phi_node(self, block_addr, *variables):
 
