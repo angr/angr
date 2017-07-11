@@ -140,7 +140,11 @@ class SimSuccessors(object):
         # trigger inspect breakpoints here since this statement technically shows up in the IRSB as the "next"
         state.regs.ip = state.scratch.target
 
-        self._manage_callstack(state)
+        # Consider those less fortunate among us with no stack pointer
+        # EDG and rhelmot would like to warn you that if you don't do this (and don't have a SP)
+        # SimProcedures that call other SimProcedures are going to be very broken
+        if hasattr(self.initial_state.regs, 'sp'):
+            self._manage_callstack(state)
 
         # clean up the state
         state.options.discard(o.AST_DEPS)
