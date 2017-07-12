@@ -2,7 +2,7 @@ import angr
 from angr.sim_type import SimTypeString
 import logging
 
-l = logging.getLogger("angr.procedures.libc___so___6.inet_ntoa")
+l = logging.getLogger("angr.procedures.posix.inet_ntoa")
 
 
 class inet_ntoa(angr.SimProcedure):

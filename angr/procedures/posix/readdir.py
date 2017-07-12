@@ -1,10 +1,8 @@
 import angr
 from collections import namedtuple
 
-from .malloc import malloc
-
 import logging
-l = logging.getLogger('angr.procedures.libc___so___6.readdir')
+l = logging.getLogger('angr.procedures.posix.readdir')
 
 Dirent = namedtuple('dirent', ('d_ino', 'd_off', 'd_reclen', 'd_type', 'd_name'))
 
@@ -20,6 +18,7 @@ class readdir(angr.SimProcedure):
 
         self._build_amd64()
         self.instrument()
+        malloc = angr.SIM_PROCEDURES['libc']['malloc']
         pointer = self.inline_call(malloc, 19 + 256).ret_expr
         self._store_amd64(pointer)
         return self.state.se.If(self.condition, pointer, self.state.se.BVV(0, len(pointer)))

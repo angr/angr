@@ -3,7 +3,8 @@ import angr
 class mmap(angr.SimProcedure):
     def run(self, addr, length, prot, flags, fd, offset): #pylint:disable=arguments-differ,unused-argument
 
-        return self.inline_call(angr.SIM_PROCEDURES['syscalls']['mmap'],
+        # TODO: do this the other way around
+        return self.inline_call(angr.SIM_PROCEDURES['linux_kernel']['mmap'],
                                 addr,
                                 length,
                                 prot,

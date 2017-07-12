@@ -2,7 +2,7 @@ import angr
 from angr.sim_type import SimTypeInt
 import logging
 
-l = logging.getLogger("angr.procedures.libc___so___6.usleep")
+l = logging.getLogger("angr.procedures.posix.usleep")
 
 
 class usleep(angr.SimProcedure):

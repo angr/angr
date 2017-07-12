@@ -14,7 +14,7 @@ class fputs(angr.SimProcedure):
         fd_offset = io_file_data_for_arch(self.state.arch)['fd']
         fileno = self.state.mem[file_ptr + fd_offset:].int.resolved
 
-        strlen = angr.SIM_PROCEDURES['libc.so.6']['strlen']
+        strlen = angr.SIM_PROCEDURES['libc']['strlen']
         p_strlen = self.inline_call(strlen, str_addr)
         str_expr = self.state.memory.load(str_addr, p_strlen.max_null_index, endness='Iend_BE')
         str_val = self.state.se.any_str(str_expr)

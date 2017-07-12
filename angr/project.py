@@ -1,7 +1,3 @@
-#!/usr/bin/env python
-
-# pylint: disable=W0703
-
 import logging
 import os
 import types
@@ -12,16 +8,13 @@ import archinfo
 import cle
 from cle.address_translator import AT
 
-from . import engines, SIM_PROCEDURES, procedures
-from .sim_procedure import SimProcedure
-
 l = logging.getLogger("angr.project")
 
 # This holds the default execution engine for a given CLE loader backend.
 # All the builtins right now use SimEngineVEX.  This may not hold for long.
 
 
-def global_default(): return {'any': engines.SimEngineVEX}
+def global_default(): return {'any': SimEngineVEX}
 default_engines = defaultdict(global_default)
 
 
@@ -198,7 +191,7 @@ class Project(object):
         procedure_engine = SimEngineHook(self)
         failure_engine = SimEngineFailure(self)
         syscall_engine = SimEngineSyscall(self)
-        unicorn_engine = engines.SimEngineUnicorn(self._sim_procedures)
+        unicorn_engine = SimEngineUnicorn(self._sim_procedures)
 
         self.entry = self.loader.main_bin.entry
         self.factory = AngrObjectFactory(
@@ -234,92 +227,109 @@ class Project(object):
         This is all the automatic simprocedure related initialization work
         It's too big to just get pasted into the initializer.
         """
+        # TODO: Make this into a per-object function that can be used during dynamic loading
 
-        # Step 1: Get the appropriate libraries of SimProcedures
+        # Step 1: get the set of libraries we are allowed to use to resolve unresolved symbols
         libs = []
         for lib_name in self.loader.requested_objects:
+            # File names are case-insensitive on Windows. Make them all lowercase
             if isinstance(self.loader.main_bin, cle.backends.pe.PE):
-                # File names are case-insensitive on Windows. Make them all lowercase
                 lib_name = lib_name.lower()
 
-            # Hack that should go somewhere else:
-            if lib_name in [ 'libc.so.0', 'libc.so', 'libc.musl-x86_64.so.1' ]:
-                lib_name = 'libc.so.6'
-            if lib_name == 'ld-uClibc.so.0':
-                lib_name = 'ld-uClibc.so.6'
+            if lib_name in self.loader.shared_objects:
+                continue
 
-            if lib_name not in SIM_PROCEDURES:
-                l.debug("There are no simprocedures for library %s :(", lib_name)
+            if lib_name not in SIM_LIBRARIES:
+                l.info("There are no simprocedures for library %s :(", lib_name)
             else:
-                libs.append(lib_name)
+                libs.append(SIM_LIBRARIES[lib_name])
 
         # Step 2: Categorize every "import" symbol in each object.
         # If it's IGNORED, mark it for stubbing
         # If it's blacklisted, don't process it
         # If it matches a simprocedure we have, replace it
-        already_resolved = set()
+        already_seen = set()
         pending_hooks = {}
-        unresolved = set()
 
         for obj in self.loader.all_objects:
             for reloc in obj.imports.itervalues():
                 func = reloc.symbol
-                if func.name in already_resolved:
-                    continue
                 if not func.is_function:
                     continue
-                elif func.name in self._ignore_functions:
-                    unresolved.add(func)
+                if func.name in already_seen:
                     continue
-                elif self._should_exclude_sim_procedure(func.name):
-                    continue
+                already_seen.add(func.name)
 
-                elif self._should_use_sim_procedures:
-                    for lib in libs:
-                        # TODO: hey uh what the HECK is this logic
-                        simfuncs = SIM_PROCEDURES[lib]
-                        if func.name in simfuncs:
-                            l.info("Providing %s for %s with SimProcedure", func.name, func.owner_obj.provides)
-                            pending_hooks[func.name] = simfuncs[func.name]()
-                            already_resolved.add(func.name)
+                # Step 2.2: If this function has been resolved by a static dependency,
+                # check if we actually can and want to replace it with a SimProcedure.
+                # We opt out of this step if it is blacklisted by ignore_functions, which
+                # will cause it to be replaced by ReturnUnconstrained later.
+                if func.resolved and func.name not in self._ignore_functions:
+                    if self._check_user_blacklists(func.name):
+                        continue
+                    owner_name = func.resolvedby.owner_obj.provides
+                    if isinstance(self.loader.main_bin, cle.backends.pe.PE):
+                        owner_name = owner_name.lower()
+                    if owner_name not in SIM_LIBRARIES:
+                        continue
+                    sim_lib = SIM_LIBRARIES[owner_name]
+                    if not sim_lib.has_implementation(func.name):
+                        continue
+                    l.info("Using builtin SimProcedure for %s from %s", func.name, sim_lib.name)
+                    pending_hooks[func.name] = sim_lib.get(func.name)
+
+                # Step 2.3: If 2.2 didn't work, check if the symbol wants to be resolved
+                # by a library we already know something about. Resolve it appropriately.
+                # Note that _check_user_blacklists also includes _ignore_functions.
+                # An important consideration is that even if we're stubbing a function out,
+                # we still want to try as hard as we can to figure out where it comes from
+                # so we can get the calling convention as close to right as possible.
+                elif func.resolvewith is not None and func.resolvewith in SIM_LIBRARIES:
+                    sim_lib = SIM_LIBRARIES[func.resolvewith]
+                    if self._check_user_blacklists(func.name):
+                        l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
+                        pending_hooks[func.name] = sim_lib.get_unconstrained(func.name)
+                    else:
+                        l.info("Using builtin SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
+                        pending_hooks[func.name] = sim_lib.get(func.name)
+
+                # Step 2.4: If 2.3 didn't work (the symbol didn't request a provider), try
+                # looking through each of the SimLibraries we're using to resolve unresolved
+                # functions. If any of them know anything specifically about this function,
+                # resolve it with that. As a final fallback, just ask any old SimLibrary
+                # to resolve it.
+                elif libs:
+                    for sim_lib in libs:
+                        if sim_lib.has_metadata(func.name):
+                            if self._check_user_blacklists(func.name):
+                                l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
+                                pending_hooks[func.name] = sim_lib.get_unconstrained(func.name)
+                            else:
+                                l.info("Using builtin SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
+                                pending_hooks[func.name] = sim_lib.get(func.name)
                             break
-                    else: # we could not find a simprocedure for this function
-                        if not func.resolved:   # the loader couldn't find one either
-                            unresolved.add(func)
-                        else:
-                            # mark it as resolved
-                            already_resolved.add(func.name)
-                # in the case that simprocedures are off and an object in the PLT goes
-                # unresolved, we still want to replace it with a ReturnUnconstrained.
-                elif not func.resolved and func.name in obj.jmprel:
-                    unresolved.add(func)
+                    else:
+                        l.info("Using stub SimProcedure for unresolved %s", func.name)
+                        pending_hooks[func.name] = libs[0].get(func.name)
 
-        # Step 3: Stub out unresolved symbols
-        # This is in the form of a SimProcedure that either doesn't return
-        # or returns an unconstrained value
-        for func in unresolved:
-            if func.name in already_resolved:
-                continue
-            # Don't touch weakly bound symbols, they are allowed to go unresolved
-            if func.is_weak:
-                continue
-            l.info("Providing %s for %s with default stub", func.name, func.owner_obj.provides)
-            procedure = SIM_PROCEDURES['stubs']['NoReturnUnconstrained']
-            if func.name not in procedure.use_cases:
-                procedure = SIM_PROCEDURES['stubs']['ReturnUnconstrained']
-            pending_hooks[func.name] = procedure(resolves=func.name)
+                # Step 2.5: If 2.4 didn't work (we have NO SimLibraries to work with), just
+                # use the vanilla ReturnUnconstrained.
+                else:
+                    l.info("Using stub SimProcedure for unresolved %s", func.name)
+                    pending_hooks[func.name] = SIM_PROCEDURES['stubs']['ReturnUnconstrained']()
 
+        # Step 3: Hook everything!! Resolve unresolved relocations to the extern object!!!
         self.hook_symbol_batch(pending_hooks)
 
-    def _should_exclude_sim_procedure(self, f):
+    def _check_user_blacklists(self, f):
         """
         Has symbol name `f` been marked for exclusion by any of the user
         parameters?
         """
-        return (f in self._exclude_sim_procedures_list) or \
-               ( self._exclude_sim_procedures_func is not None and \
-                 self._exclude_sim_procedures_func(f)
-               )
+        return not self._should_use_sim_procedures or \
+            f in self._exclude_sim_procedures_list or \
+            f in self._ignore_functions or \
+            (self._exclude_sim_procedures_func is not None and self._exclude_sim_procedures_func(f))
 
     #
     # Public methods
@@ -368,7 +378,7 @@ class Project(object):
             hook = hook(**kwargs)
 
         if callable(hook):
-            hook = procedures.stubs.UserHook.UserHook(user_func=hook, length=length, **kwargs)
+            hook = SIM_PROCEDURES['stubs']['UserHook'](user_func=hook, length=length, **kwargs)
 
         self._sim_procedures[addr] = hook
 
@@ -426,8 +436,9 @@ class Project(object):
         if type(obj) in (int, long):
             # this is pretty intensely sketchy
             l.info("Instructing the loader to re-point symbol %s at address %#x", symbol_name, obj)
-            self.loader.provide_symbol(self._extern_obj, symbol_name, AT.from_mva(obj, self._extern_obj))
-            return obj
+            pseudo_vaddr = obj - self._extern_obj.rebase_addr
+            self.loader.provide_symbol(self._extern_obj, symbol_name, pseudo_vaddr)
+            return
 
         sym = self.loader.find_symbol(symbol_name)
 
@@ -458,7 +469,6 @@ class Project(object):
             sym = self.loader.find_symbol(name)
             if sym is None:
                 pseudo_addr = self._simos.prepare_function_symbol(name)
-                pseudo_vaddr = pseudo_addr - self._extern_obj.rebase_addr
                 l.info("Providing extern symbol for unresolved %s at #%x", name, pseudo_addr)
                 self.hook(pseudo_addr, obj)
                 provisions[name] = (AT.from_mva(pseudo_addr, self._extern_obj), 0, None)
@@ -576,4 +586,5 @@ from .extern_obj import AngrExternObject
 from .analyses.analysis import Analyses
 from .surveyors import Surveyors
 from .knowledge_base import KnowledgeBase
-from .engines import SimEngineFailure, SimEngineSyscall, SimEngineHook
+from .engines import SimEngineFailure, SimEngineSyscall, SimEngineHook, SimEngineVEX, SimEngineUnicorn
+from .misc.ux import once

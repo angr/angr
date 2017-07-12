@@ -14,7 +14,8 @@ class fclose(angr.SimProcedure):
         fd_offset = io_file_data_for_arch(self.state.arch)['fd']
         fileno = self.state.mem[fd_p + fd_offset:].int.resolved
 
-        sys_close = angr.SIM_PROCEDURES['syscalls']['close']
+        # TODO: use a procedure that's not a linux syscall
+        sys_close = angr.SIM_PROCEDURES['linux_kernel']['close']
 
         # Call system close and return
         retval = self.inline_call(sys_close, fileno).ret_expr

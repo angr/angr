@@ -8,5 +8,6 @@ class unlink(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, path):
-        unlink_sys = angr.SIM_PROCEDURES['syscalls']['unlink']
+        # TODO: do this the other way around
+        unlink_sys = angr.SIM_PROCEDURES['linux_kernel']['unlink']
         return self.inline_call(unlink_sys, path).ret_expr

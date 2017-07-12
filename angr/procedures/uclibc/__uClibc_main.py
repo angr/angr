@@ -1,5 +1,5 @@
 
-from ..libc___so___6.__libc_start_main import __libc_start_main as fucker
+from ..glibc.__libc_start_main import __libc_start_main as fucker
 
 ######################################
 # __uClibc_main
