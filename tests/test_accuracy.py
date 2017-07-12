@@ -25,6 +25,7 @@ def emulate(arch):
     #else:
     #     state = p.factory.full_init_state(args=['./test_arrays'], add_options={angr.options.STRICT_PAGE_ACCESS})
     state = p.factory.full_init_state(args=['./test_arrays'], add_options={angr.options.STRICT_PAGE_ACCESS, angr.options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
+    #state.inspect.b('mem_write', when=angr.BP_BEFORE, action=angr.BP_IPDB, mem_write_address=0x13bf428)
 
     pg = p.factory.simgr(state)
     pg2 = pg.step(until=lambda lpg: len(lpg.active) != 1,
@@ -77,10 +78,10 @@ def test_locale():
 
 
 if __name__ == '__main__':
-    print 'locale'
-    test_locale()
     print 'x86_64'
     emulate('x86_64')
+    print 'locale'
+    test_locale()
     print 'i386'
     emulate('i386')
     print 'ppc'

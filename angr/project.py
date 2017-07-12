@@ -279,7 +279,7 @@ class Project(object):
                         # TODO: hey uh what the HECK is this logic
                         simfuncs = SIM_PROCEDURES[lib]
                         if func.name in simfuncs:
-                            l.info("Providing %s for %s with SimProcedure", func.name, func.owner_object.provides)
+                            l.info("Providing %s for %s with SimProcedure", func.name, func.owner_obj.provides)
                             pending_hooks[func.name] = simfuncs[func.name]()
                             already_resolved.add(func.name)
                             break
@@ -303,7 +303,7 @@ class Project(object):
             # Don't touch weakly bound symbols, they are allowed to go unresolved
             if func.is_weak:
                 continue
-            l.info("Providing %s for %s with default stub", func.name, func.owner_object.provides)
+            l.info("Providing %s for %s with default stub", func.name, func.owner_obj.provides)
             procedure = SIM_PROCEDURES['stubs']['NoReturnUnconstrained']
             if func.name not in procedure.use_cases:
                 procedure = SIM_PROCEDURES['stubs']['ReturnUnconstrained']
@@ -350,10 +350,11 @@ class Project(object):
                             arguments that will be passed to the procedure's `run` method
                             eventually.
         """
-
         if hook is None:
             # if we haven't been passed a thing to hook with, assume we're being used as a decorator
             return self._hook_decorator(addr, length=length, kwargs=kwargs)
+
+        if kwargs is None: kwargs = {}
 
         l.debug('hooking %#x with %s', addr, hook)
 

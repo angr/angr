@@ -1464,7 +1464,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self.project.factory.block(grandparent_nodes[0].addr).vex,
                 self.project.factory.block(previous_src_node.addr).vex,
             ]
-            new_exits = procedure(addr, self.project.arch, is_function=False).static_exits(blocks_ahead)
+            new_exits = procedure(self.project, is_function=False).static_exits(blocks_ahead)
 
             for addr_, jumpkind in new_exits:
                 if isinstance(addr_, claripy.ast.BV) and not addr_.symbolic:

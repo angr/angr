@@ -25,7 +25,7 @@ class pthread_create(angr.SimProcedure):
 
     def static_exits(self, blocks):
         # Execute those blocks with a blank state, and then dump the arguments
-        blank_state = angr.SimState(arch=self.arch, mode="fastpath")
+        blank_state = angr.SimState(project=self.project, mode="fastpath")
 
         # Execute each block
         state = blank_state

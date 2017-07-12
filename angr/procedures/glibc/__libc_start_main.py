@@ -145,7 +145,7 @@ class __libc_start_main(angr.SimProcedure):
 
     def static_exits(self, blocks):
         # Execute those blocks with a blank state, and then dump the arguments
-        blank_state = angr.SimState(arch=self.arch, mode="fastpath")
+        blank_state = angr.SimState(project=self.project, mode="fastpath")
         # set up the stack pointer
         blank_state.regs.sp = 0x7fffffff
 

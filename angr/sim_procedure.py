@@ -17,7 +17,7 @@ class SimProcedure(object):
     A detailed discussion of programming SimProcedures may be found at https://docs.angr.io/docs/simprocedures.md
     """
     def __init__(
-        self, cc=None, symbolic_return=None,
+        self, project=None, cc=None, symbolic_return=None,
         returns=None, is_syscall=None,
         num_args=None, display_name=None,
         is_function=None, **kwargs
@@ -38,9 +38,9 @@ class SimProcedure(object):
         :param is_function:     Whether this procedure emulates a function
         """
         # WE'LL FIGURE IT OUT
+        self.project = project
+        self.arch = project.arch if project is not None else None
         self.addr = None
-        self.arch = None
-        self.project = None
         self.cc = cc
         self.canonical = self
 
@@ -71,6 +71,7 @@ class SimProcedure(object):
         self.state = None
         self.successors = None
         self.arguments = None
+        self.use_state_arguments = None
         self.ret_to = None
         self.ret_expr = None
 
@@ -88,8 +89,10 @@ class SimProcedure(object):
         # fill out all the fun stuff we don't want to frontload
         if self.addr is None:
             self.addr = state.addr
-        if self.arch is None
+        if self.arch is None:
             self.arch = state.arch
+        if self.project is None:
+            self.project = state.project
         if self.cc is None:
             if self.arch.name in DEFAULT_CC:
                 self.cc = DEFAULT_CC[self.arch.name](self.arch)
@@ -129,18 +132,20 @@ class SimProcedure(object):
 
                 saved_sp, sim_args, saved_local_vars = state.callstack.top.procedure_data
                 state.regs.sp = saved_sp
+                inst.use_state_arguments = True
                 for name, val in saved_local_vars:
                     setattr(inst, name, val)
             else:
                 if arguments is None:
+                    inst.use_state_arguments = True
                     sim_args = [ inst.arg(_) for _ in xrange(inst.num_args) ]
                 else:
+                    inst.use_state_arguments = False
                     sim_args = arguments[:inst.num_args]
-                run_func = self.run
             inst.arguments = sim_args
 
             # run it
-            r = getattr(self, self.run_func)(*sim_args, **inst.kwargs)
+            r = getattr(inst, inst.run_func)(*inst.arguments, **inst.kwargs)
 
         if inst.returns and (not inst.successors or len(inst.successors.successors) == 0):
             inst.ret(r)
@@ -148,12 +153,14 @@ class SimProcedure(object):
         return inst
 
     def make_continuation(self, name):
+        # make a copy of the canon copy, customize it for the specific continuation, then hook it
         if name not in self.canonical.continuations:
             cont = copy.copy(self.canonical)
             cont.addr = self.project._extern_obj.anon_allocation()
             cont.is_continuation = True
             cont.run_func = name
             self.canonical.continuations[name] = cont
+            self.project.hook(cont.addr, cont)
         return self.canonical.continuations[name].addr
 
     #
@@ -168,7 +175,7 @@ class SimProcedure(object):
     local_vars = ()         # if you use self.call(), set this to a list of all the local variable
                             # names in your class. They will be restored on return.
 
-    def run(self, *args, **kwargs): #pylint:disable=unused-argument
+    def run(self, *args, **kwargs):
         """
         Implement the actual procedure here!
         """
@@ -197,10 +204,6 @@ class SimProcedure(object):
     @property
     def should_add_successors(self):
         return self.successors is not None
-
-    @property
-    def use_state_arguments(self):
-        return self.arguments is None
 
     #
     # Working with calling conventions
@@ -261,7 +264,7 @@ class SimProcedure(object):
     # Control Flow
     #
 
-    def inline_call(self, procedure, *arguments, **sim_kwargs):
+    def inline_call(self, procedure, *arguments, **kwargs):
         """
         Call another SimProcedure in-line to retrieve its return value.
         Returns an instance of the procedure with the ret_expr property set.
@@ -273,9 +276,8 @@ class SimProcedure(object):
                                 procedure construtor
         """
         e_args = [ self.state.se.BVV(a, self.state.arch.bits) if isinstance(a, (int, long)) else a for a in arguments ]
-        p = procedure(self.addr, self.arch, sim_kwargs=sim_kwargs)
-        p.execute(self.state, None, arguments=e_args)
-        return p
+        p = procedure(project=self.project, **kwargs)
+        return p.execute(self.state, None, arguments=e_args)
 
     def ret(self, expr=None):
         """
@@ -319,9 +321,9 @@ class SimProcedure(object):
             cc = self.cc
 
         call_state = self.state.copy()
-        ret_addr = self.continuation_addr
+        ret_addr = self.make_continuation(continue_at)
         saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
-        simcallstack_entry = (continue_at, self.state.regs.sp, saved_local_vars)
+        simcallstack_entry = (self.state.regs.sp, self.arguments, saved_local_vars)
         cc.setup_callsite(call_state, ret_addr, args)
         call_state.callstack.top.procedure_data = simcallstack_entry
 

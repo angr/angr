@@ -9,8 +9,7 @@ from .sim_state import SimState
 from .state_plugins import SimStateSystem, SimActionData
 from . import sim_options as o
 from .calling_conventions import DEFAULT_CC, SYSCALL_CC
-from .procedures import SIM_PROCEDURES
-from .sim_procedure import SimProcedure
+from .procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
 from cle import MetaELF, BackedCGC
 from cle.address_translator import AT
 import claripy
@@ -206,21 +205,21 @@ class SimOS(object):
 
     def __init__(self, project, name=None):
         self.arch = project.arch
-        self.proj = project
+        self.project = project
         self.name = name
         self.continue_addr = None
         self.return_deadend = None
 
-        unknown_syscall = SIM_PROCEDURES['syscalls']['stub']
+        unknown_syscall = P['syscalls']['stub']
         unknown_syscall_number = 1
         self.syscall_table = SyscallTable(unknown_syscall_number=unknown_syscall_number)
-        self.syscall_table[unknown_syscall_number] = SyscallEntry('_unsupported', self.proj._syscall_obj.mapped_base,
+        self.syscall_table[unknown_syscall_number] = SyscallEntry('_unsupported', self.project._syscall_obj.mapped_base,
                                                                   unknown_syscall
                                                                   )
 
     def _load_syscalls(self, syscall_table, syscall_lib):
         """
-        Load a table of syscalls to self.proj._syscall_obj. Each syscall entry takes 8 bytes no matter what
+        Load a table of syscalls to self.project._syscall_obj. Each syscall entry takes 8 bytes no matter what
         architecture it is on.
 
         :param dict syscall_table: Syscall table.
@@ -230,7 +229,7 @@ class SimOS(object):
 
         self.syscall_table.clear()
 
-        base_addr = self.proj._syscall_obj.mapped_base
+        base_addr = self.project._syscall_obj.mapped_base
 
         syscall_entry_count = 0 if not syscall_table else max(syscall_table.keys()) + 1
         for syscall_number in xrange(syscall_entry_count):
@@ -239,22 +238,22 @@ class SimOS(object):
 
             if syscall_number in syscall_table:
                 name, simproc_name = syscall_table[syscall_number]
-                if isinstance(simproc_name, str) and simproc_name in SIM_PROCEDURES[syscall_lib]:
+                if isinstance(simproc_name, str) and simproc_name in P[syscall_lib]:
                     # They give us a string, do resolution
-                    simproc = SIM_PROCEDURES[syscall_lib][simproc_name]
+                    simproc = P[syscall_lib][simproc_name]
                 elif isinstance(simproc_name, type):
                     # If they give us the type, just take it
                     simproc = simproc_name
                 else:
                     # no SimProcedure is implemented for this syscall
-                    simproc = SIM_PROCEDURES["syscalls"]["stub"]
+                    simproc = P["syscalls"]["stub"]
 
                 self.syscall_table[syscall_number] = SyscallEntry(name, syscall_addr, simproc)
 
             else:
                 # no syscall number available in the pre-defined syscall table
                 self.syscall_table[syscall_number] = SyscallEntry("_unsupported", syscall_addr,
-                                                                  SIM_PROCEDURES["syscalls"]["stub"],
+                                                                  P["syscalls"]["stub"],
                                                                   supported=False
                                                                   )
 
@@ -264,7 +263,7 @@ class SimOS(object):
         # set unknown_syscall_number
         self.syscall_table.unknown_syscall_number = unknown_syscall_number
         self.syscall_table[unknown_syscall_number] = SyscallEntry("_unknown", unknown_syscall_addr,
-                                                                   SIM_PROCEDURES["syscalls"]["stub"],
+                                                                   P["syscalls"]["stub"],
                                                                    supported=False
                                                                    )
 
@@ -324,18 +323,21 @@ class SimOS(object):
         cc, syscall_addr, syscall_name, syscall_class = self.syscall_info(state)
 
         state.ip = syscall_addr
-        syscall = syscall_class(syscall_addr, state.arch, cc=cc, display_name=syscall_name)
+        syscall = syscall_class(
+                project=state.project,
+                cc=cc,
+                display_name=syscall_name)
         return syscall
 
     def configure_project(self):
         """
         Configure the project to set up global settings (like SimProcedures).
         """
-        self.return_deadend = self.proj._extern_obj.get_pseudo_addr('angr##return_deadend')
-        self.proj.hook(self.return_deadend, CallReturn)
+        self.return_deadend = self.project._extern_obj.get_pseudo_addr('angr##return_deadend')
+        self.project.hook(self.return_deadend, CallReturn())
 
         def irelative_resolver(resolver_addr):
-            resolver = self.proj.factory.callable(resolver_addr, concrete_only=True)
+            resolver = self.project.factory.callable(resolver_addr, concrete_only=True)
             try:
                 val = resolver()
             except AngrCallableMultistateError:
@@ -348,7 +350,7 @@ class SimOS(object):
 
             return val._model_concrete.value
 
-        self.proj.loader.perform_irelative_relocs(irelative_resolver)
+        self.project.loader.perform_irelative_relocs(irelative_resolver)
 
     def state_blank(self, addr=None, initial_prefix=None, stack_size=1024*1024*8, **kwargs):
         """
@@ -362,11 +364,11 @@ class SimOS(object):
         :rtype:                 SimState
         """
         if kwargs.get('mode', None) is None:
-            kwargs['mode'] = self.proj._default_analysis_mode
+            kwargs['mode'] = self.project._default_analysis_mode
         if kwargs.get('permissions_backer', None) is None:
             # just a dict of address ranges to permission bits
             permission_map = { }
-            for obj in self.proj.loader.all_objects:
+            for obj in self.project.loader.all_objects:
                 for seg in obj.segments:
                     perms = 0
                     # bit values based off of protection bit values from sys/mman.h
@@ -377,16 +379,14 @@ class SimOS(object):
                     if seg.is_executable:
                         perms |= 4 # PROT_EXEC
                     permission_map[(seg.min_addr, seg.max_addr)] = perms
-            permissions_backer = (self.proj.loader.main_bin.execstack, permission_map)
+            permissions_backer = (self.project.loader.main_bin.execstack, permission_map)
             kwargs['permissions_backer'] = permissions_backer
         if kwargs.get('memory_backer', None) is None:
-            kwargs['memory_backer'] = self.proj.loader.memory
-        if kwargs.get('arch', None) is None:
-            kwargs['arch'] = self.proj.arch
+            kwargs['memory_backer'] = self.project.loader.memory
         if kwargs.get('os_name', None) is None:
             kwargs['os_name'] = self.name
 
-        state = SimState(**kwargs)
+        state = SimState(self.project, **kwargs)
 
         stack_end = state.arch.initial_sp
         if o.ABSTRACT_MEMORY not in state.options:
@@ -425,7 +425,7 @@ class SimOS(object):
             else:
                 state.registers.store(reg, val)
 
-        if addr is None: addr = self.proj.entry
+        if addr is None: addr = self.project.entry
         state.regs.ip = addr
 
         # set up the "root history" node
@@ -442,7 +442,7 @@ class SimOS(object):
         return self.state_entry(**kwargs)
 
     def state_call(self, addr, *args, **kwargs):
-        cc = kwargs.pop('cc', DEFAULT_CC[self.arch.name](self.proj.arch))
+        cc = kwargs.pop('cc', DEFAULT_CC[self.arch.name](self.project.arch))
         state = kwargs.pop('base_state', None)
         toc = kwargs.pop('toc', None)
 
@@ -496,7 +496,7 @@ class SimOS(object):
         """
         Prepare the address space with the data necessary to perform relocations pointing to the given symbol
         """
-        return self.proj._extern_obj.get_pseudo_addr(symbol_name)
+        return self.project._extern_obj.get_pseudo_addr(symbol_name)
 
 class SimLinux(SimOS):
     """
@@ -592,52 +592,53 @@ class SimLinux(SimOS):
     def configure_project(self):
         super(SimLinux, self).configure_project()
 
-        self._loader_addr = self.proj._extern_obj.get_pseudo_addr('angr##loader')
-        self._loader_lock_addr = self.proj._extern_obj.get_pseudo_addr('angr##loader_lock')
-        self._loader_unlock_addr = self.proj._extern_obj.get_pseudo_addr('angr##loader_unlock')
-        self._vsyscall_addr = self.proj._extern_obj.get_pseudo_addr('angr##vsyscall')
-        self.proj.hook(self._loader_addr, LinuxLoader, kwargs={'project': self.proj})
-        self.proj.hook(self._loader_lock_addr, _dl_rtld_lock_recursive)
-        self.proj.hook(self._loader_unlock_addr, _dl_rtld_unlock_recursive)
-        self.proj.hook(self._vsyscall_addr, _vsyscall)
+        self._loader_addr = self.project._extern_obj.get_pseudo_addr('angr##loader')
+        self._loader_lock_addr = self.project._extern_obj.get_pseudo_addr('angr##loader_lock')
+        self._loader_unlock_addr = self.project._extern_obj.get_pseudo_addr('angr##loader_unlock')
+        self._vsyscall_addr = self.project._extern_obj.get_pseudo_addr('angr##vsyscall')
+        self.project.hook(self._loader_addr, P['linux_loader']['LinuxLoader']())
+        self.project.hook(self._loader_lock_addr, P['linux_loader']['_dl_rtld_lock_recursive']())
+        self.project.hook(self._loader_unlock_addr, P['linux_loader']['_dl_rtld_unlock_recursive']())
+        self.project.hook(self._vsyscall_addr, P['linux_kernel']['_vsyscall']())
 
-        ld_obj = self.proj.loader.linux_loader_object
+        ld_obj = self.project.loader.linux_loader_object
         if ld_obj is not None:
+            # there are some functions we MUST use the simprocedures for, regardless of what the user wants
             tlsfunc = ld_obj.get_symbol('__tls_get_addr')
-            if tlsfunc is not None:
-                self.proj.hook(tlsfunc.rebased_addr, _tls_get_addr, kwargs={'ld': self.proj.loader})
-            tlsfunc2 = ld_obj.get_symbol('___tls_get_addr')
-            if tlsfunc2 is not None:
-                if self.proj.arch.name == 'X86':
-                    self.proj.hook(tlsfunc2.rebased_addr, _tls_get_addr_tunder_x86, kwargs={'ld': self.proj.loader})
-                else:
-                    l.error("Found an unknown ___tls_get_addr, please tell Andrew")
+            if tlsfunc is not None and not self.project.is_hooked(tlsfunc.rebased_addr):
+                self.project.hook(tlsfunc.rebased_addr, P['ld.so'].get('__tls_get_addr'))
 
+            tlsfunc = ld_obj.get_symbol('___tls_get_addr')
+            if tlsfunc is not None and not self.project.is_hooked(tlsfunc.rebased_addr):
+                self.project.hook(tlsfunc.rebased_addr, P['ld.so'].get('___tls_get_addr'))
+
+            # set up some static data in the loader object...
             _rtld_global = ld_obj.get_symbol('_rtld_global')
             if _rtld_global is not None:
-                if isinstance(self.proj.arch, ArchAMD64):
-                    self.proj.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
-                    self.proj.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0xF10, self._loader_unlock_addr)
+                if isinstance(self.project.arch, ArchAMD64):
+                    self.project.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
+                    self.project.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0xF10, self._loader_unlock_addr)
 
+            # TODO: what the hell is this
             _rtld_global_ro = ld_obj.get_symbol('_rtld_global_ro')
             if _rtld_global_ro is not None:
                 pass
 
-        tls_obj = self.proj.loader.tls_object
+        tls_obj = self.project.loader.tls_object
         if tls_obj is not None:
-            if isinstance(self.proj.arch, ArchAMD64):
-                self.proj.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x28, 0x5f43414e4152595f)
-                self.proj.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
-            elif isinstance(self.proj.arch, ArchX86):
-                self.proj.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x10, self._vsyscall_addr)
-            elif isinstance(self.proj.arch, ArchARM):
-                self.proj.hook(0xffff0fe0, _kernel_user_helper_get_tls, kwargs={'ld': self.proj.loader})
+            if isinstance(self.project.arch, ArchAMD64):
+                self.project.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x28, 0x5f43414e4152595f)
+                self.project.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
+            elif isinstance(self.project.arch, ArchX86):
+                self.project.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x10, self._vsyscall_addr)
+            elif isinstance(self.project.arch, ArchARM):
+                self.project.hook(0xffff0fe0, P['linux_kernel']['_kernel_user_helper_get_tls']())
 
 
         # Only set up ifunc resolution if we are using the ELF backend on AMD64
-        if isinstance(self.proj.loader.main_bin, MetaELF):
-            if isinstance(self.proj.arch, ArchAMD64):
-                for binary in self.proj.loader.all_objects:
+        if isinstance(self.project.loader.main_bin, MetaELF):
+            if isinstance(self.project.arch, ArchAMD64):
+                for binary in self.project.loader.all_objects:
                     if not isinstance(binary, MetaELF):
                         continue
                     for reloc in binary.relocs:
@@ -649,45 +650,45 @@ class SimLinux(SimOS):
                         except AttributeError:
                             continue
                         gotaddr = reloc.addr
-                        gotvalue = self.proj.loader.memory.read_addr_at(gotaddr)
-                        if self.proj.is_hooked(gotvalue):
+                        gotvalue = self.project.loader.memory.read_addr_at(gotaddr)
+                        if self.project.is_hooked(gotvalue):
                             continue
                         # Replace it with a ifunc-resolve simprocedure!
                         kwargs = {
-                                'proj': self.proj,
                                 'funcaddr': gotvalue,
                                 'gotaddr': gotaddr,
                                 'funcname': reloc.symbol.name
                         }
-                        randaddr = self.proj._extern_obj.get_pseudo_addr('ifunc_%s_%s' % (binary.binary, reloc.symbol.name))
-                        self.proj.hook(randaddr, IFuncResolver, kwargs=kwargs)
-                        self.proj.loader.memory.write_addr_at(gotaddr, randaddr)
+                        # TODO: should this be replaced with hook_symbol?
+                        randaddr = self.project._extern_obj.get_pseudo_addr('ifunc_%s_%s' % (binary.binary, reloc.symbol.name))
+                        self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](**kwargs))
+                        self.project.loader.memory.write_addr_at(gotaddr, randaddr)
 
         self._load_syscalls(SimLinux.SYSCALL_TABLE[self.arch.name], "syscalls")
 
     def state_blank(self, fs=None, concrete_fs=False, chroot=None, **kwargs):
         state = super(SimLinux, self).state_blank(**kwargs) #pylint:disable=invalid-name
 
-        if self.proj.loader.tls_object is not None:
+        if self.project.loader.tls_object is not None:
             if isinstance(state.arch, ArchAMD64):
-                state.regs.fs = self.proj.loader.tls_object.user_thread_pointer
+                state.regs.fs = self.project.loader.tls_object.user_thread_pointer
             elif isinstance(state.arch, ArchX86):
-                state.regs.gs = self.proj.loader.tls_object.user_thread_pointer >> 16
+                state.regs.gs = self.project.loader.tls_object.user_thread_pointer >> 16
             elif isinstance(state.arch, (ArchMIPS32, ArchMIPS64)):
-                state.regs.ulr = self.proj.loader.tls_object.user_thread_pointer
+                state.regs.ulr = self.project.loader.tls_object.user_thread_pointer
             elif isinstance(state.arch, ArchPPC32):
-                state.regs.r2 = self.proj.loader.tls_object.user_thread_pointer
+                state.regs.r2 = self.project.loader.tls_object.user_thread_pointer
             elif isinstance(state.arch, ArchPPC64):
-                state.regs.r13 = self.proj.loader.tls_object.user_thread_pointer
+                state.regs.r13 = self.project.loader.tls_object.user_thread_pointer
             elif isinstance(state.arch, ArchAArch64):
-                state.regs.tpidr_el0 = self.proj.loader.tls_object.user_thread_pointer
+                state.regs.tpidr_el0 = self.project.loader.tls_object.user_thread_pointer
 
-        last_addr = self.proj.loader.main_bin.get_max_addr()
+        last_addr = self.project.loader.main_bin.get_max_addr()
         brk = last_addr - last_addr % 0x1000 + 0x1000
 
         state.register_plugin('posix', SimStateSystem(fs=fs, concrete_fs=concrete_fs, chroot=chroot, brk=brk))
 
-        if self.proj.loader.main_bin.is_ppc64_abiv1:
+        if self.project.loader.main_bin.is_ppc64_abiv1:
             state.libc.ppc64_abiv = 'ppc64_1'
 
         return state
@@ -797,17 +798,17 @@ class SimLinux(SimOS):
                     # or NULL. We like NULL. It makes things easier.
                     state.registers.store(reg, 0)
                 elif val == 'toc':
-                    if self.proj.loader.main_bin.is_ppc64_abiv1:
-                        state.registers.store(reg, self.proj.loader.main_bin.ppc64_initial_rtoc)
+                    if self.project.loader.main_bin.is_ppc64_abiv1:
+                        state.registers.store(reg, self.project.loader.main_bin.ppc64_initial_rtoc)
                 elif val == 'thread_pointer':
-                    state.registers.store(reg, self.proj.loader.tls_object.user_thread_pointer)
+                    state.registers.store(reg, self.project.loader.tls_object.user_thread_pointer)
                 else:
                     l.warning('Unknown entry point register value indicator "%s"', val)
             else:
                 l.error('What the ass kind of default value is %s?', val)
 
     def state_full_init(self, **kwargs):
-        kwargs['addr'] = self.proj._extern_obj.get_pseudo_addr('angr##loader')
+        kwargs['addr'] = self._loader_addr
         return super(SimLinux, self).state_full_init(**kwargs)
 
     def prepare_function_symbol(self, symbol_name):
@@ -815,13 +816,13 @@ class SimLinux(SimOS):
         Prepare the address space with the data necessary to perform relocations pointing to the given symbol.
         """
         if self.arch.name == 'PPC64':
-            pseudo_hookaddr = self.proj._extern_obj.get_pseudo_addr(symbol_name + '#func')
-            pseudo_toc = self.proj._extern_obj.get_pseudo_addr(symbol_name + '#func', size=0x18)
-            self.proj._extern_obj.memory.write_addr_at(
-                AT.from_va(pseudo_toc, self.proj._extern_obj).to_rva(), pseudo_hookaddr)
+            pseudo_hookaddr = self.project._extern_obj.get_pseudo_addr(symbol_name + '#func')
+            pseudo_toc = self.project._extern_obj.get_pseudo_addr(symbol_name + '#func', size=0x18)
+            self.project._extern_obj.memory.write_addr_at(
+                AT.from_va(pseudo_toc, self.project._extern_obj).to_rva(), pseudo_hookaddr)
             return pseudo_hookaddr
         else:
-            return self.proj._extern_obj.get_pseudo_addr(symbol_name)
+            return self.project._extern_obj.get_pseudo_addr(symbol_name)
 
 class SimCGC(SimOS):
 
@@ -865,14 +866,14 @@ class SimCGC(SimOS):
         return s
 
     def state_entry(self, **kwargs):
-        if isinstance(self.proj.loader.main_bin, BackedCGC):
-            kwargs['permissions_backer'] = (True, self.proj.loader.main_bin.permissions_map)
+        if isinstance(self.project.loader.main_bin, BackedCGC):
+            kwargs['permissions_backer'] = (True, self.project.loader.main_bin.permissions_map)
         kwargs['add_options'] = {o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY} | kwargs.get('add_options', set())
 
         state = super(SimCGC, self).state_entry(**kwargs)
 
-        if isinstance(self.proj.loader.main_bin, BackedCGC):
-            for reg, val in self.proj.loader.main_bin.initial_register_values():
+        if isinstance(self.project.loader.main_bin, BackedCGC):
+            for reg, val in self.project.loader.main_bin.initial_register_values():
                 if reg in state.arch.registers:
                     setattr(state.regs, reg, val)
                 elif reg == 'eflags':
@@ -894,10 +895,10 @@ class SimCGC(SimOS):
                     l.error("What is this register %s I have to translate?", reg)
 
             # Update allocation base
-            state.cgc.allocation_base = self.proj.loader.main_bin.current_allocation_base
+            state.cgc.allocation_base = self.project.loader.main_bin.current_allocation_base
 
             # Do all the writes
-            writes_backer = self.proj.loader.main_bin.writes_backer
+            writes_backer = self.project.loader.main_bin.writes_backer
             stdout = 1
             for size in writes_backer:
                 if size == 0:
@@ -956,96 +957,6 @@ class SimCGC(SimOS):
             state.regs.cs = 0
 
         return state
-
-#
-# Loader-related simprocedures
-#
-
-class IFuncResolver(SimProcedure):
-    NO_RET = True
-
-    # pylint: disable=arguments-differ,unused-argument
-    def run(self, proj=None, funcaddr=None, gotaddr=None, funcname=None):
-        resolve = proj.factory.callable(funcaddr, concrete_only=True)
-        try:
-            value = resolve()
-        except AngrCallableError:
-            l.critical("Ifunc \"%s\" failed to resolve!", funcname)
-            #import IPython; IPython.embed()
-            raise
-        self.state.memory.store(gotaddr, value, endness=self.state.arch.memory_endness)
-        self.successors.add_successor(self.state, value, claripy.true, 'Ijk_Boring')
-
-    def __repr__(self):
-        return '<IFuncResolver %s>' % self.kwargs.get('funcname', None)
-
-class LinuxLoader(SimProcedure):
-    NO_RET = True
-    IS_FUNCTION = True
-
-    # pylint: disable=unused-argument,arguments-differ,attribute-defined-outside-init
-    local_vars = ('initializers',)
-    def run(self, project=None):
-        self.initializers = project.loader.get_initializers()
-        self.run_initializer(project)
-
-    def run_initializer(self, project=None):
-        if len(self.initializers) == 0:
-            project._simos.set_entry_register_values(self.state)
-            self.jump(project.entry)
-        else:
-            addr = self.initializers[0]
-            self.initializers = self.initializers[1:]
-            self.call(addr, (self.state.posix.argc, self.state.posix.argv, self.state.posix.environ), 'run_initializer')
-
-class _tls_get_addr(SimProcedure):
-    # pylint: disable=arguments-differ
-    def run(self, ptr, ld=None):
-        module_id = self.state.se.any_int(self.state.memory.load(ptr, self.state.arch.bytes, endness=self.state.arch.memory_endness))
-        offset = self.state.se.any_int(self.state.memory.load(ptr+self.state.arch.bytes, self.state.arch.bytes, endness=self.state.arch.memory_endness))
-        return claripy.BVV(ld.tls_object.get_addr(module_id, offset), self.state.arch.bits)
-
-class _tls_get_addr_tunder_x86(SimProcedure):
-    # pylint: disable=arguments-differ
-    def run(self, ld=None):
-        ptr = self.state.regs.eax
-        return self.inline_call(_tls_get_addr, ptr, ld=ld).ret_expr
-
-class _dl_rtld_lock_recursive(SimProcedure):
-    # pylint: disable=arguments-differ, unused-argument
-    def run(self, lock):
-        # For future reference:
-        # ++((pthread_mutex_t *)(lock))->__data.__count;
-        return
-
-class _dl_rtld_unlock_recursive(SimProcedure):
-    def run(self):
-        return
-
-class _vsyscall(SimProcedure):
-    NO_RET = True
-
-    # This is pretty much entirely copied from SimProcedure.ret
-    def run(self):
-        if self.state.arch.call_pushes_ret:
-            ret_addr = self.state.stack_pop()
-        else:
-            ret_addr = self.state.registers.load(self.state.arch.lr_offset, self.state.arch.bytes)
-
-        self.successors.add_successor(self.state, ret_addr, claripy.true, 'Ijk_Sys')
-
-class _kernel_user_helper_get_tls(SimProcedure):
-    # pylint: disable=arguments-differ
-    def run(self, ld=None):
-        self.state.regs.r0 = ld.tls_object.user_thread_pointer
-        return
-
-class CallReturn(SimProcedure):
-    NO_RET = True
-
-    def run(self):
-        l.info("A factory.call_state-created path returned!")
-        return
 
 
 os_mapping = defaultdict(lambda: SimOS)
