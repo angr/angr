@@ -138,9 +138,7 @@ class SimEngineUnicorn(SimEngine):
 
     def __setstate__(self, state):
         super(SimEngineUnicorn, self).__setstate__(state)
-
         self.base_stop_points = state['base_stop_points']
-        self._check_failed = self._countdown
 
     def __getstate__(self):
         s = super(SimEngineUnicorn, self).__getstate__()
