@@ -46,13 +46,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
     :ivar unicorn:      Control of the Unicorn Engine
     """
 
-    def __init__(self, arch="AMD64", plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
+    def __init__(self, project, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
                  add_options=None, remove_options=None, special_memory_filler=None, os_name=None):
-        # the architecture is used for function simulations (autorets) and the bitness
-        if isinstance(arch, str):
-            self.arch = arch_from_id(arch)
-        else:
-            self.arch = arch
+        self.project = project
+        self.arch = project.arch.copy()
 
         # the options
         if options is None:
@@ -139,20 +136,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
             ip_str = repr(self.regs.ip)
 
         return "<SimState @ %s>" % ip_str
-
-    #
-    # Some temporary backwards compatibility
-    #
-
-    def BV(self, name, size=None, explicit_name=None):
-        l.critical("DEPRECATION WARNING: SimState.BV() has been deprecated and will soon be removed. Please use state.se.BVS() or claripy.BVS().")
-        print "DEPRECATION WARNING: SimState.BV() has been deprecated and will soon be removed. Please use state.se.BVS() or claripy.BVS()."
-        return self.se.BVS(name, self.arch.bits if size is None else size, explicit_name=explicit_name)
-
-    def BVV(self, value, size=None):
-        l.critical("DEPRECATION WARNING: SimState.BVV() has been deprecated and will soon be removed. Please use state.se.BVV().")
-        print "DEPRECATION WARNING: SimState.BVV() has been deprecated and will soon be removed. Please use state.se.BVV()."
-        return self.se.BVV(value, size=self.arch.bits if size is None and not isinstance(value, str) else size)
 
     #
     # Easier access to some properties
@@ -448,9 +431,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
         if self._global_condition is not None:
             raise SimStateError("global condition was not cleared before state.copy().")
 
-        c_arch = self.arch.copy()
         c_plugins = self._copy_plugins()
-        state = SimState(arch=c_arch, plugins=c_plugins, options=self.options, mode=self.mode, os_name=self.os_name)
+        state = SimState(self.project, plugins=c_plugins, options=self.options, mode=self.mode, os_name=self.os_name)
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
         state._special_memory_filler = self._special_memory_filler

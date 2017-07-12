@@ -39,7 +39,7 @@ class SimEngineFailure(SimEngine): #pylint:disable=abstract-method
 
         elif state.history.jumpkind == 'Ijk_Exit':
             l.debug('Execution terminated at %#x', addr)
-            terminator = SIM_PROCEDURES['stubs']['PathTerminator'](addr, state.arch)
+            terminator = SIM_PROCEDURES['stubs']['PathTerminator'](project=self.project)
             peng = self.project.factory.procedure_engine
             return peng.process(state, terminator, force_addr=addr)
 
