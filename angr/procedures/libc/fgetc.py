@@ -18,5 +18,6 @@ class fgetc(angr.SimProcedure):
         fd = self.state.mem[file_ptr + fd_offset : ].int.resolved
 
         data = self.inline_call(
-            angr.SIM_PROCEDURES['libc.so.6']['_IO_getc'], fd).ret_expr
+                # TODO: use a less private implementation?
+            angr.SIM_PROCEDURES['glibc']['_IO_getc'], fd).ret_expr
         return data

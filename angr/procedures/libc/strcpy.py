@@ -9,8 +9,8 @@ class strcpy(angr.SimProcedure):
                                1: self.ty_ptr(SimTypeString())}
         self.return_type = self.ty_ptr(SimTypeString())
 
-        strlen = angr.SIM_PROCEDURES['libc.so.6']['strlen']
-        strncpy = angr.SIM_PROCEDURES['libc.so.6']['strncpy']
+        strlen = angr.SIM_PROCEDURES['libc']['strlen']
+        strncpy = angr.SIM_PROCEDURES['libc']['strncpy']
         src_len = self.inline_call(strlen, src)
 
         ret_expr = self.inline_call(strncpy, dst, src, src_len.ret_expr+1, src_len=src_len.ret_expr).ret_expr

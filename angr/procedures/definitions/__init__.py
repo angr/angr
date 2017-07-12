@@ -23,3 +23,4 @@ class SimLibrary(object):
             self.procedures[alt] = new_procedure
 
     def get(self, name):
+        pass

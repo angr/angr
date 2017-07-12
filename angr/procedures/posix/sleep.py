@@ -2,7 +2,7 @@ import angr
 from angr.sim_type import SimTypeInt
 
 import logging
-l = logging.getLogger("angr.procedures.libc___so___6.sleep")
+l = logging.getLogger("angr.procedures.posix.sleep")
 
 class sleep(angr.SimProcedure):
     #pylint:disable=arguments-differ

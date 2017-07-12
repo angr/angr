@@ -210,7 +210,7 @@ class SimOS(object):
         self.continue_addr = None
         self.return_deadend = None
 
-        unknown_syscall = P['syscalls']['stub']
+        unknown_syscall = P['stubs']['syscall']
         unknown_syscall_number = 1
         self.syscall_table = SyscallTable(unknown_syscall_number=unknown_syscall_number)
         self.syscall_table[unknown_syscall_number] = SyscallEntry('_unsupported', self.project._syscall_obj.mapped_base,
@@ -246,14 +246,14 @@ class SimOS(object):
                     simproc = simproc_name
                 else:
                     # no SimProcedure is implemented for this syscall
-                    simproc = P["syscalls"]["stub"]
+                    simproc = P["stubs"]["syscall"]
 
                 self.syscall_table[syscall_number] = SyscallEntry(name, syscall_addr, simproc)
 
             else:
                 # no syscall number available in the pre-defined syscall table
                 self.syscall_table[syscall_number] = SyscallEntry("_unsupported", syscall_addr,
-                                                                  P["syscalls"]["stub"],
+                                                                  P["stubs"]["syscall"],
                                                                   supported=False
                                                                   )
 
@@ -263,7 +263,7 @@ class SimOS(object):
         # set unknown_syscall_number
         self.syscall_table.unknown_syscall_number = unknown_syscall_number
         self.syscall_table[unknown_syscall_number] = SyscallEntry("_unknown", unknown_syscall_addr,
-                                                                   P["syscalls"]["stub"],
+                                                                   P["stubs"]["syscall"],
                                                                    supported=False
                                                                    )
 
@@ -334,7 +334,7 @@ class SimOS(object):
         Configure the project to set up global settings (like SimProcedures).
         """
         self.return_deadend = self.project._extern_obj.get_pseudo_addr('angr##return_deadend')
-        self.project.hook(self.return_deadend, CallReturn())
+        self.project.hook(self.return_deadend, P['stubs']['CallReturn']())
 
         def irelative_resolver(resolver_addr):
             resolver = self.project.factory.callable(resolver_addr, concrete_only=True)

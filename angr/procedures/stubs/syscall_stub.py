@@ -5,7 +5,7 @@ import angr
 ######################################
 
 #pylint:disable=redefined-builtin,arguments-differ
-class stub(angr.SimProcedure):
+class syscall(angr.SimProcedure):
 
     IS_SYSCALL = True
 

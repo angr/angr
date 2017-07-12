@@ -2,7 +2,7 @@ import angr
 from angr.sim_type import SimTypeTop, SimTypeLength
 
 import logging
-l = logging.getLogger("angr.procedures.libc___so___6.memcpy")
+l = logging.getLogger("angr.procedures.libc.memcpy")
 
 class memcpy(angr.SimProcedure):
     #pylint:disable=arguments-differ

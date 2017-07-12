@@ -8,9 +8,9 @@ class strdup(angr.SimProcedure):
         self.argument_types = {0: self.ty_ptr(SimTypeString())}
         self.return_type = self.ty_ptr(SimTypeString())
 
-        strlen = angr.SIM_PROCEDURES['libc.so.6']['strlen']
-        strncpy = angr.SIM_PROCEDURES['libc.so.6']['strncpy']
-        malloc = angr.SIM_PROCEDURES['libc.so.6']['malloc']
+        strlen = angr.SIM_PROCEDURES['libc']['strlen']
+        strncpy = angr.SIM_PROCEDURES['libc']['strncpy']
+        malloc = angr.SIM_PROCEDURES['libc']['malloc']
 
         src_len = self.inline_call(strlen, s).ret_expr
         new_s = self.inline_call(malloc, src_len+1).ret_expr

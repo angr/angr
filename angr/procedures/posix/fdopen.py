@@ -1,6 +1,6 @@
 import angr
 
-from . import io_file_data_for_arch
+from ..libc import io_file_data_for_arch
 
 ######################################
 # fdopen
@@ -32,7 +32,7 @@ class fdopen(angr.SimProcedure):
 
     def run(self, fd_int, m_addr):
         #pylint:disable=unused-variable
-        strlen = angr.SIM_PROCEDURES['libc.so.6']['strlen']
+        strlen = angr.SIM_PROCEDURES['libc']['strlen']
 
         m_strlen = self.inline_call(strlen, m_addr)
         m_expr = self.state.memory.load(m_addr, m_strlen.max_null_index, endness='Iend_BE')
@@ -46,7 +46,7 @@ class fdopen(angr.SimProcedure):
             return 0
         else:
             # Allocate a FILE struct in heap
-            malloc = angr.SIM_PROCEDURES['libc.so.6']['malloc']
+            malloc = angr.SIM_PROCEDURES['libc']['malloc']
             io_file_data = io_file_data_for_arch(self.state.arch)
             file_struct_ptr = self.inline_call(malloc, io_file_data['size']).ret_expr
 

@@ -1,10 +1,10 @@
 import angr
 from angr.sim_type import SimTypeFd, SimTypeTop
 
-from . import io_file_data_for_arch
+from ..libc import io_file_data_for_arch
 
 import logging
-l = logging.getLogger("angr.procedures.libc___so___6.fileno")
+l = logging.getLogger("angr.procedures.posix.fileno")
 
 
 ######################################

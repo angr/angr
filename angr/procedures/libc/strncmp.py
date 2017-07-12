@@ -2,7 +2,7 @@ import angr
 from angr.sim_type import SimTypeString, SimTypeLength, SimTypeInt
 
 import logging
-l = logging.getLogger("angr.procedures.libc___so___6.strncmp")
+l = logging.getLogger("angr.procedures.libc.strncmp")
 
 class strncmp(angr.SimProcedure):
     #pylint:disable=arguments-differ
@@ -14,7 +14,7 @@ class strncmp(angr.SimProcedure):
                        2: SimTypeLength(self.state.arch)}
         self.return_type = SimTypeInt(32, True)
 
-        strlen = angr.SIM_PROCEDURES['libc.so.6']['strlen']
+        strlen = angr.SIM_PROCEDURES['libc']['strlen']
 
         a_strlen = a_len if a_len is not None else self.inline_call(strlen, a_addr)
         b_strlen = b_len if b_len is not None else self.inline_call(strlen, b_addr)

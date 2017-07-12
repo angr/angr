@@ -12,8 +12,9 @@ class puts(angr.SimProcedure):
         self.argument_types = {0: self.ty_ptr(SimTypeString())}
         self.return_type = SimTypeInt(32, True)
 
-        write = angr.SIM_PROCEDURES['syscalls']['write']
-        strlen = angr.SIM_PROCEDURES['libc.so.6']['strlen']
+        # TODO: use a write that's not a linux syscall
+        write = angr.SIM_PROCEDURES['linux_kernel']['write']
+        strlen = angr.SIM_PROCEDURES['libc']['strlen']
 
         length = self.inline_call(strlen, string).ret_expr
         self.inline_call(write, self.state.se.BVV(1, self.state.arch.bits), string, length)

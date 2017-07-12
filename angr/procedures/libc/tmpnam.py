@@ -15,7 +15,7 @@ class tmpnam(angr.SimProcedure):
             return tmp_file_path_addr
 
         tmp_file_path = tempfile.mktemp()
-        malloc = angr.SIM_PROCEDURES['libc.so.6']['malloc']
+        malloc = angr.SIM_PROCEDURES['libc']['malloc']
         addr = self.inline_call(malloc, L_tmpnam).ret_expr
         self.state.memory.store(addr,
                                 tmp_file_path + '\x00')

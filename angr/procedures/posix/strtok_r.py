@@ -2,7 +2,7 @@ import angr
 from angr.sim_type import SimTypeString
 
 import logging
-l = logging.getLogger("angr.procedures.libc___so___6.strtok_r")
+l = logging.getLogger("angr.procedures.posix.strtok_r")
 
 class strtok_r(angr.SimProcedure):
     #pylint:disable=arguments-differ
@@ -14,14 +14,14 @@ class strtok_r(angr.SimProcedure):
         self.return_type = self.ty_ptr(SimTypeString())
 
         if self.state.libc.simple_strtok:
-            malloc = angr.SIM_PROCEDURES['libc.so.6']['malloc']
+            malloc = angr.SIM_PROCEDURES['libc']['malloc']
             token_ptr = self.inline_call(malloc, self.state.libc.strtok_token_size).ret_expr
             r = self.state.se.If(self.state.se.Unconstrained('strtok_case', self.state.arch.bits) == 0, token_ptr, self.state.se.BVV(0, self.state.arch.bits))
             self.state.libc.strtok_heap.append(token_ptr)
             return r
         else:
-            strstr = angr.SIM_PROCEDURES['libc.so.6']['strstr']
-            strlen = angr.SIM_PROCEDURES['libc.so.6']['strlen']
+            strstr = angr.SIM_PROCEDURES['libc']['strstr']
+            strlen = angr.SIM_PROCEDURES['libc']['strlen']
 
             l.debug("Doin' a strtok_r!")
             l.debug("... geting the saved state")

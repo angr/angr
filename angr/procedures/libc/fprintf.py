@@ -4,7 +4,7 @@ from angr.procedures.stubs.format_parser import FormatParser
 
 from . import io_file_data_for_arch
 
-l = logging.getLogger("angr.procedures.libc___so___6.fprintf")
+l = logging.getLogger("angr.procedures.libc.fprintf")
 
 ######################################
 # fprintf

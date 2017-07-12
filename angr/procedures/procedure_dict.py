@@ -11,7 +11,7 @@ from ..sim_procedure import SimProcedure
 # lib names.
 SIM_PROCEDURES = defaultdict(dict)
 path = os.path.dirname(os.path.abspath(__file__))
-skip_dirs = ['__init__.py', '__pycache__']
+skip_dirs = ['__pycache__', 'definitions']
 skip_procs = ['__init__']
 
 

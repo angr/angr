@@ -3,7 +3,7 @@ import angr
 from angr.sim_type import SimTypeString, SimTypeLength
 
 import logging
-l = logging.getLogger("angr.procedures.libc___so___6.strlen")
+l = logging.getLogger("angr.procedures.libc.strlen")
 
 class strlen(angr.SimProcedure):
     #pylint:disable=arguments-differ

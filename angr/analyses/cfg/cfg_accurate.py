@@ -2657,7 +2657,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     old_name = None
 
                     if old_proc.IS_SYSCALL:
-                        new_stub = SIM_PROCEDURES["syscalls"]["stub"]
+                        new_stub = SIM_PROCEDURES["stubs"]["SyscallStub"]
                         ret_to = state.regs.ip_at_syscall
                     else:
                         # normal SimProcedures

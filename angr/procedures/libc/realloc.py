@@ -2,7 +2,7 @@ import angr
 from angr.sim_type import SimTypeLength, SimTypeTop
 
 import logging
-l = logging.getLogger("angr.procedures.libc___so___6.realloc")
+l = logging.getLogger("angr.procedures.libc.realloc")
 
 ######################################
 # realloc
