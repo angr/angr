@@ -140,10 +140,9 @@ class SimSuccessors(object):
         # trigger inspect breakpoints here since this statement technically shows up in the IRSB as the "next"
         state.regs.ip = state.scratch.target
 
-        # Consider those less fortunate among us with no stack pointer
-        # EDG and rhelmot would like to warn you that if you don't do this (and don't have a SP)
-        # SimProcedures that call other SimProcedures are going to be very broken
-        if hasattr(self.initial_state.regs, 'sp'):
+        # For architectures with no stack pointer, we can't manage a callstack. This has the side effect of breaking
+        # SimProcedures that call out to binary code self.call.
+        if self.initial_state.arch.sp_offset is not None:
             self._manage_callstack(state)
 
         # clean up the state
