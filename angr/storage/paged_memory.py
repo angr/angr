@@ -444,7 +444,7 @@ class SimPagedMemory(object):
                 if self.allow_segv:
                     if ret_on_segv:
                         break
-                    raise SimSegfaultError(page_addr, 'read-miss')
+                    raise SimSegfaultError(addr, 'read-miss')
                 else:
                     continue
 
@@ -452,7 +452,7 @@ class SimPagedMemory(object):
                 #print "... SEGV"
                 if ret_on_segv:
                     break
-                raise SimSegfaultError(page_addr, 'non-readable')
+                raise SimSegfaultError(addr, 'non-readable')
             result.extend(page.load_slice(self.state, addr, end))
 
         return result
