@@ -55,56 +55,57 @@ class SimOS(object):
         self.return_deadend = None
         self.syscall_library = None
 
-    def syscall_number(self, state, concrete=True):
+    def syscall(self, state, allow_unsupported=True):
         """
-        Given a state, return the number of the current syscall. Pass concrete=False to allow symbolic numbers.
-        Otherwise, if there is more than one concretization, return an "unknown" number.
-        """
-        if self.syscall_library is None:
-            return 0
+        Given a state, return the procedure corresponding to the current syscall.
+        This procedure will have .syscall_number, .display_name, and .addr set.
 
+        :param state:               The state to get the syscall number from
+        :param allow_unsupported    Whether to return a "dummy" sycall instead of raising an unsupported exception
+        """
         if state.os_name in SYSCALL_CC[state.arch.name]:
             cc = SYSCALL_CC[state.arch.name][state.os_name](state.arch)
         else:
             # Use the default syscall calling convention - it may bring problems
             cc = SYSCALL_CC[state.arch.name]['default'](state.arch)
+
         sym_num = cc.syscall_num(state)
-
-        if not concrete:
-            return sym_num
-
         possible = state.se.any_n_int(sym_num, 2)
 
         if len(possible) == 0:
             raise AngrUnsupportedSyscallError("The program state is not satisfiable")
         elif len(possible) == 1:
-            return possible[0]
+            num = possible[0]
+        elif allow_unsupported:
+            num = self.syscall_library.maximum_syscall_number + 1 if self.syscall_library else 0
         else:
-            return self.syscall_library.maximum_syscall_number + 1
+            raise AngrUnsupportedSyscallError("Got a symbolic syscall number")
 
-    def syscall_addr_from_num(self, number):
-        """
-        Given a concrete syscall number, return the address used to represent the syscall.
-        """
-        return number + self.project._syscall_obj.mapped_base
+        return self.syscall_from_number(num, allow_unsupported=allow_unsupported)
 
-    def syscall_addr(self, state, concrete=True):
-        """
-        Given a state, return the address used to represent the current syscall.
-        """
-        return self.syscall_addr_from_num(self.syscall_number(state, concrete=concrete))
+    def is_syscall_addr(self, addr):
+        addr -= self.project._syscall_obj.mapped_base
+        return 0 <= addr < 0x4000
 
-    def syscall_procedure(self, state, allow_unsupported=True):
-        """
-        Given a state, return the SimProcedure instance that should be used to handle the current syscall.
-        """
+    def syscall_from_addr(self, addr, allow_unsupported=True):
+        number = addr - self.project._syscall_obj.mapped_base
+        return self.syscall_from_number(number, allow_unsupported=allow_unsupported)
+
+    def syscall_from_number(self, number, allow_unsupported=True):
+        if not allow_unsupported and not self.syscall_library:
+            raise AngrUnsupportedSyscallError("%s does not have a library of syscalls implemented", self.name)
+
+        addr = number + self.project._syscall_obj.mapped_base
+
         if self.syscall_library is None:
-            return P['stubs']['syscall']()
-        number = self.syscall_number(state)
-        if not allow_unsupported:
-            if not self.syscall_library.has_implementation(number, self.arch):
-                raise AngrUnsupportedSyscallError("No implementation for syscall %d" % number)
-        return self.syscall_library.get(number, self.arch)
+            proc = P['stubs']['syscall']()
+        elif not allow_unsupported and not self.syscall_library.has_implementation(number, self.arch):
+            raise AngrUnsupportedSyscallError("No implementation for syscall %d" % number)
+        else:
+            proc = self.syscall_library.get(number, self.arch)
+
+        proc.addr = addr
+        return proc
 
     def configure_project(self):
         """

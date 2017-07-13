@@ -43,7 +43,7 @@ class LoopFinder(Analysis):
         for function in functions:
 
             if self.project.is_hooked(function.addr) or \
-                    self.project._simos.syscall_table.get_by_addr(function.addr) is not None:
+                    self.project._simos.is_syscall_addr(function.addr):
                 # skip SimProcedures and syscalls
                 continue
 

@@ -122,6 +122,7 @@ class SimSyscallLibrary(SimLibrary):
             return 'sys_%d (unsupported)' % number, arch
 
     def _apply_numerical_metadata(self, proc, number, arch):
+        proc.syscall_number = number
         for min_num, max_num, cc_cls in self.ranged_default_ccs[arch.name]:
             if min_num <= number <= max_num:
                 new_cc = cc_cls()

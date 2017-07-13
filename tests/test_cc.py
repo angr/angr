@@ -28,9 +28,9 @@ def test_calling_conventions():
             s.registers.store(reg, val)
 
         if cc is not None:
-            manyargs = SimProcedures['testing']['manyargs'](FAKE_ADDR, s.arch, cc=cc(s.arch)).execute(s)
+            manyargs = SimProcedures['testing']['manyargs'](cc=cc(s.arch)).execute(s)
         else:
-            manyargs = SimProcedures['testing']['manyargs'](FAKE_ADDR, s.arch).execute(s)
+            manyargs = SimProcedures['testing']['manyargs']().execute(s)
 
         # Simulate a call
         if s.arch.call_pushes_ret:

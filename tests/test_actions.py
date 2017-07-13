@@ -6,7 +6,7 @@ import nose
 FAKE_ADDR = 0x100000
 
 def test_procedure_actions():
-    s = SimState()
+    s = SimState(arch='AMD64')
 
     s.registers.store('rbx', 2)
     proc = SIM_PROCEDURES['testing']['retreg'](FAKE_ADDR, s.arch, sim_kwargs={'reg': 'rbx'})

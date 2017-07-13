@@ -12,7 +12,7 @@ from cle import ELF, PE, Blob, TLSObj
 
 from .cfg_node import CFGNode
 from ... import SIM_PROCEDURES
-from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError
+from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError, AngrUnsupportedSyscallError
 from ...extern_obj import AngrExternObject
 from ...knowledge import HookNode, BlockNode, FunctionManager
 
@@ -455,7 +455,7 @@ class CFGBase(Analysis):
         if self.project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
             hooker = self.project._sim_procedures[addr]
             size = hooker.kwargs.get('length', 0)
-            return HookNode(addr, size, hooker.procedure)
+            return HookNode(addr, size, type(hooker))
 
         return BlockNode(cfg_node.addr, cfg_node.size)  # pylint: disable=no-member
 
@@ -702,7 +702,7 @@ class CFGBase(Analysis):
         :rtype:             bool
         """
 
-        return self.project.is_hooked(addr) or self.project._simos.syscall_table.get_by_addr(addr) is not None
+        return self.project.is_hooked(addr) or self.project._simos.is_syscall_addr(addr)
 
     def _fast_memory_load(self, addr):
         """
@@ -810,13 +810,11 @@ class CFGBase(Analysis):
 
             # Let's first see if it's a known SimProcedure that does not return
             if self.project.is_hooked(func.addr):
-                hooker = self.project.hooked_by(func.addr)
-                procedure = hooker.procedure
+                procedure = self.project.hooked_by(func.addr)
             else:
-                syscall = self.project._simos.syscall_table.get_by_addr(func.addr)
-                if syscall is not None:
-                    procedure = syscall.simproc
-                else:
+                try:
+                    procedure = self.project._simos.syscall_from_addr(func.addr, allow_unsupported=False)
+                except AngrUnsupportedSyscallError:
                     procedure = None
 
             if procedure is not None and hasattr(procedure, 'NO_RET'):
@@ -1471,10 +1469,7 @@ class CFGBase(Analysis):
         if addr in blockaddr_to_function:
             f = blockaddr_to_function[addr]
         else:
-            is_syscall = False
-            syscall = self.project._simos.syscall_table.get_by_addr(addr)
-            if syscall is not None:
-                is_syscall = True
+            is_syscall = self.project._simos.is_syscall_addr(addr)
 
             n = self.get_any_node(addr, is_syscall=is_syscall)
             if n is None: node = addr
@@ -1762,7 +1757,7 @@ class CFGBase(Analysis):
         :rtype:                CFGNode or None
         """
 
-        for src, dst, data in all_edges:
+        for _, dst, data in all_edges:
             if data.get('jumpkind', None) == 'Ijk_FakeRet':
                 return dst
         return None
