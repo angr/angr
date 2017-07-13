@@ -2,7 +2,9 @@
 import logging
 
 import pyvex
+import ailment
 
+from ...block import Block
 from ...analyses.code_location import CodeLocation
 from ..engine import SimEngine
 
@@ -11,16 +13,15 @@ l = logging.getLogger("angr.engines.light.engine")
 
 class SimEngineLight(SimEngine):
 
-    def __init__(self):
+    def __init__(self, engine_type='vex'):
         super(SimEngineLight, self).__init__()
+
+        self.engine_type = engine_type
 
         # local variables
         self.state = None
         self.arch = None
-        self.func_addr = None
         self.block = None
-        self.vex_block = None
-        self.tyenv = None
 
         self.stmt_idx = None
         self.ins_addr = None
@@ -31,6 +32,15 @@ class SimEngineLight(SimEngine):
         # SimEngine becomes flexible enough.
         self._process(state, None, block=kwargs.pop('block', None))
 
+
+class SimEngineLightVEX(SimEngineLight):
+
+    def __init__(self):
+        super(SimEngineLightVEX, self).__init__()
+
+        # for VEX blocks only
+        self.tyenv = None
+
     def _process(self, state, successors, block=None):
 
         assert block is not None
@@ -38,13 +48,12 @@ class SimEngineLight(SimEngine):
         # initialize local variables
         self.tmps = { }
         self.block = block
-        self.vex_block = block.vex
-        self.tyenv = self.vex_block.tyenv
         self.state = state
         self.arch = state.arch
-        self.func_addr = state.function.addr
 
-        for stmt_idx, stmt in enumerate(self.vex_block.statements):
+        self.tyenv = block.vex.tyenv
+
+        for stmt_idx, stmt in enumerate(block.vex.statements):
             # print stmt.__str__(arch=self.arch, tyenv=self.vex_block.tyenv)
 
             self.stmt_idx = stmt_idx
@@ -58,6 +67,16 @@ class SimEngineLight(SimEngine):
 
         self.stmt_idx = None
         self.ins_addr = None
+
+    #
+    # Helper properties
+    #
+
+    @property
+    def func_addr(self):
+        if self.state is None:
+            return None
+        return self.state.function.addr
 
     #
     # Helper methods
@@ -149,3 +168,96 @@ class SimEngineLight(SimEngine):
 
     def _handle_Const(self, arg):  #pylint:disable=no-self-use
         return arg.con.value
+
+
+class SimEngineLightAIL(SimEngineLight):
+    def __init__(self):
+        super(SimEngineLightAIL, self).__init__(engine_type='ail')
+
+    def _process(self, state, successors, block=None):
+
+        self.tmps = { }
+        self.block = block
+        self.state = state
+        self.arch = state.arch
+
+        for stmt_idx, stmt in enumerate(block.statements):
+            self.stmt_idx = stmt_idx
+            self.ins_addr = 0xaaaaaaaa
+
+            handler = "_ail_handle_%s" % type(stmt).__name__
+            if hasattr(self, handler):
+                getattr(self, handler)(stmt)
+            else:
+                l.warning('Unsupported statement type %s.', type(stmt).__name__)
+
+        self.stmt_idx = None
+        self.ins_addr = None
+
+    def _expr(self, expr):
+
+        handler = "_ail_handle_%s" % type(expr).__name__
+        if hasattr(self, handler):
+            return getattr(self, handler)(expr)
+        l.warning('Unsupported expression type %s.', type(expr).__name__)
+        return None
+
+    #
+    # Helper methods
+    #
+
+    def _codeloc(self):
+        return CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
+
+    #
+    # Expression handlers
+    #
+
+    def _ail_handle_Const(self, expr):
+        return expr.value
+
+    def _ail_handle_Tmp(self, expr):
+        tmp_idx = expr.tmp_idx
+
+        try:
+            return self.tmps[tmp_idx]
+        except KeyError:
+            return None
+
+    def _ail_handle_BinaryOp(self, expr):
+        if expr.op == 'Add':
+            return self._ail_handle_Add(*expr.operands)
+        elif expr.op == 'Sub':
+            return self._ail_handle_Sub(*expr.operands)
+        else:
+            l.warning('Unsupported BinaryOp %s.', expr.op)
+
+    #
+    # Binary operation handlers
+    #
+
+    def _ail_handle_Add(self, arg0, arg1):
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            return expr_0 + expr_1
+        except TypeError:
+            return None
+
+    def _ail_handle_Sub(self, arg0, arg1):
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            return expr_0 - expr_1
+        except TypeError:
+            return None
