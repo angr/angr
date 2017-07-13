@@ -26,3 +26,4 @@ from .variable_recovery import VariableRecovery
 from .identifier import Identifier
 from .callee_cleanup_finder import CalleeCleanupFinder
 from .reaching_definitions import ReachingDefinitionAnalysis
+from .calling_convention import CallingConventionAnalysis
