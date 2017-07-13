@@ -1,29 +1,30 @@
 import nose
 import random
-
-import archinfo
 import angr
-from angr import SimState, SIM_PROCEDURES
+
+from angr import SimState, SIM_LIBRARIES
 
 FAKE_ADDR = 0x100000
 
-strstr = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['strstr'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-strtok_r = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['strtok_r'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-strcmp = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['strcmp'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-strchr = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['strchr'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-strncmp = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['strncmp'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-strlen = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['strlen'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-strncpy = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['strncpy'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-strcpy = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['strcpy'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-sprintf = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['sprintf'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-memset = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['memset'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-memcpy = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['memcpy'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-memcmp = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['memcmp'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-getc = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['_IO_getc'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-fgetc = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['fgetc'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-getchar = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['getchar'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
-scanf = lambda state, arguments: SIM_PROCEDURES['libc.so.6']['scanf'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+def make_func(name):
+    return lambda state, arguments: SIM_LIBRARIES['libc.so.6'].get(name, 'AMD64').execute(state, arguments=arguments)
 
+strstr = make_func('strstr')
+strtok_r = make_func('strtok_r')
+strcmp = make_func('strcmp')
+strchr = make_func('strchr')
+strncmp = make_func('strncmp')
+strlen = make_func('strlen')
+strncpy = make_func('strncpy')
+strcpy = make_func('strcpy')
+sprintf = make_func('sprintf')
+memset = make_func('memset')
+memcpy = make_func('memcpy')
+memcmp = make_func('memcmp')
+getc = make_func('_IO_getc')
+fgetc = make_func('fgetc')
+getchar = make_func('getchar')
+scanf = make_func('scanf')
 
 import logging
 l = logging.getLogger('angr.tests.string')
@@ -825,7 +826,7 @@ def broken_strtok_r():
 
 
 def test_getc():
-    s = SimState(mode='symbolic')
+    s = SimState(arch='AMD64', mode='symbolic')
     stdin = s.posix.files[0]
     stdin.content.store(0, "1234")
     nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [0])
@@ -848,7 +849,7 @@ def test_getc():
 
 
 def test_fgetc():
-    s = SimState(mode='symbolic')
+    s = SimState(arch='AMD64', mode='symbolic')
     stdin = s.posix.files[0]
     stdin.content.store(0, "1234")
     nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [0])
@@ -870,7 +871,7 @@ def test_fgetc():
 
 
 def test_getchar():
-    s = SimState(mode='symbolic')
+    s = SimState(arch='AMD64', mode='symbolic')
     stdin = s.posix.files[0]
     stdin.content.store(0, "1234")
     nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [0])
@@ -891,7 +892,7 @@ def test_getchar():
     nose.tools.assert_items_equal(s.se.any_n_int(stdin.pos, 300), [4])
 
 def test_scanf():
-    s = SimState()
+    s = SimState(arch='AMD64')
     s.posix.files[0].content.store(0, "Hello\0")
     s.memory.store(0x2000, "%1s\0")
     scanf(s, arguments=[0x2000, 0x1000])
@@ -944,12 +945,12 @@ def test_strcmp():
 
 
 if __name__ == '__main__':
+    test_inline_strcmp()
     test_scanf()
     test_getc()
     test_fgetc()
     test_getchar()
     test_strcmp()
-    test_inline_strcmp()
     test_inline_strlen()
     test_inline_strncmp()
     test_memcmp()

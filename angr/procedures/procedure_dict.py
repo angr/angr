@@ -1,6 +1,5 @@
 import logging
 import os
-from collections import defaultdict
 
 l = logging.getLogger("angr.procedures.procedure_dict")
 
@@ -9,11 +8,12 @@ from ..sim_procedure import SimProcedure
 
 # Import all classes under the current directory, and group them based on
 # lib names.
-SIM_PROCEDURES = defaultdict(dict)
+SIM_PROCEDURES = {}
 path = os.path.dirname(os.path.abspath(__file__))
 skip_dirs = ['__pycache__', 'definitions']
 
 for pkg_name, package in autoimport.auto_import_packages('angr.procedures', path, skip_dirs):
+    SIM_PROCEDURES[pkg_name] = {}
     for _, mod in autoimport.filter_module(package, type_req=type(os)):
         for name, proc in autoimport.filter_module(mod, type_req=type, subclass_req=SimProcedure):
             SIM_PROCEDURES[pkg_name][name] = proc

@@ -9,7 +9,8 @@ class ReturnUnconstrained(angr.SimProcedure):
         #pylint:disable=attribute-defined-outside-init
         self.resolves = resolves
 
-        self.successors.artifacts['resolves'] = resolves
+        if self.successors is not None:
+            self.successors.artifacts['resolves'] = resolves
 
         o = self.state.se.Unconstrained("unconstrained_ret_%s" % self.resolves, self.state.arch.bits)
         #if 'unconstrained_ret_9_64' in o.variables:
