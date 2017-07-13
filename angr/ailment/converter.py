@@ -145,12 +145,16 @@ class IRSBConverter(Converter):
 
         manager.tyenv = irsb.tyenv
 
+        addr = None
+
         for stmt in irsb.statements:
             if isinstance(stmt, pyvex.IRStmt.IMark):
+                if addr is None:
+                    addr = stmt.addr + stmt.delta
                 continue
             converted = VEXStmtConverter.convert(idx, stmt, manager)
             statements.append(converted)
 
             idx += 1
 
-        return Block(statements)
+        return Block(addr, statements)

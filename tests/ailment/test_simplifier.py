@@ -1,11 +1,15 @@
 
+import os
+
+import angr
 import pyvex
 import archinfo
 
 import ailment
+import ailment.analyses
 
 
-def test_convert_from_irsb():
+def test_simplifier():
 
     arch = archinfo.arch_from_id('AMD64')
 
@@ -19,8 +23,11 @@ def test_convert_from_irsb():
 
     ablock = ailment.IRSBConverter.convert(irsb, manager)
 
-    print str(ablock)
+    # we need a project...
+    project = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'all'), auto_load_libs=False)
+
+    simp = project.analyses.ASimplifier(ablock)
 
 
 if __name__ == "__main__":
-    test_convert_from_irsb()
+    test_simplifier()

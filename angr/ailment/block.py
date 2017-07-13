@@ -3,7 +3,8 @@ class Block(object):
     """
     Describes an AIL block.
     """
-    def __init__(self, statements=None):
+    def __init__(self, addr, statements=None):
+        self.addr = addr
         self.statements = [ ] if statements is None else statements
 
     def __repr__(self):

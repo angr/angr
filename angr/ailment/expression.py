@@ -13,6 +13,9 @@ class Expression(TaggedObject):
     def __repr__(self):
         raise NotImplementedError()
 
+    def has_atom(self, atom):
+        return False
+
 
 class Atom(Expression):
     def __init__(self, idx, variable, **kwargs):
@@ -33,6 +36,11 @@ class Const(Atom):
     def __str__(self):
         return "%#x<%d>" % (self.value, self.bits)
 
+    def __eq__(self, other):
+        return type(self) is type(other) and \
+            self.value == other.value and \
+            self.bits == other.bits
+
 
 class Tmp(Atom):
     def __init__(self, idx, variable, tmp_idx, bits, **kwargs):
@@ -43,6 +51,14 @@ class Tmp(Atom):
 
     def __str__(self):
         return "t%d" % self.tmp_idx
+
+    def __eq__(self, other):
+        return type(self) is type(other) and \
+            self.tmp_idx == other.tmp_idx and \
+            self.bits == other.bits
+
+    def __hash__(self):
+        return hash((self.tmp_idx, self.bits))
 
 
 class Register(Atom):
@@ -57,6 +73,11 @@ class Register(Atom):
             return "%s<%d>" % (self.reg_name, self.bits / 8)
         else:
             return "reg_%d<%d>" % (self.register_offset, self.bits / 8)
+
+    def __eq__(self, other):
+        return type(self) is type(other) and \
+            self.register_offset == other.register_offset and \
+            self.bits == other.bits
 
 
 class Op(Expression):
@@ -81,6 +102,12 @@ class BinaryOp(Op):
 
     def __str__(self):
         return "(%s %s %s)" % (str(self.operands[0]), self.op, str(self.operands[1]))
+
+    def has_atom(self, atom):
+        for op in self.operands:
+            if op == atom or op.has_atom(atom):
+                return True
+        return False
 
 
 class DirtyExpression(Expression):
