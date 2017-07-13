@@ -276,7 +276,7 @@ class Project(object):
                     if not sim_lib.has_implementation(func.name):
                         continue
                     l.info("Using builtin SimProcedure for %s from %s", func.name, sim_lib.name)
-                    pending_hooks[func.name] = sim_lib.get(func.name)
+                    pending_hooks[func.name] = sim_lib.get(func.name, self.arch)
 
                 # Step 2.3: If 2.2 didn't work, check if the symbol wants to be resolved
                 # by a library we already know something about. Resolve it appropriately.
@@ -288,10 +288,10 @@ class Project(object):
                     sim_lib = SIM_LIBRARIES[func.resolvewith]
                     if self._check_user_blacklists(func.name):
                         l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
-                        pending_hooks[func.name] = sim_lib.get_unconstrained(func.name)
+                        pending_hooks[func.name] = sim_lib.get_stub(func.name, self.arch)
                     else:
                         l.info("Using builtin SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
-                        pending_hooks[func.name] = sim_lib.get(func.name)
+                        pending_hooks[func.name] = sim_lib.get(func.name, self.arch)
 
                 # Step 2.4: If 2.3 didn't work (the symbol didn't request a provider), try
                 # looking through each of the SimLibraries we're using to resolve unresolved
@@ -303,14 +303,14 @@ class Project(object):
                         if sim_lib.has_metadata(func.name):
                             if self._check_user_blacklists(func.name):
                                 l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
-                                pending_hooks[func.name] = sim_lib.get_unconstrained(func.name)
+                                pending_hooks[func.name] = sim_lib.get_stub(func.name, self.arch)
                             else:
                                 l.info("Using builtin SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
-                                pending_hooks[func.name] = sim_lib.get(func.name)
+                                pending_hooks[func.name] = sim_lib.get(func.name, self.arch)
                             break
                     else:
                         l.info("Using stub SimProcedure for unresolved %s", func.name)
-                        pending_hooks[func.name] = libs[0].get(func.name)
+                        pending_hooks[func.name] = libs[0].get(func.name, self.arch)
 
                 # Step 2.5: If 2.4 didn't work (we have NO SimLibraries to work with), just
                 # use the vanilla ReturnUnconstrained.
@@ -492,7 +492,10 @@ class Project(object):
         """
         # TODO: this method does not follow the SimOS.prepare_function_symbol() path. We should fix it later.
         sym = self.loader.find_symbol(symbol_name)
-        return self.is_hooked(sym.rebased_addr)
+        if sym is not None:
+            return self.is_hooked(sym.rebased_addr)
+        else:
+            return self.is_hooked(self._extern_obj.get_pseudo_addr(symbol_name))
 
 
     def hooked_symbol_addr(self, symbol_name):
@@ -504,7 +507,13 @@ class Project(object):
         :rtype: int or None
         """
         sym = self.loader.find_symbol(symbol_name)
-        return self.unhook(sym.rebased_addr)
+        if sym is not None:
+            addr = sym.rebased_addr
+        else:
+            addr = self._extern_obj.get_pseudo_addr(symbol_name)
+        if self.is_hooked(addr):
+            return addr
+        return None
 
     #
     # A convenience API (in the style of triton and manticore) for symbolic execution.
