@@ -377,9 +377,18 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         # give it enough stack space
         # concrete_state.regs.bp = concrete_state.regs.sp + 0x100000
 
-        return VariableRecoveryFastState(self.variable_manager, self.project.arch, self.function,
-                                         make_phi=self._make_phi_node
-                                         )
+        state = VariableRecoveryFastState(self.variable_manager, self.project.arch, self.function,
+                                          make_phi=self._make_phi_node
+                                          )
+        # put a return address on the stack if necessary
+        if self.project.arch.call_pushes_ret:
+            ret_addr_offset = self.project.arch.bits / 8
+            ret_addr_var = SimStackVariable(ret_addr_offset, self.project.arch.bits / 8, base='bp', name='ret_addr',
+                                            region=self.function.addr, category='return_address',
+                                            )
+            state.stack_region.add_variable(ret_addr_offset, ret_addr_var)
+
+        return state
 
     def _merge_states(self, node, *states):
 
