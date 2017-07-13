@@ -6,7 +6,7 @@ class __tls_get_addr(angr.SimProcedure):
         module_id, offset = self.state.mem[ptr].uintptr_t.array(2).resolved
         if module_id.symbolic:
             raise SimValueError("__tls_get_addr called with symbolic module ID")
-        module_id = self.state.any_int(module_id)
+        module_id = self.state.se.any_int(module_id)
 
         return self.project.loader.tls_object.get_addr(module_id, offset)
 
@@ -17,6 +17,7 @@ class ___tls_get_addr(angr.SimProcedure):
     def run(self):
         if self.state.arch.name == 'X86':
             ptr = self.state.regs.eax
-            return self.inline_call(__tls_get_addr, ptr).ret_expr
+            # use SIM_PROCEDURES so name-mangling doesn't fuck us :|
+            return self.inline_call(angr.SIM_PROCEDURES['linux_loader']['__tls_get_addr'], ptr).ret_expr
         else:
             raise angr.errors.SimUnsupportedError("___tls_get_addr only implemented for x86. Talk to @rhelmot.")

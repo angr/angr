@@ -1795,7 +1795,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # Fix the target_addr for syscalls
             tmp_state = self.project.factory.blank_state(mode="fastpath", addr=cfg_node.addr)
             succ = self.project.factory.successors(tmp_state).flat_successors[0]
-            _, syscall_addr, _, _ = self.project._simos.syscall_info(succ)
+            syscall_addr = self.project._simos.syscall_addr(succ)
             target_addr = syscall_addr
 
         new_function_addr = target_addr

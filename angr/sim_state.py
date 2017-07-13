@@ -46,10 +46,13 @@ class SimState(ana.Storable): # pylint: disable=R0904
     :ivar unicorn:      Control of the Unicorn Engine
     """
 
-    def __init__(self, project, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
+    def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
                  add_options=None, remove_options=None, special_memory_filler=None, os_name=None):
         self.project = project
-        self.arch = project.arch.copy()
+        self.arch = arch if arch is not None else project.arch.copy() if project is not None else None
+
+        if type(self.arch) is str:
+            self.arch = arch_from_id(self.arch)
 
         # the options
         if options is None:
@@ -432,7 +435,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             raise SimStateError("global condition was not cleared before state.copy().")
 
         c_plugins = self._copy_plugins()
-        state = SimState(self.project, plugins=c_plugins, options=self.options, mode=self.mode, os_name=self.os_name)
+        state = SimState(project=self.project, arch=self.arch, plugins=c_plugins, options=self.options, mode=self.mode, os_name=self.os_name)
 
         state.uninitialized_access_handler = self.uninitialized_access_handler
         state._special_memory_filler = self._special_memory_filler

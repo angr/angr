@@ -318,6 +318,13 @@ class Project(object):
                     l.info("Using stub SimProcedure for unresolved %s", func.name)
                     pending_hooks[func.name] = SIM_PROCEDURES['stubs']['ReturnUnconstrained']()
 
+                # Step 2.6: If it turns out we resolved this with a stub and this function is actually weak,
+                # don't actually resolve it with anything. Let it languish.
+                # TODO: this is a hack, do better
+
+                if func.is_weak and func.name in pending_hooks and type(pending_hooks[func.name]) is SIM_PROCEDURES['stubs']['ReturnUnconstrained']:
+                    del pending_hooks[func.name]
+
         # Step 3: Hook everything!! Resolve unresolved relocations to the extern object!!!
         self.hook_symbol_batch(pending_hooks)
 

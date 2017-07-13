@@ -14,12 +14,16 @@ from cle import MetaELF, BackedCGC
 from cle.address_translator import AT
 import claripy
 
-from .errors import AngrSyscallError, AngrUnsupportedSyscallError, AngrCallableError, AngrCallableMultistateError, AngrSimOSError
+from .errors import AngrUnsupportedSyscallError, AngrCallableError, AngrCallableMultistateError, AngrSimOSError
 from .tablespecs import StringTableSpec
 
 l = logging.getLogger("angr.simos")
 
+
 class IRange(object):
+    """
+    A simple range object for testing inclusion. Like xrange but works for huge numbers.
+    """
     __slots__ = ('start', 'end')
 
     def __init__(self, start, end):
@@ -38,166 +42,6 @@ class IRange(object):
         self.start, self.end = state
 
 
-class SyscallEntry(object):
-    """
-    Describes a syscall.
-
-    :ivar str name:         Name of the syscall.
-    :ivar int pseudo_addr:  The pseudo address assigned to this syscall.
-    :ivar simproc:          The SimProcedure class for handling this syscall.
-    :ivar bool supported:   True if this syscall is defined and has a SimProcedure implemented, False otherwise.
-    """
-    def __init__(self, name, pseudo_addr, simproc, supported=True):
-        """
-        Constructor.
-
-        :param str name:        Syscall name.
-        :param int pseudo_addr: The pseudo address assigned to this syscall.
-        :param simproc:         The SimProcedure for handling this syscall.
-        :param bool supported:  True if this syscall is defined and there is a SimProcedure implemented for it.
-        """
-
-        self.name = name
-        self.pseudo_addr = pseudo_addr
-        self.simproc = simproc
-        self.supported = supported
-
-    def __repr__(self):
-        s = "<Syscall %s @ %#x%s>" % (self.name, self.pseudo_addr, ", unsupported" if not self.supported else "")
-        return s
-
-
-class SyscallTable(object):
-    """
-    Represents a syscall table.
-
-    :ivar int max_syscall_number:       The maximum syscall number of all supported syscalls in the platform.
-    :ivar int unknown_syscall_number:   The syscall number of the "unknown" syscall used for unsupported syscalls.
-    """
-    def __init__(self, max_syscall_number=None, unknown_syscall_number=None):
-        """
-        Constructor.
-
-        :param int or None max_syscall_number: The maximum syscall number of all supported syscalls in the platform.
-        :param int unknown_syscall_number:     The syscall number to use for unknown/undefined syscalls.
-        """
-        self.max_syscall_number = max_syscall_number
-
-        self.unknown_syscall_number = unknown_syscall_number
-
-        self._table = { }
-        self._addr_to_syscall = { }
-
-    def __setitem__(self, syscall_number, syscall):
-        """
-        Insert a syscall entry to the table.
-
-        :param int syscall_number:      Number of the syscall.
-        :param SyscallEntry syscall:    The syscall to insert.
-        :return: None
-        """
-
-        if syscall_number > self.max_syscall_number:
-            self.max_syscall_number = syscall_number
-
-        self._table[syscall_number] = syscall
-        self._addr_to_syscall[syscall.pseudo_addr] = syscall
-
-    def __getitem__(self, syscall_number):
-        """
-        Get a syscall entry from the table.
-
-        :param int syscall_number:  Number of the syscall.
-        :return:                    The syscall entry.
-        :rtype: SyscallEntry
-        """
-
-        if syscall_number in self._table:
-            return self._table[syscall_number]
-        raise KeyError('Syscall number %d not found in syscall table.' % syscall_number)
-
-    def __len__(self):
-        """
-        Get the number of all syscalls supported by this syscall table.
-
-        :return: The number of all syscalls supported.
-        :rtype: int
-        """
-
-        return len(self._table)
-
-    def __contains__(self, syscall_number):
-        """
-        Check if the sycall number is defined in this syscall table.
-
-        :param int syscall_number: The syscall number to check.
-        :return: True if the syscall is defined in this table, False otherwise.
-        :rtype: int
-        """
-
-        return syscall_number in self._table
-
-    @property
-    def max_syscall(self):
-        """
-        Get the maximum syscall number, or None if the syscall table is empty and `max_syscall_number` is not set..
-
-        :return: The syscall number.
-        :rtype: int or None
-        """
-
-        return self.max_syscall_number
-
-    @property
-    def unknown_syscall(self):
-        """
-        Get the "unknown" syscall entry.
-
-        :return: The syscall entry for unknown syscalls.
-        :rtype: SyscallEntry
-        """
-
-        if self.unknown_syscall_number is None:
-            raise AngrSyscallError('The unknown syscall number of this syscall table is not set.')
-
-        return self[self.unknown_syscall_number]
-
-    def clear(self):
-        """
-        Clear all defined syscalls.
-
-        :return: None
-        """
-
-        self._table = { }
-        self._addr_to_syscall = { }
-
-    def supports(self, syscall_number):
-        """
-        Check if the syscall number is defined and supported.
-
-        :param int syscall_number: The number of syscall to check.
-        :return: True if the syscall number is defined and supported by angr, False otherwise
-        :rtype: bool
-        """
-
-        if syscall_number not in self._table:
-            return False
-
-        return self._table[syscall_number].supported
-
-    def get_by_addr(self, addr):
-        """
-        Get a syscall by the pseudo address.
-
-        :param int addr: The pseudo address assigned to the syscall.
-        :return:         The syscall instance if the pseudo address is assigned to a syscall, or None otherwise.
-        :rtype:          SyscallEntry or None
-        """
-
-        return self._addr_to_syscall.get(addr, None)
-
-
 class SimOS(object):
     """
     A class describing OS/arch-level configuration.
@@ -209,125 +53,58 @@ class SimOS(object):
         self.name = name
         self.continue_addr = None
         self.return_deadend = None
+        self.syscall_library = None
 
-        unknown_syscall = P['stubs']['syscall']
-        unknown_syscall_number = 1
-        self.syscall_table = SyscallTable(unknown_syscall_number=unknown_syscall_number)
-        self.syscall_table[unknown_syscall_number] = SyscallEntry('_unsupported', self.project._syscall_obj.mapped_base,
-                                                                  unknown_syscall
-                                                                  )
-
-    def _load_syscalls(self, syscall_table, syscall_lib):
+    def syscall_number(self, state, concrete=True):
         """
-        Load a table of syscalls to self.project._syscall_obj. Each syscall entry takes 8 bytes no matter what
-        architecture it is on.
-
-        :param dict syscall_table: Syscall table.
-        :param str syscall_lib: Name of the syscall library
-        :return: None
+        Given a state, return the number of the current syscall. Pass concrete=False to allow symbolic numbers.
+        Otherwise, if there is more than one concretization, return an "unknown" number.
         """
-
-        self.syscall_table.clear()
-
-        base_addr = self.project._syscall_obj.mapped_base
-
-        syscall_entry_count = 0 if not syscall_table else max(syscall_table.keys()) + 1
-        for syscall_number in xrange(syscall_entry_count):
-
-            syscall_addr = base_addr + syscall_number * 8
-
-            if syscall_number in syscall_table:
-                name, simproc_name = syscall_table[syscall_number]
-                if isinstance(simproc_name, str) and simproc_name in P[syscall_lib]:
-                    # They give us a string, do resolution
-                    simproc = P[syscall_lib][simproc_name]
-                elif isinstance(simproc_name, type):
-                    # If they give us the type, just take it
-                    simproc = simproc_name
-                else:
-                    # no SimProcedure is implemented for this syscall
-                    simproc = P["stubs"]["syscall"]
-
-                self.syscall_table[syscall_number] = SyscallEntry(name, syscall_addr, simproc)
-
-            else:
-                # no syscall number available in the pre-defined syscall table
-                self.syscall_table[syscall_number] = SyscallEntry("_unsupported", syscall_addr,
-                                                                  P["stubs"]["syscall"],
-                                                                  supported=False
-                                                                  )
-
-        # Now here is the fallback syscall stub
-        unknown_syscall_addr = base_addr + (syscall_entry_count + 1) * 8
-        unknown_syscall_number = syscall_entry_count + 1
-        # set unknown_syscall_number
-        self.syscall_table.unknown_syscall_number = unknown_syscall_number
-        self.syscall_table[unknown_syscall_number] = SyscallEntry("_unknown", unknown_syscall_addr,
-                                                                   P["stubs"]["syscall"],
-                                                                   supported=False
-                                                                   )
-
-    def syscall_info(self, state):
-        """
-        Get information about the syscall that is about to be called. Note that symbolic syscalls are not supported -
-        the syscall number *must* have only one solution.
-
-        :param SimState state: the program state.
-        :return: A tuple of (cc, syscall_addr, syscall_name, syscall_class)
-        :rtype: tuple
-        """
+        if self.syscall_library is None:
+            return 0
 
         if state.os_name in SYSCALL_CC[state.arch.name]:
             cc = SYSCALL_CC[state.arch.name][state.os_name](state.arch)
         else:
             # Use the default syscall calling convention - it may bring problems
             cc = SYSCALL_CC[state.arch.name]['default'](state.arch)
+        sym_num = cc.syscall_num(state)
 
-        syscall_num = cc.syscall_num(state)
+        if not concrete:
+            return sym_num
 
-        possible = state.se.any_n_int(syscall_num, 2)
+        possible = state.se.any_n_int(sym_num, 2)
 
-        if len(possible) > 1 and len(self.syscall_table) > 0:
-            # Symbolic syscalls are not supported - we will create a 'unknown syscall" stub for it
-            n = self.syscall_table.unknown_syscall_number
-        elif not possible:
-            # The state is not satisfiable
+        if len(possible) == 0:
             raise AngrUnsupportedSyscallError("The program state is not satisfiable")
+        elif len(possible) == 1:
+            return possible[0]
         else:
-            n = possible[0]
+            return self.syscall_library.maximum_syscall_number + 1
 
-        if not self.syscall_table.supports(n):
-            if o.BYPASS_UNSUPPORTED_SYSCALL in state.options:
-                state.history.add_event('resilience', resilience_type='syscall', syscall=n, message='unsupported syscall')
-
-                syscall = self.syscall_table.unknown_syscall if n not in self.syscall_table else self.syscall_table[n]
-
-            else:
-                l.error("Syscall %d is not found for arch %s", n, state.arch.name)
-                raise AngrUnsupportedSyscallError("Syscall %d is not found for arch %s" % (n, state.arch.name))
-        else:
-            syscall = self.syscall_table[n]
-
-        return cc, syscall.pseudo_addr, syscall.name, syscall.simproc
-
-    def handle_syscall(self, state):
+    def syscall_addr_from_num(self, number):
         """
-        Handle a state whose immediate preceding jumpkind is syscall by creating a new SimRun. Note that symbolic
-        syscalls are not supported - the syscall number *must* have only one solution.
-
-        :param SimState state: the program state.
-        :return: an instanciated, but not executed SimProcedure for this syscall
-        :rtype: SimProcedure
+        Given a concrete syscall number, return the address used to represent the syscall.
         """
+        return number + self.project._syscall_obj.mapped_base
 
-        cc, syscall_addr, syscall_name, syscall_class = self.syscall_info(state)
+    def syscall_addr(self, state, concrete=True):
+        """
+        Given a state, return the address used to represent the current syscall.
+        """
+        return self.syscall_addr_from_num(self.syscall_number(state, concrete=concrete))
 
-        state.ip = syscall_addr
-        syscall = syscall_class(
-                project=state.project,
-                cc=cc,
-                display_name=syscall_name)
-        return syscall
+    def syscall_procedure(self, state, allow_unsupported=True):
+        """
+        Given a state, return the SimProcedure instance that should be used to handle the current syscall.
+        """
+        if self.syscall_library is None:
+            return P['stubs']['syscall']()
+        number = self.syscall_number(state)
+        if not allow_unsupported:
+            if not self.syscall_library.has_implementation(number, self.arch):
+                raise AngrUnsupportedSyscallError("No implementation for syscall %d" % number)
+        return self.syscall_library.get(number, self.arch)
 
     def configure_project(self):
         """
@@ -360,8 +137,10 @@ class SimOS(object):
 
         :param addr:            The execution start address.
         :param initial_prefix:
+        :param stack_size:      The number of bytes to allocate for stack space
         :return:                The initialized SimState.
-        :rtype:                 SimState
+
+        Any additional arguments will be passed to the SimState constructor
         """
         if kwargs.get('mode', None) is None:
             kwargs['mode'] = self.project._default_analysis_mode
@@ -498,88 +277,11 @@ class SimOS(object):
         """
         return self.project._extern_obj.get_pseudo_addr(symbol_name)
 
+
 class SimLinux(SimOS):
     """
     OS-specific configuration for \\*nix-y OSes.
     """
-
-    SYSCALL_TABLE = {
-        'AMD64': {
-            0: ('read', 'read'),
-            1: ('write', 'write'),
-            2: ('open', 'open'),
-            3: ('close', 'close'),
-            4: ('stat', 'stat'),
-            5: ('fstat', 'fstat'),
-            6: ('stat', 'stat'),
-            8: ('lseek', 'lseek'),
-            9: ('mmap', 'mmap'),
-            10: ('mprotect', 'mprotect'),
-            11: ('munmap', 'munmap'),
-            12: ('brk', 'brk'),
-            13: ('sigaction', 'sigaction'),
-            14: ('sigprocmask', 'sigprocmask'),
-            39: ('getpid', 'getpid'),
-            60: ('exit', 'exit'),
-            63: ('uname', 'uname'),
-            87: ('unlink', 'unlink'),
-            158: ('arch_prctl','arch_prctl'),
-            186: ('gettid', 'gettid'),
-            201: ('time', 'time'),
-            231: ('exit_group', 'exit'),  # really exit_group, but close enough
-            234: ('tgkill', 'tgkill'),
-        },
-        'X86': {
-            1: ('exit', 'exit'),
-            3: ('read', 'read'),
-            4: ('write', 'write'),
-            5: ('open', 'open'),
-            6: ('close', 'close'),
-            13: ('time', 'time'),
-            45: ('brk', 'brk'),
-            122: ('uname', 'uname'),
-            252: ('exit_group', 'exit'),  # really exit_group, but close enough
-        },
-        'PPC32': {
-            1: ('exit', 'exit'),
-            3: ('read', 'read'),
-            4: ('write', 'write'),
-            5: ('open', 'open'),
-            6: ('close', 'close'),
-            45: ('brk', 'brk'),
-        },
-        'PPC64': {
-
-        },
-        'MIPS32': {
-            4001: ('exit', 'exit'),
-            4003: ('read', 'read'),
-            4004: ('write', 'write'),
-            4005: ('open', 'open'),
-            4006: ('close', 'close'),
-            4045: ('brk', 'brk'),
-        },
-        'MIPS64': {
-            5000: ('read', 'read'),
-            5001: ('write', 'write'),
-            5002: ('open', 'open'),
-            5003: ('close', 'close'),
-            5012: ('brk', 'brk'),
-            5058: ('exit', 'exit'),
-        },
-        'ARM': {
-
-        },
-        'ARMEL': {
-
-        },
-        'ARMHF': {
-
-        },
-        'AARCH64': {
-
-        }
-    }
 
     def __init__(self, *args, **kwargs):
         super(SimLinux, self).__init__(*args, name="Linux", **kwargs)
@@ -588,6 +290,7 @@ class SimLinux(SimOS):
         self._loader_lock_addr = None
         self._loader_unlock_addr = None
         self._vsyscall_addr = None
+        self.syscall_library = L['linux']
 
     def configure_project(self):
         super(SimLinux, self).configure_project()
@@ -606,11 +309,11 @@ class SimLinux(SimOS):
             # there are some functions we MUST use the simprocedures for, regardless of what the user wants
             tlsfunc = ld_obj.get_symbol('__tls_get_addr')
             if tlsfunc is not None and not self.project.is_hooked(tlsfunc.rebased_addr):
-                self.project.hook(tlsfunc.rebased_addr, P['ld.so'].get('__tls_get_addr'))
+                self.project.hook(tlsfunc.rebased_addr, L['ld.so'].get('__tls_get_addr', self.arch))
 
             tlsfunc = ld_obj.get_symbol('___tls_get_addr')
             if tlsfunc is not None and not self.project.is_hooked(tlsfunc.rebased_addr):
-                self.project.hook(tlsfunc.rebased_addr, P['ld.so'].get('___tls_get_addr'))
+                self.project.hook(tlsfunc.rebased_addr, L['ld.so'].get('___tls_get_addr', self.arch))
 
             # set up some static data in the loader object...
             _rtld_global = ld_obj.get_symbol('_rtld_global')
@@ -663,8 +366,6 @@ class SimLinux(SimOS):
                         randaddr = self.project._extern_obj.get_pseudo_addr('ifunc_%s_%s' % (binary.binary, reloc.symbol.name))
                         self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](**kwargs))
                         self.project.loader.memory.write_addr_at(gotaddr, randaddr)
-
-        self._load_syscalls(SimLinux.SYSCALL_TABLE[self.arch.name], "syscalls")
 
     def state_blank(self, fs=None, concrete_fs=False, chroot=None, **kwargs):
         state = super(SimLinux, self).state_blank(**kwargs) #pylint:disable=invalid-name
@@ -824,25 +525,15 @@ class SimLinux(SimOS):
         else:
             return self.project._extern_obj.get_pseudo_addr(symbol_name)
 
+
 class SimCGC(SimOS):
-
-    SYSCALL_TABLE = {
-        1: ('_terminate', '_terminate'),
-        2: ('transmit', 'transmit'),
-        3: ('receive', 'receive'),
-        4: ('fdwait', 'fdwait'),
-        5: ('allocate', 'allocate'),
-        6: ('deallocate', 'deallocate'),
-        7: ('random', 'random'),
-    }
-
+    """
+    Environment configuration for the CGC DECREE platform
+    """
     def __init__(self, *args, **kwargs):
         super(SimCGC, self).__init__(*args, name="CGC", **kwargs)
 
-    def configure_project(self):
-        super(SimCGC, self).configure_project()
-
-        self._load_syscalls(SimCGC.SYSCALL_TABLE, "cgc")
+        self.syscall_library = L['cgcabi']
 
     def state_blank(self, fs=None, **kwargs):
         s = super(SimCGC, self).state_blank(**kwargs)  # pylint:disable=invalid-name
@@ -861,7 +552,7 @@ class SimCGC(SimOS):
         s.get_plugin('cgc')
 
         # set up the address for concrete transmits
-        s.unicorn.transmit_addr = self.syscall_table[2].pseudo_addr
+        s.unicorn.transmit_addr = self.syscall_addr_from_num(2)
 
         return s
 

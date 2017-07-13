@@ -7,8 +7,6 @@ import angr
 ######################################
 
 class NoReturnUnconstrained(angr.SimProcedure): #pylint:disable=redefined-builtin
-    use_cases = {'exit_group', 'exit', 'abort', 'longjmp', 'pthread_exit', 'siglongjmp',
-                 '__longjmp_chk', '__siglongjmp_chk', '__assert_fail'}
     NO_RET = True
     def run(self, **kwargs): #pylint:disable=unused-argument
         self.exit(self.state.se.Unconstrained('unconstrained_exit_code', self.state.arch.bits))

@@ -103,7 +103,6 @@ class SimProcedure(object):
         inst = copy.copy(self)
         inst.state = state
         inst.successors = successors
-        inst.arguments = arguments
         inst.ret_to = ret_to
 
         # check to see if this is a syscall and if we should override its return value
@@ -132,6 +131,7 @@ class SimProcedure(object):
 
                 saved_sp, sim_args, saved_local_vars = state.callstack.top.procedure_data
                 state.regs.sp = saved_sp
+                inst.arguments = sim_args
                 inst.use_state_arguments = True
                 for name, val in saved_local_vars:
                     setattr(inst, name, val)
@@ -139,13 +139,14 @@ class SimProcedure(object):
                 if arguments is None:
                     inst.use_state_arguments = True
                     sim_args = [ inst.arg(_) for _ in xrange(inst.num_args) ]
+                    inst.arguments = sim_args
                 else:
                     inst.use_state_arguments = False
                     sim_args = arguments[:inst.num_args]
-            inst.arguments = sim_args
+                    inst.arguments = arguments
 
             # run it
-            r = getattr(inst, inst.run_func)(*inst.arguments, **inst.kwargs)
+            r = getattr(inst, inst.run_func)(*sim_args, **inst.kwargs)
 
         if inst.returns and (not inst.successors or len(inst.successors.successors) == 0):
             inst.ret(r)

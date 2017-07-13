@@ -327,14 +327,9 @@ class AngrObjectFactory(object):
         """
 
         try:
-            _, syscall_addr, _, _ = self._project._simos.syscall_info(state)
-
-            # Fix the IP
-            state.ip = syscall_addr
-
+            state.ip = self._project._simos.syscall_addr(state, concrete=True) # fix the IP
         except AngrUnsupportedSyscallError:
-            # the syscall is not supported. don't do anything
-            pass
+            pass # the syscall is not supported. don't do anything
 
     @deprecate('sim_run()', 'successors()')
     def sim_run(self, *args, **kwargs):

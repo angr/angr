@@ -1643,7 +1643,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Fix target_addr for syscalls
         if suc_jumpkind.startswith("Ijk_Sys"):
-            _, target_addr, _, _ = self.project._simos.syscall_info(new_state)
+            target_addr = self.project.simos.syscall_addr(new_state)
 
         self._pre_handle_successor_state(job.extra_info, suc_jumpkind, target_addr)
 

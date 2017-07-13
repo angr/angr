@@ -5,29 +5,19 @@ from .engine import SimEngine
 class SimEngineSyscall(SimEngine): #pylint:disable=abstract-method
     def __init__(self, project):
         super(SimEngineSyscall, self).__init__()
-
         self.project = project
 
     def _check(self, state, **kwargs):
-        if not state.history.jumpkind.startswith('Ijk_Sys'):
-            return False
-
-        return True
+        return state.history.jumpkind.startswith('Ijk_Sys')
 
     def process(self, state, **kwargs):
+        # The ip_at_syscall register is (mis?)used to save the return address for this syscall
         addr = state.se.any_int(state._ip)
-
-        l.debug("Invoking system call handler")
-
-        # The ip_at_syscall register is misused to save the return address for this syscall
         ret_to = state.regs._ip_at_syscall
 
-        sys_procedure = self.project._simos.handle_syscall(state)
-        return self.project.factory.procedure_engine.process(
-                state,
-                sys_procedure,
-                force_addr=addr,
-                ret_to=ret_to)
+        l.debug("Invoking system call handler")
+        sys_procedure = self.project._simos.syscall_procedure(state)
+        return self.project.factory.procedure_engine.process(state, sys_procedure, force_addr=addr, ret_to=ret_to)
 
     #
     # Pickling

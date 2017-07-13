@@ -1,8 +1,11 @@
 import copy
 import os
+import archinfo
+from collections import defaultdict
 
 from ..stubs.ReturnUnconstrained import ReturnUnconstrained
-from ...calling_conventions import DEFAULT_CC
+from ..stubs.syscall_stub import syscall as stub_syscall
+from ...calling_conventions import DEFAULT_CC, SYSCALL_CC
 from ...misc import autoimport
 
 SIM_LIBRARIES = {}
@@ -14,6 +17,9 @@ class SimLibrary(object):
         self.prototypes = {}
         self.default_ccs = {}
         self.names = []
+
+    fallback_cc = DEFAULT_CC
+    fallback_proc = ReturnUnconstrained
 
     @property
     def name(self):
@@ -53,12 +59,14 @@ class SimLibrary(object):
             proc.cc = self.default_ccs[arch.name]()
         if proc.display_name in self.prototypes:
             if proc.cc is None:
-                proc.cc = DEFAULT_CC[arch.name]()
+                proc.cc = self.fallback_cc[arch.name]()
             proc.cc.func_ty = self.prototypes[proc.display_name]
         if proc.display_name in self.non_returning:
             proc.returns = False
 
     def get(self, name, arch):
+        if type(arch) is str:
+            arch = archinfo.arch_from_id(arch)
         if name in self.procedures:
             proc = copy.deepcopy(self.procedures[name])
             self._apply_metadata(proc, arch)
@@ -67,7 +75,7 @@ class SimLibrary(object):
             return self.get_stub(name, arch)
 
     def get_stub(self, name, arch):
-        proc = ReturnUnconstrained(display_name=name)
+        proc = self.fallback_proc(display_name=name)
         self._apply_metadata(proc, arch)
         return proc
 
@@ -78,6 +86,70 @@ class SimLibrary(object):
 
     def has_implementation(self, name):
         return name in self.procedures
+
+
+class SimSyscallLibrary(SimLibrary):
+    def __init__(self):
+        super(SimSyscallLibrary, self).__init__()
+        self.syscall_number_mapping = defaultdict(dict)
+        self.ranged_default_ccs = defaultdict(list)
+
+    fallback_cc = SYSCALL_CC
+    fallback_proc = stub_syscall
+
+    @property
+    def maximum_syscall_number(self):
+        return max(self.syscall_number_mapping)
+
+    def add_number_mapping(self, arch_name, number, name):
+        self.syscall_number_mapping[arch_name][number] = name
+
+    def add_number_mapping_from_dict(self, arch_name, mapping):
+        self.syscall_number_mapping[arch_name].update(mapping)
+
+    def set_default_cc_ranged(self, arch_name, min_num, max_num, cc_cls):
+        self.ranged_default_ccs[arch_name].append((min_num, max_num, cc_cls))
+
+    def _canonicalize(self, number, arch):
+        if type(arch) is str:
+            arch = archinfo.arch_from_id(arch)
+        if type(number) is str:
+            return number, arch
+        mapping = self.syscall_number_mapping[arch.name]
+        if number in mapping:
+            return mapping[number], arch
+        else:
+            return 'sys_%d (unsupported)' % number, arch
+
+    def _apply_numerical_metadata(self, proc, number, arch):
+        for min_num, max_num, cc_cls in self.ranged_default_ccs[arch.name]:
+            if min_num <= number <= max_num:
+                new_cc = cc_cls()
+                old_cc = proc.cc
+                if old_cc is not None:
+                    new_cc.func_ty = old_cc.func_ty
+                proc.cc = new_cc
+                break
+
+    def get(self, number, arch):
+        name, arch = self._canonicalize(number, arch)
+        proc = super(SimSyscallLibrary, self).get(name, arch)
+        self._apply_numerical_metadata(proc, number, arch)
+        return proc
+
+    def get_stub(self, number, arch):
+        name, arch = self._canonicalize(number, arch)
+        proc = super(SimSyscallLibrary, self).get_stub(name, arch)
+        self._apply_numerical_metadata(proc, number, arch)
+        return proc
+
+    def has_metadata(self, number, arch):
+        name, arch = self._canonicalize(number, arch)
+        return super(SimSyscallLibrary, self).has_metadata(name)
+
+    def has_implementation(self, number, arch):
+        name, arch = self._canonicalize(number, arch)
+        return super(SimSyscallLibrary, self).has_implementation(name)
 
 for _ in autoimport.auto_import_modules('angr.procedures.definitions', os.path.dirname(os.path.realpath(__file__))):
     pass

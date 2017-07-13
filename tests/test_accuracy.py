@@ -74,14 +74,14 @@ def test_locale():
     nose.tools.assert_equal(len(pg2.active), 0)
     nose.tools.assert_equal(len(pg2.deadended), 1)
     nose.tools.assert_equal(pg2.deadended[0].history.events[-1].type, 'terminate')
-    nose.tools.assert_equal(pg2.deadended[0].history.events[-1].objects['exit_code'].ast._model_concrete.value, 0)
+    nose.tools.assert_equal(pg2.deadended[0].history.events[-1].objects['exit_code']._model_concrete.value, 0)
 
 
 if __name__ == '__main__':
-    print 'x86_64'
-    emulate('x86_64')
     print 'locale'
     test_locale()
+    print 'x86_64'
+    emulate('x86_64')
     print 'i386'
     emulate('i386')
     print 'ppc'
