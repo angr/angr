@@ -20,6 +20,8 @@ from .state_plugins.inspect import BP_BEFORE, BP_AFTER, BP_BOTH, BP_IPDB, BP_IPY
 
 from .state_plugins.inspect import BP
 
+from .sim_type import define_struct, register_types, parse_defns, parse_types, parse_file, parse_type
+
 from .project import *
 from .errors import *
 #from . import surveyors
