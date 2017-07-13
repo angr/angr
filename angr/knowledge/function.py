@@ -62,16 +62,10 @@ class Function(object):
         if name is None:
             if project.is_hooked(addr):
                 hooker = project.hooked_by(addr)
-                if hooker.procedure is SIM_PROCEDURES['stubs']['ReturnUnconstrained']:
-                    kwargs_dict = project._sim_procedures[addr].kwargs
-                    if 'resolves' in kwargs_dict:
-                        name = kwargs_dict['resolves']
-                else:
-                    name = hooker.name
+                name = hooker.display_name
             else:
-                syscall_inst = project._simos.syscall_table.get_by_addr(addr)
-                if syscall_inst is not None:
-                    name = syscall_inst.name
+                syscall_inst = project._simos.syscall_from_addr(addr)
+                name = syscall_inst.display_name
 
         # try to get the name from the symbols
         #if name is None:

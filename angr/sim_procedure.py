@@ -46,6 +46,7 @@ class SimProcedure(object):
 
         self.kwargs = kwargs
         self.display_name = type(self).__name__ if display_name is None else display_name
+        self.syscall_number = None
         self.symbolic_return = symbolic_return
 
         # types

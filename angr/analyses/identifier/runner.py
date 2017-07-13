@@ -77,8 +77,8 @@ class Runner(object):
             pg = self.project.factory.simgr(entry_state)
             num_steps = 0
             while len(pg.active) > 0:
-                syscall = self.project._simos.syscall_table.get_by_addr(pg.one_active.addr)
-                if syscall is not None and syscall.name == 'receive':
+                syscall = self.project._simos.syscall_from_addr(pg.one_active.addr)
+                if syscall.name == 'receive':
                     # execute until receive
                     break
 

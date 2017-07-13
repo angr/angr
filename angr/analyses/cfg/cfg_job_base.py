@@ -15,11 +15,10 @@ class BlockID(object):
     A context-sensitive key for a SimRun object.
     """
 
-    def __init__(self, addr, callsite_tuples, jump_type, continue_at=None):
+    def __init__(self, addr, callsite_tuples, jump_type):
         self.addr = addr
         self.callsite_tuples = callsite_tuples
         self.jump_type = jump_type
-        self.continue_at = continue_at
 
         self._hash = None
 
@@ -35,33 +34,30 @@ class BlockID(object):
         return " -> ".join(s)
 
     def __repr__(self):
-        return "<BlockID %#08x (%s) %% %s%s>" % (self.addr, self.callsite_repr(), self.jump_type,
-                                               "" if self.continue_at is None else "-" + self.continue_at
-                                               )
+        return "<BlockID %#08x (%s) %% %s>" % (self.addr, self.callsite_repr(), self.jump_type)
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash((self.callsite_tuples,) + (self.addr, self.jump_type, self.continue_at, ))
+            self._hash = hash((self.callsite_tuples,) + (self.addr, self.jump_type))
         return self._hash
 
     def __eq__(self, other):
         return isinstance(other, BlockID) and \
                self.addr == other.addr and self.callsite_tuples == other.callsite_tuples and \
-               self.jump_type == other.jump_type and \
-               self.continue_at == other.continue_at
+               self.jump_type == other.jump_type
 
     def __ne__(self, other):
         return not self == other
 
     @staticmethod
-    def new(addr, callstack_suffix, jumpkind, continue_at=None):
+    def new(addr, callstack_suffix, jumpkind):
         if jumpkind.startswith('Ijk_Sys') or jumpkind == 'syscall':
             jump_type = 'syscall'
         elif jumpkind in ('Ijk_Exit', 'exit'):
             jump_type = 'exit'
         else:
             jump_type = "normal"
-        return BlockID(addr, callstack_suffix, jump_type, continue_at=continue_at)
+        return BlockID(addr, callstack_suffix, jump_type)
 
     @property
     def func_addr(self):
@@ -116,7 +112,7 @@ class CFGJobBase(object):
     """
     def __init__(self, addr, state, context_sensitivity_level, block_id=None, src_block_id=None,
                  src_exit_stmt_idx=None, src_ins_addr=None, jumpkind=None, call_stack=None, is_narrowing=False,
-                 skip=False, final_return_address=None, continue_at=None):
+                 skip=False, final_return_address=None):
         self.addr = addr  # Note that addr may not always be equal to self.state.ip (for syscalls, for example)
         self.state = state
         self.jumpkind = jumpkind
@@ -125,7 +121,6 @@ class CFGJobBase(object):
         self.src_ins_addr = src_ins_addr
         self.skip = skip
         self._block_id = block_id
-        self.continue_at = continue_at
 
         # Other parameters
         self._context_sensitivity_level = context_sensitivity_level
