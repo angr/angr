@@ -32,6 +32,9 @@ def test_ctype_b_loc():
     This interface is not in the source standard; it is only in the binary
     standard.
     '''
+    if not sys.platform.startswith('linux'):
+        raise nose.SkipTest()
+
     # Just load a binary so that we can do the initialization steps from
     # libc_start_main
     bin_path = os.path.join(test_location, '../../binaries/tests/x86_64/ctype_b_loc')
@@ -82,6 +85,9 @@ def test_ctype_tolower_loc():
     The __ctype_tolower_loc() function shall return a pointer to the array of
     characters to be used for the ctype() family of functions (see <ctype.h>).
     '''
+    if not sys.platform.startswith('linux'):
+        raise nose.SkipTest()
+
     # Just load a binary so that we can do the initialization steps from
     # libc_start_main
     bin_path = os.path.join(test_location, '../../binaries/tests/x86_64/ctype_tolower_loc')
@@ -131,6 +137,9 @@ def test_ctype_toupper_loc():
     The __ctype_toupper_loc() function shall return a pointer to the array of
     characters to be used for the ctype() family of functions (see <ctype.h>).
     '''
+    if not sys.platform.startswith('linux'):
+        raise nose.SkipTest()
+
     # Just load a binary so that we can do the initialization steps from
     # libc_start_main
     bin_path = os.path.join(test_location, '../../binaries/tests/x86_64/ctype_toupper_loc')
