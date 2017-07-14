@@ -136,6 +136,15 @@ class SimOS(object):
 
         self.project.loader.perform_irelative_relocs(irelative_resolver)
 
+    def _weak_hook_symbol(self, name, hook, scope=None):
+        if scope is None:
+            sym = self.project.loader.find_symbol(name)
+        else:
+            sym = scope.get_symbol(name)
+
+        if sym is not None and not self.project.is_hooked(sym.rebased_addr):
+            self.project.hook(sym.rebased_addr, hook)
+
     def state_blank(self, addr=None, initial_prefix=None, stack_size=1024*1024*8, **kwargs):
         """
         Initialize a blank state.
@@ -323,13 +332,8 @@ class SimLinux(SimOS):
         ld_obj = self.project.loader.linux_loader_object
         if ld_obj is not None:
             # there are some functions we MUST use the simprocedures for, regardless of what the user wants
-            tlsfunc = ld_obj.get_symbol('__tls_get_addr')
-            if tlsfunc is not None and not self.project.is_hooked(tlsfunc.rebased_addr):
-                self.project.hook(tlsfunc.rebased_addr, L['ld.so'].get('__tls_get_addr', self.arch))
-
-            tlsfunc = ld_obj.get_symbol('___tls_get_addr')
-            if tlsfunc is not None and not self.project.is_hooked(tlsfunc.rebased_addr):
-                self.project.hook(tlsfunc.rebased_addr, L['ld.so'].get('___tls_get_addr', self.arch))
+            self._weak_hook_symbol('__tls_get_addr', L['ld.so'].get('__tls_get_addr', self.arch), ld_obj)
+            self._weak_hook_symbol('___tls_get_addr', L['ld.so'].get('___tls_get_addr', self.arch), ld_obj)
 
             # set up some static data in the loader object...
             _rtld_global = ld_obj.get_symbol('_rtld_global')
@@ -676,6 +680,12 @@ class SimCGC(SimOS):
 
 
 class SimWindows(SimOS):
+    def configure_project(self):
+        # here are some symbols which we MUST hook, regardless of what the user wants
+        self._weak_hook_symbol('GetProcAddress', L['kernel32.dll'].get('GetProcAddress', self.arch))
+        self._weak_hook_symbol('LoadLibraryA', L['kernel32.dll'].get('LoadLibraryA', self.arch))
+        self._weak_hook_symbol('LoadLibraryExW', L['kernel32.dll'].get('LoadLibraryExW', self.arch))
+
     def state_entry(self, args=None, **kwargs):
         if args is None: args = []
         state = super(SimWindows, self).state_entry(**kwargs)
@@ -703,8 +713,6 @@ class SimWindows(SimOS):
             state.regs.fs = TIB_addr >> 16
 
         return state
-
-
 
 
 os_mapping = defaultdict(lambda: SimOS)
