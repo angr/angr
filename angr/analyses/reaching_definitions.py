@@ -290,7 +290,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
             # traversing a block
             graph_visitor = SingleNodeGraphVisitor(block)
         else:
-            raise ValueError('HUH')
+            raise ValueError('Unsupported analysis target.')
 
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
                                  graph_visitor=graph_visitor)

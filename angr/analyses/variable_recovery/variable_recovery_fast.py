@@ -474,7 +474,8 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
 
         l.debug('Processing block %#x.', block.addr)
 
-        processor = get_engine(SimEngineLightAIL) if isinstance(block, ailment.Block) else get_engine(SimEngineLightVEX)
+        processor = get_engine(SimEngineLightAIL)() if isinstance(block, ailment.Block) \
+            else get_engine(SimEngineLightVEX)()
         processor.process(state, block=block)
 
     def _make_phi_node(self, block_addr, *variables):
