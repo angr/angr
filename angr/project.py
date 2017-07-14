@@ -253,6 +253,7 @@ class Project(object):
 
         for obj in self.loader.all_objects:
             for reloc in obj.imports.itervalues():
+                # Step 2.1: Quick filter on symbols we really don't care about
                 func = reloc.symbol
                 if not func.is_function:
                     continue
@@ -450,18 +451,18 @@ class Project(object):
         sym = self.loader.find_symbol(symbol_name)
 
         if sym is None:
-            addr = self._simos.prepare_function_symbol(symbol_name)
-            l.info("Providing extern symbol for unresolved %s at #%x", symbol_name, addr)
+            hook_addr, link_addr = self._simos.prepare_function_symbol(symbol_name)
+            l.info("Providing extern symbol for unresolved %s at #%x", symbol_name, hook_addr)
             self.loader.provide_symbol(self._extern_obj, symbol_name, AT.from_MVA(addr, self._extern_obj))
         else:
-            addr = sym.rebased_addr
+            hook_addr, _ = self._simos.repare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
 
-            if self.is_hooked(addr):
+            if self.is_hooked(hook_addr):
                 l.warning("Re-hooking symbol %s", symbol_name)
                 self.unhook(addr)
 
-        self.hook(addr, obj, kwargs=kwargs)
-        return addr
+        self.hook(hook_addr, obj, kwargs=kwargs)
+        return hook_addr
 
     def hook_symbol_batch(self, hooks):
         """
@@ -475,16 +476,16 @@ class Project(object):
         for name, obj in hooks.iteritems():
             sym = self.loader.find_symbol(name)
             if sym is None:
-                pseudo_addr = self._simos.prepare_function_symbol(name)
-                l.info("Providing extern symbol for unresolved %s at #%x", name, pseudo_addr)
-                self.hook(pseudo_addr, obj)
-                provisions[name] = (AT.from_mva(pseudo_addr, self._extern_obj), 0, None)
+                hook_addr, link_addr = self._simos.prepare_function_symbol(name)
+                l.info("Providing extern symbol for unresolved %s at #%x", name, hook_addr)
+                self.hook(hook_addr, obj)
+                provisions[name] = (AT.from_mva(link_addr, self._rebase_addr), 0, None)
             else:
-                addr = sym.rebased_addr
-                if self.is_hooked(addr):
+                hook_addr, _ = self._simos.prepare_function_symbol(name, basic_addr=sym.rebased_addr)
+                if self.is_hooked(hook_addr):
                     l.warning("Re-hooking symbol %s", name)
-                    self.unhook(addr)
-                self.hook(addr, obj)
+                    self.unhook(hook_addr)
+                self.hook(hook_addr, obj)
 
         if provisions:
             self.loader.provide_symbol_batch(self._extern_obj, provisions)
@@ -604,3 +605,4 @@ from .surveyors import Surveyors
 from .knowledge_base import KnowledgeBase
 from .engines import SimEngineFailure, SimEngineSyscall, SimEngineHook, SimEngineVEX, SimEngineUnicorn
 from .misc.ux import once
+from .procedures import SIM_PROCEDURES, SIM_LIBRARIES

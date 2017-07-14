@@ -132,7 +132,7 @@ def test_ccall():
 def test_some_vector_ops():
     from angr.engines.vex.irop import translate
 
-    s = SimState()
+    s = SimState(arch='AMD64')
 
     a =              s.se.BVV(0xffff0000000100020003000400050006, 128)
     b =              s.se.BVV(0x00020002000200020002000200020002, 128)

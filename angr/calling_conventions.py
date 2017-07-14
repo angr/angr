@@ -939,6 +939,7 @@ class SimCCO64LinuxSyscall(SimCC):
     # TODO: Make sure all the information is correct
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
     FP_ARG_REGS = []    # TODO: ???
+    RETURN_VAL = SimRegArg('v0', 8)
     ARCH = archinfo.ArchMIPS64
 
     @classmethod

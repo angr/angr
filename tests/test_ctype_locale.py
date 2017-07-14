@@ -7,12 +7,7 @@ import subprocess
 import logging
 l = logging.getLogger('angr.tests.test_ctype_locale')
 
-
-FAKE_ADDR = 0x100000
-
-
 test_location = os.path.dirname(os.path.abspath(__file__))
-
 
 def test_ctype_b_loc():
     '''
@@ -39,7 +34,7 @@ def test_ctype_b_loc():
     # libc_start_main
     bin_path = os.path.join(test_location, '../../binaries/tests/x86_64/ctype_b_loc')
 
-    ctype_b_loc = lambda state, arguments: angr.SIM_PROCEDURES['libc.so.6']['__ctype_b_loc'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+    ctype_b_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_b_loc']().execute(state, arguments=arguments)
 
     b = angr.Project(bin_path)
     p = b.factory.full_init_state()
@@ -92,7 +87,7 @@ def test_ctype_tolower_loc():
     # libc_start_main
     bin_path = os.path.join(test_location, '../../binaries/tests/x86_64/ctype_tolower_loc')
 
-    ctype_tolower_loc = lambda state, arguments: angr.SIM_PROCEDURES['libc.so.6']['__ctype_tolower_loc'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+    ctype_tolower_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_tolower_loc']().execute(state, arguments=arguments)
 
     b = angr.Project(bin_path)
     p = b.factory.full_init_state()
@@ -144,7 +139,7 @@ def test_ctype_toupper_loc():
     # libc_start_main
     bin_path = os.path.join(test_location, '../../binaries/tests/x86_64/ctype_toupper_loc')
 
-    ctype_toupper_loc = lambda state, arguments: angr.SIM_PROCEDURES['libc.so.6']['__ctype_toupper_loc'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+    ctype_toupper_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_toupper_loc']().execute(state, arguments=arguments)
 
     b = angr.Project(bin_path)
     p = b.factory.full_init_state()

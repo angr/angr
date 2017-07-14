@@ -5,7 +5,7 @@ from collections import defaultdict
 
 from ..stubs.ReturnUnconstrained import ReturnUnconstrained
 from ..stubs.syscall_stub import syscall as stub_syscall
-from ...calling_conventions import DEFAULT_CC, SYSCALL_CC
+from ...calling_conventions import DEFAULT_CC
 from ...misc import autoimport
 
 SIM_LIBRARIES = {}
@@ -94,7 +94,6 @@ class SimSyscallLibrary(SimLibrary):
         self.syscall_number_mapping = defaultdict(dict)
         self.ranged_default_ccs = defaultdict(list)
 
-    fallback_cc = SYSCALL_CC
     fallback_proc = stub_syscall
 
     @property

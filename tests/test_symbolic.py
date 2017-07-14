@@ -20,7 +20,7 @@ import nose
 def test_concretization_strategies():
     initial_memory = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
 
-    s = angr.SimState(memory_backer=initial_memory)
+    s = angr.SimState(arch='AMD64', memory_backer=initial_memory)
 
     # sanity check
     nose.tools.assert_equal(s.se.any_n_str(s.memory.load(3, 1), 2), ['D'])
