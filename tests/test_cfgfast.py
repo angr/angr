@@ -401,6 +401,28 @@ def test_resolve_x86_elf_pic_plt():
     return_targets = set(a.addr for a in simputs_successor)
     nose.tools.assert_equal(return_targets, { 0x400800, 0x40087e, 0x4008b6 })
 
+#
+# Function names
+#
+
+def test_function_names_for_unloaded_libraries():
+    path = os.path.join(test_location, 'i386', 'fauxware_pie')
+    proj = angr.Project(path, load_options={'auto_load_libs': False})
+
+    cfg = proj.analyses.CFGFast()
+
+    function_names = [ f.name if not f.is_plt else 'plt_' + f.name for f in cfg.functions.values() ]
+
+    nose.tools.assert_in('plt_puts', function_names)
+    nose.tools.assert_in('plt_read', function_names)
+    nose.tools.assert_in('plt___stack_chk_fail', function_names)
+    nose.tools.assert_in('plt_exit', function_names)
+    nose.tools.assert_in('puts', function_names)
+    nose.tools.assert_in('read', function_names)
+    nose.tools.assert_in('__stack_chk_fail', function_names)
+    nose.tools.assert_in('exit', function_names)
+
+
 def run_all():
 
     g = globals()
@@ -430,11 +452,13 @@ def run_all():
         args[0](*args[1:])
 
     test_resolve_x86_elf_pic_plt()
+    test_function_names_for_unloaded_libraries()
 
 
 def main():
     if len(sys.argv) > 1:
-        for func_and_args in globals()['test_' + sys.argv[1]]():
+        g = globals().copy()
+        for func_and_args in g['test_' + sys.argv[1]]():
             func, args = func_and_args[0], func_and_args[1:]
             func(*args)
     else:
