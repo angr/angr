@@ -444,16 +444,15 @@ class Project(object):
         if type(obj) in (int, long):
             # this is pretty intensely sketchy
             l.info("Instructing the loader to re-point symbol %s at address %#x", symbol_name, obj)
-            pseudo_vaddr = obj - self._extern_obj.rebase_addr
-            self.loader.provide_symbol(self._extern_obj, symbol_name, pseudo_vaddr)
-            return
+            self.loader.provide_symbol(self._extern_obj, symbol_name, AT.from_mva(obj, self._extern_obj).to_lva())
+            return obj
 
         sym = self.loader.find_symbol(symbol_name)
 
         if sym is None:
             hook_addr, link_addr = self._simos.prepare_function_symbol(symbol_name)
             l.info("Providing extern symbol for unresolved %s at #%x", symbol_name, hook_addr)
-            self.loader.provide_symbol(self._extern_obj, symbol_name, AT.from_MVA(addr, self._extern_obj))
+            self.loader.provide_symbol(self._extern_obj, symbol_name, AT.from_mva(link_addr, self._extern_obj).to_lva())
         else:
             hook_addr, _ = self._simos.repare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
 
@@ -479,7 +478,7 @@ class Project(object):
                 hook_addr, link_addr = self._simos.prepare_function_symbol(name)
                 l.info("Providing extern symbol for unresolved %s at #%x", name, hook_addr)
                 self.hook(hook_addr, obj)
-                provisions[name] = (AT.from_mva(link_addr, self._rebase_addr), 0, None)
+                provisions[name] = (AT.from_mva(link_addr, self._extern_obj).to_lva(), 0, None)
             else:
                 hook_addr, _ = self._simos.prepare_function_symbol(name, basic_addr=sym.rebased_addr)
                 if self.is_hooked(hook_addr):

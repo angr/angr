@@ -538,7 +538,7 @@ class SimLinux(SimOS):
 
             pseudo_hookaddr = self.project._extern_obj.get_pseudo_addr(symbol_name)
             pseudo_toc = self.project._extern_obj.get_pseudo_addr(symbol_name + '#func', size=0x18)
-            self.project._extern_obj.memory.write_addr_at(AT.from_va(pseudo_toc, self.project._extern_obj).to_rva(), pseudo_hookaddr)
+            self.project._extern_obj.memory.write_addr_at(AT.from_mva(pseudo_toc, self.project._extern_obj).to_rva(), pseudo_hookaddr)
             return pseudo_hookaddr, pseudo_toc
         else:
             if basic_addr is None:
