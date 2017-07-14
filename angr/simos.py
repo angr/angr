@@ -81,7 +81,9 @@ class SimOS(object):
         else:
             raise AngrUnsupportedSyscallError("Got a symbolic syscall number")
 
-        return self.syscall_from_number(num, allow_unsupported=allow_unsupported)
+        proc = self.syscall_from_number(num, allow_unsupported=allow_unsupported)
+        proc.cc = cc
+        return proc
 
     def is_syscall_addr(self, addr):
         addr -= self.project._syscall_obj.mapped_base
@@ -115,6 +117,10 @@ class SimOS(object):
         self.project.hook(self.return_deadend, P['stubs']['CallReturn']())
 
         def irelative_resolver(resolver_addr):
+            # autohooking runs before this does, might have provided this already
+            if self.project.is_hooked(resolver_addr):
+                return
+
             resolver = self.project.factory.callable(resolver_addr, concrete_only=True)
             try:
                 val = resolver()
@@ -272,11 +278,16 @@ class SimOS(object):
 
         return new_state
 
-    def prepare_function_symbol(self, symbol_name):
+    def prepare_function_symbol(self, symbol_name, basic_addr=None):
         """
         Prepare the address space with the data necessary to perform relocations pointing to the given symbol
+
+        Returns a 2-tuple. The first item is the address of the function code, the second is the address of the
+        relocation target.
         """
-        return self.project._extern_obj.get_pseudo_addr(symbol_name)
+        if basic_addr is None:
+            basic_addr = self.project._extern_obj.get_pseudo_addr(symbol_name)
+        return basic_addr, basic_addr
 
 
 class SimLinux(SimOS):
@@ -513,18 +524,26 @@ class SimLinux(SimOS):
         kwargs['addr'] = self._loader_addr
         return super(SimLinux, self).state_full_init(**kwargs)
 
-    def prepare_function_symbol(self, symbol_name):
+    def prepare_function_symbol(self, symbol_name, basic_addr=None):
         """
         Prepare the address space with the data necessary to perform relocations pointing to the given symbol.
+
+        Returns a 2-tuple. The first item is the address of the function code, the second is the address of the
+        relocation target.
         """
         if self.arch.name == 'PPC64':
+            if basic_addr is not None:
+                pointer = self.project.loader.memory.read_addr_at(basic_addr)
+                return pointer, basic_addr
+
             pseudo_hookaddr = self.project._extern_obj.get_pseudo_addr(symbol_name)
             pseudo_toc = self.project._extern_obj.get_pseudo_addr(symbol_name + '#func', size=0x18)
-            self.project._extern_obj.memory.write_addr_at(
-                AT.from_va(pseudo_toc, self.project._extern_obj).to_rva(), pseudo_hookaddr)
-            return pseudo_hookaddr
+            self.project._extern_obj.memory.write_addr_at(AT.from_va(pseudo_toc, self.project._extern_obj).to_rva(), pseudo_hookaddr)
+            return pseudo_hookaddr, pseudo_toc
         else:
-            return self.project._extern_obj.get_pseudo_addr(symbol_name)
+            if basic_addr is None:
+                basic_addr = self.project._extern_obj.get_pseudo_addr(symbol_name)
+            return basic_addr, basic_addr
 
 
 class SimCGC(SimOS):
@@ -553,7 +572,7 @@ class SimCGC(SimOS):
         s.get_plugin('cgc')
 
         # set up the address for concrete transmits
-        s.unicorn.transmit_addr = self.syscall_addr_from_num(2)
+        s.unicorn.transmit_addr = self.syscall_from_number(2).addr
 
         return s
 

@@ -27,7 +27,7 @@ class StaticHooker(Analysis):
         for func in self.project.loader.main_bin._symbol_cache.values():
             if not func.is_function: continue
             if libc.has_implementation(func.name):
-                proc = libc.get(func.name)
+                proc = libc.get(func.name, self.project.arch)
                 self.project.hook(func.rebased_addr, proc)
                 l.info("Hooked %s at %#x", func.name, func.rebased_addr)
                 self.results[func.rebased_addr] = proc
