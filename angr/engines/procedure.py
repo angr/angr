@@ -44,7 +44,6 @@ class SimEngineProcedure(SimEngine):
 
         # fill in artifacts
         successors.artifacts['is_syscall'] = procedure.is_syscall
-        successors.artifacts['procedure'] = procedure
         successors.artifacts['name'] = procedure.display_name
         successors.artifacts['no_ret'] = procedure.NO_RET
         successors.artifacts['adds_exits'] = procedure.ADDS_EXITS
@@ -68,7 +67,8 @@ class SimEngineProcedure(SimEngine):
             state.options.add(o.AUTO_REFS)
 
         # do it
-        procedure.execute(state, successors, ret_to=ret_to)
+        inst = procedure.execute(state, successors, ret_to=ret_to)
+        successors.artifacts['procedure'] = inst
 
         if cleanup_options:
             state.options.discard(o.AST_DEPS)

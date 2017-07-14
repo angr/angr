@@ -54,9 +54,7 @@ class CFGJob(CFGJobBase):
         if self._block_id is None:
             # generate a new block ID
             self._block_id = CFGAccurate._generate_block_id(
-                self.call_stack.stack_suffix(self._context_sensitivity_level), self.addr, self.is_syscall,
-                continue_at=self.continue_at
-            )
+                self.call_stack.stack_suffix(self._context_sensitivity_level), self.addr, self.is_syscall)
         return self._block_id
 
     @property
@@ -851,17 +849,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 state.set_mode('fastpath')
 
             self._symbolic_function_initial_state[ip] = state
-
-            # try to get a callstack from an existing node if it exists
-            continue_at = None
-            if self.project.is_hooked(ip) and \
-                    self.project.hooked_by(ip).is_continuation and \
-                    state.callstack.top.procedure_data:
-                continue_at = state.callstack.top.procedure_data[0]
-
-            path_wrapper = CFGJob(ip, state, self._context_sensitivity_level, None, None, call_stack=callstack,
-                                  continue_at=continue_at,
-                                  )
+            path_wrapper = CFGJob(ip, state, self._context_sensitivity_level, None, None, call_stack=callstack)
             key = path_wrapper.block_id
             if key not in self._start_keys:
                 self._start_keys.append(key)
@@ -1600,7 +1588,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if suc_jumpkind == "Ijk_FakeRet" and call_target is not None:
             # if the call points to a SimProcedure that doesn't return, we don't follow the fakeret anymore
             if self.project.is_hooked(call_target):
-                sim_proc = self.project._sim_procedures[call_target].procedure
+                sim_proc = self.project._sim_procedures[call_target]
                 if sim_proc.NO_RET:
                     return [ ]
 
@@ -1643,7 +1631,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Fix target_addr for syscalls
         if suc_jumpkind.startswith("Ijk_Sys"):
-            _, target_addr, _, _ = self.project._simos.syscall_info(new_state)
+            target_addr = self.project._simos.syscall(new_state).addr
 
         self._pre_handle_successor_state(job.extra_info, suc_jumpkind, target_addr)
 
@@ -1674,18 +1662,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # Create the callstack suffix
         new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
         # Tuple that will be used to index this exit
-        continue_at = None
-        if self.project.is_hooked(target_addr) and \
-                self.project.hooked_by(target_addr).is_continuation and \
-                successor.callstack.top.procedure_data:
-            continue_at = successor.callstack.top.procedure_data[0]  # TODO: Use a named tuple or a class in simuvex instead
-        new_tpl = self._generate_block_id(new_call_stack_suffix, target_addr, suc_jumpkind.startswith('Ijk_Sys'),
-                                            continue_at=continue_at
-                                            )
+        new_tpl = self._generate_block_id(new_call_stack_suffix, target_addr, suc_jumpkind.startswith('Ijk_Sys'))
 
         # We might have changed the mode for this basic block
         # before. Make sure it is still running in 'fastpath' mode
-        # new_exit.state = self.project.simos.prepare_call_state(new_exit.state, initial_state=saved_state)
+        # new_exit.state = self.project._simos.prepare_call_state(new_exit.state, initial_state=saved_state)
         new_state.set_mode('fastpath')
         pw = CFGJob(target_addr,
                     new_state,
@@ -1694,7 +1675,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     src_exit_stmt_idx=suc_exit_stmt_idx,
                     src_ins_addr=suc_exit_ins_addr,
                     call_stack=new_call_stack,
-                    continue_at=continue_at,
                     jumpkind=suc_jumpkind,
                     )
 
@@ -1707,7 +1687,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # This is the default "fake" retn that generated at each
             # call. Save them first, but don't process them right
             # away
-            # st = self.project.simos.prepare_call_state(new_state, initial_state=saved_state)
+            # st = self.project._simos.prepare_call_state(new_state, initial_state=saved_state)
             st = new_state
             st.set_mode('fastpath')
 
@@ -2585,7 +2565,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                         # target = const
                         # tpl = (None, None, target)
-                        # st = self.project.simos.prepare_call_state(self.project.initial_state(mode='fastpath'),
+                        # st = self.project._simos.prepare_call_state(self.project.initial_state(mode='fastpath'),
                         #                                           initial_state=saved_state)
                         # st = self.project.initial_state(mode='fastpath')
                         # exits[tpl] = (st, None, None)
@@ -2628,11 +2608,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             if not self._keep_state:
                 if self.project.is_hooked(addr):
-                    hooker = self.project._sim_procedures[addr]
-                    old_proc = hooker.procedure
-                    is_continuation = hooker.is_continuation
-                elif self.project._simos.syscall_table.get_by_addr(addr) is not None:
-                    old_proc = self.project._simos.syscall_table.get_by_addr(addr).simproc
+                    old_proc = self.project._sim_procedures[addr]
+                    is_continuation = old_proc.is_continuation
+                elif self.project._simos.is_syscall_addr(addr):
+                    old_proc = self.project._simos.syscall_from_addr(addr)
                     is_continuation = False  # syscalls don't support continuation
                 else:
                     old_proc = None
@@ -2657,25 +2636,17 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     old_name = None
 
                     if old_proc.IS_SYSCALL:
-                        new_stub = SIM_PROCEDURES["syscalls"]["stub"]
+                        new_stub = SIM_PROCEDURES["stubs"]["syscall"]
                         ret_to = state.regs.ip_at_syscall
                     else:
                         # normal SimProcedures
                         new_stub = SIM_PROCEDURES["stubs"]["ReturnUnconstrained"]
                         ret_to = None
 
-                    if old_proc is new_stub and self.project.is_hooked(addr):
-                        proc_kwargs = self.project._sim_procedures[addr].kwargs
-                        if 'resolves' in proc_kwargs:
-                            old_name = proc_kwargs['resolves']
-
-                    if old_name is None:
-                        old_name = old_proc.__name__.split('.')[-1]
+                    old_name = old_proc.display_name
 
                     # instantiate the stub
-                    new_stub_inst = new_stub(addr, self.project.arch,
-                                             sim_kwargs={'resolves': old_name}
-                                             )
+                    new_stub_inst = new_stub(display_name=old_name)
 
                     sim_successors = SimEngineProcedure().process(
                         state,
@@ -2725,7 +2696,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # Got a SimSolverModeError in symbolic mode. We are screwed.
                 # Skip this IRSB
                 l.debug("Caught a SimIRSBError %s. Don't panic, this is usually expected.", ex)
-                inst = SIM_PROCEDURES["stubs"]["PathTerminator"](addr, self.project.arch)
+                inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
                 sim_successors = SimEngineProcedure().process(state, inst)
 
         except SimIRSBError:
@@ -2733,28 +2704,28 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
             l.debug("Caught a SimIRSBError during CFG recovery. Creating a PathTerminator.", exc_info=True)
-            inst = SIM_PROCEDURES["stubs"]["PathTerminator"](addr, self.project.arch)
+            inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
             sim_successors = SimEngineProcedure().process(state, inst)
 
         except claripy.ClaripyError:
             exception_info = sys.exc_info()
             l.debug("Caught a ClaripyError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
-            inst = SIM_PROCEDURES["stubs"]["PathTerminator"](addr, self.project.arch)
+            inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
             sim_successors = SimEngineProcedure().process(state, inst)
 
         except SimError:
             exception_info = sys.exc_info()
             l.debug("Caught a SimError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
-            inst = SIM_PROCEDURES["stubs"]["PathTerminator"](addr, self.project.arch)
+            inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
             sim_successors = SimEngineProcedure().process(state, inst)
 
         except AngrExitError as ex:
             exception_info = sys.exc_info()
             l.debug("Caught a AngrExitError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
-            inst = SIM_PROCEDURES["stubs"]["PathTerminator"](addr, self.project.arch)
+            inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
             sim_successors = SimEngineProcedure().process(state, inst)
 
         except AngrError:
@@ -3147,10 +3118,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         return True
 
     @staticmethod
-    def _generate_block_id(call_stack_suffix, block_addr, is_syscall, continue_at=None):
+    def _generate_block_id(call_stack_suffix, block_addr, is_syscall):
         if not is_syscall:
-            return BlockID.new(block_addr, call_stack_suffix, 'normal', continue_at=continue_at)
-        return BlockID.new(block_addr, call_stack_suffix, 'syscall', continue_at=continue_at)
+            return BlockID.new(block_addr, call_stack_suffix, 'normal')
+        return BlockID.new(block_addr, call_stack_suffix, 'syscall')
 
     @staticmethod
     def _block_id_repr(block_id):

@@ -327,14 +327,10 @@ class AngrObjectFactory(object):
         """
 
         try:
-            _, syscall_addr, _, _ = self._project._simos.syscall_info(state)
-
-            # Fix the IP
-            state.ip = syscall_addr
-
+            bypass = o.BYPASS_UNSUPPORTED_SYSCALL in state.options
+            state.ip = self._project._simos.syscall(state, allow_unsupported=bypass).addr # fix the IP
         except AngrUnsupportedSyscallError:
-            # the syscall is not supported. don't do anything
-            pass
+            pass # the syscall is not supported. don't do anything
 
     @deprecate('sim_run()', 'successors()')
     def sim_run(self, *args, **kwargs):
@@ -349,3 +345,4 @@ from .errors import AngrExitError, AngrError, AngrUnsupportedSyscallError
 from .manager import SimulationManager
 from .knowledge import HookNode
 from .block import Block
+from . import sim_options as o

@@ -75,10 +75,10 @@ class Runner(object):
             entry_state.unicorn.max_steps = 10000
 
             pg = self.project.factory.simgr(entry_state)
+            stop_addr = self.project._simos.syscall_from_number(2).addr
             num_steps = 0
             while len(pg.active) > 0:
-                syscall = self.project._simos.syscall_table.get_by_addr(pg.one_active.addr)
-                if syscall is not None and syscall.name == 'receive':
+                if pg.one_active.addr == stop_addr:
                     # execute until receive
                     break
 

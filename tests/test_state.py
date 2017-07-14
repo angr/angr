@@ -28,7 +28,7 @@ def test_state():
 
 #@nose.tools.timed(10)
 def test_state_merge():
-    a = SimState(mode='symbolic')
+    a = SimState(arch='AMD64', mode='symbolic')
     a.memory.store(1, a.se.BVV(42, 8))
 
     b = a.copy()
@@ -86,7 +86,7 @@ def test_state_merge():
     nose.tools.assert_equal(a_c.se.any_int(a_c.memory.load(2, 1)), 21)
 
     # test different sets of plugins
-    a = SimState(mode='symbolic')
+    a = SimState(arch='AMD64', mode='symbolic')
     nose.tools.assert_true(a.has_plugin('memory'))
     nose.tools.assert_true(a.has_plugin('registers'))
     nose.tools.assert_false(a.has_plugin('libc'))
@@ -101,7 +101,7 @@ def test_state_merge():
     nose.tools.assert_true(d.has_plugin('libc'))
 
     # test merging posix with different open files
-    a = SimState(mode='symbolic')
+    a = SimState(arch='AMD64', mode='symbolic')
     b = a.copy()
     a.posix.get_file(3)
     nose.tools.assert_equal(len(a.posix.files), 4)
@@ -114,7 +114,7 @@ def test_state_merge():
 def test_state_merge_static():
     # With abstract memory
     # Aligned memory merging
-    a = SimState(mode='static')
+    a = SimState(arch='AMD64', mode='static')
 
     addr = a.se.ValueSet(32, 'global', 0, 8)
     a.memory.store(addr, a.se.BVV(42, 32))
@@ -136,7 +136,7 @@ def test_state_pickle():
     old_dl = ana.dl
     ana.set_dl(ana.DirDataLayer('/tmp/picklez'))
     try:
-        s = SimState()
+        s = SimState(arch="AMD64")
         s.memory.store(100, s.se.BVV(0x4141414241414241424300, 88), endness='Iend_BE')
         s.regs.rax = 100
 
@@ -149,7 +149,7 @@ def test_state_pickle():
         ana.dl = old_dl
 
 def test_global_condition():
-    s = SimState()
+    s = SimState(arch="AMD64")
 
     s.regs.rax = 10
     old_rax = s.regs.rax

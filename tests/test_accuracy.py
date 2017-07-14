@@ -25,6 +25,7 @@ def emulate(arch):
     #else:
     #     state = p.factory.full_init_state(args=['./test_arrays'], add_options={angr.options.STRICT_PAGE_ACCESS})
     state = p.factory.full_init_state(args=['./test_arrays'], add_options={angr.options.STRICT_PAGE_ACCESS, angr.options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
+    #state.inspect.b('mem_write', when=angr.BP_BEFORE, action=angr.BP_IPDB, mem_write_address=0x13bf428)
 
     pg = p.factory.simgr(state)
     pg2 = pg.step(until=lambda lpg: len(lpg.active) != 1,
@@ -73,7 +74,7 @@ def test_locale():
     nose.tools.assert_equal(len(pg2.active), 0)
     nose.tools.assert_equal(len(pg2.deadended), 1)
     nose.tools.assert_equal(pg2.deadended[0].history.events[-1].type, 'terminate')
-    nose.tools.assert_equal(pg2.deadended[0].history.events[-1].objects['exit_code'].ast._model_concrete.value, 0)
+    nose.tools.assert_equal(pg2.deadended[0].history.events[-1].objects['exit_code']._model_concrete.value, 0)
 
 
 if __name__ == '__main__':

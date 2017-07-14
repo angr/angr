@@ -25,7 +25,7 @@ class CallTracingFilter(object):
     whitelist = {
         SIM_PROCEDURES['cgc']['receive'],
         SIM_PROCEDURES['cgc']['transmit'],
-        SIM_PROCEDURES['libc.so.6']['read'],
+        SIM_PROCEDURES['posix']['read'],
     }
 
     cfg_cache = { }

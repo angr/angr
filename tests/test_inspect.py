@@ -158,7 +158,7 @@ def test_inspect_syscall():
     s.inspect.b('syscall', BP_AFTER, action=handle_syscall_after)
 
     # step it
-    proc = SIM_PROCEDURES['syscalls']['close'](s.se.any_int(s.ip), archinfo.arch_from_id('AMD64'))
+    proc = SIM_PROCEDURES['linux_kernel']['close']()
     SimEngineProcedure().process(s, proc, ret_to=s.ip)
 
     # check counts
@@ -179,7 +179,7 @@ def test_inspect_concretization():
         if state.inspect.address_concretization_action == 'store':
             state.inspect.address_concretization_expr = claripy.BVV(0x1000, state.arch.bits)
 
-    s = SimState()
+    s = SimState(arch='AMD64')
     s.inspect.b('address_concretization', BP_BEFORE, action=change_symbolic_target)
     s.memory.store(x, 'A')
     assert list(s.se.eval(x, 10)) == [ 0x1000 ]
@@ -192,7 +192,7 @@ def test_inspect_concretization():
     def dont_add_constraints(state):
         state.inspect.address_concretization_add_constraints = False
 
-    s = SimState()
+    s = SimState(arch='AMD64')
     s.inspect.b('address_concretization', BP_BEFORE, action=dont_add_constraints)
     s.memory.store(x, 'A')
     assert len(s.se.eval(x, 10)) == 10
@@ -217,7 +217,7 @@ def test_inspect_concretization():
         ):
             raise UnconstrainedAbort("uh oh", state)
 
-    s = SimState()
+    s = SimState(arch='AMD64')
     s.memory.write_strategies.insert(
         0, concretization_strategies.SimConcretizationStrategyRange(128)
     )

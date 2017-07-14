@@ -1,4 +1,5 @@
 import inspect
+import copy
 import itertools
 
 import logging
@@ -16,13 +17,10 @@ class SimProcedure(object):
     A detailed discussion of programming SimProcedures may be found at https://docs.angr.io/docs/simprocedures.md
     """
     def __init__(
-        self, addr, arch,
-        symbolic_return=None,
+        self, project=None, cc=None, symbolic_return=None,
         returns=None, is_syscall=None,
         num_args=None, display_name=None,
-        cc=None, sim_kwargs=None,
-        is_function=None, is_continuation=False,
-        continuation_addr=None
+        is_function=None, **kwargs
     ):
         """
         :param arch:            The architecture to use for this procedure
@@ -39,38 +37,29 @@ class SimProcedure(object):
         :param sim_kwargs:      Additional keyword arguments to be passed to run()
         :param is_function:     Whether this procedure emulates a function
         """
-        self.addr = addr
-        self.arch = arch
+        # WE'LL FIGURE IT OUT
+        self.project = project
+        self.arch = project.arch if project is not None else None
+        self.addr = None
+        self.cc = cc
+        self.canonical = self
 
-        self.kwargs = { } if sim_kwargs is None else sim_kwargs
+        self.kwargs = kwargs
         self.display_name = type(self).__name__ if display_name is None else display_name
+        self.syscall_number = None
         self.symbolic_return = symbolic_return
 
         # types
         self.argument_types = { } # a dictionary of index-to-type (i.e., type of arg 0: SimTypeString())
         self.return_type = None
 
-        # calling convention
-        if cc is None:
-            # default conventions
-            if self.arch.name in DEFAULT_CC:
-                self.cc = DEFAULT_CC[self.arch.name](self.arch)
-            else:
-                raise SimProcedureError('There is no default calling convention for architecture %s.' +
-                                        ' You must specify a calling convention.', arch.name)
-
-        else:
-            self.cc = cc
-
         # set some properties about the type of procedure this is
         self.returns = returns if returns is not None else not self.NO_RET
         self.is_syscall = is_syscall if is_syscall is not None else self.IS_SYSCALL
         self.is_function = is_function if is_function is not None else self.IS_FUNCTION
-        self.is_continuation = is_continuation
-        self.continuation_addr = continuation_addr
-
-        if self.continuation_addr is None and self.is_function:
-            raise ValueError("This procedure is a function but no continuation address is provided!")
+        self.is_continuation = False
+        self.continuations = {}
+        self.run_func = 'run'
 
         # Get the concrete number of arguments that should be passed to this procedure
         if num_args is None:
@@ -83,6 +72,7 @@ class SimProcedure(object):
         self.state = None
         self.successors = None
         self.arguments = None
+        self.use_state_arguments = None
         self.ret_to = None
         self.ret_expr = None
 
@@ -97,23 +87,35 @@ class SimProcedure(object):
         Alternately, successors may be none if this is an inline call. In that case, you should
         provide arguments to the function.
         """
-        # set runtime variables
-        self.state = state
-        self.successors = successors
-        self.arguments = arguments
-        self.ret_to = ret_to
-        self.ret_expr = None
+        # fill out all the fun stuff we don't want to frontload
+        if self.addr is None:
+            self.addr = state.addr
+        if self.arch is None:
+            self.arch = state.arch
+        if self.project is None:
+            self.project = state.project
+        if self.cc is None:
+            if self.arch.name in DEFAULT_CC:
+                self.cc = DEFAULT_CC[self.arch.name](self.arch)
+            else:
+                raise SimProcedureError('There is no default calling convention for architecture %s.'
+                                        ' You must specify a calling convention.', self.arch.name)
+
+        inst = copy.copy(self)
+        inst.state = state
+        inst.successors = successors
+        inst.ret_to = ret_to
 
         # check to see if this is a syscall and if we should override its return value
         override = None
-        if self.is_syscall:
+        if inst.is_syscall:
             state.history.recent_syscall_count = 1
             if len(state.posix.queued_syscall_returns):
                 override = state.posix.queued_syscall_returns.pop(0)
 
         if callable(override):
             try:
-                r = override(state, run=self)
+                r = override(state, run=inst)
             except TypeError:
                 r = override(state)
 
@@ -122,32 +124,46 @@ class SimProcedure(object):
 
         else:
             # get the arguments
-            if arguments is None:
-                sim_args = [ self.arg(_) for _ in xrange(self.num_args) ]
-            else:
-                sim_args = self.arguments[:self.num_args]
 
             # handle if this is a continuation from a return
-            if self.is_continuation:
+            if inst.is_continuation:
                 if state.callstack.top.procedure_data is None:
                     raise SimProcedureError("Tried to return to a simprocedure in an inapplicable stack frame!")
 
-                continue_at, saved_sp, saved_local_vars = state.callstack.top.procedure_data
-                run_func = getattr(self, continue_at)
+                saved_sp, sim_args, saved_local_vars = state.callstack.top.procedure_data
                 state.regs.sp = saved_sp
+                inst.arguments = sim_args
+                inst.use_state_arguments = True
                 for name, val in saved_local_vars:
-                    setattr(self, name, val)
+                    setattr(inst, name, val)
             else:
-                run_func = self.run
+                if arguments is None:
+                    inst.use_state_arguments = True
+                    sim_args = [ inst.arg(_) for _ in xrange(inst.num_args) ]
+                    inst.arguments = sim_args
+                else:
+                    inst.use_state_arguments = False
+                    sim_args = arguments[:inst.num_args]
+                    inst.arguments = arguments
 
             # run it
-            r = run_func(*sim_args, **self.kwargs)
+            r = getattr(inst, inst.run_func)(*sim_args, **inst.kwargs)
 
-        if self.returns and (not self.successors or len(self.successors.successors) == 0):
-            self.ret(r)
+        if inst.returns and (not inst.successors or len(inst.successors.successors) == 0):
+            inst.ret(r)
 
-        # TODO: remove this once we're done plastering over the metaclass embarassment
-        return self
+        return inst
+
+    def make_continuation(self, name):
+        # make a copy of the canon copy, customize it for the specific continuation, then hook it
+        if name not in self.canonical.continuations:
+            cont = copy.copy(self.canonical)
+            cont.addr = self.project._extern_obj.anon_allocation()
+            cont.is_continuation = True
+            cont.run_func = name
+            self.canonical.continuations[name] = cont
+            self.project.hook(cont.addr, cont)
+        return self.canonical.continuations[name].addr
 
     #
     # Implement these in a subclass of SimProcedure!
@@ -155,13 +171,13 @@ class SimProcedure(object):
 
     NO_RET = False          # set this to true if control flow will never return from this function
     ADDS_EXITS = False      # set this to true if you do any control flow other than returning
-    IS_SYSCALL = False      # self-explanitory.
+    IS_SYSCALL = False      # self-explanatory.
     IS_FUNCTION = False     # set this to true if you use the self.call() control flow
 
     local_vars = ()         # if you use self.call(), set this to a list of all the local variable
                             # names in your class. They will be restored on return.
 
-    def run(self, *args, **kwargs): #pylint:disable=unused-argument
+    def run(self, *args, **kwargs):
         """
         Implement the actual procedure here!
         """
@@ -190,10 +206,6 @@ class SimProcedure(object):
     @property
     def should_add_successors(self):
         return self.successors is not None
-
-    @property
-    def use_state_arguments(self):
-        return self.arguments is None
 
     #
     # Working with calling conventions
@@ -254,7 +266,7 @@ class SimProcedure(object):
     # Control Flow
     #
 
-    def inline_call(self, procedure, *arguments, **sim_kwargs):
+    def inline_call(self, procedure, *arguments, **kwargs):
         """
         Call another SimProcedure in-line to retrieve its return value.
         Returns an instance of the procedure with the ret_expr property set.
@@ -266,9 +278,8 @@ class SimProcedure(object):
                                 procedure construtor
         """
         e_args = [ self.state.se.BVV(a, self.state.arch.bits) if isinstance(a, (int, long)) else a for a in arguments ]
-        p = procedure(self.addr, self.arch, sim_kwargs=sim_kwargs)
-        p.execute(self.state, None, arguments=e_args)
-        return p
+        p = procedure(project=self.project, **kwargs)
+        return p.execute(self.state, None, arguments=e_args)
 
     def ret(self, expr=None):
         """
@@ -312,9 +323,9 @@ class SimProcedure(object):
             cc = self.cc
 
         call_state = self.state.copy()
-        ret_addr = self.continuation_addr
+        ret_addr = self.make_continuation(continue_at)
         saved_local_vars = zip(self.local_vars, map(lambda name: getattr(self, name), self.local_vars))
-        simcallstack_entry = (continue_at, self.state.regs.sp, saved_local_vars)
+        simcallstack_entry = (self.state.regs.sp, self.arguments, saved_local_vars)
         cc.setup_callsite(call_state, ret_addr, args)
         call_state.callstack.top.procedure_data = simcallstack_entry
 

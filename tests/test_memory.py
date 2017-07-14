@@ -9,7 +9,7 @@ from angr import options as o
 
 
 def test_copy():
-    s = SimState()
+    s = SimState(arch="AMD64")
     s.memory.store(0x100, "ABCDEFGHIJKLMNOP")
     s.memory.store(0x200, "XXXXXXXXXXXXXXXX")
     x = s.se.BVS('size', s.arch.bits)
@@ -21,7 +21,7 @@ def test_copy():
     nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])
     nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100, extra_constraints=[x==3])), [ "ABCXX" ])
 
-    s = SimState()
+    s = SimState(arch="AMD64")
     s.posix.write(0, "ABCDEFGHIJKLMNOP", len("ABCDEFGHIJKLMNOP"))
     s.posix.set_pos(0, 0)
     s.memory.store(0x200, "XXXXXXXXXXXXXXXX")
@@ -34,14 +34,14 @@ def test_copy():
     nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])
     nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100, extra_constraints=[x==3])), [ "ABCXX" ])
 
-    s = SimState()
+    s = SimState(arch="AMD64")
     s.posix.write(0, "ABCDEFGHIJKLMNOP", len("ABCDEFGHIJKLMNOP"))
     s.posix.set_pos(0, 0)
     s.memory.store(0x200, "XXXXXXXXXXXXXXXX")
     x = s.se.BVS('size', s.arch.bits)
     s.add_constraints(s.se.ULT(x, 10))
 
-    read_proc = SIM_PROCEDURES['libc.so.6']['read'](0x100000, s.arch)
+    read_proc = SIM_PROCEDURES['posix']['read']()
     ret_x = read_proc.execute(s, arguments=(0, 0x200, x)).ret_expr
     nose.tools.assert_equals(sorted(s.se.any_n_int(x, 100)), range(10))
     result = s.memory.load(0x200, 5)
@@ -553,7 +553,7 @@ def test_concrete_memset():
     def _individual_test(state, base, val, size):
         # time it
         start = time.time()
-        memset = SIM_PROCEDURES['libc.so.6']['memset'](0x100000, state.arch).execute(
+        memset = SIM_PROCEDURES['libc']['memset']().execute(
             state, arguments=[base, state.se.BVV(val, 8), size]
         )
         elapsed = time.time() - start
@@ -615,7 +615,7 @@ def test_load_bytes():
     assert len(items) == 0
 
 def test_fast_memory():
-    s = SimState(add_options={o.FAST_REGISTERS, o.FAST_MEMORY})
+    s = SimState(arch='AMD64', add_options={o.FAST_REGISTERS, o.FAST_MEMORY})
 
     s.regs.rax = 0x4142434445464748
     s.regs.rbx = 0x5555555544444444

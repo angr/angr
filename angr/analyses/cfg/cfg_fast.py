@@ -1415,13 +1415,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
         try:
             if self.project.is_hooked(addr):
-                hooker = self.project.hooked_by(addr)
-                name = hooker.name
-                procedure = hooker.procedure
+                procedure = self.project.hooked_by(addr)
+                name = procedure.display_name
             else:
-                syscall = self.project._simos.syscall_table.get_by_addr(addr)
-                name = syscall.name
-                procedure = syscall.simproc
+                procedure = self.project._simos.syscall_from_addr(addr)
+                name = procedure.display_name
 
             if addr not in self._nodes:
                 cfg_node = CFGNode(addr, 0, self, function_address=current_function_addr,
@@ -1464,7 +1462,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self.project.factory.block(grandparent_nodes[0].addr).vex,
                 self.project.factory.block(previous_src_node.addr).vex,
             ]
-            new_exits = procedure(addr, self.project.arch, is_function=False).static_exits(blocks_ahead)
+            procedure.project = self.project
+            procedure.arch = self.project.arch
+            new_exits = procedure.static_exits(blocks_ahead)
 
             for addr_, jumpkind in new_exits:
                 if isinstance(addr_, claripy.ast.BV) and not addr_.symbolic:
@@ -1795,7 +1795,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # Fix the target_addr for syscalls
             tmp_state = self.project.factory.blank_state(mode="fastpath", addr=cfg_node.addr)
             succ = self.project.factory.successors(tmp_state).flat_successors[0]
-            _, syscall_addr, _, _ = self.project._simos.syscall_info(succ)
+            syscall_addr = self.project._simos.syscall(succ).addr
             target_addr = syscall_addr
 
         new_function_addr = target_addr

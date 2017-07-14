@@ -1,7 +1,3 @@
-#!/usr/bin/env python
-
-# pylint: disable=W0703
-
 import logging
 import os
 import types
@@ -12,16 +8,13 @@ import archinfo
 import cle
 from cle.address_translator import AT
 
-from . import engines, SIM_PROCEDURES, procedures
-from .sim_procedure import SimProcedure
-
 l = logging.getLogger("angr.project")
 
 # This holds the default execution engine for a given CLE loader backend.
 # All the builtins right now use SimEngineVEX.  This may not hold for long.
 
 
-def global_default(): return {'any': engines.SimEngineVEX}
+def global_default(): return {'any': SimEngineVEX}
 default_engines = defaultdict(global_default)
 
 
@@ -198,7 +191,7 @@ class Project(object):
         procedure_engine = SimEngineHook(self)
         failure_engine = SimEngineFailure(self)
         syscall_engine = SimEngineSyscall(self)
-        unicorn_engine = engines.SimEngineUnicorn(self._sim_procedures)
+        unicorn_engine = SimEngineUnicorn(self._sim_procedures)
 
         self.entry = self.loader.main_bin.entry
         self.factory = AngrObjectFactory(
@@ -234,91 +227,117 @@ class Project(object):
         This is all the automatic simprocedure related initialization work
         It's too big to just get pasted into the initializer.
         """
+        # TODO: Make this into a per-object function that can be used during dynamic loading
 
-        # Step 1: Get the appropriate libraries of SimProcedures
+        # Step 1: get the set of libraries we are allowed to use to resolve unresolved symbols
         libs = []
         for lib_name in self.loader.requested_objects:
+            # File names are case-insensitive on Windows. Make them all lowercase
             if isinstance(self.loader.main_bin, cle.backends.pe.PE):
-                # File names are case-insensitive on Windows. Make them all lowercase
                 lib_name = lib_name.lower()
 
-            # Hack that should go somewhere else:
-            if lib_name in [ 'libc.so.0', 'libc.so', 'libc.musl-x86_64.so.1' ]:
-                lib_name = 'libc.so.6'
-            if lib_name == 'ld-uClibc.so.0':
-                lib_name = 'ld-uClibc.so.6'
+            if lib_name in self.loader.shared_objects:
+                continue
 
-            if lib_name not in SIM_PROCEDURES:
-                l.debug("There are no simprocedures for library %s :(", lib_name)
+            if lib_name not in SIM_LIBRARIES:
+                l.info("There are no simprocedures for library %s :(", lib_name)
             else:
-                libs.append(lib_name)
+                libs.append(SIM_LIBRARIES[lib_name])
 
         # Step 2: Categorize every "import" symbol in each object.
         # If it's IGNORED, mark it for stubbing
         # If it's blacklisted, don't process it
         # If it matches a simprocedure we have, replace it
-        already_resolved = set()
+        already_seen = set()
         pending_hooks = {}
-        unresolved = set()
 
         for obj in self.loader.all_objects:
             for reloc in obj.imports.itervalues():
+                # Step 2.1: Quick filter on symbols we really don't care about
                 func = reloc.symbol
-                if func.name in already_resolved:
-                    continue
                 if not func.is_function:
                     continue
-                elif func.name in self._ignore_functions:
-                    unresolved.add(func)
+                if func.name in already_seen:
                     continue
-                elif self._should_exclude_sim_procedure(func.name):
-                    continue
+                already_seen.add(func.name)
 
-                elif self._should_use_sim_procedures:
-                    for lib in libs:
-                        simfuncs = SIM_PROCEDURES[lib]
-                        if func.name in simfuncs:
-                            l.info("Providing %s from %s with SimProcedure", func.name, lib)
-                            pending_hooks[func.name] = Hook(simfuncs[func.name])
-                            already_resolved.add(func.name)
+                # Step 2.2: If this function has been resolved by a static dependency,
+                # check if we actually can and want to replace it with a SimProcedure.
+                # We opt out of this step if it is blacklisted by ignore_functions, which
+                # will cause it to be replaced by ReturnUnconstrained later.
+                if func.resolved and func.name not in self._ignore_functions:
+                    if self._check_user_blacklists(func.name):
+                        continue
+                    owner_name = func.resolvedby.owner_obj.provides
+                    if isinstance(self.loader.main_bin, cle.backends.pe.PE):
+                        owner_name = owner_name.lower()
+                    if owner_name not in SIM_LIBRARIES:
+                        continue
+                    sim_lib = SIM_LIBRARIES[owner_name]
+                    if not sim_lib.has_implementation(func.name):
+                        continue
+                    l.info("Using builtin SimProcedure for %s from %s", func.name, sim_lib.name)
+                    pending_hooks[func.name] = sim_lib.get(func.name, self.arch)
+
+                # Step 2.3: If 2.2 didn't work, check if the symbol wants to be resolved
+                # by a library we already know something about. Resolve it appropriately.
+                # Note that _check_user_blacklists also includes _ignore_functions.
+                # An important consideration is that even if we're stubbing a function out,
+                # we still want to try as hard as we can to figure out where it comes from
+                # so we can get the calling convention as close to right as possible.
+                elif func.resolvewith is not None and func.resolvewith in SIM_LIBRARIES:
+                    sim_lib = SIM_LIBRARIES[func.resolvewith]
+                    if self._check_user_blacklists(func.name):
+                        l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
+                        pending_hooks[func.name] = sim_lib.get_stub(func.name, self.arch)
+                    else:
+                        l.info("Using builtin SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
+                        pending_hooks[func.name] = sim_lib.get(func.name, self.arch)
+
+                # Step 2.4: If 2.3 didn't work (the symbol didn't request a provider), try
+                # looking through each of the SimLibraries we're using to resolve unresolved
+                # functions. If any of them know anything specifically about this function,
+                # resolve it with that. As a final fallback, just ask any old SimLibrary
+                # to resolve it.
+                elif libs:
+                    for sim_lib in libs:
+                        if sim_lib.has_metadata(func.name):
+                            if self._check_user_blacklists(func.name):
+                                l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
+                                pending_hooks[func.name] = sim_lib.get_stub(func.name, self.arch)
+                            else:
+                                l.info("Using builtin SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
+                                pending_hooks[func.name] = sim_lib.get(func.name, self.arch)
                             break
-                    else: # we could not find a simprocedure for this function
-                        if not func.resolved:   # the loader couldn't find one either
-                            unresolved.add(func)
-                        else:
-                            # mark it as resolved
-                            already_resolved.add(func.name)
-                # in the case that simprocedures are off and an object in the PLT goes
-                # unresolved, we still want to replace it with a ReturnUnconstrained.
-                elif not func.resolved and func.name in obj.jmprel:
-                    unresolved.add(func)
+                    else:
+                        l.info("Using stub SimProcedure for unresolved %s", func.name)
+                        pending_hooks[func.name] = libs[0].get(func.name, self.arch)
 
-        # Step 3: Stub out unresolved symbols
-        # This is in the form of a SimProcedure that either doesn't return
-        # or returns an unconstrained value
-        for func in unresolved:
-            if func.name in already_resolved:
-                continue
-            # Don't touch weakly bound symbols, they are allowed to go unresolved
-            if func.is_weak:
-                continue
-            l.info("[U] %s", func.name)
-            procedure = SIM_PROCEDURES['stubs']['NoReturnUnconstrained']
-            if func.name not in procedure.use_cases:
-                procedure = SIM_PROCEDURES['stubs']['ReturnUnconstrained']
-            pending_hooks[func.name] = Hook(procedure, resolves=func.name)
+                # Step 2.5: If 2.4 didn't work (we have NO SimLibraries to work with), just
+                # use the vanilla ReturnUnconstrained.
+                else:
+                    l.info("Using stub SimProcedure for unresolved %s", func.name)
+                    pending_hooks[func.name] = SIM_PROCEDURES['stubs']['ReturnUnconstrained']()
 
+                # Step 2.6: If it turns out we resolved this with a stub and this function is actually weak,
+                # don't actually resolve it with anything. Let it languish.
+                # TODO: this is a hack, do better
+
+                if func.is_weak and func.name in pending_hooks and type(pending_hooks[func.name]) is SIM_PROCEDURES['stubs']['ReturnUnconstrained']:
+                    del pending_hooks[func.name]
+
+        # Step 3: Hook everything!! Resolve unresolved relocations to the extern object!!!
         self.hook_symbol_batch(pending_hooks)
 
-    def _should_exclude_sim_procedure(self, f):
+    def _check_user_blacklists(self, f):
         """
         Has symbol name `f` been marked for exclusion by any of the user
         parameters?
         """
-        return (f in self._exclude_sim_procedures_list) or \
-               ( self._exclude_sim_procedures_func is not None and \
-                 self._exclude_sim_procedures_func(f)
-               )
+        return not self._should_use_sim_procedures or \
+            f in self._exclude_sim_procedures_list or \
+            f in self._ignore_functions or \
+            (self._exclude_sim_procedures_func is not None and self._exclude_sim_procedures_func(f))
 
     #
     # Public methods
@@ -349,37 +368,27 @@ class Project(object):
                             arguments that will be passed to the procedure's `run` method
                             eventually.
         """
-
         if hook is None:
+            # if we haven't been passed a thing to hook with, assume we're being used as a decorator
             return self._hook_decorator(addr, length=length, kwargs=kwargs)
+
+        if kwargs is None: kwargs = {}
 
         l.debug('hooking %#x with %s', addr, hook)
 
         if self.is_hooked(addr):
-            l.warning("Address is already hooked [hook(%#x, %s)]", addr, hook)
+            l.warning("Address is already hooked [hook(%#x, %s)]. Not re-hooking.", addr, hook)
             return
 
-        if not isinstance(hook, Hook):
-            if kwargs is None: kwargs = {}
+        if isinstance(hook, type):
+            if once("hook_instance_warning"):
+                l.critical("Hooking with a SimProcedure instance is deprecated! Please hook with an instance.")
+            hook = hook(**kwargs)
 
-            if isinstance(hook, type) and issubclass(hook, SimProcedure):
-                hook = Hook(hook, **kwargs)
-            elif callable(hook):
-                hook = Hook(procedures.stubs.UserHook.UserHook,
-                            user_func=hook,
-                            length=length)
-            else:
-                raise AngrError("%s is not a valid object to execute in a hook", hook)
+        if callable(hook):
+            hook = SIM_PROCEDURES['stubs']['UserHook'](user_func=hook, length=length, **kwargs)
 
         self._sim_procedures[addr] = hook
-
-        # set up a continuation if necessary
-        cont = hook.make_continuation()
-        if cont is not None:
-            cont_addr = self._extern_obj.anon_allocation()
-            self.hook(cont_addr, cont)
-            hook.set_continuation_addr(cont_addr)
-            cont.set_continuation_addr(cont_addr)
 
     def is_hooked(self, addr):
         """
@@ -389,52 +398,6 @@ class Project(object):
         :returns:    True if addr is hooked, False otherwise.
         """
         return addr in self._sim_procedures
-
-    def is_symbol_hooked(self, symbol_name):
-        """
-        Check if a symbol is already hooked.
-
-        :param str symbol_name: Name of the symbol.
-        :return: True if the symbol can be resolved and is hooked, False otherwise.
-        :rtype: bool
-        """
-
-        ident = self._symbol_name_to_ident(symbol_name)
-
-        # TODO: this method does not follow the SimOS.prepare_function_symbol() path. We should fix it later.
-
-        if not self._extern_obj.contains_identifier(ident):
-            return False
-
-        return True
-
-    def hooked_symbol_addr(self, symbol_name):
-        """
-        Check if a symbol is hooked or not, and if it is hooked, return the address of the symbol.
-
-        :param str symbol_name: Name of the symbol.
-        :return: Address of the symbol if it is hooked, None otherwise.
-        :rtype: int or None
-        """
-
-        if not self.is_symbol_hooked(symbol_name):
-            return None
-
-        ident = self._symbol_name_to_ident(symbol_name)
-
-        return self._extern_obj.get_pseudo_addr_for_symbol(ident)
-
-    def unhook(self, addr):
-        """
-        Remove a hook.
-
-        :param addr:    The address of the hook.
-        """
-        if not self.is_hooked(addr):
-            l.warning("Address %#x not hooked", addr)
-            return
-
-        del self._sim_procedures[addr]
 
     def hooked_by(self, addr):
         """
@@ -451,6 +414,18 @@ class Project(object):
 
         return self._sim_procedures[addr]
 
+    def unhook(self, addr):
+        """
+        Remove a hook.
+
+        :param addr:    The address of the hook.
+        """
+        if not self.is_hooked(addr):
+            l.warning("Address %#x not hooked", addr)
+            return
+
+        del self._sim_procedures[addr]
+
     def hook_symbol(self, symbol_name, obj, kwargs=None):
         """
         Resolve a dependency in a binary. Uses the "externs object" (project._extern_obj) to
@@ -460,55 +435,92 @@ class Project(object):
         :param symbol_name: The name of the dependency to resolve.
         :param obj:         The thing with which to satisfy the dependency. May be a python integer
                             or anything that may be passed to `project.hook()`.
-        :param length:      If you provide a function for the hook, this is the number of bytes
-                            that will be skipped by executing the hook by default.
         :param kwargs:      If you provide a SimProcedure for the hook, these are the keyword
                             arguments that will be passed to the procedure's `run` method
                             eventually.
         :returns:           The address of the new symbol.
         :rtype:             int
         """
-        if kwargs is None: kwargs = {}
-        ident = self._symbol_name_to_ident(symbol_name, kwargs)
+        if type(obj) in (int, long):
+            # this is pretty intensely sketchy
+            l.info("Instructing the loader to re-point symbol %s at address %#x", symbol_name, obj)
+            self.loader.provide_symbol(self._extern_obj, symbol_name, AT.from_mva(obj, self._extern_obj).to_lva())
+            return obj
 
-        if not isinstance(obj, (int, long)):
-            pseudo_addr = self._simos.prepare_function_symbol(ident)
+        sym = self.loader.find_symbol(symbol_name)
 
-            if self.is_hooked(pseudo_addr):
-                l.warning("Re-hooking symbol " + symbol_name)
-                self.unhook(pseudo_addr)
-
-            self.hook(pseudo_addr, obj, kwargs=kwargs)
+        if sym is None:
+            hook_addr, link_addr = self._simos.prepare_function_symbol(symbol_name)
+            l.info("Providing extern symbol for unresolved %s at #%x", symbol_name, hook_addr)
+            self.loader.provide_symbol(self._extern_obj, symbol_name, AT.from_mva(link_addr, self._extern_obj).to_lva())
         else:
-            # This is pretty intensely sketchy
-            pseudo_addr = obj
+            hook_addr, _ = self._simos.repare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
 
-        self.loader.provide_symbol(self._extern_obj, symbol_name, AT.from_mva(pseudo_addr, self._extern_obj).to_lva())
+            if self.is_hooked(hook_addr):
+                l.warning("Re-hooking symbol %s", symbol_name)
+                self.unhook(addr)
 
-        return pseudo_addr
+        self.hook(hook_addr, obj, kwargs=kwargs)
+        return hook_addr
 
     def hook_symbol_batch(self, hooks):
         """
         Hook many symbols at once.
 
-        :param dict provisions:     A mapping from symbol name to hook
+        :param dict hooks:     A mapping from symbol name to hook
         """
 
         provisions = {}
 
         for name, obj in hooks.iteritems():
-            ident = self._symbol_name_to_ident(name, None)
+            sym = self.loader.find_symbol(name)
+            if sym is None:
+                hook_addr, link_addr = self._simos.prepare_function_symbol(name)
+                l.info("Providing extern symbol for unresolved %s at #%x", name, hook_addr)
+                self.hook(hook_addr, obj)
+                provisions[name] = (AT.from_mva(link_addr, self._extern_obj).to_lva(), 0, None)
+            else:
+                hook_addr, _ = self._simos.prepare_function_symbol(name, basic_addr=sym.rebased_addr)
+                if self.is_hooked(hook_addr):
+                    l.warning("Re-hooking symbol %s", name)
+                    self.unhook(hook_addr)
+                self.hook(hook_addr, obj)
 
-            pseudo_addr = self._simos.prepare_function_symbol(ident)
+        if provisions:
+            self.loader.provide_symbol_batch(self._extern_obj, provisions)
 
-            if self.is_hooked(pseudo_addr):
-                l.warning("Re-hooking symbol " + name)
-                self.unhook(pseudo_addr)
+    def is_symbol_hooked(self, symbol_name):
+        """
+        Check if a symbol is already hooked.
 
-            self.hook(pseudo_addr, obj)
-            provisions[name] = (AT.from_mva(pseudo_addr, self._extern_obj).to_lva(), 0, None)
+        :param str symbol_name: Name of the symbol.
+        :return: True if the symbol can be resolved and is hooked, False otherwise.
+        :rtype: bool
+        """
+        # TODO: this method does not follow the SimOS.prepare_function_symbol() path. We should fix it later.
+        sym = self.loader.find_symbol(symbol_name)
+        if sym is not None:
+            return self.is_hooked(sym.rebased_addr)
+        else:
+            return self.is_hooked(self._extern_obj.get_pseudo_addr(symbol_name))
 
-        self.loader.provide_symbol_batch(self._extern_obj, provisions)
+
+    def hooked_symbol_addr(self, symbol_name):
+        """
+        Check if a symbol is hooked or not, and if it is hooked, return the address of the symbol.
+
+        :param str symbol_name: Name of the symbol.
+        :return: Address of the symbol if it is hooked, None otherwise.
+        :rtype: int or None
+        """
+        sym = self.loader.find_symbol(symbol_name)
+        if sym is not None:
+            addr = sym.rebased_addr
+        else:
+            addr = self._extern_obj.get_pseudo_addr(symbol_name)
+        if self.is_hooked(addr):
+            return addr
+        return None
 
     #
     # A convenience API (in the style of triton and manticore) for symbolic execution.
@@ -565,22 +577,6 @@ class Project(object):
 
         return hook_decorator
 
-    @staticmethod
-    def _symbol_name_to_ident(symbol_name, kwargs=None):
-        """
-        Convert a symbol name to an identifier that are used by hooking.
-
-        :param str symbol_name: Name of the symbol.
-        :param dict kwargs: Any additional keyword arguments.
-        :return: An identifier.
-        :rtype: str
-        """
-        ident = 'symbol hook: ' + symbol_name
-        if kwargs and 'resolves' in kwargs:
-            ident += '.' + kwargs['resolves']
-
-        return ident
-
     #
     # Pickling
     #
@@ -599,108 +595,6 @@ class Project(object):
         self.surveyors = Surveyors(self)
 
 
-class Hook(object):
-    """
-    An object describing an action to be taken at a given address instead of executing binary code.
-    An instance of this class may be passed to `angr.Project.hook` along with the address at which
-    to hook.
-
-    More specifically, a hook is a wrapper for a SimProcedure, an object that contains a lot
-    of logic for how to mutate a state in common ways. The SimProcedure base class is subclassed
-    to produce a SimProcedure that may be used for hooking. If the SimProcedure class is too heavy
-    for your use case, there is a class method `wrap` on this class that can be used to wrap a
-    simple function into a SimProcedure, and then further into a `Hook` directly.
-
-    This class is a bit of a hack to deal with the fact that SimProcedures need to hold state but
-    having them do so makes them not thread-safe.
-    """
-    def __init__(self, procedure, cc=None, **kwargs):
-        """
-        :param procedure:   The class of the procedure to use
-        :param cc:          The calling convention to use
-        :param kwargs:      Any additional keyword arguments will be eventually passed to the
-                            `run` method of the procedure on its execution, via the `sim_kwargs`
-                            SimProcedure constructor parameter.
-        """
-        self.procedure = procedure
-        self.cc = cc
-        self.kwargs = kwargs
-        self.is_continuation = False
-        self._continuation_addr = None
-
-    def instantiate(self, *args, **kwargs):
-        kwargs['sim_kwargs'] = self.kwargs
-        kwargs['is_continuation'] = self.is_continuation
-        kwargs['continuation_addr'] = self._continuation_addr
-        if self.cc: kwargs['cc'] = self.cc
-        return self.procedure(*args, **kwargs)
-    instantiate.__doc__ = SimProcedure.__init__.__doc__
-
-    def __repr__(self):
-        try:
-            resolves_str = ' (resolves %s)' % self.kwargs['resolves']
-        except KeyError:
-            resolves_str = ''
-
-        if len(self.kwargs) == 0:
-            args_str = ''
-        elif len(self.kwargs) == 1:
-            args_str = ' (1 arg)'
-        else:
-            args_str = ' (%d args)' % len(self.kwargs)
-
-        cont_str = ' (continuation)' if self.is_continuation else ''
-
-        return '<Hook for %s%s%s%s>' % (self.name, resolves_str, args_str, cont_str)
-
-    def make_continuation(self):
-        if self.is_continuation or not self.procedure.IS_FUNCTION or self._continuation_addr is not None:
-            return None
-        hook = Hook(self.procedure, **self.kwargs)
-        hook.is_continuation = True
-        return hook
-
-    def set_continuation_addr(self, addr):
-        self._continuation_addr = addr
-
-    @property
-    def name(self):
-        return self.procedure.__name__
-
-    @classmethod
-    def wrap(cls, length=0):
-        """
-        Call this function to return a decorator you can use to turn a function into a Hook. This
-        specific kind of hook is called a "User Hook".
-
-        For example:
-
-        >>> @Hook.wrap(length=5)
-        >>> def set_rax(state):
-        >>>     state.regs.rax = 1
-        >>>
-        >>> project.hook(0x1234, set_rax)
-
-        The function may modify the state in any way it sees fit. In order to produce successors
-        from a user hook, you have two options.
-
-            1. Return nothing. In this case, execution will resume at `length` bytes after the hook
-               address.
-            2. Return a list of successor states. Each of the states should have the following
-               attributes set:
-
-                - `state.history.last_guard`: a symbolic boolean describing the condition necessary for
-                  this successor to be taken. A shortcut to the symbolic `True` value is
-                  `state.se.true`.
-                - `state.history.jumpkind`: The type of the jump to be taken, as a VEX enum string.
-                  This will usually be `Ijk_Boring`, which signifies an ordinary jump or branch.
-        """
-        def inner(function):
-            return Hook(procedures.stubs.UserHook.UserHook,
-                        user_func=function,
-                        length=length)
-        return inner
-
 from .errors import AngrError
 from .factory import AngrObjectFactory
 from .simos import SimOS, os_mapping
@@ -708,4 +602,6 @@ from .extern_obj import AngrExternObject
 from .analyses.analysis import Analyses
 from .surveyors import Surveyors
 from .knowledge_base import KnowledgeBase
-from .engines import SimEngineFailure, SimEngineSyscall, SimEngineHook
+from .engines import SimEngineFailure, SimEngineSyscall, SimEngineHook, SimEngineVEX, SimEngineUnicorn
+from .misc.ux import once
+from .procedures import SIM_PROCEDURES, SIM_LIBRARIES

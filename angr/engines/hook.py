@@ -71,7 +71,7 @@ class SimEngineHook(SimEngineProcedure):
             if addr not in self.project._sim_procedures:
                 return
             else:
-                procedure = self.project._sim_procedures[addr].instantiate(addr, state.arch)
+                procedure = self.project._sim_procedures[addr]
 
         l.debug("Running %s (originally at %#x)", repr(procedure), addr)
         return super(SimEngineHook, self)._process(state, successors, procedure, **kwargs)

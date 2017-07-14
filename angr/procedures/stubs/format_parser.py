@@ -389,7 +389,7 @@ class FormatParser(SimProcedure):
         """
 
         from .. import SIM_PROCEDURES
-        strtol = SIM_PROCEDURES['libc.so.6']['strtol']
+        strtol = SIM_PROCEDURES['libc']['strtol']
 
         return strtol.strtol_inner(str_addr, self.state, region, base, True, read_length=read_length)
 
@@ -400,7 +400,7 @@ class FormatParser(SimProcedure):
         """
 
         from .. import SIM_PROCEDURES
-        strlen = SIM_PROCEDURES['libc.so.6']['strlen']
+        strlen = SIM_PROCEDURES['libc']['strlen']
 
         return self.inline_call(strlen, str_addr).ret_expr
 
