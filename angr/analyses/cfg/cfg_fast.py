@@ -11,6 +11,7 @@ import cle
 import pyvex
 from .. import register_analysis
 
+from cle.address_translator import AT
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase, IndirectJump
 from .cfg_node import CFGNode
@@ -1040,13 +1041,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         starting_points = set()
 
-        rebase_addr = self._binary.rebase_addr
-
         # clear all existing functions
         self.kb.functions.clear()
 
         if self._use_symbols:
-            starting_points |= set([ addr + rebase_addr for addr in self._function_addresses_from_symbols ])
+            starting_points |= set(AT.from_lva(addr, self._binary).to_mva()
+                                   for addr in self._function_addresses_from_symbols)
 
         if self._extra_function_starts:
             starting_points |= set(self._extra_function_starts)
@@ -1073,7 +1073,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if self._use_function_prologues:
             self._function_prologue_addrs = sorted(
-                set([addr + rebase_addr for addr in self._func_addrs_from_prologues()])
+                set(AT.from_lva(addr, self._binary).to_mva() for addr in self._func_addrs_from_prologues())
             )
             # make a copy of those prologue addresses, so that we can pop from the list
             self._remaining_function_prologue_addrs = self._function_prologue_addrs[::]
@@ -1296,16 +1296,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # make sure we have data entries assigned at the beginning of each data section
             for sec in self.project.loader.main_bin.sections:
                 if sec.memsize > 0 and not sec.is_executable and sec.is_readable:
-                    addr = sec.vaddr + self.project.loader.main_bin.rebase_addr
                     for seg in self.project.loader.main_bin.segments:
-                        seg_addr = seg.vaddr + self.project.loader.main_bin.rebase_addr
-                        if seg_addr <= addr < seg_addr + seg.memsize:
+                        if seg.vaddr <= sec.vaddr < seg.vaddr + seg.memsize:
                             break
                     else:
                         continue
 
-                    if addr not in self.memory_data:
-                        self.memory_data[addr] = MemoryData(addr, 0, 'unknown', None, None, None, None)
+                    if sec.vaddr not in self.memory_data:
+                        self.memory_data[sec.vaddr] = MemoryData(sec.vaddr, 0, 'unknown', None, None, None, None)
 
         r = True
         while r:
@@ -1362,7 +1360,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 for mo in regex.finditer(bytes_):
                     position = mo.start() + start_
                     if position % self.project.arch.instruction_alignment == 0:
-                        if self._addr_in_exec_memory_regions(self._binary.rebase_addr + position):
+                        if self._addr_in_exec_memory_regions(position):
                             unassured_functions.append(position)
 
         return unassured_functions
@@ -1997,7 +1995,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # data might be at the end of some section or segment...
             # let's take a look
             for segment in self.project.loader.main_bin.segments:
-                if self.project.loader.main_bin.rebase_addr + segment.vaddr + segment.memsize == data_addr:
+                if segment.vaddr + segment.memsize == data_addr:
                     # yeah!
                     if data_addr not in self._memory_data:
                         data = MemoryData(data_addr, 0, 'segment-boundary', irsb, irsb_addr, stmt, stmt_idx,
@@ -2052,17 +2050,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 sec = self._addr_belongs_to_section(data_addr)
                 next_sec_addr = None
                 if sec is not None:
-                    last_addr = sec.vaddr + sec.memsize + obj.rebase_addr
+                    last_addr = sec.vaddr + sec.memsize
                 else:
                     # it does not belong to any section. what's the next adjacent section? any memory data does not go
                     # beyong section boundaries
                     next_sec = self._addr_next_section(data_addr)
                     if next_sec is not None:
-                        next_sec_addr = next_sec.vaddr + obj.rebase_addr
+                        next_sec_addr = next_sec.vaddr
 
                     seg = self._addr_belongs_to_segment(data_addr)
                     if seg is not None:
-                        last_addr = seg.vaddr + seg.memsize + obj.rebase_addr
+                        last_addr = seg.vaddr + seg.memsize
                     else:
                         # We got an address that is not inside the current binary...
                         l.warning('_tidy_data_references() sees an address %#08x that does not belong to any '
@@ -3327,7 +3325,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         if not section.is_executable:
                             # the section is not executable...
                             return None, None, None, None
-                        distance = obj.rebase_addr + section.vaddr + section.memsize - addr
+                        distance = section.vaddr + section.memsize - addr
                         distance = min(distance, VEX_IRSB_MAX_SIZE)
                     # TODO: handle segment information as well
 

@@ -213,7 +213,7 @@ class JumpTableResolver(IndirectJumpResolver):
         # TODO: this is very hackish. fix it after the chaos.
         for section in self.project.loader.main_bin.sections:
             if section.name == '.bss':
-                self._bss_regions.append((self.project.loader.main_bin.rebase_addr + section.vaddr, section.memsize))
+                self._bss_regions.append((section.vaddr, section.memsize))
                 break
 
     def _bss_memory_read_hook(self, state):

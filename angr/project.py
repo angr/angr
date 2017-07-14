@@ -10,6 +10,7 @@ from collections import defaultdict
 
 import archinfo
 import cle
+from cle.address_translator import AT
 
 from . import engines, SIM_PROCEDURES, procedures
 from .sim_procedure import SimProcedure
@@ -472,7 +473,6 @@ class Project(object):
 
         if not isinstance(obj, (int, long)):
             pseudo_addr = self._simos.prepare_function_symbol(ident)
-            pseudo_vaddr = pseudo_addr - self._extern_obj.rebase_addr
 
             if self.is_hooked(pseudo_addr):
                 l.warning("Re-hooking symbol " + symbol_name)
@@ -482,9 +482,8 @@ class Project(object):
         else:
             # This is pretty intensely sketchy
             pseudo_addr = obj
-            pseudo_vaddr = obj - self._extern_obj.rebase_addr
 
-        self.loader.provide_symbol(self._extern_obj, symbol_name, pseudo_vaddr)
+        self.loader.provide_symbol(self._extern_obj, symbol_name, AT.from_mva(pseudo_addr, self._extern_obj).to_lva())
 
         return pseudo_addr
 
@@ -501,14 +500,13 @@ class Project(object):
             ident = self._symbol_name_to_ident(name, None)
 
             pseudo_addr = self._simos.prepare_function_symbol(ident)
-            pseudo_vaddr = pseudo_addr - self._extern_obj.rebase_addr
 
             if self.is_hooked(pseudo_addr):
                 l.warning("Re-hooking symbol " + name)
                 self.unhook(pseudo_addr)
 
             self.hook(pseudo_addr, obj)
-            provisions[name] = (pseudo_vaddr, 0, None)
+            provisions[name] = (AT.from_mva(pseudo_addr, self._extern_obj).to_lva(), 0, None)
 
         self.loader.provide_symbol_batch(self._extern_obj, provisions)
 

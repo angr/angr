@@ -537,33 +537,31 @@ class CFGBase(Analysis):
         memory_regions = [ ]
 
         for b in binaries:
-            rebase_addr = b.rebase_addr
-
             if isinstance(b, ELF):
                 # If we have sections, we get result from sections
                 if not force_segment and b.sections:
                     # Get all executable sections
                     for section in b.sections:
                         if section.is_executable:
-                            tpl = (rebase_addr + section.min_addr, rebase_addr + section.max_addr)
+                            tpl = (section.min_addr, section.max_addr)
                             memory_regions.append(tpl)
 
                 else:
                     # Get all executable segments
                     for segment in b.segments:
                         if segment.is_executable:
-                            tpl = (rebase_addr + segment.min_addr, rebase_addr + segment.max_addr)
+                            tpl = (segment.min_addr, segment.max_addr)
                             memory_regions.append(tpl)
 
             elif isinstance(b, PE):
                 for section in b.sections:
                     if section.is_executable:
-                        tpl = (rebase_addr + section.min_addr, rebase_addr + section.max_addr)
+                        tpl = (section.min_addr, section.max_addr)
                         memory_regions.append(tpl)
 
             elif isinstance(b, Blob):
                 # a blob is entirely executable
-                tpl = (rebase_addr + b.get_min_addr(), rebase_addr + b.get_max_addr())
+                tpl = (b.get_min_addr(), b.get_max_addr())
                 memory_regions.append(tpl)
 
             elif isinstance(b, (AngrExternObject, TLSObj)):
@@ -572,16 +570,11 @@ class CFGBase(Analysis):
             else:
                 l.warning('Unsupported object format "%s". Treat it as an executable.', b.__class__.__name__)
 
-                tpl = (rebase_addr + b.get_min_addr(), rebase_addr + b.get_max_addr())
+                tpl = (b.get_min_addr(), b.get_max_addr())
                 memory_regions.append(tpl)
 
         if not memory_regions:
-            memory_regions = [
-                (self.project.loader.main_bin.rebase_addr + start,
-                 self.project.loader.main_bin.rebase_addr + start + len(cbacker)
-                 )
-                for start, cbacker in self.project.loader.memory.cbackers
-                ]
+            memory_regions = [(start, start + len(cbacker)) for start, cbacker in self.project.loader.memory.cbackers]
 
         memory_regions = sorted(memory_regions, key=lambda x: x[0])
 
@@ -650,7 +643,7 @@ class CFGBase(Analysis):
                 return True
             return False
 
-        return src_section.contains_addr(addr_b - obj.rebase_addr)
+        return src_section.contains_addr(addr_b)
 
     def _addr_next_section(self, addr):
         """
@@ -672,7 +665,7 @@ class CFGBase(Analysis):
             return None
 
         for section in obj.sections:
-            start = section.vaddr + obj.rebase_addr
+            start = section.vaddr
 
             if addr < start:
                 return section

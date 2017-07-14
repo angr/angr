@@ -36,10 +36,10 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
                 got_section = obj.sections_map.get('.got', None)
                 if got_plt_section is not None:
                     l.debug('Use address of .got.plt section as the GOT base for object %s.', obj)
-                    self._got_addr_cache[obj] = got_plt_section.vaddr + obj.rebase_addr
+                    self._got_addr_cache[obj] = got_plt_section.vaddr
                 elif got_section is not None:
                     l.debug('Use address of .got section as the GOT base for object %s.', obj)
-                    self._got_addr_cache[obj] = got_section.vaddr + obj.rebase_addr
+                    self._got_addr_cache[obj] = got_section.vaddr
                 else:
                     l.debug('Cannot find GOT base for object %s.', obj)
                     self._got_addr_cache[obj] = None
