@@ -811,66 +811,80 @@ def amd64g_calculate_rflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
 ###########################
 ### X86-specific ones ###
 ###########################
-def x86g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
-    tempCOUNT = rot_amt & 0x1f
 
-    # make sure sz and rot_amt are not symbolic
+def x86g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
+    # make sure sz is not symbolic
     if sz.symbolic:
         raise SimError('Hit a symbolic "sz" in x86g_calculate_RCR. Panic.')
-    if tempCOUNT.symbolic:
-        raise ValueError('Hit a symbolic "rot_amt" in x86g_calculate_RCR. Panic.')
 
-    # convert sz and tempCount to concrete values
+    # convert sz to concrete value
     sz = state.se.exactly_int(sz)
-    tempCOUNT = state.se.exactly_int(tempCOUNT)
+    bits = sz * 8
 
-    # zero extend eflags and arg to 64-bit values
-    eflags_in = state.se.ZeroExt(32, eflags_in)
-    arg = state.se.ZeroExt(32, arg)
-
-    if sz == 4:
-        cf = (eflags_in >> data['X86']['CondBitOffsets']['G_CC_SHIFT_C']) & 1
-        of = ((arg >> 31) ^ cf) & 1
-        while tempCOUNT > 0:
-            tempcf = arg & 1
-            arg = (arg >> 1) | (cf << 31)
-            cf = tempcf
-            tempCOUNT -= 1
-
-    elif sz == 2:
-        while tempCOUNT >= 17:
-            tempCOUNT -= 17
-
-        cf = (eflags_in >> data['X86']['CondBitOffsets']['G_CC_SHIFT_C']) & 1
-        of = ((arg >> 15) ^ cf) & 1
-        while tempCOUNT > 0:
-            tempcf = arg & 1
-            arg = ((arg >> 1) & 0x7fff) | (cf << 15)
-            cf = tempcf
-            tempCOUNT -= 1
-
-    elif sz == 1:
-        while tempCOUNT >= 9:
-            tempCOUNT -= 9
-
-        cf = (eflags_in >> data['X86']['CondBitOffsets']['G_CC_SHIFT_C']) & 1
-        of = ((arg >> 7) ^ cf) & 1
-        while tempCOUNT > 0:
-            tempcf = arg & 1
-            arg = ((arg >> 1) & 0x7f) | (cf << 7)
-            cf = tempcf
-            tempCOUNT -= 1
-
+    # construct bitvec to use for rotation amount - 9/17/33 bits
+    if bits == 32:
+        sized_amt = (rot_amt & 0x1f).zero_extend(1)
     else:
-        raise SimError('Unsupported "sz" value %d. Panic.' % sz)
+        sized_amt = (rot_amt & 0x1f)[bits:0]
 
-    cf &= 1
-    of &= 1
-    eflags_in &= ~(data['X86']['CondBitMasks']['G_CC_MASK_C'] | data['X86']['CondBitMasks']['G_CC_MASK_O'])
-    eflags_in |= (cf << data['X86']['CondBitOffsets']['G_CC_SHIFT_C']) | \
-                 (of << data['X86']['CondBitOffsets']['G_CC_SHIFT_O'])
+    # construct bitvec to use for rotating value - 9/17/33 bits
+    carry_bit_in = eflags_in[data['X86']['CondBitOffsets']['G_CC_SHIFT_C']]
+    sized_arg_in = arg[bits-1:0]
+    rotatable_in = carry_bit_in.concat(sized_arg_in)
 
-    return (eflags_in << 32) | arg, [ ]
+    # compute and extract
+    rotatable_out = state.se.RotateRight(rotatable_in, sized_amt)
+    sized_arg_out = rotatable_out[bits-1:0]
+    carry_bit_out = rotatable_out[bits]
+    arg_out = sized_arg_out.zero_extend(32 - bits)
+    overflow_bit_out = arg_out[bits-2] ^ arg_out[bits-1]
+
+    # construct final answer
+    cf = carry_bit_out.zero_extend(31)
+    of = overflow_bit_out.zero_extend(31)
+    eflags_out = eflags_in
+    eflags_out &= ~(data['X86']['CondBitMasks']['G_CC_MASK_C'] | data['X86']['CondBitMasks']['G_CC_MASK_O'])
+    eflags_out |= (cf << data['X86']['CondBitOffsets']['G_CC_SHIFT_C']) | \
+                  (of << data['X86']['CondBitOffsets']['G_CC_SHIFT_O'])
+
+    return eflags_out.concat(arg_out), []
+
+def x86g_calculate_RCL(state, arg, rot_amt, eflags_in, sz):
+    # make sure sz is not symbolic
+    if sz.symbolic:
+        raise SimError('Hit a symbolic "sz" in x86g_calculate_RCR. Panic.')
+
+    # convert sz to concrete value
+    sz = state.se.exactly_int(sz)
+    bits = sz * 8
+
+    # construct bitvec to use for rotation amount - 9/17/33 bits
+    if bits == 32:
+        sized_amt = (rot_amt & 0x1f).zero_extend(1)
+    else:
+        sized_amt = (rot_amt & 0x1f)[bits:0]
+
+    # construct bitvec to use for rotating value - 9/17/33 bits
+    carry_bit_in = eflags_in[data['X86']['CondBitOffsets']['G_CC_SHIFT_C']]
+    sized_arg_in = arg[bits-1:0]
+    rotatable_in = carry_bit_in.concat(sized_arg_in)
+
+    # compute and extract
+    rotatable_out = state.se.RotateLeft(rotatable_in, sized_amt)
+    sized_arg_out = rotatable_out[bits-1:0]
+    carry_bit_out = rotatable_out[bits]
+    arg_out = sized_arg_out.zero_extend(32 - bits)
+    overflow_bit_out = carry_bit_out ^ arg_out[bits-1]
+
+    # construct final answer
+    cf = carry_bit_out.zero_extend(31)
+    of = overflow_bit_out.zero_extend(31)
+    eflags_out = eflags_in
+    eflags_out &= ~(data['X86']['CondBitMasks']['G_CC_MASK_C'] | data['X86']['CondBitMasks']['G_CC_MASK_O'])
+    eflags_out |= (cf << data['X86']['CondBitOffsets']['G_CC_SHIFT_C']) | \
+                  (of << data['X86']['CondBitOffsets']['G_CC_SHIFT_O'])
+
+    return eflags_out.concat(arg_out), []
 
 def x86g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
     if USE_SIMPLIFIED_CCALLS in state.options:
