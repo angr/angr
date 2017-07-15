@@ -29,8 +29,8 @@ class CalleeCleanupFinder(Analysis):
                 args = size / self.project.arch.bytes
                 cc = self.project.factory.cc_from_arg_kinds([False]*args)
                 cc.CALLEE_CLEANUP = True
-                # TODO: add display_name
-                self.project.hook(addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](cc=cc))
+                name = self.project.loader.find_symbol_name(addr)
+                self.project.hook(addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](cc=cc, display_name=name))
 
     def analyze(self, addr):
         seen = set()
