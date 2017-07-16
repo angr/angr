@@ -194,6 +194,12 @@ class SimEngineLightAIL(SimEngineLight):
         self.stmt_idx = None
         self.ins_addr = None
 
+    def _ail_handle_Jump(self, stmt):
+        raise NotImplementedError('Please implement the Jump handler with your own logic.')
+
+    def _ail_handle_Call(self, stmt):
+        raise NotImplementedError('Please implement the Call handler with your own logic.')
+
     def _expr(self, expr):
 
         handler = "_ail_handle_%s" % type(expr).__name__

@@ -402,6 +402,12 @@ def get_engine(base_engine):
             data = self._expr(stmt.data)
             addr = self._expr(stmt.addr)
 
+        def _ail_handle_Jump(self, stmt):
+            target = self._expr(stmt.target)
+
+        def _ail_handle_Call(self, stmt):
+            target = self._expr(stmt.target)
+
         #
         # AIL expression handlers
         #
