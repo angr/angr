@@ -214,7 +214,7 @@ class SimEngineLightAIL(SimEngineLight):
     #
 
     def _ail_handle_Const(self, expr):
-        return expr.value
+        return expr
 
     def _ail_handle_Tmp(self, expr):
         tmp_idx = expr.tmp_idx
@@ -223,6 +223,19 @@ class SimEngineLightAIL(SimEngineLight):
             return self.tmps[tmp_idx]
         except KeyError:
             return None
+
+    def _ail_handle_Load(self, expr):
+        raise NotImplementedError('Please implement the Load handler with your own logic.')
+
+    def _ail_handle_UnaryOp(self, expr):
+        handler_name = '_ail_handle_%s' % expr.op
+        try:
+            handler = getattr(self, handler_name)
+        except KeyError:
+            l.warning('Unsupported UnaryOp %s.', expr.op)
+            return None
+
+        return handler(expr)
 
     def _ail_handle_BinaryOp(self, expr):
         if expr.op == 'Add':
