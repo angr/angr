@@ -4,7 +4,7 @@ from angr.engines.vex.irop import operations as vex_operations
 
 from .block import Block
 from .statement import Assignment, Store, DirtyStatement
-from .expression import Atom, Const, Register, Tmp, DirtyExpression, BinaryOp
+from .expression import Atom, Const, Register, Tmp, DirtyExpression, UnaryOp, Convert, BinaryOp, Load
 
 
 class Converter(object):
@@ -16,9 +16,9 @@ class Converter(object):
 class VEXExprConverter(Converter):
 
     @staticmethod
-    def from_vex_op(vex_op):
-        sim_op = vex_operations[vex_op]
-        return sim_op._generic_name
+    def generic_name_from_vex_op(vex_op):
+        simop = vex_operations[vex_op]
+        return simop._generic_name
 
     @staticmethod
     def convert(expr, manager):
@@ -60,10 +60,47 @@ class VEXExprConverter(Converter):
         return VEXExprConverter.register(expr.offset, expr.result_size(manager.tyenv), manager)
 
     @staticmethod
+    def Load(expr, manager):
+        return Load(manager.next_atom(),
+                    VEXExprConverter.convert(expr.addr, manager),
+                    expr.end
+                    )
+
+    @staticmethod
+    def Unop(expr, manager):
+        op_name = VEXExprConverter.generic_name_from_vex_op(expr.op)
+        if op_name is None:
+            # is it a convertion?
+            simop = vex_operations[expr.op]
+            if simop._conversion:
+                return Convert(manager.next_atom(),
+                               simop._from_size,
+                               simop._to_size,
+                               VEXExprConverter.convert(expr.args[0], manager),
+                               )
+            raise NotImplementedError('Unsupported operation')
+
+        return UnaryOp(manager.next_atom(),
+                       op_name,
+                       VEXExprConverter.convert(expr.args[0], manager),
+                       )
+
+    @staticmethod
     def Binop(expr, manager):
+        op = VEXExprConverter.generic_name_from_vex_op(expr.op)
+        operands = VEXExprConverter.convert_list(expr.args, manager)
+
+        if op == 'Add' and \
+                type(operands[1]) is Const and \
+                operands[1].sign_bit == 1:
+            # convert it to a sub
+            op = 'Sub'
+            op1_val, op1_bits = operands[1].value, operands[1].bits
+            operands[1] = Const(operands[1].idx, None, (1 << op1_bits) - op1_val, op1_bits)
+
         return BinaryOp(manager.next_atom(),
-                        VEXExprConverter.from_vex_op(expr.op),
-                        VEXExprConverter.convert_list(expr.args, manager)
+                        op,
+                        operands
                         )
 
     @staticmethod
@@ -74,8 +111,10 @@ class VEXExprConverter(Converter):
 EXPRESSION_MAPPINGS = {
     pyvex.IRExpr.RdTmp: VEXExprConverter.RdTmp,
     pyvex.IRExpr.Get: VEXExprConverter.Get,
+    pyvex.IRExpr.Unop: VEXExprConverter.Unop,
     pyvex.IRExpr.Binop: VEXExprConverter.Binop,
     pyvex.IRExpr.Const: VEXExprConverter.Const,
+    pyvex.IRExpr.Load: VEXExprConverter.Load,
 }
 
 
@@ -94,7 +133,7 @@ class VEXStmtConverter(Converter):
         try:
             func = STATEMENT_MAPPINGS[type(stmt)]
         except KeyError:
-            return DirtyStatement(idx, stmt)
+            return DirtyStatement(idx, stmt, ins_addr=manager.ins_addr)
 
         return func(idx, stmt, manager)
 
@@ -104,20 +143,21 @@ class VEXStmtConverter(Converter):
         var = VEXExprConverter.tmp(stmt.tmp, stmt.data.result_size(manager.tyenv), manager)
         reg = VEXExprConverter.convert(stmt.data, manager)
 
-        return Assignment(idx, var, reg)
+        return Assignment(idx, var, reg, ins_addr=manager.ins_addr,)
 
     @staticmethod
     def Put(idx, stmt, manager):
         data = VEXExprConverter.convert(stmt.data, manager)
         reg = VEXExprConverter.register(stmt.offset, data.bits, manager)
-        return Assignment(idx, reg, data)
+        return Assignment(idx, reg, data, ins_addr=manager.ins_addr,)
 
     @staticmethod
     def Store(idx, stmt, manager):
 
         return Store(idx,
                      VEXExprConverter.convert(stmt.addr, manager),
-                     VEXExprConverter.convert(stmt.data, manager)
+                     VEXExprConverter.convert(stmt.data, manager),
+                     ins_addr=manager.ins_addr,
                      )
 
 
@@ -148,9 +188,13 @@ class IRSBConverter(Converter):
         addr = None
 
         for stmt in irsb.statements:
-            if isinstance(stmt, pyvex.IRStmt.IMark):
+            if type(stmt) is pyvex.IRStmt.IMark:
                 if addr is None:
                     addr = stmt.addr + stmt.delta
+                manager.ins_addr = stmt.addr + stmt.delta
+                continue
+            elif type(stmt) is pyvex.IRStmt.AbiHint:
+                # TODO: How can we use AbiHint?
                 continue
             converted = VEXStmtConverter.convert(idx, stmt, manager)
             statements.append(converted)

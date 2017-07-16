@@ -7,8 +7,16 @@ class Block(object):
         self.addr = addr
         self.statements = [ ] if statements is None else statements
 
+    def copy(self):
+        return Block(
+            addr=self.addr,
+        statements=self.statements[::]
+        )
+
     def __repr__(self):
         return "<AILBlock of %d statements>" % len(self.statements)
 
     def __str__(self):
-        return "\n".join([ str(stmt) for stmt in self.statements])
+        stmts_str = "\n".join([ ("%02d | %x | " % (i, stmt.ins_addr)) + str(stmt) for i, stmt in enumerate(self.statements)])
+        block_str = "Block %x\n" % self.addr + stmts_str
+        return block_str

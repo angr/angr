@@ -49,6 +49,7 @@ class PropagatorState(object):
         self.reaching_definitions = reaching_definitions
 
         self._replacements = { }
+        self._final_replacements = [ ]
 
     def __repr__(self):
         return "<PropagatorState>"
@@ -60,6 +61,7 @@ class PropagatorState(object):
         )
 
         rd._replacements = self._replacements.copy()
+        rd._final_replacements = self._final_replacements[ :: ]
 
         return rd
 
@@ -101,6 +103,9 @@ class PropagatorState(object):
 
         for k in keys_to_remove:
             self._replacements.pop(k)
+
+    def add_final_replacement(self, codeloc, old, new):
+        self._final_replacements.append((codeloc, old, new))
 
 
 def get_engine(base_engine):
@@ -148,10 +153,10 @@ def get_engine(base_engine):
             if type(dst) is ailment.Tmp:
                 new_src = self.state.get_replacement(src)
                 if new_src is not None:
-                    print "%s = %s, replace %s with %s" % (dst, src, src, new_src)
+                    l.debug("%s = %s, replace %s with %s.", dst, src, src, new_src)
                     self.state.add_replacement(dst, new_src)
                 else:
-                    print "    replacing %s with %s" % (dst, src)
+                    l.debug("Replacing %s with %s.", dst, src)
                     self.state.add_replacement(dst, src)
 
             elif type(dst) is ailment.Register:
@@ -161,16 +166,18 @@ def get_engine(base_engine):
 
                 new_src = self.state.get_replacement(src)
                 if new_src is not None:
-                    print "%s = %s, replace %s with %s" % (dst, src, src, new_src)
+                    l.debug("Handle assignment: %s = %s, replace %s with %s.", dst, src, src, new_src)
                     self.state.add_replacement(dst, new_src)
-                else:
-                    print "    replacing %s with %s" % (dst, src)
-                    self.state.add_replacement(dst, src)
+                    src = new_src
+
+                l.debug("New replacement: %s with %s", (dst, src))
+                self.state.add_replacement(dst, src)
             else:
                 l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
         def _ail_handle_Store(self, stmt):
-            print stmt
+            _ = self._expr(stmt.addr)
+            _ = self._expr(stmt.data)
 
         #
         # AIL expression handlers
@@ -180,16 +187,27 @@ def get_engine(base_engine):
             new_expr = self.state.get_replacement(expr)
 
             if new_expr is not None:
-                print "I will replace %s with %s" % (expr, new_expr)
+                l.debug("Add a final replacement: %s with %s", expr, new_expr)
+                self.state.add_final_replacement(self._codeloc(), expr, new_expr)
+                expr = new_expr
 
             return expr
 
         def _ail_handle_Register(self, expr):
             new_expr = self.state.get_replacement(expr)
-            print "load register %s" % expr
             if new_expr is not None:
-                print "I will replace %s with %s" % (expr, new_expr)
+                l.debug("Add a final replacement: %s with %s", expr, new_expr)
+                self.state.add_final_replacement(self._codeloc(), expr, new_expr)
+                expr = new_expr
             return expr
+
+        def _ail_handle_Load(self, expr):
+            addr = self._expr(expr.addr)
+            return expr
+
+        def _ail_handle_Convert(self, expr):
+            converted = self._expr(expr.operand)
+            return converted
 
     return SimEngineProp
 

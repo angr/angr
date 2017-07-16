@@ -9,6 +9,8 @@ class Manager(object):
 
         self.atom_ctr = itertools.count()
 
+        self._ins_addr = None
+
         ###
         # vex specific
         ###
@@ -19,3 +21,11 @@ class Manager(object):
 
     def reset(self):
         self.atom_ctr = itertools.count()
+
+    @property
+    def ins_addr(self):
+        return self._ins_addr
+
+    @ins_addr.setter
+    def ins_addr(self, v):
+        self._ins_addr = v
