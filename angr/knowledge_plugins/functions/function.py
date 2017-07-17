@@ -1030,12 +1030,30 @@ class Function(object):
         :return: None
         """
 
-        binary_name = self.binary_name
+        # determine the library name
 
-        if binary_name not in SIM_DECLARATIONS:
+        if not self.is_plt:
+            binary_name = self.binary_name
+            if binary_name not in SIM_DECLARATIONS:
+                return
+        else:
+            binary_name = None
+            # PLT entries must have the same declaration as their jump targets
+            # Try to determine which library this PLT entry will jump to
+            edges = self.transition_graph.edges()
+            if len(edges) == 1 and type(edges[0][1]) is HookNode:
+                target = edges[0][1].addr
+                if target in self._function_manager:
+                    target_func = self._function_manager[target]
+                    binary_name = target_func.binary_name
+
+        if binary_name is None:
             return
 
-        declarations = SIM_DECLARATIONS[binary_name]
+        declarations = SIM_DECLARATIONS.get_declarations(binary_name)
+
+        if declarations is None:
+            return
 
         if not declarations.has_decl(self.name):
             return
@@ -1044,8 +1062,9 @@ class Function(object):
 
         self.declaration = decl
         if self.calling_convention is not None:
+            self.calling_convention.args = None
             self.calling_convention.func_ty = decl
 
 
-from ...codenode import BlockNode
+from ...codenode import BlockNode, HookNode
 from ...errors import AngrValueError
