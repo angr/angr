@@ -310,7 +310,7 @@ class Blade(object):
 
         if not infodict['has_statement']:
             # put this block into the slice
-            self._inslice_callback(1, None, infodict)
+            self._inslice_callback(0, None, infodict)
 
         if run in self._traced_runs:
             return
