@@ -3,7 +3,7 @@ import pyvex
 from angr.engines.vex.irop import operations as vex_operations
 
 from .block import Block
-from .statement import Assignment, Store, DirtyStatement
+from .statement import Assignment, Store, Jump, Call, DirtyStatement
 from .expression import Atom, Const, Register, Tmp, DirtyExpression, UnaryOp, Convert, BinaryOp, Load
 
 
@@ -200,5 +200,20 @@ class IRSBConverter(Converter):
             statements.append(converted)
 
             idx += 1
+
+        if irsb.jumpkind == 'Ijk_Call':
+            # call
+            statements.append(Call(manager.next_atom(),
+                                   VEXExprConverter.convert(irsb.next, manager),
+                                   ins_addr=manager.ins_addr
+                                   )
+                              )
+        elif irsb.jumpkind == 'Ijk_Boring':
+            # jump
+            statements.append(Jump(manager.next_atom(),
+                                   VEXExprConverter.convert(irsb.next, manager),
+                                   ins_addr=manager.ins_addr
+                                   )
+                              )
 
         return Block(addr, statements)
