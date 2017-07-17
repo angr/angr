@@ -112,6 +112,9 @@ class Function(object):
         # Calling convention
         self.calling_convention = None
 
+        # Declaration
+        self.declaration = None
+
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
 
@@ -1018,6 +1021,30 @@ class Function(object):
         self._local_transition_graph = None
 
         self.normalized = True
+
+    def find_declaration(self):
+        """
+        Find the most likely function declaration from the embedded collection of declarations, set it to
+        self.declaration, and update self.calling_convention with the declaration.
+
+        :return: None
+        """
+
+        binary_name = self.binary_name
+
+        if binary_name not in SIM_DECLARATIONS:
+            return
+
+        declarations = SIM_DECLARATIONS[binary_name]
+
+        if not declarations.has_decl(self.name):
+            return
+
+        decl = declarations[self.name]
+
+        self.declaration = decl
+        if self.calling_convention is not None:
+            self.calling_convention.func_ty = decl
 
 
 from ...codenode import BlockNode
