@@ -79,15 +79,22 @@ class SimRegArg(SimFunctionArgument):
     def __hash__(self):
         return hash((self.size, self.reg_name, tuple(self.alt_offsets)))
 
-    def _fix_offset(self, state, size):
+    def _fix_offset(self, state, size, arch=None):
         """
         This is a hack to deal with small values being stored at offsets into large registers unpredictably
         """
+
+        if state is not None:
+            arch = state.arch
+
+        if arch is None:
+            raise ValueError('Either "state" or "arch" must be specified.')
+
         if size is None: size = self.size
-        offset = state.arch.registers[self.reg_name][0]
+        offset = arch.registers[self.reg_name][0]
         if size in self.alt_offsets:
             return offset + self.alt_offsets[size], size
-        elif size < self.size and state.arch.register_endness == 'Iend_BE':
+        elif size < self.size and arch.register_endness == 'Iend_BE':
             return offset + (self.size - size), size
         return offset, size
 
