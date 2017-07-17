@@ -11,8 +11,9 @@ class SimDeclarations(object):
     A storage of function declarations.
     """
 
-    def __init__(self, library_name):
+    def __init__(self, library_name, alternative_names=None):
         self.library_name = library_name
+        self.alternative_names = alternative_names
         self.decls = { }
 
     def add_c_decl(self, decl):
