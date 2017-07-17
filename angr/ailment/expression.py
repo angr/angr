@@ -50,6 +50,9 @@ class Const(Atom):
         self.value = value
         self.bits = bits
 
+    def __repr__(self):
+        return str(self)
+
     def __str__(self):
         return "%#x<%d>" % (self.value, self.bits)
 
@@ -70,6 +73,9 @@ class Tmp(Atom):
         self.tmp_idx = tmp_idx
         self.bits = bits
 
+    def __repr__(self):
+        return str(self)
+
     def __str__(self):
         return "t%d" % self.tmp_idx
 
@@ -79,7 +85,7 @@ class Tmp(Atom):
             self.bits == other.bits
 
     def __hash__(self):
-        return hash((self.tmp_idx, self.bits))
+        return hash(('tmp', self.tmp_idx, self.bits))
 
 
 class Register(Atom):
@@ -88,6 +94,9 @@ class Register(Atom):
 
         self.register_offset = register_offset
         self.bits = bits
+
+    def __repr__(self):
+        return str(self)
 
     def __str__(self):
         if hasattr(self, 'reg_name'):
@@ -99,6 +108,9 @@ class Register(Atom):
         return type(self) is type(other) and \
             self.register_offset == other.register_offset and \
             self.bits == other.bits
+
+    def __hash__(self):
+        return hash(('reg', self.register_offset, self.bits))
 
 
 class Op(Expression):
@@ -176,6 +188,9 @@ class Load(Expression):
 
         self.addr = addr
         self.endness = endness
+
+    def __repr__(self):
+        return str(self)
 
     def __str__(self):
         return "Load(addr=%s, endness=%s)" % (self.addr, self.endness)
