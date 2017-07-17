@@ -1,3 +1,5 @@
+
+import os
 import logging
 import networkx
 import string
@@ -5,7 +7,6 @@ import itertools
 from collections import defaultdict
 
 import claripy
-from .. import SIM_PROCEDURES
 from ..errors import SimEngineError, SimMemoryError
 
 l = logging.getLogger("angr.knowledge.function")
@@ -78,7 +79,17 @@ class Function(object):
         if name is None:
             name = 'sub_%x' % addr
 
+        binary_name = None
+        if self.is_simprocedure:
+            hooker = project.hooked_by(addr)
+            if hooker is not None:
+                binary_name = hooker.library_name
+
+        if binary_name is None:
+            binary_name = os.path.basename(self.binary.binary)
+
         self._name = name
+        self.binary_name = binary_name
 
         # Register offsets of those arguments passed in registers
         self._argument_registers = []

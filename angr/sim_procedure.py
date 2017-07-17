@@ -60,6 +60,7 @@ class SimProcedure(object):
         self.is_continuation = False
         self.continuations = {}
         self.run_func = 'run'
+        self.library_name = None
 
         # Get the concrete number of arguments that should be passed to this procedure
         if num_args is None:
