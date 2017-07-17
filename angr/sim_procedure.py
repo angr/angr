@@ -128,7 +128,7 @@ class SimProcedure(object):
             # handle if this is a continuation from a return
             if inst.is_continuation:
                 if state.callstack.top.procedure_data is None:
-                    raise SimProcedureError("Tried to return to a simprocedure in an inapplicable stack frame!")
+                    raise SimProcedureError("Tried to return to a SimProcedure in an inapplicable stack frame!")
 
                 saved_sp, sim_args, saved_local_vars = state.callstack.top.procedure_data
                 state.regs.sp = saved_sp
