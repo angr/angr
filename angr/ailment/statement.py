@@ -72,6 +72,70 @@ class Store(Statement):
             return False, self
 
 
+class Jump(Statement):
+    def __init__(self, idx, target, **kwargs):
+        super(Jump, self).__init__(idx, **kwargs)
+
+        self.target = target
+
+    def __str__(self):
+        return "Goto(%s)" % self.target
+
+    def replace(self, old_expr, new_expr):
+        r, replaced_target = self.target.replace(old_expr, new_expr)
+
+        if r:
+            return True, Jump(self.idx, replaced_target, **self.tags)
+        else:
+            return False, self
+
+
+class Call(Statement):
+    def __init__(self, idx, target, calling_convention=None, declaration=None, args=None, **kwargs):
+        super(Call, self).__init__(idx, **kwargs)
+
+        self.target = target
+        self.calling_convention = calling_convention
+        self.declaration = declaration
+        self.args = args
+
+    def __str__(self):
+
+        cc = "Unknown CC" if self.calling_convention is None else "%s" % self.calling_convention
+        if self.args is None:
+            s = ("%s" % cc) if self.declaration is None else "%s: %s" % (self.calling_convention, self.calling_convention.arg_locs())
+        else:
+            s = ("%s" % cc) if self.declaration is None else "%s: %s" % (self.calling_convention, self.args)
+
+        return "Call(%s, %s)" % (
+            self.target,
+            s
+        )
+
+    def replace(self, old_expr, new_expr):
+        r0, replaced_target = self.target.replace(old_expr, new_expr)
+
+        r = r0
+
+        new_args = None
+        if self.args:
+            new_args = [ ]
+            for arg in self.args:
+                r_arg, replaced_arg = arg.replace(old_expr, new_expr)
+                r |= r_arg
+                new_args.append(replaced_arg)
+
+        if r:
+            return True, Call(self.idx, replaced_target,
+                              calling_convention=self.calling_convention,
+                              declaration=self.declaration,
+                              args=new_args,
+                              **self.tags
+                              )
+        else:
+            return False, self
+
+
 class DirtyStatement(Statement):
     """
     Wrapper around the original statement, which is usually not convertible (temporarily).
