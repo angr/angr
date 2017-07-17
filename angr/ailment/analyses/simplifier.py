@@ -1,5 +1,6 @@
 
 from angr import Analysis, register_analysis
+from angr.analyses.reaching_definitions import OP_AFTER
 
 from ..block import Block
 from ..statement import Assignment
@@ -23,9 +24,9 @@ class Simplifier(Analysis):
 
         block = self.block
         block = self._simplify_block_once(block)
-        print str(block)
+        #print str(block)
         block = self._simplify_block_once(block)
-        print str(block)
+        #print str(block)
         #block = self._simplify_block_once(block)
         #print str(block)
 
@@ -64,21 +65,19 @@ class Simplifier(Analysis):
 
         new_statements = [ ]
 
-        rd = self.project.analyses.ReachingDefinitions(block=block, track_tmps=True)
+        rd = self.project.analyses.ReachingDefinitions(block=block,
+                                                       track_tmps=True,
+                                                       observation_points=[ (block.statements[-1].ins_addr, OP_AFTER )]
+                                                       )
 
-        used_tmp_indices = set(rd.one_state._tmp_uses.keys())
-        dead_virgins = rd.one_state._dead_virgin_definitions
+        used_tmp_indices = set(rd.one_result.tmp_uses.keys())
+        dead_virgins = rd.one_result._dead_virgin_definitions
         dead_virgins_stmt_idx = set([ d.codeloc.stmt_idx for d in dead_virgins ])
 
         for idx, stmt in enumerate(block.statements):
             if type(stmt) is Assignment:
                 if type(stmt.dst) is Tmp:
                     if stmt.dst.tmp_idx not in used_tmp_indices:
-                        continue
-
-                # remove all assignments to ip
-                if type(stmt.dst) is Register:
-                    if stmt.dst.register_offset == self.project.arch.ip_offset:
                         continue
 
                 # is it a dead virgin?
