@@ -443,7 +443,7 @@ class SimCC(object):
                 if self.func_ty is None:
                     raise ValueError("You must either customize this CC or pass a value to is_fp!")
                 else:
-                    is_fp = [isinstance(arg, SimTypeFloat) for arg in self.func_ty.args]
+                    arg_locs = self.arg_locs()
             else:
                 arg_locs = self.args
 
