@@ -13,6 +13,12 @@ from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeG
 
 l = logging.getLogger('angr.analyses.reaching_definitions')
 
+#
+# Observation point types
+#
+OP_BEFORE = 0
+OP_AFTER = 1
+
 
 class Atom(object):
     def __init__(self):
@@ -155,20 +161,21 @@ class Uses(object):
 
 
 class ReachingDefinitions(object):
-    def __init__(self, arch, track_tmps=False):
+    def __init__(self, arch, track_tmps=False, analysis=None):
 
         self._track_tmps = track_tmps
+        self.analysis = analysis
 
         # handy short-hands
         self.arch = arch
 
-        self._register_definitions = defaultdict(set)
-        self._memory_definitions = defaultdict(set)
-        self._tmp_definitions = { }
+        self.register_definitions = defaultdict(set)
+        self.memory_definitions = defaultdict(set)
+        self.tmp_definitions = { }
 
-        self._register_uses = Uses()
-        self._memory_uses = Uses()
-        self._tmp_uses = defaultdict(set)
+        self.register_uses = Uses()
+        self.memory_uses = Uses()
+        self.tmp_uses = defaultdict(set)
 
         self._dead_virgin_definitions = set()  # definitions that are killed before used
 
@@ -176,27 +183,28 @@ class ReachingDefinitions(object):
         self.memory = { }
 
     def __repr__(self):
-        ctnt = "ReachingDefinitions, %d regdefs, %d memdefs" % (len(self._register_definitions),
-                                                              len(self._memory_definitions),
+        ctnt = "ReachingDefinitions, %d regdefs, %d memdefs" % (len(self.register_definitions),
+                                                              len(self.memory_definitions),
                                                               )
         if self._track_tmps:
-            ctnt += ", %d tmpdefs" % len(self._tmp_definitions)
+            ctnt += ", %d tmpdefs" % len(self.tmp_definitions)
         return "<%s>" % ctnt
 
     def copy(self):
         rd = ReachingDefinitions(
             self.arch,
             track_tmps=self._track_tmps,
+            analysis=self.analysis,
         )
-        rd._register_definitions = self._register_definitions.copy()
-        rd._memory_definitions = self._memory_definitions.copy()
-        rd._register_uses = self._register_uses.copy()
-        rd._memory_uses = self._memory_uses.copy()
+        rd.register_definitions = self.register_definitions.copy()
+        rd.memory_definitions = self.memory_definitions.copy()
+        rd.tmp_definitions = self.tmp_definitions.copy()
+        rd.register_uses = self.register_uses.copy()
+        rd.memory_uses = self.memory_uses.copy()
+        rd.tmp_uses = self.tmp_uses.copy()
         rd._dead_virgin_definitions = self._dead_virgin_definitions.copy()
         rd.registers = self.registers.copy()
         rd.memory = self.memory.copy()
-
-        # we do not copy tmp defs and tmp uses as they are always local
 
         return rd
 
@@ -205,24 +213,27 @@ class ReachingDefinitions(object):
         state = self.copy()
 
         for other in others:
-            for k, v in other._register_definitions.iteritems():
-                if k not in state._register_definitions:
-                    state._register_definitions[k] = set(v)
+            for k, v in other.register_definitions.iteritems():
+                if k not in state.register_definitions:
+                    state.register_definitions[k] = set(v)
                 else:
-                    state._register_definitions[k] |= v
+                    state.register_definitions[k] |= v
 
-            for k, v in other._memory_definitions.iteritems():
-                if k not in state._memory_definitions:
-                    state._memory_definitions[k] = set(v)
+            for k, v in other.memory_definitions.iteritems():
+                if k not in state.memory_definitions:
+                    state.memory_definitions[k] = set(v)
                 else:
-                    state._memory_definitions[k] |= v
+                    state.memory_definitions[k] |= v
 
-            state._register_uses.merge(other._register_uses)
-            state._memory_uses.merge(other._memory_uses)
+            state.register_uses.merge(other._register_uses)
+            state.memory_uses.merge(other._memory_uses)
 
             state._dead_virgin_definitions |= other._unused_definitions
 
         return state
+
+    def downsize(self):
+        self.analysis = None
 
     def add_definition(self, atom, code_loc):
         if type(atom) is Register:
@@ -256,54 +267,54 @@ class ReachingDefinitions(object):
     def _add_register_definition(self, atom, code_loc):
 
         # TODO: improve
-        self._register_definitions[atom.reg_offset].add(Definition(atom, code_loc))
+        self.register_definitions[atom.reg_offset].add(Definition(atom, code_loc))
 
     def _add_memory_definition(self, atom, code_loc):
 
-        self._memory_definitions[atom.addr].add(Definition(atom, code_loc))
+        self.memory_definitions[atom.addr].add(Definition(atom, code_loc))
 
     def _add_tmp_definition(self, atom, code_loc):
-        self._tmp_definitions[atom.tmp_idx] = (atom, code_loc)
+        self.tmp_definitions[atom.tmp_idx] = (atom, code_loc)
 
     def _kill_register_definitions(self, atom):
 
-        defs = self._register_definitions.pop(atom.reg_offset, None)
+        defs = self.register_definitions.pop(atom.reg_offset, None)
 
         # check whether there is any use of this def
         if defs:
             uses = set()
             for def_ in defs:
-                uses |= self._register_uses.get_current_uses(def_)
+                uses |= self.register_uses.get_current_uses(def_)
 
             if not uses:
                 self._dead_virgin_definitions |= defs
 
     def _kill_memory_definitions(self, atom):
-        self._memory_definitions.pop(atom.addr, None)
+        self.memory_definitions.pop(atom.addr, None)
 
     def _add_register_use(self, atom, code_loc):
 
         # get all current definitions
-        current_defs = self._register_definitions.get(atom.reg_offset, None)
+        current_defs = self.register_definitions.get(atom.reg_offset, None)
 
         if current_defs:
             for current_def in current_defs:
-                self._register_uses.add_use(current_def, code_loc)
+                self.register_uses.add_use(current_def, code_loc)
 
     def _add_memory_use(self, atom, code_loc):
 
         # get all current definitions
-        current_defs = self._memory_definitions.get(atom.addr, None)
+        current_defs = self.memory_definitions.get(atom.addr, None)
 
         if current_defs:
             for current_def in current_defs:
-                self._memory_uses.add_use(current_def, code_loc)
+                self.memory_uses.add_use(current_def, code_loc)
 
     def _add_tmp_use(self, atom, code_loc):
 
-        current_def = self._tmp_definitions[atom.tmp_idx]
+        current_def = self.tmp_definitions[atom.tmp_idx]
 
-        self._tmp_uses[atom.tmp_idx].add((code_loc, current_def))
+        self.tmp_uses[atom.tmp_idx].add((code_loc, current_def))
 
 
 def get_engine(base_engine):
@@ -317,6 +328,16 @@ def get_engine(base_engine):
         #
         # VEX statement handlers
         #
+
+        def _handle_Stmt(self, stmt):
+
+            if self.state.analysis:
+                self.state.analysis.observe(self.ins_addr, OP_BEFORE, self.state)
+
+            super(SimEngineRD, self)._handle_Stmt(stmt)
+
+            if self.state.analysis:
+                self.state.analysis.observe(self.ins_adr, OP_AFTER, self.state)
 
         def _handle_Put(self, stmt):
             reg_offset = stmt.offset
@@ -370,6 +391,16 @@ def get_engine(base_engine):
         # AIL statement handlers
         #
 
+        def _ail_handle_Stmt(self, stmt):
+
+            if self.state.analysis:
+                self.state.analysis.observe(self.ins_addr, OP_BEFORE, self.state)
+
+            super(SimEngineRD, self)._ail_handle_Stmt(stmt)
+
+            if self.state.analysis:
+                self.state.analysis.observe(self.ins_addr, OP_AFTER, self.state)
+
         def _ail_handle_Assignment(self, stmt):
             """
 
@@ -379,8 +410,6 @@ def get_engine(base_engine):
 
             src = self._expr(stmt.src)
             dst = stmt.dst
-
-
 
             if type(dst) is ailment.Tmp:
 
@@ -407,6 +436,24 @@ def get_engine(base_engine):
 
         def _ail_handle_Call(self, stmt):
             target = self._expr(stmt.target)
+
+            ip = Register(self.arch.ip_offset, self.arch.bits / 8)
+
+            self.state.kill_definitions(ip)
+
+            # kill all caller-saved registers
+            if stmt.calling_convention is not None and stmt.calling_convention.CALLER_SAVED_REGS:
+                for reg_name in stmt.calling_convention.CALLER_SAVED_REGS:
+                    offset, size = self.arch.registers[reg_name]
+                    reg = Register(offset, size)
+                    self.state.kill_definitions(reg)
+
+            # kill all cc_ops
+            # TODO: make it architecture agnostic
+            self.state.kill_definitions(Register(*self.arch.registers['cc_op']))
+            self.state.kill_definitions(Register(*self.arch.registers['cc_dep1']))
+            self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']))
+            self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']))
 
         #
         # AIL expression handlers
@@ -444,12 +491,22 @@ def get_engine(base_engine):
 
 
 class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
-    def __init__(self, func=None, block=None, max_iterations=3, track_tmps=False):
+    def __init__(self, func=None, block=None, max_iterations=3, track_tmps=False, observation_points=None):
         """
 
+        :param angr.knowledge.Function func:    The function to run reaching definition analysis on.
+        :param block:                           A single block to run reaching definition analysis on. You cannot
+                                                specify both `func` and `block`.
+        :param int max_iterations:              The maximum number of iterations before the analysis is terminated.
+        :param bool track_tmps:                 Whether tmps are tracked or not.
+        :param iterable observation_points:     A collection of tuples of (ins_addr, OP_TYPE) defining where reaching
+                                                definitions should be copied and stored. OP_TYPE can be OP_BEFORE or
+                                                OP_AFTER.
         """
 
         if func is not None:
+            if block is not None:
+                raise ValueError('You cannot specify both "func" and "block".')
             # traversing a function
             graph_visitor = FunctionGraphVisitor(func)
         elif block is not None:
@@ -465,6 +522,16 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         self._max_iterations = max_iterations
         self._function = func
         self._block = block
+        self._observation_points = observation_points
+
+        # sanity check
+        if self._observation_points and any(not type(op) is tuple for op in self._observation_points):
+            raise ValueError('"observation_points" must be tuples.')
+
+        if not self._observation_points:
+            l.warning('No observation point is specified. '
+                      'You cannot get any analysis result from performing the analysis.'
+                      )
 
         self._node_iterations = defaultdict(int)
         self._states = { }
@@ -472,17 +539,24 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         self._engine_vex = get_engine(SimEngineLightVEX)()
         self._engine_ail = get_engine(SimEngineLightAIL)()
 
+        self.observed_results = { }
+
         self._analyze()
 
     @property
-    def one_state(self):
+    def one_result(self):
 
-        if not self._states:
-            raise ValueError('No state is available.')
-        if len(self._states) != 1:
-            raise ValueError("More than one states are available.")
+        if not self.observed_results:
+            raise ValueError('No result is available.')
+        if len(self.observed_results) != 1:
+            raise ValueError("More than one results are available.")
 
-        return next(self._states.itervalues())
+        return next(self.observed_results.itervalues())
+
+    def observe(self, ins_addr, ob_type, state):
+        if self._observation_points is not None \
+                and (ins_addr, ob_type) in self._observation_points:
+            self.observed_results[(ins_addr, ob_type)] = state.copy()
 
     #
     # Main analysis routines
@@ -495,7 +569,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         pass
 
     def _initial_abstract_state(self, node):
-        return ReachingDefinitions(self.project.arch, track_tmps=self._track_tmps)
+        return ReachingDefinitions(self.project.arch, track_tmps=self._track_tmps, analysis=self)
 
     def _merge_states(self, node, *states):
         return states[0].merge(*states[1:])
@@ -517,9 +591,11 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
 
         engine.process(state, block=block)
 
-        self._node_iterations[block_key] += 1
+        # clear the tmp store
+        state.tmp_uses.clear()
+        state.tmp_definitions.clear()
 
-        self._states[block_key] = state
+        self._node_iterations[block_key] += 1
 
         return True, state
 
