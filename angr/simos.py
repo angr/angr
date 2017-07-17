@@ -77,7 +77,7 @@ class SimOS(object):
         elif len(possible) == 1:
             num = possible[0]
         elif allow_unsupported:
-            num = self.syscall_library.maximum_syscall_number + 1 if self.syscall_library else 0
+            num = self.syscall_library.maximum_syscall_number(self.arch.name) + 1 if self.syscall_library else 0
         else:
             raise AngrUnsupportedSyscallError("Got a symbolic syscall number")
 
