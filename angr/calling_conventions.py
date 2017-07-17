@@ -409,7 +409,7 @@ class SimCC(object):
                 (isinstance(val, claripy.ast.Base) and val.op.startswith('fp')) or \
                 (isinstance(val, claripy.ast.Base) and val.op == 'Reverse' and val.args[0].op.startswith('fp'))
 
-    def arg_locs(self, is_fp, sizes=None):
+    def arg_locs(self, is_fp=None, sizes=None):
         """
         Pass this a list of whether each parameter is floating-point or not, and get back a list of
         SimFunctionArguments. Optionally, pass a list of argument sizes (in bytes) as well.
@@ -417,7 +417,15 @@ class SimCC(object):
         If you've customized this CC, this will sanity-check the provided locations with the given list.
         """
         session = self.arg_session
-        if sizes is None: sizes = [self.arch.bytes]*len(is_fp)
+        if self.func_ty is None:
+            # No function prototype is provided. `is_fp` must be provided.
+            if is_fp is None:
+                raise ValueError('"is_fp" must be provided when no function prototype is available.')
+        else:
+            # let's rely on the func_ty for the number of arguments and whether each argument is FP or not
+            is_fp = [ True if isinstance(arg, (SimTypeFloat, SimTypeDouble)) else False for arg in self.func_ty.args ]
+
+        if sizes is None: sizes = [self.arch.bytes] * len(is_fp)
         return [session.next_arg(ifp, size=sz) for ifp, sz in zip(is_fp, sizes)]
 
     def arg(self, state, index, stack_base=None):
