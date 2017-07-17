@@ -1,4 +1,5 @@
 
+import logging
 import os
 
 import angr
@@ -26,7 +27,7 @@ def test_simplifier():
     # we need a project...
     project = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'all'), auto_load_libs=False)
 
-    simp = project.analyses.ASimplifier(ablock)
+    simp = project.analyses.AILSimplifier(ablock)
 
 
 if __name__ == "__main__":

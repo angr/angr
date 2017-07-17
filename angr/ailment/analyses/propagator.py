@@ -2,7 +2,7 @@
 import logging
 from collections import defaultdict
 
-import ailment
+from .. import Expr, Block
 
 from angr.engines.light import SimEngineLightVEX, SimEngineLightAIL, SpOffset, RegisterOffset
 from angr import Analysis, register_analysis
@@ -98,7 +98,7 @@ class PropagatorState(object):
         keys_to_remove = set()
 
         for k, v in self._replacements.iteritems():
-            if isinstance(v, ailment.Expression) and (v == atom or v.has_atom(atom)):
+            if isinstance(v, Expr.Expression) and (v == atom or v.has_atom(atom)):
                 keys_to_remove.add(k)
 
         for k in keys_to_remove:
@@ -143,14 +143,14 @@ def get_engine(base_engine):
         def _ail_handle_Assignment(self, stmt):
             """
 
-            :param ailment.Assignment stmt:
+            :param Stmt.Assignment stmt:
             :return:
             """
 
             src = self._expr(stmt.src)
             dst = stmt.dst
 
-            if type(dst) is ailment.Tmp:
+            if type(dst) is Expr.Tmp:
                 new_src = self.state.get_replacement(src)
                 if new_src is not None:
                     l.debug("%s = %s, replace %s with %s.", dst, src, src, new_src)
@@ -159,25 +159,36 @@ def get_engine(base_engine):
                     l.debug("Replacing %s with %s.", dst, src)
                     self.state.add_replacement(dst, src)
 
-            elif type(dst) is ailment.Register:
-
-                # remove previous replacements whose source contains this register
-                self.state.filter_replacements(dst)
-
+            elif type(dst) is Expr.Register:
+                """
                 new_src = self.state.get_replacement(src)
                 if new_src is not None:
                     l.debug("Handle assignment: %s = %s, replace %s with %s.", dst, src, src, new_src)
                     self.state.add_replacement(dst, new_src)
                     src = new_src
-
-                l.debug("New replacement: %s with %s", (dst, src))
+                else:
+                """
+                l.debug("New replacement: %s with %s", dst, src)
                 self.state.add_replacement(dst, src)
+
+                # remove previous replacements whose source contains this register
+                self.state.filter_replacements(dst)
             else:
                 l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
         def _ail_handle_Store(self, stmt):
             _ = self._expr(stmt.addr)
             _ = self._expr(stmt.data)
+
+        def _ail_handle_Jump(self, stmt):
+            target = self._expr(stmt.target)
+
+        def _ail_handle_Call(self, stmt):
+            target = self._expr(stmt.target)
+
+            if stmt.args:
+                for arg in stmt.args:
+                    self._expr(arg)
 
         #
         # AIL expression handlers
@@ -263,7 +274,7 @@ class Propagator(ForwardAnalysis, Analysis):
 
         input_state = state
 
-        if isinstance(node, ailment.Block):
+        if isinstance(node, Block):
             block = node
             block_key = node.addr
             engine = self._engine_ail
@@ -288,4 +299,4 @@ class Propagator(ForwardAnalysis, Analysis):
     def _post_analysis(self):
         pass
 
-register_analysis(Propagator, "Propagator")
+register_analysis(Propagator, "AILPropagator")

@@ -37,15 +37,9 @@ class Simplifier(Analysis):
         rd = self.project.analyses.ReachingDefinitions(block=block)
 
         # propagator
-        propagator = self.project.analyses.Propagator(block=block, reaching_definitions=rd)
-
+        propagator = self.project.analyses.AILPropagator(block=block, reaching_definitions=rd)
         replacements = propagator._states.values()[0]._final_replacements
-
         new_block = self._replace_and_build(block, replacements)
-
-        # print str(new_block)
-        # raw_input()
-
         new_block = self._eliminate_dead_assignments(new_block)
 
         return new_block
@@ -99,4 +93,4 @@ class Simplifier(Analysis):
         return new_block
 
 
-register_analysis(Simplifier, 'ASimplifier')
+register_analysis(Simplifier, 'AILSimplifier')
