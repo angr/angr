@@ -20,7 +20,7 @@ def test_simplifier():
                   "B6 06 40 00 48 8B 45 C0 48 83 C0 08 48 8B 00 BE A7 08 40 00 48 89 C7 E8 83 FE FF" \
                   "FF".replace(" ", "").decode("hex")
 
-    irsb = pyvex.IRSB(block_bytes, 0x400680, arch, opt_level=0)
+    irsb = pyvex.IRSB(block_bytes, 0x4006c6, arch, opt_level=0)
 
     ablock = ailment.IRSBConverter.convert(irsb, manager)
 
@@ -31,4 +31,5 @@ def test_simplifier():
 
 
 if __name__ == "__main__":
+    logging.getLogger('ailment.analyses.propagator').setLevel(logging.DEBUG)
     test_simplifier()
