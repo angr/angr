@@ -53,20 +53,16 @@ class SimEngineLightVEX(SimEngineLight):
 
         self.tyenv = block.vex.tyenv
 
-        for stmt_idx, stmt in enumerate(block.vex.statements):
-            # print stmt.__str__(arch=self.arch, tyenv=self.vex_block.tyenv)
-
-            self.stmt_idx = stmt_idx
-            if type(stmt) is pyvex.IRStmt.IMark:
-                self.ins_addr = stmt.addr + stmt.delta
-                continue
-
-            handler = "_handle_%s" % type(stmt).__name__
-            if hasattr(self, handler):
-                getattr(self, handler)(stmt)
+        self._process_Stmt()
 
         self.stmt_idx = None
         self.ins_addr = None
+
+    def _process_Stmt(self):
+
+        for stmt_idx, stmt in enumerate(self.block.vex.statements):
+            self.stmt_idx = stmt_idx
+            self._handle_Stmt(stmt)
 
     #
     # Helper properties
@@ -88,6 +84,13 @@ class SimEngineLightVEX(SimEngineLight):
     #
     # Statement handlers
     #
+
+    def _handle_Stmt(self, stmt):
+        handler = "_handle_%s" % type(stmt).__name__
+        if hasattr(self, handler):
+            getattr(self, handler)(stmt)
+        else:
+            l.warning('Unsupported statement type %s.', type(stmt).__name__)
 
     def _handle_WrTmp(self, stmt):
         data = self._expr(stmt.data)
@@ -181,24 +184,18 @@ class SimEngineLightAIL(SimEngineLight):
         self.state = state
         self.arch = state.arch
 
-        for stmt_idx, stmt in enumerate(block.statements):
-            self.stmt_idx = stmt_idx
-            self.ins_addr = 0xaaaaaaaa
-
-            handler = "_ail_handle_%s" % type(stmt).__name__
-            if hasattr(self, handler):
-                getattr(self, handler)(stmt)
-            else:
-                l.warning('Unsupported statement type %s.', type(stmt).__name__)
+        self._process_Stmt()
 
         self.stmt_idx = None
         self.ins_addr = None
 
-    def _ail_handle_Jump(self, stmt):
-        raise NotImplementedError('Please implement the Jump handler with your own logic.')
+    def _process_Stmt(self):
 
-    def _ail_handle_Call(self, stmt):
-        raise NotImplementedError('Please implement the Call handler with your own logic.')
+        for stmt_idx, stmt in enumerate(self.block.statements):
+            self.stmt_idx = stmt_idx
+            self.ins_addr = stmt.ins_addr
+
+            self._ail_handle_Stmt(stmt)
 
     def _expr(self, expr):
 
@@ -214,6 +211,23 @@ class SimEngineLightAIL(SimEngineLight):
 
     def _codeloc(self):
         return CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
+
+    #
+    # Statement handlers
+    #
+
+    def _ail_handle_Stmt(self, stmt):
+        handler = "_ail_handle_%s" % type(stmt).__name__
+        if hasattr(self, handler):
+            getattr(self, handler)(stmt)
+        else:
+            l.warning('Unsupported statement type %s.', type(stmt).__name__)
+
+    def _ail_handle_Jump(self, stmt):
+        raise NotImplementedError('Please implement the Jump handler with your own logic.')
+
+    def _ail_handle_Call(self, stmt):
+        raise NotImplementedError('Please implement the Call handler with your own logic.')
 
     #
     # Expression handlers
