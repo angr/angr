@@ -63,6 +63,7 @@ class SimLibrary(object):
             proc.cc.func_ty = self.prototypes[proc.display_name]
         if proc.display_name in self.non_returning:
             proc.returns = False
+        proc.library_name = self.name
 
     def get(self, name, arch):
         if type(arch) is str:
