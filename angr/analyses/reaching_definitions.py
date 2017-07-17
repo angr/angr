@@ -337,7 +337,7 @@ def get_engine(base_engine):
             super(SimEngineRD, self)._handle_Stmt(stmt)
 
             if self.state.analysis:
-                self.state.analysis.observe(self.ins_adr, OP_AFTER, self.state)
+                self.state.analysis.observe(self.ins_addr, OP_AFTER, self.state)
 
         def _handle_Put(self, stmt):
             reg_offset = stmt.offset
