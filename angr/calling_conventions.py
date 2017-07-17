@@ -292,6 +292,7 @@ class SimCC(object):
     STACKARG_SP_BUFF = 0            # The amount of stack space reserved between the saved return address
                                     # (if applicable) and the arguments. Probably zero.
     STACKARG_SP_DIFF = 0            # The amount of stack space reserved for the return address
+    CALLER_SAVED_REGS = None        # Caller-saved registers
     RETURN_ADDR = None              # The location where the return address is stored, as a SimFunctionArgument
     RETURN_VAL = None               # The location where the return value is stored, as a SimFunctionArgument
     FP_RETURN_VAL = None            # The location where floating-point argument return values are stored
@@ -901,6 +902,7 @@ class SimCCSystemVAMD64(SimCC):
     ARG_REGS = ['rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9']
     FP_ARG_REGS = ['xmm0', 'xmm1', 'xmm2', 'xmm3', 'xmm4', 'xmm5', 'xmm6', 'xmm7']
     STACKARG_SP_DIFF = 8 # Return address is pushed on to stack by call
+    CALLER_SAVED_REGS = [ 'rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9', 'r10', 'r11', 'rax', ]
     RETURN_ADDR = SimStackArg(0, 8)
     RETURN_VAL = SimRegArg('rax', 8)
     FP_RETURN_VAL = SimRegArg('xmm0', 32)
