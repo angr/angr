@@ -8,6 +8,7 @@ from collections import defaultdict
 
 import claripy
 from ...errors import SimEngineError, SimMemoryError
+from ...declarations import SIM_DECLARATIONS
 
 l = logging.getLogger("angr.knowledge.function")
 
