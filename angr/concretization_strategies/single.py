@@ -7,5 +7,5 @@ class SimConcretizationStrategySingle(SimConcretizationStrategy):
 
     def _concretize(self, memory, addr):
         addrs = self._eval(memory, addr, 2)
-        if len(addrs) == 0:
+        if len(addrs) == 1:
             return addrs
