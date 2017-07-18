@@ -364,7 +364,7 @@ class SimLinux(SimOS):
                                 continue
                         except AttributeError:
                             continue
-                        gotaddr = reloc.addr
+                        gotaddr = reloc.rebased_addr
                         gotvalue = self.project.loader.memory.read_addr_at(gotaddr)
                         if self.project.is_hooked(gotvalue):
                             continue
