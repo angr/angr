@@ -804,6 +804,7 @@ class SimCCX86LinuxSyscall(SimCC):
     ARG_REGS = ['ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp']
     FP_ARG_REGS = []
     RETURN_VAL = SimRegArg('eax', 4)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 4)
     ARCH = archinfo.ArchX86
 
     @classmethod
@@ -820,6 +821,7 @@ class SimCCX86WindowsSyscall(SimCC):
     ARG_REGS = [ ]
     FP_ARG_REGS = [ ]
     RETURN_VAL = SimRegArg('eax', 4)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 4)
     ARCH = archinfo.ArchX86
 
     @classmethod
@@ -871,6 +873,7 @@ class SimCCSystemVAMD64(SimCC):
 class SimCCAMD64LinuxSyscall(SimCC):
     ARG_REGS = ['rdi', 'rsi', 'rdx', 'r10', 'r8', 'r9']
     RETURN_VAL = SimRegArg('rax', 8)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 8)
     ARCH = archinfo.ArchAMD64
 
     @staticmethod
@@ -887,6 +890,7 @@ class SimCCAMD64WindowsSyscall(SimCC):
     ARG_REGS = [ ]
     FP_ARG_REGS = [ ]
     RETURN_VAL = SimRegArg('rax', 8)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 8)
     ARCH = archinfo.ArchAMD64
 
     @classmethod
@@ -909,7 +913,7 @@ class SimCCARMLinuxSyscall(SimCC):
     # TODO: Make sure all the information is correct
     ARG_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
     FP_ARG_REGS = []    # TODO: ???
-    RETURN_ADDR = SimRegArg('lr', 4)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 4)
     RETURN_VAL = SimRegArg('r0', 4)
     ARCH = archinfo.ArchARM
 
@@ -934,6 +938,7 @@ class SimCCAArch64LinuxSyscall(SimCC):
     ARG_REGS = [ 'x0', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7' ]
     FP_ARG_REGS = []    # TODO: ???
     RETURN_VAL = SimRegArg('x0', 8)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 8)
     ARCH = archinfo.ArchAArch64
 
     @classmethod
@@ -958,6 +963,7 @@ class SimCCO32LinuxSyscall(SimCC):
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
     FP_ARG_REGS = []    # TODO: ???
     RETURN_VAL = SimRegArg('v0', 4)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 4)
     ARCH = archinfo.ArchMIPS32
 
     @classmethod
@@ -982,6 +988,7 @@ class SimCCO64LinuxSyscall(SimCC):
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
     FP_ARG_REGS = []    # TODO: ???
     RETURN_VAL = SimRegArg('v0', 8)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 8)
     ARCH = archinfo.ArchMIPS64
 
     @classmethod
@@ -1006,6 +1013,7 @@ class SimCCPowerPCLinuxSyscall(SimCC):
     ARG_REGS = ['r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10']
     FP_ARG_REGS = [ ]
     RETURN_VAL = SimRegArg('r3', 4)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 4)
     ARCH = archinfo.ArchPPC32
 
     @classmethod
@@ -1030,6 +1038,7 @@ class SimCCPowerPC64LinuxSyscall(SimCC):
     ARG_REGS = [ ]
     FP_ARG_REGS = [ ]
     RETURN_VAL = SimRegArg('r3', 8)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 8)
     ARCH = archinfo.ArchPPC64
 
     @classmethod
