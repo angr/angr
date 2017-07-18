@@ -371,7 +371,7 @@ class SimProcedure(object):
     def ty_ptr(self, ty):
         return SimTypePointer(self.arch, ty)
 
-from angr import sim_options as o
+from . import sim_options as o
 from angr.errors import SimProcedureError, SimProcedureArgumentError
 from angr.sim_type import SimTypePointer
 from angr.state_plugins.sim_action import SimActionExit

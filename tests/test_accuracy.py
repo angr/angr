@@ -21,7 +21,7 @@ def emulate(p, steps, hit_addrs, finished):
     #     state = p.factory.full_init_state(args=['./test_arrays'])
     #else:
     #    state = p.factory.full_init_state(args=['./test_arrays'], add_options={simuvex.o.STRICT_PAGE_ACCESS})
-    state = p.factory.full_init_state(args=['./test_arrays'], add_options={simuvex.o.STRICT_PAGE_ACCESS, simuvex.o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
+    state = p.factory.full_init_state(args=['./test_arrays'], add_options={angr.options.STRICT_PAGE_ACCESS, angr.options.ENABLE_NX, angr.options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
 
     pg = p.factory.simgr(state)
     pg2 = pg.step(until=lambda lpg: len(lpg.active) != 1)
@@ -78,11 +78,11 @@ def test_locale():
 
 
 if __name__ == '__main__':
-    for func, a, b, c, d in test_windows():
-        print a.filename
-        func(a, b, c, d)
     print 'locale'
     test_locale()
     for func, a, b, c, d in test_emulation():
+        print a.filename
+        func(a, b, c, d)
+    for func, a, b, c, d in test_windows():
         print a.filename
         func(a, b, c, d)

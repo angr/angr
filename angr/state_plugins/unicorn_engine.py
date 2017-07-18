@@ -730,8 +730,12 @@ class Unicorn(SimStatePlugin):
 
             try:
                 perm = self.state.memory.permissions(addr)
-                # TODO: how does adding to a set work with symbolic permissions?
-                perms.add(perm)
+                if perm.symbolic:
+                    perms.add(7)
+                elif options.ENABLE_NX not in self.state.options:
+                    perms.add(perm.args[0] | 4)
+                else:
+                    perms.add(perm.args[0])
             except SimMemoryError as e:
                 if e.message == "page does not exist at given address":  # FIXME: direct string comparison is bad
                     missing_pages.append(addr)
@@ -755,10 +759,6 @@ class Unicorn(SimStatePlugin):
             # no page is missing, and all pages have the same permission
             # great!
             perm = list(perms)[0]
-            if not perm.symbolic:
-                perm = perm.args[0]
-            else:
-                perm = 7
 
         else:
             # either pages have different permissions, or only some of the pages are missing
