@@ -454,11 +454,11 @@ class Project(object):
             l.info("Providing extern symbol for unresolved %s at #%x", symbol_name, hook_addr)
             self.loader.provide_symbol(self._extern_obj, symbol_name, AT.from_mva(link_addr, self._extern_obj).to_lva())
         else:
-            hook_addr, _ = self._simos.repare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
+            hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
 
             if self.is_hooked(hook_addr):
                 l.warning("Re-hooking symbol %s", symbol_name)
-                self.unhook(addr)
+                self.unhook(hook_addr)
 
         self.hook(hook_addr, obj, kwargs=kwargs)
         return hook_addr
