@@ -2,6 +2,7 @@
 Manage OS-level configuration.
 """
 
+import os
 import logging
 from collections import defaultdict
 from archinfo import ArchARM, ArchMIPS32, ArchMIPS64, ArchX86, ArchAMD64, ArchPPC32, ArchPPC64, ArchAArch64
@@ -690,15 +691,25 @@ class SimWindows(SimOS):
         if args is None: args = []
         state = super(SimWindows, self).state_entry(**kwargs)
 
+        return state
+
+    def state_blank(self, **kwargs):
+        if self.project.loader.main_bin.supports_nx:
+            add_options = kwargs.get('add_options', set())
+            add_options.add(o.ENABLE_NX)
+            kwargs['add_options'] = add_options
+        state = super(SimWindows, self).state_blank(**kwargs)
+
         # yikes!!!
         fun_stuff_addr = state.libc.mmap_base
         if fun_stuff_addr & 0xffff != 0:
             fun_stuff_addr += 0x10000 - (fun_stuff_addr & 0xffff)
-        state.libc.mmap_base = fun_stuff_addr + 0x2000
-        state.memory.map_region(fun_stuff_addr, 0x2000, claripy.BVV(3, 3))
+        state.libc.mmap_base = fun_stuff_addr + 0x4000
+        state.memory.map_region(fun_stuff_addr, 0x4000, claripy.BVV(3, 3))
 
         TIB_addr = fun_stuff_addr
         PEB_addr = fun_stuff_addr + 0x1000
+        LDR_addr = fun_stuff_addr + 0x2000
 
         if state.arch.name == 'X86':
             state.mem[TIB_addr + 0].dword = 0 # Initial SEH frame
@@ -711,6 +722,74 @@ class SimWindows(SimOS):
             state.mem[TIB_addr + 0x30].dword = PEB_addr # PEB addr, of course
 
             state.regs.fs = TIB_addr >> 16
+
+            state.mem[PEB_addr + 0xc].dword = LDR_addr
+
+            # OKAY IT'S TIME TO SUFFER
+            # http://sandsprite.com/CodeStuff/Understanding_the_Peb_Loader_Data_List.html
+            THUNK_SIZE = 0x100
+            num_pe_objects = len(self.project.loader.all_pe_objects)
+            ALLOC_AREA = LDR_addr + THUNK_SIZE * num_pe_objects
+            for i, obj in enumerate(self.project.loader.all_pe_objects):
+                # Create a LDR_MODULE, we'll handle the links later...
+                obj.module_id = i+1 # HACK HACK HACK HACK
+                addr = LDR_addr + (i+1) * THUNK_SIZE
+                state.mem[addr+0x18].dword = obj.mapped_base
+                state.mem[addr+0x1C].dword = obj.entry
+
+                # Allocate some space from the same region to store the paths
+                path = obj.binary # we're in trouble if this is None
+                alloc_size = len(path) * 2 + 2
+                tail_start = (len(path) - len(os.path.basename(path))) * 2
+                state.mem[addr+0x24].short = alloc_size
+                state.mem[addr+0x26].short = alloc_size
+                state.mem[addr+0x28].dword = ALLOC_AREA
+                state.mem[addr+0x2C].short = alloc_size - tail_start
+                state.mem[addr+0x2E].short = alloc_size - tail_start
+                state.mem[addr+0x30].dword = ALLOC_AREA + tail_start
+
+                for j, c in enumerate(path):
+                    state.mem[ALLOC_AREA + j*2].short = ord(c)
+                state.mem[ALLOC_AREA + alloc_size - 2].short = 0
+                ALLOC_AREA += alloc_size
+
+            # handle the links. we construct a python list in the correct order for each, and then, uh,
+            mem_order = sorted(self.project.loader.all_pe_objects, key=lambda x: x.mapped_base)
+            init_order = []
+            partially_loaded = set()
+            def fuck_load(x):
+                if x.provides in partially_loaded:
+                    return
+                partially_loaded.add(x.provides)
+                for dep in x.deps:
+                    if dep in self.project.loader.shared_objects:
+                        depo = self.project.loader.shared_objects[dep]
+                        fuck_load(depo)
+                        init_order.append(depo)
+
+            fuck_load(self.project.loader.main_bin)
+            load_order = [self.project.loader.main_bin] + init_order
+
+            def link(a, b):
+                state.mem[a].dword = b
+                state.mem[b+4].dword = a
+
+            # I have genuinely never felt so dead in my life as I feel writing this code
+            def link_list(mods, offset):
+                addr_a = LDR_addr + 12
+                addr_b = LDR_addr + THUNK_SIZE * mods[0].module_id
+                link(addr_a + offset, addr_b + offset)
+                for mod_a, mod_b in zip(mods[:-1], mods[1:]):
+                    addr_a = LDR_addr + THUNK_SIZE * mod_a.module_id
+                    addr_b = LDR_addr + THUNK_SIZE * mod_b.module_id
+                    link(addr_a + offset, addr_b + offset)
+                addr_a = LDR_addr + THUNK_SIZE * mods[-1].module_id
+                addr_b = LDR_addr + 12
+                link(addr_a + offset, addr_b + offset)
+
+            link_list(load_order, 0)
+            link_list(mem_order, 8)
+            link_list(init_order, 16)
 
         return state
 
