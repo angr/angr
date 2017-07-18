@@ -17,7 +17,7 @@ class CalleeCleanupFinder(Analysis):
             with self._resilience():
                 size = self.analyze(addr)
                 if size is None:
-                    l.warning("Couldn't find return for function at %#x", addr)
+                    l.info("Couldn't find return for function at %#x", addr)
                 else:
                     self.results[addr] = size
 

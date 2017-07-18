@@ -82,6 +82,8 @@ class SimEngineProcedure(SimEngine):
         successors.description = 'SimProcedure ' + procedure.display_name
         if procedure.is_syscall:
             successors.description += ' (syscall)'
+        if procedure.is_stub:
+            successors.description += ' (stub)'
         successors.processed = True
 
 from .. import sim_options as o

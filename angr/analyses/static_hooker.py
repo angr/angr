@@ -32,6 +32,7 @@ class StaticHooker(Analysis):
 
             if self.project.is_hooked(func.rebased_addr):
                 l.debug("Skipping %s at %#x, already hooked", func.name, func.rebased_addr)
+                continue
 
             if lib.has_implementation(func.name):
                 proc = lib.get(func.name, self.project.arch)
