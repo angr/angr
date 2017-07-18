@@ -76,7 +76,7 @@ class SimLibrary(object):
             return self.get_stub(name, arch)
 
     def get_stub(self, name, arch):
-        proc = self.fallback_proc(display_name=name)
+        proc = self.fallback_proc(display_name=name, is_stub=True)
         self._apply_metadata(proc, arch)
         return proc
 
@@ -118,7 +118,7 @@ class SimSyscallLibrary(SimLibrary):
         if number in mapping:
             return mapping[number], arch
         else:
-            return 'sys_%d (unsupported)' % number, arch
+            return 'sys_%d' % number, arch
 
     def _apply_numerical_metadata(self, proc, number, arch):
         proc.syscall_number = number

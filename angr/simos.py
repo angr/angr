@@ -143,7 +143,10 @@ class SimOS(object):
         else:
             sym = scope.get_symbol(name)
 
-        if sym is not None and not self.project.is_hooked(sym.rebased_addr):
+        if sym is not None:
+            if self.project.is_hooked(sym.rebased_addr):
+                if not self.project.hooked_by(sym.rebased_addr).is_stub:
+                    return
             self.project.hook(sym.rebased_addr, hook)
 
     def state_blank(self, addr=None, initial_prefix=None, stack_size=1024*1024*8, **kwargs):

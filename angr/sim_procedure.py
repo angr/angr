@@ -19,7 +19,7 @@ class SimProcedure(object):
     """
     def __init__(
         self, project=None, cc=None, symbolic_return=None,
-        returns=None, is_syscall=None,
+        returns=None, is_syscall=None, is_stub=False,
         num_args=None, display_name=None,
         is_function=None, **kwargs
     ):
@@ -58,6 +58,7 @@ class SimProcedure(object):
         self.returns = returns if returns is not None else not self.NO_RET
         self.is_syscall = is_syscall if is_syscall is not None else self.IS_SYSCALL
         self.is_function = is_function if is_function is not None else self.IS_FUNCTION
+        self.is_stub = is_stub
         self.is_continuation = False
         self.continuations = {}
         self.run_func = 'run'
@@ -80,7 +81,8 @@ class SimProcedure(object):
 
     def __repr__(self):
         syscall = ' (syscall)' if self.IS_SYSCALL else ''
-        return "<SimProcedure %s%s>" % (self.display_name, syscall)
+        stub = ' (stub)' if self.is_stub else ''
+        return "<SimProcedure %s%s%s>" % (self.display_name, syscall, stub)
 
     def execute(self, state, successors=None, arguments=None, ret_to=None):
         """
