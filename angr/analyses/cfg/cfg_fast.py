@@ -2195,10 +2195,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         pointer_size = self.project.arch.bits / 8
 
         # who's using it?
-        plt_entry = self.project.loader.main_bin.reverse_plt.get(irsb_addr, None)
-        if plt_entry is not None:
-            # IRSB is owned by plt!
-            return "GOT PLT Entry", pointer_size
+        if isinstance(self.project.loader.main_bin, cle.MetaELF):
+            plt_entry = self.project.loader.main_bin.reverse_plt.get(irsb_addr, None)
+            if plt_entry is not None:
+                # IRSB is owned by plt!
+                return "GOT PLT Entry", pointer_size
 
         # try to decode it as a pointer array
         buf = self._fast_memory_load(data_addr)
