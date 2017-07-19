@@ -3574,5 +3574,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         lst = sorted(lst, key=lambda x: x[0])
         return lst
 
+
 from angr.analyses import AnalysesHub
 AnalysesHub.register_default('CFGFast', CFGFast)
