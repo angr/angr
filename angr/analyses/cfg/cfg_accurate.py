@@ -1416,7 +1416,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         extra_info = job.extra_info
         successor_status = job.successor_status
 
-        function_name = self.project.loader.find_symbol_name(job.addr)
+        function_name = self.project.loader.find_symbol_name(job.func_addr)
         module_name = self.project.loader.find_module_name(job.addr)
 
         depth_str = "(D:%s)" % self.get_node(job.block_id).depth if self.get_node(job.block_id).depth is not None \
