@@ -69,16 +69,6 @@ class SimEngineLightVEX(SimEngineLight):
             self._handle_Stmt(stmt)
 
     #
-    # Helper properties
-    #
-
-    @property
-    def func_addr(self):
-        if self.state is None:
-            return None
-        return self.state.function.addr
-
-    #
     # Helper methods
     #
 
@@ -238,7 +228,7 @@ class SimEngineLightAIL(SimEngineLight):
     #
 
     def _ail_handle_Const(self, expr):
-        return expr
+        return expr.value
 
     def _ail_handle_Tmp(self, expr):
         tmp_idx = expr.tmp_idx
@@ -255,25 +245,30 @@ class SimEngineLightAIL(SimEngineLight):
         handler_name = '_ail_handle_%s' % expr.op
         try:
             handler = getattr(self, handler_name)
-        except KeyError:
+        except AttributeError:
             l.warning('Unsupported UnaryOp %s.', expr.op)
             return None
 
         return handler(expr)
 
     def _ail_handle_BinaryOp(self, expr):
-        if expr.op == 'Add':
-            return self._ail_handle_Add(*expr.operands)
-        elif expr.op == 'Sub':
-            return self._ail_handle_Sub(*expr.operands)
-        else:
+        handler_name = '_ail_handle_%s' % expr.op
+        try:
+            handler = getattr(self, handler_name)
+        except AttributeError:
             l.warning('Unsupported BinaryOp %s.', expr.op)
+            return None
+
+        return handler(expr)
 
     #
     # Binary operation handlers
     #
 
-    def _ail_handle_Add(self, arg0, arg1):
+    def _ail_handle_Add(self, expr):
+
+        arg0, arg1 = expr.operands
+
         expr_0 = self._expr(arg0)
         if expr_0 is None:
             return None
@@ -286,7 +281,10 @@ class SimEngineLightAIL(SimEngineLight):
         except TypeError:
             return None
 
-    def _ail_handle_Sub(self, arg0, arg1):
+    def _ail_handle_Sub(self, expr):
+
+        arg0, arg1 = expr.operands
+
         expr_0 = self._expr(arg0)
         if expr_0 is None:
             return None
