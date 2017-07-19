@@ -93,7 +93,7 @@ class Tracer(object):
         self.argv = argv or [binary]
 
         for h in self._hooks:
-            l.debug("Hooking %#x -> %s", h, self._hooks[h].__name__)
+            l.debug("Hooking %#x -> %s", h, self._hooks[h].display_name)
 
         if isinstance(seed, (int, long)):
             seed = str(seed)
