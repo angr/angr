@@ -3476,3 +3476,4 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         return lst
 
 register_analysis(CFGFast, 'CFGFast')
+
