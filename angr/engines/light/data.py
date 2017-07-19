@@ -5,6 +5,10 @@ class RegisterOffset(object):
         self.reg = reg
         self.offset = offset
 
+    @property
+    def bits(self):
+        return self._bits
+
     def __repr__(self):
         return "%s%s" % (self.reg, '' if self.offset == 0 else '%+x' % self.offset)
 

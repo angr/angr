@@ -56,6 +56,12 @@ def get_engine(base_engine):
             self.processor_state = None
             self.variable_manager = None
 
+        @property
+        def func_addr(self):
+            if self.state is None:
+                return None
+            return self.state.function.addr
+
         def _process(self, state, successors,
                      block=None, func_addr=None):
 
@@ -65,27 +71,122 @@ def get_engine(base_engine):
             super(SimEngineVR, self)._process(state, successors, block=block)
 
         #
-        # Statement handlers
+        # VEX
         #
 
+        # Statement handlers
 
         def _handle_Put(self, stmt):
             offset = stmt.offset
+            data = self._expr(stmt.data)
+            size = stmt.data.result_size(self.tyenv) / 8
+
+            self._assign_to_register(offset, data, size)
+
+        def _handle_Store(self, stmt):
+            addr = self._expr(stmt.addr)
+            size = stmt.data.result_size(self.tyenv) / 8
+            data = self._expr(stmt.data)
+
+            self._store(addr, data, size)
+
+
+        # Expression handlers
+
+        def _handle_Get(self, expr):
+            reg_offset = expr.offset
+            reg_size = expr.result_size(self.tyenv) / 8
+
+            return self._read_from_register(reg_offset, reg_size)
+
+
+        def _handle_Load(self, expr):
+            addr = self._expr(expr.addr)
+            size = expr.result_size(self.tyenv) / 8
+
+            return self._load(addr, size)
+
+        #
+        # AIL
+        #
+
+        # Statement handlers
+
+        def _ail_handle_Assignment(self, stmt):
+            dst_type = type(stmt.dst)
+
+            if dst_type is ailment.Expr.Register:
+                offset = stmt.dst.reg_offset
+                data = self._expr(stmt.src)
+                size = stmt.src.bits / 8
+
+                self._assign_to_register(offset, data, size)
+
+            elif dst_type is ailment.Expr.Tmp:
+                # simply write to self.tmps
+                data = self._expr(stmt.src)
+                if data is None:
+                    return
+
+                self.tmps[stmt.dst.tmp_idx] = data
+
+            else:
+                l.warning('Unsupported dst type %s.', dst_type)
+
+        def _ail_handle_Store(self, stmt):
+            addr = self._expr(stmt.addr)
+            data = self._expr(stmt.data)
+            size = stmt.data.bits / 8
+
+            self._store(addr, data, size)
+
+        def _ail_handle_Jump(self, stmt):
+            pass
+
+        def _ail_handle_ConditionalJump(self, stmt):
+            pass
+
+        def _ail_handle_Call(self, stmt):
+            pass
+
+        # Expression handlers
+
+        def _ail_handle_Register(self, expr):
+            offset = expr.reg_offset
+            size = expr.bits / 8
+
+            return self._read_from_register(offset, size)
+
+        def _ail_handle_Load(self, expr):
+            addr = self._expr(expr.addr)
+            size = expr.size
+
+            return self._load(addr, size)
+
+        #
+        # Logic
+        #
+
+        def _assign_to_register(self, offset, data, size):
+            """
+
+            :param int offset:
+            :param data:
+            :param int size:
+            :return:
+            """
+
             codeloc = self._codeloc()
 
             if offset == self.arch.sp_offset:
-                data = self._expr(stmt.data)
                 if type(data) is SpOffset:
                     sp_offset = data.offset
                     self.processor_state.sp_adjusted = True
                     self.processor_state.sp_adjustment = sp_offset
-
                     l.debug('Adjusting stack pointer at %#x with offset %+#x.', self.ins_addr, sp_offset)
-
                 return
 
             if offset == self.arch.bp_offset:
-                data = self._expr(stmt.data)
                 if data is not None:
                     self.processor_state.bp = data
                 else:
@@ -93,11 +194,11 @@ def get_engine(base_engine):
                 return
 
             # handle register writes
-            data = self._expr(stmt.data)
             if type(data) is SpOffset:
                 # lea
                 stack_offset = data.offset
-                existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr, self.stmt_idx,
+                existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr,
+                                                                                             self.stmt_idx,
                                                                                              'memory')
 
                 if not existing_vars:
@@ -106,7 +207,8 @@ def get_engine(base_engine):
                     if not existing_vars:
                         size = 1
                         variable = SimStackVariable(stack_offset, size, base='bp',
-                                                    ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
+                                                    ident=self.variable_manager[self.func_addr].next_variable_ident(
+                                                        'stack'),
                                                     region=self.func_addr,
                                                     )
 
@@ -132,9 +234,9 @@ def get_engine(base_engine):
                                                                                          'register'
                                                                                          )
             if not existing_vars:
-                reg_size = stmt.data.result_size(self.tyenv) / 8
-                variable = SimRegisterVariable(offset, reg_size,
-                                               ident=self.variable_manager[self.func_addr].next_variable_ident('register'),
+                variable = SimRegisterVariable(offset, size,
+                                               ident=self.variable_manager[self.func_addr].next_variable_ident(
+                                                   'register'),
                                                region=self.func_addr
                                                )
                 self.variable_manager[self.func_addr].add_variable('register', offset, variable)
@@ -144,13 +246,17 @@ def get_engine(base_engine):
             self.state.register_region.set_variable(offset, variable)
             self.variable_manager[self.func_addr].write_to(variable, 0, codeloc)
 
+        def _store(self, addr, data, size):
+            """
 
-        def _handle_Store(self, stmt):
-            addr = self._expr(stmt.addr)
+            :param addr:
+            :param data:
+            :param int size:
+            :return:
+            """
 
             if type(addr) is SpOffset:
                 # Storing data to stack
-                size = stmt.data.result_size(self.tyenv) / 8
                 stack_offset = addr.offset
 
                 existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr, self.stmt_idx,
@@ -176,41 +282,16 @@ def get_engine(base_engine):
                                                                    codeloc
                                                                    )
 
+        def _load(self, addr, size):
+            """
 
-        #
-        # Expression handlers
-        #
-
-        def _handle_Get(self, expr):
-            reg_offset = expr.offset
-            reg_size = expr.result_size(self.tyenv) / 8
-            codeloc = self._codeloc()
-
-            if reg_offset == self.arch.sp_offset:
-                # loading from stack pointer
-                return SpOffset(self.arch.bits, self.processor_state.sp_adjustment, is_base=False)
-            elif reg_offset == self.arch.bp_offset:
-                return self.processor_state.bp
-
-            if reg_offset not in self.state.register_region:
-                variable = SimRegisterVariable(reg_offset, reg_size,
-                                               ident=self.variable_manager[self.func_addr].next_variable_ident('register'),
-                                               region=self.func_addr,
-                                               )
-                self.state.register_region.add_variable(reg_offset, variable)
-                self.variable_manager[self.func_addr].add_variable('register', reg_offset, variable)
-
-            for var in self.state.register_region.get_variables_by_offset(reg_offset):
-                self.variable_manager[self.func_addr].read_from(var, 0, codeloc)
-
-            return None
-
-        def _handle_Load(self, expr):
-            addr = self._expr(expr.addr)
+            :param addr:
+            :param size:
+            :return:
+            """
 
             if type(addr) is SpOffset:
                 # Loading data from stack
-                size = expr.result_size(self.tyenv) / 8
                 stack_offset = addr.offset
 
                 if stack_offset not in self.state.stack_region:
@@ -237,6 +318,37 @@ def get_engine(base_engine):
                                                                 codeloc,
                                                                 # overwrite=True
                                                                 )
+
+
+        def _read_from_register(self, offset, size):
+            """
+
+            :param offset:
+            :param size:
+            :return:
+            """
+
+            codeloc = self._codeloc()
+
+            if offset == self.arch.sp_offset:
+                # loading from stack pointer
+                return SpOffset(self.arch.bits, self.processor_state.sp_adjustment, is_base=False)
+            elif offset == self.arch.bp_offset:
+                return self.processor_state.bp
+
+            if offset not in self.state.register_region:
+                variable = SimRegisterVariable(offset, size,
+                                               ident=self.variable_manager[self.func_addr].next_variable_ident('register'),
+                                               region=self.func_addr,
+                                               )
+                self.state.register_region.add_variable(offset, variable)
+                self.variable_manager[self.func_addr].add_variable('register', offset, variable)
+
+            for var in self.state.register_region.get_variables_by_offset(offset):
+                self.variable_manager[self.func_addr].read_from(var, 0, codeloc)
+
+            return None
+
 
     return SimEngineVR
 
