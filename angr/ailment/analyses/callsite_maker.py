@@ -1,12 +1,19 @@
 
+import logging
+
 from angr import Analysis, register_analysis
 from angr.analyses.reaching_definitions import OP_BEFORE
 from angr.calling_conventions import SimRegArg, SimStackArg
 
 from .. import Stmt, Expr
 
+l = logging.getLogger('ailment.callsite_maker')
+
 
 class CallSiteMaker(Analysis):
+    """
+    Add calling convention, declaration, and args to a call site.
+    """
     def __init__(self, block):
         self.block = block
 
@@ -43,29 +50,18 @@ class CallSiteMaker(Analysis):
 
         # print func.name, func.is_plt, func.declaration
 
-        """
-        rd = self.project.analyses.ReachingDefinitions(
-            block=self.block,
-            observation_points=[ (last_stmt.ins_addr, OP_BEFORE) ]
-        )
-        reaching_defs = rd.one_result
-
-        arg_locs = func.calling_convention.arg_locs()
-        for arg_loc in arg_locs:
-            offset, size = arg_loc._fix_offset(None, None, arch=self.project.arch)
-            print reaching_defs.register_definitions[offset]
-            import ipdb; ipdb.set_trace()
-        """
-
         # Make arguments
         args = [ ]
-        arg_locs = func.calling_convention.arg_locs()
-        for arg_loc in arg_locs:
-            if type(arg_loc) is SimRegArg:
-                offset, size = arg_loc._fix_offset(None, None, arch=self.project.arch)
-                args.append(Expr.Register(None, None, offset, size * 8, reg_name=arg_loc.reg_name))
-            else:
-                raise NotImplementedError('Not implemented yet.')
+        if func.calling_convention is None:
+            l.warning('%s has an unknown calling convention.', repr(func))
+        else:
+            arg_locs = func.calling_convention.arg_locs()
+            for arg_loc in arg_locs:
+                if type(arg_loc) is SimRegArg:
+                    offset, size = arg_loc._fix_offset(None, None, arch=self.project.arch)
+                    args.append(Expr.Register(None, None, offset, size * 8, reg_name=arg_loc.reg_name))
+                else:
+                    raise NotImplementedError('Not implemented yet.')
 
         new_stmts = self.block.statements[::]
 
