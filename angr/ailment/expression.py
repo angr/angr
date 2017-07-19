@@ -89,28 +89,31 @@ class Tmp(Atom):
 
 
 class Register(Atom):
-    def __init__(self, idx, variable, register_offset, bits, **kwargs):
+    def __init__(self, idx, variable, reg_offset, bits, **kwargs):
         super(Register, self).__init__(idx, variable, **kwargs)
 
-        self.register_offset = register_offset
+        self.reg_offset = reg_offset
         self.bits = bits
 
     def __repr__(self):
         return str(self)
 
     def __str__(self):
-        if hasattr(self, 'reg_name'):
-            return "%s<%d>" % (self.reg_name, self.bits / 8)
+        if self.variable is None:
+            if hasattr(self, 'reg_name'):
+                return "%s<%d>" % (self.reg_name, self.bits / 8)
+            else:
+                return "reg_%d<%d>" % (self.reg_offset, self.bits / 8)
         else:
-            return "reg_%d<%d>" % (self.register_offset, self.bits / 8)
+            return "%s" % str(self.variable.name)
 
     def __eq__(self, other):
         return type(self) is type(other) and \
-            self.register_offset == other.register_offset and \
+               self.reg_offset == other.reg_offset and \
             self.bits == other.bits
 
     def __hash__(self):
-        return hash(('reg', self.register_offset, self.bits))
+        return hash(('reg', self.reg_offset, self.bits))
 
 
 class Op(Expression):
