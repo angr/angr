@@ -160,16 +160,9 @@ def get_engine(base_engine):
                     self.state.add_replacement(dst, src)
 
             elif type(dst) is Expr.Register:
-                """
-                new_src = self.state.get_replacement(src)
-                if new_src is not None:
-                    l.debug("Handle assignment: %s = %s, replace %s with %s.", dst, src, src, new_src)
-                    self.state.add_replacement(dst, new_src)
-                    src = new_src
-                else:
-                """
                 l.debug("New replacement: %s with %s", dst, src)
-                self.state.add_replacement(dst, src)
+                if type(src) is Expr.Const:
+                    self.state.add_replacement(dst, src)
 
                 # remove previous replacements whose source contains this register
                 self.state.filter_replacements(dst)
@@ -217,8 +210,11 @@ def get_engine(base_engine):
             return expr
 
         def _ail_handle_Convert(self, expr):
-            converted = self._expr(expr.operand)
+            converted = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, self._expr(expr.operand))
             return converted
+
+        def _ail_handle_Const(self, expr):
+            return expr
 
     return SimEngineProp
 
