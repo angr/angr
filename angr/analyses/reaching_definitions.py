@@ -418,12 +418,12 @@ def get_engine(base_engine):
                 self.tmps[dst.tmp_idx] = src
             elif type(dst) is ailment.Register:
 
-                reg = Register(dst.register_offset, dst.bits / 8)
+                reg = Register(dst.reg_offset, dst.bits / 8)
 
                 self.state.kill_definitions(reg)
                 self.state.add_definition(reg, self._codeloc())
 
-                self.state.registers[dst.register_offset] = src
+                self.state.registers[dst.reg_offset] = src
             else:
                 l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
@@ -468,7 +468,7 @@ def get_engine(base_engine):
 
         def _ail_handle_Register(self, expr):
 
-            reg_offset = expr.register_offset
+            reg_offset = expr.reg_offset
             bits = expr.bits
 
             self.state.add_use(Register(reg_offset, bits / 8), self._codeloc())
