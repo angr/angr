@@ -3,7 +3,7 @@ import pyvex
 from angr.engines.vex.irop import operations as vex_operations
 
 from .block import Block
-from .statement import Assignment, Store, Jump, Call, DirtyStatement
+from .statement import Assignment, Store, Jump, ConditionalJump, Call, DirtyStatement
 from .expression import Atom, Const, Register, Tmp, DirtyExpression, UnaryOp, Convert, BinaryOp, Load
 
 
@@ -63,6 +63,7 @@ class VEXExprConverter(Converter):
     def Load(expr, manager):
         return Load(manager.next_atom(),
                     VEXExprConverter.convert(expr.addr, manager),
+                    expr.result_size(manager.tyenv) / 8,
                     expr.end
                     )
 
@@ -105,7 +106,13 @@ class VEXExprConverter(Converter):
 
     @staticmethod
     def Const(expr, manager):
+        # pyvex.IRExpr.Const
         return Const(manager.next_atom(), None, expr.con.value, expr.result_size(manager.tyenv))
+
+    @staticmethod
+    def const_64(expr, manager):
+        # pyvex.const.xxx
+        return Const(manager.next_atom(), None, expr.value, 64)
 
 
 EXPRESSION_MAPPINGS = {
@@ -114,6 +121,7 @@ EXPRESSION_MAPPINGS = {
     pyvex.IRExpr.Unop: VEXExprConverter.Unop,
     pyvex.IRExpr.Binop: VEXExprConverter.Binop,
     pyvex.IRExpr.Const: VEXExprConverter.Const,
+    pyvex.const.U64: VEXExprConverter.const_64,
     pyvex.IRExpr.Load: VEXExprConverter.Load,
 }
 
@@ -157,14 +165,26 @@ class VEXStmtConverter(Converter):
         return Store(idx,
                      VEXExprConverter.convert(stmt.addr, manager),
                      VEXExprConverter.convert(stmt.data, manager),
+                     stmt.data.result_size(manager.tyenv) / 8,
                      ins_addr=manager.ins_addr,
                      )
+
+    @staticmethod
+    def Exit(idx, stmt, manager):
+
+        return ConditionalJump(idx,
+                               VEXExprConverter.convert(stmt.guard, manager),
+                               VEXExprConverter.convert(stmt.dst, manager),
+                               None,  # it will be filled in right afterwards
+                               ins_addr=manager.ins_addr
+                               )
 
 
 STATEMENT_MAPPINGS = {
     pyvex.IRStmt.Put: VEXStmtConverter.Put,
     pyvex.IRStmt.WrTmp: VEXStmtConverter.WrTmp,
     pyvex.IRStmt.Store: VEXStmtConverter.Store,
+    pyvex.IRStmt.Exit: VEXStmtConverter.Exit,
 }
 
 
@@ -203,17 +223,26 @@ class IRSBConverter(Converter):
 
         if irsb.jumpkind == 'Ijk_Call':
             # call
+
+            # TODO: is there a conditional call?
+
             statements.append(Call(manager.next_atom(),
                                    VEXExprConverter.convert(irsb.next, manager),
                                    ins_addr=manager.ins_addr
                                    )
                               )
         elif irsb.jumpkind == 'Ijk_Boring':
-            # jump
-            statements.append(Jump(manager.next_atom(),
-                                   VEXExprConverter.convert(irsb.next, manager),
-                                   ins_addr=manager.ins_addr
-                                   )
-                              )
+            if statements and type(statements[-1]) is ConditionalJump:
+                # fill in the false target
+                cond_jump = statements[-1]
+                cond_jump.false_target = VEXExprConverter.convert(irsb.next, manager)
+
+            else:
+                # jump
+                statements.append(Jump(manager.next_atom(),
+                                       VEXExprConverter.convert(irsb.next, manager),
+                                       ins_addr=manager.ins_addr
+                                       )
+                                  )
 
         return Block(addr, statements)
