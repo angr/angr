@@ -975,7 +975,7 @@ class Tracer(object):
             except AttributeError:
                 pass
 
-            self.remove_options |= so.simplification | set(so.LAZY_SOLVES) | set(so.SUPPORT_FLOATING_POINT)
+            self.remove_options |= so.simplification | {so.LAZY_SOLVES, so.SUPPORT_FLOATING_POINT, so.EFFICIENT_STATE_MERGING}
             self.add_options |= options
             entry_state = project.factory.entry_state(
                 fs=fs,
@@ -1077,7 +1077,7 @@ class Tracer(object):
         if self.crash_mode:
             options.add(so.TRACK_ACTION_HISTORY)
 
-        self.remove_options |= so.simplification
+        self.remove_options |= so.simplification | {so.EFFICIENT_STATE_MERGING}
         self.add_options |= options
         entry_state = project.factory.full_init_state(
                 fs=fs,
