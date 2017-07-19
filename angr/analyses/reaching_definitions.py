@@ -434,6 +434,22 @@ def get_engine(base_engine):
         def _ail_handle_Jump(self, stmt):
             target = self._expr(stmt.target)
 
+        def _ail_handle_ConditionalJump(self, stmt):
+
+            cond = self._expr(stmt.condition)
+            true_target = self._expr(stmt.true_target)
+            false_target = self._expr(stmt.false_target)
+
+            ip = Register(self.arch.ip_offset, self.arch.bits / 8)
+            self.state.kill_definitions(ip)
+
+            # kill all cc_ops
+            # TODO: make it architecture agnostic
+            self.state.kill_definitions(Register(*self.arch.registers['cc_op']))
+            self.state.kill_definitions(Register(*self.arch.registers['cc_dep1']))
+            self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']))
+            self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']))
+
         def _ail_handle_Call(self, stmt):
             target = self._expr(stmt.target)
 
