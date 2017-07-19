@@ -50,24 +50,29 @@ class Assignment(Statement):
 
 
 class Store(Statement):
-    def __init__(self, idx, addr, data, **kwargs):
+    def __init__(self, idx, addr, data, size, variable=None, **kwargs):
         super(Store, self).__init__(idx, **kwargs)
 
         self.addr = addr
         self.data = data
+        self.size = size
+        self.variable = variable
 
     def __repr__(self):
-        return "Store (%s, %s)" % (self.address, str(self.data))
+        return "Store (%s, %s[%d])" % (self.address, str(self.data), self.size)
 
     def __str__(self):
-        return "STORE(addr=%s, data=%s)" % (self.addr, str(self.data))
+        if self.variable is None:
+            return "STORE(addr=%s, data=%s, size=%s)" % (self.addr, str(self.data), self.size)
+        else:
+            return "%s = %s<%d>" % (self.variable.name, str(self.data), self.size)
 
     def replace(self, old_expr, new_expr):
         r_addr, replaced_addr = self.addr.replace(old_expr, new_expr)
         r_data, replaced_data = self.data.replace(old_expr, new_expr)
 
         if r_addr or r_data:
-            return True, Store(self.idx, replaced_addr, replaced_data, **self.tags)
+            return True, Store(self.idx, replaced_addr, replaced_data, self.size, self.variable, **self.tags)
         else:
             return False, self
 
