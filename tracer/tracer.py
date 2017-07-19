@@ -253,14 +253,14 @@ class Tracer(object):
                 # angr steps through the same basic block twice when a syscall
                 # occurs
                 elif current.addr == self.previous_addr or \
-                        project._simos.syscall_table.get_by_addr(self.previous_addr) is not None:
+                        project._simos.is_syscall_addr(self.previous_addr) is not None:
                     pass
                 elif current.history.jumpkind.startswith("Ijk_Sys"):
                     self.bb_cnt += 1
 
                 # handle library calls and simprocedures
                 elif project.is_hooked(current.addr) or \
-                        project._simos.syscall_table.get_by_addr(current.addr) is not None \
+                        project._simos.is_syscall_addr(current.addr) is not None \
                         or not self._address_in_binary(current.addr):
 
                     # If dynamic trace is in the PLT stub, update bb_cnt until it's out
