@@ -508,6 +508,15 @@ def get_engine(base_engine):
 
             addr = self._expr(expr.addr)
 
+        def _ail_handle_Convert(self, expr):
+            return ailment.Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, self._expr(expr.operand))
+
+        def _ail_handle_CmpEQ(self, expr):
+            op0 = self._expr(expr.operands[0])
+            op1 = self._expr(expr.operands[1])
+
+            return ailment.Expr.BinaryOp(expr.idx, expr.op, [ op0, op1 ], **expr.tags)
+
     return SimEngineRD
 
 
