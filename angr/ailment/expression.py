@@ -127,6 +127,7 @@ class UnaryOp(Op):
         super(UnaryOp, self).__init__(idx, op, **kwargs)
 
         self.operand = operand
+        self.bits = operand.bits
 
     def __str__(self):
         return "(%s %s)" % (self.op, str(self.operand))
@@ -146,6 +147,8 @@ class Convert(UnaryOp):
 
         self.from_bits = from_bits
         self.to_bits = to_bits
+        # override the size
+        self.bits = to_bits
 
     def __str__(self):
         return "Conv(%d->%d, %s)" % (self.from_bits, self.to_bits, self.operand)
@@ -165,6 +168,10 @@ class BinaryOp(Op):
 
         assert len(operands) == 2
         self.operands = operands
+        self.bits = operands[0].bits
+
+        # TODO: sanity check of operands' sizes for some ops
+        # assert self.bits == operands[1].bits
 
     def __str__(self):
         return "(%s %s %s)" % (str(self.operands[0]), self.op, str(self.operands[1]))
@@ -186,17 +193,22 @@ class BinaryOp(Op):
 
 
 class Load(Expression):
-    def __init__(self, idx, addr, endness, **kwargs):
+    def __init__(self, idx, addr, size, endness, **kwargs):
         super(Load, self).__init__(idx, **kwargs)
 
         self.addr = addr
+        self.size = size
         self.endness = endness
+
+    @property
+    def bits(self):
+        return self.size * 8
 
     def __repr__(self):
         return str(self)
 
     def __str__(self):
-        return "Load(addr=%s, endness=%s)" % (self.addr, self.endness)
+        return "Load(addr=%s, size=%d, endness=%s)" % (self.addr, self.size, self.endness)
 
     def has_atom(self, atom):
         if type(self.addr) in (int, long):
@@ -207,7 +219,7 @@ class Load(Expression):
         r, replaced_addr = self.addr.replace(old_expr, new_expr)
 
         if r:
-            return True, Load(self.idx, replaced_addr, self.endness, **self.tags)
+            return True, Load(self.idx, replaced_addr, self.size, self.endness, **self.tags)
         else:
             return False, self
 
