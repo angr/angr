@@ -85,7 +85,7 @@ class Function(object):
             if hooker is not None:
                 binary_name = hooker.library_name
 
-        if binary_name is None:
+        if binary_name is None and self.binary is not None:
             binary_name = os.path.basename(self.binary.binary)
 
         self._name = name
