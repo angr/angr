@@ -153,11 +153,10 @@ class SimSuccessors(object):
         # condition for call = Ijk_Call
         # condition for ret = stack pointer drops below call point
         if state.history.jumpkind == 'Ijk_Call':
-            func_addr = state.se.any_int(state.regs._ip)
-            state._inspect('call', BP_BEFORE, function_address=func_addr)
+            state._inspect('call', BP_BEFORE, function_address=state.regs._ip)
             new_func_addr = state._inspect_getattr('function_address', None)
-            if not claripy.is_true(new_func_addr == state.regs._ip):
-                state.regs._ip = func_addr
+            if new_func_addr is not None and not claripy.is_true(new_func_addr == state.regs._ip):
+                state.regs._ip = new_func_addr
 
             if state.arch.call_pushes_ret:
                 ret_addr = state.mem[state.regs._sp].long.concrete
@@ -165,7 +164,7 @@ class SimSuccessors(object):
                 ret_addr = state.se.any_int(state.regs._lr)
             new_frame = CallStack(
                     call_site_addr=state.history.recent_bbl_addrs[-1],
-                    func_addr=func_addr,
+                    func_addr=state.addr,
                     stack_ptr=state.se.any_int(state.regs._sp),
                     ret_addr=ret_addr,
                     jumpkind='Ijk_Call')
