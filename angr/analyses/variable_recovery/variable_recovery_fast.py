@@ -450,10 +450,12 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
     Recover "variables" from a function by keeping track of stack pointer offsets and  pattern matching VEX statements.
     """
 
-    def __init__(self, func, max_iterations=3):
+    def __init__(self, func, max_iterations=3, clinic=None):
         """
 
         :param knowledge.Function func:  The function to analyze.
+        :param int max_iterations:
+        :param clinic:
         """
 
         function_graph_visitor = FunctionGraphVisitor(func)
@@ -468,6 +470,11 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         self.variable_manager = self.kb.variables
 
         self._max_iterations = max_iterations
+        self._clinic = clinic
+
+        self._ail_engine = get_engine(SimEngineLightAIL)()
+        self._vex_engine = get_engine(SimEngineLightVEX)()
+
         self._node_iterations = defaultdict(int)
 
         # phi nodes dict
@@ -521,7 +528,12 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
 
         input_state = state  # make it more meaningful
 
-        block = self.project.factory.block(node.addr, node.size, opt_level=0)
+        if self._clinic:
+            # AIL mode
+            block = self._clinic.block(node.addr, node.size)
+        else:
+            # VEX mode
+            block = self.project.factory.block(node.addr, node.size, opt_level=0)
 
         if node.addr in self._node_to_input_state:
             prev_state = self._node_to_input_state[node.addr]
@@ -586,8 +598,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
 
         l.debug('Processing block %#x.', block.addr)
 
-        processor = get_engine(SimEngineLightAIL)() if isinstance(block, ailment.Block) \
-            else get_engine(SimEngineLightVEX)()
+        processor = self._ail_engine if isinstance(block, ailment.Block) else self._vex_engine
         processor.process(state, block=block)
 
     def _make_phi_node(self, block_addr, *variables):
