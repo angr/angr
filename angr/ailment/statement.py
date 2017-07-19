@@ -95,6 +95,34 @@ class Jump(Statement):
             return False, self
 
 
+class ConditionalJump(Statement):
+    def __init__(self, idx, condition, true_target, false_target, **kwargs):
+        super(ConditionalJump, self).__init__(idx, **kwargs)
+
+        self.condition = condition
+        self.true_target = true_target
+        self.false_target = false_target
+
+    def __str__(self):
+        return "if (%s) { Goto %s } else { Goto %s }" % (
+            self.condition,
+            self.true_target,
+            self.false_target,
+        )
+
+    def replace(self, old_expr, new_expr):
+        r_cond, replaced_cond = self.condition.replace(old_expr, new_expr)
+        r_true, replaced_true = self.true_target.replace(old_expr, new_expr)
+        r_false, replaced_false = self.false_target.replace(old_expr, new_expr)
+
+        r = r_cond or r_true or r_false
+
+        if r:
+            return True, ConditionalJump(self.idx, replaced_cond, replaced_true, replaced_false, **self.tags)
+        else:
+            return False, self
+
+
 class Call(Statement):
     def __init__(self, idx, target, calling_convention=None, declaration=None, args=None, **kwargs):
         super(Call, self).__init__(idx, **kwargs)
