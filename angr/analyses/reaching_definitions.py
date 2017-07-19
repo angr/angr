@@ -457,6 +457,11 @@ def get_engine(base_engine):
 
             self.state.kill_definitions(ip)
 
+            # if arguments exist, use them
+            if stmt.args:
+                for arg in stmt.args:
+                    self._expr(arg)
+
             # kill all caller-saved registers
             if stmt.calling_convention is not None and stmt.calling_convention.CALLER_SAVED_REGS:
                 for reg_name in stmt.calling_convention.CALLER_SAVED_REGS:
