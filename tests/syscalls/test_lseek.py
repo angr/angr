@@ -10,7 +10,7 @@ from angr import SimState, SimPosixError
 
 FAKE_ADDR = 0x100000
 
-lseek = lambda state, arguments: SIM_PROCEDURES['syscalls']['lseek'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+lseek = lambda state, arguments: SIM_PROCEDURES['linux_kernel']['lseek']().execute(state, arguments=arguments)
 
 # Taken from unistd.h
 SEEK_SET = 0 # Seek from beginning of file.
