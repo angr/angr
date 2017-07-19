@@ -177,7 +177,7 @@ class KeyedRegion(object):
 
         size = variable.size if variable.size is not None else 1
 
-        self.add_object(start, variable, size, overwrite=False)
+        self.add_object(start, variable, size)
 
     def add_object(self, start, obj, object_size):
         """
@@ -260,7 +260,7 @@ class KeyedRegion(object):
         if container is None:
             return [ ]
         else:
-            return container.stored_objects
+            return container.internal_objects
 
     #
     # Private methods
@@ -374,12 +374,13 @@ class KeyedRegion(object):
 
         return False
 
-    def _add_object_or_make_phi(self, item, loc_and_var, make_phi_func=None):  #pylint:disable=no-self-use
-        if not make_phi_func or len({loc_and_var.obj} | item.obj) == 1:
-            item.add_object(loc_and_var)
+    def _add_object_or_make_phi(self, item, stored_object, make_phi_func=None):  #pylint:disable=no-self-use
+        if not make_phi_func or len({stored_object.obj} | item.internal_objects) == 1:
+            item.add_object(stored_object)
         else:
             # make a phi node
-            item.set_object(StoredObject(loc_and_var.start,
-                                         make_phi_func(loc_and_var.obj, *item.internal_objects)
+            item.set_object(StoredObject(stored_object.start,
+                                         make_phi_func(stored_object.obj, *item.internal_objects),
+                                         stored_object.size,
                                          )
                             )
