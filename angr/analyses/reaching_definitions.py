@@ -93,9 +93,10 @@ class MemoryLocation(Atom):
 
 
 class Definition(object):
-    def __init__(self, atom, codeloc):
+    def __init__(self, atom, codeloc, data=None):
         self.atom = atom
         self.codeloc = codeloc
+        self.data = data
 
     def __eq__(self, other):
         return self.atom == other.atom and self.codeloc == other.codeloc
@@ -174,6 +175,11 @@ class ReachingDefinitions(object):
         self.arch = arch
 
         self.register_definitions = defaultdict(set)
+
+        # FIXME: How do we handle the stack?
+        sp = Register(48, 0)
+        self._add_register_definition(sp, None, 0x7fff0000)
+
         self.memory_definitions = defaultdict(set)
         self.tmp_definitions = { }
 
@@ -239,13 +245,13 @@ class ReachingDefinitions(object):
     def downsize(self):
         self.analysis = None
 
-    def add_definition(self, atom, code_loc):
+    def add_definition(self, atom, code_loc, data):
         if type(atom) is Register:
-            self._add_register_definition(atom, code_loc)
+            self._add_register_definition(atom, code_loc, data)
         elif type(atom) is MemoryLocation:
-            self._add_memory_definition(atom, code_loc)
+            self._add_memory_definition(atom, code_loc, data)
         elif type(atom) is Tmp:
-            self._add_tmp_definition(atom, code_loc)
+            self._add_tmp_definition(atom, code_loc, data)
 
     def kill_definitions(self, atom):
         if type(atom) is Register:
@@ -268,14 +274,14 @@ class ReachingDefinitions(object):
     # Private methods
     #
 
-    def _add_register_definition(self, atom, code_loc):
+    def _add_register_definition(self, atom, code_loc, data):
 
         # TODO: improve
-        self.register_definitions[atom.reg_offset].add(Definition(atom, code_loc))
+        self.register_definitions[atom.reg_offset].add(Definition(atom, code_loc, data))
 
-    def _add_memory_definition(self, atom, code_loc):
+    def _add_memory_definition(self, atom, code_loc, data):
 
-        self.memory_definitions[atom.addr].add(Definition(atom, code_loc))
+        self.memory_definitions[atom.addr].add(Definition(atom, code_loc, data))
 
     def _add_tmp_definition(self, atom, code_loc):
         self.tmp_definitions[atom.tmp_idx] = (atom, code_loc)
@@ -347,24 +353,21 @@ def get_engine(base_engine):
             reg_offset = stmt.offset
             size = stmt.data.result_size(self.tyenv) / 8
             reg = Register(reg_offset, size)
+            data = self._expr(stmt.data)
 
             self.state.kill_definitions(reg)
-            self.state.add_definition(reg, self._codeloc())
-
-            data = self._expr(stmt.data)
-
-            self.state.registers[reg_offset] = data
+            self.state.add_definition(reg, self._codeloc(), data)
 
         def _handle_Store(self, stmt):
-            addr = stmt.addr
+            addr = self._expr(stmt.addr)
             size = stmt.data.result_size(self.tyenv) / 8
             memloc = MemoryLocation(addr, size)
+            data = self._expr(stmt.data)
+
+            # FIXME: How do we handle overlapping memory regions?
 
             self.state.kill_definitions(memloc)
-            self.state.add_definition(memloc, self._codeloc())
-
-            data = self._expr(stmt.data)
-            self.state.memory[addr] = data
+            self.state.add_definition(memloc, self._codeloc(), data)
 
         #
         # VEX expression handlers
@@ -375,21 +378,22 @@ def get_engine(base_engine):
             reg_offset = expr.offset
             size = expr.result_size(self.tyenv)
 
-            if reg_offset == self.arch.sp_offset:
-                return SpOffset(self.arch.bits, 0)
-            elif reg_offset == self.arch.bp_offset:
-                return SpOffset(self.arch.bits, 0, is_base=True)
+            # FIXME: How do we handle the size?
 
-            try:
-                self.state.registers[reg_offset]
-            except KeyError:
-                return RegisterOffset(size * 8, reg_offset, 0)
+            if reg_offset in self.state.register_definitions.keys():
+                return next(iter(self.state.register_definitions[reg_offset])).data
+            else:
+                l.warning('register with offset %d undefined', reg_offset)
+                return None
 
         def _handle_Load(self, expr):
 
             addr = self._expr(expr.addr)
-
-            return self.state.memory.get(addr, None)
+            if addr in self.state.memory_definitions.keys():
+                return next(iter(self.state.memory_definitions[addr])).data
+            else:
+                l.warning('memory at address 0x%x undefined', addr)
+                return None
 
         #
         # AIL statement handlers
