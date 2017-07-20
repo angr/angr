@@ -984,6 +984,7 @@ class Tracer(object):
             entry_state.unicorn.concretization_threshold_registers = 25000 / csr
             entry_state.unicorn.concretization_threshold_memory = 25000 / csr
         else:
+            state.project = project
             # hookup the new files
             for name in fs:
                 fs[name].set_state(state)
@@ -992,7 +993,7 @@ class Tracer(object):
                         state.posix.files[fd] = fs[name]
                         break
 
-            state.scratch.executed_block_count = 0
+            state.history.recent_block_count = 0
 
             for option in self.add_options:
                 state.options.add(option)

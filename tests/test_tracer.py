@@ -9,10 +9,9 @@ bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..
 pov_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "povs"))
 test_data_location = str(os.path.dirname(os.path.realpath(__file__)))
 
-def test_cgc_0b32aa01_01_raw():
-    '''
-    Test CGC Scored Event 1's palindrome challenge with raw input
-    '''
+def test_cgc_se1_palindrome_raw():
+    # Test CGC Scored Event 1's palindrome challenge with raw input
+    #import ipdb; ipdb.set_trace()
 
     # test a valid palindrome
     t = tracer.Tracer(os.path.join(bin_location, "tests/cgc/sc1_0b32aa01_01"), "racecar\n")
@@ -41,10 +40,6 @@ def test_cgc_0b32aa01_01_raw():
     nose.tools.assert_not_equal(crash_state, None)
 
 def test_symbolic_sized_receives():
-    '''
-    Make sure symbolic sized receives are correctly handled
-    '''
-
     binary_path = os.path.join(bin_location, "tests/cgc/CROMU_00070")
     t = tracer.Tracer(binary_path, "hello")
 
@@ -63,10 +58,6 @@ def test_symbolic_sized_receives():
     nose.tools.assert_equal(crash_state, None)
 
 def test_allocation_base_continuity():
-    '''
-    Make sure the heap base is correct in angr after concrete heap manipulation
-    '''
-
     correct_out = 'prepare for a challenge\nb7fff000\nb7ffe000\nb7ffd000\nb7ffc000\nb7ffb000\nb7ffa000\nb7ff9000\nb7ff8000\nb7ff7000\nb7ff6000\nb7ff5000\nb7ff4000\nb7ff3000\nb7ff2000\nb7ff1000\nb7ff0000\nb7fef000\nb7fee000\nb7fed000\nb7fec000\ndeallocating b7ffa000\na: b7ffb000\nb: b7fff000\nc: b7ff5000\nd: b7feb000\ne: b7fe8000\ne: b7fa8000\na: b7ffe000\nb: b7ffd000\nc: b7ff7000\nd: b7ff6000\ne: b7ff3000\ne: b7f68000\nallocate: 3\na: b7fef000\n'
 
     t = tracer.Tracer(os.path.join(bin_location, "tests/i386/cgc_allocations"), "")
@@ -74,12 +65,7 @@ def test_allocation_base_continuity():
 
     nose.tools.assert_equal(state.posix.dumps(1), correct_out)
 
-def test_crash_detection():
-    '''
-    Test tracer's ability to detect where (at what address) an input truly caused a crash.
-    Caused a bug in unicorn.
-    '''
-
+def test_crash_addr_detection():
     t = tracer.Tracer(os.path.join(bin_location, "tests/i386/call_symbolic"), "A" * 700)
     _, crash_state = t.run()
 
