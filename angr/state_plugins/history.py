@@ -56,9 +56,27 @@ class SimStateHistory(SimStatePlugin):
         self.strongref_state = None if clone is None else clone.strongref_state
 
     def __getstate__(self):
+        # flatten ancestry, otherwise we hit recursion errors trying to get the entire history...
+        ancestry = []
+        parent = self.parent
+        self.parent = None
+        while parent is not None:
+            ancestry.append(parent)
+            parent = parent.parent
+            ancestry[-1].parent = None
+
         d = super(SimStateHistory, self).__getstate__()
         d['strongref_state'] = None
+        d['ancestry'] = ancestry
         return d
+
+    def __setstate__(self, d):
+        child = self
+        for parent in d.pop('ancestry'):
+            child.parent = parent
+            child = parent
+        child.parent = None
+        self.__dict__.update(d)
 
     def __repr__(self):
         addr = self.addr
