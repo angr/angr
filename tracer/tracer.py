@@ -332,7 +332,7 @@ class Tracer(object):
 
             # if we're not in crash mode we don't care about the history
             if self.trim_history and not self.crash_mode:
-                pass #current.history.trim()
+                current.history.trim()
 
             self.prev_simgr = self.simgr
             self.simgr = self.simgr.step(size=bbl_max_bytes)
@@ -872,13 +872,11 @@ class Tracer(object):
 
     def _set_cgc_simprocedures(self):
         for symbol in self.simprocedures:
-            angr.SIM_PROCEDURES['cgc'][symbol] = self.simprocedures[symbol]
+            angr.SIM_LIBRARIES['cgcabi'].add(symbol, self.simprocedures[symbol])
 
     def _set_linux_simprocedures(self, project):
         for symbol in self.simprocedures:
-            project.hook_symbol(
-                    symbol,
-                    self.simprocedures[symbol])
+            project.hook_symbol(symbol, self.simprocedures[symbol])
 
     @staticmethod
     def _set_simproc_limits(state):
@@ -937,9 +935,9 @@ class Tracer(object):
         '''
 
         # FixedRandom, FixedInReceive, and FixedOutTransmit always are applied as defaults
-        angr.SIM_PROCEDURES['cgc']['random'] = FixedRandom
-        angr.SIM_PROCEDURES['cgc']['receive'] = FixedInReceive
-        angr.SIM_PROCEDURES['cgc']['transmit'] = FixedOutTransmit
+        angr.SIM_LIBRARIES['cgcabi'].add('random', FixedRandom)
+        angr.SIM_LIBRARIES['cgcabi'].add('receive', FixedInReceive)
+        angr.SIM_LIBRARIES['cgcabi'].add('transmit', FixedOutTransmit)
 
         # if we're in crash mode we want the authentic system calls
         if not self.crash_mode:

@@ -94,7 +94,6 @@ def run_all():
 
 
 if __name__ == "__main__":
-    test_cgc_0b32aa01_01_raw()
 
     import sys
     if len(sys.argv) > 1:
