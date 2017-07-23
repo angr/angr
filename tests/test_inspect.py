@@ -1,8 +1,10 @@
+import angr
 import nose
 import pyvex
 import claripy
 import archinfo
 
+import os
 from angr import SimState, BP_AFTER, BP_BEFORE, SIM_PROCEDURES, concretization_strategies
 from angr.engines import SimEngineProcedure, SimEngineVEX
 
@@ -235,8 +237,30 @@ def test_inspect_concretization():
     except UnconstrainedAbort as e:
         assert e.state.memory is s.memory
 
+
+def test_inspect_engine_process():
+    p = angr.Project(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests/x86_64/fauxware'))
+    state = p.factory.entry_state(addr=p.loader.main_bin.get_symbol('main').addr)
+    pg = p.factory.simgr(state)
+
+    def check_symbolic_fork(state):
+        succs = state.inspect.simsuccessor.successors
+        if len(succs) > 1:
+            succ_addr = [hex(s.addr) for s in succs]
+            if hex(state.addr) == '0x40068e':
+                nose.tools.assert_in('0x400692' in succ_addr)
+                nose.tools.assert_in('0x400699' in succ_addr)
+            elif hex(state.addr) == '0x4006db':
+                nose.tools.assert_in('0x4006df' in succ_addr)
+                nose.tools.assert_in('0x4006e6' in succ_addr)
+
+    state.inspect.b('engine_process', BP_AFTER, action=check_symbolic_fork)
+
+    pg.step(until=lambda lpg: len(lpg.active) == 0)
+
 if __name__ == '__main__':
     test_inspect_concretization()
     test_inspect_exit()
     test_inspect_syscall()
     test_inspect()
+    test_inspect_engine_process()

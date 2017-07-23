@@ -22,51 +22,71 @@ event_types = {
     'return',
     'simprocedure',
     'syscall',
-    'path_step',
     'cfg_handle_job',
     'vfg_handle_successor',
     'vfg_widen_state',
+    'engine_process',
 }
 
 inspect_attributes = {
+    # mem_read
     'mem_read_address',
     'mem_read_expr',
     'mem_read_length',
 
+    # mem_write
     'mem_write_address',
     'mem_write_expr',
     'mem_write_length',
 
+    # reg_read
     'reg_read_offset',
     'reg_read_expr',
     'reg_read_length',
 
+    # reg_write
     'reg_write_offset',
     'reg_write_expr',
     'reg_write_length',
 
+    # tmp_read
     'tmp_read_num',
     'tmp_read_expr',
 
+    # tmp_write
     'tmp_write_num',
     'tmp_write_expr',
 
+    # expr
     'expr',
+
+    # statement
     'statement',
+
+    # instruction
     'instruction',
+
+    # irsb
     'address',
+
+    # constraints
     'added_constraints',
+
+    # call
     'function_address',
 
+    # exit
     'exit_target',
     'exit_guard',
     'exit_jumpkind',
     'backtrace',
 
+    # symbolic_variable
     'symbolic_name',
     'symbolic_size',
     'symbolic_expr',
 
+    # address_concretization
     'address_concretization_strategy',
     'address_concretization_action',
     'address_concretization_memory',
@@ -74,12 +94,16 @@ inspect_attributes = {
     'address_concretization_result',
     'address_concretization_add_constraints',
 
+    # syscall
     'syscall_name',
 
+    # simprocedure
     'simprocedure_name',
     'simprocedure_addr',
 
-    'path',
+    # engine_process
+    'simengine',
+    'simsuccessor',
     }
 
 BP_BEFORE = 'before'
