@@ -259,7 +259,7 @@ class CallStack(SimStatePlugin):
 
         :param int callsite_addr: Address of the call site
         :param int addr: Address of the call target
-        :param int retn_target: Address of the return target
+        :param int or None retn_target: Address of the return target
         :param int stack_pointer: Value of the stack pointer
         :return: None
         """
