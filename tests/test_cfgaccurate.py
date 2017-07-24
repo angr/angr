@@ -228,12 +228,14 @@ def test_thumb_mode():
             nose.tools.assert_false(cfg.is_thumb_addr(a))
 
     # CFGNodes
-    cfg_node_addrs = [ n.addr for n in cfg.graph.nodes() ]
+    cfg_node_addrs = [ n.addr for n in cfg.graph.nodes() if not n.is_simprocedure ]
     for a in cfg_node_addrs:
         check_addr(a)
 
     # Functions in function manager
     for f_addr, f in p.kb.functions.items():
+        if f.is_simprocedure:
+            continue
         check_addr(f_addr)
         if f.startpoint is not None:
             check_addr(f.startpoint.addr)
