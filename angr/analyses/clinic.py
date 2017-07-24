@@ -81,6 +81,10 @@ class Clinic(Analysis):
 
         self._update_graph()
 
+        ri = self.project.analyses.RegionIdentifier(self.function, graph=self.graph)
+
+        print ri.region.dbg_print()
+
     def _recover_calling_conventions(self):
         """
 
