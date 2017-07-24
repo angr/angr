@@ -3,6 +3,7 @@ import nose
 import pyvex
 import claripy
 import archinfo
+import logging
 
 import os
 from angr import SimState, BP_AFTER, BP_BEFORE, SIM_PROCEDURES, concretization_strategies
@@ -240,27 +241,52 @@ def test_inspect_concretization():
 
 def test_inspect_engine_process():
     p = angr.Project(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests/x86_64/fauxware'))
+    constraints = []
+    def check_first_symbolic_fork(state):
+        succs = state.inspect.simsuccessor.successors
+        succ_addr = [hex(s.addr) for s in succs]
+        nose.tools.assert_in('0x400692L', succ_addr)
+        nose.tools.assert_in('0x400699L', succ_addr)
+        print 'Fork after:', hex(state.addr)
+        print 'Successors:', succ_addr
+
+    def check_second_symbolic_fork(state):
+        succs = state.inspect.simsuccessor.successors
+        succ_addr = [hex(s.addr) for s in succs]
+        nose.tools.assert_in('0x4006dfL', succ_addr)
+        nose.tools.assert_in('0x4006e6L', succ_addr)
+        print 'Fork after:', hex(state.addr)
+        print 'Successors:', succ_addr
+
+    def first_symbolic_fork(state):
+        return hex(state.addr) == '0x40068eL' \
+           and type(state.inspect.simengine) == angr.engines.vex.engine.SimEngineVEX
+
+    def second_symbolic_fork(state):
+        if hex(state.addr) == '0x4006dbL':
+            constraints.extend(state.se.constraints)
+        return hex(state.addr) == '0x4006dbL' \
+           and type(state.inspect.simengine) == angr.engines.vex.engine.SimEngineVEX
+
     state = p.factory.entry_state(addr=p.loader.main_bin.get_symbol('main').addr)
     pg = p.factory.simgr(state)
+    state.inspect.b('engine_process',
+                    when=BP_AFTER,
+                    action=check_first_symbolic_fork,
+                    condition=first_symbolic_fork)
+    pg.step(until=lambda lpg: len(lpg.active) == 0)
 
-    def check_symbolic_fork(state):
-        succs = state.inspect.simsuccessor.successors
-        if len(succs) > 1:
-            succ_addr = [hex(s.addr) for s in succs]
-            if hex(state.addr) == '0x40068e':
-                nose.tools.assert_in('0x400692' in succ_addr)
-                nose.tools.assert_in('0x400699' in succ_addr)
-            elif hex(state.addr) == '0x4006db':
-                nose.tools.assert_in('0x4006df' in succ_addr)
-                nose.tools.assert_in('0x4006e6' in succ_addr)
-
-    state.inspect.b('engine_process', BP_AFTER, action=check_symbolic_fork)
-
+    state = p.factory.entry_state(addr=p.loader.main_bin.get_symbol('main').addr)
+    pg = p.factory.simgr(state)
+    state.inspect.b('engine_process',
+                    when=BP_AFTER,
+                    action=check_second_symbolic_fork,
+                    condition=second_symbolic_fork)
     pg.step(until=lambda lpg: len(lpg.active) == 0)
 
 if __name__ == '__main__':
-    test_inspect_concretization()
-    test_inspect_exit()
-    test_inspect_syscall()
-    test_inspect()
+#   test_inspect_concretization()
+#   test_inspect_exit()
+#   test_inspect_syscall()
+#   test_inspect()
     test_inspect_engine_process()
