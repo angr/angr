@@ -704,8 +704,8 @@ class SimulationManager(ana.Storable):
             # compute constraints for each state starting from the common ancestor, and use them as merge conditions
             constraints = [ s.history.constraints_since(common_history) for s in optimal ]
 
-            o = optimal.pop()
-            m, _, _ = o.merge(*optimal,
+            o = optimal[0]
+            m, _, _ = o.merge(*optimal[1:],
                               merge_conditions=constraints,
                               common_ancestor=common_history.strongref_state
                               )
