@@ -18,7 +18,7 @@ from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
 from ... import options as o
 from ...engines import SimEngineProcedure
 from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice, SimError, SimValueError, SimSolverModeError, \
-    SimFastPathError, SimIRSBError, AngrExitError
+    SimFastPathError, SimIRSBError, AngrExitError, SimEmptyCallStackError
 from ...sim_state import SimState
 from ...state_plugins.callstack import CallStack
 from ...state_plugins.sim_action import SimActionData
@@ -2796,7 +2796,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         elif jumpkind == "Ijk_Ret":
             # Normal return
             new_call_stack = job.call_stack_copy()
-            new_call_stack = new_call_stack.ret(exit_target)
+            try:
+                new_call_stack = new_call_stack.ret(exit_target)
+            except SimEmptyCallStackError:
+                pass
 
             se = all_jobs[-1].se
             sp = se.exactly_int(all_jobs[-1].regs.sp, default=0)
