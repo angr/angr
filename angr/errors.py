@@ -334,3 +334,10 @@ class SimUnicornError(SimError):
 class SimUnicornSymbolic(SimError):
     pass
 
+
+#
+# Call-stack Errors
+#
+
+class SimEmptyCallStackError(SimError):
+    pass

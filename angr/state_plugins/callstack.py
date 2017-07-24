@@ -4,7 +4,7 @@ from itertools import dropwhile
 import logging
 
 from .plugin import SimStatePlugin
-from ..errors import AngrError, SimUnsatError, SimSolverModeError, SimError
+from ..errors import AngrError, SimEmptyCallStackError
 
 l = logging.getLogger("angr.state_plugins.callstack")
 
@@ -242,7 +242,7 @@ class CallStack(SimStatePlugin):
         Pop the top frame from the stack. Return the new stack.
         """
         if self.next is None:
-            raise SimError("Empty Callstack")
+            raise SimEmptyCallStackError("Cannot pop a frame from an empty call stack.")
         new_list = self.next.copy()
 
         if self.state is not None:
