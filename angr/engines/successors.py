@@ -162,9 +162,13 @@ class SimSuccessors(object):
                 ret_addr = state.mem[state.regs._sp].long.concrete
             else:
                 ret_addr = state.se.any_int(state.regs._lr)
+            try:
+                state_addr = state.addr
+            except SimValueError:
+                state_addr = None
             new_frame = CallStack(
                     call_site_addr=state.history.recent_bbl_addrs[-1],
-                    func_addr=state.addr,
+                    func_addr=state_addr,
                     stack_ptr=state.se.any_int(state.regs._sp),
                     ret_addr=ret_addr,
                     jumpkind='Ijk_Call')
@@ -332,7 +336,7 @@ class SimSuccessors(object):
 
 
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
-from ..errors import SimSolverModeError, UnsupportedSyscallError
+from ..errors import SimSolverModeError, UnsupportedSyscallError, SimValueError
 from ..calling_conventions import SYSCALL_CC
 from ..state_plugins.sim_action_object import _raw_ast
 from ..state_plugins.callstack import CallStack
