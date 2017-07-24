@@ -49,11 +49,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
                  add_options=None, remove_options=None, special_memory_filler=None, os_name=None):
         self.project = project
+        self.arch = arch if arch is not None else project.arch.copy() if project is not None else None
 
-        if type(arch) is str:
-            self.arch = arch_from_id(arch)
-        else:
-            self.arch = arch.copy() if arch is not None else project.arch.copy() if project is not None else None
+        if type(self.arch) is str:
+            self.arch = arch_from_id(self.arch)
 
         # the options
         if options is None:
