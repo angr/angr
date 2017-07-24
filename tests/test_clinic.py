@@ -18,7 +18,7 @@ def main():
 
     clinic = proj.analyses.Clinic(main_func)
 
-    print clinic.dbg_repr()
+    # print clinic.dbg_repr()
 
 
 if __name__ == "__main__":

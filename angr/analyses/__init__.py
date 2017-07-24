@@ -27,3 +27,6 @@ from .identifier import Identifier
 from .callee_cleanup_finder import CalleeCleanupFinder
 from .reaching_definitions import ReachingDefinitionAnalysis
 from .calling_convention import CallingConventionAnalysis
+from .region_identifier import RegionIdentifier
+from .structurer import Structurer
+# from .clinic import Clinic
