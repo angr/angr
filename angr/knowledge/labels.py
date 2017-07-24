@@ -4,7 +4,7 @@ class Labels(object):
         self._labels = {}
         self._reverse_labels = {}
         for obj in kb._project.loader.all_objects:
-            for k, v in obj.symbols_by_addr.iteritems():
+            for k, v in obj._symbols_by_addr.iteritems():
                 if v.name:
                     self._labels[v.rebased_addr] = v.name
                     self._reverse_labels[v.name] = v.rebased_addr

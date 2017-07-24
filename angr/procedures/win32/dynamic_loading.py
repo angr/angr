@@ -67,7 +67,6 @@ class GetProcAddress(angr.SimProcedure):
                 return_val = 1
 
             cc = self.project.factory.cc_from_arg_kinds([False]*num_args)
-            cc.CALLEE_CLEANUP = True
             self.project.hook(addr, StubCall(cc=cc, resolves=full_name, return_val=return_val))
         return addr
 
@@ -87,23 +86,5 @@ class GetProcAddress(angr.SimProcedure):
             return self.state.globals[self.KEY]
         except KeyError:
             x = set()
-            self.state.globals[self.KEY] = x
-            return x
-
-class StubCall(angr.SimProcedure):
-    def run(self, resolves=None, return_val=None):
-        self.display_name = '%s (stub)' % resolves
-        if return_val is None:
-            return_val = self.state.se.BVS('stub_return_%s' % resolves, self.state.arch.bits)
-        self.procs.append(resolves)
-        return return_val
-
-    KEY = 'called_stubs'
-    @property
-    def procs(self):
-        try:
-            return self.state.globals[self.KEY]
-        except KeyError:
-            x = []
             self.state.globals[self.KEY] = x
             return x
