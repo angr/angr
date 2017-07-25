@@ -20,7 +20,7 @@ class SimProcedure(object):
     def __init__(
         self, project=None, cc=None, symbolic_return=None,
         returns=None, is_syscall=None, is_stub=False,
-        num_args=None, display_name=None,
+        num_args=None, display_name=None, library_name=None,
         is_function=None, **kwargs
     ):
         """
@@ -47,6 +47,7 @@ class SimProcedure(object):
 
         self.kwargs = kwargs
         self.display_name = type(self).__name__ if display_name is None else display_name
+        self.library_name = library_name
         self.syscall_number = None
         self.symbolic_return = symbolic_return
 
@@ -62,7 +63,6 @@ class SimProcedure(object):
         self.is_continuation = False
         self.continuations = {}
         self.run_func = 'run'
-        self.library_name = None
 
         # Get the concrete number of arguments that should be passed to this procedure
         if num_args is None:

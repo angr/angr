@@ -31,7 +31,9 @@ class CalleeCleanupFinder(Analysis):
                 cc.CALLEE_CLEANUP = True
                 sym = self.project.loader.find_symbol(addr)
                 name = sym.name if sym is not None else None
-                self.project.hook(addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](cc=cc, display_name=name, is_stub=True))
+                lib = self.project.loader.find_object_containing(addr)
+                libname = lib.provides if lib is not None else None
+                self.project.hook(addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](cc=cc, display_name=name, library_name=libname, is_stub=True))
 
     def analyze(self, addr):
         seen = set()

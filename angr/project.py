@@ -103,24 +103,13 @@ class Project(object):
         :param exclude_sim_procedures_list: A list of functions to *not* wrap with simprocedures.
         :param arch:                        The target architecture (auto-detected otherwise).
         :param simos:                       a SimOS class to use for this project.
-        :param load_options:                a dict of keyword arguments to the CLE loader. See CLE's docs.
         :param translation_cache:           If True, cache translated basic blocks rather than re-translating them.
         :param support_selfmodifying_code:  Whether we support self-modifying code. When enabled, Project.sim_block()
                                             will try to read code from the current state instead of the original memory
                                             regions.
         :type  support_selfmodifying_code:  bool
 
-        A sample `load_options` value could be:
-        ::
-
-            { 'auto_load_libs': False,
-              'skip_libs': 'ld.so.2',
-              'lib_opts': {
-                'libc.so.6': {
-                'custom_base_addr': 0x55555400
-                }
-              }
-            }
+        Any additional keyword arguments passed will be passed onto ``cle.Loader``.
         """
 
         # Step 1: Load the binary
@@ -128,6 +117,8 @@ class Project(object):
         load_options.update(kwargs)
 
         if isinstance(thing, cle.Loader):
+            if load_options:
+                l.warning("You provided CLE options to angr but you also provided a completed cle.Loader object!")
             self.loader = thing
             self.filename = self.loader.main_object.binary
         elif hasattr(thing, 'read') and hasattr(thing, 'seek'):
@@ -168,9 +159,9 @@ class Project(object):
         self._should_use_sim_procedures = use_sim_procedures
         self._support_selfmodifying_code = support_selfmodifying_code
         self._ignore_functions = ignore_functions
+        self._executing = False # this is a flag for the convenience API, exec() and terminate_execution() below
 
         if self._support_selfmodifying_code:
-
             if translation_cache is True:
                 translation_cache = False
                 l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
@@ -201,8 +192,7 @@ class Project(object):
         if self.filename is not None:
             projects[self.filename] = self
 
-        # Step 5: determine the host OS and perform additional initialization
-        # in the SimOS constructor
+        # Step 4: determine the guest OS
         if isinstance(simos, type) and issubclass(simos, SimOS):
             self._simos = simos(self) #pylint:disable=invalid-name
         elif simos is None:
@@ -210,112 +200,105 @@ class Project(object):
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
 
-        # Step 4: Register simprocedures as appropriate for library functions
-        self._use_sim_procedures()
+        # Step 5: Register simprocedures as appropriate for library functions
+        for obj in self.loader.initial_load_objects:
+            self._register_object(obj)
+
+        # Step 6: Run OS-specific configuration
         self._simos.configure_project()
 
-        # this is a flag for exec() and terminate_execution() below
-        self._executing = False
-
-    def _use_sim_procedures(self):
+    def _register_object(self, obj):
         """
-        This is all the automatic simprocedure related initialization work
-        It's too big to just get pasted into the initializer.
+        This scans through an objects imports and hooks them with simprocedures from our library whenever possible
         """
-        # TODO: Make this into a per-object function that can be used during dynamic loading
 
         # Step 1: get the set of libraries we are allowed to use to resolve unresolved symbols
-        libs = []
-        for lib_name in self.loader.requested_objects:
-            # File names are case-insensitive on Windows. Make them all lowercase
-            if isinstance(self.loader.main_object, cle.backends.pe.PE):
-                lib_name = lib_name.lower()
-
-            if lib_name in self.loader.shared_objects:
-                continue
-
-            if lib_name not in SIM_LIBRARIES:
-                l.info("There are no simprocedures for library %s :(", lib_name)
-            else:
-                libs.append(SIM_LIBRARIES[lib_name])
+        missing_libs = []
+        for lib_name in self.loader.missing_dependencies:
+            try:
+                missing_libs.append(SIM_LIBRARIES[lib_name])
+            except KeyError:
+                l.info("There are no simprocedures for missing library %s :(", lib_name)
 
         # Step 2: Categorize every "import" symbol in each object.
         # If it's IGNORED, mark it for stubbing
         # If it's blacklisted, don't process it
         # If it matches a simprocedure we have, replace it
-        already_seen = set()
+        for reloc in obj.imports.itervalues():
+            # Step 2.1: Quick filter on symbols we really don't care about
+            func = reloc.symbol
+            if func is None:
+                continue
+            if not func.is_function:
+                continue
+            if not reloc.resolved:
+                l.debug("Ignoring unresolved import '%s' from %s ...?", func.name, reloc.owner_obj)
+                continue
+            if self.is_hooked(reloc.symbol.resolvedby.rebased_addr):
+                l.debug("Already hooked %s (%s)", func.name, reloc.owner_obj)
+                continue
 
-        for obj in self.loader.all_objects:
-            for reloc in obj.imports.itervalues():
-                # Step 2.1: Quick filter on symbols we really don't care about
-                func = reloc.symbol
-                if not func.is_function:
+            # Step 2.2: If this function has been resolved by a static dependency,
+            # check if we actually can and want to replace it with a SimProcedure.
+            # We opt out of this step if it is blacklisted by ignore_functions, which
+            # will cause it to be replaced by ReturnUnconstrained later.
+            if func.resolved and func.resolvedby.owner_obj is not self.loader.extern_object and \
+                    func.name not in self._ignore_functions:
+                if self._check_user_blacklists(func.name):
                     continue
-                if func.name in already_seen:
+                owner_name = func.resolvedby.owner_obj.provides
+                if isinstance(self.loader.main_object, cle.backends.pe.PE):
+                    owner_name = owner_name.lower()
+                if owner_name not in SIM_LIBRARIES:
                     continue
-                already_seen.add(func.name)
+                sim_lib = SIM_LIBRARIES[owner_name]
+                if not sim_lib.has_implementation(func.name):
+                    continue
+                l.info("Using builtin SimProcedure for %s from %s", func.name, sim_lib.name)
+                self.hook_symbol(func.name, sim_lib.get(func.name, self.arch))
 
-                # Step 2.2: If this function has been resolved by a static dependency,
-                # check if we actually can and want to replace it with a SimProcedure.
-                # We opt out of this step if it is blacklisted by ignore_functions, which
-                # will cause it to be replaced by ReturnUnconstrained later.
-                if func.resolved and func.resolvedby.owner_obj is not self.loader.extern_object and \
-                        func.name not in self._ignore_functions:
-                    if self._check_user_blacklists(func.name):
-                        continue
-                    owner_name = func.resolvedby.owner_obj.provides
-                    if isinstance(self.loader.main_object, cle.backends.pe.PE):
-                        owner_name = owner_name.lower()
-                    if owner_name not in SIM_LIBRARIES:
-                        continue
-                    sim_lib = SIM_LIBRARIES[owner_name]
-                    if not sim_lib.has_implementation(func.name):
-                        continue
-                    l.info("Using builtin SimProcedure for %s from %s", func.name, sim_lib.name)
+            # Step 2.3: If 2.2 didn't work, check if the symbol wants to be resolved
+            # by a library we already know something about. Resolve it appropriately.
+            # Note that _check_user_blacklists also includes _ignore_functions.
+            # An important consideration is that even if we're stubbing a function out,
+            # we still want to try as hard as we can to figure out where it comes from
+            # so we can get the calling convention as close to right as possible.
+            elif reloc.resolvewith is not None and reloc.resolvewith in SIM_LIBRARIES:
+                sim_lib = SIM_LIBRARIES[reloc.resolvewith]
+                if self._check_user_blacklists(func.name):
+                    if not func.is_weak:
+                        l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
+                        self.hook_symbol(func.name, sim_lib.get_stub(func.name, self.arch))
+                else:
+                    l.info("Using builtin SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
                     self.hook_symbol(func.name, sim_lib.get(func.name, self.arch))
 
-                # Step 2.3: If 2.2 didn't work, check if the symbol wants to be resolved
-                # by a library we already know something about. Resolve it appropriately.
-                # Note that _check_user_blacklists also includes _ignore_functions.
-                # An important consideration is that even if we're stubbing a function out,
-                # we still want to try as hard as we can to figure out where it comes from
-                # so we can get the calling convention as close to right as possible.
-                elif reloc.resolvewith is not None and reloc.resolvewith in SIM_LIBRARIES:
-                    sim_lib = SIM_LIBRARIES[reloc.resolvewith]
-                    if self._check_user_blacklists(func.name):
-                        if not func.is_weak:
-                            l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
-                            self.hook_symbol(func.name, sim_lib.get_stub(func.name, self.arch))
-                    else:
-                        l.info("Using builtin SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
-                        self.hook_symbol(func.name, sim_lib.get(func.name, self.arch))
+            # Step 2.4: If 2.3 didn't work (the symbol didn't request a provider we know of), try
+            # looking through each of the SimLibraries we're using to resolve unresolved
+            # functions. If any of them know anything specifically about this function,
+            # resolve it with that. As a final fallback, just ask any old SimLibrary
+            # to resolve it.
+            elif missing_libs:
+                for sim_lib in missing_libs:
+                    if sim_lib.has_metadata(func.name):
+                        if self._check_user_blacklists(func.name):
+                            if not func.is_weak:
+                                l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
+                                self.hook_symbol(func.name, sim_lib.get_stub(func.name, self.arch))
+                        else:
+                            l.info("Using builtin SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
+                            self.hook_symbol(func.name, sim_lib.get(func.name, self.arch))
+                        break
+                else:
+                    if not func.is_weak:
+                        l.info("Using stub SimProcedure for unresolved %s", func.name)
+                        self.hook_symbol(func.name, missing_libs[0].get(func.name, self.arch))
 
-                # Step 2.4: If 2.3 didn't work (the symbol didn't request a provider we know of), try
-                # looking through each of the SimLibraries we're using to resolve unresolved
-                # functions. If any of them know anything specifically about this function,
-                # resolve it with that. As a final fallback, just ask any old SimLibrary
-                # to resolve it.
-                elif libs:
-                    for sim_lib in libs:
-                        if sim_lib.has_metadata(func.name):
-                            if self._check_user_blacklists(func.name):
-                                if not func.is_weak:
-                                    l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
-                                    self.hook_symbol(func.name, sim_lib.get_stub(func.name, self.arch))
-                            else:
-                                l.info("Using builtin SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
-                                self.hook_symbol(func.name, sim_lib.get(func.name, self.arch))
-                            break
-                    else:
-                        if not func.is_weak:
-                            l.info("Using stub SimProcedure for unresolved %s", func.name)
-                            self.hook_symbol(func.name, libs[0].get(func.name, self.arch))
-
-                # Step 2.5: If 2.4 didn't work (we have NO SimLibraries to work with), just
-                # use the vanilla ReturnUnconstrained, assuming that this isn't a weak func
-                elif not func.is_weak:
-                    l.info("Using stub SimProcedure for unresolved %s", func.name)
-                    self.hook_symbol(func.name, SIM_PROCEDURES['stubs']['ReturnUnconstrained']())
+            # Step 2.5: If 2.4 didn't work (we have NO SimLibraries to work with), just
+            # use the vanilla ReturnUnconstrained, assuming that this isn't a weak func
+            elif not func.is_weak:
+                l.info("Using stub SimProcedure for unresolved %s", func.name)
+                self.hook_symbol(func.name, SIM_PROCEDURES['stubs']['ReturnUnconstrained']())
 
     def _check_user_blacklists(self, f):
         """

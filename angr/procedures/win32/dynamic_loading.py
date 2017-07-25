@@ -1,83 +1,62 @@
 import angr
 import claripy
+import logging
 
+l = logging.getLogger('angr.procedures.win32.dynamic_loading')
 
 class LoadLibraryA(angr.SimProcedure):
     def run(self, lib_ptr):
         lib = self.state.mem[lib_ptr].string.concrete
-        return self.register(lib)
+        return self.load(lib)
 
-    KEY = 'dynamically_loaded_libs'
-    @property
-    def loaded(self):
-        try:
-            return self.state.globals[self.KEY]
-        except KeyError:
-            x = {}
-            self.state.globals[self.KEY] = x
-            return x
+    def load(self, lib):
+        loaded = self.project.loader.dynamic_load(lib)
+        if loaded is None:
+            return 0
 
-    def register(self, lib):
-        try:
-            return [key for key, val in self.loaded.items() if val == lib][0]
-        except IndexError:
-            pass
+        # Add simprocedures
+        for obj in loaded:
+            self.register(obj)
 
-        key = len(self.loaded) + 1
-        self.loaded[key] = lib
-        return key
+        return self.project.loader.find_object(lib).mapped_base
+
+    def register(self, obj): # can be overridden for instrumentation
+        self.project._register_object(obj)
 
 class LoadLibraryExW(LoadLibraryA):
     def run(self, lib_ptr, flag1, flag2):
         lib = self.state.mem[lib_ptr].wstring.concrete
-        return self.register(lib)
+        return self.load(lib)
+
+# if you subclass LoadLibraryA to provide register, you can implement LoadLibraryExW by making an empty class that just
+# subclasses your special procedure and LoadLibraryExW
 
 
 class GetProcAddress(angr.SimProcedure):
-    def run(self, lib_key, name_addr):
-        if lib_key.symbolic:
-            raise angr.errors.SimValueError("GetProcAddress called with symbolic library handle %s" % lib_key)
+    def run(self, lib_handle, name_addr):
+        if lib_handle.symbolic:
+            raise angr.errors.SimValueError("GetProcAddress called with symbolic library handle %s" % lib_handle)
+        lib_handle = self.state.se.any_int(lib_handle)
 
-        lib_key = self.state.se.any_int(lib_key)
+        for obj in self.project.loader.all_pe_objects:
+            if obj.mapped_base == lib_handle:
+                break
+        else:
+            l.warning("GetProcAddress: invalid library handle %s", lib_handle)
+            return 0
 
-        if lib_key not in self.loaded:
-            raise angr.errors.SimValueError("GetProcAddress called with invalid library handle %s" % lib_key)
-
-        lib_name = self.loaded[lib_key]
         if claripy.is_true(name_addr < 0x10000):
-            # IT'S AN ORDINAL IMPORT
-            name = '[ordinal %#x]' % self.state.se.any_int(name_addr)
+            # this matches the bogus name specified in the loader...
+            name = 'ordinal.%d' % self.state.se.any_int(name_addr)
         else:
             name = self.state.mem[name_addr].string.concrete
-        full_name = '%s.%s' % (lib_name, name)
+        full_name = '%s.%s' % (obj.provides, name)
         self.procs.add(full_name)
 
-        addr = self.project.loader.extern_object.get_pseudo_addr(name)
-        if not self.project.is_hooked(addr):
-            return_val = None
-            num_args = 0
-            if name == 'InitializeCriticalSectionEx':
-                num_args = 3
-                return_val = 1
-            elif name == 'FlsAlloc':
-                num_args = 1
-                return_val = 1
-            elif name == 'FlsSetValue':
-                num_args = 2
-                return_val = 1
-
-            cc = self.project.factory.cc_from_arg_kinds([False]*num_args)
-            self.project.hook(addr, StubCall(cc=cc, resolves=full_name, return_val=return_val))
-        return addr
-
-    @property
-    def loaded(self):
-        try:
-            return self.state.globals[LoadLibraryA.KEY]
-        except KeyError:
-            x = {}
-            self.state.globals[LoadLibraryA.KEY] = x
-            return x
+        sym = obj.get_symbol(name)
+        if sym is None:
+            l.warning("GetProcAddress: object %s does not contain %s", obj.provides, name)
+        return sym.rebased_addr
 
     KEY = 'dynamically_loaded_procedures'
     @property
