@@ -142,7 +142,7 @@ def test_fp():
         cc = p.factory.cc(func_ty=type_cache[function])
         args = list(range(len(cc.func_ty.args)))
         answer = float(sum(args))
-        addr = p.loader.main_bin.get_symbol(function).rebased_addr
+        addr = p.loader.find_symbol(function).rebased_addr
         my_callable = p.factory.callable(addr, cc=cc)
         my_callable.set_base_state(p.factory.blank_state(add_options=so.unicorn))
         result = my_callable(*args)

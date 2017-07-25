@@ -9,7 +9,7 @@ class CalleeCleanupFinder(Analysis):
         self.results = {}
 
         if starts is None:
-            starts = [imp.resolvedby.rebased_addr for imp in self.project.loader.main_bin.imports.itervalues()]
+            starts = [imp.resolvedby.rebased_addr for imp in self.project.loader.main_object.imports.itervalues()]
 
         for addr in starts:
             if self.project.is_hooked(addr):
@@ -29,7 +29,8 @@ class CalleeCleanupFinder(Analysis):
                 args = size / self.project.arch.bytes
                 cc = self.project.factory.cc_from_arg_kinds([False]*args)
                 cc.CALLEE_CLEANUP = True
-                name = self.project.loader.find_symbol_name(addr)
+                sym = self.project.loader.find_symbol(addr)
+                name = sym.name if sym is not None else None
                 self.project.hook(addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](cc=cc, display_name=name, is_stub=True))
 
     def analyze(self, addr):

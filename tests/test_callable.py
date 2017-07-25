@@ -65,7 +65,7 @@ def run_manyfloatsum(arch):
         cc = p.factory.cc(func_ty=type_cache[function])
         args = list(range(len(cc.func_ty.args)))
         answer = float(sum(args))
-        addr = p.loader.main_bin.get_symbol(function).rebased_addr
+        addr = p.loader.main_object.get_symbol(function).rebased_addr
         my_callable = p.factory.callable(addr, cc=cc)
         result = my_callable(*args)
         nose.tools.assert_false(result.symbolic)
@@ -81,7 +81,7 @@ def run_manyfloatsum_symbolic(arch):
     function = 'sum_doubles'
     cc = p.factory.cc(func_ty=type_cache[function])
     args = [claripy.FPS('arg_%d' % i, claripy.FSORT_DOUBLE) for i in xrange(len(type_cache[function].args))]
-    addr = p.loader.main_bin.get_symbol(function).rebased_addr
+    addr = p.loader.main_object.get_symbol(function).rebased_addr
     my_callable = p.factory.callable(addr, cc=cc)
     result = my_callable(*args)
     nose.tools.assert_true(result.symbolic)

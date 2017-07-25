@@ -158,7 +158,7 @@ class BinaryOptimizer(Analysis):
         #if function.addr != 0x8048250:
         #    return
 
-        func_kb = KnowledgeBase(self.project, self.project.loader.main_bin)
+        func_kb = KnowledgeBase(self.project, self.project.loader.main_object)
 
         cfg = self.project.analyses.CFGAccurate(kb=func_kb,
                                                 call_depth=1,

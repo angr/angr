@@ -8,12 +8,11 @@ import networkx
 import pyvex
 from .. import Analysis
 from claripy.utils.orderedset import OrderedSet
-from cle import ELF, PE, Blob, TLSObj
+from cle import ELF, PE, Blob, TLSObject, ExternObject, KernelObject
 
 from .cfg_node import CFGNode
 from ... import SIM_PROCEDURES
 from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError, AngrUnsupportedSyscallError
-from ...extern_obj import AngrExternObject
 from ...knowledge import HookNode, BlockNode, FunctionManager
 
 l = logging.getLogger("angr.analyses.cfg.cfg_base")
@@ -57,7 +56,7 @@ class CFGBase(Analysis):
         if context_sensitivity_level < 0:
             raise ValueError("Unsupported context sensitivity level %d" % context_sensitivity_level)
 
-        self._binary = binary if binary is not None else self.project.loader.main_bin
+        self._binary = binary if binary is not None else self.project.loader.main_object
         self._force_segment = force_segment
         self._iropt_level = iropt_level
 
@@ -92,12 +91,9 @@ class CFGBase(Analysis):
 
         # initialize an UnresolvableTarget SimProcedure
         # but we do not want to hook the same symbol multiple times
-        if not self.project.is_symbol_hooked('UnresolvableTarget'):
-            ut_addr = self.project.hook_symbol('UnresolvableTarget',
-                                               SIM_PROCEDURES['stubs']['UnresolvableTarget']()
-                                               )
-        else:
-            ut_addr = self.project.hooked_symbol_addr('UnresolvableTarget')
+        ut_addr = self.project.loader.extern_object.get_pseudo_addr('UnresolvableTarget')
+        if not self.project.is_hooked(ut_addr):
+            self.project.hook(ut_addr, SIM_PROCEDURES['stubs']['UnresolvableTarget']())
         self._unresolvable_target_addr = ut_addr
 
         # partially and fully analyzed functions
@@ -231,7 +227,7 @@ class CFGBase(Analysis):
         """
         Get successors of a node in the control flow graph.
 
-        :param CFGNode cfgnode:             The node.
+        :param CFGNode basic_block:             The node.
         :param bool excluding_fakeret:      True if you want to exclude all successors that is connected to the node
                                             with a fakeret edge.
         :param str or None jumpkind:        Only return successors with the specified jumpkind. This argument will be
@@ -469,7 +465,7 @@ class CFGBase(Analysis):
         :param int addr: Address of the basic block / SimIRSB.
         :param list successors: A list of successors.
         :param func get_ins_addr: A callable that returns the source instruction address for a successor.
-        :param func get_stmt_idx: A callable that returns the source statement ID for a successor.
+        :param func get_exit_stmt_idx: A callable that returns the source statement ID for a successor.
         :return: A new list of successors after filtering.
         :rtype: list
         """
@@ -561,16 +557,16 @@ class CFGBase(Analysis):
 
             elif isinstance(b, Blob):
                 # a blob is entirely executable
-                tpl = (b.get_min_addr(), b.get_max_addr())
+                tpl = (b.min_addr, b.max_addr)
                 memory_regions.append(tpl)
 
-            elif isinstance(b, (AngrExternObject, TLSObj)):
+            elif isinstance(b, (ExternObject, KernelObject, TLSObject)):
                 pass
 
             else:
                 l.warning('Unsupported object format "%s". Treat it as an executable.', b.__class__.__name__)
 
-                tpl = (b.get_min_addr(), b.get_max_addr())
+                tpl = (b.min_addr, b.max_addr)
                 memory_regions.append(tpl)
 
         if not memory_regions:
@@ -604,13 +600,13 @@ class CFGBase(Analysis):
         :rtype: cle.Section
         """
 
-        obj = self.project.loader.addr_belongs_to_object(addr)
+        obj = self.project.loader.find_object_containing(addr)
 
         if obj is None:
             return None
 
-        if isinstance(obj, AngrExternObject):
-            # the address is from a section allocated by angr.
+        if isinstance(obj, (ExternObject, KernelObject, TLSObject)):
+            # the address is from a special CLE section
             return None
 
         return obj.find_section_containing(addr)
@@ -626,11 +622,11 @@ class CFGBase(Analysis):
         :rtype:             bool
         """
 
-        obj = self.project.loader.addr_belongs_to_object(addr_a)
+        obj = self.project.loader.find_object_containing(addr_a)
 
         if obj is None:
             # test if addr_b also does not belong to any object
-            obj_b = self.project.loader.addr_belongs_to_object(addr_b)
+            obj_b = self.project.loader.find_object_containing(addr_b)
             if obj_b is None:
                 return True
             return False
@@ -655,13 +651,13 @@ class CFGBase(Analysis):
         :rtype: cle.Section
         """
 
-        obj = self.project.loader.addr_belongs_to_object(addr)
+        obj = self.project.loader.find_object_containing(addr)
 
         if obj is None:
             return None
 
-        if isinstance(obj, AngrExternObject):
-            # the address is from a section allocated by angr.
+        if isinstance(obj, (ExternObject, KernelObject, TLSObject)):
+            # the address is from a special CLE section
             return None
 
         for section in obj.sections:
@@ -682,12 +678,12 @@ class CFGBase(Analysis):
         :rtype: cle.Segment
         """
 
-        obj = self.project.loader.addr_belongs_to_object(addr)
+        obj = self.project.loader.find_object_containing(addr)
 
         if obj is None:
             return None
 
-        if isinstance(obj, AngrExternObject):
+        if isinstance(obj, (ExternObject, KernelObject, TLSObject)):
             # the address is from a section allocated by angr.
             return None
 

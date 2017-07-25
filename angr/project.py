@@ -25,7 +25,8 @@ def register_default_engine(loader_backend, engine, arch='any'):
     going to be lifted to VEX, you'll need to make sure the desired engine is registered here.
 
     :param loader_backend: The loader backend (a type)
-    :param engine type: The engine to use for the loader backend (a type)
+    :param type engine: The engine to use for the loader backend (a type)
+    :param arch: The architecture to associate with this engine. Optional.
     :return:
     """
     if not isinstance(loader_backend, type):
@@ -128,7 +129,7 @@ class Project(object):
 
         if isinstance(thing, cle.Loader):
             self.loader = thing
-            self.filename = self.loader._main_binary_path
+            self.filename = self.loader.main_object.binary
         elif hasattr(thing, 'read') and hasattr(thing, 'seek'):
             l.info("Loading binary from stream")
             self.filename = None
@@ -147,7 +148,7 @@ class Project(object):
         elif isinstance(arch, archinfo.Arch):
             self.arch = arch
         elif arch is None:
-            self.arch = self.loader.main_bin.arch
+            self.arch = self.loader.main_object.arch
         else:
             raise ValueError("Invalid arch specification.")
 
@@ -167,12 +168,6 @@ class Project(object):
         self._should_use_sim_procedures = use_sim_procedures
         self._support_selfmodifying_code = support_selfmodifying_code
         self._ignore_functions = ignore_functions
-        self._extern_obj = AngrExternObject(self.arch)
-        self._extern_obj.provides = 'angr externs'
-        self.loader.add_object(self._extern_obj)
-        self._syscall_obj = AngrExternObject(self.arch)
-        self._syscall_obj.provides = 'angr syscalls'
-        self.loader.add_object(self._syscall_obj)
 
         if self._support_selfmodifying_code:
 
@@ -181,9 +176,9 @@ class Project(object):
                 l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
 
         # Look up the default engine.
-        engine_cls = get_default_engine(type(self.loader.main_bin))
+        engine_cls = get_default_engine(type(self.loader.main_object))
         if not engine_cls:
-            raise AngrError("No engine associated with loader %s" % str(type(self.loader.main_bin)))
+            raise AngrError("No engine associated with loader %s" % str(type(self.loader.main_object)))
         engine = engine_cls(
                 stop_points=self._sim_procedures,
                 use_cache=translation_cache,
@@ -193,7 +188,7 @@ class Project(object):
         syscall_engine = SimEngineSyscall(self)
         unicorn_engine = SimEngineUnicorn(self._sim_procedures)
 
-        self.entry = self.loader.main_bin.entry
+        self.entry = self.loader.main_object.entry
         self.factory = AngrObjectFactory(
                 self,
                 engine,
@@ -201,7 +196,7 @@ class Project(object):
                 [failure_engine, syscall_engine, procedure_engine, unicorn_engine, engine])
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
-        self.kb = KnowledgeBase(self, self.loader.main_bin)
+        self.kb = KnowledgeBase(self, self.loader.main_object)
 
         if self.filename is not None:
             projects[self.filename] = self
@@ -211,7 +206,7 @@ class Project(object):
         if isinstance(simos, type) and issubclass(simos, SimOS):
             self._simos = simos(self) #pylint:disable=invalid-name
         elif simos is None:
-            self._simos = os_mapping[self.loader.main_bin.os](self)
+            self._simos = os_mapping[self.loader.main_object.os](self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
 
@@ -233,7 +228,7 @@ class Project(object):
         libs = []
         for lib_name in self.loader.requested_objects:
             # File names are case-insensitive on Windows. Make them all lowercase
-            if isinstance(self.loader.main_bin, cle.backends.pe.PE):
+            if isinstance(self.loader.main_object, cle.backends.pe.PE):
                 lib_name = lib_name.lower()
 
             if lib_name in self.loader.shared_objects:
@@ -249,7 +244,6 @@ class Project(object):
         # If it's blacklisted, don't process it
         # If it matches a simprocedure we have, replace it
         already_seen = set()
-        pending_hooks = {}
 
         for obj in self.loader.all_objects:
             for reloc in obj.imports.itervalues():
@@ -265,11 +259,12 @@ class Project(object):
                 # check if we actually can and want to replace it with a SimProcedure.
                 # We opt out of this step if it is blacklisted by ignore_functions, which
                 # will cause it to be replaced by ReturnUnconstrained later.
-                if func.resolved and func.name not in self._ignore_functions:
+                if func.resolved and func.resolvedby.owner_obj is not self.loader.extern_object and \
+                        func.name not in self._ignore_functions:
                     if self._check_user_blacklists(func.name):
                         continue
                     owner_name = func.resolvedby.owner_obj.provides
-                    if isinstance(self.loader.main_bin, cle.backends.pe.PE):
+                    if isinstance(self.loader.main_object, cle.backends.pe.PE):
                         owner_name = owner_name.lower()
                     if owner_name not in SIM_LIBRARIES:
                         continue
@@ -277,7 +272,7 @@ class Project(object):
                     if not sim_lib.has_implementation(func.name):
                         continue
                     l.info("Using builtin SimProcedure for %s from %s", func.name, sim_lib.name)
-                    pending_hooks[func.name] = sim_lib.get(func.name, self.arch)
+                    self.hook_symbol(func.name, sim_lib.get(func.name, self.arch))
 
                 # Step 2.3: If 2.2 didn't work, check if the symbol wants to be resolved
                 # by a library we already know something about. Resolve it appropriately.
@@ -285,16 +280,17 @@ class Project(object):
                 # An important consideration is that even if we're stubbing a function out,
                 # we still want to try as hard as we can to figure out where it comes from
                 # so we can get the calling convention as close to right as possible.
-                elif func.resolvewith is not None and func.resolvewith in SIM_LIBRARIES:
-                    sim_lib = SIM_LIBRARIES[func.resolvewith]
+                elif reloc.resolvewith is not None and reloc.resolvewith in SIM_LIBRARIES:
+                    sim_lib = SIM_LIBRARIES[reloc.resolvewith]
                     if self._check_user_blacklists(func.name):
-                        l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
-                        pending_hooks[func.name] = sim_lib.get_stub(func.name, self.arch)
+                        if not func.is_weak:
+                            l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
+                            self.hook_symbol(func.name, sim_lib.get_stub(func.name, self.arch))
                     else:
                         l.info("Using builtin SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
-                        pending_hooks[func.name] = sim_lib.get(func.name, self.arch)
+                        self.hook_symbol(func.name, sim_lib.get(func.name, self.arch))
 
-                # Step 2.4: If 2.3 didn't work (the symbol didn't request a provider), try
+                # Step 2.4: If 2.3 didn't work (the symbol didn't request a provider we know of), try
                 # looking through each of the SimLibraries we're using to resolve unresolved
                 # functions. If any of them know anything specifically about this function,
                 # resolve it with that. As a final fallback, just ask any old SimLibrary
@@ -303,31 +299,23 @@ class Project(object):
                     for sim_lib in libs:
                         if sim_lib.has_metadata(func.name):
                             if self._check_user_blacklists(func.name):
-                                l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
-                                pending_hooks[func.name] = sim_lib.get_stub(func.name, self.arch)
+                                if not func.is_weak:
+                                    l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
+                                    self.hook_symbol(func.name, sim_lib.get_stub(func.name, self.arch))
                             else:
                                 l.info("Using builtin SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
-                                pending_hooks[func.name] = sim_lib.get(func.name, self.arch)
+                                self.hook_symbol(func.name, sim_lib.get(func.name, self.arch))
                             break
                     else:
-                        l.info("Using stub SimProcedure for unresolved %s", func.name)
-                        pending_hooks[func.name] = libs[0].get(func.name, self.arch)
+                        if not func.is_weak:
+                            l.info("Using stub SimProcedure for unresolved %s", func.name)
+                            self.hook_symbol(func.name, libs[0].get(func.name, self.arch))
 
                 # Step 2.5: If 2.4 didn't work (we have NO SimLibraries to work with), just
-                # use the vanilla ReturnUnconstrained.
-                else:
+                # use the vanilla ReturnUnconstrained, assuming that this isn't a weak func
+                elif not func.is_weak:
                     l.info("Using stub SimProcedure for unresolved %s", func.name)
-                    pending_hooks[func.name] = SIM_PROCEDURES['stubs']['ReturnUnconstrained']()
-
-                # Step 2.6: If it turns out we resolved this with a stub and this function is actually weak,
-                # don't actually resolve it with anything. Let it languish.
-                # TODO: this is a hack, do better
-
-                if func.is_weak and func.name in pending_hooks and type(pending_hooks[func.name]) is SIM_PROCEDURES['stubs']['ReturnUnconstrained']:
-                    del pending_hooks[func.name]
-
-        # Step 3: Hook everything!! Resolve unresolved relocations to the extern object!!!
-        self.hook_symbol_batch(pending_hooks)
+                    self.hook_symbol(func.name, SIM_PROCEDURES['stubs']['ReturnUnconstrained']())
 
     def _check_user_blacklists(self, f):
         """
@@ -428,13 +416,12 @@ class Project(object):
 
     def hook_symbol(self, symbol_name, obj, kwargs=None):
         """
-        Resolve a dependency in a binary. Uses the "externs object" (project._extern_obj) to
-        allocate an address for a new symbol in the binary, and then tells the loader to reperform
+        Resolve a dependency in a binary. Uses the "externs object" (project.loader.extern_object) to
+        allocate an address for a new symbol in the binary, and then tells the loader to re-perform
         the relocation process, taking into account the new symbol.
 
         :param symbol_name: The name of the dependency to resolve.
-        :param obj:         The thing with which to satisfy the dependency. May be a python integer
-                            or anything that may be passed to `project.hook()`.
+        :param obj:         The thing with which to satisfy the dependency.
         :param kwargs:      If you provide a SimProcedure for the hook, these are the keyword
                             arguments that will be passed to the procedure's `run` method
                             eventually.
@@ -444,21 +431,22 @@ class Project(object):
         if type(obj) in (int, long):
             # this is pretty intensely sketchy
             l.info("Instructing the loader to re-point symbol %s at address %#x", symbol_name, obj)
-            self.loader.provide_symbol(self._extern_obj, symbol_name, AT.from_mva(obj, self._extern_obj).to_lva())
+            self.loader.provide_symbol(self.loader.extern_object, symbol_name, AT.from_mva(obj, self.loader.extern_object).to_lva())
             return obj
 
         sym = self.loader.find_symbol(symbol_name)
-
         if sym is None:
-            hook_addr, link_addr = self._simos.prepare_function_symbol(symbol_name)
-            l.info("Providing extern symbol for unresolved %s at #%x", symbol_name, hook_addr)
-            self.loader.provide_symbol(self._extern_obj, symbol_name, AT.from_mva(link_addr, self._extern_obj).to_lva())
+            l.error("Could not find symbol %s", symbol_name)
+            return None
+
+        if sym is None or sym.owner_obj is self.loader.extern_object:
+            hook_addr, _ = self._simos.prepare_function_symbol(symbol_name)
         else:
             hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
 
-            if self.is_hooked(hook_addr):
-                l.warning("Re-hooking symbol %s", symbol_name)
-                self.unhook(hook_addr)
+        if self.is_hooked(hook_addr):
+            l.warning("Re-hooking symbol %s", symbol_name)
+            self.unhook(hook_addr)
 
         self.hook(hook_addr, obj, kwargs=kwargs)
         return hook_addr
@@ -470,24 +458,11 @@ class Project(object):
         :param dict hooks:     A mapping from symbol name to hook
         """
 
-        provisions = {}
+        if once("hook_symbol_batch warning"):
+            l.critical("Due to advances in technology, hook_symbol_batch is no longer necessary for performance. Please use hook_symbol several times.")
 
-        for name, obj in hooks.iteritems():
-            sym = self.loader.find_symbol(name)
-            if sym is None:
-                hook_addr, link_addr = self._simos.prepare_function_symbol(name)
-                l.info("Providing extern symbol for unresolved %s at #%x", name, hook_addr)
-                self.hook(hook_addr, obj)
-                provisions[name] = (AT.from_mva(link_addr, self._extern_obj).to_lva(), 0, None)
-            else:
-                hook_addr, _ = self._simos.prepare_function_symbol(name, basic_addr=sym.rebased_addr)
-                if self.is_hooked(hook_addr):
-                    l.warning("Re-hooking symbol %s", name)
-                    self.unhook(hook_addr)
-                self.hook(hook_addr, obj)
-
-        if provisions:
-            self.loader.provide_symbol_batch(self._extern_obj, provisions)
+        for x in hooks:
+            self.hook_symbol(x, hooks[x])
 
     def is_symbol_hooked(self, symbol_name):
         """
@@ -499,28 +474,11 @@ class Project(object):
         """
         # TODO: this method does not follow the SimOS.prepare_function_symbol() path. We should fix it later.
         sym = self.loader.find_symbol(symbol_name)
-        if sym is not None:
-            return self.is_hooked(sym.rebased_addr)
-        else:
-            return self.is_hooked(self._extern_obj.get_pseudo_addr(symbol_name))
-
-
-    def hooked_symbol_addr(self, symbol_name):
-        """
-        Check if a symbol is hooked or not, and if it is hooked, return the address of the symbol.
-
-        :param str symbol_name: Name of the symbol.
-        :return: Address of the symbol if it is hooked, None otherwise.
-        :rtype: int or None
-        """
-        sym = self.loader.find_symbol(symbol_name)
-        if sym is not None:
-            addr = sym.rebased_addr
-        else:
-            addr = self._extern_obj.get_pseudo_addr(symbol_name)
-        if self.is_hooked(addr):
-            return addr
-        return None
+        if sym is None:
+            l.warning("Could not find symbol %s", symbol_name)
+            return False
+        hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
+        return self.is_hooked(hook_addr)
 
     #
     # A convenience API (in the style of triton and manticore) for symbolic execution.
@@ -598,7 +556,6 @@ class Project(object):
 from .errors import AngrError
 from .factory import AngrObjectFactory
 from .simos import SimOS, os_mapping
-from .extern_obj import AngrExternObject
 from .analyses.analysis import Analyses
 from .surveyors import Surveyors
 from .knowledge_base import KnowledgeBase

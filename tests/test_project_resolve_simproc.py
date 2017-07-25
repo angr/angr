@@ -14,9 +14,9 @@ def test_bina():
     p = angr.Project(bina, exclude_sim_procedures_list=['rand', 'sleep'], load_options={"auto_load_libs":True})
 
     # Make sure external functions are not replaced with a SimProcedure
-    sleep_jmpslot = p.loader.main_bin.jmprel['sleep']
-    rand_jmpslot = p.loader.main_bin.jmprel['rand']
-    read_jmpslot = p.loader.main_bin.jmprel['read']
+    sleep_jmpslot = p.loader.main_object.jmprel['sleep']
+    rand_jmpslot = p.loader.main_object.jmprel['rand']
+    read_jmpslot = p.loader.main_object.jmprel['read']
 
     sleep_addr = p.loader.memory.read_addr_at(sleep_jmpslot.addr)
     rand_addr = p.loader.memory.read_addr_at(rand_jmpslot.addr)

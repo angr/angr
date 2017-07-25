@@ -24,7 +24,7 @@ class StaticHooker(Analysis):
             raise AngrValueError("No such library %s" % library)
 
         if binary is None:
-            binary = self.project.loader.main_bin
+            binary = self.project.loader.main_object
 
         for func in binary._symbol_cache.values():
             if not func.is_function:

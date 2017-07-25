@@ -41,7 +41,7 @@ class Identifier(Analysis):
         from angrop import rop_utils
 
         # self.project = project
-        if not isinstance(self.project.loader.main_bin, CGC):
+        if not isinstance(self.project.loader.main_object, CGC):
             l.critical("The identifier currently works only on CGC binaries. Results may be completely unexpected.")
 
         if cfg is not None:

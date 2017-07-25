@@ -13,7 +13,6 @@ import networkx
 import pyvex
 from . import Analysis, register_analysis
 
-from ..extern_obj import AngrExternObject
 from ..knowledge_base import KnowledgeBase
 from ..sim_variable import SimMemoryVariable, SimTemporaryVariable
 
@@ -319,8 +318,8 @@ class SymbolManager(object):
             return self.addr_to_label[addr][0]
 
         # Check if the address points to a function by checking the plt of main binary
-        reverse_plt = self.project.loader.main_bin.reverse_plt
-        symbols_by_addr = self.project.loader.main_bin.symbols_by_addr
+        reverse_plt = self.project.loader.main_object.reverse_plt
+        symbols_by_addr = self.project.loader.main_object.symbols_by_addr
 
         if addr in reverse_plt:
             # It's a PLT entry!
@@ -1557,8 +1556,8 @@ class Data(object):
                     addr = self.binary.fast_memory_load(self.addr + i * pointer_size, pointer_size, int,
                                                         endness=self.project.arch.memory_endness
                                                         )
-                    obj = self.project.loader.addr_belongs_to_object(addr)
-                    if obj is self.project.loader.main_bin:
+                    obj = self.project.loader.find_object_containing(addr)
+                    if obj is self.project.loader.main_object:
                         # a dynamic pointer
                         if self.binary.main_executable_regions_contain(addr) or \
                                 self.binary.main_nonexecutable_regions_contain(addr):
@@ -1718,7 +1717,7 @@ class Reassembler(Analysis):
         if self._main_executable_regions is None:
             self._main_executable_regions = []
 
-            obj = self.project.loader.main_bin
+            obj = self.project.loader.main_object
 
             if obj.sections:
                 for sec in obj.sections:
@@ -1748,7 +1747,7 @@ class Reassembler(Analysis):
         if self._main_nonexecutable_regions is None:
             self._main_nonexecutable_regions = []
 
-            obj = self.project.loader.main_bin
+            obj = self.project.loader.main_object
 
             if obj.sections:
                 for sec in obj.sections:
@@ -2298,11 +2297,9 @@ class Reassembler(Analysis):
         """
 
         # figure out section alignments
-        for section in self.project.loader.main_bin.sections:
-            if isinstance(section, AngrExternObject):
-                continue
+        for section in self.project.loader.main_object.sections:
             in_segment = False
-            for segment in self.project.loader.main_bin.segments:
+            for segment in self.project.loader.main_object.segments:
                 segment_addr = segment.vaddr
                 if segment_addr <= section.vaddr < segment_addr + segment.memsize:
                     in_segment = True
@@ -2365,7 +2362,7 @@ class Reassembler(Analysis):
                 continue
 
             # Check which section the start address belongs to
-            section = next(iter(sec.name for sec in self.project.loader.main_bin.sections
+            section = next(iter(sec.name for sec in self.project.loader.main_object.sections
                                 if f.addr >= sec.vaddr and f.addr < sec.vaddr + sec.memsize
                                 ),
                            ".text"
@@ -2381,7 +2378,7 @@ class Reassembler(Analysis):
 
         # Data
 
-        has_sections = len(self.project.loader.main_bin.sections) > 0
+        has_sections = len(self.project.loader.main_object.sections) > 0
 
         l.debug('Creating data entries...')
         for addr, memory_data in cfg._memory_data.iteritems():
@@ -2399,7 +2396,7 @@ class Reassembler(Analysis):
 
             if has_sections:
                 # Check which section the start address belongs to
-                section = next(iter(sec for sec in self.project.loader.main_bin.sections
+                section = next(iter(sec for sec in self.project.loader.main_object.sections
                                     if sec.vaddr <= addr < sec.vaddr + sec.memsize
                                     ),
                                None
@@ -2410,7 +2407,7 @@ class Reassembler(Analysis):
                     self.data.append(data)
                 elif memory_data.sort == 'segment-boundary':
                     # it just points to the end of the segment or a section
-                    section = next(iter(sec for sec in self.project.loader.main_bin.sections
+                    section = next(iter(sec for sec in self.project.loader.main_object.sections
                                         if addr == sec.vaddr + sec.memsize),
                                    None
                                    )
@@ -2426,7 +2423,7 @@ class Reassembler(Analysis):
                 # the binary does not have any section
                 # we use segment information instead
                 # TODO: this logic needs reviewing
-                segment = next(iter(seg for seg in self.project.loader.main_bin.segments
+                segment = next(iter(seg for seg in self.project.loader.main_object.segments
                                     if seg.vaddr <= addr <= seg.vaddr + seg.memsize
                                     ),
                                None
@@ -2449,14 +2446,14 @@ class Reassembler(Analysis):
         all_addrs = all_data_addrs | all_procedure_addrs
 
         if has_sections:
-            for section in self.project.loader.main_bin.sections:
+            for section in self.project.loader.main_object.sections:
 
                 if section.name in section_names_to_ignore:
                     # skip all sections that are CGC specific
                     continue
 
                 # make sure this section is inside a segment
-                for segment in self.project.loader.main_bin.segments:
+                for segment in self.project.loader.main_object.segments:
                     segment_start = segment.vaddr
                     segment_end = segment_start + segment.memsize
                     if segment_start <= section.vaddr < segment_end:
@@ -2735,7 +2732,7 @@ class Reassembler(Analysis):
             if candidate_node is None:
                 continue
             base_graph.add_node(candidate_node)
-            tmp_kb = KnowledgeBase(self.project, self.project.loader.main_bin)
+            tmp_kb = KnowledgeBase(self.project, self.project.loader.main_object)
             cfg = self.project.analyses.CFGAccurate(kb=tmp_kb,
                                                     starts=(candidate.irsb_addr,),
                                                     keep_state=True,

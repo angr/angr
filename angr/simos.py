@@ -87,18 +87,18 @@ class SimOS(object):
         return proc
 
     def is_syscall_addr(self, addr):
-        addr -= self.project._syscall_obj.mapped_base
+        addr -= self.project.loader.kernel_object.mapped_base
         return 0 <= addr < 0x4000
 
     def syscall_from_addr(self, addr, allow_unsupported=True):
-        number = addr - self.project._syscall_obj.mapped_base
+        number = addr - self.project.loader.kernel_object.mapped_base
         return self.syscall_from_number(number, allow_unsupported=allow_unsupported)
 
     def syscall_from_number(self, number, allow_unsupported=True):
         if not allow_unsupported and not self.syscall_library:
             raise AngrUnsupportedSyscallError("%s does not have a library of syscalls implemented", self.name)
 
-        addr = number + self.project._syscall_obj.mapped_base
+        addr = number + self.project.loader.kernel_object.mapped_base
 
         if self.syscall_library is None:
             proc = P['stubs']['syscall']()
@@ -114,7 +114,7 @@ class SimOS(object):
         """
         Configure the project to set up global settings (like SimProcedures).
         """
-        self.return_deadend = self.project._extern_obj.get_pseudo_addr('angr##return_deadend')
+        self.return_deadend = self.project.loader.extern_object.allocate()
         self.project.hook(self.return_deadend, P['stubs']['CallReturn']())
 
         def irelative_resolver(resolver_addr):
@@ -179,7 +179,7 @@ class SimOS(object):
                     if seg.is_executable:
                         perms |= 4 # PROT_EXEC
                     permission_map[(seg.min_addr, seg.max_addr)] = perms
-            permissions_backer = (self.project.loader.main_bin.execstack, permission_map)
+            permissions_backer = (self.project.loader.main_object.execstack, permission_map)
             kwargs['permissions_backer'] = permissions_backer
         if kwargs.get('memory_backer', None) is None:
             kwargs['memory_backer'] = self.project.loader.memory
@@ -300,7 +300,7 @@ class SimOS(object):
         relocation target.
         """
         if basic_addr is None:
-            basic_addr = self.project._extern_obj.get_pseudo_addr(symbol_name)
+            basic_addr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
         return basic_addr, basic_addr
 
 
@@ -321,11 +321,11 @@ class SimLinux(SimOS):
     def configure_project(self):
         super(SimLinux, self).configure_project()
 
-        self._loader_addr = self.project._extern_obj.get_pseudo_addr('angr##loader')
-        self._loader_lock_addr = self.project._extern_obj.get_pseudo_addr('angr##loader_lock')
-        self._loader_unlock_addr = self.project._extern_obj.get_pseudo_addr('angr##loader_unlock')
-        self._error_catch_tsd_addr = self.project._extern_obj.get_pseudo_addr('angr##error_catch_tsd')
-        self._vsyscall_addr = self.project._extern_obj.get_pseudo_addr('angr##vsyscall')
+        self._loader_addr = self.project.loader.extern_object.allocate()
+        self._loader_lock_addr = self.project.loader.extern_object.allocate()
+        self._loader_unlock_addr = self.project.loader.extern_object.allocate()
+        self._error_catch_tsd_addr = self.project.loader.extern_object.allocate()
+        self._vsyscall_addr = self.project.loader.extern_object.allocate()
         self.project.hook(self._loader_addr, P['linux_loader']['LinuxLoader']())
         self.project.hook(self._loader_lock_addr, P['linux_loader']['_dl_rtld_lock_recursive']())
         self.project.hook(self._loader_unlock_addr, P['linux_loader']['_dl_rtld_unlock_recursive']())
@@ -364,7 +364,7 @@ class SimLinux(SimOS):
 
 
         # Only set up ifunc resolution if we are using the ELF backend on AMD64
-        if isinstance(self.project.loader.main_bin, MetaELF):
+        if isinstance(self.project.loader.main_object, MetaELF):
             if isinstance(self.project.arch, ArchAMD64):
                 for binary in self.project.loader.all_objects:
                     if not isinstance(binary, MetaELF):
@@ -388,7 +388,7 @@ class SimLinux(SimOS):
                                 'funcname': reloc.symbol.name
                         }
                         # TODO: should this be replaced with hook_symbol?
-                        randaddr = self.project._extern_obj.get_pseudo_addr('ifunc_%s_%s' % (binary.binary, reloc.symbol.name))
+                        randaddr = self.project.loader.extern_object.allocate()
                         self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](**kwargs))
                         self.project.loader.memory.write_addr_at(gotaddr, randaddr)
 
@@ -409,12 +409,12 @@ class SimLinux(SimOS):
             elif isinstance(state.arch, ArchAArch64):
                 state.regs.tpidr_el0 = self.project.loader.tls_object.user_thread_pointer
 
-        last_addr = self.project.loader.main_bin.get_max_addr()
+        last_addr = self.project.loader.main_object.max_addr
         brk = last_addr - last_addr % 0x1000 + 0x1000
 
         state.register_plugin('posix', SimStateSystem(fs=fs, concrete_fs=concrete_fs, chroot=chroot, brk=brk))
 
-        if self.project.loader.main_bin.is_ppc64_abiv1:
+        if self.project.loader.main_object.is_ppc64_abiv1:
             state.libc.ppc64_abiv = 'ppc64_1'
 
         return state
@@ -524,8 +524,8 @@ class SimLinux(SimOS):
                     # or NULL. We like NULL. It makes things easier.
                     state.registers.store(reg, 0)
                 elif val == 'toc':
-                    if self.project.loader.main_bin.is_ppc64_abiv1:
-                        state.registers.store(reg, self.project.loader.main_bin.ppc64_initial_rtoc)
+                    if self.project.loader.main_object.is_ppc64_abiv1:
+                        state.registers.store(reg, self.project.loader.main_object.ppc64_initial_rtoc)
                 elif val == 'thread_pointer':
                     state.registers.store(reg, self.project.loader.tls_object.user_thread_pointer)
                 else:
@@ -549,13 +549,13 @@ class SimLinux(SimOS):
                 pointer = self.project.loader.memory.read_addr_at(basic_addr)
                 return pointer, basic_addr
 
-            pseudo_hookaddr = self.project._extern_obj.get_pseudo_addr(symbol_name)
-            pseudo_toc = self.project._extern_obj.get_pseudo_addr(symbol_name + '#func', size=0x18)
-            self.project._extern_obj.memory.write_addr_at(AT.from_mva(pseudo_toc, self.project._extern_obj).to_rva(), pseudo_hookaddr)
+            pseudo_hookaddr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
+            pseudo_toc = self.project.loader.extern_object.allocate(size=0x18)
+            self.project.loader.extern_object.memory.write_addr_at(AT.from_mva(pseudo_toc, self.project.loader.extern_object).to_rva(), pseudo_hookaddr)
             return pseudo_hookaddr, pseudo_toc
         else:
             if basic_addr is None:
-                basic_addr = self.project._extern_obj.get_pseudo_addr(symbol_name)
+                basic_addr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
             return basic_addr, basic_addr
 
 
@@ -590,14 +590,14 @@ class SimCGC(SimOS):
         return s
 
     def state_entry(self, **kwargs):
-        if isinstance(self.project.loader.main_bin, BackedCGC):
-            kwargs['permissions_backer'] = (True, self.project.loader.main_bin.permissions_map)
+        if isinstance(self.project.loader.main_object, BackedCGC):
+            kwargs['permissions_backer'] = (True, self.project.loader.main_object.permissions_map)
         kwargs['add_options'] = {o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY} | kwargs.get('add_options', set())
 
         state = super(SimCGC, self).state_entry(**kwargs)
 
-        if isinstance(self.project.loader.main_bin, BackedCGC):
-            for reg, val in self.project.loader.main_bin.initial_register_values():
+        if isinstance(self.project.loader.main_object, BackedCGC):
+            for reg, val in self.project.loader.main_object.initial_register_values():
                 if reg in state.arch.registers:
                     setattr(state.regs, reg, val)
                 elif reg == 'eflags':
@@ -619,10 +619,10 @@ class SimCGC(SimOS):
                     l.error("What is this register %s I have to translate?", reg)
 
             # Update allocation base
-            state.cgc.allocation_base = self.project.loader.main_bin.current_allocation_base
+            state.cgc.allocation_base = self.project.loader.main_object.current_allocation_base
 
             # Do all the writes
-            writes_backer = self.project.loader.main_bin.writes_backer
+            writes_backer = self.project.loader.main_object.writes_backer
             stdout = 1
             for size in writes_backer:
                 if size == 0:
@@ -697,7 +697,7 @@ class SimWindows(SimOS):
         return state
 
     def state_blank(self, **kwargs):
-        if self.project.loader.main_bin.supports_nx:
+        if self.project.loader.main_object.supports_nx:
             add_options = kwargs.get('add_options', set())
             add_options.add(o.ENABLE_NX)
             kwargs['add_options'] = add_options
@@ -770,8 +770,8 @@ class SimWindows(SimOS):
                         fuck_load(depo)
                         init_order.append(depo)
 
-            fuck_load(self.project.loader.main_bin)
-            load_order = [self.project.loader.main_bin] + init_order
+            fuck_load(self.project.loader.main_object)
+            load_order = [self.project.loader.main_object] + init_order
 
             def link(a, b):
                 state.mem[a].dword = b

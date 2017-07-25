@@ -735,7 +735,7 @@ class Path(object):
             ]
 
     def __repr__(self):
-        where_object = self._project.loader.addr_belongs_to_object(self.addr)
+        where_object = self._project.loader.find_object_containing(self.addr)
         if where_object is None:
             return "<Path with %d runs (at 0x%x)>" % (self.length, self.addr)
         else:

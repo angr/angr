@@ -162,7 +162,7 @@ class SimProcedure(object):
         # make a copy of the canon copy, customize it for the specific continuation, then hook it
         if name not in self.canonical.continuations:
             cont = copy.copy(self.canonical)
-            cont.addr = self.project._extern_obj.anon_allocation()
+            cont.addr = self.project.loader.extern_object.allocate()
             cont.is_continuation = True
             cont.run_func = name
             self.canonical.continuations[name] = cont

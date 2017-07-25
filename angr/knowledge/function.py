@@ -70,7 +70,7 @@ class Function(object):
 
         # try to get the name from the symbols
         #if name is None:
-        #   so = project.loader.addr_belongs_to_object(addr)
+        #   so = project.loader.find_object_containing(addr)
         #   if so is not None and addr in so.symbols_by_addr:
         #       name = so.symbols_by_addr[addr].name
         #       print name
@@ -293,7 +293,7 @@ class Function(object):
         """
         constants = set()
 
-        if not self._project.loader.main_bin.contains_addr(self.addr):
+        if not self._project.loader.main_object.contains_addr(self.addr):
             return constants
 
         # FIXME the old way was better for architectures like mips, but we need the initial irsb
@@ -322,7 +322,7 @@ class Function(object):
             if self._project.is_hooked(state.se.any_int(state.ip)):
                 continue
             # don't trace outside of the binary
-            if not self._project.loader.main_bin.contains_addr(state.se.any_int(state.ip)):
+            if not self._project.loader.main_object.contains_addr(state.se.any_int(state.ip)):
                 continue
 
             curr_ip = state.se.any_int(state.ip)
@@ -445,7 +445,7 @@ class Function(object):
         :return: The object this function belongs to.
         """
 
-        return self._project.loader.addr_belongs_to_object(self.addr)
+        return self._project.loader.find_object_containing(self.addr)
 
     def add_jumpout_site(self, node):
         """

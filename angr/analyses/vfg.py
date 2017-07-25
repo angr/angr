@@ -1359,7 +1359,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                     state, self.project.arch)
             sim_successors = SimEngineProcedure().process(state, inst)
         except AngrError as ex:
-            #segment = self.project.loader.main_bin.in_which_segment(addr)
+            #segment = self.project.loader.main_object.in_which_segment(addr)
             l.error("AngrError %s when generating SimSuccessors at %#x",
                     ex, addr, exc_info=True)
             # We might be on a wrong branch, and is likely to encounter the
@@ -1556,8 +1556,10 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         :return: None
         """
 
-        function_name = self.project.loader.find_symbol_name(job.addr)
-        module_name = self.project.loader.find_module_name(job.addr)
+        func = self.project.loader.find_symbol(job.addr)
+        obj = self.project.loader.find_module_containing(job.addr)
+        function_name = func.name if func is not None else None
+        module_name = obj.provides if obj is not None else obj
 
         l.debug("VFGJob @ %#08x with callstack [ %s ]", job.addr,
                 job.callstack_repr(self.kb),

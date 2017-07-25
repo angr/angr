@@ -52,7 +52,7 @@ class GetProcAddress(angr.SimProcedure):
         full_name = '%s.%s' % (lib_name, name)
         self.procs.add(full_name)
 
-        addr = self.project._extern_obj.get_pseudo_addr(full_name)
+        addr = self.project.loader.extern_object.get_pseudo_addr(name)
         if not self.project.is_hooked(addr):
             return_val = None
             num_args = 0

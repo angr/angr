@@ -112,7 +112,7 @@ class CallTracingFilter(object):
                                                     call_depth=1,
                                                     call_tracing_filter=tracing_filter.filter,
                                                     normalize=True,
-                                                    kb=KnowledgeBase(self.project, self.project.loader.main_bin)
+                                                    kb=KnowledgeBase(self.project, self.project.loader.main_object)
                                                     )
             self.cfg_cache[cfg_key] = (cfg, tracing_filter)
 
@@ -546,7 +546,7 @@ class Veritesting(Analysis):
                 call_tracing_filter=filter,
                 initial_state=cfg_initial_state,
                 normalize=True,
-                kb=KnowledgeBase(self.project, self.project.loader.main_bin)
+                kb=KnowledgeBase(self.project, self.project.loader.main_object)
             )
             cfg_graph_with_loops = networkx.DiGraph(cfg.graph)
             cfg.force_unroll_loops(self._loop_unrolling_limit)
