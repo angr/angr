@@ -37,7 +37,7 @@ class RegionObject(object):
                 self._internal_objects.add(obj.obj)
 
     def __eq__(self, other):
-        return self.start == other.start and self.size == other.size and self.stored_objects == other.objects
+        return self.start == other.start and self.size == other.size and self.stored_objects == other.stored_objects
 
     def __ne__(self, other):
         return not self == other
