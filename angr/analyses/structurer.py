@@ -41,6 +41,20 @@ class SequenceNode(object):
     def node_position(self, node):
         return self.nodes.index(node)
 
+    def remove_empty_node(self):
+
+        new_nodes = [ ]
+
+        for node in self.nodes:
+            if type(node) is ailment.Block and not node.statements:
+                continue
+            new_nodes.append(node)
+
+        self.nodes = new_nodes
+
+    def copy(self):
+        return SequenceNode(nodes=self.nodes[::])
+
     def dbg_repr(self, indent=0):
         s = ""
         for node in self.nodes:
@@ -218,7 +232,7 @@ class Structurer(Analysis):
 
         loop_node = self._make_endless_loop(loop_head, loop_subgraph, successors)
 
-        self._refine_loop(loop_node)
+        loop_node = self._refine_loop(loop_node)
 
         self.result = SequenceNode(nodes=[ loop_node ] + list(successors))
 
@@ -287,8 +301,6 @@ class Structurer(Analysis):
         # TODO: As this point, the loop body should be a SequenceNode
         loop_body = self._to_loop_body_sequence(loop_head, loop_subgraph, loop_successors)
 
-        # TODO: For every edge jumping outside of the loop, make it a (un)conditional break node
-
         # create a while(true) loop with sequence node being the loop body
         loop_node = LoopNode('while', None, loop_body)
 
@@ -296,7 +308,49 @@ class Structurer(Analysis):
 
     def _refine_loop(self, loop_node):
 
-        l.warning('Loop node refinement is not yet implemented.')
+        while True:
+            # while
+            r, loop_node = self._refine_loop_while(loop_node)
+            if r: continue
+
+            # do-while
+            r, loop_node = self._refine_loop_dowhile(loop_node)
+            if r: continue
+
+            # no more changes
+            break
+
+        return loop_node
+
+    def _refine_loop_while(self, loop_node):
+
+        if loop_node.sort == 'while' and loop_node.condition is None:
+            # it's an endless loop
+            first_node = loop_node.sequence_node.nodes[0]
+            if type(first_node) is ConditionalBreakNode:
+                while_cond = ailment.Expr.UnaryOp(0, 'Not', first_node.condition)
+                new_seq = loop_node.sequence_node.copy()
+                new_seq.nodes = new_seq.nodes[1:]
+                new_loop_node = LoopNode('while', while_cond, new_seq)
+
+                return True, new_loop_node
+
+        return False, loop_node
+
+    def _refine_loop_dowhile(self, loop_node):
+
+        if loop_node.sort == 'while' and loop_node.condition is None:
+            # it's an endless loop
+            last_node = loop_node.sequence_node.nodes[-1]
+            if type(last_node) is ConditionalBreakNode:
+                while_cond = ailment.Expr.UnaryOp(0, 'Not', last_node.condition)
+                new_seq = loop_node.sequence_node.copy()
+                new_seq.nodes = new_seq.nodes[:-1]
+                new_loop_node = LoopNode('do-while', while_cond, new_seq)
+
+                return True, new_loop_node
+
+        return False, loop_node
 
     def _to_loop_body_sequence(self, loop_head, loop_subgraph, loop_successors):
 
@@ -325,16 +379,20 @@ class Structurer(Analysis):
                     if type(last_stmt) is ailment.Stmt.Jump:
                         # add a break
                         seq.nodes.append(BreakNode(dst))
+                        # shrink the block to remove the last statement
+                        self._remove_last_statement(node)
                     elif type(last_stmt) is ailment.Stmt.ConditionalJump:
                         # add a conditional break
                         if last_stmt.true_target.value == dst.addr:
                             cond = last_stmt.condition
                         elif last_stmt.false_target.value == dst.addr:
-                            cond = claripy.Not(last_stmt.condition)
+                            cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, 'Not', (last_stmt.condition))
                         else:
                             l.warning("I'm not sure which branch is jumping out of the loop...")
                             raise Exception()
                         seq.nodes.append(ConditionalBreakNode(cond, dst))
+                        # remove the last statement from the node
+                        self._remove_last_statement(node)
                     continue
                 else:
                     # sanity check
@@ -349,6 +407,17 @@ class Structurer(Analysis):
             if len(queue) > 1:
                 l.error("It seems that the loop body hasn't been properly structured.")
                 raise Exception()
+
+        last_stmt = self._get_last_statement(seq)
+        if type(last_stmt) is ailment.Stmt.Jump:
+            target = last_stmt.target
+            if target.value != loop_head.addr:
+                l.error('The last Goto in the loop body does not jump to the loop head. Why?')
+                raise Exception()
+            # we want to remove this Jump as it is not necessary anymore
+            self._remove_last_statement(seq)
+
+        seq.remove_empty_node()
 
         return seq
 
@@ -445,7 +514,12 @@ class Structurer(Analysis):
         seq.remove_node(node_1)
 
     def _get_last_statement(self, block):
-        if type(block) is ailment.Block:
+        if type(block) is SequenceNode:
+            if block.nodes:
+                return self._get_last_statement(block.nodes[-1])
+        elif type(block) is CodeNode:
+            return self._get_last_statement(block.node)
+        elif type(block) is ailment.Block:
             return block.statements[-1]
         elif type(block) is Block:
             return block.vex.statements[-1]
@@ -456,6 +530,23 @@ class Structurer(Analysis):
             # get the last node
             the_block = block.nodes[-1]
             return self._get_last_statement(the_block)
+        else:
+            raise NotImplementedError()
+
+        return None
+
+    def _remove_last_statement(self, node):
+
+        if type(node) is CodeNode:
+            self._remove_last_statement(node.node)
+        elif type(node) is ailment.Block:
+            node.statements = node.statements[:-1]
+        elif type(node) is MultiNode:
+            if node.nodes:
+                self._remove_last_statement(node.nodes[-1])
+        elif type(node) is SequenceNode:
+            if node.nodes:
+                self._remove_last_statement(node.nodes[-1])
         else:
             raise NotImplementedError()
 
