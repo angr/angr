@@ -79,6 +79,10 @@ class MemoryLocation(Atom):
         self.addr = addr
         self.size = size
 
+    @property
+    def bits(self):
+        return self.size * 8
+
     def __eq__(self, other):
         return type(other) is MemoryLocation and \
                 self.addr == other.addr and \
@@ -507,6 +511,10 @@ def get_engine(base_engine):
         def _ail_handle_Load(self, expr):
 
             addr = self._expr(expr.addr)
+            size = expr.size
+
+            # TODO: Load from memory
+            return MemoryLocation(addr, size)
 
         def _ail_handle_Convert(self, expr):
             return ailment.Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, self._expr(expr.operand))
@@ -516,6 +524,21 @@ def get_engine(base_engine):
             op1 = self._expr(expr.operands[1])
 
             return ailment.Expr.BinaryOp(expr.idx, expr.op, [ op0, op1 ], **expr.tags)
+
+        def _ail_handle_CmpLE(self, expr):
+            op0 = self._expr(expr.operands[0])
+            op1 = self._expr(expr.operands[1])
+
+            return ailment.Expr.BinaryOp(expr.idx, expr.op, [ op0, op1 ], **expr.tags)
+
+        def _ail_handle_Xor(self, expr):
+            op0 = self._expr(expr.operands[0])
+            op1 = self._expr(expr.operands[1])
+
+            return ailment.Expr.BinaryOp(expr.idx, expr.op, [ op0, op1 ], **expr.tags)
+
+        def _ail_handle_Const(self, expr):
+            return expr
 
     return SimEngineRD
 
