@@ -145,13 +145,14 @@ class UnaryOp(Op):
 
 
 class Convert(UnaryOp):
-    def __init__(self, idx, from_bits, to_bits, operand, **kwargs):
+    def __init__(self, idx, from_bits, to_bits, is_signed, operand, **kwargs):
         super(Convert, self).__init__(idx, 'Convert', operand, **kwargs)
 
         self.from_bits = from_bits
         self.to_bits = to_bits
         # override the size
         self.bits = to_bits
+        self.is_signed = is_signed
 
     def __str__(self):
         return "Conv(%d->%d, %s)" % (self.from_bits, self.to_bits, self.operand)
@@ -163,7 +164,7 @@ class Convert(UnaryOp):
         r, replaced_operand = self.operand.replace(old_expr, new_expr)
 
         if r:
-            return True, Convert(self.idx, self.from_bits, self.to_bits, replaced_operand, **self.tags)
+            return True, Convert(self.idx, self.from_bits, self.to_bits, self.is_signed, replaced_operand, **self.tags)
         else:
             return False, self
 
@@ -233,13 +234,43 @@ class Load(Expression):
             return False, self
 
 
+class ITE(Expression):
+    def __init__(self, idx, cond, iffalse, iftrue, **kwargs):
+        super(ITE, self).__init__(idx, **kwargs)
+
+        self.cond = cond
+        self.iffalse = iffalse
+        self.iftrue = iftrue
+        self.bits = iftrue.bits
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return "((%s) ? (%s) : (%s))" % (self.cond, self.iftrue, self.iffalse)
+
+    def has_atom(self, atom):
+        return self.cond.has_atom(atom) or self.iftrue.has_atom(atom) or self.iffalse.has_atom(atom)
+
+    def replace(self, old_expr, new_expr):
+        cond_replaced, new_cond = self.cond.replace(old_expr, new_expr)
+        iffalse_replaced, new_iffalse = self.iffalse.replace(old_expr, new_expr)
+        iftrue_replaced, new_iftrue = self.iftrue.replace(old_expr, new_expr)
+        replaced = cond_replaced or iftrue_replaced or iffalse_replaced
+
+        if replaced:
+            return True, ITE(self.idx, new_cond, new_iffalse, new_iftrue, **self.tags)
+        else:
+            return False, self
+
+
 class DirtyExpression(Expression):
     def __init__(self, idx, dirty_expr, **kwargs):
         super(DirtyExpression, self).__init__(idx, **kwargs)
         self.dirty_expr = dirty_expr
 
     def __repr__(self):
-        return "DirtyStatement (%s)" % type(self.dirty_expr)
+        return "DirtyExpression (%s)" % type(self.dirty_expr)
 
     def __str__(self):
         return "[D] %s" % str(self.dirty_expr)

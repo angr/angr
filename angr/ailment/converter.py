@@ -4,7 +4,7 @@ from angr.engines.vex.irop import operations as vex_operations
 
 from .block import Block
 from .statement import Assignment, Store, Jump, ConditionalJump, Call, DirtyStatement
-from .expression import Atom, Const, Register, Tmp, DirtyExpression, UnaryOp, Convert, BinaryOp, Load
+from .expression import Atom, Const, Register, Tmp, DirtyExpression, UnaryOp, Convert, BinaryOp, Load, ITE
 
 
 class Converter(object):
@@ -77,6 +77,7 @@ class VEXExprConverter(Converter):
                 return Convert(manager.next_atom(),
                                simop._from_size,
                                simop._to_size,
+                               simop.is_signed,
                                VEXExprConverter.convert(expr.args[0], manager),
                                )
             raise NotImplementedError('Unsupported operation')
@@ -114,6 +115,14 @@ class VEXExprConverter(Converter):
         # pyvex.const.xxx
         return Const(manager.next_atom(), None, expr.value, 64)
 
+    @staticmethod
+    def ITE(expr, manager):
+        cond = VEXExprConverter.convert(expr.cond, manager)
+        iffalse = VEXExprConverter.convert(expr.iffalse, manager)
+        iftrue = VEXExprConverter.convert(expr.iftrue, manager)
+
+        return ITE(manager.next_atom(), cond, iffalse, iftrue)
+
 
 EXPRESSION_MAPPINGS = {
     pyvex.IRExpr.RdTmp: VEXExprConverter.RdTmp,
@@ -123,6 +132,7 @@ EXPRESSION_MAPPINGS = {
     pyvex.IRExpr.Const: VEXExprConverter.Const,
     pyvex.const.U64: VEXExprConverter.const_64,
     pyvex.IRExpr.Load: VEXExprConverter.Load,
+    pyvex.IRExpr.ITE: VEXExprConverter.ITE,
 }
 
 

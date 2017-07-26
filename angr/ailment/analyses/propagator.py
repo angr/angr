@@ -232,7 +232,7 @@ def get_engine(base_engine):
                     # eliminate the redundant Convert
                     return operand_expr.operand
                 else:
-                    return Expr.Convert(expr.idx, operand_expr.from_bits, expr.to_bits, operand_expr.operand)
+                    return Expr.Convert(expr.idx, operand_expr.from_bits, expr.to_bits, expr.is_signed, operand_expr.operand)
             elif type(operand_expr) is Expr.Const:
                 # do the conversion right away
                 value = operand_expr.value
@@ -240,7 +240,7 @@ def get_engine(base_engine):
                 value &= mask
                 return Expr.Const(expr.idx, operand_expr.variable, value, expr.to_bits)
 
-            converted = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, operand_expr)
+            converted = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, operand_expr)
             return converted
 
         def _ail_handle_Const(self, expr):
