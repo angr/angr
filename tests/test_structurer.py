@@ -26,6 +26,49 @@ def test_smoketest():
 
     import ipdb; ipdb.set_trace()
 
+def test_simple_loop():
+
+    p = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'cfg_loop_unrolling'), auto_load_libs=False)
+    cfg = p.analyses.CFG(normalize=True)
+
+    test_func = cfg.kb.functions['test_func']
+
+    # convert function blocks to AIL blocks
+    clinic = p.analyses.Clinic(test_func)
+
+    # recover regions
+    ri = p.analyses.RegionIdentifier(test_func, graph=clinic.graph)
+
+    # structure it
+
+    st = p.analyses.Structurer(next(node for node in ri.region.graph.nodes() if hasattr(node, 'graph')))
+
+    import ipdb; ipdb.set_trace()
+
+def test_recursive_structuring():
+    p = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'cfg_loop_unrolling'),
+                     auto_load_libs=False)
+    cfg = p.analyses.CFG(normalize=True)
+
+    test_func = cfg.kb.functions['test_func']
+
+    # convert function blocks to AIL blocks
+    clinic = p.analyses.Clinic(test_func)
+
+    # recover regions
+    ri = p.analyses.RegionIdentifier(test_func, graph=clinic.graph)
+
+    # structure it
+    rs = p.analyses.RecursiveStructurer(ri.region)
+
+    codegen = p.analyses.StructuredCodeGenerator(rs.result)
+
+    print codegen.text
+
+    import ipdb; ipdb.set_trace()
+
 
 if __name__ == "__main__":
-    test_smoketest()
+    # test_smoketest()
+    # test_simple_loop()
+    test_recursive_structuring()
