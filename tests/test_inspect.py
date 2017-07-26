@@ -243,7 +243,7 @@ def test_inspect_engine_process():
     p = angr.Project(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests/x86_64/fauxware'))
     constraints = []
     def check_first_symbolic_fork(state):
-        succs = state.inspect.simsuccessor.successors
+        succs = state.inspect.sim_successor.successors
         succ_addr = [hex(s.addr) for s in succs]
         nose.tools.assert_in('0x400692L', succ_addr)
         nose.tools.assert_in('0x400699L', succ_addr)
@@ -251,7 +251,7 @@ def test_inspect_engine_process():
         print 'Successors:', succ_addr
 
     def check_second_symbolic_fork(state):
-        succs = state.inspect.simsuccessor.successors
+        succs = state.inspect.sim_successor.successors
         succ_addr = [hex(s.addr) for s in succs]
         nose.tools.assert_in('0x4006dfL', succ_addr)
         nose.tools.assert_in('0x4006e6L', succ_addr)
@@ -260,13 +260,13 @@ def test_inspect_engine_process():
 
     def first_symbolic_fork(state):
         return hex(state.addr) == '0x40068eL' \
-           and type(state.inspect.simengine) == angr.engines.vex.engine.SimEngineVEX
+           and type(state.inspect.sim_engine) == angr.engines.vex.engine.SimEngineVEX
 
     def second_symbolic_fork(state):
         if hex(state.addr) == '0x4006dbL':
             constraints.extend(state.se.constraints)
         return hex(state.addr) == '0x4006dbL' \
-           and type(state.inspect.simengine) == angr.engines.vex.engine.SimEngineVEX
+           and type(state.inspect.sim_engine) == angr.engines.vex.engine.SimEngineVEX
 
     state = p.factory.entry_state(addr=p.loader.main_bin.get_symbol('main').addr)
     pg = p.factory.simgr(state)
@@ -285,8 +285,8 @@ def test_inspect_engine_process():
     pg.step(until=lambda lpg: len(lpg.active) == 0)
 
 if __name__ == '__main__':
-#   test_inspect_concretization()
-#   test_inspect_exit()
-#   test_inspect_syscall()
-#   test_inspect()
+    test_inspect_concretization()
+    test_inspect_exit()
+    test_inspect_syscall()
+    test_inspect()
     test_inspect_engine_process()

@@ -102,8 +102,8 @@ inspect_attributes = {
     'simprocedure_addr',
 
     # engine_process
-    'simengine',
-    'simsuccessor',
+    'sim_engine',
+    'sim_successor',
     }
 
 BP_BEFORE = 'before'

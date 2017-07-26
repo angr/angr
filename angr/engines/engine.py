@@ -41,9 +41,11 @@ class SimEngine(object):
 
         successors = SimSuccessors(addr, state)
 
-        state._inspect('engine_process', when=BP_BEFORE, simengine=self)
+        state._inspect('engine_process', when=BP_BEFORE, sim_engine=self, sim_successor=successors)
+        successors = state._inspect_getattr('sim_successor', successors)
         self._process(new_state, successors, *args, **kwargs)
-        state._inspect('engine_process', when=BP_AFTER, simsuccessor=successors)
+        state._inspect('engine_process', when=BP_AFTER, sim_successor=successors)
+        successors = state._inspect_getattr('sim_successor', successors)
 
         return successors
 
