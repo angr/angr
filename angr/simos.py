@@ -707,8 +707,8 @@ class SimWindows(SimOS):
         fun_stuff_addr = state.libc.mmap_base
         if fun_stuff_addr & 0xffff != 0:
             fun_stuff_addr += 0x10000 - (fun_stuff_addr & 0xffff)
-        state.libc.mmap_base = fun_stuff_addr + 0x4000
-        state.memory.map_region(fun_stuff_addr, 0x4000, claripy.BVV(3, 3))
+        state.libc.mmap_base = fun_stuff_addr + 0x5000
+        state.memory.map_region(fun_stuff_addr, 0x5000, claripy.BVV(3, 3))
 
         TIB_addr = fun_stuff_addr
         PEB_addr = fun_stuff_addr + 0x1000
@@ -752,6 +752,7 @@ class SimWindows(SimOS):
                 state.mem[addr+0x30].dword = ALLOC_AREA + tail_start
 
                 for j, c in enumerate(path):
+                    # if this segfaults, increase the allocation size
                     state.mem[ALLOC_AREA + j*2].short = ord(c)
                 state.mem[ALLOC_AREA + alloc_size - 2].short = 0
                 ALLOC_AREA += alloc_size
