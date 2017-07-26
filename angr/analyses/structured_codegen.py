@@ -66,15 +66,29 @@ class StructuredCodeGenerator(Analysis):
 
         lines = [ ]
 
-        assert loop_node.sort == 'while'
-        assert loop_node.condition is None
-
-        lines.append('while(true)')
-        lines.append('{')
-
-        lines.extend(self._handle(loop_node.sequence_node, indent=INDENT_DELTA))
-
-        lines.append('}')
+        if loop_node.sort == 'while':
+            if loop_node.condition == None:
+                # while(true)
+                lines.append('while(true)')
+                lines.append('{')
+                lines.extend(self._handle(loop_node.sequence_node, indent=INDENT_DELTA))
+                lines.append('}')
+            else:
+                # while(cond)
+                lines.append('while(%s)' % repr(loop_node.condition))
+                lines.append('{')
+                lines.extend(self._handle(loop_node.sequence_node, indent=INDENT_DELTA))
+                lines.append('}')
+        elif loop_node.sort == 'do-while':
+            if loop_node.condition == None:
+                raise NotImplementedError()
+            else:
+                lines.append('do')
+                lines.append('{')
+                lines.extend(self._handle(loop_node.sequence_node, indent=INDENT_DELTA))
+                lines.append('} while(%s);' % repr(loop_node.condition))
+        else:
+            raise NotImplementedError()
 
         new_lines = [ self.indent(indent) + l for l in lines ]
 
