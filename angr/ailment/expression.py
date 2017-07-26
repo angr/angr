@@ -132,6 +132,9 @@ class UnaryOp(Op):
     def __str__(self):
         return "(%s %s)" % (self.op, str(self.operand))
 
+    def __repr__(self):
+        return str(self)
+
     def replace(self, old_expr, new_expr):
         r, replaced_operand = self.operand.replace(old_expr, new_expr)
 
