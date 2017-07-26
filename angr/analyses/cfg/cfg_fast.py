@@ -2744,9 +2744,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                 )
         self.graph.add_edge(new_node, successor, jumpkind='Ijk_Boring')
 
+        # if the node B already has resolved targets, we will skip all unresolvable successors when adding old out edges
+        # from node A to node B.
+        # this matters in cases where node B is resolved as a special indirect jump entry (like a PLT stub), but (node
+        # A + node B) wasn't properly resolved.
+        has_resolved_targets = any([ node_.addr != self._unresolvable_target_addr
+                                     for node_ in self.graph.successors(successor) ]
+                                   )
+
         old_out_edges = self.graph.out_edges(node, data=True)
         for _, dst, data in old_out_edges:
-            self.graph.add_edge(successor, dst, **data)
+            if (has_resolved_targets and dst.addr != self._unresolvable_target_addr) or \
+                    not has_resolved_targets:
+                self.graph.add_edge(successor, dst, **data)
 
         # remove the old node from indices
         if node.addr in self._nodes and self._nodes[node.addr] is node:
