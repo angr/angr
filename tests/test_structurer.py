@@ -67,8 +67,50 @@ def test_recursive_structuring():
 
     import ipdb; ipdb.set_trace()
 
+def test_while_true_break():
+    p = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'test_decompiler_loops_O0'),
+                     auto_load_libs=False)
+    cfg = p.analyses.CFG(normalize=True)
+
+    test_func = cfg.kb.functions['_while_true_break']
+
+    # convert function blocks to AIL blocks
+    clinic = p.analyses.Clinic(test_func)
+
+    # recover regions
+    ri = p.analyses.RegionIdentifier(test_func, graph=clinic.graph)
+
+    # structure it
+    rs = p.analyses.RecursiveStructurer(ri.region)
+
+    codegen = p.analyses.StructuredCodeGenerator(rs.result)
+
+    print codegen.text
+
+def test_while():
+    p = angr.Project(os.path.join('..', '..', 'binaries', 'tests', 'x86_64', 'test_decompiler_loops_O0'),
+                     auto_load_libs=False)
+    cfg = p.analyses.CFG(normalize=True)
+
+    test_func = cfg.kb.functions['_while']
+
+    # convert function blocks to AIL blocks
+    clinic = p.analyses.Clinic(test_func)
+
+    # recover regions
+    ri = p.analyses.RegionIdentifier(test_func, graph=clinic.graph)
+
+    # structure it
+    rs = p.analyses.RecursiveStructurer(ri.region)
+
+    codegen = p.analyses.StructuredCodeGenerator(rs.result)
+
+    print codegen.text
+
 
 if __name__ == "__main__":
     # test_smoketest()
     # test_simple_loop()
     test_recursive_structuring()
+    # test_while_true_break()
+    # test_while()
