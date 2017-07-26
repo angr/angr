@@ -245,6 +245,7 @@ def test_inspect_engine_process():
     def check_first_symbolic_fork(state):
         succs = state.inspect.sim_successor.successors
         succ_addr = [hex(s.addr) for s in succs]
+        nose.tools.assert_equals(len(succ_addr), 2)
         nose.tools.assert_in('0x400692L', succ_addr)
         nose.tools.assert_in('0x400699L', succ_addr)
         print 'Fork after:', hex(state.addr)
@@ -253,6 +254,7 @@ def test_inspect_engine_process():
     def check_second_symbolic_fork(state):
         succs = state.inspect.sim_successor.successors
         succ_addr = [hex(s.addr) for s in succs]
+        nose.tools.assert_equals(len(succ_addr), 2)
         nose.tools.assert_in('0x4006dfL', succ_addr)
         nose.tools.assert_in('0x4006e6L', succ_addr)
         print 'Fork after:', hex(state.addr)
@@ -263,13 +265,18 @@ def test_inspect_engine_process():
            and type(state.inspect.sim_engine) == angr.engines.vex.engine.SimEngineVEX
 
     def second_symbolic_fork(state):
-        if hex(state.addr) == '0x4006dbL':
-            constraints.extend(state.se.constraints)
         return hex(state.addr) == '0x4006dbL' \
            and type(state.inspect.sim_engine) == angr.engines.vex.engine.SimEngineVEX
 
+    def check_state(state):
+        nose.tools.assert_in(hex(state.inspect.sim_successor.addr), ('0x40068eL', '0x4006dbL'))
+
     state = p.factory.entry_state(addr=p.loader.main_bin.get_symbol('main').addr)
     pg = p.factory.simgr(state)
+    state.inspect.b('engine_process',
+                    when=BP_BEFORE,
+                    action=check_state,
+                    condition=first_symbolic_fork)
     state.inspect.b('engine_process',
                     when=BP_AFTER,
                     action=check_first_symbolic_fork,
@@ -278,6 +285,10 @@ def test_inspect_engine_process():
 
     state = p.factory.entry_state(addr=p.loader.main_bin.get_symbol('main').addr)
     pg = p.factory.simgr(state)
+    state.inspect.b('engine_process',
+                    when=BP_BEFORE,
+                    action=check_state,
+                    condition=second_symbolic_fork)
     state.inspect.b('engine_process',
                     when=BP_AFTER,
                     action=check_second_symbolic_fork,
