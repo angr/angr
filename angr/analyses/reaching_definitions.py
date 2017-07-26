@@ -99,10 +99,13 @@ class Definition(object):
         self.data = data
 
     def __eq__(self, other):
-        return self.atom == other.atom and self.codeloc == other.codeloc
+        return self.atom == other.atom and self.codeloc == other.codeloc and self.data == other.data
 
     def __hash__(self):
-        return hash((self.atom, self.codeloc))
+        return hash((self.atom, self.codeloc, self.data))
+
+    def __repr__(self):
+        return 'Definition 0x%x {Atom: %s, Codeloc: %s, Data: %s}' % (id(self), self.atom, self.codeloc, self.data)
 
     @property
     def offset(self):
@@ -189,13 +192,13 @@ class ReachingDefinitions(object):
 
         self._dead_virgin_definitions = set()  # definitions that are killed before used
 
-        self.registers = { }
-        self.memory = { }
+        # self.registers = { }
+        # self.memory = { }
 
     def __repr__(self):
         ctnt = "ReachingDefinitions, %d regdefs, %d memdefs" % (len(self.register_definitions),
-                                                              len(self.memory_definitions),
-                                                              )
+                                                                len(self.memory_definitions),
+                                                                )
         if self._track_tmps:
             ctnt += ", %d tmpdefs" % len(self.tmp_definitions)
         return "<%s>" % ctnt
@@ -213,8 +216,8 @@ class ReachingDefinitions(object):
         rd.memory_uses = self.memory_uses.copy()
         rd.tmp_uses = self.tmp_uses.copy()
         rd._dead_virgin_definitions = self._dead_virgin_definitions.copy()
-        rd.registers = self.registers.copy()
-        rd.memory = self.memory.copy()
+        # rd.registers = self.registers.copy()
+        # rd.memory = self.memory.copy()
 
         return rd
 
@@ -366,8 +369,11 @@ def get_engine(base_engine):
 
             # FIXME: How do we handle overlapping memory regions?
 
-            self.state.kill_definitions(memloc)
-            self.state.add_definition(memloc, self._codeloc(), data)
+            if addr is not None:
+                self.state.kill_definitions(memloc)
+                self.state.add_definition(memloc, self._codeloc(), data)
+            else:
+                l.warning('memory address undefined, ins_addr = 0x%x', self.ins_addr)
 
         #
         # VEX expression handlers
@@ -392,7 +398,10 @@ def get_engine(base_engine):
             if addr in self.state.memory_definitions.keys():
                 return next(iter(self.state.memory_definitions[addr])).data
             else:
-                l.warning('memory at address 0x%x undefined', addr)
+                if addr:
+                    l.warning('memory at address 0x%x undefined, ins_addr = 0x%x', addr, self.ins_addr)
+                else:
+                    l.warning('memory address undefined, ins_addr = 0x%x', self.ins_addr)
                 return None
 
         #
@@ -654,7 +663,10 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
 
         self._node_iterations[block_key] += 1
 
-        return True, state
+        if self._node_iterations[block_key] < self._max_iterations:
+            return True, state
+        else:
+            return False, state
 
     def _intra_analysis(self):
         pass
