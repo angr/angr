@@ -270,29 +270,30 @@ class SimEngineLightAIL(SimEngineLight):
         arg0, arg1 = expr.operands
 
         expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
         expr_1 = self._expr(arg1)
+        if expr_0 is None:
+            expr_0 = arg0
         if expr_1 is None:
-            return None
+            expr_1 = arg1
 
         try:
             return expr_0 + expr_1
         except TypeError:
-            return None
+            return ailment.Expr.BinaryOp(expr.idx, 'Add', [ expr_0, expr_1 ], **expr.tags)
 
     def _ail_handle_Sub(self, expr):
 
         arg0, arg1 = expr.operands
 
         expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
         expr_1 = self._expr(arg1)
+
+        if expr_0 is None:
+            expr_0 = arg0
         if expr_1 is None:
-            return None
+            expr_1 = arg1
 
         try:
             return expr_0 - expr_1
         except TypeError:
-            return None
+            return ailment.Expr.BinaryOp(expr.idx, 'Sub', [ expr_0, expr_1 ], **expr.tags)
