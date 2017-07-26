@@ -153,6 +153,9 @@ class Convert(UnaryOp):
     def __str__(self):
         return "Conv(%d->%d, %s)" % (self.from_bits, self.to_bits, self.operand)
 
+    def __repr__(self):
+        return str(self)
+
     def replace(self, old_expr, new_expr):
         r, replaced_operand = self.operand.replace(old_expr, new_expr)
 
@@ -175,6 +178,9 @@ class BinaryOp(Op):
 
     def __str__(self):
         return "(%s %s %s)" % (str(self.operands[0]), self.op, str(self.operands[1]))
+
+    def __repr__(self):
+        return "%s(%s, %s)" % (self.op, self.operands[0], self.operands[1])
 
     def has_atom(self, atom):
         for op in self.operands:

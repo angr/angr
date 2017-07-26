@@ -32,6 +32,12 @@ class Assignment(Statement):
         self.dst = dst
         self.src = src
 
+    def __eq__(self, other):
+        return type(other) is Assignment and \
+               self.idx == other.idx and \
+               self.dst == other.dst and \
+               self.src == other.src
+
     def __repr__(self):
         return "Assignment (%s, %s)" % (self.dst, self.src)
 
@@ -58,6 +64,14 @@ class Store(Statement):
         self.size = size
         self.variable = variable
 
+    def __eq__(self, other):
+        return type(other) is Store and \
+               self.idx == other.idx and \
+               self.addr == other.addr and \
+               self.data == other.data and \
+               self.size == other.size and \
+               self.variable == other.variable
+
     def __repr__(self):
         return "Store (%s, %s[%d])" % (self.address, str(self.data), self.size)
 
@@ -83,6 +97,11 @@ class Jump(Statement):
 
         self.target = target
 
+    def __eq__(self, other):
+        return type(other) is Jump and \
+               self.idx == other.idx and \
+               self.target == other.target
+
     def __str__(self):
         return "Goto(%s)" % self.target
 
@@ -102,6 +121,13 @@ class ConditionalJump(Statement):
         self.condition = condition
         self.true_target = true_target
         self.false_target = false_target
+
+    def __eq__(self, other):
+        return type(other) is ConditionalJump and \
+               self.idx == other.idx and \
+               self.condition == other.condition and \
+               self.true_target == other.true_target and \
+               self.false_target == other.false_target
 
     def __str__(self):
         return "if (%s) { Goto %s } else { Goto %s }" % (
@@ -131,6 +157,14 @@ class Call(Statement):
         self.calling_convention = calling_convention
         self.declaration = declaration
         self.args = args
+
+    def __eq__(self, other):
+        return type(other) is Call and \
+               self.idx == other.idx and \
+               self.target == other.target and \
+               self.calling_convention == other.calling_convention and \
+               self.declaration == other.declaration and \
+               self.args == other.args
 
     def __str__(self):
 
