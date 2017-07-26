@@ -162,7 +162,7 @@ class Uses(object):
             else:
                 self._uses_by_definition[k] |= v
 
-        self._current_uses.merge(other)
+        self._current_uses.merge(other._current_uses)
 
 
 class ReachingDefinitions(object):
@@ -235,10 +235,10 @@ class ReachingDefinitions(object):
                 else:
                     state.memory_definitions[k] |= v
 
-            state.register_uses.merge(other._register_uses)
-            state.memory_uses.merge(other._memory_uses)
+            state.register_uses.merge(other.register_uses)
+            state.memory_uses.merge(other.memory_uses)
 
-            state._dead_virgin_definitions |= other._unused_definitions
+            state._dead_virgin_definitions |= other._dead_virgin_definitions
 
         return state
 
