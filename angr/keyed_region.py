@@ -155,7 +155,7 @@ class KeyedRegion(object):
 
         for key in sorted(keys):
             ro = self._storage[key]
-            variables = [ obj.obj for obj in ro.objects ]
+            variables = [ obj.obj for obj in ro.stored_objects ]
             offset_to_vars[key] = variables
 
         s = [ ]
