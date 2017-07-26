@@ -103,7 +103,7 @@ inspect_attributes = {
 
     # engine_process
     'sim_engine',
-    'sim_successor',
+    'sim_successors',
     }
 
 BP_BEFORE = 'before'
