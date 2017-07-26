@@ -2,7 +2,7 @@
 import logging
 from collections import defaultdict
 
-from .. import Expr, Block
+from .. import Stmt, Expr, Block
 
 from angr.engines.light import SimEngineLightVEX, SimEngineLightAIL, SpOffset, RegisterOffset
 from angr import Analysis, register_analysis
@@ -183,6 +183,21 @@ def get_engine(base_engine):
                 for arg in stmt.args:
                     self._expr(arg)
 
+        def _ail_handle_ConditionalJump(self, stmt):
+            cond = self._expr(stmt.condition)
+            true_target = self._expr(stmt.true_target)
+            false_target = self._expr(stmt.false_target)
+
+            if cond is stmt.condition and \
+                    true_target is stmt.true_target and \
+                    false_target is stmt.false_target:
+                pass
+            else:
+                self.state.add_final_replacement(self._codeloc(),
+                                                 stmt,
+                                                 Stmt.ConditionalJump(stmt.idx, cond, true_target, false_target)
+                                                 )
+
         #
         # AIL expression handlers
         #
@@ -210,11 +225,44 @@ def get_engine(base_engine):
             return expr
 
         def _ail_handle_Convert(self, expr):
-            converted = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, self._expr(expr.operand))
+            operand_expr = self._expr(expr.operand)
+
+            if type(operand_expr) is Expr.Convert:
+                if expr.from_bits == operand_expr.to_bits and expr.to_bits == operand_expr.from_bits:
+                    # eliminate the redundant Convert
+                    return operand_expr.operand
+                else:
+                    return Expr.Convert(expr.idx, operand_expr.from_bits, expr.to_bits, operand_expr.operand)
+            elif type(operand_expr) is Expr.Const:
+                # do the conversion right away
+                value = operand_expr.value
+                mask = (2 ** expr.to_bits) - 1
+                value &= mask
+                return Expr.Const(expr.idx, operand_expr.variable, value, expr.to_bits)
+
+            converted = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, operand_expr)
             return converted
 
         def _ail_handle_Const(self, expr):
             return expr
+
+        def _ail_handle_CmpLE(self, expr):
+            operand_0 = self._expr(expr.operands[0])
+            operand_1 = self._expr(expr.operands[1])
+
+            return Expr.BinaryOp(expr.idx, 'CmpLE', [ operand_0, operand_1 ])
+
+        def _ail_handle_CmpEQ(self, expr):
+            operand_0 = self._expr(expr.operands[0])
+            operand_1 = self._expr(expr.operands[1])
+
+            return Expr.BinaryOp(expr.idx, 'CmpEQ', [ operand_0, operand_1 ])
+
+        def _ail_handle_Xor(self, expr):
+            operand_0 = self._expr(expr.operands[0])
+            operand_1 = self._expr(expr.operands[1])
+
+            return Expr.BinaryOp(expr.idx, 'Xor', [ operand_0, operand_1 ])
 
     return SimEngineProp
 
