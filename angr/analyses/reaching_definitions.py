@@ -177,11 +177,13 @@ class ReachingDefinitions(object):
         # handy short-hands
         self.arch = arch
 
-        self.register_definitions = defaultdict(set)
+        self.register_definitions = KeyedRegion()
 
-        # FIXME: How do we handle the stack?
-        sp = Register(48, 0)
-        self._add_register_definition(sp, None, 0x7fff0000)
+        # FIXME: Initialize SP depending on a flag
+        sp = Register(arch.sp_offset, 0)
+        sp_def = Definition(sp, None, 0x7fff0000)
+        self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
+
 
         self.memory_definitions = defaultdict(set)
         self.tmp_definitions = { }
@@ -226,11 +228,7 @@ class ReachingDefinitions(object):
         state = self.copy()
 
         for other in others:
-            for k, v in other.register_definitions.iteritems():
-                if k not in state.register_definitions:
-                    state.register_definitions[k] = set(v)
-                else:
-                    state.register_definitions[k] |= v
+            state.register_definitions.merge(other.register_definitions)
 
             for k, v in other.memory_definitions.iteritems():
                 if k not in state.memory_definitions:
@@ -265,6 +263,12 @@ class ReachingDefinitions(object):
             # it should never happen
             assert False
 
+    def kill_and_add_definition(self, atom, code_loc, data):
+        if type(atom) is Register:
+            self._kill_and_add_register_definition(atom, code_loc, data)
+        else:
+            raise NotImplementedError()
+
     def add_use(self, atom, code_loc):
         if type(atom) is Register:
             self._add_register_use(atom, code_loc)
@@ -278,9 +282,8 @@ class ReachingDefinitions(object):
     #
 
     def _add_register_definition(self, atom, code_loc, data):
-
-        # TODO: improve
-        self.register_definitions[atom.reg_offset].add(Definition(atom, code_loc, data))
+        definition = Definition(atom, code_loc, data)
+        self.register_definitions.add_object(atom.reg_offset, s, atom.size)
 
     def _add_memory_definition(self, atom, code_loc, data):
 
@@ -291,24 +294,25 @@ class ReachingDefinitions(object):
 
     def _kill_register_definitions(self, atom):
 
-        defs = self.register_definitions.pop(atom.reg_offset, None)
-
+        # FIXME: Handle dead definitions
         # check whether there is any use of this def
-        if defs:
-            uses = set()
-            for def_ in defs:
-                uses |= self.register_uses.get_current_uses(def_)
+        # if defs:
+        #     uses = set()
+        #     for def_ in defs:
+        #         uses |= self.register_uses.get_current_uses(def_)
+        #     if not uses:
+        #         self._dead_virgin_definitions |= defs
 
-            if not uses:
-                self._dead_virgin_definitions |= defs
+        pass
 
     def _kill_memory_definitions(self, atom):
         self.memory_definitions.pop(atom.addr, None)
 
     def _add_register_use(self, atom, code_loc):
 
+        # FIXME: handle size of register
         # get all current definitions
-        current_defs = self.register_definitions.get(atom.reg_offset, None)
+        current_defs = self.register_definitions.get_objects_by_offset(atom.reg_offset)
 
         if current_defs:
             for current_def in current_defs:
@@ -329,6 +333,10 @@ class ReachingDefinitions(object):
 
         self.tmp_uses[atom.tmp_idx].add((code_loc, current_def))
 
+    def _kill_and_add_register_definition(self, atom, code_loc, data):
+        definition = Definition(atom, code_loc, data)
+        # set_object() replaces kill (not implemented) and add (add) in one step
+        self.register_definitions.set_object(atom.reg_offset, definition, atom.size)
 
 def get_engine(base_engine):
     class SimEngineRD(base_engine):
@@ -344,11 +352,13 @@ def get_engine(base_engine):
 
         def _handle_Stmt(self, stmt):
 
+            # FIXME: observe() should only be called once per ins_addr
             if self.state.analysis:
                 self.state.analysis.observe(self.ins_addr, OP_BEFORE, self.state)
 
             super(SimEngineRD, self)._handle_Stmt(stmt)
 
+            # FIXME: see above
             if self.state.analysis:
                 self.state.analysis.observe(self.ins_addr, OP_AFTER, self.state)
 
@@ -358,8 +368,7 @@ def get_engine(base_engine):
             reg = Register(reg_offset, size)
             data = self._expr(stmt.data)
 
-            self.state.kill_definitions(reg)
-            self.state.add_definition(reg, self._codeloc(), data)
+            self.state.kill_and_add_definition(reg, self._codeloc(), data)
 
         def _handle_Store(self, stmt):
             addr = self._expr(stmt.addr)
@@ -375,6 +384,9 @@ def get_engine(base_engine):
             else:
                 l.warning('memory address undefined, ins_addr = 0x%x', self.ins_addr)
 
+        def _handle_Exit(self, stmt):
+            pass
+
         #
         # VEX expression handlers
         #
@@ -384,19 +396,26 @@ def get_engine(base_engine):
             reg_offset = expr.offset
             size = expr.result_size(self.tyenv)
 
-            # FIXME: How do we handle the size?
+            # FIXME: handle size, overlapping
+            r = set()
+            current_defs = self.state.register_definitions.get_variables_by_offset(reg_offset)
+            for current_def in current_defs:
+                self.state.register_uses.add_use(current_def, self._codeloc())
+                if current_def.data is not None:
+                    r.add(current_def.data)
 
-            if reg_offset in self.state.register_definitions.keys():
-                return next(iter(self.state.register_definitions[reg_offset])).data
-            else:
-                l.warning('register with offset %d undefined', reg_offset)
-                return None
+            if not r:
+                l.warning('register with offset %d undefined, ins_addr = 0x%x', reg_offset, self.ins_addr)
+
+            return r
 
         def _handle_Load(self, expr):
 
             addr = self._expr(expr.addr)
             if addr in self.state.memory_definitions.keys():
-                return next(iter(self.state.memory_definitions[addr])).data
+                definition = next(iter(self.state.memory_definitions[addr]))
+                self.state.memory_uses.add_use(definition, self._codeloc())
+                return definition.data
             else:
                 if addr:
                     l.warning('memory at address 0x%x undefined, ins_addr = 0x%x', addr, self.ins_addr)
