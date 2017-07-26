@@ -7,3 +7,4 @@ libc = SimDeclarations(
 )
 
 libc.add_c_decl('int strcmp (const char * str1, const char * str2);')
+libc.add_c_decl('int puts (const char * str);')
