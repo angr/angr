@@ -1,11 +1,12 @@
 from claripy.fp import FSORT_FLOAT, FSORT_DOUBLE
+from ...errors import SimExpressionError, UnsupportedIRExprError
 
 def size_bits(t):
     """Returns size, in BITS, of a type."""
-    for n, s in (('256', 256), ('128', 128), ('64', 64), ('32', 32), ('16', 16), ('8', 8), ('1', 1)):
-        if n in t:
-            return s
-    raise SimExpressionError("Unable to determine length of %s." % t)
+    assert t.startswith("Ity_")
+    if "INVALID" in t:
+        raise SimExpressionError("Ity_INVALID passed to size_bits")
+    return int(t[5:])
 
 def size_bytes(t):
     """Returns size, in BYTES, of a type."""
@@ -36,5 +37,4 @@ from . import ccall
 
 from .irop import operations
 
-from ...errors import SimExpressionError, UnsupportedIRExprError
 from ... import sim_options as options
