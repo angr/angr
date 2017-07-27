@@ -2144,7 +2144,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                     for j in xrange(0, data_size, pointer_size):
                         ptr_str = self._ffi.unpack(self._ffi.cast('char*', buf + j), pointer_size)
-                        ptr = struct.unpack(fmt, ptr_str)[0]  # type:int
+                        # ptr = struct.unpack(fmt, ptr_str)[0]  # type:int
+                        ptr = self.project.arch.unpack(ptr_str)
 
                         # is this pointer coming from the current binary?
                         obj = self.project.loader.addr_belongs_to_object(ptr)

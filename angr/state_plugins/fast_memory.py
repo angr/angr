@@ -46,7 +46,12 @@ class SimFastMemory(SimMemory):
         """
         if self._uninitialized_read_handler is None:
             v = self.state.se.BVS("%s_%s" % (self.id, addr), self.width*BYTE_BITS)
-            return v.reversed if self.endness == "Iend_LE" else v
+            if self.endness == 'Iend_LE':
+                return v.reversed
+            elif self.endness == 'Iend_ME':
+                return v.me_coding
+            else:
+                return v
         else:
             return self._uninitialized_read_handler(self, addr)
 
@@ -149,8 +154,11 @@ class SimFastMemory(SimMemory):
             req.completed = False
             req.actual_addresses = [ req.addr ]
             return
-        if req.endness == "Iend_LE" or (req.endness is None and self.endness == "Iend_LE"):
+        endness = req.endness or self.endness
+        if endness == "Iend_LE":
             data = data.reversed
+        elif endness == "Iend_ME":
+            data = data.me_coding
         addr = self._translate_addr(req.addr)
         size = self._translate_addr(req.size) if req.size is not None else data.length/BYTE_BITS
 

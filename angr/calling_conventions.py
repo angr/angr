@@ -25,21 +25,21 @@ class PointerWrapper(object):
 
 
 class AllocHelper(object):
-    def __init__(self, ptr, grow_like_stack, reverse_result):
+    def __init__(self, ptr, grow_like_stack, transform):
         self.ptr = ptr
         self.grow_like_stack = grow_like_stack
-        self.reverse_result = reverse_result
+        self.transform = transform
 
     def dump(self, val, state, endness='Iend_BE'):
         if self.grow_like_stack:
             self.ptr -= val.length / BYTE_BITS
             state.memory.store(self.ptr, val, endness=endness)
-            return self.ptr.reversed if self.reverse_result else self.ptr
+            return transform(self.ptr)
         else:
             state.memory.store(self.ptr, val, endness=endness)
             out = self.ptr
             self.ptr += val.length / BYTE_BITS
-            return out.reversed if self.reverse_result else out
+            return transform(self.ptr)
 
 
 class SimFunctionArgument(object):
@@ -484,9 +484,15 @@ class SimCC(object):
         set alloc_base to point to somewhere other than the stack, set grow_like_stack to False so that sequencial
         allocations happen at increasing addresses.
         """
+        if self.arch.memory_endness == 'Iend_LE':
+            transform = lambda r: r.reversed
+        elif self.arch.memory_endness == 'Iend_ME':
+            transform = lambda r: r.me_coding
+        else:
+            transform = lambda r: r
         allocator = AllocHelper(alloc_base if alloc_base is not None else state.regs.sp,
-                grow_like_stack,
-                self.arch.memory_endness == 'Iend_LE')
+                                grow_like_stack,
+                                transform)
 
         if self.func_ty is not None:
             vals = [self._standardize_value(arg, ty, state, allocator.dump) for arg, ty in zip(args, self.func_ty.args)]
@@ -665,6 +671,8 @@ class SimCC(object):
             val = state.se.BVV(arg, ty.size if check else state.arch.bits)
             if state.arch.memory_endness == 'Iend_LE':
                 val = val.reversed
+            elif state.arch.memory_endness == 'Iend_ME':
+                val = val.me_coding
             return val
 
         elif isinstance(arg, float):
@@ -682,18 +690,24 @@ class SimCC(object):
             val = claripy.fpToIEEEBV(claripy.FPV(arg, sort))
             if state.arch.memory_endness == 'Iend_LE':
                 val = val.reversed      # pylint: disable=no-member
+            elif state.arch.memory_endness == 'Iend_ME':
+                val = val.be_coding
             return val
 
         elif isinstance(arg, claripy.ast.FP):
             val = claripy.fpToIEEEBV(arg)
             if state.arch.memory_endness == 'Iend_LE':
                 val = val.reversed      # pylint: disable=no-member
+            elif state.arch.memory_endness == 'Iend_ME':
+                val = val.be_coding
             return val
 
         elif isinstance(arg, claripy.ast.Base):
             # yikes
             if state.arch.memory_endness == 'Iend_LE' and arg.length == state.arch.bits:
                 arg = arg.reversed
+            elif state.arch.memory_endness == 'Iend_BE' and arg.length == state.arch.bits:
+                arg = arg.be_coding
             return arg
 
         else:

@@ -738,6 +738,8 @@ class SimMemory(SimStatePlugin):
         endness = self.endness if endness is None else endness
         if endness == "Iend_LE":
             r = r.reversed
+        elif endness == 'Iend_ME':
+            r = r.me_coding
 
         if inspect is True:
             if self.category == 'mem':

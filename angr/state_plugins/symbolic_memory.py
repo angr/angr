@@ -436,10 +436,16 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             self.get_unconstrained_bytes(name, min(self.mem._page_size, num_bytes)*BYTE_BITS, source=i)
             for i in range(addr, addr+num_bytes, self.mem._page_size)
         ]
-        if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
-            all_missing = [ a.reversed for a in all_missing ]
-        elif self.category != 'reg' and self.state.arch.memory_endness == 'Iend_LE':
-            all_missing = [ a.reversed for a in all_missing ]
+        if self.category == 'reg':
+            if self.state.arch.register_endness == 'Iend_LE':
+                all_missing = [ a.reversed for a in all_missing ]
+            elif self.state.arch.register_endness == 'Iend_ME':
+                all_missing = [ a.me_coding for a in all_missing ]
+        else:
+            if self.state.arch.memory_endness == 'Iend_LE':
+                all_missing = [ a.reversed for a in all_missing ]
+            elif self.state.arch.memory_endness == 'Iend_ME':
+                all_missing = [ a.me_coding for a in all_missing ]
         b = self.state.se.Concat(*all_missing) if len(all_missing) > 1 else all_missing[0]
 
         self.state.history.add_event('uninitialized', memory_id=self.id, addr=addr, size=num_bytes)
@@ -682,8 +688,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if req.condition is not None or (req.size is not None and self.state.se.symbolic(req.size)) or num_addresses > 1:
             req.fallback_values = [ self._read_from(a, max_bytes) for a in req.actual_addresses ]
-            if req.endness == "Iend_LE" or (req.endness is None and self.endness == "Iend_LE"):
+            endness = req.endness if req.endness is not None else self.endness
+            if endness == "Iend_LE":
                 req.fallback_values = [ fv.reversed for fv in req.fallback_values ]
+            elif endness == "Iend_ME":
+                req.fallback_values = [ fv.me_coding for fv in req.fallback_values ]
         else:
             req.fallback_values = [ None ] * num_addresses
 
@@ -756,8 +765,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         # fix endness
         #
 
-        if req.endness == "Iend_LE" or (req.endness is None and self.endness == "Iend_LE"):
+        endness = req.endness or self.endness
+        if endness == "Iend_LE":
             req.stored_values = [ sv.reversed for sv in req.simplified_values ]
+        elif endness == "Iend_ME":
+            req.stored_values = [ sv.me_coding for sv in req.simplified_values ]
         else:
             req.stored_values = list(req.simplified_values)
 
@@ -825,7 +837,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     return True
                 return False
 
-            if endness == 'Iend_LE': cnt = cnt.reversed
+            if endness == 'Iend_LE':
+                cnt = cnt.reversed
+            elif endness == 'Iend_ME':
+                cnt = cnt.me_coding
 
             reverse_it = False
             if is_reversed(cnt):
@@ -901,19 +916,27 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     def _merge_values(self, to_merge, merged_size, is_widening=False):
         if options.ABSTRACT_MEMORY in self.state.options:
-            if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
-                should_reverse = True
-            elif self.state.arch.memory_endness == 'Iend_LE':
-                should_reverse = True
+            if self.category == 'reg':
+                if self.state.arch.register_endness == 'Iend_LE':
+                    transformation = lambda r: r.reversed
+                elif self.state.arch.register_endness == 'Iend_ME':
+                    transformation = lambda r: r.me_coding
+                else:
+                    transformation = lambda r: r
             else:
-                should_reverse = False
+                if self.state.arch.memory_endness == 'Iend_LE':
+                    transformation = lambda r: r.reversed
+                elif self.state.arch.memory_endness == 'Iend_ME':
+                    transformation = lambda r: r.me_coding
+                else:
+                    transformation = lambda r: r
 
             merged_val = to_merge[0][0]
 
-            if should_reverse: merged_val = merged_val.reversed
+            merged_val = transformation(merged_val)
 
             for tm,_ in to_merge[1:]:
-                if should_reverse: tm = tm.reversed
+                tm = transformation(tm)
 
                 if self._is_uninitialized(tm):
                     continue
@@ -926,7 +949,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                     merged_val = merged_val.union(tm)
                     l.info("... Merged to %s", merged_val)
 
-            if should_reverse: merged_val = merged_val.reversed
+            merged_val = transformation(merged_val)
         else:
             merged_val = self.state.se.BVV(0, merged_size*BYTE_BITS)
             for tm,fv in to_merge:
