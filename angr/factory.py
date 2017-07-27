@@ -341,6 +341,18 @@ class AngrObjectFactory(object):
         kwargs['default_engine'] = True
         return self.successors(*args, **kwargs)
 
+    #
+    # Compatibility layer
+    #
+
+    def path_group(self, thing=None, **kwargs):
+        return self.simgr(thing, **kwargs)
+
+    def path(self, state=None, **kwargs):
+        if state is not None:
+            return state
+        return self.entry_state(**kwargs)
+
 from .errors import AngrExitError, AngrError, AngrUnsupportedSyscallError
 from .manager import SimulationManager
 from .knowledge import HookNode
