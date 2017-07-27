@@ -2,6 +2,8 @@
 from collections import defaultdict
 import logging
 
+import archinfo
+
 from ..analysis import Analysis, register_analysis
 from ..block import CapstoneInsn
 
@@ -148,6 +150,8 @@ class Instruction(DisassemblyPiece):
         cs_op_num = -1
 
         # iterate over operands in reverse order
+        bracket_stack = []
+        comma_stack = []
         while i >= 0:
             c = insn_pieces[i]
             if c == '':
@@ -196,7 +200,14 @@ class Instruction(DisassemblyPiece):
                     # XXX STILL A HACK
                     cur_operand.append(c if c[-1] == ':' else c + ' ')
 
-            elif c == ',':
+            elif c == ']':
+                bracket_stack.append(True)
+                cur_operand.append(c)
+            elif c == '[':
+                bracket_stack.pop()
+                cur_operand.append(c)
+
+            elif c == ',' and not bracket_stack and not comma_stack:
                 cs_op_num -= 1
                 cur_operand = None
             elif c == ':': # XXX this is a hack! fix this later
@@ -212,6 +223,9 @@ class Instruction(DisassemblyPiece):
 
         self.opcode = Opcode(self)
         self.operands.reverse()
+        if len(self.operands) != len(self.insn.operands):
+            self.operands = [ ]
+            return
         for i, o in enumerate(self.operands):
             o.reverse()
             self.operands[i] = Operand.build(
@@ -576,8 +590,14 @@ class Disassembly(Analysis):
             self.raw_result_map['hooks'][block.addr] = hook
 
         else:
-            cs = self.project.arch.capstone
-            bytestr = ''.join(self.project.loader.memory.read_bytes(block.addr, block.size))
+            # special handling for ARM THUMB mode
+            block_addr_real = block.addr
+            if isinstance(self.project.arch, archinfo.ArchARM) and block_addr_real % 2 == 1:
+                block_addr_real = block_addr_real - 1
+                cs = self.project.arch.capstone_thumb
+            else:
+                cs = self.project.arch.capstone
+            bytestr = ''.join(self.project.loader.memory.read_bytes(block_addr_real, block.size))
             self.block_to_insn_addrs[block.addr] = []
             for cs_insn in cs.disasm(bytestr, block.addr):
                 if cs_insn.address in self.kb.labels:
