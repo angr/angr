@@ -10,7 +10,7 @@ l = logging.getLogger("angr.sim_state")
 
 import claripy
 import ana
-from archinfo import arch_from_id
+from archinfo import BYTE_BITS, arch_from_id
 
 def arch_overrideable(f):
     @functools.wraps(f)
@@ -595,7 +595,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         """
         sp = self.regs.sp
         self.regs.sp = sp - self.arch.stack_change
-        return self.memory.load(sp, self.arch.bits / 8, endness=self.arch.memory_endness)
+        return self.memory.load(sp, self.arch.bits / BYTE_BITS, endness=self.arch.memory_endness)
 
     @arch_overrideable
     def stack_read(self, offset, length, bp=False):
@@ -658,7 +658,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         current stack frame (from sp to bp) will be printed out.
         """
 
-        var_size = self.arch.bits / 8
+        var_size = self.arch.bits / BYTE_BITS
         sp_sim = self.regs._sp
         bp_sim = self.regs._bp
         if self.se.symbolic(sp_sim) and sp is None:

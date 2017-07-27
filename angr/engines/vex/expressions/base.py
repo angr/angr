@@ -4,6 +4,8 @@
 import logging
 l = logging.getLogger("angr.engines.vex.expressions.base")
 
+from archinfo import BYTE_BITS
+
 _nonset = frozenset()
 
 class SimIRExpr(object):
@@ -64,9 +66,9 @@ class SimIRExpr(object):
 
     def size_bytes(self):
         s = self.size_bits()
-        if s % 8 != 0:
+        if s % BYTE_BITS != 0:
             raise Exception("SimIRExpr.size_bytes() called for a non-byte size!")
-        return s/8
+        return s/BYTE_BITS
 
     def _translate_expr(self, expr):
         """Translate a single IRExpr, honoring mode and options and so forth. Also updates state..."""

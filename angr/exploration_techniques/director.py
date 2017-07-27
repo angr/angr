@@ -4,6 +4,7 @@ from collections import defaultdict
 
 import networkx
 
+from archinfo import BYTE_BITS
 import claripy
 
 from ..sim_type import SimType, SimTypePointer, SimTypeChar, SimTypeString, SimTypeReg
@@ -337,7 +338,7 @@ class CallFunctionGoal(BaseGoal):
         if isinstance(expected, str):
             # convert it to an AST
             expected = state.se.BVV(expected)
-        length = expected.size() / 8
+        length = expected.size() / BYTE_BITS
         real_string = state.memory.load(ptr, length, endness='Iend_BE')
 
         if real_string.symbolic:

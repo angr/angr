@@ -2,6 +2,7 @@
 import logging
 from collections import defaultdict
 
+from archinfo import BYTE_BITS
 import pyvex
 from .. import Analysis, register_analysis
 
@@ -66,7 +67,7 @@ class ProcessorState(object):
         # whether we have met the initial stack pointer adjustment
         self.sp_adjusted = None
         # how many bytes are subtracted from the stack pointer
-        self.sp_adjustment = arch.bits / 8 if arch.call_pushes_ret else 0
+        self.sp_adjustment = arch.bits / BYTE_BITS if arch.call_pushes_ret else 0
         # whether the base pointer is used as the stack base of the stack frame or not
         self.bp_as_base = None
         # content of the base pointer
@@ -202,7 +203,7 @@ class BlockProcessor(object):
                                                                                      'register'
                                                                                      )
         if not existing_vars:
-            reg_size = stmt.data.result_size(self.tyenv) / 8
+            reg_size = stmt.data.result_size(self.tyenv) / BYTE_BITS
             variable = SimRegisterVariable(offset, reg_size,
                                            ident=self.variable_manager[self.func_addr].next_variable_ident('register'),
                                            region=self.func_addr
@@ -220,7 +221,7 @@ class BlockProcessor(object):
 
         if type(addr) is SpAndOffset:
             # Storing data to stack
-            size = stmt.data.result_size(self.tyenv) / 8
+            size = stmt.data.result_size(self.tyenv) / BYTE_BITS
             stack_offset = addr.offset
 
             existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr, self.stmt_idx,
@@ -267,7 +268,7 @@ class BlockProcessor(object):
 
     def _handle_Get(self, expr):
         reg_offset = expr.offset
-        reg_size = expr.result_size(self.tyenv) / 8
+        reg_size = expr.result_size(self.tyenv) / BYTE_BITS
         codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
 
         if reg_offset == self.arch.sp_offset:
@@ -294,7 +295,7 @@ class BlockProcessor(object):
 
         if type(addr) is SpAndOffset:
             # Loading data from stack
-            size = expr.result_size(self.tyenv) / 8
+            size = expr.result_size(self.tyenv) / BYTE_BITS
             stack_offset = addr.offset
 
             if stack_offset not in self.state.stack_region:

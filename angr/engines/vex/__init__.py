@@ -1,8 +1,9 @@
+from archinfo import BYTE_BITS
 from claripy.fp import FSORT_FLOAT, FSORT_DOUBLE
 
 def size_bits(t):
     """Returns size, in BITS, of a type."""
-    for n, s in (('256', 256), ('128', 128), ('64', 64), ('32', 32), ('16', 16), ('8', 8), ('1', 1)):
+    for n, s in (('256', 256), ('128', 128), ('64', 64), ('54', 54), ('32', 32), ('27', 27), ('16', 16), ('9', 9), ('8', 8), ('1', 1)):
         if n in t:
             return s
     raise SimExpressionError("Unable to determine length of %s." % t)
@@ -12,7 +13,7 @@ def size_bytes(t):
     s = size_bits(t)
     if s == 1:
         raise SimExpressionError("size_bytes() is seeing a bit!")
-    return s/8
+    return s/BYTE_BITS
 
 def translate_irconst(state, c):
     size = size_bits(c.type)

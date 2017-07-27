@@ -1,6 +1,7 @@
 import logging
 from collections import defaultdict
 
+from archinfo import BYTE_BITS
 import networkx
 import pyvex
 from . import Analysis, register_analysis
@@ -631,10 +632,10 @@ class DDG(Analysis):
                         if addr_tmp in temp_register_symbols:
                             # it must be a stack variable
                             sort, offset = temp_register_symbols[addr_tmp]
-                            variable = SimStackVariable(offset, a.size.ast / 8, base=sort, base_addr=addr - offset)
+                            variable = SimStackVariable(offset, a.size.ast / BYTE_BITS, base=sort, base_addr=addr - offset)
 
                     if variable is None:
-                        variable = SimMemoryVariable(addr, a.size.ast / 8)
+                        variable = SimMemoryVariable(addr, a.size.ast / BYTE_BITS)
 
                     pvs = [ ]
 
@@ -695,7 +696,7 @@ class DDG(Analysis):
                 # TODO: Support symbolic register offsets
 
                 reg_offset = a.offset
-                variable = SimRegisterVariable(reg_offset, a.data.ast.size() / 8)
+                variable = SimRegisterVariable(reg_offset, a.data.ast.size() / BYTE_BITS)
 
                 if a.action == 'read':
                     # What do we want to do?

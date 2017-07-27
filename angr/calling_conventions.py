@@ -2,6 +2,7 @@ import logging
 
 import claripy
 import archinfo
+from archinfo import BYTE_BITS
 
 from .sim_type import SimTypeChar
 from .sim_type import SimTypePointer
@@ -31,13 +32,13 @@ class AllocHelper(object):
 
     def dump(self, val, state, endness='Iend_BE'):
         if self.grow_like_stack:
-            self.ptr -= val.length / 8
+            self.ptr -= val.length / BYTE_BITS
             state.memory.store(self.ptr, val, endness=endness)
             return self.ptr.reversed if self.reverse_result else self.ptr
         else:
             state.memory.store(self.ptr, val, endness=endness)
             out = self.ptr
-            self.ptr += val.length / 8
+            self.ptr += val.length / BYTE_BITS
             return out.reversed if self.reverse_result else out
 
 
@@ -51,7 +52,7 @@ class SimFunctionArgument(object):
     def check_value(self, value):
         if not isinstance(value, claripy.ast.Base) and self.size is None:
             raise TypeError("Only claripy objects may be stored through SimFunctionArgument when size is not provided")
-        if self.size is not None and isinstance(value, claripy.ast.Base) and self.size*8 < value.length:
+        if self.size is not None and isinstance(value, claripy.ast.Base) and self.size*BYTE_BITS < value.length:
             raise TypeError("%s doesn't fit in an argument of size %d" % (value, self.size))
 
     def set_value(self, state, value, **kwargs):
@@ -135,14 +136,14 @@ class SimComboArg(SimFunctionArgument):
         self.check_value(value)
         if endness is None: endness = state.arch.memory_endness
         if isinstance(value, (int, long)):
-            value = claripy.BVV(value, self.size*8)
+            value = claripy.BVV(value, self.size*BYTE_BITS)
         elif isinstance(value, float):
             if self.size not in (4, 8):
                 raise ValueError("What do I do with a float %d bytes long" % self.size)
             value = claripy.FPV(value, claripy.FSORT_FLOAT if self.size == 4 else claripy.FSORT_DOUBLE)
         cur = 0
         for loc in reversed(self.locations):
-            loc.set_value(state, value[cur*8 + loc.size*8 - 1:cur*8], endness, **kwargs)
+            loc.set_value(state, value[cur*BYTE_BITS + loc.size*BYTE_BITS - 1:cur*BYTE_BITS], endness, **kwargs)
             cur += loc.size
 
     def get_value(self, state, endness=None, **kwargs):
@@ -497,7 +498,7 @@ class SimCC(object):
         for i, (arg, val) in enumerate(zip(args, vals)):
             if self.is_fp_value(arg) or \
                     (self.func_ty is not None and isinstance(self.func_ty.args[i], SimTypeFloat)):
-                arg_locs[i] = arg_session.next_arg(is_fp=True, size=val.length/8)
+                arg_locs[i] = arg_session.next_arg(is_fp=True, size=val.length/BYTE_BITS)
                 continue
             if val.length > state.arch.bits or (self.func_ty is None and isinstance(arg, (str, unicode, list, tuple))):
                 vals[i] = allocator.dump(val, state)
@@ -506,7 +507,7 @@ class SimCC(object):
                     vals[i] = val.concat(claripy.BVV(0, state.arch.bits - val.length))
                 else:
                     vals[i] = claripy.BVV(0, state.arch.bits - val.length).concat(val)
-            arg_locs[i] = arg_session.next_arg(is_fp=False, size=vals[i].length/8)
+            arg_locs[i] = arg_session.next_arg(is_fp=False, size=vals[i].length/BYTE_BITS)
 
         if alloc_base is None:
             state.regs.sp = allocator.ptr
@@ -536,7 +537,7 @@ class SimCC(object):
         if loc is None:
             raise NotImplementedError("This SimCC doesn't know how to get this value - should be implemented")
 
-        val = loc.get_value(state, stack_base=stack_base, size=None if ty is None else ty.size/8)
+        val = loc.get_value(state, stack_base=stack_base, size=None if ty is None else ty.size/BYTE_BITS)
         if self.is_fp_arg(loc) or self.is_fp_value(val) or isinstance(ty, SimTypeFloat):
             val = val.raw_to_fp()
         return val

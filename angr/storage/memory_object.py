@@ -1,3 +1,4 @@
+from archinfo import BYTE_BITS
 import claripy
 from ..errors import SimMemoryError
 
@@ -13,10 +14,10 @@ class SimMemoryObject(object):
 
         self._base = base
         self._object = object
-        self._length = object.size()/8 if length is None else length
+        self._length = object.size()/BYTE_BITS if length is None else length
 
     def size(self):
-        return self._length * 8
+        return self._length * BYTE_BITS
 
     def __len__(self):
         return self.size()
@@ -45,8 +46,8 @@ class SimMemoryObject(object):
             return self.object
 
         obj_size = self.size()
-        left = obj_size - (addr-self.base)*8 - 1
-        right = left - length*8 + 1
+        left = obj_size - (addr-self.base)*BYTE_BITS - 1
+        right = left - length*BYTE_BITS + 1
         return self.object[left:right]
 
     def __eq__(self, other):

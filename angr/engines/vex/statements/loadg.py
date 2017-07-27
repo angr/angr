@@ -1,3 +1,5 @@
+from archinfo import BYTE_BITS
+
 from .... import sim_options as o
 from ....state_plugins.sim_action_object import SimActionObject
 from ....state_plugins.sim_action import SimActionData
@@ -19,9 +21,9 @@ class SimIRStmt_LoadG(SimIRStmt):
         if read_size == converted_size:
             converted_expr = read_expr
         elif "S" in self.stmt.cvt:
-            converted_expr = read_expr.sign_extend(converted_size*8 - read_size*8)
+            converted_expr = read_expr.sign_extend(converted_size*BYTE_BITS - read_size*BYTE_BITS)
         elif "U" in self.stmt.cvt:
-            converted_expr = read_expr.zero_extend(converted_size*8 - read_size*8)
+            converted_expr = read_expr.zero_extend(converted_size*BYTE_BITS - read_size*BYTE_BITS)
         else:
             raise SimStatementError("Unrecognized IRLoadGOp %s!", self.stmt.cvt)
 

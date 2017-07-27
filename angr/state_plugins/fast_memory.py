@@ -1,5 +1,6 @@
 import logging
 
+from archinfo import BYTE_BITS
 import claripy
 
 from ..storage.memory import SimMemory
@@ -44,7 +45,7 @@ class SimFastMemory(SimMemory):
         The default uninitialized read handler. Returns symbolic bytes.
         """
         if self._uninitialized_read_handler is None:
-            v = self.state.se.BVS("%s_%s" % (self.id, addr), self.width*8)
+            v = self.state.se.BVS("%s_%s" % (self.id, addr), self.width*BYTE_BITS)
             return v.reversed if self.endness == "Iend_LE" else v
         else:
             return self._uninitialized_read_handler(self, addr)
@@ -151,7 +152,7 @@ class SimFastMemory(SimMemory):
         if req.endness == "Iend_LE" or (req.endness is None and self.endness == "Iend_LE"):
             data = data.reversed
         addr = self._translate_addr(req.addr)
-        size = self._translate_addr(req.size) if req.size is not None else data.length/8
+        size = self._translate_addr(req.size) if req.size is not None else data.length/BYTE_BITS
 
         #
         # simplify

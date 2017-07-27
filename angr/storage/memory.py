@@ -4,6 +4,7 @@ import logging
 
 l = logging.getLogger("angr.storage.memory")
 
+from archinfo import BYTE_BITS
 import claripy
 from ..state_plugins.plugin import SimStatePlugin
 
@@ -301,7 +302,7 @@ class SimMemory(SimStatePlugin):
         # The maximum size of a symbolic-sized operation. If a size maximum is greater than this number,
         # SimMemory will constrain it to this number. If the size minimum is greater than this
         # number, a SimMemoryLimitError is thrown.
-        self._maximum_symbolic_size = 8 * 1024
+        self._maximum_symbolic_size = BYTE_BITS * 1024
         self._maximum_symbolic_size_approx = 4*1024
 
         # Same, but for concrete writes
@@ -380,10 +381,10 @@ class SimMemory(SimStatePlugin):
         """
         if type(data_e) is str:
             # Convert the string into a BVV, *regardless of endness*
-            bits = len(data_e) * 8
+            bits = len(data_e) * BYTE_BITS
             data_e = self.state.se.BVV(data_e, bits)
         elif type(data_e) in (int, long):
-            data_e = self.state.se.BVV(data_e, size_e*8 if size_e is not None
+            data_e = self.state.se.BVV(data_e, size_e*BYTE_BITS if size_e is not None
                                        else self.state.arch.bits)
         else:
             data_e = data_e.to_bv()
@@ -528,7 +529,7 @@ class SimMemory(SimStatePlugin):
 
         if not disable_actions:
             if request.completed and o.AUTO_REFS in self.state.options and action is None and not self._abstract_backer:
-                ref_size = size * 8 if size is not None else data_e.size()
+                ref_size = size * BYTE_BITS if size is not None else data_e.size()
                 region_type = self.category
                 if region_type == 'file':
                     # Special handling for files to keep compatibility
@@ -585,7 +586,7 @@ class SimMemory(SimStatePlugin):
 
         # if fallback is not provided by user, load it from memory
         # remember to specify the endianness!
-        fallback_e = self.load(addr, max_bits/8, add_constraints=add_constraints, endness=endness) \
+        fallback_e = self.load(addr, max_bits/BYTE_BITS, add_constraints=add_constraints, endness=endness) \
             if fallback_e is None else fallback_e
 
         req = self._store_cases(addr_e, contents_e, conditions_e, fallback_e, endness=endness)
@@ -691,7 +692,7 @@ class SimMemory(SimStatePlugin):
                 size_e = size
 
         if size is None:
-            size = self.state.arch.bits / 8
+            size = self.state.arch.bits / BYTE_BITS
             size_e = size
 
         if inspect is True:
@@ -752,7 +753,7 @@ class SimMemory(SimStatePlugin):
                 r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
             if o.AUTO_REFS in self.state.options and action is None:
-                ref_size = size * 8 if size is not None else r.size()
+                ref_size = size * BYTE_BITS if size is not None else r.size()
                 region_type = self.category
                 if region_type == 'file':
                     # Special handling for files to keep compatibility
@@ -808,7 +809,7 @@ class SimMemory(SimStatePlugin):
 
         if isinstance(what, str):
             # Convert it to a BVV
-            what = claripy.BVV(what, len(what) * 8)
+            what = claripy.BVV(what, len(what) * BYTE_BITS)
 
         r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default,
                            step=step)

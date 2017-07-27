@@ -2,6 +2,7 @@
 import logging
 from collections import defaultdict
 
+from archinfo import BYTE_BITS
 import pyvex
 
 from ....blade import Blade
@@ -183,7 +184,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 for idx, a in enumerate(state.se.any_n_int(jump_addr, total_cases)):
                     if idx % 100 == 0 and idx != 0:
                         l.debug("%d targets have been resolved for the indirect jump at %#x...", idx, addr)
-                    jump_target = state.memory.load(a, state.arch.bits / 8, endness=state.arch.memory_endness)
+                    jump_target = state.memory.load(a, state.arch.bits / BYTE_BITS, endness=state.arch.memory_endness)
                     target = state.se.any_int(jump_target)
                     all_targets.append(target)
                     jump_table.append(target)
@@ -240,7 +241,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         if not state.memory.was_written_to(concrete_read_addr):
             # it was never written to before. we overwrite it with unconstrained bytes
-            for i in xrange(0, concrete_read_length, self.arch.bits / 8):
+            for i in xrange(0, concrete_read_length, self.arch.bits / BYTE_BITS):
                 state.memory.store(concrete_read_addr + i, state.se.Unconstrained('unconstrained', self.arch.bits))
 
                 # job done :-)

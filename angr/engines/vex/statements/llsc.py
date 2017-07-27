@@ -1,3 +1,4 @@
+from archinfo import BYTE_BITS
 from pyvex import type_sizes
 from . import SimIRStmt
 
@@ -14,7 +15,7 @@ class SimIRStmt_LLSC(SimIRStmt):
 
         if self.stmt.storedata is None:
             # it's a load-linked
-            load_size = type_sizes[self.state.scratch.tyenv.lookup(self.stmt.result)]/8
+            load_size = type_sizes[self.state.scratch.tyenv.lookup(self.stmt.result)]/BYTE_BITS
             data = self.state.memory.load(addr.expr, load_size, endness=self.stmt.endness)
             self.state.scratch.store_tmp(self.stmt.result, data, addr.reg_deps(), addr.tmp_deps())
         else:

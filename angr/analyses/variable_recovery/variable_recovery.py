@@ -2,6 +2,8 @@
 import logging
 from collections import defaultdict
 
+from archinfo import BYTE_BITS
+
 from .. import Analysis, register_analysis
 
 from .annotations import StackLocationAnnotation
@@ -151,11 +153,11 @@ class VariableRecoveryState(object):
         reg_read_offset = state.inspect.reg_read_offset
         reg_read_length = state.inspect.reg_read_length
 
-        if reg_read_offset == state.arch.sp_offset and reg_read_length == state.arch.bits / 8:
+        if reg_read_offset == state.arch.sp_offset and reg_read_length == state.arch.bits / BYTE_BITS:
             # TODO: make sure the sp is not overwritten by something that we are not tracking
             return
 
-        #if reg_read_offset == state.arch.bp_offset and reg_read_length == state.arch.bits / 8:
+        #if reg_read_offset == state.arch.bp_offset and reg_read_length == state.arch.bits / BYTE_BITS:
         #    # TODO:
 
         var_offset = self._normalize_register_offset(reg_read_offset)
@@ -179,7 +181,7 @@ class VariableRecoveryState(object):
             return
 
         reg_write_expr = state.inspect.reg_write_expr
-        reg_write_length = len(reg_write_expr) / 8
+        reg_write_length = len(reg_write_expr) / BYTE_BITS
 
         # annotate it
         # reg_write_expr = reg_write_expr.annotate(VariableSourceAnnotation.from_state(state))
@@ -269,7 +271,7 @@ class VariableRecoveryState(object):
 
         mem_write_address = state.inspect.mem_write_address
         mem_write_expr = state.inspect.mem_write_expr
-        mem_write_length = len(mem_write_expr) / 8
+        mem_write_length = len(mem_write_expr) / BYTE_BITS
 
         stack_offset = self._addr_to_stack_offset(mem_write_address)
 

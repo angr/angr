@@ -1,3 +1,5 @@
+from archinfo import BYTE_BITS
+
 from .base import SimIRExpr, _nonset
 from .. import size_bytes, size_bits
 from .... import sim_options as o
@@ -22,7 +24,7 @@ class SimIRExpr_Load(SimIRExpr):
         if o.DO_LOADS not in self.state.options:
             self.expr = self.state.se.Unconstrained("load_expr_0x%x_%d" % (
                 self.state.scratch.ins_addr, self.state.scratch.stmt_idx
-            ), size*8)
+            ), size*BYTE_BITS)
         else:
 
             # load from memory and fix endianness

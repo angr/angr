@@ -3,6 +3,7 @@ import logging
 import struct
 from collections import defaultdict
 
+from archinfo import BYTE_BITS
 import cffi
 import networkx
 import pyvex
@@ -502,7 +503,7 @@ class CFGBase(Analysis):
                             itstate = conc_temps[val.tmp]
                             while itstate != 0:
                                 it_counter += 1
-                                itstate >>= 8
+                                itstate >>= BYTE_BITS
 
         if it_counter != 0:
             l.debug('Basic block ends before calculated IT block (%#x)', addr)
@@ -730,7 +731,7 @@ class CFGBase(Analysis):
         :rtype:          int
         """
 
-        pointer_size = self.project.arch.bits / 8
+        pointer_size = self.project.arch.bits / BYTE_BITS
         buf = self._fast_memory_load(addr)
 
         if self.project.arch.memory_endness == 'Iend_LE':

@@ -3,6 +3,7 @@ import logging
 import sys
 from collections import defaultdict
 
+from archinfo import BYTE_BITS
 import claripy
 import networkx
 import pyvex
@@ -2298,13 +2299,13 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                             if ac.action == 'read':
                                 if ac.type == 'mem':
                                     unconstrained_value = base_state.se.Unconstrained('unconstrained',
-                                                                                      ac.size.ast * 8)
+                                                                                      ac.size.ast * BYTE_BITS)
                                     base_state.memory.store(ac.addr,
                                                             unconstrained_value,
                                                             endness=self.project.arch.memory_endness)
                                 elif ac.type == 'reg':
                                     unconstrained_value = base_state.se.Unconstrained('unconstrained',
-                                                                                      ac.size.ast * 8)
+                                                                                      ac.size.ast * BYTE_BITS)
                                     base_state.registers.store(ac.offset,
                                                                unconstrained_value,
                                                                endness=self.project.arch.register_endness)
@@ -3001,7 +3002,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         regs_overwritten.add(ac.offset)
                     elif ac.type == "mem" and ac.action == "write":
                         addr = se.exactly_int(ac.addr.ast, default=0)
-                        if (self.project.arch.call_pushes_ret and addr >= sp + self.project.arch.bits / 8) or \
+                        if (self.project.arch.call_pushes_ret and addr >= sp + self.project.arch.bits / BYTE_BITS) or \
                                 (not self.project.arch.call_pushes_ret and addr >= sp):
                             offset = addr - sp
                             stack_overwritten.add(offset)

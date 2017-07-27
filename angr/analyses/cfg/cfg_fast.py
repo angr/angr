@@ -6,6 +6,7 @@ import string
 import struct
 from collections import defaultdict
 
+from archinfo import BYTE_BITS
 import claripy
 import cle
 import pyvex
@@ -1926,7 +1927,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if type(stmt.data) is pyvex.IRExpr.Load:  # pylint: disable=unidiomatic-typecheck
                     # load
                     # e.g. t7 = LDle:I64(0x0000000000600ff8)
-                    size = stmt.data.result_size(irsb.tyenv) / 8 # convert to bytes
+                    size = stmt.data.result_size(irsb.tyenv) / BYTE_BITS # convert to bytes
                     _process(irsb, stmt, stmt_idx, stmt.data.addr, instr_addr, next_instr_addr,
                              data_size=size, data_type='integer'
                              )
@@ -2100,7 +2101,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             # let's see what sort of data it is
             if memory_data.sort in ('unknown', None) or \
-                    (memory_data.sort == 'integer' and memory_data.size == self.project.arch.bits / 8):
+                    (memory_data.sort == 'integer' and memory_data.size == self.project.arch.bits / BYTE_BITS):
                 data_type, data_size = self._guess_data_type(memory_data.irsb, memory_data.irsb_addr,
                                                              memory_data.stmt_idx, data_addr, memory_data.max_size,
                                                              content_holder=content_holder
@@ -2125,7 +2126,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 if data_type == 'pointer-array':
                     # make sure all pointers are identified
-                    pointer_size = self.project.arch.bits / 8
+                    pointer_size = self.project.arch.bits / BYTE_BITS
                     buf = self._fast_memory_load(data_addr)
 
                     # TODO: this part of code is duplicated in _guess_data_type()
@@ -2195,7 +2196,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # TODO: Further check if it's the beginning of an instruction
             return "code reference", 0
 
-        pointer_size = self.project.arch.bits / 8
+        pointer_size = self.project.arch.bits / BYTE_BITS
 
         # who's using it?
         if isinstance(self.project.loader.main_bin, cle.MetaELF):

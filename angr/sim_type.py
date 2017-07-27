@@ -5,6 +5,7 @@ import re
 import tempfile
 import os
 
+from archinfo import BYTE_BITS
 import claripy
 
 import logging
@@ -127,7 +128,7 @@ class SimTypeReg(SimType):
         return "reg{}_t".format(self.size)
 
     def extract(self, state, addr, concrete=False):
-        out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
+        out = state.memory.load(addr, self.size / BYTE_BITS, endness=state.arch.memory_endness)
         if not concrete:
             return out
         return state.se.any_int(out)
@@ -169,7 +170,7 @@ class SimTypeNum(SimType):
         return "{}int{}_t".format('' if self.signed else 'u', self.size)
 
     def extract(self, state, addr, concrete=False):
-        out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
+        out = state.memory.load(addr, self.size / BYTE_BITS, endness=state.arch.memory_endness)
         if not concrete:
             return out
         n = state.se.any_int(out)
@@ -228,7 +229,7 @@ class SimTypeInt(SimTypeReg):
             raise ValueError("Arch %s doesn't have its %s type defined!" % (self._arch.name, self._base_name))
 
     def extract(self, state, addr, concrete=False):
-        out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
+        out = state.memory.load(addr, self.size / BYTE_BITS, endness=state.arch.memory_endness)
         if not concrete:
             return out
         n = state.se.any_int(out)
@@ -259,7 +260,7 @@ class SimTypeChar(SimTypeReg):
         """
         :param label: the type label.
         """
-        SimTypeReg.__init__(self, 8, label=label) # a char better be 8 bits (I'm looking at you, DCPU-16)
+        SimTypeReg.__init__(self, BYTE_BITS, label=label) # a char better be 8 bits (I'm looking at you, DCPU-16)
         self.signed = False
 
     def __repr__(self):
@@ -270,7 +271,7 @@ class SimTypeChar(SimTypeReg):
             super(SimTypeChar, self).store(state, addr, value)
         except TypeError:
             if isinstance(value, str) and len(value) == 1:
-                value = state.se.BVV(ord(value), 8)
+                value = state.se.BVV(ord(value), BYTE_BITS)
                 super(SimTypeChar, self).store(state, addr, value)
             else:
                 raise
@@ -366,10 +367,10 @@ class SimTypeFixedSizeArray(SimType):
     _can_refine_int = True
 
     def _refine(self, view, k):
-        return view._deeper(addr=view._addr + k * (self.elem_type.size/8), ty=self.elem_type)
+        return view._deeper(addr=view._addr + k * (self.elem_type.size/BYTE_BITS), ty=self.elem_type)
 
     def extract(self, state, addr, concrete=False):
-        return [self.elem_type.extract(state, addr + i*(self.elem_type.size/8), concrete) for i in xrange(self.length)]
+        return [self.elem_type.extract(state, addr + i*(self.elem_type.size/BYTE_BITS), concrete) for i in xrange(self.length)]
 
     def store(self, state, addr, values):
         for i, val in enumerate(values):
@@ -587,7 +588,7 @@ class SimStruct(SimType):
         offset_so_far = 0
         for name, ty in self.fields.iteritems():
             offsets[name] = offset_so_far
-            offset_so_far += ty.size / 8
+            offset_so_far += ty.size / BYTE_BITS
 
         return offsets
 

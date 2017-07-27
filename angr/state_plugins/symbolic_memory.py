@@ -5,6 +5,7 @@ import itertools
 
 l = logging.getLogger("angr.state_plugins.symbolic_memory")
 
+from archinfo import BYTE_BITS
 import claripy
 from ..storage.memory import SimMemory
 from ..storage.paged_memory import SimPagedMemory
@@ -206,7 +207,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 # size and merge them
                 extracted = [(mo.bytes_at(b, min_size), fv) for mo, fv in memory_objects] if min_size != 0 else []
                 created = [
-                    (self.get_unconstrained_bytes("merge_uc_%s_%x" % (uc.id, b), min_size * 8), fv) for
+                    (self.get_unconstrained_bytes("merge_uc_%s_%x" % (uc.id, b), min_size * BYTE_BITS), fv) for
                     uc, fv in unconstrained_in
                 ]
                 to_merge = extracted + created
@@ -432,7 +433,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def _fill_missing(self, addr, num_bytes):
         name = "%s_%x" % (self.id, addr)
         all_missing = [
-            self.get_unconstrained_bytes(name, min(self.mem._page_size, num_bytes)*8, source=i)
+            self.get_unconstrained_bytes(name, min(self.mem._page_size, num_bytes)*BYTE_BITS, source=i)
             for i in range(addr, addr+num_bytes, self.mem._page_size)
         ]
         if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
@@ -503,7 +504,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         size = max_size
         if self.state.se.symbolic(dst) and options.AVOID_MULTIVALUED_READS in self.state.options:
-            return [ ], self.get_unconstrained_bytes("symbolic_read_unconstrained", size*8), [ ]
+            return [ ], self.get_unconstrained_bytes("symbolic_read_unconstrained", size*BYTE_BITS), [ ]
 
         # get a concrete set of read addresses
         try:
@@ -511,7 +512,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         except SimMemoryError:
             if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
                 return [ ], self.get_unconstrained_bytes(
-                    "symbolic_read_unconstrained", size*8
+                    "symbolic_read_unconstrained", size*BYTE_BITS
                 ), [ ]
             else:
                 raise
@@ -545,7 +546,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         constraints = [ ]
         remaining_symbolic = max_symbolic_bytes
-        seek_size = len(what)/8
+        seek_size = len(what)/BYTE_BITS
         symbolic_what = self.state.se.symbolic(what)
         l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
 
@@ -571,7 +572,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 chunk = self.load(start+chunk_start, chunk_size, endness="Iend_BE")
 
             chunk_off = i-chunk_start
-            b = chunk[chunk_size*8 - chunk_off*8 - 1 : chunk_size*8 - chunk_off*8 - seek_size*8]
+            b = chunk[chunk_size*BYTE_BITS - chunk_off*BYTE_BITS - 1 : chunk_size*BYTE_BITS - chunk_off*BYTE_BITS - seek_size*BYTE_BITS]
             cases.append([b == what, start + i])
             match_indices.append(i)
 
@@ -660,7 +661,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             req.constraints.append(req.size == new_size)
             req.size = new_size
 
-        max_bytes = len(req.data)/8
+        max_bytes = len(req.data)/BYTE_BITS
 
         #
         # First, resolve the addresses
@@ -697,7 +698,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             req.constraints += [ self.state.se.ULE(req.size, max_bytes) ]
 
             for fv in req.fallback_values:
-                befores = fv.chop(bits=8)
+                befores = fv.chop(bits=BYTE_BITS)
                 afters = req.data.chop(bits=8)
                 sv = self.state.se.Concat(*[
                     self.state.se.If(self.state.se.UGT(req.size, i), a, b)
@@ -707,10 +708,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         else:
             needed_bytes = self.state.se.any_int(req.size)
             if needed_bytes < max_bytes:
-                sv = req.data[max_bytes*8-1:(max_bytes-needed_bytes)*8]
+                sv = req.data[max_bytes*BYTE_BITS-1:(max_bytes-needed_bytes)*BYTE_BITS]
                 req.symbolic_sized_values = [ sv ] * num_addresses
                 req.fallback_values = [
-                    (fv[max_bytes*8-1:(max_bytes-needed_bytes)*8] if fv is not None else None)
+                    (fv[max_bytes*BYTE_BITS-1:(max_bytes-needed_bytes)*BYTE_BITS] if fv is not None else None)
                     for fv in req.fallback_values
                 ]
             #elif needed_bytes > max_bytes:
@@ -767,7 +768,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         for a,sv in zip(req.actual_addresses, req.stored_values):
             # here, we ensure the uuids are generated for every expression written to memory
             sv.make_uuid()
-            size = len(sv)/8
+            size = len(sv)/BYTE_BITS
             self.state.scratch.dirty_addrs.update(range(a, a+size))
             mo = SimMemoryObject(sv, a, length=size)
             self.mem.store_memory_object(mo)
@@ -809,7 +810,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         for addr in addrs:
             # First we load old values
-            old_val = self._read_from(addr, length / 8)
+            old_val = self._read_from(addr, length / BYTE_BITS)
             assert isinstance(old_val, claripy.Bits)
 
             # FIXME: This is a big hack
@@ -884,7 +885,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     # Unconstrain a byte
     def unconstrain_byte(self, addr):
-        unconstrained_byte = self.get_unconstrained_bytes("%s_unconstrain_0x%x" % (self.id, addr), 8)
+        unconstrained_byte = self.get_unconstrained_bytes("%s_unconstrain_0x%x" % (self.id, addr), BYTE_BITS)
         self.store(addr, unconstrained_byte)
 
     # Replaces the differences between self and other with unconstrained bytes.
@@ -927,7 +928,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             if should_reverse: merged_val = merged_val.reversed
         else:
-            merged_val = self.state.se.BVV(0, merged_size*8)
+            merged_val = self.state.se.BVV(0, merged_size*BYTE_BITS)
             for tm,fv in to_merge:
                 merged_val = self.state.se.If(fv, tm, merged_val)
 

@@ -650,9 +650,9 @@ class SimPagedMemory(object):
                 differences.add(c)
             else:
                 if type(self[c]) is not SimMemoryObject:
-                    self[c] = SimMemoryObject(self.state.se.BVV(ord(self[c]), 8), c)
+                    self[c] = SimMemoryObject(self.state.se.BVV(self[c], BYTE_BITS), c)
                 if type(other[c]) is not SimMemoryObject:
-                    other[c] = SimMemoryObject(self.state.se.BVV(ord(other[c]), 8), c)
+                    other[c] = SimMemoryObject(self.state.se.BVV(other[c], BYTE_BITS), c)
                 if c in self and self[c] != other[c]:
                     # Try to see if the bytes are equal
                     self_byte = self[c].bytes_at(c, 1)
@@ -1012,7 +1012,7 @@ class SimPagedMemory(object):
             page_id = base_page_num + page
             self._pages[page_id] = self._create_page(page_id, permissions=permissions)
             if init_zero:
-                mo = SimMemoryObject(claripy.BVV(0, self._page_size * 8), page_id*self._page_size)
+                mo = SimMemoryObject(claripy.BVV(0, self._page_size * BYTE_BITS), page_id*self._page_size)
                 self._apply_object_to_page(page_id*self._page_size, mo, page=self._pages[page_id])
             self._symbolic_addrs[page_id] = set()
 

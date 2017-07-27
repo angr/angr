@@ -12,6 +12,7 @@ import operator
 import logging
 l = logging.getLogger("angr.engines.vex.irop")
 
+from archinfo import BYTE_BITS
 import pyvex
 import claripy
 
@@ -510,7 +511,7 @@ class SimIROp(object):
     @supports_vector
     def _op_generic_GetMSBs(self, args):
         size = self._vector_count * self._vector_size
-        bits = [claripy.Extract(i, i, args[0]) for i in range(size - 1, 6, -8)]
+        bits = [claripy.Extract(i, i, args[0]) for i in range(size - 1, 6, -BYTE_BITS)]
         return claripy.Concat(*bits)
 
     @supports_vector
