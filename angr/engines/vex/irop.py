@@ -28,7 +28,7 @@ def op_attrs(p):
               r'(?P<from_signed_back>U|S)??' \
               # this screws up CmpLE: r'(?P<e_flag>E)??' \
               r'('
-                r'(?P<from_side>HL|HI|L|LO)??' \
+                r'(?P<from_side>MI|HL|HI|L|LO)??' \
                 r'(?P<conversion>to|as)' \
                 r'(?P<to_type>Int|I|F|D|V)??' \
                 r'(?P<to_size>\d+)??' \
@@ -250,6 +250,11 @@ class SimIROp(object):
                 self._calculate = self._op_hi_half
 
             # this just returns the high half of the first arg
+            elif self._from_size > self._to_size and self._from_side == 'MI':
+                l.debug("... using mi half")
+                self._calculate = self._op_mid_half
+
+            # this just returns the lo half of the first arg
             elif self._from_size > self._to_size and self._from_side in ('L', 'LO'):
                 l.debug("... using lo half")
                 self._calculate = self._op_lo_half
@@ -440,6 +445,14 @@ class SimIROp(object):
 
     def _op_hi_half(self, args):
         return claripy.Extract(args[0].size()-1, args[0].size()/2, args[0])
+
+    def _op_mi_half(self, args):
+        if args[0].size() == 27:
+            return args[0][-9:9]
+        elif args[0].size() == 54:
+            return args[0][-18:18]
+        else:
+            raise SimOperationError("unsupported size for mid extraction")
 
     def _op_lo_half(self, args):
         return claripy.Extract(args[0].size()/2 - 1, 0, args[0])
