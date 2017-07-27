@@ -290,7 +290,11 @@ class SimOS(object):
             n = self.syscall_table.unknown_syscall_number
         elif not possible:
             # The state is not satisfiable
-            raise AngrUnsupportedSyscallError("The program state is not satisfiable")
+            if o.BYPASS_UNSUPPORTED_SYSCALL in state.options:
+                state.log.add_event('resilience', resilience_type='syscall', syscall=-1, message='unsatisfiable program state')
+                n = self.syscall_table.unknown_syscall_number
+            else:
+                raise AngrUnsupportedSyscallError("The program state is not satisfiable")
         else:
             n = possible[0]
 
