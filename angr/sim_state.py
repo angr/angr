@@ -763,6 +763,65 @@ class SimState(ana.Storable): # pylint: disable=R0904
         else:
             return conditions.__class__((self._adjust_condition(self.se.And(*conditions)),))
 
+    #
+    # Compatibility layer
+    #
+
+    @property
+    def state(self):
+        return self
+
+    @property
+    def length(self):
+        return self.history.block_count
+
+    @property
+    def jumpkind(self):
+        return self.scratch.jumpkind
+
+    @property
+    def last_actions(self):
+        return self.history.recent_actions
+
+    @property
+    def history_iterator(self):
+        return self.history.lineage
+
+    @property
+    def addr_trace(self):
+        return self.history.addr_trace
+
+    @property
+    def trace(self):
+        return self.history.trace
+
+    @property
+    def targets(self):
+        return self.history.jump_targets
+
+    @property
+    def guards(self):
+        return self.history.jump_guards
+
+    @property
+    def jumpkinds(self):
+        return self.history.jumpkinds
+
+    @property
+    def events(self):
+        return self.history.events
+
+    @property
+    def actions(self):
+        return self.history.actions
+
+    def trim_history(self):
+        self.history.trim()
+
+    @property
+    def reachable(self):
+        return self.history.reachable()
+
 from .state_plugins.symbolic_memory import SimSymbolicMemory
 from .state_plugins.fast_memory import SimFastMemory
 from .state_plugins.abstract_memory import SimAbstractMemory
