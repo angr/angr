@@ -1,3 +1,4 @@
+import archinfo
 import bintrees
 import cooldict
 import claripy
@@ -516,7 +517,7 @@ class SimPagedMemory(object):
                     if isinstance(self._memory_backer[i], claripy.ast.Base):
                         backer = self._memory_backer[i]
                     else:
-                        backer = claripy.BVV(self._memory_backer[i])
+                        backer = claripy.BVV(self._memory_backer[i], archinfo.BYTE_BITS)
                     mo = SimMemoryObject(backer, i)
                     self._apply_object_to_page(n*self._page_size, mo, page=new_page)
                     initialized = True
@@ -526,7 +527,7 @@ class SimPagedMemory(object):
                     if isinstance(self._memory_backer[i], claripy.ast.Base):
                         backer = self._memory_backer[i]
                     else:
-                        backer = claripy.BVV(self._memory_backer[i])
+                        backer = claripy.BVV(self._memory_backer[i], archinfo.BYTE_BITS)
                     mo = SimMemoryObject(backer, new_page_addr+i)
                     self._apply_object_to_page(n*self._page_size, mo, page=new_page)
                     initialized = True
