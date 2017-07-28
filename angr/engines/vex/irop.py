@@ -253,7 +253,7 @@ class SimIROp(object):
             # this just returns the high half of the first arg
             elif self._from_size > self._to_size and self._from_side == 'MI':
                 l.debug("... using mi half")
-                self._calculate = self._op_mid_half
+                self._calculate = self._op_mi_half
 
             # this just returns the lo half of the first arg
             elif self._from_size > self._to_size and self._from_side in ('L', 'LO'):
