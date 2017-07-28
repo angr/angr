@@ -211,7 +211,7 @@ class Project(object):
         if isinstance(simos, type) and issubclass(simos, SimOS):
             self._simos = simos(self) #pylint:disable=invalid-name
         elif isinstance(simos, str):
-            self._simos = os_mapping[simos]
+            self._simos = os_mapping[simos](self)
         elif simos is None:
             self._simos = os_mapping[self.loader.main_bin.os](self)
         else:
