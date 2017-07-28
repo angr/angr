@@ -10,7 +10,7 @@ class AngrExternObject(Backend):
         self._alloc_size = alloc_size
         self._granularity = granularity
         self.memory = Clemory(arch)
-        self.memory.add_backer(0, '\0'*alloc_size)
+        self.memory.add_backer(0, [0]*alloc_size)
         self.segments = [Segment(0, 0, 0, alloc_size)]
         self.segments[0].is_readable = True
         self.segments[0].is_writable = False
