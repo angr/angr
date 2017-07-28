@@ -504,8 +504,11 @@ class SimPagedMemory(object):
                 write_start = max(new_page_addr, addr + snip_start)
                 write_size = self._page_size - write_start%self._page_size
 
-                snip = _ffi.buffer(backer)[snip_start:snip_start+write_size]
-                mo = SimMemoryObject(claripy.BVV(snip), write_start)
+                # XXX:
+                snip = [backer[i] for i in xrange(snip_start, snip_start + write_size)]
+                # snip = _ffi.buffer(backer)[snip_start:snip_start+write_size]
+                # print "SNIP ", snip.encode('hex')[:10]
+                mo = SimMemoryObject(claripy.Concat(*(claripy.BVV(x, archinfo.BYTE_BITS) for x in snip)), write_start)
                 self._apply_object_to_page(n*self._page_size, mo, page=new_page)
 
                 new_page.permissions = claripy.BVV(flags, 3)
