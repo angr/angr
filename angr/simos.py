@@ -222,7 +222,11 @@ class SimOS(object):
         return state
 
     def state_entry(self, **kwargs):
-        return self.state_blank(**kwargs)
+        state = self.state_blank(**kwargs)
+        for reg, val in state.arch.entry_register_values.iteritems():
+            if isinstance(val, (int, long)):
+                state.registers.store(reg, val, size=state.arch.bytes)
+        return state
 
     def state_full_init(self, **kwargs):
         return self.state_entry(**kwargs)
