@@ -170,18 +170,26 @@ class Convert(UnaryOp):
 
 
 class BinaryOp(Op):
+    OPSTR_MAP = {
+        'Add': '+',
+        'Sub': '-',
+        'CmpEQ': '==',
+        'CmpLE': '<=',
+    }
+
     def __init__(self, idx, op, operands, **kwargs):
         super(BinaryOp, self).__init__(idx, op, **kwargs)
 
         assert len(operands) == 2
         self.operands = operands
-        self.bits = operands[0].bits
+        self.bits = operands[0].bits if not type(operands[0]) in (long, int) else operands[1].bits
 
         # TODO: sanity check of operands' sizes for some ops
         # assert self.bits == operands[1].bits
 
     def __str__(self):
-        return "(%s %s %s)" % (str(self.operands[0]), self.op, str(self.operands[1]))
+        op_str = self.OPSTR_MAP.get(self.op, self.op)
+        return "(%s %s %s)" % (str(self.operands[0]), op_str, str(self.operands[1]))
 
     def __repr__(self):
         return "%s(%s, %s)" % (self.op, self.operands[0], self.operands[1])
