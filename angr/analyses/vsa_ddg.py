@@ -2,14 +2,13 @@ import logging
 from collections import defaultdict
 
 import networkx
+from . import Analysis, register_analysis
 
-from simuvex import SimRegisterVariable, SimMemoryVariable
-
-from ..errors import AngrDDGError
-from ..analysis import Analysis, register_analysis
 from .code_location import CodeLocation
+from ..errors import AngrDDGError
+from ..sim_variable import SimRegisterVariable, SimMemoryVariable
 
-l = logging.getLogger(name="angr.analyses.vsa_ddg")
+l = logging.getLogger("angr.analyses.vsa_ddg")
 
 class DefUseChain(object):
     """
@@ -142,7 +141,7 @@ class VSA_DDG(Analysis):
 
             successing_nodes = self._vfg.graph.successors(node)
             for state in final_states:
-                if state.scratch.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
+                if state.history.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
                     # Skip fakerets if there are other control flow transitions available
                     continue
 
@@ -198,7 +197,7 @@ class VSA_DDG(Analysis):
         # Make a copy of live_defs
         live_defs = live_defs.copy()
 
-        action_list = list(state.log.actions)
+        action_list = list(state.history.recent_actions)
 
         # Since all temporary variables are local, we simply track them in a local dict
         temps = { }

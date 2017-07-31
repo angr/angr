@@ -19,12 +19,12 @@ def setup_module():
 
 # def test_slicing():
 # addresses = [ 0x40050C, 0x40050D, 0x400514, 0x40051B, 0x400521, 0x400534 ]
-#   addresses = [ 0x40043C, 0x400440, 0x400447 ]
-#   state = simuvex.SimState(memory_backer=never_nolibs.mem)
-#   s = simuvex.SimSlice(state, addresses, never_nolibs.sim_run, mode='symbolic')
+#    addresses = [ 0x40043C, 0x400440, 0x400447 ]
+#    state = angr.SimState(memory_backer=never_nolibs.mem)
+#    s = simuvex.SimSlice(state, addresses, never_nolibs.sim_run, mode='symbolic')
 #
 # TODO: test stuff
-#   return s
+#    return s
 
 
 def test_static():
@@ -64,15 +64,15 @@ def test_static_got_refs():
 
 
 #def test_refs():
-#   s = never_nolibs.sim_run(never_nolibs.path_generator.blank_path(address=0x40050C, mode='concrete'))
-#   nose.tools.assert_equal(len(s.refs()[simuvex.SimTmpWrite]), 38)
-#   t0_ref = s.refs()[simuvex.SimTmpWrite][0]
-#   nose.tools.assert_equal(len(t0_ref.data_reg_deps), 1)
-#   nose.tools.assert_equal(t0_ref.data_reg_deps[0], 56)
-#   t1_ref = s.refs()[simuvex.SimTmpWrite][3]
-#   nose.tools.assert_equal(len(t1_ref.data_reg_deps), 0)
-#   nose.tools.assert_equal(len(t1_ref.data_tmp_deps), 1)
-#   nose.tools.assert_equal(t1_ref.data_tmp_deps[0], 13)
+#    s = never_nolibs.sim_run(never_nolibs.path_generator.blank_path(address=0x40050C, mode='concrete'))
+#    nose.tools.assert_equal(len(s.refs()[simuvex.SimTmpWrite]), 38)
+#    t0_ref = s.refs()[simuvex.SimTmpWrite][0]
+#    nose.tools.assert_equal(len(t0_ref.data_reg_deps), 1)
+#    nose.tools.assert_equal(t0_ref.data_reg_deps[0], 56)
+#    t1_ref = s.refs()[simuvex.SimTmpWrite][3]
+#    nose.tools.assert_equal(len(t1_ref.data_reg_deps), 0)
+#    nose.tools.assert_equal(len(t1_ref.data_tmp_deps), 1)
+#    nose.tools.assert_equal(t1_ref.data_tmp_deps[0], 13)
 
 if __name__ == '__main__':
     try:

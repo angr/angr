@@ -1,15 +1,15 @@
+
+import os
 import logging
 import networkx
 import string
 import itertools
 from collections import defaultdict
 
-import simuvex
-import simuvex.s_cc
 import claripy
-from simuvex.s_errors import SimEngineError, SimMemoryError
+from ..errors import SimEngineError, SimMemoryError
 
-l = logging.getLogger(name="angr.knowledge.function")
+l = logging.getLogger("angr.knowledge.function")
 
 
 class Function(object):
@@ -63,16 +63,10 @@ class Function(object):
         if name is None:
             if project.is_hooked(addr):
                 hooker = project.hooked_by(addr)
-                if hooker.procedure is simuvex.SimProcedures['stubs']['ReturnUnconstrained']:
-                    kwargs_dict = project._sim_procedures[addr].kwargs
-                    if 'resolves' in kwargs_dict:
-                        name = kwargs_dict['resolves']
-                else:
-                    name = hooker.name
+                name = hooker.display_name
             else:
-                syscall_inst = project._simos.syscall_table.get_by_addr(addr)
-                if syscall_inst is not None:
-                    name = syscall_inst.name
+                syscall_inst = project._simos.syscall_from_addr(addr)
+                name = syscall_inst.display_name
 
         # try to get the name from the symbols
         #if name is None:
@@ -85,7 +79,17 @@ class Function(object):
         if name is None:
             name = 'sub_%x' % addr
 
+        binary_name = None
+        if self.is_simprocedure:
+            hooker = project.hooked_by(addr)
+            if hooker is not None:
+                binary_name = hooker.library_name
+
+        if binary_name is None and self.binary is not None:
+            binary_name = os.path.basename(self.binary.binary)
+
         self._name = name
+        self.binary_name = binary_name
 
         # Register offsets of those arguments passed in registers
         self._argument_registers = []
@@ -324,23 +328,21 @@ class Function(object):
             curr_ip = state.se.any_int(state.ip)
 
             # get runtime values from logs of successors
-            p = self._project.factory.path(state)
-            p.step()
-            if p.next_run is not None:
-                for succ in p.next_run.flat_successors + p.next_run.unsat_successors:
-                    for a in succ.log.actions:
-                        for ao in a.all_objects:
-                            if not isinstance(ao.ast, claripy.ast.Base):
-                                constants.add(ao.ast)
-                            elif not ao.ast.symbolic:
-                                constants.add(succ.se.any_int(ao.ast))
+            successors = self._project.factory.successors(state)
+            for succ in successors.flat_successors + successors.unsat_successors:
+                for a in succ.history.recent_actions:
+                    for ao in a.all_objects:
+                        if not isinstance(ao.ast, claripy.ast.Base):
+                            constants.add(ao.ast)
+                        elif not ao.ast.symbolic:
+                            constants.add(succ.se.any_int(ao.ast))
 
-                    # add successors to the queue to analyze
-                    if not succ.se.symbolic(succ.ip):
-                        succ_ip = succ.se.any_int(succ.ip)
-                        if succ_ip in self and succ_ip not in analyzed:
-                            analyzed.add(succ_ip)
-                            q.insert(0, succ)
+                # add successors to the queue to analyze
+                if not succ.se.symbolic(succ.ip):
+                    succ_ip = succ.se.any_int(succ.ip)
+                    if succ_ip in self and succ_ip not in analyzed:
+                        analyzed.add(succ_ip)
+                        q.insert(0, succ)
 
             # force jumps to missing successors
             # (this is a slightly hacky way to force it to explore all the nodes in the function)
@@ -351,9 +353,10 @@ class Function(object):
             missing = set(x.addr for x in self.graph.successors(node)) - analyzed
             for succ_addr in missing:
                 l.info("Forcing jump to missing successor: %#x", succ_addr)
-                if succ_addr not in analyzed and p.next_run is not None:
-                    all_successors = p.next_run.unconstrained_successors + p.next_run.flat_successors + \
-                                     p.next_run.unsat_successors
+                if succ_addr not in analyzed:
+                    all_successors = successors.unconstrained_successors + \
+                                     successors.flat_successors + \
+                                     successors.unsat_successors
                     if len(all_successors) > 0:
                         # set the ip of a copied successor to the successor address
                         succ = all_successors[0].copy()
@@ -375,7 +378,7 @@ class Function(object):
         for b in self.block_addrs:
             for sirsb in self._function_manager._cfg.get_all_irsbs(b):
                 for s in sirsb.successors + sirsb.unsat_successors:
-                    for a in s.log.actions:
+                    for a in s.history.recent_actions:
                         for ao in a.all_objects:
                             if not isinstance(ao.ast, claripy.ast.Base):
                                 constants.add(ao.ast)

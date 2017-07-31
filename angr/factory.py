@@ -1,9 +1,9 @@
-from simuvex import SimState
-from simuvex import s_cc
-from .surveyors.caller import Callable
+from .sim_state import SimState
+from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
+from .callable import Callable
 
 import logging
-l = logging.getLogger('angr.factory')
+l = logging.getLogger("angr.factory")
 
 _deprecation_cache = set()
 def deprecate(name, replacement):
@@ -24,7 +24,7 @@ class AngrObjectFactory(object):
         # currently the default engine MUST be a vex engine... this assumption is hardcoded
         # but this can totally be changed with some interface generalization
         self._project = project
-        self._default_cc = s_cc.DefaultCC[project.arch.name]
+        self._default_cc = DEFAULT_CC[project.arch.name]
 
         self.default_engine = default_engine
         self.procedure_engine = procedure_engine
@@ -69,7 +69,7 @@ class AngrObjectFactory(object):
             if addr is not None:
                 state.ip = addr
             if jumpkind is not None:
-                state.scratch.jumpkind = jumpkind
+                state.history.jumpkind = jumpkind
 
         r = None
         for engine in engines:
@@ -82,8 +82,11 @@ class AngrObjectFactory(object):
             raise AngrExitError("All engines failed to execute!")
 
         # Peek and fix the IP for syscalls
-        if r.successors and r.successors[0].scratch.jumpkind.startswith('Ijk_Sys'):
+        if r.successors and r.successors[0].history.jumpkind.startswith('Ijk_Sys'):
             self._fix_syscall_ip(r.successors[0])
+        # fix up the descriptions... TODO do something better than this
+        for succ in r.successors:
+            succ.history.description = str(r)
 
         return r
 
@@ -100,7 +103,7 @@ class AngrObjectFactory(object):
                                 when concrete_fs is set to True.
         :param kwargs:          Any additional keyword args will be passed to the SimState constructor.
         :return:                The blank state.
-        :rtype:                 simuvex.s_state.SimState
+        :rtype:                 SimState
         """
         return self._project._simos.state_blank(**kwargs)
 
@@ -121,7 +124,7 @@ class AngrObjectFactory(object):
         :param env:             a dictionary to use as the environment for the program. Both keys and values may be
                                 mixed strings and bitvectors.
         :return:                The entry state.
-        :rtype:                 simuvex.s_state.SimState
+        :rtype:                 SimState
         """
 
         return self._project._simos.state_entry(**kwargs)
@@ -145,7 +148,7 @@ class AngrObjectFactory(object):
         :param env:             a dictionary to use as the environment for the program. Both keys and values may be
                                 mixed strings and bitvectors.
         :return:                The fully initialized state.
-        :rtype:                 simuvex.s_state.SimState
+        :rtype:                 SimState
         """
         return self._project._simos.state_full_init(**kwargs)
 
@@ -173,7 +176,7 @@ class AngrObjectFactory(object):
                                 when concrete_fs is set to True.
         :param kwargs:          Any additional keyword args will be passed to the SimState constructor.
         :return:                The state at the beginning of the function.
-        :rtype:                 simuvex.s_state.SimState
+        :rtype:                 SimState
 
         The idea here is that you can provide almost any kind of python type in `args` and it'll be translated to a
         binary format to be placed into simulated memory. Lists (representing arrays) must be entirely elements of the
@@ -193,57 +196,33 @@ class AngrObjectFactory(object):
         """
         return self._project._simos.state_call(addr, *args, **kwargs)
 
-    def path(self, state=None, **kwargs):
+    def simgr(self, thing=None, **kwargs):
         """
-        Constructs a new path.
+        Constructs a new simulation manager.
 
-        :param state:           Optional - The state to start the new path at. If not provided, an
-                                :meth:`entry_state()` will be constructed using any additional keyword arguments
-                                provided.
-        :return:                The new path.
-        :rtype:                 angr.path.Path
-        """
-        if state is None:
-            state = self.entry_state(**kwargs)
-
-        return Path(self._project, state)
-
-    def path_group(self, thing=None, **kwargs):
-        """
-        Constructs a new path group.
-
-        :param thing:           Optional - What to put in the new path group's active stash.
-        :param kwargs:          Any additional keyword arguments will be passed to the PathGroup constructor
-        :returns:               The new path group
-        :rtype:                 angr.path_group.PathGroup
+        :param thing:           Optional - What to put in the new SimulationManager's active stash (either a SimState or a list of SimStates).
+        :param kwargs:          Any additional keyword arguments will be passed to the SimulationManager constructor
+        :returns:               The new SimulationManager
+        :rtype:                 angr.manager.SimulationManager
 
         Many different types can be passed to this method:
 
-        * If nothing is passed in, the path group is seeded with a path containing a state initialized for the program
+        * If nothing is passed in, the SimulationManager is seeded with a state initialized for the program
           entry point, i.e. :meth:`entry_state()`.
-        * If a :class:`simuvex.s_state.SimState` is passed in, the path group is seeded with a path wrapping that state.
-        * If a :class:`angr.path.Path` is passed in, the path group is seeded with that path.
-        * If a list is passed in, the list must contain only SimStates and Paths, each SimState will be wrapped in a
-          Path, and the whole list will be used to seed the path group.
+        * If a :class:`SimState` is passed in, the SimulationManager is seeded with that state.
+        * If a list is passed in, the list must contain only SimStates and the whole list will be used to seed the SimulationManager.
         """
         if thing is None:
-            thing = [self.path()]
-
-        if isinstance(thing, (list, tuple)):
-            thing = list(thing)
-            for i, val in enumerate(thing):
-                if isinstance(val, SimState):
-                    thing[i] = self.path(val)
-                elif not isinstance(val, Path):
-                    raise AngrError("Bad type to initialize path group: %s" % repr(val))
-        elif isinstance(thing, Path):
-            thing = [thing]
+            thing = [ self.entry_state() ]
+        elif isinstance(thing, (list, tuple)):
+            if any(not isinstance(val, SimState) for val in thing):
+                raise AngrError("Bad type to initialize SimulationManager")
         elif isinstance(thing, SimState):
-            thing = [self.path(thing)]
+            thing = [ thing ]
         else:
-            raise AngrError("BadType to initialze path group: %s" % repr(thing))
+            raise AngrError("BadType to initialze SimulationManager: %s" % repr(thing))
 
-        return PathGroup(self._project, active_paths=thing, **kwargs)
+        return SimulationManager(self._project, active_states=thing, **kwargs)
 
     def callable(self, addr, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
         """
@@ -251,7 +230,7 @@ class AngrObjectFactory(object):
         function.
 
         :param addr:            The address of the function to use
-        :param concrete_only:   Throw an exception if the execution splits into multiple paths
+        :param concrete_only:   Throw an exception if the execution splits into multiple states
         :param perform_merge:   Merge all result states into one at the end (only relevant if concrete_only=False)
         :param base_state:      The state from which to do these runs
         :param toc:             The address of the table of contents for ppc64
@@ -327,11 +306,11 @@ class AngrObjectFactory(object):
     def fresh_block(self, addr, size):
         return Block(addr, project=self._project, size=size)
 
-    cc.SimRegArg = s_cc.SimRegArg
-    cc.SimStackArg = s_cc.SimStackArg
+    cc.SimRegArg = SimRegArg
+    cc.SimStackArg = SimStackArg
     _default_cc = None
-    callable.PointerWrapper = s_cc.PointerWrapper
-    call_state.PointerWrapper = s_cc.PointerWrapper
+    callable.PointerWrapper = PointerWrapper
+    call_state.PointerWrapper = PointerWrapper
 
 
     #
@@ -343,19 +322,15 @@ class AngrObjectFactory(object):
         Resolve syscall information from the state, get the IP address of the syscall SimProcedure, and set the IP of
         the state accordingly. Don't do anything if the resolution fails.
 
-        :param simuvex.s_state.SimState state: the program state.
+        :param SimState state: the program state.
         :return: None
         """
 
         try:
-            _, syscall_addr, _, _ = self._project._simos.syscall_info(state)
-
-            # Fix the IP
-            state.ip = syscall_addr
-
+            bypass = o.BYPASS_UNSUPPORTED_SYSCALL in state.options
+            state.ip = self._project._simos.syscall(state, allow_unsupported=bypass).addr # fix the IP
         except AngrUnsupportedSyscallError:
-            # the syscall is not supported. don't do anything
-            pass
+            pass # the syscall is not supported. don't do anything
 
     @deprecate('sim_run()', 'successors()')
     def sim_run(self, *args, **kwargs):
@@ -366,8 +341,22 @@ class AngrObjectFactory(object):
         kwargs['default_engine'] = True
         return self.successors(*args, **kwargs)
 
+    #
+    # Compatibility layer
+    #
+
+    @deprecate('path_group()', 'simgr()')
+    def path_group(self, thing=None, **kwargs):
+        return self.simgr(thing, **kwargs)
+
+    @deprecate('path()', 'entry_state()')
+    def path(self, state=None, **kwargs):
+        if state is not None:
+            return state
+        return self.entry_state(**kwargs)
+
 from .errors import AngrExitError, AngrError, AngrUnsupportedSyscallError
-from .path import Path
-from .path_group import PathGroup
+from .manager import SimulationManager
 from .knowledge import HookNode
 from .block import Block
+from . import sim_options as o

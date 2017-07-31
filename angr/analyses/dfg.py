@@ -1,10 +1,10 @@
 import logging
-
-from ..analysis import Analysis, register_analysis
-from networkx import DiGraph
 from copy import copy
 
-l = logging.getLogger(name="angr.analyses.dfg")
+from . import Analysis, register_analysis
+from networkx import DiGraph
+
+l = logging.getLogger("angr.analyses.dfg")
 
 class DFG(Analysis):
     def __init__(self, cfg=None, annocfg=None):

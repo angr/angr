@@ -1,31 +1,33 @@
+import itertools
 import logging
-import string
 import math
 import re
+import string
 import struct
-import itertools
 from collections import defaultdict
 
-import cle
 import claripy
-import simuvex
+import cle
 import pyvex
-from simuvex.s_errors import SimEngineError, SimMemoryError, SimTranslationError
+from .. import register_analysis
 
-from ...blade import Blade
-from ...analysis import register_analysis
-from ...surveyors import Slicecutor
-from ...annocfg import AnnotatedCFG
-from ...errors import AngrCFGError
-from ..forward_analysis import ForwardAnalysis
-from .cfg_node import CFGNode
-from .cfg_base import CFGBase, IndirectJump
+from cle.address_translator import AT
 from .cfg_arch_options import CFGArchOptions
+from .cfg_base import CFGBase, IndirectJump
+from .cfg_node import CFGNode
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
+from ..forward_analysis import ForwardAnalysis
+from ... import sim_options as o
+from ...annocfg import AnnotatedCFG
+from ...blade import Blade
+from ...engines import SimEngineVEX
+from ...errors import AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError, \
+    SimSolverModeError
+from ...surveyors import Slicecutor
 
 VEX_IRSB_MAX_SIZE = 400
 
-l = logging.getLogger("angr.analyses.cfg_fast")
+l = logging.getLogger("angr.analyses.cfg.cfg_fast")
 
 
 class Segment(object):
@@ -756,6 +758,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     if self._resolve_indirect_jumps:
                         self.indirect_jump_resolvers.append(ijr)
 
+        l.info("Loaded %d indirect jump resolvers (%d timeless, %d generic).",
+               len(self.timeless_indirect_jump_resolvers) + len(self.indirect_jump_resolvers),
+               len(self.timeless_indirect_jump_resolvers),
+               len(self.indirect_jump_resolvers)
+               )
+
         #
         # Variables used during analysis
         #
@@ -964,7 +972,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         break
                     sz += chr(val)
                     next_addr += 1
-                except simuvex.SimValueError:
+                except SimValueError:
                     # Not concretizable
                     l.debug("Address 0x%08x is not concretizable!", next_addr)
                     break
@@ -1026,20 +1034,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Create an initial state. Store it to self so we can use it globally.
         self._initial_state = self.project.factory.blank_state(mode="fastpath")
-        initial_options = self._initial_state.options - {simuvex.o.TRACK_CONSTRAINTS} - simuvex.o.refs
-        initial_options |= {simuvex.o.SUPER_FASTPATH}
-        # initial_options.remove(simuvex.o.COW_STATES)
+        initial_options = self._initial_state.options - {o.TRACK_CONSTRAINTS} - o.refs
+        initial_options |= {o.SUPER_FASTPATH}
+        # initial_options.remove(o.COW_STATES)
         self._initial_state.options = initial_options
 
         starting_points = set()
-
-        rebase_addr = self._binary.rebase_addr
 
         # clear all existing functions
         self.kb.functions.clear()
 
         if self._use_symbols:
-            starting_points |= set([ addr + rebase_addr for addr in self._function_addresses_from_symbols ])
+            starting_points |= set(AT.from_lva(addr, self._binary).to_mva()
+                                   for addr in self._function_addresses_from_symbols)
 
         if self._extra_function_starts:
             starting_points |= set(self._extra_function_starts)
@@ -1066,7 +1073,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if self._use_function_prologues:
             self._function_prologue_addrs = sorted(
-                set([addr + rebase_addr for addr in self._func_addrs_from_prologues()])
+                set(AT.from_lva(addr, self._binary).to_mva() for addr in self._func_addrs_from_prologues())
             )
             # make a copy of those prologue addresses, so that we can pop from the list
             self._remaining_function_prologue_addrs = self._function_prologue_addrs[::]
@@ -1289,16 +1296,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # make sure we have data entries assigned at the beginning of each data section
             for sec in self.project.loader.main_bin.sections:
                 if sec.memsize > 0 and not sec.is_executable and sec.is_readable:
-                    addr = sec.vaddr + self.project.loader.main_bin.rebase_addr
                     for seg in self.project.loader.main_bin.segments:
-                        seg_addr = seg.vaddr + self.project.loader.main_bin.rebase_addr
-                        if seg_addr <= addr < seg_addr + seg.memsize:
+                        if seg.vaddr <= sec.vaddr < seg.vaddr + seg.memsize:
                             break
                     else:
                         continue
 
-                    if addr not in self.memory_data:
-                        self.memory_data[addr] = MemoryData(addr, 0, 'unknown', None, None, None, None)
+                    if sec.vaddr not in self.memory_data:
+                        self.memory_data[sec.vaddr] = MemoryData(sec.vaddr, 0, 'unknown', None, None, None, None)
 
         r = True
         while r:
@@ -1355,7 +1360,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 for mo in regex.finditer(bytes_):
                     position = mo.start() + start_
                     if position % self.project.arch.instruction_alignment == 0:
-                        if self._addr_in_exec_memory_regions(self._binary.rebase_addr + position):
+                        if self._addr_in_exec_memory_regions(position):
                             unassured_functions.append(position)
 
         return unassured_functions
@@ -1410,13 +1415,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
         try:
             if self.project.is_hooked(addr):
-                hooker = self.project.hooked_by(addr)
-                name = hooker.name
-                procedure = hooker.procedure
+                procedure = self.project.hooked_by(addr)
+                name = procedure.display_name
             else:
-                syscall = self.project._simos.syscall_table.get_by_addr(addr)
-                name = syscall.name
-                procedure = syscall.simproc
+                procedure = self.project._simos.syscall_from_addr(addr)
+                name = procedure.display_name
 
             if addr not in self._nodes:
                 cfg_node = CFGNode(addr, 0, self, function_address=current_function_addr,
@@ -1459,7 +1462,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self.project.factory.block(grandparent_nodes[0].addr).vex,
                 self.project.factory.block(previous_src_node.addr).vex,
             ]
-            new_exits = procedure(addr, self.project.arch, is_function=False).static_exits(blocks_ahead)
+            procedure.project = self.project
+            procedure.arch = self.project.arch
+            new_exits = procedure.static_exits(blocks_ahead)
 
             for addr_, jumpkind in new_exits:
                 if isinstance(addr_, claripy.ast.BV) and not addr_.symbolic:
@@ -1598,7 +1603,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         jumpkind in ('Ijk_Boring', 'Ijk_Call') or jumpkind.startswith('Ijk_Sys'))\
                 and fast_indirect_jump_resolution:
             # try resolving it fast
-            resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, current_function_addr)
+            resolved, resolved_targets = self._resolve_indirect_jump_timelessly(addr, irsb, current_function_addr,
+                                                                                jumpkind
+                                                                                )
             if resolved:
                 for t in resolved_targets:
                     ent = self._create_jobs(t, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr,
@@ -1633,15 +1640,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if not r:
                     if cfg_node is not None:
                         l.debug("An angr exception occurred when adding a transition from %#x to %#x. "
-                                  "Ignore this successor.",
-                                  cfg_node.addr,
-                                  target_addr
-                                  )
+                                "Ignore this successor.",
+                                cfg_node.addr,
+                                target_addr
+                                )
                     else:
                         l.debug("SimTranslationError occurred when creating a new entry to %#x. "
-                                  "Ignore this successor.",
-                                  target_addr
-                                  )
+                                "Ignore this successor.",
+                                target_addr
+                                )
                     return []
 
                 ce = CFGJob(target_addr, target_func_addr, jumpkind, last_addr=addr, src_node=cfg_node,
@@ -1786,13 +1793,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if is_syscall:
             # Fix the target_addr for syscalls
-            tmp_path = self.project.factory.path(self.project.factory.blank_state(mode="fastpath",
-                                                                                  addr=cfg_node.addr
-                                                                                  )
-                                                 )
-            tmp_path.step()
-            succ = tmp_path.successors[0]
-            _, syscall_addr, _, _ = self.project._simos.syscall_info(succ.state)
+            tmp_state = self.project.factory.blank_state(mode="fastpath", addr=cfg_node.addr)
+            succ = self.project.factory.successors(tmp_state).flat_successors[0]
+            syscall_addr = self.project._simos.syscall(succ).addr
             target_addr = syscall_addr
 
         new_function_addr = target_addr
@@ -1992,7 +1995,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # data might be at the end of some section or segment...
             # let's take a look
             for segment in self.project.loader.main_bin.segments:
-                if self.project.loader.main_bin.rebase_addr + segment.vaddr + segment.memsize == data_addr:
+                if segment.vaddr + segment.memsize == data_addr:
                     # yeah!
                     if data_addr not in self._memory_data:
                         data = MemoryData(data_addr, 0, 'segment-boundary', irsb, irsb_addr, stmt, stmt_idx,
@@ -2047,17 +2050,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 sec = self._addr_belongs_to_section(data_addr)
                 next_sec_addr = None
                 if sec is not None:
-                    last_addr = sec.vaddr + sec.memsize + obj.rebase_addr
+                    last_addr = sec.vaddr + sec.memsize
                 else:
                     # it does not belong to any section. what's the next adjacent section? any memory data does not go
                     # beyong section boundaries
                     next_sec = self._addr_next_section(data_addr)
                     if next_sec is not None:
-                        next_sec_addr = next_sec.vaddr + obj.rebase_addr
+                        next_sec_addr = next_sec.vaddr
 
                     seg = self._addr_belongs_to_segment(data_addr)
                     if seg is not None:
-                        last_addr = seg.vaddr + seg.memsize + obj.rebase_addr
+                        last_addr = seg.vaddr + seg.memsize
                     else:
                         # We got an address that is not inside the current binary...
                         l.warning('_tidy_data_references() sees an address %#08x that does not belong to any '
@@ -2279,7 +2282,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     # Indirect jumps processing
 
-    def _resolve_indirect_jump_timelessly(self, addr, block, func_addr):
+    def _resolve_indirect_jump_timelessly(self, addr, block, func_addr, jumpkind):
         """
         Checks if MIPS32 and calls MIPS32 check, otherwise false
 
@@ -2291,8 +2294,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         for res in self.timeless_indirect_jump_resolvers:
-            if res.filter(self, addr, func_addr, block):
-                r, resolved_targets = res.resolve(self, addr, func_addr, block)
+            if res.filter(self, addr, func_addr, block, jumpkind):
+                r, resolved_targets = res.resolve(self, addr, func_addr, block, jumpkind)
                 if r:
                     return True, resolved_targets
         return False, [ ]
@@ -2317,7 +2320,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return False
 
         # try to resolve the jump target
-        simsucc = simuvex.SimEngineVEX().process(self._initial_state, irsb, force_addr=addr)
+        simsucc = SimEngineVEX().process(self._initial_state, irsb, force_addr=addr)
         if len(simsucc.successors) == 1:
             ip = simsucc.successors[0].ip
             if ip._model_concrete is not ip:
@@ -2346,36 +2349,40 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         all_targets = set()
-        jumps_resolved = {}
-        # print "We have %d indirect jumps" % len(self._indirect_jumps)
+        jumps_resolved = { }
+        l.info("%d indirect jumps to resolve.", len(self._indirect_jumps_to_resolve))
 
         for jump in self._indirect_jumps_to_resolve:  # type: IndirectJump
             jumps_resolved[jump] = False
 
-            # is it a jump table? try with the fast approach
-            resolvable, targets = self._resolve_jump_table_fast(jump.addr, jump.jumpkind)
-            if resolvable:
+            resolved = False
+            targets = None
+
+            for resolver in self.indirect_jump_resolvers:
+                block = self.project.factory.block(jump.addr)
+
+                if not resolver.filter(self, jump.addr, jump.func_addr, block, jump.jumpkind):
+                    continue
+
+                resolved, targets = resolver.resolve(self, jump.addr, jump.func_addr, block, jump.jumpkind)
+                if resolved:
+                    break
+
+            if resolved:
                 jumps_resolved[jump] = True
                 # Remove all targets that don't make sense
                 targets = [ t for t in targets if any(iter((a <= t < b) for a, b in self._exec_mem_regions)) ]
 
+                """
                 if jump.addr in self.indirect_jumps:
                     ij = self.indirect_jumps[jump.addr]
-
                     ij.jumptable = True
                     ij.resolved = True
-
                     # Fill the IndirectJump object
                     ij.resolved_targets |= set(targets)
+                """
 
                 all_targets |= set([ (t, jump.func_addr, jump.addr) for t in targets ])
-                continue
-
-            # is it a slightly more complex jump table? try the slow approach
-            # resolvable, targets = self._resolve_jump_table_accurate(addr, jumpkind)
-            # if resolvable:
-            #    all_targets |= set(targets)
-            #    continue
 
         for jump, resolved in jumps_resolved.iteritems():
             self._indirect_jumps_to_resolve.remove(jump)
@@ -2408,335 +2415,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return all_targets
 
-    def _resolve_jump_table_fast(self, addr, jumpkind):
-        """
-        Check if the indirect jump is a jump table, and if it is, resolve it and return all possible targets.
-
-        This is a fast jump table resolution. For performance concerns, we made the following assumptions:
-        - The final jump target comes from the memory.
-        - The final jump target must be directly read out of the memory, without any further modification or altering.
-
-        :param int addr: the address of the basic block
-        :param str jumpkind: the jump kind of the indirect jump
-        :return: a bool indicating whether the indirect jump is resolved successfully, and a list of resolved targets
-        :rtype: tuple
-        """
-
-        bss_regions = [ ]
-
-        def bss_memory_read_hook(state):
-            if not bss_regions:
-                return
-
-            read_addr = state.inspect.mem_read_address
-            read_length = state.inspect.mem_read_length
-
-            if not isinstance(read_addr, (int, long)) and read_addr.symbolic:
-                # don't touch it
-                return
-
-            concrete_read_addr = state.se.any_int(read_addr)
-            concrete_read_length = state.se.any_int(read_length)
-
-            for start, size in bss_regions:
-                if start <= concrete_read_addr < start + size:
-                    # this is a read from the .bss section
-                    break
-            else:
-                return
-
-            if not state.memory.was_written_to(concrete_read_addr):
-                # it was never written to before. we overwrite it with unconstrained bytes
-                bits = self.project.arch.bits
-                for i in xrange(0, concrete_read_length, bits / 8):
-                    state.memory.store(concrete_read_addr + i, state.se.Unconstrained('unconstrained', bits))
-
-            # job done :-)
-
-        class UninitReadMeta(object):
-            uninit_read_base = 0xc000000
-
-        def init_registers_on_demand(state):
-            # for uninitialized read using a register as the source address, we replace them in memory on demand
-            read_addr = state.inspect.mem_read_address
-
-            if not isinstance(read_addr, (int, long)) and read_addr.uninitialized:
-
-                read_length = state.inspect.mem_read_length
-                if not isinstance(read_length, (int, long)):
-                    read_length = read_length._model_vsa.upper_bound
-                if read_length > 16:
-                    return
-                new_read_addr = state.se.BVV(UninitReadMeta.uninit_read_base, state.arch.bits)
-                UninitReadMeta.uninit_read_base += read_length
-
-                # replace the expression in registers
-                state.registers.replace_all(read_addr, new_read_addr)
-
-                state.inspect.mem_read_address = new_read_addr
-
-            # job done :-)
-
-        if jumpkind != "Ijk_Boring":
-            # Currently we only support boring ones
-            return False, None
-
-        # Perform a backward slicing from the jump target
-        b = Blade(self.graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True, max_level=3)
-
-        stmt_loc = (addr, 'default')
-        if stmt_loc not in b.slice:
-            return False, None
-
-        load_stmt_loc, load_stmt = None, None
-        stmts_to_remove = [ stmt_loc ]
-        while True:
-            preds = b.slice.predecessors(stmt_loc)
-            if len(preds) != 1:
-                return False, None
-            block_addr, stmt_idx = stmt_loc = preds[0]
-            block = self.project.factory.block(block_addr).vex
-            stmt = block.statements[stmt_idx]
-            if isinstance(stmt, (pyvex.IRStmt.WrTmp, pyvex.IRStmt.Put)):
-                if isinstance(stmt.data, (pyvex.IRExpr.Get, pyvex.IRExpr.RdTmp)):
-                    # data transferring
-                    stmts_to_remove.append(stmt_loc)
-                    stmt_loc = (block_addr, stmt_idx)
-                    continue
-                elif isinstance(stmt.data, pyvex.IRExpr.Load):
-                    # Got it!
-                    stmt_loc = (block_addr, stmt_idx)
-                    load_stmt, load_stmt_loc = stmt, stmt_loc
-                    stmts_to_remove.append(stmt_loc)
-            break
-
-        if load_stmt_loc is None:
-            # the load statement is not found
-            return False, None
-
-        # skip all statements before the load statement
-        b.slice.remove_nodes_from(stmts_to_remove)
-
-        # Debugging output
-        # for addr, stmt_idx in sorted(list(b.slice.nodes())):
-        #    irsb = self.project.factory.block(addr).vex
-        #    stmts = irsb.statements
-        #    print "%x: %d | " % (addr, stmt_idx),
-        #    print "%s" % stmts[stmt_idx],
-        #    print "%d" % b.slice.in_degree((addr, stmt_idx))
-        # print ""
-
-        # Get all sources
-        sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
-
-        # Create the annotated CFG
-        annotatedcfg = AnnotatedCFG(self.project, None, detect_loops=False)
-        annotatedcfg.from_digraph(b.slice)
-
-        # pylint: disable=too-many-nested-blocks
-        for src_irsb, _ in sources:
-            # Use slicecutor to execute each one, and get the address
-            # We simply give up if any exception occurs on the way
-
-            start_state = self.project.factory.blank_state(
-                    addr=src_irsb,
-                    mode='static',
-                    add_options={
-                        simuvex.o.DO_RET_EMULATION,
-                        simuvex.o.TRUE_RET_EMULATION_GUARD,
-                        simuvex.o.AVOID_MULTIVALUED_READS,
-                    },
-                    remove_options={
-                        simuvex.o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY,
-                        simuvex.o.UNINITIALIZED_ACCESS_AWARENESS,
-                    }
-            )
-            # any read from an uninitialized segment should be unconstrained
-            # TODO: support other sections other than '.bss'.
-            # TODO: this is very hackish. fix it after the chaos.
-            for section in self.project.loader.main_bin.sections:
-                if section.name == '.bss':
-                    bss_regions.append((self.project.loader.main_bin.rebase_addr + section.vaddr, section.memsize))
-                    bss_memory_read_bp = simuvex.BP(when=simuvex.BP_BEFORE, enabled=True, action=bss_memory_read_hook)
-                    start_state.inspect.add_breakpoint('mem_read', bss_memory_read_bp)
-                    break
-
-            start_state.regs.bp = start_state.arch.initial_sp + 0x2000
-
-            init_registers_on_demand_bp = simuvex.BP(when=simuvex.BP_BEFORE, enabled=True, action=init_registers_on_demand)
-            start_state.inspect.add_breakpoint('mem_read', init_registers_on_demand_bp)
-
-            start_path = self.project.factory.path(start_state)
-
-            # Create the slicecutor
-            slicecutor = Slicecutor(self.project, annotatedcfg, start=start_path, targets=(load_stmt_loc[0],),
-                                    force_taking_exit=True
-                                    )
-
-            # Run it!
-            try:
-                slicecutor.run()
-            except KeyError as ex:
-                # This is because the program slice is incomplete.
-                # Blade will support more IRExprs and IRStmts
-                l.debug("KeyError occurred due to incomplete program slice.", exc_info=ex)
-                continue
-
-            # Get the jumping targets
-            for r in slicecutor.reached_targets:
-                all_states = r.next_run.flat_successors
-                state = all_states[0] # Just take the first state
-
-                # Parse the memory load statement
-                load_addr_tmp = load_stmt.data.addr.tmp
-                if load_addr_tmp not in state.scratch.temps:
-                    # the tmp variable is not there... umm...
-                    continue
-                jump_addr = state.scratch.temps[load_addr_tmp]
-                total_cases = jump_addr._model_vsa.cardinality
-                all_targets = [ ]
-
-                if total_cases > self._indirect_jump_target_limit:
-                    # We resolved too many targets for this indirect jump. Something might have gone wrong.
-                    l.debug("%d targets are resolved for the indirect jump at %#x. It may not be a jump table",
-                              total_cases, addr)
-                    return False, None
-
-                    # Or alternatively, we can ask user, which is meh...
-                    #
-                    # jump_base_addr = int(raw_input("please give me the jump base addr: "), 16)
-                    # total_cases = int(raw_input("please give me the total cases: "))
-                    # jump_target = state.se.SI(bits=64, lower_bound=jump_base_addr, upper_bound=jump_base_addr +
-                    # (total_cases - 1) * 8, stride=8)
-
-                jump_table = [ ]
-
-                for idx, a in enumerate(state.se.any_n_int(jump_addr, total_cases)):
-                    if idx % 100 == 0:
-                        l.debug("Resolved %d targets for the indirect jump at %#x", idx, addr)
-                    jump_target = state.memory.load(a, state.arch.bits / 8, endness=state.arch.memory_endness)
-                    target = state.se.any_int(jump_target)
-                    all_targets.append(target)
-                    jump_table.append(target)
-
-                l.info("Jump table resolution: resolved %d targets from %#x", len(all_targets), addr)
-
-                ij = self.indirect_jumps[addr]
-                ij.jumptable = True
-                ij.jumptable_addr = state.se.min(jump_addr)
-                ij.jumptable_targets = jump_table
-                ij.jumptable_entries = total_cases
-
-                return True, all_targets
-
-        return False, None
-
-    def _resolve_jump_table_accurate(self, addr, jumpkind):
-        """
-        Check if the indirect jump is a jump table, and if it is, resolve it and return all possible targets.
-
-        This is the accurate (or rather, slower) version jump table resolution.
-
-        :param int addr: the address of the basic block
-        :param str jumpkind: the jump kind of the indirect jump
-        :return: a bool indicating whether the indirect jump is resolved successfully, and a list of resolved targets
-        :rtype: tuple
-        """
-
-        if jumpkind != "Ijk_Boring":
-            # Currently we only support boring ones
-            return False, None
-
-        # Perform a backward slicing from the jump target
-        b = Blade(self.graph, addr, -1, cfg=self, project=self.project, ignore_sp=True, ignore_bp=True)
-
-        # Debugging output
-        # for addr, stmt_idx in sorted(list(b.slice.nodes())):
-        #    irsb = self.project.factory.block(addr).vex
-        #    stmts = irsb.statements
-        #    print "%x: %d | " % (addr, stmt_idx),
-        #    print "%s" % stmts[stmt_idx],
-        #    print "%d" % b.slice.in_degree((addr, stmt_idx))
-        # print ""
-
-        # Get all sources
-        sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
-
-        # Create the annotated CFG
-        annotatedcfg = AnnotatedCFG(self.project, None, detect_loops=False)
-        annotatedcfg.from_digraph(b.slice)
-
-        for src_irsb, _ in sources:
-            # Use slicecutor to execute each one, and get the address
-            # We simply give up if any exception occurs on the way
-
-            start_state = self.project.factory.blank_state(
-                    addr=src_irsb,
-                    mode='static',
-                    add_options={
-                        simuvex.o.DO_RET_EMULATION,
-                        simuvex.o.TRUE_RET_EMULATION_GUARD,
-                        simuvex.o.KEEP_MEMORY_READS_DISCRETE, # Please do not merge values that are read out of the
-                                                              # memory
-                    }
-            )
-            start_state.regs.bp = start_state.arch.initial_sp + 0x2000
-
-            start_path = self.project.factory.path(start_state)
-
-            # Create the slicecutor
-            slicecutor = Slicecutor(self.project, annotatedcfg, start=start_path, targets=(addr,))
-
-            # Run it!
-            try:
-                slicecutor.run()
-            except KeyError as ex:
-                # This is because the program slice is incomplete.
-                # Blade will support more IRExprs and IRStmts
-                l.debug("KeyError occurred due to incomplete program slice.", exc_info=ex)
-                continue
-
-            # Get the jumping targets
-            for r in slicecutor.reached_targets:
-
-                all_states = r.unconstrained_successor_states + [ s.state for s in r.successors ]
-                state = all_states[0]
-                jump_target = state.ip
-
-                total_cases = jump_target._model_vsa.cardinality
-                all_targets = [ ]
-
-                if total_cases > self._indirect_jump_target_limit:
-                    # We resolved too many targets for this indirect jump. Something might have gone wrong.
-                    l.debug("%d targets are resolved for the indirect jump at %#x. It may not be a jump table",
-                              total_cases, addr)
-                    return False, None
-
-                    # Or alternatively, we can ask user, which is meh...
-                    #
-                    # jump_base_addr = int(raw_input("please give me the jump base addr: "), 16)
-                    # total_cases = int(raw_input("please give me the total cases: "))
-                    # jump_target = state.se.SI(bits=64, lower_bound=jump_base_addr, upper_bound=jump_base_addr +
-                    # (total_cases - 1) * 8, stride=8)
-
-                jump_table = [ ]
-
-                for idx, target in enumerate(state.se.any_n_int(jump_target, total_cases)):
-                    if idx % 100 == 0:
-                        l.debug("Resolved %d targets for the indirect jump at %#x", idx, addr)
-                    all_targets.append(target)
-                    jump_table.append(target)
-
-                    l.info("Jump table resolution: resolved %d targets from %#x", len(all_targets), addr)
-
-                    ij = self.indirect_jumps[addr]
-                    ij.jumptable = True
-                    ij.jumptable_addr = state.se.min(jump_target)
-                    ij.jumptable_targets = jump_table
-                    ij.jumptable_entries = total_cases
-
-                    return True, all_targets
-
     def _resolve_indirect_calls(self):
         """
 
@@ -2755,18 +2433,18 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             if jumpkind == "Ijk_Call":
                 state = self.project.factory.blank_state(addr=irsb_addr, mode="concrete",
-                                                         add_options={simuvex.o.SYMBOLIC_INITIAL_VALUES}
+                                                         add_options={o.SYMBOLIC_INITIAL_VALUES}
                                                          )
-                path = self.project.factory.path(state)
+                succ = self.project.factory.successors(state)
                 print hex(irsb_addr)
 
                 try:
-                    r = (path.next_run.successors + path.next_run.unsat_successors)[0]
+                    r = (succ.flat_successors + succ.unsat_successors)[0]
                     ip = r.se.exactly_n_int(r.ip, 1)[0]
 
                     function_starts.add(ip)
                     continue
-                except simuvex.SimSolverModeError:
+                except SimSolverModeError:
                     pass
 
                 # Not resolved
@@ -2800,15 +2478,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     start_state = self.project.factory.blank_state(
                             addr=src_irsb,
                             add_options={
-                                simuvex.o.DO_RET_EMULATION,
-                                simuvex.o.TRUE_RET_EMULATION_GUARD
+                                o.DO_RET_EMULATION,
+                                o.TRUE_RET_EMULATION_GUARD
                             }
                     )
 
-                    start_path = self.project.factory.path(start_state)
-
                     # Create the slicecutor
-                    slicecutor = Slicecutor(self.project, annotatedcfg, start=start_path, targets=(irsb_addr,))
+                    slicecutor = Slicecutor(self.project, annotatedcfg, start=start_state, targets=(irsb_addr,))
 
                     # Run it!
                     try:
@@ -3649,7 +3325,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         if not section.is_executable:
                             # the section is not executable...
                             return None, None, None, None
-                        distance = obj.rebase_addr + section.vaddr + section.memsize - addr
+                        distance = section.vaddr + section.memsize - addr
                         distance = min(distance, VEX_IRSB_MAX_SIZE)
                     # TODO: handle segment information as well
 
@@ -3769,17 +3445,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 # Prudently search for $gp values
                 state = self.project.factory.blank_state(addr=addr, mode="fastpath",
-                                                         remove_options={simuvex.options.OPTIMIZE_IR}
+                                                         remove_options={o.OPTIMIZE_IR}
                                                          )
                 state.regs.t9 = func_addr
                 state.regs.gp = 0xffffffff
-                p = self.project.factory.path(state)
-                p.step(num_inst=last_gp_setting_insn_id + 1)
+                succ = self.project.factory.successors(state, num_inst=last_gp_setting_insn_id + 1)
 
-                if not p.successors:
+                if not succ.flat_successors:
                     return
 
-                state = p.successors[0].state
+                state = succ.flat_successors[0]
                 if not state.regs.gp.symbolic and state.se.is_false(state.regs.gp == 0xffffffff):
                     function.info['gp'] = state.regs.gp._model_concrete.value
 

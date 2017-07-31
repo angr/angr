@@ -2,16 +2,15 @@ import logging
 from collections import defaultdict
 
 import networkx
+from . import Analysis, register_analysis
 
-from simuvex import SimProcedures, o
-
-from .. import KnowledgeBase
+from .. import SIM_PROCEDURES
+from .. import options as o
+from ..knowledge_base import KnowledgeBase
 from ..errors import AngrError, AngrCFGError
-from ..analysis import Analysis, register_analysis
-from ..path_group import PathGroup
-from ..path import Path, AngrPathError
+from ..manager import SimulationManager
 
-l = logging.getLogger('angr.analyses.veritesting')
+l = logging.getLogger("angr.analyses.veritesting")
 
 
 class VeritestingError(Exception):
@@ -20,13 +19,13 @@ class VeritestingError(Exception):
 
 class CallTracingFilter(object):
     """
-    Filter to apply during CFG creation on a given path and jumpkind to determine if it should be skipped at a certain
+    Filter to apply during CFG creation on a given state and jumpkind to determine if it should be skipped at a certain
     depth
     """
     whitelist = {
-        SimProcedures['cgc']['receive'],
-        SimProcedures['cgc']['transmit'],
-        SimProcedures['libc.so.6']['read'],
+        SIM_PROCEDURES['cgc']['receive'],
+        SIM_PROCEDURES['cgc']['transmit'],
+        SIM_PROCEDURES['posix']['read'],
     }
 
     cfg_cache = { }
@@ -85,10 +84,8 @@ class CallTracingFilter(object):
 
         # If it's a syscall, let's see if the real syscall is inside our whitelist
         if jumpkind.startswith('Ijk_Sys'):
-            call_target_state.scratch.jumpkind = jumpkind
-            tmp_path = self.project.factory.path(call_target_state)
-            tmp_path.step()
-            successors_ = tmp_path.next_run
+            call_target_state.history.jumpkind = jumpkind
+            successors_ = self.project.factory.successors(call_target_state)
             try:
                 next_run = successors_.artifacts['procedure']
             except KeyError:
@@ -171,47 +168,44 @@ class Veritesting(Analysis):
     all_stashes = ('successful', 'errored', 'deadended', 'deviated', 'unconstrained')
 
     def __init__(
-        self, input_path, boundaries=None, loop_unrolling_limit=10, enable_function_inlining=False,
-        terminator=None, deviation_filter=None, path_callback=None
+        self, input_state, boundaries=None, loop_unrolling_limit=10, enable_function_inlining=False,
+        terminator=None, deviation_filter=None
     ):
         """
         SSE stands for Static Symbolic Execution, and we also implemented an extended version of Veritesting (Avgerinos,
         Thanassis, et al, ICSE 2014).
 
-        :param input_path:               The initial path to begin the execution with.
+        :param input_state:              The initial state to begin the execution with.
         :param boundaries:               Addresses where execution should stop.
         :param loop_unrolling_limit:     The maximum times that Veritesting should unroll a loop for.
         :param enable_function_inlining: Whether we should enable function inlining and syscall inlining.
-        :param terminator:               A callback function that takes a path as parameter. Veritesting will terminate
+        :param terminator:               A callback function that takes a state as parameter. Veritesting will terminate
                                          if this function returns True.
-        :param deviation_filter:         A callback function that takes a path as parameter. Veritesting will put the
-                                         path into "deviated" stash if this function returns True.
-        :param path_callback:            A callback function that takes a path as parameter. Veritesting will call this
-                                         function on every single path after their next_run is created.
+        :param deviation_filter:         A callback function that takes a state as parameter. Veritesting will put the
+                                         state into "deviated" stash if this function returns True.
         """
-        block = self.project.factory.block(input_path.addr)
+        block = self.project.factory.block(input_state.addr)
         branches = block.vex.constant_jump_targets_and_jumpkinds
 
-        # if we are not at a conditional jump, just do a normal path.step
+        # if we are not at a conditional jump, just do a normal step
         if not branches.values() == ['Ijk_Boring', 'Ijk_Boring']:
-            self.result, self.final_path_group = False, None
+            self.result, self.final_manager = False, None
             return
         # otherwise do a veritesting step
 
-        self._input_path = input_path.copy()
+        self._input_state = input_state.copy()
         self._boundaries = boundaries if boundaries is not None else [ ]
         self._loop_unrolling_limit = loop_unrolling_limit
         self._enable_function_inlining = enable_function_inlining
         self._terminator = terminator
         self._deviation_filter = deviation_filter
-        self._path_callback = path_callback
 
         # set up the cfg stuff
         self._cfg, self._loop_graph = self._make_cfg()
         self._loop_backedges = self._cfg._loop_back_edges
         self._loop_heads = set([ dst.addr for _, dst in self._loop_backedges ])
 
-        l.info("Static symbolic execution starts at %#x", self._input_path.addr)
+        l.info("Static symbolic execution starts at %#x", self._input_state.addr)
         l.debug(
             "The execution will terminate at the following addresses: [ %s ]",
             ", ".join([ hex(i) for i in self._boundaries ])
@@ -223,40 +217,40 @@ class Veritesting(Analysis):
         else:
             l.debug("Function inlining is disabled.")
 
-        self.result, self.final_path_group = self._veritesting()
+        self.result, self.final_manager = self._veritesting()
 
     def _veritesting(self):
         """
         Perform static symbolic execution starting from the given point.
-        returns (bool, PathGroup): tuple of the success/failure of veritesting and the subsequent path group after
+        returns (bool, SimulationManager): tuple of the success/failure of veritesting and the subsequent SimulationManager after
                                    execution
         """
 
-        p = self._input_path.copy()
+        s = self._input_state.copy()
 
         try:
-            new_path_group = self._execute_and_merge(p)
+            new_manager = self._execute_and_merge(s)
 
         except (ClaripyError, SimError, AngrError):
-            if not BYPASS_VERITESTING_EXCEPTIONS in p.state.options:
+            if not BYPASS_VERITESTING_EXCEPTIONS in s.options:
                 raise
             else:
                 l.warning("Veritesting caught an exception.", exc_info=True)
-            return False, PathGroup(self.project, stashes={'deviated', p})
+            return False, SimulationManager(self.project, stashes={'deviated': [s]})
 
         except VeritestingError as ex:
             l.warning("Exception occurred: %s", str(ex))
-            return False, PathGroup(self.project, stashes={'deviated', p})
+            return False, SimulationManager(self.project, stashes={'deviated': [s]})
 
         l.info(
             'Returning new paths: (successful: %s, deadended: %s, errored: %s, deviated: %s)',
-            len(new_path_group.successful), len(new_path_group.deadended),
-            len(new_path_group.errored), len(new_path_group.deviated)
+            len(new_manager.successful), len(new_manager.deadended),
+            len(new_manager.errored), len(new_manager.deviated)
         )
 
-        return True, new_path_group
+        return True, new_manager
 
-    def _execute_and_merge(self, path):
+    def _execute_and_merge(self, state):
         """
         Symbolically execute the program in a static manner. The basic idea is that we look ahead by creating a CFG,
         then perform a _controlled symbolic exploration_ based on the CFG, one path at a time. The controlled symbolic
@@ -266,12 +260,9 @@ class Veritesting(Analysis):
         A basic block will not be executed for more than *loop_unrolling_limit* times. If that is the case, a new state
         will be returned.
 
-        :param Path path: The initial path to start the execution.
+        :param SimState state: The initial state to start the execution.
         :returns:         A list of new states.
         """
-
-        # Remove path._run
-        path._run = None
 
         # Find all merge points
         merge_points = self._get_all_merge_points(self._cfg, self._loop_graph)
@@ -281,97 +272,95 @@ class Veritesting(Analysis):
         # Controlled symbolic exploration
         #
 
-        # Initialize the beginning path
-        initial_path = path
-        initial_path.info['loop_ctrs'] = defaultdict(int)
+        # Initialize the beginning state
+        initial_state = state
+        initial_state.globals['loop_ctrs'] = defaultdict(int)
 
-        path_group = PathGroup(
+        manager = SimulationManager(
             self.project,
-            active_paths=[ initial_path ],
+            active_states=[ initial_state ],
             immutable=False,
-            resilience=o.BYPASS_VERITESTING_EXCEPTIONS in initial_path.state.options
+            resilience=o.BYPASS_VERITESTING_EXCEPTIONS in initial_state.options
         )
 
         # Initialize all stashes
         for stash in self.all_stashes:
-            path_group.stashes[stash] = [ ]
+            manager.stashes[stash] = [ ]
         # immediate_dominators = cfg.immediate_dominators(cfg.get_any_node(ip_int))
 
-        while path_group.active:
+        while manager.active:
             # Step one step forward
-            l.debug('Steps %s with %d active paths: [ %s ]',
-                    path_group,
-                    len(path_group.active),
-                    path_group.active)
+            l.debug('Steps %s with %d active states: [ %s ]',
+                    manager,
+                    len(manager.active),
+                    manager.active)
 
-            # Apply self.deviation_func on every single active path, and move them to deviated stash if needed
+            # Apply self.deviation_func on every single active state, and move them to deviated stash if needed
             if self._deviation_filter is not None:
-                path_group.stash(filter_func=self._deviation_filter, from_stash='active', to_stash='deviated')
+                manager.stash(filter_func=self._deviation_filter, from_stash='active', to_stash='deviated')
 
             # Mark all those paths that are out of boundaries as successful
-            path_group.stash(
-                filter_func=self.is_path_overbound,
+            manager.stash(
+                filter_func=self.is_overbound,
                 from_stash='active', to_stash='successful'
             )
 
-            path_group.step(
-                successor_func=lambda p: self.generate_successors(p, path_group),
-                check_func=self.is_path_errored
-            )
-            if self._terminator is not None and self._terminator(path_group):
-                for p in path_group.unfuck:
+            manager.step(successor_func=self._get_successors)
+
+            if self._terminator is not None and self._terminator(manager):
+                for p in manager.unfuck:
                     self._unfuck(p)
                 break
 
             # Stash all paths that we do not see in our CFG
-            path_group.stash(
-                filter_func=self._path_not_in_cfg,
+            manager.stash(
+                filter_func=self.is_not_in_cfg,
                 to_stash="deviated"
             )
 
             # Stash all paths that we do not care about
-            path_group.stash(
-                filter_func= lambda p: (
-                    p.state.scratch.jumpkind not in
+            manager.stash(
+                filter_func= lambda state: (
+                    state.history.jumpkind not in
                     ('Ijk_Boring', 'Ijk_Call', 'Ijk_Ret', 'Ijk_NoHook')
-                    and not p.state.scratch.jumpkind.startswith('Ijk_Sys')
+                    and not state.history.jumpkind.startswith('Ijk_Sys')
                 ),
                 to_stash="deadended"
             )
 
-            if path_group.deadended:
-                l.debug('Now we have some deadended paths: %s', path_group.deadended)
+            if manager.deadended:
+                l.debug('Now we have some deadended paths: %s', manager.deadended)
 
-            # Stash all possible paths that we should merge later
+            # Stash all possible states that we should merge later
             for merge_point_addr, merge_point_looping_times in merge_points:
-                path_group.stash_addr(
+                manager.stash_addr(
                     merge_point_addr,
                     to_stash="_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
                 )
 
             # Try to merge a set of previously stashed paths, and then unstash them
-            if not path_group.active:
-                path_group = self._join_merge_points(path_group, merge_points)
-        if any(len(path_group.stashes[stash_name]) for stash_name in self.all_stashes):
+            if not manager.active:
+                manager = self._join_merge_points(manager, merge_points)
+        if any(len(manager.stashes[stash_name]) for stash_name in self.all_stashes):
             # Remove all stashes other than errored or deadended
-            path_group.stashes = {
-                name: stash for name, stash in path_group.stashes.items()
+            manager.stashes = {
+                name: stash for name, stash in manager.stashes.items()
                 if name in self.all_stashes
             }
 
-            for stash in path_group.stashes:
-                path_group.apply(self._unfuck, stash=stash)
+            for stash in manager.stashes:
+                manager.apply(self._unfuck, stash=stash)
 
-        return path_group
+        return manager
 
-    def _join_merge_points(self, path_group, merge_points):
+    def _join_merge_points(self, manager, merge_points):
         """
         Merges together the appropriate execution points and unstashes them from the intermidiate merge_x_y stashes to
         pruned (dropped), deadend or active stashes
 
-        param PathGroup path_group:      current path group being stepped through
+        param SimulationManager manager:        current simulation context being stepped through
         param [(int, int)] merge_points: list of address and loop counters of execution points to merge
-        returns PathGroup:               new path_group with edited stashes
+        returns SimulationManager:              new manager with edited stashes
         """
         merged_anything = False
         for merge_point_addr, merge_point_looping_times in merge_points:
@@ -379,112 +368,84 @@ class Veritesting(Analysis):
                 break
 
             stash_name = "_merge_%x_%d" % (merge_point_addr, merge_point_looping_times)
-            if stash_name not in path_group.stashes:
+            if stash_name not in manager.stashes:
                 continue
 
-            stash_size = len(path_group.stashes[stash_name])
+            stash_size = len(manager.stashes[stash_name])
             if stash_size == 0:
                 continue
             if stash_size == 1:
-                l.info("Skipping merge of 1 path in stash %s.", stash_size)
-                path_group.move(stash_name, 'active')
+                l.info("Skipping merge of 1 state in stash %s.", stash_size)
+                manager.move(stash_name, 'active')
                 continue
 
             # let everyone know of the impending disaster
-            l.info("Merging %d paths in stash %s", stash_size, stash_name)
+            l.info("Merging %d states in stash %s", stash_size, stash_name)
 
-            # Try to prune the stash, so unsatisfiable paths will be thrown away
-            path_group.prune(from_stash=stash_name, to_stash='pruned')
-            if 'pruned' in path_group.stashes and len(path_group.pruned):
-                l.debug('... pruned %d paths from stash %s', len(path_group.pruned), stash_name)
+            # Try to prune the stash, so unsatisfiable states will be thrown away
+            manager.prune(from_stash=stash_name, to_stash='pruned')
+            if 'pruned' in manager.stashes and len(manager.pruned):
+                l.debug('... pruned %d paths from stash %s', len(manager.pruned), stash_name)
             # Remove the pruned stash to save memory
-            path_group.drop(stash='pruned')
+            manager.drop(stash='pruned')
 
             # merge things callstack by callstack
-            while len(path_group.stashes[stash_name]):
-                r = path_group.stashes[stash_name][0]
-                path_group.move(
+            while len(manager.stashes[stash_name]):
+                r = manager.stashes[stash_name][0]
+                manager.move(
                     stash_name, 'merge_tmp',
                     lambda p: p.callstack == r.callstack #pylint:disable=cell-var-from-loop
                 )
 
-                old_count = len(path_group.merge_tmp)
-                l.debug("... trying to merge %d paths.", old_count)
+                old_count = len(manager.merge_tmp)
+                l.debug("... trying to merge %d states.", old_count)
 
                 # merge the loop_ctrs
                 new_loop_ctrs = defaultdict(int)
-                for m in path_group.merge_tmp:
-                    for head_addr, looping_times in m.info['loop_ctrs'].iteritems():
+                for m in manager.merge_tmp:
+                    for head_addr, looping_times in m.globals['loop_ctrs'].iteritems():
                         new_loop_ctrs[head_addr] = max(
                             looping_times,
-                            m.info['loop_ctrs'][head_addr]
+                            m.globals['loop_ctrs'][head_addr]
                         )
 
-                path_group.merge(stash='merge_tmp')
-                for m in path_group.merge_tmp:
-                    m.info['loop_ctrs'] = new_loop_ctrs
+                manager.merge(stash='merge_tmp')
+                for m in manager.merge_tmp:
+                    m.globals['loop_ctrs'] = new_loop_ctrs
 
-                new_count = len(path_group.stashes['merge_tmp'])
-                l.debug("... after merge: %d paths.", new_count)
+                new_count = len(manager.stashes['merge_tmp'])
+                l.debug("... after merge: %d states.", new_count)
 
                 merged_anything |= new_count != old_count
 
-                if len(path_group.merge_tmp) > 1:
-                    l.warning("More than 1 path after Veritesting merge.")
-                    path_group.move('merge_tmp', 'active')
+                if len(manager.merge_tmp) > 1:
+                    l.warning("More than 1 state after Veritesting merge.")
+                    manager.move('merge_tmp', 'active')
                 elif any(
                     loop_ctr >= self._loop_unrolling_limit + 1 for loop_ctr in
-                    path_group.one_merge_tmp.info['loop_ctrs'].itervalues()
+                    manager.one_merge_tmp.globals['loop_ctrs'].itervalues()
                 ):
-                    l.debug("... merged path is overlooping")
-                    path_group.move('merge_tmp', 'deadended')
+                    l.debug("... merged state is overlooping")
+                    manager.move('merge_tmp', 'deadended')
                 else:
-                    l.debug('... merged path going to active stash')
-                    path_group.move('merge_tmp', 'active')
+                    l.debug('... merged state going to active stash')
+                    manager.move('merge_tmp', 'active')
 
-        return path_group
+        return manager
 
     #
     # Path management
     #
 
-    def is_path_errored(self, path):
+    def is_not_in_cfg(self, s):
         """
-        Returns true if the path has errored, most recent jump was error/signal, or if exeception caught on step forward
+        Returns if s.addr is not a proper node in our CFG.
 
-        param Path path: The Path instance to test
-        returns bool:    True if path instance has errored
-        """
-        if path.errored:
-            return True
-        elif len(path.jumpkinds) > 0 and path.jumpkinds[-1] in Path._jk_all_bad:
-            l.debug("Errored jumpkind %s", path.jumpkinds[-1])
-            path._error = AngrPathError('path has a failure jumpkind of %s' % path.jumpkinds[-1])
-        else:
-            try:
-                if path._run is None:
-                    ip = path.addr
-                    # FIXME: cfg._nodes should also be updated when calling cfg.normalize()
-                    size_of_next_irsb = [ n for n in self._cfg.graph.nodes() if n.addr == ip ][0].size
-                    path.step(size=size_of_next_irsb)
-            except (AngrError, SimError, ClaripyError) as ex:
-                l.debug('is_path_errored(): catching exception %s', ex)
-                path._error = ex
-            except (TypeError, ValueError, ArithmeticError, MemoryError) as ex:
-                l.debug("is_path_errored(): catching exception %s", ex)
-                path._error = ex
-
-        return False
-
-    def _path_not_in_cfg(self, p):
-        """
-        Returns if p.addr is not a proper node in our CFG.
-
-        :param Path p: The Path instance to test.
+        :param SimState s: The SimState instance to test.
         :returns bool: False if our CFG contains p.addr, True otherwise.
         """
 
-        n = self._cfg.get_any_node(p.addr, is_syscall=p.jumpkinds[-1].startswith('Ijk_Sys'))
+        n = self._cfg.get_any_node(s.addr, is_syscall=s.history.jumpkind.startswith('Ijk_Sys'))
         if n is None:
             return True
 
@@ -493,51 +454,26 @@ class Veritesting(Analysis):
 
         return False
 
-    def generate_successors(self, path, path_group):
+    def _get_successors(self, state):
         """
-        Gets the successors to the current path by step, saves copy of path and finally stashes new unconstrained paths
-        to path_group
+        Gets the successors to the current state by step, saves copy of state and finally stashes new unconstrained states
+        to manager.
 
-        param PathGroup path_group: PathGroup to used to stash
-        param Path path:            current path to step on from
-        returns [Path]:             List of sucession paths
+        :param SimState state:          Current state to step on from
+        :returns SimSuccessors:         The SimSuccessors object
         """
-        ip = path.addr
+        size_of_next_irsb = self._cfg.get_any_node(state.addr).size
+        return self.project.factory.successors(state, size=size_of_next_irsb)
 
-        l.debug("Pushing 0x%x one step forward...", ip)
-
-        # FIXME: cfg._nodes should also be updated when calling cfg.normalize()
-        size_of_next_irsb = [ n for n in self._cfg.graph.nodes() if n.addr == ip ][0].size
-        # It has been called by is_path_errored before, but I'm doing it here anyways. Who knows how the logic in
-        # PathGroup will change in the future...
-        path.step(size=size_of_next_irsb)
-
-        # Now it's safe to call anything that may access Path.next_run
-        if self._path_callback:
-            copied_path = path.copy()
-            self._unfuck(copied_path)
-            self._path_callback(copied_path)
-
-        successors = path.successors
-
-        # Get all unconstrained successors, and save them out
-        if path.next_run:
-            for s in path.next_run.unconstrained_successors:
-                u_path = Path(self.project, s, path=path)
-                path_group.stashes['unconstrained'].append(u_path)
-
-        l.debug("... new successors: %s", successors)
-        return successors
-
-    def is_path_overbound(self, path):
+    def is_overbound(self, state):
         """
-        Filter out all paths that run out of boundaries or loop too many times.
+        Filter out all states that run out of boundaries or loop too many times.
 
-        param Path path: Path instance to check
+        param SimState state: SimState instance to check
         returns bool:    True if outside of mem/loop_ctr boundary
         """
 
-        ip = path.addr
+        ip = state.addr
 
         if ip in self._boundaries:
             l.debug("... terminating Veritesting due to overbound")
@@ -545,10 +481,10 @@ class Veritesting(Analysis):
 
         if (
             ip in self._loop_heads # This is the beginning of the loop
-            or path.jumpkind == 'Ijk_Call' # We also wanna catch recursive function calls
+            or state.history.jumpkind == 'Ijk_Call' # We also wanna catch recursive function calls
         ):
-            path.info['loop_ctrs'][ip] += 1
-            if path.info['loop_ctrs'][ip] >= self._loop_unrolling_limit + 1:
+            state.globals['loop_ctrs'][ip] += 1
+            if state.globals['loop_ctrs'][ip] >= self._loop_unrolling_limit + 1:
                 l.debug('... terminating Veritesting due to overlooping')
                 return True
 
@@ -556,15 +492,15 @@ class Veritesting(Analysis):
         return False
 
     @staticmethod
-    def _unfuck(p):
+    def _unfuck(s):
         """
-        Deletes the loop counter from path's information dictionary
+        Deletes the loop counter from state's information dictionary
 
-        param Path p: Path instance to update
-        returns Path: same path with deleted loop counter
+        :param SimState s: SimState instance to update
+        :returns SimState: same SimState with deleted loop counter
         """
-        del p.info['loop_ctrs']
-        return p
+        del s.globals['loop_ctrs']
+        return s
 
     #
     # Merge point determination
@@ -578,11 +514,10 @@ class Veritesting(Analysis):
         returns (CFGAccurate, networkx.DiGraph): Tuple of the CFG and networkx representation of it
         """
 
-        path = self._input_path
-        state = path.state
-        ip_int = path.addr
+        state = self._input_state
+        ip_int = state.addr
 
-        cfg_key = (ip_int, path.jumpkind)
+        cfg_key = (ip_int, state.history.jumpkind)
         if cfg_key in self.cfg_cache:
             cfg, cfg_graph_with_loops = self.cfg_cache[cfg_key]
         else:
@@ -605,7 +540,7 @@ class Veritesting(Analysis):
                     cfg_initial_state.regs.rax = state.regs.rax
 
             cfg = self.project.analyses.CFGAccurate(
-                starts=((ip_int, path.jumpkind),),
+                starts=((ip_int, state.history.jumpkind),),
                 context_sensitivity_level=0,
                 call_depth=1,
                 call_tracing_filter=filter,
@@ -673,6 +608,6 @@ class Veritesting(Analysis):
 
 register_analysis(Veritesting, 'Veritesting')
 
-from simuvex import SimValueError, SimSolverModeError, SimError
-from simuvex.s_options import BYPASS_VERITESTING_EXCEPTIONS
+from ..errors import SimValueError, SimSolverModeError, SimError
+from ..sim_options import BYPASS_VERITESTING_EXCEPTIONS
 from claripy import ClaripyError

@@ -1,15 +1,17 @@
 import nose
-import angr
 import time
 import pickle
 import networkx
-import simuvex
 
 import logging
 l = logging.getLogger("angr.tests.test_cfg")
 
 import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+
+import angr
+from angr import options as o
+
 
 def compare_cfg(standard, g, function_list):
     """
@@ -182,17 +184,21 @@ def disabled_cfg_5():
     perform_single(binary_path, cfg_path)
 
 def test_cfg_6():
-    function_addresses = [0xfa630, 0xfa683, 0xfa6d4, 0xfa707, 0xfa754, 0xfa779, 0xfa7a9, 0xfa7d6, 0xfa844, 0xfa857, 0xfa8d9, 0xfa92f, 0xfa959, 0xfa9fb, 0xfabd6, 0xfac61, 0xfacc2, 0xfad29, 0xfaf94, 0xfbd07, 0xfc100L, 0xfc101, 0xfc14fL, 0xfc18e, 0xfc25e, 0xfc261, 0xfc3c6, 0xfc42fL, 0xfc4a3, 0xfc4cf, 0xfc4db, 0xfc5ba, 0xfc5ef, 0xfc5fe, 0xfc611, 0xfc682, 0xfc6b7, 0xfc7fc, 0xfc8a8, 0xfc8e7, 0xfcb42, 0xfcb50, 0xfcb72, 0xfcc3b, 0xfcc7a, 0xfcc8b, 0xfccdc, 0xfd1a3, 0xff06e]
+    function_addresses = [0xfa630, 0xfa683, 0xfa6d4, 0xfa707, 0xfa754, 0xfa779, 0xfa7a9, 0xfa7d6, 0xfa844, 0xfa857,
+                          0xfa8d9, 0xfa92f, 0xfa959, 0xfa9fb, 0xfabd6, 0xfac61, 0xfacc2, 0xfad29, 0xfaf94, 0xfbd07,
+                          0xfc100L, 0xfc101, 0xfc14fL, 0xfc18e, 0xfc25e, 0xfc261, 0xfc3c6, 0xfc42fL, 0xfc4a3, 0xfc4cf,
+                          0xfc4db, 0xfc5ba, 0xfc5ef, 0xfc5fe, 0xfc611, 0xfc682, 0xfc6b7, 0xfc7fc, 0xfc8a8, 0xfc8e7,
+                          0xfcb42, 0xfcb50, 0xfcb72, 0xfcc3b, 0xfcc7a, 0xfcc8b, 0xfccdc, 0xfd1a3, 0xff06e]
 
     # We need to add DO_CCALLS to resolve long jmp and support real mode
-    simuvex.o.modes['fastpath'] |= {simuvex.s_options.DO_CCALLS}
+    o.modes['fastpath'] |= {o.DO_CCALLS}
     binary_path = test_location + "/i386/bios.bin.elf"
     proj = angr.Project(binary_path,
                         use_sim_procedures=True,
                         page_size=1)
     cfg = proj.analyses.CFGAccurate(context_sensitivity_level=1)  # pylint:disable=unused-variable
     nose.tools.assert_greater_equal(set(f for f in proj.kb.functions), set(function_addresses))
-    simuvex.o.modes['fastpath'] ^= {simuvex.s_options.DO_CCALLS}
+    o.modes['fastpath'] ^= {o.DO_CCALLS}
 
 def test_fauxware():
     binary_path = test_location + "/x86_64/fauxware"
@@ -226,12 +232,14 @@ def test_thumb_mode():
             nose.tools.assert_false(cfg.is_thumb_addr(a))
 
     # CFGNodes
-    cfg_node_addrs = [ n.addr for n in cfg.graph.nodes() ]
+    cfg_node_addrs = [ n.addr for n in cfg.graph.nodes() if not n.is_simprocedure ]
     for a in cfg_node_addrs:
         check_addr(a)
 
     # Functions in function manager
     for f_addr, f in p.kb.functions.items():
+        if f.is_simprocedure:
+            continue
         check_addr(f_addr)
         if f.startpoint is not None:
             check_addr(f.startpoint.addr)
@@ -356,9 +364,9 @@ def run_all():
             all_functions[f]()
 
 if __name__ == "__main__":
-    logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
+    logging.getLogger("angr.state_plugins.abstract_memory").setLevel(logging.DEBUG)
     logging.getLogger("angr.surveyors.Explorer").setLevel(logging.DEBUG)
-    # logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
+    # logging.getLogger("angr.state_plugins.symbolic_memory").setLevel(logging.DEBUG)
     # logging.getLogger("angr.analyses.cfg_accurate").setLevel(logging.DEBUG)
     # logging.getLogger("s_irsb").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend

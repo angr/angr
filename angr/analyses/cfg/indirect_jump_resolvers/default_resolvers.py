@@ -3,6 +3,7 @@ import cle
 
 from . import MipsElfFastResolver
 from . import X86ElfPicPltResolver
+from . import JumpTableResolver
 
 
 DEFAULT_RESOLVERS = {
@@ -11,7 +12,8 @@ DEFAULT_RESOLVERS = {
     },
     'MIPS32': {
         cle.MetaELF: [ MipsElfFastResolver, ],
-    }
+    },
+    'ALL': [ JumpTableResolver ],
 }
 
 
@@ -23,4 +25,6 @@ def default_indirect_jump_resolvers(arch, obj, project=None):
             resolvers = lst
             break
 
-    return [ r(project) for r in resolvers ]
+    resolvers += DEFAULT_RESOLVERS['ALL']
+
+    return [ r(arch=project.arch, project=project) for r in resolvers ]

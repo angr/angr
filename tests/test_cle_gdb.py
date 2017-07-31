@@ -9,8 +9,8 @@ binpath = os.path.join(test_location, "x86_64/test_gdb_plugin")
 def check_addrs(p):
     libc = p.loader.shared_objects['libc.so.6']
     ld = p.loader.shared_objects['ld-linux-x86-64.so.2']
-    nose.tools.assert_equal(libc.rebase_addr, 0x7ffff7a17000)
-    nose.tools.assert_equal(ld.rebase_addr, 0x7ffff7ddc000)
+    nose.tools.assert_equal(libc.mapped_base, 0x7ffff7a17000)
+    nose.tools.assert_equal(ld.mapped_base, 0x7ffff7ddc000)
 
 def test_cle_gdb():
     """

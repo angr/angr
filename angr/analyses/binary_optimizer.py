@@ -1,15 +1,16 @@
 
+import logging
 import re
 from collections import defaultdict
-import logging
 
-from simuvex import SimConstantVariable, SimRegisterVariable, SimMemoryVariable, SimStackVariable
-from simuvex import SimProcedures
-from ..analysis import Analysis, register_analysis
-from .. import KnowledgeBase
+from . import Analysis, register_analysis
+
+from ..knowledge_base import KnowledgeBase
+from .. import SIM_PROCEDURES
 from ..knowledge import HookNode
+from ..sim_variable import SimConstantVariable, SimRegisterVariable, SimMemoryVariable, SimStackVariable
 
-l = logging.getLogger('angr.analyses.binary_optimizer')
+l = logging.getLogger("angr.analyses.binary_optimizer")
 
 
 class ConstantPropagation(object):
@@ -52,8 +53,8 @@ class RegisterReallocation(object):
         """
         Constructor.
 
-        :param simuvex.SimStackVariable stack_variable:
-        :param simuvex.SimRegisterVariable register_variable:
+        :param SimStackVariable stack_variable:
+        :param SimRegisterVariable register_variable:
         :param list stack_variable_sources:
         :param list stack_variable_consumers:
         :param int prologue_addr:
@@ -138,7 +139,7 @@ class BinaryOptimizer(Analysis):
     def optimize(self):
         for f in self.kb.functions.itervalues():  # type: angr.knowledge.Function
             # if there are unresolved targets in this function, we do not try to optimize it
-            if any([ n.sim_procedure is SimProcedures['stubs']['UnresolvableTarget'] for n in f.graph.nodes_iter()
+            if any([ n.sim_procedure is SIM_PROCEDURES['stubs']['UnresolvableTarget'] for n in f.graph.nodes_iter()
                      if isinstance(n, HookNode) ]):
                 continue
 

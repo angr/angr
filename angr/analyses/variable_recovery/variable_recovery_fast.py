@@ -3,14 +3,14 @@ import logging
 from collections import defaultdict
 
 import pyvex
-from simuvex.s_variable import SimStackVariable, SimRegisterVariable
+from .. import Analysis, register_analysis
 
-from ...knowledge.keyed_region import KeyedRegion
 from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
-from ...analysis import Analysis, register_analysis
+from ...knowledge.keyed_region import KeyedRegion
+from ...sim_variable import SimStackVariable, SimRegisterVariable
 
-l = logging.getLogger('angr.analyses.variable_recovery_fast')
+l = logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast")
 
 
 class RegAndOffset(object):

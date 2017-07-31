@@ -4,8 +4,7 @@ import os
 import time
 
 import angr
-import simuvex.s_options as so
-import nose.tools
+import angr.options as so
 
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../'))
 

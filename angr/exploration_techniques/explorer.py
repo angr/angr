@@ -1,7 +1,7 @@
 from . import ExplorationTechnique
 
 import logging
-l = logging.getLogger('angr.exploration_techniques.explorer')
+l = logging.getLogger("angr.exploration_techniques.explorer")
 
 class Explorer(ExplorationTechnique):
     """
@@ -29,6 +29,7 @@ class Explorer(ExplorationTechnique):
         self.ok_blocks = set()
         self.num_find = num_find
         self.avoid_priority = avoid_priority
+        self._project = None
 
         # TODO: This is a hack for while CFGFast doesn't handle procedure continuations
         from .. import analyses
@@ -89,15 +90,16 @@ class Explorer(ExplorationTechnique):
             l.warning("Providng an incomplete CFG can cause viable paths to be discarded!")
 
     def setup(self, pg):
+        self._project = pg._project
         if not self.find_stash in pg.stashes: pg.stashes[self.find_stash] = []
         if not self.avoid_stash in pg.stashes: pg.stashes[self.avoid_stash] = []
 
-    def filter(self, path):
-        rFind = self.find(path)
+    def filter(self, state):
+        rFind = self.find(state)
         if rFind:
-            if not path.reachable:
+            if not state.history.reachable:
                 return 'unsat'
-            rAvoid = self.avoid(path)
+            rAvoid = self.avoid(state)
             if rAvoid:
                 # if there is a conflict
                 if self.avoid_priority & ((type(rFind) is not set) | (type(rAvoid) is not set)):
@@ -108,18 +110,18 @@ class Explorer(ExplorationTechnique):
                 # Setting rAvoid to {} simplifies the rest of the code
                 rAvoid = {}
             if type(rFind) is set:
-                while path.addr not in rFind:
-                    if path.addr in rAvoid:
+                while state.addr not in rFind:
+                    if state.addr in rAvoid:
                         return self.avoid_stash
-                    path = path.step(num_inst=1)[0]
-                if self.avoid_priority & (path.addr in rAvoid):
+                    state = self._project.factory.successors(state, num_inst=1).successors[0]
+                if self.avoid_priority & (state.addr in rAvoid):
                     # Only occurs if the intersection of rAvoid and rFind is not empty
                     # Why would anyone want that?
                     return self.avoid_stash
-            return (self.find_stash, path)
-        if self.avoid(path): return self.avoid_stash
-        if self.cfg is not None and self.cfg.get_any_node(path.addr) is not None:
-            if path.addr not in self.ok_blocks: return self.avoid_stash
+            return (self.find_stash, state)
+        if self.avoid(state): return self.avoid_stash
+        if self.cfg is not None and self.cfg.get_any_node(state.addr) is not None:
+            if state.addr not in self.ok_blocks: return self.avoid_stash
         return None
 
     def complete(self, pg):

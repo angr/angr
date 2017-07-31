@@ -1,19 +1,19 @@
 
-from collections import deque
 import logging
 import math
-import networkx
 import types
+from collections import deque
 
-from simuvex.s_errors import SimEngineError, SimMemoryError
+import networkx
+from . import Analysis, register_analysis
 
-from ..analysis import Analysis, register_analysis
+from ..errors import SimEngineError, SimMemoryError
 
 # todo include an explanation of the algorithm
 # todo include a method that detects any change other than constants
 # todo use function names / string references where available
 
-l = logging.getLogger(name="angr.analyses.bindiff")
+l = logging.getLogger("angr.analyses.bindiff")
 
 # basic block changes
 DIFF_TYPE = "type"

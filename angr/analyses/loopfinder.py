@@ -1,9 +1,9 @@
-import networkx
 import logging
 
-from ..analysis import Analysis, register_analysis
+import networkx
+from . import Analysis, register_analysis
 
-l = logging.getLogger('angr.analyses.loops')
+l = logging.getLogger("angr.analyses.loopfinder")
 
 class Loop(object):
     def __init__(self, entry, entry_edges, break_edges, continue_edges, body_nodes, graph, subloops):
@@ -43,7 +43,7 @@ class LoopFinder(Analysis):
         for function in functions:
 
             if self.project.is_hooked(function.addr) or \
-                    self.project._simos.syscall_table.get_by_addr(function.addr) is not None:
+                    self.project._simos.is_syscall_addr(function.addr):
                 # skip SimProcedures and syscalls
                 continue
 

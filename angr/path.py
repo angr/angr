@@ -5,10 +5,14 @@ import sys
 import logging
 l = logging.getLogger("angr.path")
 
-import simuvex
 import mulpyplexer
 
+from .errors import SimSolverModeError, SimUnsatError, SimError
+from . import sim_options as o
+from . import BP_BEFORE, BP_AFTER
+from .sim_procedure import SimProcedure
 from .call_stack import CallFrame, CallStack, CallStackAction
+from .state_plugins.sim_action_object import SimActionObject
 
 #pylint:disable=unidiomatic-typecheck
 
@@ -26,7 +30,7 @@ class Path(object):
 
     :ivar name:              A string to identify the path.
     :ivar state:             The state of the program.
-    :type state:             simuvex.SimState
+    :type state:             SimState
     :ivar strong_reference:  Whether or not to keep a strong reference to the previous state in path_history
     :
     """
@@ -48,19 +52,19 @@ class Path(object):
             # case. We should catch exceptions here.
             try:
                 stack_ptr = self.state.se.any_int(self.state.regs.sp)
-            except (simuvex.SimSolverModeError, simuvex.SimUnsatError, AttributeError):
+            except (SimSolverModeError, SimUnsatError, AttributeError):
                 stack_ptr = None
 
             # generate a base callframe
             self._initialize_callstack(self.addr, stack_ptr)
-            if simuvex.o.REGION_MAPPING in self.state.options and simuvex.o.ABSTRACT_MEMORY not in self.state.options:
+            if o.REGION_MAPPING in self.state.options and o.ABSTRACT_MEMORY not in self.state.options:
                 self._add_stack_region_mapping(self.state, sp=stack_ptr, ip=self.addr)
 
             self.popped_callframe = None
 
             # the previous run
             self.previous_run = None
-            self.history._jumpkind = state.scratch.jumpkind
+            self.history._jumpkind = state.history.last_jumpkind
 
             # A custom information store that will be passed to all its descendents
             self.info = {}
@@ -134,7 +138,7 @@ class Path(object):
         return self.history._jumpkind
 
     @property
-    def last_actions(self):
+    def recent_actions(self):
         return self.history.actions
 
     #
@@ -205,7 +209,7 @@ class Path(object):
             self._run_args = run_args
             self._make_successors(throw=throw)
 
-        self.state._inspect('path_step', simuvex.BP_BEFORE)
+        self.state._inspect('path_step', BP_BEFORE)
 
         if self._run_error:
             return [ self.copy(error=self._run_error, traceback=self._run_traceback) ]
@@ -218,7 +222,7 @@ class Path(object):
             out[0].state.regs.ip = self.addr
 
         for p in out:
-            p.state._inspect('path_step', simuvex.BP_AFTER)
+            p.state._inspect('path_step', BP_AFTER)
         return out
 
     def clear(self):
@@ -237,7 +241,7 @@ class Path(object):
         self._run_traceback = None
         try:
             self._run = self._project.factory.successors(self.state, **self._run_args)
-        except (AngrError, simuvex.SimError, claripy.ClaripyError) as e:
+        except (AngrError, SimError, claripy.ClaripyError) as e:
             l.debug("Catching exception", exc_info=True)
             self._run_error = e
             self._run_traceback = sys.exc_info()[2]
@@ -422,14 +426,14 @@ class Path(object):
                 except KeyError:
                     if self._project.is_hooked(bbl_addr):
                         # hooked by a SimProcedure or a user hook
-                        if issubclass(self._project.hooked_by(bbl_addr), simuvex.SimProcedure):
+                        if issubclass(self._project.hooked_by(bbl_addr), SimProcedure):
                             block_size = None  # it will not be used
                             jumpkind = 'Ijk_Ret'
                         else:
                             block_size = None  # will not be used either
                             jumpkind = 'Ijk_Boring'
 
-                    elif self._project._simos.syscall_table.get_by_addr(bbl_addr) is not None:
+                    elif self._project._simos.is_syscall_addr(bbl_addr):
                         # it's a syscall
                         block_size = None
                         jumpkind = 'Ijk_Ret'
@@ -445,7 +449,7 @@ class Path(object):
                     if i == len(state.scratch.bbl_addr_list) - 1:
                         call_site_addr = state.scratch.bbl_addr_list[i - 1] if i > 0 else None
                         self._manage_callstack_call(state=state, call_site_addr=call_site_addr)
-                        if simuvex.o.REGION_MAPPING in self.state.options and simuvex.o.ABSTRACT_MEMORY not in self.state.options:
+                        if o.REGION_MAPPING in self.state.options and o.ABSTRACT_MEMORY not in self.state.options:
                             self._add_stack_region_mapping(state)
                     else:
                         call_site_addr = state.scratch.bbl_addr_list[i]
@@ -455,14 +459,14 @@ class Path(object):
                         self._manage_callstack_call(call_site_addr=call_site_addr, func_addr=func_addr,
                                                     stack_ptr=stack_ptr, ret_addr=ret_addr
                                                     )
-                        if simuvex.o.REGION_MAPPING in self.state.options and simuvex.o.ABSTRACT_MEMORY not in self.state.options:
+                        if o.REGION_MAPPING in self.state.options and o.ABSTRACT_MEMORY not in self.state.options:
                             self._add_stack_region_mapping(state, sp=stack_ptr, ip=func_addr)
 
                 elif jumpkind.startswith('Ijk_Sys'):
                     if i == len(state.scratch.bbl_addr_list) - 1:
                         call_site_addr = state.scratch.bbl_addr_list[i - 1] if i > 0 else None
                         self._manage_callstack_sys(state=state, call_site_addr=call_site_addr)
-                        if simuvex.o.REGION_MAPPING in self.state.options and simuvex.o.ABSTRACT_MEMORY not in self.state.options:
+                        if o.REGION_MAPPING in self.state.options and o.ABSTRACT_MEMORY not in self.state.options:
                             self._add_stack_region_mapping(state)
                     else:
                         call_site_addr = state.scratch.bbl_addr_list[i]
@@ -472,7 +476,7 @@ class Path(object):
                         self._manage_callstack_sys(call_site_addr=call_site_addr, func_addr=func_addr,
                                                    stack_ptr=stack_ptr, ret_addr=ret_addr, jumpkind=jumpkind
                                                    )
-                        if simuvex.o.REGION_MAPPING in self.state.options and simuvex.o.ABSTRACT_MEMORY not in self.state.options:
+                        if o.REGION_MAPPING in self.state.options and o.ABSTRACT_MEMORY not in self.state.options:
                             self._add_stack_region_mapping(state, sp=stack_ptr, ip=func_addr)
 
                 elif jumpkind == 'Ijk_Ret':
@@ -485,17 +489,17 @@ class Path(object):
         else:
             # there is only one block
             call_site_addr = self.previous_run.addr if self.previous_run else None
-            if state.scratch.jumpkind == "Ijk_Call":
+            if state.history.last_jumpkind == "Ijk_Call":
                 self._manage_callstack_call(state=state, call_site_addr=call_site_addr)
-                if simuvex.o.REGION_MAPPING in self.state.options and simuvex.o.ABSTRACT_MEMORY not in self.state.options:
+                if o.REGION_MAPPING in self.state.options and o.ABSTRACT_MEMORY not in self.state.options:
                     self._add_stack_region_mapping(state)
 
-            elif state.scratch.jumpkind.startswith('Ijk_Sys'):
+            elif state.history.last_jumpkind.startswith('Ijk_Sys'):
                 self._manage_callstack_sys(state=state, call_site_addr=call_site_addr)
-                if simuvex.o.REGION_MAPPING in self.state.options and simuvex.o.ABSTRACT_MEMORY not in self.state.options:
+                if o.REGION_MAPPING in self.state.options and o.ABSTRACT_MEMORY not in self.state.options:
                     self._add_stack_region_mapping(state)
 
-            elif state.scratch.jumpkind == "Ijk_Ret":
+            elif state.history.last_jumpkind == "Ijk_Ret":
                 ret_site_addr = call_site_addr
                 self._manage_callstack_ret(ret_site_addr)
 
@@ -694,7 +698,7 @@ class Path(object):
             if read_offset is None:
                 return True
             addr = action.addr
-            if isinstance(addr, simuvex.SimActionObject):
+            if isinstance(addr, SimActionObject):
                 addr = addr.ast
             if isinstance(addr, claripy.ast.Base):
                 if addr.symbolic:
@@ -712,7 +716,7 @@ class Path(object):
             if write_offset is None:
                 return True
             addr = action.addr
-            if isinstance(addr, simuvex.SimActionObject):
+            if isinstance(addr, SimActionObject):
                 addr = addr.ast
             if isinstance(addr, claripy.ast.Base):
                 if addr.symbolic:

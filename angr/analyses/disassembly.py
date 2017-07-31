@@ -1,13 +1,13 @@
 
-from collections import defaultdict
 import logging
+from collections import defaultdict
 
-from ..analysis import Analysis, register_analysis
-from ..block import CapstoneInsn
+from . import Analysis, register_analysis
 
 from .disassembly_utils import decode_instruction
+from ..block import CapstoneInsn
 
-l = logging.getLogger('angr.analyses.disassembly')
+l = logging.getLogger("angr.analyses.disassembly")
 
 
 class DisassemblyPiece(object):
@@ -212,6 +212,16 @@ class Instruction(DisassemblyPiece):
 
         self.opcode = Opcode(self)
         self.operands.reverse()
+
+        if len(self.operands) != len(self.insn.operands):
+            l.error("Operand parsing failed for instruction %s. %d operands are parsed, while %d are expected.",
+                    str(self.insn),
+                    len(self.operands),
+                    len(self.insn.operands)
+                    )
+            self.operands = [ ]
+            return
+
         for i, o in enumerate(self.operands):
             o.reverse()
             self.operands[i] = Operand.build(
@@ -296,6 +306,11 @@ class Operand(DisassemblyPiece):
             1: RegisterOperand,
             2: ConstantOperand,
             3: MemoryOperand,
+            4: Operand,  # ARM FP
+            64: Operand,  # ARM CIMM
+            65: Operand,  # ARM PIMM
+            66: Operand,  # ARM SETEND
+            67: Operand,  # ARM SYSREG
         }
 
         cls = MAPPING.get(operand_type, None)

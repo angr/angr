@@ -1,5 +1,7 @@
+
 from ..func import Func, TestData
-from simuvex import SimMemoryError
+from ....errors import SimMemoryError
+
 
 class calloc(Func):
     def __init__(self):

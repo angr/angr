@@ -1,7 +1,31 @@
+import traceback
+
 import pyvex
-import simuvex
 import archinfo
 
+from ...engines.successors import SimSuccessors
+
+
+class CFGNodeCreationFailure(object):
+    """
+    This class contains additional information for whenever creating a CFGNode failed. It includes a full traceback
+    and the exception messages.
+    """
+    __slots__ = ['short_reason', 'long_reason', 'traceback']
+
+    def __init__(self, exc_info=None, to_copy=None):
+        if to_copy is None:
+            e_type, e, e_traceback = exc_info
+            self.short_reason = str(e_type)
+            self.long_reason = repr(e)
+            self.traceback = traceback.format_exception(e_type, e, e_traceback)
+        else:
+            self.short_reason = to_copy.short_reason
+            self.long_reason = to_copy.long_reason
+            self.traceback = to_copy.traceback
+
+    def __hash__(self):
+        return hash((self.short_reason, self.long_reason, self.traceback))
 
 class CFGNode(object):
     """
@@ -25,7 +49,8 @@ class CFGNode(object):
                  irsb=None,
                  instruction_addrs=None,
                  depth=None,
-                 callstack_key=None):
+                 callstack_key=None,
+                 creation_failure_info=None):
         """
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -45,6 +70,10 @@ class CFGNode(object):
         self.function_address = function_address
         self.block_id = block_id
         self.depth = depth
+
+        self.creation_failure_info = None
+        if creation_failure_info is not None:
+            self.creation_failure_info = CFGNodeCreationFailure(creation_failure_info)
 
         self._callstack_key = self.callstack.stack_suffix(self._cfg.context_sensitivity_level) \
             if self.callstack is not None else callstack_key
@@ -88,6 +117,10 @@ class CFGNode(object):
         return self._cfg.get_predecessors(self)
 
     @property
+    def creation_failed(self):
+        return self.creation_failure_info is not None
+
+    @property
     def accessed_data_references(self):
         if self._cfg.sort != 'fast':
             raise ValueError("Memory data is currently only supported in CFGFast.")
@@ -120,7 +153,8 @@ class CFGNode(object):
                     is_syscall=self.is_syscall,
                     syscall=self.syscall,
                     function_address=self.function_address,
-                    final_states=self.final_states[ :: ]
+                    final_states=self.final_states[ :: ],
+                    creation_failure_info=self.creation_failure_info,
                     )
         c.instruction_addrs = self.instruction_addrs[ :: ]
         return c
@@ -134,11 +168,13 @@ class CFGNode(object):
             s += "[%d]" % self.size
         if self.looping_times > 0:
             s += " - %d" % self.looping_times
+        if self.creation_failure_info is not None:
+            s += ' - creation failed: {}'.format(self.creation_failure_info.long_reason)
         s += ">"
         return s
 
     def __eq__(self, other):
-        if isinstance(other, simuvex.SimSuccessors):
+        if isinstance(other, SimSuccessors):
             raise ValueError("You do not want to be comparing a SimSuccessors instance to a CFGNode.")
         if not isinstance(other, CFGNode):
             return False
@@ -150,7 +186,7 @@ class CFGNode(object):
                 )
 
     def __hash__(self):
-        return hash((self.callstack_key, self.addr, self.looping_times, self.simprocedure_name))
+        return hash((self.callstack_key, self.addr, self.looping_times, self.simprocedure_name, self.creation_failure_info))
 
     def to_codenode(self):
         if self.is_simprocedure:

@@ -70,7 +70,9 @@ def cfg_fast_edges_check(arch, binary_path, edges):
     for src, dst in edges:
         src_node = cfg.get_any_node(src)
         dst_node = cfg.get_any_node(dst)
-        nose.tools.assert_in(dst_node, src_node.successors)
+        nose.tools.assert_in(dst_node, src_node.successors,
+                             msg="CFG edge %s-%s is not found." % (src_node, dst_node)
+                             )
 
 def test_cfg_0():
     filename = 'cfg_0'
@@ -221,6 +223,59 @@ def test_cfg_loop_unrolling():
     for arch in arches:
         yield cfg_fast_edges_check, arch, filename, edges[arch]
 
+def test_cfg_switches():
+
+    #logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.INFO)
+    #logging.getLogger('angr.analyses.cfg.indirect_jump_resolvers.jumptable').setLevel(logging.DEBUG)
+
+    filename = "cfg_switches"
+
+    edges = {
+        'x86_64': {
+            # jump table 0 in func_0
+            (0x40053a, 0x400547),
+            (0x40053a, 0x400552),
+            (0x40053a, 0x40055d),
+            (0x40053a, 0x400568),
+            (0x40053a, 0x400573),
+            (0x40053a, 0x400580),
+            (0x40053a, 0x40058d),
+            # jump table 0 in func_1
+            (0x4005bc, 0x4005c9),
+            (0x4005bc, 0x4005d8),
+            (0x4005bc, 0x4005e7),
+            (0x4005bc, 0x4005f6),
+            (0x4005bc, 0x400605),
+            (0x4005bc, 0x400614),
+            (0x4005bc, 0x400623),
+            (0x4005bc, 0x400632),
+            (0x4005bc, 0x40063e),
+            (0x4005bc, 0x40064a),
+            (0x4005bc, 0x4006b0),
+            # jump table 1 in func_1
+            (0x40065a, 0x400667),
+            (0x40065a, 0x400673),
+            (0x40065a, 0x40067f),
+            (0x40065a, 0x40068b),
+            (0x40065a, 0x400697),
+            (0x40065a, 0x4006a3),
+            # jump table 0 in main
+            (0x4006e1, 0x4006ee),
+            (0x4006e1, 0x4006fa),
+            (0x4006e1, 0x40070b),
+            (0x4006e1, 0x40071c),
+            (0x4006e1, 0x40072d),
+            (0x4006e1, 0x40073e),
+            (0x4006e1, 0x40074f),
+            (0x4006e1, 0x40075b),
+        }
+    }
+
+    arches = edges.keys()
+
+    for arch in arches:
+        yield cfg_fast_edges_check, arch, filename, edges[arch]
+
 def test_segment_list_0():
     seg_list = SegmentList()
     seg_list.occupy(0, 1, "code")
@@ -346,6 +401,28 @@ def test_resolve_x86_elf_pic_plt():
     return_targets = set(a.addr for a in simputs_successor)
     nose.tools.assert_equal(return_targets, { 0x400800, 0x40087e, 0x4008b6 })
 
+#
+# Function names
+#
+
+def test_function_names_for_unloaded_libraries():
+    path = os.path.join(test_location, 'i386', 'fauxware_pie')
+    proj = angr.Project(path, load_options={'auto_load_libs': False})
+
+    cfg = proj.analyses.CFGFast()
+
+    function_names = [ f.name if not f.is_plt else 'plt_' + f.name for f in cfg.functions.values() ]
+
+    nose.tools.assert_in('plt_puts', function_names)
+    nose.tools.assert_in('plt_read', function_names)
+    nose.tools.assert_in('plt___stack_chk_fail', function_names)
+    nose.tools.assert_in('plt_exit', function_names)
+    nose.tools.assert_in('puts', function_names)
+    nose.tools.assert_in('read', function_names)
+    nose.tools.assert_in('__stack_chk_fail', function_names)
+    nose.tools.assert_in('exit', function_names)
+
+
 def run_all():
 
     g = globals()
@@ -371,12 +448,17 @@ def run_all():
         print args[0].__name__
         args[0](*args[1:])
 
+    for args in test_cfg_switches():
+        args[0](*args[1:])
+
     test_resolve_x86_elf_pic_plt()
+    test_function_names_for_unloaded_libraries()
 
 
 def main():
     if len(sys.argv) > 1:
-        for func_and_args in globals()['test_' + sys.argv[1]]():
+        g = globals().copy()
+        for func_and_args in g['test_' + sys.argv[1]]():
             func, args = func_and_args[0], func_and_args[1:]
             func(*args)
     else:

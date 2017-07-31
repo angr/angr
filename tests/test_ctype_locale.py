@@ -1,19 +1,14 @@
 import nose
 import os
+import sys
 import archinfo
-import simuvex
 import angr
 import subprocess
 
 import logging
-l = logging.getLogger('simuvex.libc.ctype_locale')
-
-
-FAKE_ADDR = 0x100000
-
+l = logging.getLogger('angr.tests.test_ctype_locale')
 
 test_location = os.path.dirname(os.path.abspath(__file__))
-
 
 def test_ctype_b_loc():
     '''
@@ -33,20 +28,23 @@ def test_ctype_b_loc():
     This interface is not in the source standard; it is only in the binary
     standard.
     '''
+    if not sys.platform.startswith('linux'):
+        raise nose.SkipTest()
+
     # Just load a binary so that we can do the initialization steps from
     # libc_start_main
     bin_path = os.path.join(test_location, '../../binaries/tests/x86_64/ctype_b_loc')
 
-    ctype_b_loc = lambda state, arguments: simuvex.SimProcedures['libc.so.6']['__ctype_b_loc'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+    ctype_b_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_b_loc']().execute(state, arguments=arguments)
 
     b = angr.Project(bin_path)
     p = b.factory.full_init_state()
-    pg = b.factory.path_group(p)
+    pg = b.factory.simgr(p)
 
     # Find main located at 0x400596 to let libc_start_main do its thing
     main = pg.explore(find=0x400596)
 
-    state = main.found[0].state
+    state = main.found[0]
     b_loc_array_ptr = ctype_b_loc(state, []).ret_expr
     table_ptr = state.memory.load(b_loc_array_ptr, state.arch.bits/8, endness=state.arch.memory_endness)
 
@@ -83,20 +81,23 @@ def test_ctype_tolower_loc():
     The __ctype_tolower_loc() function shall return a pointer to the array of
     characters to be used for the ctype() family of functions (see <ctype.h>).
     '''
+    if not sys.platform.startswith('linux'):
+        raise nose.SkipTest()
+
     # Just load a binary so that we can do the initialization steps from
     # libc_start_main
     bin_path = os.path.join(test_location, '../../binaries/tests/x86_64/ctype_tolower_loc')
 
-    ctype_tolower_loc = lambda state, arguments: simuvex.SimProcedures['libc.so.6']['__ctype_tolower_loc'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+    ctype_tolower_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_tolower_loc']().execute(state, arguments=arguments)
 
     b = angr.Project(bin_path)
     p = b.factory.full_init_state()
-    pg = b.factory.path_group(p)
+    pg = b.factory.simgr(p)
 
     # Find main located at 0x400596 to let libc_start_main do its thing
     main = pg.explore(find=0x400596)
 
-    state = main.found[0].state
+    state = main.found[0]
     tolower_loc_array_ptr = ctype_tolower_loc(state, []).ret_expr
     table_ptr = state.memory.load(tolower_loc_array_ptr, state.arch.bits/8, endness=state.arch.memory_endness)
 
@@ -132,20 +133,23 @@ def test_ctype_toupper_loc():
     The __ctype_toupper_loc() function shall return a pointer to the array of
     characters to be used for the ctype() family of functions (see <ctype.h>).
     '''
+    if not sys.platform.startswith('linux'):
+        raise nose.SkipTest()
+
     # Just load a binary so that we can do the initialization steps from
     # libc_start_main
     bin_path = os.path.join(test_location, '../../binaries/tests/x86_64/ctype_toupper_loc')
 
-    ctype_toupper_loc = lambda state, arguments: simuvex.SimProcedures['libc.so.6']['__ctype_toupper_loc'](FAKE_ADDR, archinfo.arch_from_id('AMD64')).execute(state, arguments=arguments)
+    ctype_toupper_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_toupper_loc']().execute(state, arguments=arguments)
 
     b = angr.Project(bin_path)
     p = b.factory.full_init_state()
-    pg = b.factory.path_group(p)
+    pg = b.factory.simgr(p)
 
     # Find main located at 0x400596 to let libc_start_main do its thing
     main = pg.explore(find=0x400596)
 
-    state = main.found[0].state
+    state = main.found[0]
     toupper_loc_array_ptr = ctype_toupper_loc(state, []).ret_expr
     table_ptr = state.memory.load(toupper_loc_array_ptr, state.arch.bits/8, endness=state.arch.memory_endness)
 

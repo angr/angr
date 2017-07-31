@@ -1,8 +1,12 @@
+
+import logging
+
 from ..func import Func, TestData
 from ..errors import IdentifierException
 
-import logging
-l = logging.getLogger("identifier.functions.free")
+
+l = logging.getLogger("angr.analyses.identifier.functions.free")
+
 
 class free(Func):
     def __init__(self):

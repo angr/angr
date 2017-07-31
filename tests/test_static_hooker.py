@@ -1,5 +1,4 @@
 import angr
-import simuvex
 import os
 import nose
 
@@ -11,8 +10,8 @@ def test_static_hooker():
     sh = p.analyses.StaticHooker()
 
     nose.tools.assert_in(4197616, sh.results)
-    nose.tools.assert_is(sh.results[4197616], simuvex.SimProcedures['libc.so.6']['__libc_start_main'])
-    nose.tools.assert_is(p.hooked_by(4197616).procedure, simuvex.SimProcedures['libc.so.6']['__libc_start_main'])
+    nose.tools.assert_is(type(sh.results[4197616]), angr.SIM_PROCEDURES['glibc']['__libc_start_main'])
+    nose.tools.assert_is(type(p.hooked_by(4197616)), angr.SIM_PROCEDURES['glibc']['__libc_start_main'])
 
 if __name__ == '__main__':
     test_static_hooker()

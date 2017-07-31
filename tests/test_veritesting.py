@@ -31,7 +31,7 @@ def run_veritesting_a(arch):
     nose.tools.assert_not_equal(len(r.found), 0)
     # Make sure the input makes sense
     for f in r.found:
-        input_str = f.state.plugins['posix'].dumps(0)
+        input_str = f.plugins['posix'].dumps(0)
         nose.tools.assert_equal(input_str.count('B'), 10)
 
 def run_veritesting_b(arch):
@@ -50,7 +50,7 @@ def run_veritesting_b(arch):
     nose.tools.assert_not_equal(len(r.found), 0)
     # Make sure the input makes sense
     for f in r.found:
-        input_str = f.state.plugins['posix'].dumps(0)
+        input_str = f.plugins['posix'].dumps(0)
         nose.tools.assert_equal(input_str.count('B'), 35)
 
 def test_veritesting_a():

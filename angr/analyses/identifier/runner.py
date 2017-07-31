@@ -3,20 +3,26 @@ import random
 import logging
 import os
 
-from simuvex.s_type import SimTypeFunction, SimTypeInt
-import simuvex.s_options as so
-import simuvex
 import claripy
 
-from ...errors import AngrCallableMultistateError, AngrCallableError, AngrError
+from ...sim_type import SimTypeFunction, SimTypeInt
+from ... import sim_options as so
+from ... import SIM_PROCEDURES
+from ... import BP_BEFORE, BP_AFTER
+from ...storage.file import SimFile
+from ...errors import AngrCallableMultistateError, AngrCallableError, AngrError, SimError
 from .custom_callable import IdentifierCallable
 
 
 l = logging.getLogger("identifier.runner")
 
 flag_loc = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../example_flag_page'))
-with open(flag_loc, "rb") as f:
-    FLAG_DATA = f.read()
+try:
+    with open(flag_loc, "rb") as f:
+        FLAG_DATA = f.read()
+except IOError:
+    FLAG_DATA = "A"*0x1000
+
 assert len(FLAG_DATA) == 0x1000
 
 
@@ -50,7 +56,7 @@ class Runner(object):
             options.add(so.UNICORN)
             l.info("unicorn tracing enabled")
 
-            remove_options = so.simplification | set(so.LAZY_SOLVES) | simuvex.o.resilience_options | set(so.SUPPORT_FLOATING_POINT)
+            remove_options = so.simplification | set(so.LAZY_SOLVES) | so.resilience_options | set(so.SUPPORT_FLOATING_POINT)
             add_options = options
             entry_state = self.project.factory.entry_state(
                     add_options=add_options,
@@ -72,31 +78,31 @@ class Runner(object):
             entry_state.unicorn.cooldown_nonunicorn_blocks = 1
             entry_state.unicorn.max_steps = 10000
 
-            pg = self.project.factory.path_group(entry_state)
+            pg = self.project.factory.simgr(entry_state)
+            stop_addr = self.project._simos.syscall_from_number(2).addr
             num_steps = 0
-            while len(pg.active) > 0: #pylint disable=len-as-condition
-                syscall = self.project._simos.syscall_table.get_by_addr(pg.one_active.addr)
-                if syscall is not None and syscall.name == 'receive':
+            while len(pg.active) > 0:
+                if pg.one_active.addr == stop_addr:
                     # execute until receive
                     break
 
                 if len(pg.active) > 1:
                     pp = pg.one_active
-                    pg = self.project.factory.path_group(pp)
+                    pg = self.project.factory.simgr(pp)
                 pg.step()
                 num_steps += 1
                 if num_steps > 50:
                     break
-            if len(pg.active) > 0: #pylint disable=len-as-condition
-                out_state = pg.one_active.state
-            elif len(pg.deadended) > 0: #pylint disable=len-as-condition
-                out_state = pg.deadended[0].state
+            if len(pg.active) > 0:
+                out_state = pg.one_active
+            elif len(pg.deadended) > 0:
+                out_state = pg.deadended[0]
             else:
                 return self.project.factory.entry_state()
             out_state.scratch.clear()
-            out_state.scratch.jumpkind = "Ijk_Boring"
+            out_state.history.jumpkind = "Ijk_Boring"
             return out_state
-        except simuvex.SimError as e:
+        except SimError as e:
             l.warning("SimError in get recv state %s", e.message)
             return self.project.factory.entry_state()
         except AngrError as e:
@@ -106,10 +112,10 @@ class Runner(object):
     def setup_state(self, function, test_data, initial_state=None, concrete_rand=False):
         # FIXME fdwait should do something concrete...
         # FixedInReceive and FixedOutReceive always are applied
-        simuvex.SimProcedures['cgc']['transmit'] = self.FixedOutTransmit
-        simuvex.SimProcedures['cgc']['receive'] = self.FixedInReceive
+        SIM_PROCEDURES['cgc']['transmit'] = self.FixedOutTransmit
+        SIM_PROCEDURES['cgc']['receive'] = self.FixedInReceive
 
-        fs = {'/dev/stdin': simuvex.storage.file.SimFile(
+        fs = {'/dev/stdin': SimFile(
             "/dev/stdin", "r",
             size=len(test_data.preloaded_stdin))}
 
@@ -126,7 +132,7 @@ class Runner(object):
 
         # set stdin
         entry_state.cgc.input_size = len(test_data.preloaded_stdin)
-        if len(test_data.preloaded_stdin) > 0: #pylint disable=len-as-condition
+        if len(test_data.preloaded_stdin) > 0:
             entry_state.posix.files[0].content.store(0, test_data.preloaded_stdin)
 
         entry_state.options.add(so.STRICT_PAGE_ACCESS)
@@ -150,14 +156,14 @@ class Runner(object):
         # syscall hook
         entry_state.inspect.b(
             'syscall',
-            simuvex.BP_BEFORE,
+            BP_BEFORE,
             action=self.syscall_hook
         )
 
         if concrete_rand:
             entry_state.inspect.b(
                 'syscall',
-                simuvex.BP_AFTER,
+                BP_AFTER,
                 action=self.syscall_hook_concrete_rand
             )
 
@@ -268,7 +274,7 @@ class Runner(object):
         outputs = []
         for i, out in enumerate(test_data.expected_output_args):
             if isinstance(out, str):
-                if len(out) == 0: #pylint disable=len-as-condition
+                if len(out) == 0:
                     raise Exception("len 0 out")
                 outputs.append(result_state.memory.load(mapped_input[i], len(out)))
             else:

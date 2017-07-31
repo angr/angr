@@ -11,17 +11,17 @@ class Veritesting(ExplorationTechnique):
         super(Veritesting, self).__init__()
         self.options = options
 
-    def step_path(self, path, **kwargs):
-        vt = self.project.analyses.Veritesting(path, **self.options)
-        if vt.result and vt.final_path_group:
-            pg = vt.final_path_group
-            pg.stash(from_stash='deviated', to_stash='active')
-            pg.stash(from_stash='successful', to_stash='active')
+    def step_state(self, state, **kwargs):
+        vt = self.project.analyses.Veritesting(state, **self.options)
+        if vt.result and vt.final_manager:
+            simgr = vt.final_manager
+            simgr.stash(from_stash='deviated', to_stash='active')
+            simgr.stash(from_stash='successful', to_stash='active')
 
             return {
-                    'active': pg.active,
-                    'unconstrained': pg.stashes.get('unconstrained', []),
-                    'unsat': pg.stashes.get('unsat', []),
+                    'active': simgr.active,
+                    'unconstrained': simgr.stashes.get('unconstrained', []),
+                    'unsat': simgr.stashes.get('unsat', []),
                     }
 
         return None

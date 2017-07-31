@@ -28,8 +28,8 @@ def test_bina():
     nose.tools.assert_equal(sleep_addr, libc_sleep_addr)
     nose.tools.assert_equal(rand_addr, libc_rand_addr)
     nose.tools.assert_true(p.is_hooked(read_addr))
-    nose.tools.assert_true("libc___so___6.read.read" in
-                           str(p._sim_procedures[read_addr].procedure))
+    nose.tools.assert_true("read" in
+                           str(p._sim_procedures[read_addr]))
 
 if __name__ == '__main__':
     test_bina()

@@ -1,6 +1,7 @@
 from claripy import BVS
-from simuvex import SimFile
+from angr.storage import SimFile
 import pickle
+import shutil
 import nose
 import angr
 import ana
@@ -54,23 +55,42 @@ def make_pickles():
     #print "Test case generated run '%s <something>' to execute the test" % sys.argv[0]
 
 def test_pickling():
-    # set up ANA and make the pickles
-    ana.set_dl(ana.DirDataLayer('pickletest'))
-    make_pickles()
+    try:
+        # set up ANA and make the pickles
+        ana.set_dl(ana.DirDataLayer('pickletest'))
+        make_pickles()
 
-    # make sure the pickles work in the same "session"
-    load_pickles()
+        # make sure the pickles work in the same "session"
+        load_pickles()
 
-    # reset ANA, and load the pickles
-    ana.set_dl(ana.DirDataLayer('pickletest'))
-    gc.collect()
-    load_pickles()
+        # reset ANA, and load the pickles
+        ana.set_dl(ana.DirDataLayer('pickletest'))
+        gc.collect()
+        load_pickles()
 
-    # purposefully set the wrong directory to make sure this excepts out
-    ana.set_dl(ana.DirDataLayer('pickletest2'))
-    gc.collect()
-    #load_pickles()
-    nose.tools.assert_raises(Exception, load_pickles)
+        # purposefully set the wrong directory to make sure this excepts out
+        ana.set_dl(ana.DirDataLayer('pickletest2'))
+        gc.collect()
+        #load_pickles()
+        nose.tools.assert_raises(Exception, load_pickles)
+    finally:
+        try:
+            shutil.rmtree('pickletest')
+        except:
+            pass
+        try:
+            shutil.rmtree('pickletest2')
+        except:
+            pass
+        try:
+            os.remove('pickletest_good')
+        except:
+            pass
+        try:
+            os.remove('pickletest_bad')
+        except:
+            pass
+
 
 if __name__ == '__main__':
     test_pickling()

@@ -1,6 +1,6 @@
 import nose
 import angr
-from simuvex.s_cc import SimCCSystemVAMD64
+from angr.calling_conventions import SimCCSystemVAMD64
 
 import logging
 l = logging.getLogger("angr.tests.test_simcc")

@@ -1,6 +1,8 @@
+
 import random
 
 from .strcmp import strcmp
+
 
 def rand_str(length, byte_list=None):
     if byte_list is None:

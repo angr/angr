@@ -1,8 +1,8 @@
 
 import logging
 
-import simuvex
 from ...errors import AngrCallableError, AngrCallableMultistateError
+from ...calling_conventions import DEFAULT_CC
 
 
 l = logging.getLogger("identifier.custom_callable")
@@ -42,7 +42,7 @@ class IdentifierCallable(object):
         self._base_state = base_state
         self._toc = toc
         self._caller = None
-        self._cc = cc if cc is not None else simuvex.DefaultCC[project.arch.name](project.arch)
+        self._cc = cc if cc is not None else DEFAULT_CC[project.arch.name](project.arch)
         self._deadend_addr = project._simos.return_deadend
         self._max_steps = max_steps
 
@@ -85,27 +85,27 @@ class IdentifierCallable(object):
                 raise AngrCallableMultistateError("Execution split on symbolic condition!")
             return pg2
 
-        caller = self._project.factory.path_group(state, immutable=True)
+        caller = self._project.factory.simgr(state, immutable=True)
         for _ in xrange(self._max_steps):
-            if len(caller.active) == 0: #pylint disable=len-as-condition
+            if len(caller.active) == 0:
                 break
-            if caller.active[0].weighted_length > 100000:
+            if caller.active[0].history.block_count > 100000:
                 l.debug("super long path %s", caller.active[0])
                 raise AngrCallableError("Super long path")
             caller = caller.step(step_func=step_func if self._concrete_only else None)
-        if len(caller.active) > 0: #pylint disable=len-as-condition
+        if len(caller.active) > 0:
             raise AngrCallableError("didn't make it to the end of the function")
 
         caller_end_unpruned = caller.unstash(from_stash='deadended')
         caller_end_unmerged = caller_end_unpruned.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
 
-        if len(caller_end_unmerged.active) == 0: #pylint disable=len-as-condition
+        if len(caller_end_unmerged.active) == 0:
             raise AngrCallableError("No paths returned from function")
 
         self.result_path_group = caller_end_unmerged
 
         if self._perform_merge:
             caller_end = caller_end_unmerged.merge()
-            self.result_state = caller_end.active[0].state
+            self.result_state = caller_end.active[0]
         else:
-            self.result_state = self.result_path_group.active[0].state
+            self.result_state = self.result_path_group.active[0]

@@ -1,8 +1,11 @@
-from ..func import Func, TestData
-from simuvex import SimMemoryError
 
 import logging
-l = logging.getLogger("identifier.functions.free")
+
+from ..func import Func, TestData
+from ....errors import SimMemoryError
+
+
+l = logging.getLogger("angr.analyses.identifier.functions.free")
 
 class realloc(Func):
     def __init__(self):

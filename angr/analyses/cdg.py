@@ -1,11 +1,11 @@
-from collections import defaultdict
 import logging
+from collections import defaultdict
 
 import networkx
 
 l = logging.getLogger("angr.analyses.cdg")
 
-from ..analysis import Analysis, register_analysis
+from. import Analysis, register_analysis
 
 
 class TemporaryNode(object):

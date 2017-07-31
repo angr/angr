@@ -1,24 +1,22 @@
 
 import logging
 import struct
-import cffi
 from collections import defaultdict
 
+import cffi
 import networkx
-
-from cle import ELF, PE, Blob, TLSObj
 import pyvex
-import simuvex
+from .. import Analysis
 from claripy.utils.orderedset import OrderedSet
-
-from ...knowledge import HookNode, BlockNode, FunctionManager
-from ...analysis import Analysis
-from ...errors import AngrCFGError
-from ...extern_obj import AngrExternObject
+from cle import ELF, PE, Blob, TLSObj
 
 from .cfg_node import CFGNode
+from ... import SIM_PROCEDURES
+from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError, AngrUnsupportedSyscallError
+from ...extern_obj import AngrExternObject
+from ...knowledge import HookNode, BlockNode, FunctionManager
 
-l = logging.getLogger(name="angr.cfg_base")
+l = logging.getLogger("angr.analyses.cfg.cfg_base")
 
 
 class IndirectJump(object):
@@ -96,7 +94,7 @@ class CFGBase(Analysis):
         # but we do not want to hook the same symbol multiple times
         if not self.project.is_symbol_hooked('UnresolvableTarget'):
             ut_addr = self.project.hook_symbol('UnresolvableTarget',
-                                               simuvex.SimProcedures['stubs']['UnresolvableTarget']
+                                               SIM_PROCEDURES['stubs']['UnresolvableTarget']
                                                )
         else:
             ut_addr = self.project.hooked_symbol_addr('UnresolvableTarget')
@@ -365,7 +363,7 @@ class CFGBase(Analysis):
 
         :param int addr: Address of the IRSB to get.
         :return:         An arbitrary IRSB located at `addr`.
-        :rtype:          simuvex.IRSB
+        :rtype:          IRSB
         """
         raise DeprecationWarning('"get_any_irsb()" is deprecated since SimIRSB does not exist anymore.')
 
@@ -457,7 +455,7 @@ class CFGBase(Analysis):
         if self.project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
             hooker = self.project._sim_procedures[addr]
             size = hooker.kwargs.get('length', 0)
-            return HookNode(addr, size, hooker.procedure)
+            return HookNode(addr, size, type(hooker))
 
         return BlockNode(cfg_node.addr, cfg_node.size)  # pylint: disable=no-member
 
@@ -539,33 +537,31 @@ class CFGBase(Analysis):
         memory_regions = [ ]
 
         for b in binaries:
-            rebase_addr = b.rebase_addr
-
             if isinstance(b, ELF):
                 # If we have sections, we get result from sections
                 if not force_segment and b.sections:
                     # Get all executable sections
                     for section in b.sections:
                         if section.is_executable:
-                            tpl = (rebase_addr + section.min_addr, rebase_addr + section.max_addr)
+                            tpl = (section.min_addr, section.max_addr)
                             memory_regions.append(tpl)
 
                 else:
                     # Get all executable segments
                     for segment in b.segments:
                         if segment.is_executable:
-                            tpl = (rebase_addr + segment.min_addr, rebase_addr + segment.max_addr)
+                            tpl = (segment.min_addr, segment.max_addr)
                             memory_regions.append(tpl)
 
             elif isinstance(b, PE):
                 for section in b.sections:
                     if section.is_executable:
-                        tpl = (rebase_addr + section.min_addr, rebase_addr + section.max_addr)
+                        tpl = (section.min_addr, section.max_addr)
                         memory_regions.append(tpl)
 
             elif isinstance(b, Blob):
                 # a blob is entirely executable
-                tpl = (rebase_addr + b.get_min_addr(), rebase_addr + b.get_max_addr())
+                tpl = (b.get_min_addr(), b.get_max_addr())
                 memory_regions.append(tpl)
 
             elif isinstance(b, (AngrExternObject, TLSObj)):
@@ -574,16 +570,11 @@ class CFGBase(Analysis):
             else:
                 l.warning('Unsupported object format "%s". Treat it as an executable.', b.__class__.__name__)
 
-                tpl = (rebase_addr + b.get_min_addr(), rebase_addr + b.get_max_addr())
+                tpl = (b.get_min_addr(), b.get_max_addr())
                 memory_regions.append(tpl)
 
         if not memory_regions:
-            memory_regions = [
-                (self.project.loader.main_bin.rebase_addr + start,
-                 self.project.loader.main_bin.rebase_addr + start + len(cbacker)
-                 )
-                for start, cbacker in self.project.loader.memory.cbackers
-                ]
+            memory_regions = [(start, start + len(cbacker)) for start, cbacker in self.project.loader.memory.cbackers]
 
         memory_regions = sorted(memory_regions, key=lambda x: x[0])
 
@@ -652,7 +643,7 @@ class CFGBase(Analysis):
                 return True
             return False
 
-        return src_section.contains_addr(addr_b - obj.rebase_addr)
+        return src_section.contains_addr(addr_b)
 
     def _addr_next_section(self, addr):
         """
@@ -674,7 +665,7 @@ class CFGBase(Analysis):
             return None
 
         for section in obj.sections:
-            start = section.vaddr + obj.rebase_addr
+            start = section.vaddr
 
             if addr < start:
                 return section
@@ -711,7 +702,7 @@ class CFGBase(Analysis):
         :rtype:             bool
         """
 
-        return self.project.is_hooked(addr) or self.project._simos.syscall_table.get_by_addr(addr) is not None
+        return self.project.is_hooked(addr) or self.project._simos.is_syscall_addr(addr)
 
     def _fast_memory_load(self, addr):
         """
@@ -819,13 +810,11 @@ class CFGBase(Analysis):
 
             # Let's first see if it's a known SimProcedure that does not return
             if self.project.is_hooked(func.addr):
-                hooker = self.project.hooked_by(func.addr)
-                procedure = hooker.procedure
+                procedure = self.project.hooked_by(func.addr)
             else:
-                syscall = self.project._simos.syscall_table.get_by_addr(func.addr)
-                if syscall is not None:
-                    procedure = syscall.simproc
-                else:
+                try:
+                    procedure = self.project._simos.syscall_from_addr(func.addr, allow_unsupported=False)
+                except AngrUnsupportedSyscallError:
                     procedure = None
 
             if procedure is not None and hasattr(procedure, 'NO_RET'):
@@ -1409,7 +1398,7 @@ class CFGBase(Analysis):
                     b = self.project.factory.successors(tmp_state, jumpkind='Ijk_Boring')
                     if len(b.successors) != 1:
                         break
-                    if b.successors[0].scratch.jumpkind != 'Ijk_Boring':
+                    if b.successors[0].history.jumpkind != 'Ijk_Boring':
                         break
                     if b.successors[0].ip.symbolic:
                         break
@@ -1422,7 +1411,7 @@ class CFGBase(Analysis):
 
                     last_addr = b.addr + b.artifacts['irsb_size']
 
-                except (simuvex.SimTranslationError, simuvex.SimMemoryError, simuvex.SimIRSBError, simuvex.SimEngineError):
+                except (SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError):
                     break
 
             # find all functions that are between [ startpoint, endpoint ]
@@ -1480,10 +1469,7 @@ class CFGBase(Analysis):
         if addr in blockaddr_to_function:
             f = blockaddr_to_function[addr]
         else:
-            is_syscall = False
-            syscall = self.project._simos.syscall_table.get_by_addr(addr)
-            if syscall is not None:
-                is_syscall = True
+            is_syscall = self.project._simos.is_syscall_addr(addr)
 
             n = self.get_any_node(addr, is_syscall=is_syscall)
             if n is None: node = addr
@@ -1771,7 +1757,7 @@ class CFGBase(Analysis):
         :rtype:                CFGNode or None
         """
 
-        for src, dst, data in all_edges:
+        for _, dst, data in all_edges:
             if data.get('jumpkind', None) == 'Ijk_FakeRet':
                 return dst
         return None

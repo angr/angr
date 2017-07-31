@@ -5,7 +5,7 @@ import logging
 import nose
 
 import angr
-from simuvex.s_variable import SimStackVariable
+from angr.sim_variable import SimStackVariable
 from angr.knowledge.variable_manager import VariableType
 
 

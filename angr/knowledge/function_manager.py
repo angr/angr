@@ -3,11 +3,11 @@ import collections
 
 import networkx
 
-from simuvex import SimEngineError
+from ..errors import SimEngineError
 
 from .function import Function
 
-l = logging.getLogger(name="angr.knowledge.function_manager")
+l = logging.getLogger("angr.knowledge.function_manager")
 
 
 class FunctionDict(dict):

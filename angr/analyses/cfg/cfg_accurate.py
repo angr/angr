@@ -1,25 +1,29 @@
 import itertools
 import logging
+import sys
 from collections import defaultdict
 
 import claripy
 import networkx
 import pyvex
-import simuvex
+from .. import register_analysis
 from archinfo import ArchARM
-from simuvex import SimEngineProcedure
 
-from ...analysis import register_analysis
-from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice
-from ...path import Path
-from ..forward_analysis import ForwardAnalysis
-from .cfg_job_base import BlockID, CFGJobBase
 from .cfg_base import CFGBase
+from .cfg_job_base import BlockID, CFGJobBase
 from .cfg_node import CFGNode
 from .cfg_utils import CFGUtils
+from ..forward_analysis import ForwardAnalysis
+from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
+from ... import options as o
+from ...engines import SimEngineProcedure
+from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice, SimError, SimValueError, SimSolverModeError, \
+    SimFastPathError, SimIRSBError, AngrExitError, SimEmptyCallStackError
+from ...sim_state import SimState
+from ...state_plugins.callstack import CallStack
+from ...state_plugins.sim_action import SimActionData
 
-
-l = logging.getLogger(name="angr.analyses.cfg_accurate")
+l = logging.getLogger("angr.analyses.cfg.cfg_accurate")
 
 
 class CFGJob(CFGJobBase):
@@ -32,15 +36,15 @@ class CFGJob(CFGJobBase):
 
         if self.jumpkind is None:
             # load jumpkind from path.state.scratch
-            self.jumpkind = 'Ijk_Boring' if self.state.scratch.jumpkind is None else \
-                self.state.scratch.jumpkind
+            self.jumpkind = 'Ijk_Boring' if self.state.history.jumpkind is None else \
+                self.state.history.jumpkind
 
         self.call_stack_suffix = None
         self.current_function = None
 
         self.cfg_node = None
         self.sim_successors = None
-        self.error_occurred = None
+        self.exception_info = None
         self.successor_status = None
 
         self.extra_info = None
@@ -50,9 +54,7 @@ class CFGJob(CFGJobBase):
         if self._block_id is None:
             # generate a new block ID
             self._block_id = CFGAccurate._generate_block_id(
-                self.call_stack.stack_suffix(self._context_sensitivity_level), self.addr, self.is_syscall,
-                continue_at=self.continue_at
-            )
+                self.call_stack.stack_suffix(self._context_sensitivity_level), self.addr, self.is_syscall)
         return self._block_id
 
     @property
@@ -780,7 +782,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 elif isinstance(item, (int, long)):
                     new_starts.append((item, None))
 
-                elif isinstance(item, (simuvex.SimState, Path)):
+                elif isinstance(item, SimState):
                     new_starts.append(item)
 
                 else:
@@ -840,33 +842,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 ip = item[0]
                 state = self._create_initial_state(item[0], item[1])
 
-            elif isinstance(item, simuvex.SimState):
-                # simuvex.SimState
+            elif isinstance(item, SimState):
+                # SimState
                 state = item.copy()  # pylint: disable=no-member
                 ip = state.se.exactly_int(state.ip)
                 state.set_mode('fastpath')
 
-            elif isinstance(item, Path):
-                # angr.Path
-                # now we can get a usable callstack from it
-                path = item
-                state = path.state.copy()  # pylint: disable=no-member
-                state.set_mode('fastpath')
-                ip = path.addr  # pylint: disable=no-member
-                callstack = path.callstack  # pylint: disable=no-member
-
             self._symbolic_function_initial_state[ip] = state
-
-            # try to get a callstack from an existing node if it exists
-            continue_at = None
-            if self.project.is_hooked(ip) and \
-                    self.project.hooked_by(ip).is_continuation and \
-                    state.procedure_data.callstack:
-                continue_at = state.procedure_data.callstack[-1][0]
-
-            path_wrapper = CFGJob(ip, state, self._context_sensitivity_level, None, None, call_stack=callstack,
-                                  continue_at=continue_at,
-                                  )
+            path_wrapper = CFGJob(ip, state, self._context_sensitivity_level, None, None, call_stack=callstack)
             key = path_wrapper.block_id
             if key not in self._start_keys:
                 self._start_keys.append(key)
@@ -914,7 +897,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param int ip: The instruction pointer
         :param str jumpkind: The jumpkind upon executing the block
         :return: The newly-generated state
-        :rtype: simuvex.SimState
+        :rtype: SimState
         """
 
         jumpkind = "Ijk_Boring" if jumpkind is None else jumpkind
@@ -924,12 +907,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         else:
             # FIXME: self._initial_state is deprecated. This branch will be removed soon
             state = self._initial_state
-            state.scratch.jumpkind = jumpkind
+            state.history.jumpkind = jumpkind
             state.set_mode('fastpath')
             state.ip = state.se.BVV(ip, self.project.arch.bits)
 
         if jumpkind is not None:
-            state.scratch.jumpkind = jumpkind
+            state.history.jumpkind = jumpkind
 
         state_info = None
         # THIS IS A HACK FOR MIPS and ALSO PPC64
@@ -973,7 +956,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                 return None
 
-        pending_job_state.scratch.jumpkind = 'Ijk_FakeRet'
+        pending_job_state.history.jumpkind = 'Ijk_FakeRet'
 
         job = CFGJob(pending_job_state.addr,
                      pending_job_state,
@@ -1092,10 +1075,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             should_skip = True
 
         # SimInspect breakpoints support
-        job.state._inspect('cfg_handle_job', simuvex.BP_BEFORE)
+        job.state._inspect('cfg_handle_job', BP_BEFORE)
 
         # Get a SimSuccessors out of current job
-        sim_successors, error_occurred, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
+        sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
 
         # determine the depth of this basic block
         if self._max_steps is None:
@@ -1223,7 +1206,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         job.cfg_node = cfg_node
         job.sim_successors = sim_successors
-        job.error_occurred = error_occurred
+        job.exception_info = exception_info
 
         # For debugging purposes!
         job.successor_status = {}
@@ -1257,8 +1240,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         all_successors = successors + sim_successors.unconstrained_successors
 
         # make sure FakeRets are at the last
-        all_successors = [ suc for suc in all_successors if suc.scratch.jumpkind != 'Ijk_FakeRet' ] + \
-                         [ suc for suc in all_successors if suc.scratch.jumpkind == 'Ijk_FakeRet' ]
+        all_successors = [ suc for suc in all_successors if suc.history.jumpkind != 'Ijk_FakeRet' ] + \
+                         [ suc for suc in all_successors if suc.history.jumpkind == 'Ijk_FakeRet' ]
 
         if self._keep_state:
             job.cfg_node.final_states = all_successors[::]
@@ -1268,7 +1251,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                   job.cfg_node,
                                                   job.func_addr,
                                                   successors,
-                                                  job.error_occurred,
+                                                  job.exception_info,
                                                   self._block_artifacts
                                                   )
 
@@ -1302,7 +1285,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self._push_unresolvable_run(addr)
 
             if sim_successors.sort == 'SimProcedure' and isinstance(sim_successors.artifacts['procedure'],
-                    simuvex.procedures.SimProcedures["stubs"]["PathTerminator"]):
+                    SIM_PROCEDURES["stubs"]["PathTerminator"]):
                 # If there is no valid exit in this branch and it's not
                 # intentional (e.g. caused by a SimProcedure that does not
                 # do_return) , we should make it return to its call-site. However,
@@ -1380,14 +1363,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self._post_handle_job_debug(job, successors)
 
         # SimInspect breakpoints support
-        job.state._inspect('cfg_handle_job', simuvex.BP_AFTER)
+        job.state._inspect('cfg_handle_job', BP_AFTER)
 
     def _post_process_successors(self, input_state, sim_successors, successors):
         """
         Filter the list of successors
 
-        :param simuvex.SimState      input_state:    Input state.
-        :param simuvex.SimSuccessors sim_successors: The SimSuccessors instance.
+        :param SimState      input_state:            Input state.
+        :param SimSuccessors sim_successors:         The SimSuccessors instance.
         :param list successors:                      A list of successors generated after processing the current block.
         :return:                                     A list of successors.
         :rtype:                                      list
@@ -1412,7 +1395,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Post-process jumpkind before touching all_successors
         for suc in sim_successors.all_successors:  # we process all successors here to include potential unsat successors
-            suc_jumpkind = suc.scratch.jumpkind
+            suc_jumpkind = suc.history.jumpkind
             if self._is_call_jumpkind(suc_jumpkind):
                 extra_info['is_call_jump'] = True
                 break
@@ -1446,7 +1429,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         l.debug("|    Call jump: %s", extra_info['is_call_jump'] if extra_info is not None else 'unknown')
 
         for suc in successors:
-            jumpkind = suc.scratch.jumpkind
+            jumpkind = suc.history.jumpkind
             if jumpkind == "Ijk_FakeRet":
                 exit_type_str = "Simulated Ret"
             else:
@@ -1454,7 +1437,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             try:
                 l.debug("|    target: %#x %s [%s] %s", suc.se.exactly_int(suc.ip), successor_status[suc],
                         exit_type_str, jumpkind)
-            except (simuvex.SimValueError, simuvex.SimSolverModeError):
+            except (SimValueError, SimSolverModeError):
                 l.debug("|    target cannot be concretized. %s [%s] %s", successor_status[suc], exit_type_str,
                         jumpkind)
         l.debug("%d exits remaining, %d exits pending.", len(self._job_info_queue), len(self._pending_jobs))
@@ -1591,7 +1574,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         job.successor_status[state] = ""
 
         new_state = state.copy()
-        suc_jumpkind = state.scratch.jumpkind
+        suc_jumpkind = state.history.jumpkind
         suc_exit_stmt_idx = state.scratch.exit_stmt_idx
         suc_exit_ins_addr = state.scratch.exit_ins_addr
 
@@ -1605,14 +1588,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if suc_jumpkind == "Ijk_FakeRet" and call_target is not None:
             # if the call points to a SimProcedure that doesn't return, we don't follow the fakeret anymore
             if self.project.is_hooked(call_target):
-                sim_proc = self.project._sim_procedures[call_target].procedure
+                sim_proc = self.project._sim_procedures[call_target]
                 if sim_proc.NO_RET:
                     return [ ]
 
         # Get target address
         try:
             target_addr = state.se.exactly_n_int(state.ip, 1)[0]
-        except (simuvex.SimValueError, simuvex.SimSolverModeError):
+        except (SimValueError, SimSolverModeError):
             # It cannot be concretized currently. Maybe we can handle it later, maybe it just cannot be concretized
             target_addr = None
             if suc_jumpkind == "Ijk_Ret":
@@ -1648,7 +1631,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Fix target_addr for syscalls
         if suc_jumpkind.startswith("Ijk_Sys"):
-            _, target_addr, _, _ = self.project._simos.syscall_info(new_state)
+            target_addr = self.project._simos.syscall(new_state).addr
 
         self._pre_handle_successor_state(job.extra_info, suc_jumpkind, target_addr)
 
@@ -1679,18 +1662,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # Create the callstack suffix
         new_call_stack_suffix = new_call_stack.stack_suffix(self._context_sensitivity_level)
         # Tuple that will be used to index this exit
-        continue_at = None
-        if self.project.is_hooked(target_addr) and \
-                self.project.hooked_by(target_addr).is_continuation and \
-                successor.procedure_data.callstack:
-            continue_at = successor.procedure_data.callstack[-1][0]  # TODO: Use a named tuple or a class in simuvex instead
-        new_tpl = self._generate_block_id(new_call_stack_suffix, target_addr, suc_jumpkind.startswith('Ijk_Sys'),
-                                            continue_at=continue_at
-                                            )
+        new_tpl = self._generate_block_id(new_call_stack_suffix, target_addr, suc_jumpkind.startswith('Ijk_Sys'))
 
         # We might have changed the mode for this basic block
         # before. Make sure it is still running in 'fastpath' mode
-        # new_exit.state = self.project.simos.prepare_call_state(new_exit.state, initial_state=saved_state)
+        # new_exit.state = self.project._simos.prepare_call_state(new_exit.state, initial_state=saved_state)
         new_state.set_mode('fastpath')
         pw = CFGJob(target_addr,
                     new_state,
@@ -1699,7 +1675,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     src_exit_stmt_idx=suc_exit_stmt_idx,
                     src_ins_addr=suc_exit_ins_addr,
                     call_stack=new_call_stack,
-                    continue_at=continue_at,
                     jumpkind=suc_jumpkind,
                     )
 
@@ -1712,7 +1687,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # This is the default "fake" retn that generated at each
             # call. Save them first, but don't process them right
             # away
-            # st = self.project.simos.prepare_call_state(new_state, initial_state=saved_state)
+            # st = self.project._simos.prepare_call_state(new_state, initial_state=saved_state)
             st = new_state
             st.set_mode('fastpath')
 
@@ -1766,8 +1741,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         For a given state and current location of of execution, will update a function by adding the offets of
         appropriate actions to the stack variable or argument registers for the fnc.
 
-        :param simuvex.s_state.SimState state: upcoming state.
-        :param simuvex.SimSuccessors current_run: possible result states.
+        :param SimState state: upcoming state.
+        :param SimSuccessors current_run: possible result states.
         :param knowledge.Function func: current function.
         :param int sp_addr: stack pointer address.
         :param set accessed_registers: set of before accessed registers.
@@ -1779,7 +1754,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # Fix the stack pointer (for example, skip the return address on the stack)
             new_sp_addr = sp_addr + self.project.arch.call_sp_fix
 
-            actions = [a for a in state.log.actions if a.bbl_addr == current_run.addr]
+            actions = [a for a in state.history.recent_actions if a.bbl_addr == current_run.addr]
 
             for a in actions:
                 if a.type == "mem" and a.action == "read":
@@ -2066,16 +2041,16 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     # Private methods - resolving indirect jumps
 
-    def _resolve_indirect_jumps(self, sim_successors, cfg_node, func_addr, successors, error_occurred, artifacts):
+    def _resolve_indirect_jumps(self, sim_successors, cfg_node, func_addr, successors, exception_info, artifacts):
         """
         Resolve indirect jumps specified by sim_successors.addr.
 
-        :param simuvex.SimSuccessors sim_successors: The SimSuccessors instance.
+        :param SimSuccessors sim_successors: The SimSuccessors instance.
         :param CFGNode cfg_node:                     The CFGNode instance.
         :param int func_addr:                        Current function address.
         :param list successors:                      A list of successors.
-        :param bool error_occurred:                  If an error has occurred or not.
-        :param artifacts:                      A container of collected information.
+        :param tuple exception_info:                 The sys.exc_info() of the exception or None if none occured.
+        :param artifacts:                            A container of collected information.
         :return:                                     Resolved successors
         :rtype:                                      list
         """
@@ -2117,14 +2092,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # - It's a call (Ijk_Call), and its target is fully symbolic
                 # TODO: This is very hackish, please refactor this part of code later
                 should_resolve = True
-                legit_successors = [suc for suc in successors if suc.scratch.jumpkind in ('Ijk_Boring', 'Ijk_Call')]
+                legit_successors = [suc for suc in successors if suc.history.jumpkind in ('Ijk_Boring', 'Ijk_Call')]
                 if legit_successors:
                     legit_successor = legit_successors[0]
                     if legit_successor.ip.symbolic:
-                        if not legit_successor.scratch.jumpkind == 'Ijk_Call':
+                        if not legit_successor.history.jumpkind == 'Ijk_Call':
                             should_resolve = False
                     else:
-                        if legit_successor.scratch.jumpkind == 'Ijk_Call':
+                        if legit_successor.history.jumpkind == 'Ijk_Call':
                             should_resolve = False
                         else:
                             concrete_target = legit_successor.se.any_int(legit_successor.ip)
@@ -2171,11 +2146,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                             cfg_node)
 
         # Try to find more successors if we failed to resolve the indirect jump before
-        if not error_occurred and (cfg_node.is_simprocedure or self._is_indirect_jump(cfg_node, sim_successors)):
-            has_call_jumps = any(suc_state.scratch.jumpkind == 'Ijk_Call' for suc_state in successors)
+        if exception_info is None and (cfg_node.is_simprocedure or self._is_indirect_jump(cfg_node, sim_successors)):
+            has_call_jumps = any(suc_state.history.jumpkind == 'Ijk_Call' for suc_state in successors)
             if has_call_jumps:
                 concrete_successors = [suc_state for suc_state in successors if
-                                       suc_state.scratch.jumpkind != 'Ijk_FakeRet' and not suc_state.se.symbolic(
+                                       suc_state.history.jumpkind != 'Ijk_FakeRet' and not suc_state.se.symbolic(
                                            suc_state.ip)]
             else:
                 concrete_successors = [suc_state for suc_state in successors if
@@ -2185,7 +2160,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             resolved = True if not symbolic_successors else False
             if symbolic_successors:
                 for suc in symbolic_successors:
-                    if simuvex.o.SYMBOLIC in suc.options:
+                    if o.SYMBOLIC in suc.options:
                         targets = suc.se.any_n_int(suc.ip, 32)
                         if len(targets) < 32:
                             all_successors = []
@@ -2218,10 +2193,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     else:
                         self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
                         # keep fake_rets
-                        successors = [s for s in successors if s.scratch.jumpkind == "Ijk_FakeRet"]
+                        successors = [s for s in successors if s.history.jumpkind == "Ijk_FakeRet"]
 
                 elif sim_successors.sort == 'IRSB'and \
-                        any([ex.scratch.jumpkind != 'Ijk_Ret' for ex in successors]):
+                        any([ex.history.jumpkind != 'Ijk_Ret' for ex in successors]):
                     # We cannot properly handle Return as that requires us start execution from the caller...
                     l.debug("Try traversal backwards in symbolic mode on %s.", cfg_node)
                     if self._enable_symbolic_back_traversal:
@@ -2241,7 +2216,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
                         successors = []
 
-                elif successors and all([ex.scratch.jumpkind == 'Ijk_Ret' for ex in successors]):
+                elif successors and all([ex.history.jumpkind == 'Ijk_Ret' for ex in successors]):
                     l.debug('All exits are returns (Ijk_Ret). It will be handled by pending exits.')
 
                 else:
@@ -2312,7 +2287,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     for n in cfg_nodes:
                         if not n.final_states:
                             continue
-                        actions = [ac for ac in n.final_states[0].log.actions
+                        actions = [ac for ac in n.final_states[0].history.recent_actions
                                    # Normally it's enough to only use the first final state
                                    if ac.bbl_addr == cl.block_addr and
                                    ac.stmt_idx == cl.stmt_idx
@@ -2368,7 +2343,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         Symbolically executes from ancestor nodes (2-5 times removed) finding paths of execution through the given
         CFGNode.
 
-        :param simuvex.SimSuccessors current_block: SimSuccessor with address to attempt to navigate to.
+        :param SimSuccessors current_block: SimSuccessor with address to attempt to navigate to.
         :param dict block_artifacts:  Container of IRSB data - specifically used for known persistant register values.
         :param CFGNode cfg_node:      Current node interested around.
         :returns:                     Double checked concrete successors.
@@ -2389,7 +2364,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 """
                 Writes over given registers from self._info_coollection (taken from block_artifacts)
 
-                :param simuvex.SimSuccessors state_: state to update registers for
+                :param SimSuccessors state_: state to update registers for
                 """
                 if state_.inspect.address is None:
                     l.error('state.inspect.address is None. It will be fixed by Yan later.')
@@ -2445,9 +2420,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 state = self.project.factory.blank_state(addr=n.addr,
                                                          mode='symbolic',
                                                          add_options={
-                                                                         simuvex.o.DO_RET_EMULATION,
-                                                                         simuvex.o.CONSERVATIVE_READ_STRATEGY,
-                                                                     } | simuvex.o.resilience_options
+                                                                         o.DO_RET_EMULATION,
+                                                                         o.CONSERVATIVE_READ_STRATEGY,
+                                                                     } | o.resilience_options
                                                          )
                 # Avoid concretization of any symbolic read address that is over a certain limit
                 # TODO: test case is needed for this option
@@ -2459,8 +2434,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 for reg in state.arch.persistent_regs:
                     reg_protector = register_protector(reg, block_artifacts)
                     state.inspect.add_breakpoint('reg_write',
-                                                 simuvex.BP(
-                                                     simuvex.BP_AFTER,
+                                                 BP(
+                                                     BP_AFTER,
                                                      reg_write_offset=state.arch.registers[reg][0],
                                                      action=reg_protector.write_persistent_register
                                                  )
@@ -2487,7 +2462,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         new_concrete_successors = []
         for c in concrete_exits:
             unsat_state = current_block.unsat_successors[0].copy()
-            unsat_state.scratch.jumpkind = c.scratch.jumpkind
+            unsat_state.history.jumpkind = c.history.jumpkind
             for reg in unsat_state.arch.persistent_regs + ['ip']:
                 unsat_state.registers.store(reg, c.registers.load(reg))
             new_concrete_successors.append(unsat_state)
@@ -2530,7 +2505,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         path = self.project.factory.path(symbolic_initial_state)
         try:
             sim_successors = self.project.factory.successors(path.state, num_inst=num_instr)
-        except (simuvex.SimError, AngrError):
+        except (SimError, AngrError):
             return None
 
         # We execute all but the last instruction in this basic block, so we have a cleaner
@@ -2557,14 +2532,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
         Scan for constants that might be used as exit targets later, and add them into pending_exits.
 
-        :param simuvex.SimState successor_state: A successing state.
+        :param SimState successor_state: A successing state.
         :return:                                 A list of discovered code addresses.
         :rtype:                                  list
         """
 
         function_hints = []
 
-        for action in successor_state.log.actions:
+        for action in successor_state.history.recent_actions:
             if action.type == 'reg' and action.offset == self.project.arch.ip_offset:
                 # Skip all accesses to IP registers
                 continue
@@ -2573,7 +2548,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 continue
 
             # Enumerate actions
-            if isinstance(action, simuvex.s_action.SimActionData):
+            if isinstance(action, SimActionData):
                 data = action.data
                 if data is not None:
                     # TODO: Check if there is a proper way to tell whether this const falls in the range of code
@@ -2590,7 +2565,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                         # target = const
                         # tpl = (None, None, target)
-                        # st = self.project.simos.prepare_call_state(self.project.initial_state(mode='fastpath'),
+                        # st = self.project._simos.prepare_call_state(self.project.initial_state(mode='fastpath'),
                         #                                           initial_state=saved_state)
                         # st = self.project.initial_state(mode='fastpath')
                         # exits[tpl] = (st, None, None)
@@ -2613,10 +2588,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param CFGJob job:                The CFG job instance with an input state inside.
         :param int current_function_addr: Address of the current function.
         :return:                          A SimSuccessors instance
-        :rtype:                           simuvex.SimSuccessors
+        :rtype:                           SimSuccessors
         """
 
-        error_occurred = False
+        exception_info = None
         state = job.state
         saved_state = job.state  # We don't have to make a copy here
 
@@ -2633,11 +2608,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             if not self._keep_state:
                 if self.project.is_hooked(addr):
-                    hooker = self.project._sim_procedures[addr]
-                    old_proc = hooker.procedure
-                    is_continuation = hooker.is_continuation
-                elif self.project._simos.syscall_table.get_by_addr(addr) is not None:
-                    old_proc = self.project._simos.syscall_table.get_by_addr(addr).simproc
+                    old_proc = self.project._sim_procedures[addr]
+                    is_continuation = old_proc.is_continuation
+                elif self.project._simos.is_syscall_addr(addr):
+                    old_proc = self.project._simos.syscall_from_addr(addr)
                     is_continuation = False  # syscalls don't support continuation
                 else:
                     old_proc = None
@@ -2662,25 +2636,17 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     old_name = None
 
                     if old_proc.IS_SYSCALL:
-                        new_stub = simuvex.procedures.SimProcedures["syscalls"]["stub"]
+                        new_stub = SIM_PROCEDURES["stubs"]["syscall"]
                         ret_to = state.regs.ip_at_syscall
                     else:
                         # normal SimProcedures
-                        new_stub = simuvex.procedures.SimProcedures["stubs"]["ReturnUnconstrained"]
+                        new_stub = SIM_PROCEDURES["stubs"]["ReturnUnconstrained"]
                         ret_to = None
 
-                    if old_proc is new_stub and self.project.is_hooked(addr):
-                        proc_kwargs = self.project._sim_procedures[addr].kwargs
-                        if 'resolves' in proc_kwargs:
-                            old_name = proc_kwargs['resolves']
-
-                    if old_name is None:
-                        old_name = old_proc.__name__.split('.')[-1]
+                    old_name = old_proc.display_name
 
                     # instantiate the stub
-                    new_stub_inst = new_stub(addr, self.project.arch,
-                                             sim_kwargs={'resolves': old_name}
-                                             )
+                    new_stub_inst = new_stub(display_name=old_name)
 
                     sim_successors = SimEngineProcedure().process(
                         state,
@@ -2690,7 +2656,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     )
 
             if sim_successors is None:
-                jumpkind = state.scratch.jumpkind
+                jumpkind = state.history.jumpkind
                 jumpkind = 'Ijk_Boring' if jumpkind is None else jumpkind
                 sim_successors = self.project.factory.successors(
                         state,
@@ -2698,7 +2664,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         size=block_size,
                         opt_level=self._iropt_level)
 
-        except (simuvex.SimFastPathError, simuvex.SimSolverModeError) as ex:
+        except (SimFastPathError, SimSolverModeError) as ex:
 
             if saved_state.mode == 'fastpath':
                 # Got a SimFastPathError or SimSolverModeError in FastPath mode.
@@ -2715,7 +2681,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 if new_state is None:
                     new_state = state.copy()
                     new_state.set_mode('symbolic')
-                new_state.options.add(simuvex.o.DO_RET_EMULATION)
+                new_state.options.add(o.DO_RET_EMULATION)
                 # Remove bad constraints
                 # FIXME: This is so hackish...
                 new_state.se._solver.constraints = [c for c in new_state.se.constraints if
@@ -2723,44 +2689,47 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 new_state.se._solver._result = None
                 # Swap them
                 saved_state, job.state = job.state, new_state
-                sim_successors, error_occurred, _ = self._get_simsuccessors(addr, job)
+                sim_successors, exception_info, _ = self._get_simsuccessors(addr, job)
 
             else:
+                exception_info = sys.exc_info()
                 # Got a SimSolverModeError in symbolic mode. We are screwed.
                 # Skip this IRSB
                 l.debug("Caught a SimIRSBError %s. Don't panic, this is usually expected.", ex)
-                error_occurred = True
-                inst = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](addr, self.project.arch)
+                inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
                 sim_successors = SimEngineProcedure().process(state, inst)
 
-
-        except simuvex.SimIRSBError:
+        except SimIRSBError:
+            exception_info = sys.exc_info()
             # It's a tragedy that we came across some instructions that VEX
             # does not support. I'll create a terminating stub there
             l.debug("Caught a SimIRSBError during CFG recovery. Creating a PathTerminator.", exc_info=True)
-            error_occurred = True
-            inst = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](addr, self.project.arch)
+            inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
             sim_successors = SimEngineProcedure().process(state, inst)
 
         except claripy.ClaripyError:
+            exception_info = sys.exc_info()
             l.debug("Caught a ClaripyError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
-            error_occurred = True
             # Generate a PathTerminator to terminate the current path
-            inst = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](addr, self.project.arch)
+            inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
             sim_successors = SimEngineProcedure().process(state, inst)
 
-        except simuvex.SimError:
-            l.debug("Caught a SimError when during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
-
-            error_occurred = True
+        except SimError:
+            exception_info = sys.exc_info()
+            l.debug("Caught a SimError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
-            inst = simuvex.procedures.SimProcedures["stubs"]["PathTerminator"](addr, self.project.arch)
-            sim_successors = SimEngineProcedure().process(state,
-                                                          inst
-                                                          )
+            inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
+            sim_successors = SimEngineProcedure().process(state, inst)
 
+        except AngrExitError as ex:
+            exception_info = sys.exc_info()
+            l.debug("Caught a AngrExitError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
+            # Generate a PathTerminator to terminate the current path
+            inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
+            sim_successors = SimEngineProcedure().process(state, inst)
 
         except AngrError:
+            exception_info = sys.exc_info()
             section = self.project.loader.main_bin.find_section_containing(addr)
             if section is None:
                 sec_name = 'No section'
@@ -2772,17 +2741,16 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # We might be on a wrong branch, and is likely to encounter the
             # "No bytes in memory xxx" exception
             # Just ignore it
-            error_occurred = True
             sim_successors = None
 
-        return sim_successors, error_occurred, saved_state
+        return sim_successors, exception_info, saved_state
 
     def _create_new_call_stack(self, addr, all_jobs, job, exit_target, jumpkind):
         """
         Creates a new call stack, and according to the jumpkind performs appropriate actions.
 
         :param int addr:                          Address to create at.
-        :param simuvex.Simsuccessors all_jobs:    Jobs to get stack pointer from or return address.
+        :param Simsuccessors all_jobs:            Jobs to get stack pointer from or return address.
         :param CFGJob job:                        CFGJob to copy current call stack from.
         :param int exit_target:                   Address of exit target.
         :param str jumpkind:                      The type of jump performed.
@@ -2798,12 +2766,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # It should give us three exits: Ijk_Call, Ijk_Boring, and
             # Ijk_Ret. The last exit is simulated.
             # Notice: We assume the last exit is the simulated one
-            if len(all_jobs) > 1 and all_jobs[-1].scratch.jumpkind == "Ijk_FakeRet":
+            if len(all_jobs) > 1 and all_jobs[-1].history.jumpkind == "Ijk_FakeRet":
                 se = all_jobs[-1].se
                 retn_target_addr = se.exactly_int(all_jobs[-1].ip, default=0)
                 sp = se.exactly_int(all_jobs[-1].regs.sp, default=0)
 
-                new_call_stack.call(addr, exit_target,
+                new_call_stack = new_call_stack.call(addr, exit_target,
                                     retn_target=retn_target_addr,
                                     stack_pointer=sp)
 
@@ -2812,23 +2780,26 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 retn_target_addr = exit_target
                 se = all_jobs[0].se
                 sp = se.exactly_int(all_jobs[0].regs.sp, default=0)
-                new_call_stack.call(addr, exit_target,
+                new_call_stack = new_call_stack.call(addr, exit_target,
                                     retn_target=retn_target_addr,
                                     stack_pointer=sp)
 
             else:
                 # We don't have a fake return exit available, which means
                 # this call doesn't return.
-                new_call_stack.clear()
+                new_call_stack = CallStack()
                 se = all_jobs[-1].se
                 sp = se.exactly_int(all_jobs[-1].regs.sp, default=0)
 
-                new_call_stack.call(addr, exit_target, retn_target=None, stack_pointer=sp)
+                new_call_stack = new_call_stack.call(addr, exit_target, retn_target=None, stack_pointer=sp)
 
         elif jumpkind == "Ijk_Ret":
             # Normal return
             new_call_stack = job.call_stack_copy()
-            new_call_stack.ret(exit_target)
+            try:
+                new_call_stack = new_call_stack.ret(exit_target)
+            except SimEmptyCallStackError:
+                pass
 
             se = all_jobs[-1].se
             sp = se.exactly_int(all_jobs[-1].regs.sp, default=0)
@@ -2858,7 +2829,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # although the jumpkind is not Ijk_Call, it may still jump to a new function... let's see
             if self.project.is_hooked(exit_target):
                 hooker = self.project.hooked_by(exit_target)
-                if not hooker is simuvex.procedures.stubs.UserHook.UserHook:
+                if not hooker is procedures.stubs.UserHook.UserHook:
                     # if it's not a UserHook, it must be a function
                     # Update the function address of the most recent call stack frame
                     new_call_stack = job.call_stack_copy()
@@ -2876,11 +2847,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return new_call_stack
 
-    def _create_cfgnode(self, sim_successors, call_stack, func_addr, block_id=None, depth=None):
+    def _create_cfgnode(self, sim_successors, call_stack, func_addr, block_id=None, depth=None, exception_info=None):
         """
         Create a context-sensitive CFGNode instance for a specific block.
 
-        :param simuvex.SimSuccessors sim_successors: The SimSuccessors object.
+        :param SimSuccessors sim_successors:         The SimSuccessors object.
         :param CallStack call_stack_suffix:          The call stack.
         :param int func_addr:                        Address of the current function.
         :param BlockID block_id:                     The block ID of this CFGNode.
@@ -2924,6 +2895,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                function_address=sim_successors.addr,
                                block_id=block_id,
                                depth=depth,
+                               creation_failure_info=exception_info,
                                )
 
         else:
@@ -2938,6 +2910,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                block_id=block_id,
                                depth=depth,
                                irsb=sim_successors.artifacts['irsb'],
+                               creation_failure_info=exception_info,
                                )
 
         return cfg_node
@@ -3021,7 +2994,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 suc = all_successors[0]
                 se = suc.se
                 # Examine the path log
-                actions = suc.log.actions
+                actions = suc.history.recent_actions
                 sp = se.exactly_int(suc.regs.sp, default=0) + self.project.arch.call_sp_fix
                 for ac in actions:
                     if ac.type == "reg" and ac.action == "write":
@@ -3036,7 +3009,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 func.prepared_registers.add(tuple(regs_overwritten))
                 func.prepared_stack_variables.add(tuple(stack_overwritten))
 
-            except (simuvex.SimError, AngrError):
+            except (SimError, AngrError):
                 pass
 
             try:
@@ -3049,7 +3022,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         continue
 
                     suc = all_successors[0]
-                    actions = suc.log.actions
+                    actions = suc.history.recent_actions
                     for ac in actions:
                         if ac.type == "reg" and ac.action == "read" and ac.offset not in regs_written:
                             regs_read.add(ac.offset)
@@ -3062,7 +3035,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                     func.registers_read_afterwards.add(tuple(regs_read))
 
-            except (simuvex.SimError, AngrError):
+            except (SimError, AngrError):
                 pass
 
     # Private methods - dominators and post-dominators
@@ -3148,10 +3121,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         return True
 
     @staticmethod
-    def _generate_block_id(call_stack_suffix, block_addr, is_syscall, continue_at=None):
+    def _generate_block_id(call_stack_suffix, block_addr, is_syscall):
         if not is_syscall:
-            return BlockID.new(block_addr, call_stack_suffix, 'normal', continue_at=continue_at)
-        return BlockID.new(block_addr, call_stack_suffix, 'syscall', continue_at=continue_at)
+            return BlockID.new(block_addr, call_stack_suffix, 'normal')
+        return BlockID.new(block_addr, call_stack_suffix, 'syscall')
 
     @staticmethod
     def _block_id_repr(block_id):

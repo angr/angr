@@ -1,16 +1,14 @@
 import logging
-import re
 from collections import defaultdict
 
 import networkx
-
 import pyvex
-from simuvex import SimRegisterVariable, SimMemoryVariable, SimTemporaryVariable, SimConstantVariable, SimStackVariable
-from simuvex import SimSolverModeError, SimUnsatError
+from . import Analysis, register_analysis
 
-from ..errors import AngrDDGError
-from ..analysis import Analysis, register_analysis
 from .code_location import CodeLocation
+from ..errors import SimSolverModeError, SimUnsatError, AngrDDGError
+from ..sim_variable import SimRegisterVariable, SimMemoryVariable, SimTemporaryVariable, SimConstantVariable, \
+    SimStackVariable
 
 l = logging.getLogger("angr.analyses.ddg")
 
@@ -505,14 +503,14 @@ class DDG(Analysis):
 
             successing_nodes = self._cfg.graph.successors(node)
             for state in final_states:
-                if state.scratch.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
+                if state.history.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
                     # Skip fakerets if there are other control flow transitions available
                     continue
 
                 new_call_depth = call_depth
-                if state.scratch.jumpkind == 'Ijk_Call':
+                if state.history.jumpkind == 'Ijk_Call':
                     new_call_depth += 1
-                elif state.scratch.jumpkind == 'Ijk_Ret':
+                elif state.history.jumpkind == 'Ijk_Ret':
                     new_call_depth -= 1
 
                 if self._call_depth is not None and call_depth > self._call_depth:
@@ -530,7 +528,7 @@ class DDG(Analysis):
 
                 for successing_node in successing_nodes:
 
-                    if (state.scratch.jumpkind == 'Ijk_Call' or state.scratch.jumpkind.startswith('Ijk_Sys')) and \
+                    if (state.history.jumpkind == 'Ijk_Call' or state.history.jumpkind.startswith('Ijk_Sys')) and \
                             (state.ip.symbolic or successing_node.addr != state.se.any_int(state.ip)):
                         # this might be the block after the call, and we are not tracing into the call
                         # TODO: make definition killing architecture independent and calling convention independent
@@ -578,7 +576,7 @@ class DDG(Analysis):
         # Make a copy of live_defs
         live_defs = live_defs.copy()
 
-        action_list = list(state.log.actions)
+        action_list = list(state.history.recent_actions)
 
         # Since all temporary variables are local, we simply track them in a local dict
         temp_defs = { }

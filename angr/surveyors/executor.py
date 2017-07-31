@@ -1,6 +1,6 @@
 import logging
 
-from ..surveyor import Surveyor
+from .surveyor import Surveyor
 
 l = logging.getLogger("angr.surveyors.executor")
 

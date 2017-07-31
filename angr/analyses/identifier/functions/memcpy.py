@@ -1,9 +1,10 @@
-from ..func import Func, TestData
+
 import random
-from simuvex.s_type import SimTypeFunction, SimTypeInt
 
-
+from ....sim_type import SimTypeFunction, SimTypeInt
+from ..func import Func, TestData
 from ..custom_callable import IdentifierCallable
+
 
 def rand_str(length, byte_list=None):
     if byte_list is None:
