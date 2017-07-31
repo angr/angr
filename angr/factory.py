@@ -345,9 +345,11 @@ class AngrObjectFactory(object):
     # Compatibility layer
     #
 
+    @deprecate('path_group()', 'simgr()')
     def path_group(self, thing=None, **kwargs):
         return self.simgr(thing, **kwargs)
 
+    @deprecate('path()', 'entry_state()')
     def path(self, state=None, **kwargs):
         if state is not None:
             return state
