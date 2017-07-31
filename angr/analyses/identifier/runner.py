@@ -17,8 +17,12 @@ from .custom_callable import IdentifierCallable
 l = logging.getLogger("identifier.runner")
 
 flag_loc = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../example_flag_page'))
-with open(flag_loc, "rb") as f:
-    FLAG_DATA = f.read()
+try:
+    with open(flag_loc, "rb") as f:
+        FLAG_DATA = f.read()
+except IOError:
+    FLAG_DATA = "A"*0x1000
+
 assert len(FLAG_DATA) == 0x1000
 
 
