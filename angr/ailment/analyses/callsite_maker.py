@@ -48,8 +48,6 @@ class CallSiteMaker(Analysis):
             # cannot find a declaration to it
             return
 
-        # print func.name, func.is_plt, func.declaration
-
         # Make arguments
         args = [ ]
         if func.calling_convention is None:

@@ -3,8 +3,6 @@ import logging
 import os
 
 import angr
-import pyvex
-import archinfo
 
 import ailment
 import ailment.analyses
@@ -44,7 +42,6 @@ def test_callsite_maker():
 
         print simp.result_block
 
-        break
 
 
 if __name__ == "__main__":
