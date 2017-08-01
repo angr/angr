@@ -517,7 +517,7 @@ def get_engine(base_engine):
             return MemoryLocation(addr, size)
 
         def _ail_handle_Convert(self, expr):
-            return ailment.Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, self._expr(expr.operand))
+            return ailment.Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, self._expr(expr.operand))
 
         def _ail_handle_CmpEQ(self, expr):
             op0 = self._expr(expr.operands[0])
