@@ -12,7 +12,6 @@ from .functions import Functions
 from .runner import Runner
 from ... import options
 from ...errors import AngrError, SimSegfaultError, SimEngineError, SimMemoryError, SimError
->>>>>>> 7053a1ac6ed03396743e3e20e8dfd9c4ba5676a0
 
 l = logging.getLogger("identifier.identify")
 
