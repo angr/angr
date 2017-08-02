@@ -256,7 +256,7 @@ class FormatParser(SimProcedure):
 
         # FIXME: intmax_t seems to be always 64 bit, but not too sure
         'j' : ('int64_t', 'uint64_t'),
-        'z' : ('ssize', 'size_t'), # TODO: implement in s_type
+        'z' : ('ssize', 'size_t'),
         't' : ('ptrdiff_t', 'ptrdiff_t'),
     }
 
