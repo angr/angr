@@ -477,9 +477,9 @@ class SimTypeFunction(SimType):
 
     def __init__(self, args, returnty, label=None):
         """
-        :param label:   The type label
-        :param args:    A tuple of types representing the arguments to the function
-        :param returns: The return type of the function, or none for void
+        :param label:    The type label
+        :param args:     A tuple of types representing the arguments to the function
+        :param returnty: The return type of the function, or none for void
         """
         super(SimTypeFunction, self).__init__(label=label)
         self.args = args
