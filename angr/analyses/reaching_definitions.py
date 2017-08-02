@@ -492,6 +492,34 @@ def get_engine(base_engine):
 
             return data
 
+        # FIXME: urgent
+        def _handle_Unop(self, expr):
+            res = None
+            simop = vex_operations[expr.op]
+            if simop._conversion:
+                operand = self._expr(expr.args[0])
+
+                if type(operand) is not DataSet:
+                    operand = {operand}
+
+                res = DataSet(set())
+                for o in operand:
+                    if o is None:
+                        pass
+                    elif isinstance(o, (int, long)):
+                        size = simop._to_size
+                        mask = 2 ** size - 1
+                        o &= mask
+                    else:
+                        l.warning('Unsupported conversion type %s' % type(value).__name__)
+                    res.add(o)
+
+                res = res.compact()
+            else:
+                l.warning('Unsupported unary operation %s' % type(simop).__name__)
+
+            return res
+
         #
         # AIL statement handlers
         #
