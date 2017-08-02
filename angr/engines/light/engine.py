@@ -108,6 +108,8 @@ class SimEngineLightVEX(SimEngineLight):
         handler = "_handle_%s" % type(expr).__name__
         if hasattr(self, handler):
             return getattr(self, handler)(expr)
+        else:
+            l.warning('Unsupported expression type %s.', type(expr).__name__)
         return None
 
     def _handle_RdTmp(self, expr):

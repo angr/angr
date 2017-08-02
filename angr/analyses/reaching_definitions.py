@@ -9,6 +9,7 @@ from ..engines.light import SimEngineLightVEX, SimEngineLightAIL, SpOffset, Regi
 from .analysis import Analysis
 from . import register_analysis
 from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
+from angr.engines.vex.irop import operations as vex_operations
 
 
 l = logging.getLogger('angr.analyses.reaching_definitions')
@@ -101,9 +102,6 @@ class Definition(object):
     def __eq__(self, other):
         return self.atom == other.atom and self.codeloc == other.codeloc and self.data == other.data
 
-    def __hash__(self):
-        return hash((self.atom, self.codeloc, self.data))
-
     def __repr__(self):
         return 'Definition 0x%x {Atom: %s, Codeloc: %s, Data: %s}' % (id(self), self.atom, self.codeloc, self.data)
 
@@ -168,6 +166,100 @@ class Uses(object):
         self._current_uses.merge(other._current_uses)
 
 
+class DataSet(object):
+    '''
+    This class represents a set of data.
+
+    Addition and subtraction are performed on the cartesian product of the operands. Duplicate results are removed.
+    data must always include a set.
+    '''
+
+    def __init__(self, data):
+        assert type(data) is set
+        self.data = data
+
+    def add(self, data):
+        if type(data) == DataSet:
+            self.data.update(data.data)
+        else:
+            self.data.add(data)
+
+    def compact(self):
+        if len(self.data) == 0:
+            return None
+        elif len(self.data) == 1:
+            return next(iter(self.data))
+        else:
+            return self
+
+    def __add__(self, other):
+        res = set()
+        if type(other) is DataSet:
+            for d in self.data:
+                for o in other.data:
+                    if d is not None and o is not None:
+                        res.add(d + o)
+                    else:
+                        res.add(None)
+        else:
+            if other is None:
+                res.add(None)
+            else:
+                for d in self.data:
+                    if d is not None:
+                        res.add(d + other)
+                    else:
+                        res.add(None)
+
+        return DataSet(res).compact()
+
+    def __radd__(self, other):
+        return self + other
+
+    def __sub__(self, other):
+        res = set()
+        if type(other) is DataSet:
+            for d in self.data:
+                for o in other.data:
+                    if d is not None and o is not None:
+                        res.add(d - o)
+                    else:
+                        res.add(None)
+        else:
+            if other is None:
+                res.add(None)
+            else:
+                for d in self.data:
+                    if d is not None:
+                        res.add(d - other)
+                    else:
+                        res.add(None)
+
+        return DataSet(res).compact()
+
+    def __rsub__(self, other):
+        tmp = self - other
+        if type(tmp) is DataSet:
+            res = DataSet({-t for t in tmp.data if t is not None})
+            if None in tmp.data:
+                res.data.add(None)
+        else:
+            res = -tmp if tmp is not None else None
+        return res
+
+    def __eq__(self, other):
+        if type(other) == DataSet:
+            return self.data == other.data
+        else:
+            return False
+
+    def __iter__(self):
+        return iter(self.data)
+
+    def __str__(self):
+        return 'DataSet: ' + str(self.data)
+
+
 class ReachingDefinitions(object):
     def __init__(self, arch, track_tmps=False, analysis=None):
 
@@ -178,29 +270,21 @@ class ReachingDefinitions(object):
         self.arch = arch
 
         self.register_definitions = KeyedRegion()
+        self.memory_definitions = KeyedRegion()
 
         # FIXME: Initialize SP depending on a flag
-        sp = Register(arch.sp_offset, 0)
+        sp = Register(arch.sp_offset, arch.bytes)
         sp_def = Definition(sp, None, 0x7fff0000)
         self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
 
-
-        self.memory_definitions = defaultdict(set)
-        self.tmp_definitions = { }
-
         self.register_uses = Uses()
         self.memory_uses = Uses()
-        self.tmp_uses = defaultdict(set)
 
         self._dead_virgin_definitions = set()  # definitions that are killed before used
 
-        # self.registers = { }
-        # self.memory = { }
-
     def __repr__(self):
         ctnt = "ReachingDefinitions, %d regdefs, %d memdefs" % (len(self.register_definitions),
-                                                                len(self.memory_definitions),
-                                                                )
+                                                                len(self.memory_definitions))
         if self._track_tmps:
             ctnt += ", %d tmpdefs" % len(self.tmp_definitions)
         return "<%s>" % ctnt
@@ -211,15 +295,12 @@ class ReachingDefinitions(object):
             track_tmps=self._track_tmps,
             analysis=self.analysis,
         )
+
         rd.register_definitions = self.register_definitions.copy()
         rd.memory_definitions = self.memory_definitions.copy()
-        rd.tmp_definitions = self.tmp_definitions.copy()
         rd.register_uses = self.register_uses.copy()
         rd.memory_uses = self.memory_uses.copy()
-        rd.tmp_uses = self.tmp_uses.copy()
         rd._dead_virgin_definitions = self._dead_virgin_definitions.copy()
-        # rd.registers = self.registers.copy()
-        # rd.memory = self.memory.copy()
 
         return rd
 
@@ -229,12 +310,7 @@ class ReachingDefinitions(object):
 
         for other in others:
             state.register_definitions.merge(other.register_definitions)
-
-            for k, v in other.memory_definitions.iteritems():
-                if k not in state.memory_definitions:
-                    state.memory_definitions[k] = set(v)
-                else:
-                    state.memory_definitions[k] |= v
+            state.memory_definitions.merge(other.memory_definitions)
 
             state.register_uses.merge(other.register_uses)
             state.memory_uses.merge(other.memory_uses)
@@ -246,26 +322,11 @@ class ReachingDefinitions(object):
     def downsize(self):
         self.analysis = None
 
-    def add_definition(self, atom, code_loc, data):
-        if type(atom) is Register:
-            self._add_register_definition(atom, code_loc, data)
-        elif type(atom) is MemoryLocation:
-            self._add_memory_definition(atom, code_loc, data)
-        elif type(atom) is Tmp:
-            self._add_tmp_definition(atom, code_loc, data)
-
-    def kill_definitions(self, atom):
-        if type(atom) is Register:
-            self._kill_register_definitions(atom)
-        elif type(atom) is MemoryLocation:
-            self._kill_memory_definitions(atom)
-        elif type(atom) is Tmp:
-            # it should never happen
-            assert False
-
     def kill_and_add_definition(self, atom, code_loc, data):
         if type(atom) is Register:
             self._kill_and_add_register_definition(atom, code_loc, data)
+        elif type(atom) is MemoryLocation:
+            self._kill_and_add_memory_definition(atom, code_loc, data)
         else:
             raise NotImplementedError()
 
@@ -275,68 +336,47 @@ class ReachingDefinitions(object):
         elif type(atom) is MemoryLocation:
             self._add_memory_use(atom, code_loc)
         elif type(atom) is Tmp:
-            self._add_tmp_use(atom, code_loc)
+            raise NotImplementedError()
 
     #
     # Private methods
     #
 
-    def _add_register_definition(self, atom, code_loc, data):
+    def _kill_and_add_register_definition(self, atom, code_loc, data):
+
+        # FIXME: check correctness
+        current_defs = self.register_definitions.get_objects_by_offset(atom.reg_offset)
+        if current_defs:
+            uses = set()
+            for current_def in current_defs:
+                uses |= self.register_uses.get_current_uses(current_def)
+            if not uses:
+                self._dead_virgin_definitions |= current_defs
+
         definition = Definition(atom, code_loc, data)
-        self.register_definitions.add_object(atom.reg_offset, s, atom.size)
+        # set_object() replaces kill (not implemented) and add (add) in one step
+        self.register_definitions.set_object(atom.reg_offset, definition, atom.size)
 
-    def _add_memory_definition(self, atom, code_loc, data):
-
-        self.memory_definitions[atom.addr].add(Definition(atom, code_loc, data))
-
-    def _add_tmp_definition(self, atom, code_loc):
-        self.tmp_definitions[atom.tmp_idx] = (atom, code_loc)
-
-    def _kill_register_definitions(self, atom):
-
-        # FIXME: Handle dead definitions
-        # check whether there is any use of this def
-        # if defs:
-        #     uses = set()
-        #     for def_ in defs:
-        #         uses |= self.register_uses.get_current_uses(def_)
-        #     if not uses:
-        #         self._dead_virgin_definitions |= defs
-
-        pass
-
-    def _kill_memory_definitions(self, atom):
-        self.memory_definitions.pop(atom.addr, None)
+    def _kill_and_add_memory_definition(self, atom, code_loc, data):
+        definition = Definition(atom, code_loc, data)
+        # set_object() replaces kill (not implemented) and add (add) in one step
+        self.memory_definitions.set_object(atom.addr, definition, atom.size)
 
     def _add_register_use(self, atom, code_loc):
 
-        # FIXME: handle size of register
         # get all current definitions
         current_defs = self.register_definitions.get_objects_by_offset(atom.reg_offset)
 
-        if current_defs:
-            for current_def in current_defs:
-                self.register_uses.add_use(current_def, code_loc)
+        for current_def in current_defs:
+            self.register_uses.add_use(current_def, code_loc)
 
     def _add_memory_use(self, atom, code_loc):
 
         # get all current definitions
-        current_defs = self.memory_definitions.get(atom.addr, None)
+        current_defs = self.memory_definitions.get_objects_by_offset(atom.addr)
 
-        if current_defs:
-            for current_def in current_defs:
-                self.memory_uses.add_use(current_def, code_loc)
-
-    def _add_tmp_use(self, atom, code_loc):
-
-        current_def = self.tmp_definitions[atom.tmp_idx]
-
-        self.tmp_uses[atom.tmp_idx].add((code_loc, current_def))
-
-    def _kill_and_add_register_definition(self, atom, code_loc, data):
-        definition = Definition(atom, code_loc, data)
-        # set_object() replaces kill (not implemented) and add (add) in one step
-        self.register_definitions.set_object(atom.reg_offset, definition, atom.size)
+        for current_def in current_defs:
+            self.memory_uses.add_use(current_def, code_loc)
 
 def get_engine(base_engine):
     class SimEngineRD(base_engine):
@@ -362,27 +402,39 @@ def get_engine(base_engine):
             if self.state.analysis:
                 self.state.analysis.observe(self.ins_addr, OP_AFTER, self.state)
 
+        # e.g. PUT(rsp) = t2, t2 might include multiple values
         def _handle_Put(self, stmt):
             reg_offset = stmt.offset
             size = stmt.data.result_size(self.tyenv) / 8
             reg = Register(reg_offset, size)
             data = self._expr(stmt.data)
 
+            if (type(data) is DataSet and None in data) or (data is None):
+                l.warning('data in register with offset %d undefined, ins_addr = 0x%x', reg_offset, self.ins_addr)
+
             self.state.kill_and_add_definition(reg, self._codeloc(), data)
 
+        # e.g. STle(t6) = t21, t6 and/or t21 might include multiple values
         def _handle_Store(self, stmt):
+
             addr = self._expr(stmt.addr)
             size = stmt.data.result_size(self.tyenv) / 8
-            memloc = MemoryLocation(addr, size)
             data = self._expr(stmt.data)
 
-            # FIXME: How do we handle overlapping memory regions?
+            if type(addr) is not DataSet:
+                addr = {addr}
 
-            if addr is not None:
-                self.state.kill_definitions(memloc)
-                self.state.add_definition(memloc, self._codeloc(), data)
-            else:
-                l.warning('memory address undefined, ins_addr = 0x%x', self.ins_addr)
+            for a in addr:
+                if a is not None:
+                    if (type(data) is DataSet and None in data) or (data is None):
+                        l.warning('memory at address 0x%08x undefined, ins_addr = 0x%x', a, self.ins_addr)
+
+                    memloc = MemoryLocation(a, size)
+                    # different addresses are not killed by a subsequent iteration, because kill only removes entries
+                    # with same index and same size
+                    self.state.kill_and_add_definition(memloc, self._codeloc(), data)
+                else:
+                    l.warning('memory address undefined, ins_addr = 0x%x', self.ins_addr)
 
         def _handle_Exit(self, stmt):
             pass
@@ -391,37 +443,54 @@ def get_engine(base_engine):
         # VEX expression handlers
         #
 
+        # e.g. t0 = GET:I64(rsp), rsp might be defined multiple times
         def _handle_Get(self, expr):
 
             reg_offset = expr.offset
             size = expr.result_size(self.tyenv)
 
-            # FIXME: handle size, overlapping
-            r = set()
-            current_defs = self.state.register_definitions.get_variables_by_offset(reg_offset)
+            # FIXME: size, overlapping
+            data = DataSet(set())
+            current_defs = self.state.register_definitions.get_objects_by_offset(reg_offset)
             for current_def in current_defs:
-                self.state.register_uses.add_use(current_def, self._codeloc())
                 if current_def.data is not None:
-                    r.add(current_def.data)
+                    # current_def.data can be a primitive type or a DataSet
+                    data.add(current_def.data)
+                    self.state.add_use
+                else:
+                    l.warning('data in register with offset %d undefined, ins_addr = 0x%x', reg_offset, self.ins_addr)
+            data = data.compact()
 
-            if not r:
-                l.warning('register with offset %d undefined, ins_addr = 0x%x', reg_offset, self.ins_addr)
+            self.state.add_use(Register(reg_offset, size), self._codeloc())
 
-            return r
+            return data
 
+        # e.g. t27 = LDle:I64(t9), t9 might include multiple values
         def _handle_Load(self, expr):
 
             addr = self._expr(expr.addr)
-            if addr in self.state.memory_definitions.keys():
-                definition = next(iter(self.state.memory_definitions[addr]))
-                self.state.memory_uses.add_use(definition, self._codeloc())
-                return definition.data
-            else:
-                if addr:
-                    l.warning('memory at address 0x%x undefined, ins_addr = 0x%x', addr, self.ins_addr)
+            size = expr.result_size(self.tyenv) / 8
+
+            if type(addr) is not DataSet:
+                addr = {addr}
+
+            data = DataSet(set())
+            for a in addr:
+                if a is not None:
+                    current_defs = self.state.memory_definitions.get_objects_by_offset(a)
+                    for current_def in current_defs:
+                        if current_def.data is not None:
+                            data.add(current_def.data)
+                        else:
+                            l.warning('memory at address 0x%x undefined, ins_addr = 0x%x', a, self.ins_addr)
+                    # FIXME: _add_memory_use() iterates over the same loop
+                    self.state.add_use(MemoryLocation(a, size), self._codeloc())
                 else:
                     l.warning('memory address undefined, ins_addr = 0x%x', self.ins_addr)
-                return None
+
+            data = data.compact()
+
+            return data
 
         #
         # AIL statement handlers
@@ -677,8 +746,8 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         engine.process(state, block=block)
 
         # clear the tmp store
-        state.tmp_uses.clear()
-        state.tmp_definitions.clear()
+        # state.tmp_uses.clear()
+        # state.tmp_definitions.clear()
 
         self._node_iterations[block_key] += 1
 
