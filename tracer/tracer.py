@@ -1015,7 +1015,7 @@ class Tracer(object):
 
         if self._dump_syscall:
             entry_state.inspect.b('syscall', when=angr.BP_BEFORE, action=self.syscall)
-        entry_state.inspect.b('path_step', when=angr.BP_AFTER,
+        entry_state.inspect.b('state_step', when=angr.BP_AFTER,
                 action=self.check_stack)
         pg = project.factory.simgr(
             entry_state,
