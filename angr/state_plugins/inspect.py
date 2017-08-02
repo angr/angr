@@ -22,6 +22,7 @@ event_types = {
     'return',
     'simprocedure',
     'syscall',
+    'state_step',
     'cfg_handle_job',
     'vfg_handle_successor',
     'vfg_widen_state',
