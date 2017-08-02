@@ -891,7 +891,7 @@ class SimPagedMemory(object):
     def get_symbolic_addrs(self):
         symbolic_addrs = set()
         for page in self._symbolic_addrs:
-            symbolic_addrs.update(page*self._page_size + page_off for page_off in self._symbolic_addrs[page])
+            symbolic_addrs.update(self._symbolic_addrs[page])
         return symbolic_addrs
 
     def addrs_for_name(self, n):
