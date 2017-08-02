@@ -715,7 +715,7 @@ ALL_TYPES = {
     'uint64_t': SimTypeNum(64, False),
     'qword': SimTypeNum(64, False),
 
-    'ptrdiff_t': SimTypeLong(False),
+    'ptrdiff_t': SimTypeLong(True),
     'size_t': SimTypeLength(False),
     'ssize_t': SimTypeLength(True),
     'uintptr_t' : SimTypeLong(False),
