@@ -94,7 +94,7 @@ class CFGBase(Analysis):
         # but we do not want to hook the same symbol multiple times
         if not self.project.is_symbol_hooked('UnresolvableTarget'):
             ut_addr = self.project.hook_symbol('UnresolvableTarget',
-                                               SIM_PROCEDURES['stubs']['UnresolvableTarget']
+                                               SIM_PROCEDURES['stubs']['UnresolvableTarget']()
                                                )
         else:
             ut_addr = self.project.hooked_symbol_addr('UnresolvableTarget')
