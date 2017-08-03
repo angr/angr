@@ -252,12 +252,12 @@ class KeyedRegion(object):
         """
 
         try: base_addr = self._storage.floor_key(start)
-        except KeyError: return [ ]
+        except KeyError: return set()
 
         item = self._storage[base_addr]  # type: RegionObject
         if item.includes(start):
             return item.internal_objects
-        return [ ]
+        return set()
 
 
     #
