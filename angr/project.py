@@ -414,7 +414,7 @@ class Project(object):
         if type(obj) in (int, long):
             # this is pretty intensely sketchy
             l.info("Instructing the loader to re-point symbol %s at address %#x", symbol_name, obj)
-            self.loader.provide_symbol(self.loader.extern_object, symbol_name, AT.from_mva(obj, self.loader.extern_object).to_lva())
+            self.loader.provide_symbol(self.loader.extern_object, symbol_name, AT.from_mva(obj, self.loader.extern_object).to_rva())
             return obj
 
         sym = self.loader.find_symbol(symbol_name)
@@ -422,10 +422,7 @@ class Project(object):
             l.error("Could not find symbol %s", symbol_name)
             return None
 
-        if sym is None or sym.owner_obj is self.loader.extern_object:
-            hook_addr, _ = self._simos.prepare_function_symbol(symbol_name)
-        else:
-            hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
+        hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
 
         if self.is_hooked(hook_addr):
             l.warning("Re-hooking symbol %s", symbol_name)
@@ -455,7 +452,6 @@ class Project(object):
         :return: True if the symbol can be resolved and is hooked, False otherwise.
         :rtype: bool
         """
-        # TODO: this method does not follow the SimOS.prepare_function_symbol() path. We should fix it later.
         sym = self.loader.find_symbol(symbol_name)
         if sym is None:
             l.warning("Could not find symbol %s", symbol_name)

@@ -544,7 +544,7 @@ class SimLinux(SimOS):
         Returns a 2-tuple. The first item is the address of the function code, the second is the address of the
         relocation target.
         """
-        if self.arch.name == 'PPC64':
+        if self.project.loader.main_object.is_ppc64_abiv1:
             if basic_addr is not None:
                 pointer = self.project.loader.memory.read_addr_at(basic_addr)
                 return pointer, basic_addr
