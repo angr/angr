@@ -179,12 +179,12 @@ class Uses(object):
 
 
 class DataSet(object):
-    '''
+    """
     This class represents a set of data.
 
     Addition and subtraction are performed on the cartesian product of the operands. Duplicate results are removed.
     data must always include a set.
-    '''
+    """
 
     def __init__(self, data):
         assert type(data) is set
