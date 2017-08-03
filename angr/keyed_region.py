@@ -258,7 +258,7 @@ class KeyedRegion(object):
 
         base_addr, container = self._get_container(start)
         if container is None:
-            return [ ]
+            return set()
         else:
             return container.internal_objects
 
