@@ -1,16 +1,16 @@
-
 import logging
 from collections import defaultdict
 
 import ailment
+import pyvex
+import simuvex
+from angr.engines.vex.irop import operations as vex_operations
 
 from ..keyed_region import KeyedRegion
 from ..engines.light import SimEngineLightVEX, SimEngineLightAIL, SpOffset, RegisterOffset
 from .analysis import Analysis
-from . import register_analysis
 from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
-from angr.engines.vex.irop import operations as vex_operations
-
+from . import register_analysis
 
 l = logging.getLogger('angr.analyses.reaching_definitions')
 
@@ -91,6 +91,16 @@ class MemoryLocation(Atom):
 
     def __hash__(self):
         return hash(('mem', self.addr, self.size))
+
+
+class Parameter(Atom):
+    __slots__ = ['value']
+
+    def __init__(self, value):
+        self.value = value
+
+    def __repr__(self):
+        return "<Parameter %s>" % self.value
 
 
 class Definition(object):
@@ -261,21 +271,47 @@ class DataSet(object):
 
 
 class ReachingDefinitions(object):
-    def __init__(self, arch, track_tmps=False, analysis=None):
-
-        self._track_tmps = track_tmps
-        self.analysis = analysis
+    def __init__(self, arch, track_tmps=False, analysis=None, init_fct=False, cc=None, num_param=None):
 
         # handy short-hands
         self.arch = arch
+        self._track_tmps = track_tmps
+        self.analysis = analysis
 
         self.register_definitions = KeyedRegion()
         self.memory_definitions = KeyedRegion()
 
-        # FIXME: Initialize SP depending on a flag
-        sp = Register(arch.sp_offset, arch.bytes)
-        sp_def = Definition(sp, None, 0x7fff0000)
-        self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
+        if init_fct:
+            stack_addr = 0x7fff0000
+
+            # initialize stack
+            sp = Register(arch.sp_offset, arch.bytes)
+            sp_def = Definition(sp, None, stack_addr)
+            self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
+
+            # apply default CC if None is passed
+            if cc is None:
+                cc = simuvex.s_cc.DefaultCC[arch.name]
+
+            # initialize all registers if no number is passed
+            if num_param is None:
+                num_param = len(cc.ARG_REGS)
+
+            # initialize register parameters
+            for reg in cc.ARG_REGS:
+                if num_param > 0:
+                    r = Register(arch.registers[reg][0], arch.bytes)
+                    r_def = Definition(r, None, Parameter(r))
+                    self.register_definitions.set_object(r.reg_offset, r_def, r.size)
+                    num_param -= 1
+                else:
+                    break
+
+            # initialize stack parameters
+            for offset in xrange(num_param):
+                ml = MemoryLocation(stack_addr + arch.bytes * (offset + 1), arch.bytes)
+                ml_def = Definition(ml, None, Parameter(SpOffset(arch.bits, arch.bytes * (offset + 1))))
+                self.memory_definitions.set_object(ml.addr, ml_def, ml.size)
 
         self.register_uses = Uses()
         self.memory_uses = Uses()
@@ -294,6 +330,7 @@ class ReachingDefinitions(object):
             self.arch,
             track_tmps=self._track_tmps,
             analysis=self.analysis,
+            init_fct=False,
         )
 
         rd.register_definitions = self.register_definitions.copy()
@@ -394,13 +431,13 @@ def get_engine(base_engine):
 
             # FIXME: observe() should only be called once per ins_addr
             if self.state.analysis:
-                self.state.analysis.observe(self.ins_addr, OP_BEFORE, self.state)
+                self.state.analysis.observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
 
             super(SimEngineRD, self)._handle_Stmt(stmt)
 
             # FIXME: see above
             if self.state.analysis:
-                self.state.analysis.observe(self.ins_addr, OP_AFTER, self.state)
+                self.state.analysis.observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
 
         # e.g. PUT(rsp) = t2, t2 might include multiple values
         def _handle_Put(self, stmt):
@@ -511,7 +548,7 @@ def get_engine(base_engine):
                         mask = 2 ** size - 1
                         o &= mask
                     else:
-                        l.warning('Unsupported conversion type %s' % type(value).__name__)
+                        l.warning('Unsupported conversion type %s' % type(o).__name__)
                     res.add(o)
 
                 res = res.compact()
@@ -527,12 +564,12 @@ def get_engine(base_engine):
         def _ail_handle_Stmt(self, stmt):
 
             if self.state.analysis:
-                self.state.analysis.observe(self.ins_addr, OP_BEFORE, self.state)
+                self.state.analysis.observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
 
             super(SimEngineRD, self)._ail_handle_Stmt(stmt)
 
             if self.state.analysis:
-                self.state.analysis.observe(self.ins_addr, OP_AFTER, self.state)
+                self.state.analysis.observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
 
         def _ail_handle_Assignment(self, stmt):
             """
@@ -673,7 +710,8 @@ def get_engine(base_engine):
 
 
 class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
-    def __init__(self, func=None, block=None, max_iterations=3, track_tmps=False, observation_points=None):
+    def __init__(self, func=None, block=None, max_iterations=3, track_tmps=False, observation_points=None,
+                 init_fct=False, cc=None, num_param=None):
         """
 
         :param angr.knowledge.Function func:    The function to run reaching definition analysis on.
@@ -684,6 +722,9 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         :param iterable observation_points:     A collection of tuples of (ins_addr, OP_TYPE) defining where reaching
                                                 definitions should be copied and stored. OP_TYPE can be OP_BEFORE or
                                                 OP_AFTER.
+        :param bool init_fct:                   Whether stack and arguments are initialized or not
+        :param SimCC cc:                        Calling convention of the function (DefaultCC of arch if not set)
+        :param int num_param:                   Number of arguments that are passed to the function
         """
 
         if func is not None:
@@ -705,6 +746,10 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         self._function = func
         self._block = block
         self._observation_points = observation_points
+
+        self._init_fct = init_fct
+        self._cc = cc
+        self._num_param = num_param
 
         # sanity check
         if self._observation_points and any(not type(op) is tuple for op in self._observation_points):
@@ -735,10 +780,16 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
 
         return next(self.observed_results.itervalues())
 
-    def observe(self, ins_addr, ob_type, state):
-        if self._observation_points is not None \
-                and (ins_addr, ob_type) in self._observation_points:
-            self.observed_results[(ins_addr, ob_type)] = state.copy()
+    def observe(self, ins_addr, stmt, block, state, ob_type):
+        if self._observation_points is not None:
+            if (ins_addr, ob_type) in self._observation_points:
+                if ob_type == OP_BEFORE and type(stmt) is pyvex.IRStmt.IMark:
+                    self.observed_results[(ins_addr, ob_type)] = state.copy()
+                elif ob_type == OP_AFTER:
+                    idx = block.vex.statements.index(stmt)
+                    if idx == len(block.vex.statements) - 1 or type(
+                            block.vex.statements[idx + 1]) is pyvex.IRStmt.IMark:
+                        self.observed_results[(ins_addr, ob_type)] = state.copy()
 
     #
     # Main analysis routines
@@ -751,7 +802,8 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         pass
 
     def _initial_abstract_state(self, node):
-        return ReachingDefinitions(self.project.arch, track_tmps=self._track_tmps, analysis=self)
+        return ReachingDefinitions(self.project.arch, track_tmps=self._track_tmps, analysis=self,
+                                   init_fct=self._init_fct, cc=self._cc, num_param=self._num_param)
 
     def _merge_states(self, node, *states):
         return states[0].merge(*states[1:])
