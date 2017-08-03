@@ -780,16 +780,19 @@ class SimWindows(SimOS):
 
             # I have genuinely never felt so dead in my life as I feel writing this code
             def link_list(mods, offset):
-                addr_a = LDR_addr + 12
-                addr_b = LDR_addr + THUNK_SIZE * mods[0].module_id
-                link(addr_a + offset, addr_b + offset)
-                for mod_a, mod_b in zip(mods[:-1], mods[1:]):
-                    addr_a = LDR_addr + THUNK_SIZE * mod_a.module_id
-                    addr_b = LDR_addr + THUNK_SIZE * mod_b.module_id
+                if mods:
+                    addr_a = LDR_addr + 12
+                    addr_b = LDR_addr + THUNK_SIZE * mods[0].module_id
                     link(addr_a + offset, addr_b + offset)
-                addr_a = LDR_addr + THUNK_SIZE * mods[-1].module_id
-                addr_b = LDR_addr + 12
-                link(addr_a + offset, addr_b + offset)
+                    for mod_a, mod_b in zip(mods[:-1], mods[1:]):
+                        addr_a = LDR_addr + THUNK_SIZE * mod_a.module_id
+                        addr_b = LDR_addr + THUNK_SIZE * mod_b.module_id
+                        link(addr_a + offset, addr_b + offset)
+                    addr_a = LDR_addr + THUNK_SIZE * mods[-1].module_id
+                    addr_b = LDR_addr + 12
+                    link(addr_a + offset, addr_b + offset)
+                else:
+                    link(LDR_addr + 12, LDR_addr + 12)
 
             link_list(load_order, 0)
             link_list(mem_order, 8)
