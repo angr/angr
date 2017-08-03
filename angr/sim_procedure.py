@@ -122,9 +122,11 @@ class SimProcedure(object):
                 r = override(state, run=inst)
             except TypeError:
                 r = override(state)
+            inst.use_state_arguments = True
 
         elif override is not None:
             r = override
+            inst.use_state_arguments = True
 
         else:
             # get the arguments
