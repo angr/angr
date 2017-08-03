@@ -97,6 +97,8 @@ class Parameter(Atom):
     __slots__ = ['value']
 
     def __init__(self, value):
+        super(Parameter, self).__init__()
+
         self.value = value
 
     def __repr__(self):
