@@ -3,8 +3,8 @@ from collections import defaultdict
 
 import ailment
 import pyvex
-import simuvex
-from angr.engines.vex.irop import operations as vex_operations
+from ..engines.vex.irop import operations as vex_operations
+from ..calling_conventions import DEFAULT_CC
 
 from ..keyed_region import KeyedRegion
 from ..engines.light import SimEngineLightVEX, SimEngineLightAIL, SpOffset, RegisterOffset
@@ -293,7 +293,7 @@ class ReachingDefinitions(object):
 
             # apply default CC if None is passed
             if cc is None:
-                cc = simuvex.s_cc.DefaultCC[arch.name]
+                cc = DEFAULT_CC[arch.name]
 
             # initialize all registers if no number is passed
             if num_param is None:
