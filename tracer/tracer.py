@@ -182,7 +182,7 @@ class Tracer(object):
         l.info("trace consists of %d basic blocks", len(self.trace))
 
         # Check if we need to rebase to QEMU's addr
-        if self.qemu_base_addr != self._p.loader.main_bin.get_min_addr():
+        if self.qemu_base_addr != self._p.loader.main_object.min_addr:
             l.warn("Our base address doesn't match QEMU's. Changing ours to 0x%x",self.qemu_base_addr)
 
         self.preconstraints = []
@@ -644,7 +644,7 @@ class Tracer(object):
                 l.error("\"%s\" binary does not exist", self.binary)
                 raise TracerEnvironmentError
 
-        self.os = self._p.loader.main_bin.os
+        self.os = self._p.loader.main_object.os
 
         if self.os != "cgc" and self.os != "unix":
             l.error("\"%s\" runs on an OS not supported by the tracer",
@@ -703,8 +703,8 @@ class Tracer(object):
         :return: True if the address is in between the binary's min and
             max address
         '''
-        mb = self._p.loader.main_bin
-        return mb.get_min_addr() <= addr and addr < mb.get_max_addr()
+        mb = self._p.loader.main_object
+        return mb.min_addr <= addr and addr < mb.max_addr
 
     def _current_bb(self):
         try:
@@ -1052,7 +1052,7 @@ class Tracer(object):
         '''
 
         # Only requesting custom base if this is a PIE
-        if self._p.loader.main_bin.pic:
+        if self._p.loader.main_object.pic:
             project = angr.Project(self.binary,load_options={'main_opts': {'custom_base_addr': self.qemu_base_addr }},exclude_sim_procedures_list=self.exclude_sim_procedures_list)
         else:
             project = angr.Project(self.binary,exclude_sim_procedures_list=self.exclude_sim_procedures_list)
@@ -1114,5 +1114,5 @@ class Tracer(object):
         """
         Check if an address is inside the ptt section
         """
-        plt = self._p.loader.main_bin.sections_map['.plt']
+        plt = self._p.loader.main_object.sections_map['.plt']
         return addr >= plt.min_addr and addr <= plt.max_addr
