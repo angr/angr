@@ -25,9 +25,12 @@ lib.add_number_mapping_from_dict('AMD64', {
     60:  'exit',
     63:  'uname',
     87:  'unlink',
+    97:  'getrlimit',
     158: 'arch_prctl',
     186: 'gettid',
     201: 'time',
+    202: 'futex',
+    218: 'set_tid_address',
     231: 'exit_group',
     234: 'tgkill',
 })

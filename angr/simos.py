@@ -310,10 +310,13 @@ class SimLinux(SimOS):
         self._loader_addr = self.project._extern_obj.get_pseudo_addr('angr##loader')
         self._loader_lock_addr = self.project._extern_obj.get_pseudo_addr('angr##loader_lock')
         self._loader_unlock_addr = self.project._extern_obj.get_pseudo_addr('angr##loader_unlock')
+        self._error_catch_tsd_addr = self.project._extern_obj.get_pseudo_addr('angr##error_catch_tsd')
         self._vsyscall_addr = self.project._extern_obj.get_pseudo_addr('angr##vsyscall')
         self.project.hook(self._loader_addr, P['linux_loader']['LinuxLoader']())
         self.project.hook(self._loader_lock_addr, P['linux_loader']['_dl_rtld_lock_recursive']())
         self.project.hook(self._loader_unlock_addr, P['linux_loader']['_dl_rtld_unlock_recursive']())
+        self.project.hook(self._error_catch_tsd_addr, P['linux_loader']['_dl_initial_error_catch_tsd'](), kwargs={
+            'static_addr': self.project._extern_obj.anon_allocation()})
         self.project.hook(self._vsyscall_addr, P['linux_kernel']['_vsyscall']())
 
         ld_obj = self.project.loader.linux_loader_object
@@ -333,6 +336,7 @@ class SimLinux(SimOS):
                 if isinstance(self.project.arch, ArchAMD64):
                     self.project.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
                     self.project.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0xF10, self._loader_unlock_addr)
+                    self.project.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0x990, self._error_catch_tsd_addr)
 
             # TODO: what the hell is this
             _rtld_global_ro = ld_obj.get_symbol('_rtld_global_ro')
@@ -668,7 +672,6 @@ class SimCGC(SimOS):
             state.regs.cs = 0
 
         return state
-
 
 os_mapping = defaultdict(lambda: SimOS)
 
