@@ -62,7 +62,7 @@ def test_emulation():
         yield emulate, p, steps, hit_addrs, finished
 
 def test_windows():
-    yield emulate, angr.Project(test_location + 'i386/test_arrays.exe'), 1000, [], True
+    yield emulate, angr.Project(test_location + 'i386/test_arrays.exe'), 40, [], False
 
 def test_locale():
     p = angr.Project(test_location + 'i386/isalnum', use_sim_procedures=False)
