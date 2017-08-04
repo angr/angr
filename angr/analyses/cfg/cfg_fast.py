@@ -1045,8 +1045,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self.kb.functions.clear()
 
         if self._use_symbols:
-            starting_points |= set(AT.from_lva(addr, self._binary).to_mva()
-                                   for addr in self._function_addresses_from_symbols)
+            starting_points |= self._function_addresses_from_symbols
 
         if self._extra_function_starts:
             starting_points |= set(self._extra_function_starts)
@@ -1072,9 +1071,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._nodes_by_addr = defaultdict(list)
 
         if self._use_function_prologues:
-            self._function_prologue_addrs = sorted(
-                set(AT.from_lva(addr, self._binary).to_mva() for addr in self._func_addrs_from_prologues())
-            )
+            self._function_prologue_addrs = sorted(self._func_addrs_from_prologues())
             # make a copy of those prologue addresses, so that we can pop from the list
             self._remaining_function_prologue_addrs = self._function_prologue_addrs[::]
 
@@ -1361,7 +1358,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     position = mo.start() + start_
                     if position % self.project.arch.instruction_alignment == 0:
                         if self._addr_in_exec_memory_regions(position):
-                            unassured_functions.append(position)
+                            unassured_functions.append(AT.from_rva(position, self._binary).to_mva())
 
         return unassured_functions
 
