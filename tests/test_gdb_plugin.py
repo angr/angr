@@ -7,7 +7,7 @@ l = logging.getLogger("angr_tests")
 
 this_file = str(os.path.dirname(os.path.realpath(__file__)))
 test_location = os.path.join(this_file, '../../binaries/tests')
-data_location = os.path.join(this_file, "../../binaries/test_data/test_gdb_plugin")
+data_location = os.path.join(this_file, "../../binaries/tests_data/test_gdb_plugin")
 
 def test_gdb():
     p = angr.Project(os.path.join(test_location, "x86_64/test_gdb_plugin"))
