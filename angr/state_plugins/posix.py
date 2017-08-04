@@ -440,7 +440,7 @@ class SimStateSystem(SimStatePlugin):
         :param kwargs: passed to state.se.any_str
         :return: file contents as string
         """
-        return self.state.se.any_str(self.fs[path].all_bytes(), **kwargs)
+        return self.fs[path].concretize(**kwargs)
 
     def dumps(self, fd, **kwargs):
         """
@@ -450,7 +450,7 @@ class SimStateSystem(SimStatePlugin):
         :return:    The concrete content.
         :rtype:     str
         """
-        return self.state.se.any_str(self.get_file(fd).all_bytes(), **kwargs)
+        return self.get_file(fd).concretize(**kwargs)
     dump_fd = dumps
 
     def dump(self, fd, filename):

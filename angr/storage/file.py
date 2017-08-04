@@ -181,6 +181,14 @@ class SimFile(SimStatePlugin):
             buff.append(self.content.load(i, 1))
         return self.state.se.Concat(*buff)
 
+    def concretize(self, **kwargs):
+        """
+        Returns a concrete value for this file satisfying the current state constraints.
+
+        Or: generate a testcase for this file.
+        """
+        return self.state.se.any_str(self.all_bytes(), **kwargs)
+
     def merge(self, others, merge_conditions, common_ancestor=None):
         """
         Merges the SimFile object with `others`.
