@@ -946,9 +946,7 @@ class Tracer(Analysis):
         if not self.crash_mode:
             self._set_cgc_simprocedures()
 
-        project = Project(self.project.filename)
-
-        self._set_hooks(project)
+        self._set_hooks(self.project)
 
         if not self.pov:
             fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=self.input_max_size)}
@@ -976,7 +974,7 @@ class Tracer(Analysis):
 
             self.remove_options |= so.simplification | {so.LAZY_SOLVES, so.SUPPORT_FLOATING_POINT, so.EFFICIENT_STATE_MERGING}
             self.add_options |= options
-            entry_state = project.factory.entry_state(
+            entry_state = self.project.factory.entry_state(
                 fs=fs,
                 add_options=self.add_options,
                 remove_options=self.remove_options)
@@ -985,7 +983,7 @@ class Tracer(Analysis):
             entry_state.unicorn.concretization_threshold_registers = 25000 / csr
             entry_state.unicorn.concretization_threshold_memory = 25000 / csr
         else:
-            state.project = project
+            state.project = self.project
             # hookup the new files
             for name in fs:
                 fs[name].set_state(state)
@@ -1018,7 +1016,7 @@ class Tracer(Analysis):
             entry_state.inspect.b('syscall', when=BP_BEFORE, action=self.syscall)
         entry_state.inspect.b('state_step', when=BP_AFTER,
                 action=self.check_stack)
-        sm = project.factory.simgr(
+        sm = self.project.factory.simgr(
             entry_state,
             immutable=True,
             save_unsat=True,
