@@ -3,11 +3,11 @@ from collections import defaultdict
 
 import ailment
 import pyvex
-from ..engines.vex.irop import operations as vex_operations
-from ..calling_conventions import DEFAULT_CC
 
 from ..keyed_region import KeyedRegion
+from ..calling_conventions import DEFAULT_CC
 from ..engines.light import SimEngineLightVEX, SimEngineLightAIL, SpOffset, RegisterOffset
+from ..engines.vex.irop import operations as vex_operations
 from .analysis import Analysis
 from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 from . import register_analysis
@@ -190,7 +190,7 @@ class DataSet(object):
         assert type(data) is set
         self.data = data
 
-    def add(self, data):
+    def update(self, data):
         if type(data) == DataSet:
             self.data.update(data.data)
         else:
@@ -273,7 +273,7 @@ class DataSet(object):
 
 
 class ReachingDefinitions(object):
-    def __init__(self, arch, track_tmps=False, analysis=None, init_fct=False, cc=None, num_param=None):
+    def __init__(self, arch, track_tmps=False, analysis=None, init_func=False, cc=None, num_param=None):
 
         # handy short-hands
         self.arch = arch
@@ -283,37 +283,8 @@ class ReachingDefinitions(object):
         self.register_definitions = KeyedRegion()
         self.memory_definitions = KeyedRegion()
 
-        if init_fct:
-            stack_addr = 0x7fff0000
-
-            # initialize stack
-            sp = Register(arch.sp_offset, arch.bytes)
-            sp_def = Definition(sp, None, stack_addr)
-            self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
-
-            # apply default CC if None is passed
-            if cc is None:
-                cc = DEFAULT_CC[arch.name]
-
-            # initialize all registers if no number is passed
-            if num_param is None:
-                num_param = len(cc.ARG_REGS)
-
-            # initialize register parameters
-            for reg in cc.ARG_REGS:
-                if num_param > 0:
-                    r = Register(arch.registers[reg][0], arch.bytes)
-                    r_def = Definition(r, None, Parameter(r))
-                    self.register_definitions.set_object(r.reg_offset, r_def, r.size)
-                    num_param -= 1
-                else:
-                    break
-
-            # initialize stack parameters
-            for offset in xrange(num_param):
-                ml = MemoryLocation(stack_addr + arch.bytes * (offset + 1), arch.bytes)
-                ml_def = Definition(ml, None, Parameter(SpOffset(arch.bits, arch.bytes * (offset + 1))))
-                self.memory_definitions.set_object(ml.addr, ml_def, ml.size)
+        if init_func:
+            self._init_func(cc, num_param)
 
         self.register_uses = Uses()
         self.memory_uses = Uses()
@@ -327,12 +298,44 @@ class ReachingDefinitions(object):
             ctnt += ", %d tmpdefs" % len(self.tmp_definitions)
         return "<%s>" % ctnt
 
+    def _init_func(self, cc=None, num_param=0):
+        stack_addr = 0x7fff0000
+
+        # initialize stack
+        sp = Register(self.arch.sp_offset, self.arch.bytes)
+        sp_def = Definition(sp, None, stack_addr)
+        self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
+
+        # apply default CC if None is passed
+        if cc is None:
+            cc = DEFAULT_CC[self.arch.name]
+
+        # initialize all registers if no number is passed
+        if num_param is None:
+            num_param = len(cc.ARG_REGS)
+
+        # initialize register parameters
+        for reg in cc.ARG_REGS:
+            if num_param > 0:
+                r = Register(self.arch.registers[reg][0], self.arch.bytes)
+                r_def = Definition(r, None, Parameter(r))
+                self.register_definitions.set_object(r.reg_offset, r_def, r.size)
+                num_param -= 1
+            else:
+                break
+
+        # initialize stack parameters
+        for offset in xrange(num_param):
+            ml = MemoryLocation(stack_addr + arch.bytes * (offset + 1), self.arch.bytes)
+            ml_def = Definition(ml, None, Parameter(SpOffset(self.arch.bits, aself.rch.bytes * (offset + 1))))
+            self.memory_definitions.set_object(ml.addr, ml_def, ml.size)
+
     def copy(self):
         rd = ReachingDefinitions(
             self.arch,
             track_tmps=self._track_tmps,
             analysis=self.analysis,
-            init_fct=False,
+            init_func=False,
         )
 
         rd.register_definitions = self.register_definitions.copy()
@@ -494,8 +497,7 @@ def get_engine(base_engine):
             for current_def in current_defs:
                 if current_def.data is not None:
                     # current_def.data can be a primitive type or a DataSet
-                    data.add(current_def.data)
-                    self.state.add_use
+                    data.update(current_def.data)
                 else:
                     l.warning('data in register with offset %d undefined, ins_addr = 0x%x', reg_offset, self.ins_addr)
             data = data.compact()
@@ -519,7 +521,7 @@ def get_engine(base_engine):
                     current_defs = self.state.memory_definitions.get_objects_by_offset(a)
                     for current_def in current_defs:
                         if current_def.data is not None:
-                            data.add(current_def.data)
+                            data.update(current_def.data)
                         else:
                             l.warning('memory at address 0x%x undefined, ins_addr = 0x%x', a, self.ins_addr)
                     # FIXME: _add_memory_use() iterates over the same loop
@@ -531,31 +533,26 @@ def get_engine(base_engine):
 
             return data
 
-        # FIXME: urgent
-        def _handle_Unop(self, expr):
-            res = None
+        def _handle_Conversion(self, expr):
             simop = vex_operations[expr.op]
-            if simop._conversion:
-                operand = self._expr(expr.args[0])
+            operand = self._expr(expr.args[0])
 
-                if type(operand) is not DataSet:
-                    operand = {operand}
+            if type(operand) is not DataSet:
+                operand = {operand}
 
-                res = DataSet(set())
-                for o in operand:
-                    if o is None:
-                        pass
-                    elif isinstance(o, (int, long)):
-                        size = simop._to_size
-                        mask = 2 ** size - 1
-                        o &= mask
-                    else:
-                        l.warning('Unsupported conversion type %s' % type(o).__name__)
-                    res.add(o)
+            res = DataSet(set())
+            for o in operand:
+                if o is None:
+                    pass
+                elif isinstance(o, (int, long)):
+                    size = simop._to_size
+                    mask = 2 ** size - 1
+                    o &= mask
+                else:
+                    l.warning('Unsupported conversion type %s' % type(o).__name__)
+                res.update(o)
 
-                res = res.compact()
-            else:
-                l.warning('Unsupported unary operation %s' % type(simop).__name__)
+            res = res.compact()
 
             return res
 
@@ -713,7 +710,7 @@ def get_engine(base_engine):
 
 class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
     def __init__(self, func=None, block=None, max_iterations=3, track_tmps=False, observation_points=None,
-                 init_fct=False, cc=None, num_param=None):
+                 init_func=False, cc=None, num_param=None):
         """
 
         :param angr.knowledge.Function func:    The function to run reaching definition analysis on.
@@ -724,7 +721,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         :param iterable observation_points:     A collection of tuples of (ins_addr, OP_TYPE) defining where reaching
                                                 definitions should be copied and stored. OP_TYPE can be OP_BEFORE or
                                                 OP_AFTER.
-        :param bool init_fct:                   Whether stack and arguments are initialized or not
+        :param bool init_func:                  Whether stack and arguments are initialized or not
         :param SimCC cc:                        Calling convention of the function (DefaultCC of arch if not set)
         :param int num_param:                   Number of arguments that are passed to the function
         """
@@ -749,7 +746,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         self._block = block
         self._observation_points = observation_points
 
-        self._init_fct = init_fct
+        self._init_func = init_func
         self._cc = cc
         self._num_param = num_param
 
@@ -805,7 +802,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
 
     def _initial_abstract_state(self, node):
         return ReachingDefinitions(self.project.arch, track_tmps=self._track_tmps, analysis=self,
-                                   init_fct=self._init_fct, cc=self._cc, num_param=self._num_param)
+                                   init_func=self._init_func, cc=self._cc, num_param=self._num_param)
 
     def _merge_states(self, node, *states):
         return states[0].merge(*states[1:])

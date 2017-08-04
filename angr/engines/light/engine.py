@@ -1,12 +1,11 @@
-
 import logging
 
-import pyvex
 import ailment
+import pyvex
 
-from ...block import Block
-from ...analyses.code_location import CodeLocation
 from ..engine import SimEngine
+from ..vex.irop import operations as vex_operations
+from ...analyses.code_location import CodeLocation
 
 l = logging.getLogger("angr.engines.light.engine")
 
@@ -124,6 +123,21 @@ class SimEngineLightVEX(SimEngineLight):
 
     def _handle_Load(self, expr):
         raise NotImplementedError('Please implement the Load handler with your own logic.')
+
+    def _handle_UnaryOp(self, expr):
+        simop = vex_operations[expr.op]
+        if simop._conversion:
+            handler_name = '_handle_Conversion'
+        else:
+            handler_name = '_handle_%s' % expr.op
+
+        try:
+            handler = getattr(self, handler_name)
+        except AttributeError:
+            l.warning('Unsupported UnaryOp %s.', expr.op)
+            return None
+
+        return handler(expr)
 
     def _handle_Binop(self, expr):
         if expr.op.startswith('Iop_Add'):
