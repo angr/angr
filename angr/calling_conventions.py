@@ -542,17 +542,18 @@ class SimCC(object):
 
         ret_addr = self.return_addr.get_value(state)
 
-        if force_callee_cleanup or self.CALLEE_CLEANUP:
-            if arg_types is not None:
-                session = self.arg_session
-                state.regs.sp += self.stack_space([session.next_arg(x) for x in arg_types])
-            elif self.args is not None:
-                state.regs.sp += self.stack_space(self.args)
+        if state.arch.sp_offset is not None:
+            if force_callee_cleanup or self.CALLEE_CLEANUP:
+                if arg_types is not None:
+                    session = self.arg_session
+                    state.regs.sp += self.stack_space([session.next_arg(x) for x in arg_types])
+                elif self.args is not None:
+                    state.regs.sp += self.stack_space(self.args)
+                else:
+                    l.warning("Can't perform callee cleanup when I have no idea how many arguments there are! Assuming 0")
+                    state.regs.sp += self.STACKARG_SP_DIFF
             else:
-                l.warning("Can't perform callee cleanup when I have no idea how many arguments there are! Assuming 0")
                 state.regs.sp += self.STACKARG_SP_DIFF
-        else:
-            state.regs.sp += self.STACKARG_SP_DIFF
 
         return ret_addr
 
