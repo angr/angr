@@ -1,26 +1,41 @@
 import os
 import time
-import angr
 import socket
 import claripy
 import tempfile
 import signal
 import subprocess
-import shellphish_qemu
+
 from .tracerpov import TracerPoV
 from .cachemanager import LocalCacheManager
 from .simprocedures import receive
 from .simprocedures import FixedOutTransmit, FixedInReceive, FixedRandom
-from angr import sim_options as so
+
+from .. import Analysis, register_analysis
+
+from ... import BP_BEFORE, BP_AFTER, SIM_LIBRARIES, SYSCALL_CC
+from ... import options as so
+from ...errors import SimMemoryError, SimEngineError
+from ...exploration_techniques.oppologist import Oppologist
+from ...project import Project
+from ...storage.file import SimFile, SimDialogue
 
 import logging
 
-l = logging.getLogger("tracer.Tracer")
+l = logging.getLogger("angr.analyses.tracer.tracer")
 # global writable attribute used for specifying cache procedures
 GlobalCacheManager = None
 
 EXEC_STACK = 'EXEC_STACK'
 QEMU_CRASH = 'SEG_FAULT'
+
+try:
+    import shellphish_qemu
+except ImportError:
+    l.error("Python package shellphish_qemu is required by angr.analyses.tracer.Tracer,\
+             please install it before proceeding.")
+    assert False
+
 
 class TracerInstallError(Exception):
     pass
@@ -45,7 +60,7 @@ class Tracer(object):
     Trace an angr path with a concrete input
     '''
 
-    def __init__(self, binary, input=None, pov_file=None, simprocedures=None, #pylint:disable=redefined-builtin
+    def __init__(self, input=None, pov_file=None, simprocedures=None, #pylint:disable=redefined-builtin
                  hooks=None, seed=None, preconstrain_input=True,
                  preconstrain_flag=True, resiliency=True, chroot=None,
                  add_options=None, remove_options=None, trim_history=True,
@@ -53,7 +68,6 @@ class Tracer(object):
                  max_size = None, exclude_sim_procedures_list=None,
                  argv = None):
         """
-        :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
         :param povfile: CGC PoV describing the input to trace
         :param hooks: A dictionary of hooks to add
@@ -81,7 +95,6 @@ class Tracer(object):
             defaults to binary name with no params.
         """
 
-        self.binary = binary
         self.input = input
         self.pov_file = pov_file
         self.preconstrain_input = preconstrain_input
@@ -90,7 +103,7 @@ class Tracer(object):
         self._hooks = {} if hooks is None else hooks
         self.input_max_size = max_size or len(input)
         self.exclude_sim_procedures_list = ["malloc","free","calloc","realloc"] if exclude_sim_procedures_list is None else exclude_sim_procedures_list
-        self.argv = argv or [binary]
+        self.argv = argv or [self.project.filename]
 
         for h in self._hooks:
             l.debug("Hooking %#x -> %s", h, self._hooks[h].display_name)
@@ -147,10 +160,6 @@ class Tracer(object):
             self.pov = False
 
         # internal project object, useful for obtaining certain kinds of info
-        if project is None:
-            self._p = angr.Project(self.binary)
-        else:
-            self._p = project
         self.base = None
         self.tracer_qemu = None
         self.tracer_qemu_path = None
@@ -182,7 +191,7 @@ class Tracer(object):
         l.info("trace consists of %d basic blocks", len(self.trace))
 
         # Check if we need to rebase to QEMU's addr
-        if self.qemu_base_addr != self._p.loader.main_bin.get_min_addr():
+        if self.qemu_base_addr != self.project.loader.main_bin.get_min_addr():
             l.warn("Our base address doesn't match QEMU's. Changing ours to 0x%x",self.qemu_base_addr)
 
         self.preconstraints = []
@@ -288,7 +297,7 @@ class Tracer(object):
                            )
 
                     l.error("[%s] dynamic [0x%x], symbolic [0x%x]",
-                            self.binary,
+                            self.project.filename,
                             self.trace[self.bb_cnt],
                             current.addr)
 
@@ -327,7 +336,7 @@ class Tracer(object):
                     target_to_jumpkind = bl.vex.constant_jump_targets_and_jumpkinds
                     if target_to_jumpkind[self.trace[self.bb_cnt]] == "Ijk_Boring":
                         bbl_max_bytes = 800
-            except (angr.errors.SimMemoryError, angr.errors.SimEngineError):
+            except (SimMemoryError, SimEngineError):
                 bbl_max_bytes = 800
 
             # if we're not in crash mode we don't care about the history
@@ -351,17 +360,17 @@ class Tracer(object):
 
             # check to see if we reached a deadend
             if self.bb_cnt >= len(self.trace):
-                tpg = self.simgr.step()
+                tsm = self.simgr.step()
                 # if we're in crash mode let's populate the crashed stash
                 if self.crash_mode:
                     self.crash_type = QEMU_CRASH
-                    tpg = tpg.stash(from_stash='active', to_stash='crashed')
-                    return tpg
+                    tsm = tsm.stash(from_stash='active', to_stash='crashed')
+                    return tsm
                 # if we're in normal follow mode, just step the path to
                 # the deadend
                 else:
-                    if len(tpg.active) == 0:
-                        self.simgr = tpg
+                    if len(tsm.active) == 0:
+                        self.simgr = tsm
                         return self.simgr
 
         # if we stepped to a point where there are no active paths,
@@ -396,7 +405,7 @@ class Tracer(object):
         # make sure we only have one or zero active paths at this point
         assert len(self.simgr.active) < 2
 
-        rpg = self.simgr
+        rsm = self.simgr
 
         # something weird... maybe we hit a rep instruction?
         # qemu and vex have slightly different behaviors...
@@ -429,7 +438,7 @@ class Tracer(object):
 
         self.simgr = self.simgr.drop(stash='missed')
 
-        return rpg
+        return rsm
 
     def _grab_concretization_results(self, state):
         """
@@ -516,12 +525,12 @@ class Tracer(object):
 
                 bp1 = self.previous.inspect.b(
                     'address_concretization',
-                    angr.BP_BEFORE,
+                    BP_BEFORE,
                     action=self._dont_add_constraints)
 
                 bp2 = self.previous.inspect.b(
                     'address_concretization',
-                    angr.BP_AFTER,
+                    BP_AFTER,
                     action=self._grab_concretization_results)
 
                 # step to the end of the crashing basic block,
@@ -636,19 +645,19 @@ class Tracer(object):
         a trace
         '''
         # check the binary
-        if not os.access(self.binary, os.X_OK):
-            if os.path.isfile(self.binary):
-                l.error("\"%s\" binary is not executable", self.binary)
+        if not os.access(self.project.filename, os.X_OK):
+            if os.path.isfile(self.project.filename):
+                l.error("\"%s\" binary is not executable", self.project.filename)
                 raise TracerEnvironmentError
             else:
-                l.error("\"%s\" binary does not exist", self.binary)
+                l.error("\"%s\" binary does not exist", self.project.filename)
                 raise TracerEnvironmentError
 
-        self.os = self._p.loader.main_bin.os
+        self.os = self.project.loader.main_bin.os
 
         if self.os != "cgc" and self.os != "unix":
             l.error("\"%s\" runs on an OS not supported by the tracer",
-                    self.binary)
+                    self.project.filename)
             raise TracerEnvironmentError
 
         # try to find the install base
@@ -671,8 +680,8 @@ class Tracer(object):
             self.tracer_qemu = "shellphish-qemu-cgc-tracer"
             qemu_platform = 'cgc-tracer'
         elif self.os == "unix":
-            self.tracer_qemu = "shellphish-qemu-linux-%s" % self._p.arch.qemu_name
-            qemu_platform = self._p.arch.qemu_name
+            self.tracer_qemu = "shellphish-qemu-linux-%s" % self.project.arch.qemu_name
+            qemu_platform = self.project.arch.qemu_name
 
         self.tracer_qemu_path = shellphish_qemu.qemu_path(qemu_platform)
 
@@ -703,7 +712,7 @@ class Tracer(object):
         :return: True if the address is in between the binary's min and
             max address
         '''
-        mb = self._p.loader.main_bin
+        mb = self.project.loader.main_bin
         return mb.get_min_addr() <= addr and addr < mb.get_max_addr()
 
     def _current_bb(self):
@@ -872,7 +881,7 @@ class Tracer(object):
 
     def _set_cgc_simprocedures(self):
         for symbol in self.simprocedures:
-            angr.SIM_LIBRARIES['cgcabi'].add(symbol, self.simprocedures[symbol])
+            SIM_LIBRARIES['cgcabi'].add(symbol, self.simprocedures[symbol])
 
     def _set_linux_simprocedures(self, project):
         for symbol in self.simprocedures:
@@ -898,17 +907,17 @@ class Tracer(object):
         if self.os == "cgc":
 
             cache_tuple = self._cache_lookup()
-            pg = None
+            sm = None
             # if we're restoring from a cache, we preconstrain
             if cache_tuple is not None:
                 bb_cnt, self.cgc_flag_bytes, state, claripy.ast.base.var_counter = cache_tuple
-                pg = self._cgc_prepare_paths(state)
+                sm = self._cgc_prepare_paths(state)
                 self._preconstrain_state(state)
                 self.bb_cnt = bb_cnt
             else: # if we're not restoring from a cache, the cacher will preconstrain
-                pg = self._cgc_prepare_paths()
+                sm = self._cgc_prepare_paths()
 
-            return pg
+            return sm
 
         elif self.os == "unix":
             return self._linux_prepare_paths()
@@ -922,7 +931,7 @@ class Tracer(object):
         prepare a simdialogue entry for stdin
         '''
 
-        s = angr.storage.file.SimDialogue("/dev/stdin")
+        s = SimDialogue("/dev/stdin")
         for write in self.pov_file.writes:
             s.add_dialogue_entry(len(write))
 
@@ -935,20 +944,18 @@ class Tracer(object):
         '''
 
         # FixedRandom, FixedInReceive, and FixedOutTransmit always are applied as defaults
-        angr.SIM_LIBRARIES['cgcabi'].add('random', FixedRandom)
-        angr.SIM_LIBRARIES['cgcabi'].add('receive', FixedInReceive)
-        angr.SIM_LIBRARIES['cgcabi'].add('transmit', FixedOutTransmit)
+        SIM_LIBRARIES['cgcabi'].add('random', FixedRandom)
+        SIM_LIBRARIES['cgcabi'].add('receive', FixedInReceive)
+        SIM_LIBRARIES['cgcabi'].add('transmit', FixedOutTransmit)
 
         # if we're in crash mode we want the authentic system calls
         if not self.crash_mode:
             self._set_cgc_simprocedures()
 
-        project = angr.Project(self.binary)
-
-        self._set_hooks(project)
+        self._set_hooks(self.project)
 
         if not self.pov:
-            fs = {'/dev/stdin': angr.storage.file.SimFile(
+            fs = {'/dev/stdin': SimFile(
                 "/dev/stdin", "r",
                 size=self.input_max_size)}
 
@@ -975,7 +982,7 @@ class Tracer(object):
 
             self.remove_options |= so.simplification | {so.LAZY_SOLVES, so.SUPPORT_FLOATING_POINT, so.EFFICIENT_STATE_MERGING}
             self.add_options |= options
-            entry_state = project.factory.entry_state(
+            entry_state = self.project.factory.entry_state(
                 fs=fs,
                 add_options=self.add_options,
                 remove_options=self.remove_options)
@@ -984,7 +991,7 @@ class Tracer(object):
             entry_state.unicorn.concretization_threshold_registers = 25000 / csr
             entry_state.unicorn.concretization_threshold_memory = 25000 / csr
         else:
-            state.project = project
+            state.project = self.project
             # hookup the new files
             for name in fs:
                 fs[name].set_state(state)
@@ -1014,26 +1021,26 @@ class Tracer(object):
         entry_state.memory.store(0x4347c000, claripy.Concat(*self.cgc_flag_bytes))
 
         if self._dump_syscall:
-            entry_state.inspect.b('syscall', when=angr.BP_BEFORE, action=self.syscall)
-        entry_state.inspect.b('state_step', when=angr.BP_AFTER,
+            entry_state.inspect.b('syscall', when=BP_BEFORE, action=self.syscall)
+        entry_state.inspect.b('state_step', when=BP_AFTER,
                 action=self.check_stack)
-        pg = project.factory.simgr(
+        sm = self.project.factory.simgr(
             entry_state,
             immutable=True,
             save_unsat=True,
             hierarchy=False,
             save_unconstrained=self.crash_mode)
 
-        pg.use_technique(angr.exploration_techniques.Oppologist())
+        sm.use_technique(Oppologist())
         l.info("oppologist enabled")
 
-        return pg
+        return sm
 
     def syscall(self, state):
         syscall_addr = state.se.any_int(state.ip)
         # 0xa000008 is terminate, which we exclude from syscall statistics.
         if syscall_addr != 0xa000008:
-            args = angr.SYSCALL_CC['X86']['CGC'](self._p.arch).get_args(state, 4)
+            args = SYSCALL_CC['X86']['CGC'](self.project.arch).get_args(state, 4)
             d = {'addr': syscall_addr}
             for i in xrange(4):
                 d['arg_%d' % i] = args[i]
@@ -1052,10 +1059,10 @@ class Tracer(object):
         '''
 
         # Only requesting custom base if this is a PIE
-        if self._p.loader.main_bin.pic:
-            project = angr.Project(self.binary,load_options={'main_opts': {'custom_base_addr': self.qemu_base_addr }},exclude_sim_procedures_list=self.exclude_sim_procedures_list)
+        if self.project.loader.main_bin.pic:
+            project = Project(self.project.filename,load_options={'main_opts': {'custom_base_addr': self.qemu_base_addr }},exclude_sim_procedures_list=self.exclude_sim_procedures_list)
         else:
-            project = angr.Project(self.binary,exclude_sim_procedures_list=self.exclude_sim_procedures_list)
+            project = Project(self.project.filename,exclude_sim_procedures_list=self.exclude_sim_procedures_list)
 
         if not self.crash_mode:
             self._set_linux_simprocedures(project)
@@ -1063,7 +1070,7 @@ class Tracer(object):
         self._set_hooks(project)
 
         # fix stdin to the size of the input being traced
-        fs = {'/dev/stdin': angr.storage.file.SimFile(
+        fs = {'/dev/stdin': SimFile(
             "/dev/stdin", "r",
             size=self.input_max_size)}
 
@@ -1093,7 +1100,7 @@ class Tracer(object):
         entry_state.libc.buf_symbolic_bytes = 1024
         entry_state.libc.max_str_len = 1024
 
-        pg = project.factory.simgr(
+        sm = project.factory.simgr(
                 entry_state,
                 immutable=True,
                 save_unsat=True,
@@ -1101,18 +1108,20 @@ class Tracer(object):
                 save_unconstrained=self.crash_mode)
 
         # Step forward until we catch up with QEMU
-        if pg.active[0].addr != self.trace[0]:
-            pg = pg.explore(find=project.entry)
-            pg = pg.drop(stash="unsat")
-            pg = pg.unstash(from_stash="found",to_stash="active")
+        if sm.active[0].addr != self.trace[0]:
+            sm = sm.explore(find=project.entry)
+            sm = sm.drop(stash="unsat")
+            sm = sm.unstash(from_stash="found",to_stash="active")
 
         # don't step here, because unlike CGC we aren't going to be starting
         # anywhere but the entry point
-        return pg
+        return sm
 
     def _addr_in_plt(self,addr):
         """
         Check if an address is inside the ptt section
         """
-        plt = self._p.loader.main_bin.sections_map['.plt']
+        plt = self.project.loader.main_bin.sections_map['.plt']
         return addr >= plt.min_addr and addr <= plt.max_addr
+
+register_analysis(Tracer, 'Tracer')

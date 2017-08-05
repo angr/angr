@@ -1,13 +1,13 @@
 import claripy
-import angr
+from ....sim_procedure import SimProcedure
 
 import itertools
 rand_count = itertools.count()
 
 import logging
-l = logging.getLogger("tracer.simprocedures.FixedRandom")
+l = logging.getLogger("angr.analyses.tracer.simprocedures.fixedrandom")
 
-class FixedRandom(angr.SimProcedure):
+class FixedRandom(SimProcedure):
     #pylint:disable=arguments-differ
 
     IS_SYSCALL = True

@@ -1,7 +1,7 @@
-from angr.procedures.cgc.transmit import transmit
+from ....procedures.cgc.transmit import transmit
 
 import logging
-l = logging.getLogger("tracer.simprocedures.FixedOutTransmit")
+l = logging.getLogger("angr.analyses.tracer.simprocedures.fixedouttransmit")
 
 class FixedOutTransmit(transmit):
     # pylint:disable=arguments-differ

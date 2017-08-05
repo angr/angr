@@ -3,7 +3,7 @@ import claripy
 import logging
 from ..simprocedures import receive
 
-l = logging.getLogger("tracer.cachemanager.CacheManager")
+l = logging.getLogger("angr.analyses.tracer.cachemanager.cachemanager")
 
 class CacheManager(object):
 

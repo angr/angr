@@ -1,6 +1,6 @@
 import logging
 import struct
-l = logging.getLogger("rex.pov_fuzzing.core_loader")
+l = logging.getLogger("angr.analyses.tracer.tinycore")
 
 
 class ParseError(Exception):

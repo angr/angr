@@ -4,7 +4,7 @@ import logging
 import pickle
 from .cachemanager import CacheManager
 
-l = logging.getLogger("tracer.cachemanager.LocalCacheManager")
+l = logging.getLogger("angr.analyses.tracer.cachemanager.localcachemanager")
 
 class LocalCacheManager(CacheManager):
 
@@ -16,9 +16,9 @@ class LocalCacheManager(CacheManager):
     def set_tracer(self, tracer):
         super(LocalCacheManager, self).set_tracer(tracer)
 
-        binhash = hashlib.md5(open(self.tracer.binary).read()).hexdigest()
+        binhash = hashlib.md5(open(self.tracer.project.filename).read()).hexdigest()
         self._cache_file = os.path.join("/tmp", \
-                "%s-%s.tcache" % (os.path.basename(self.tracer.binary), binhash))
+                "%s-%s.tcache" % (os.path.basename(self.tracer.project.filename), binhash))
 
     def cache_lookup(self):
 

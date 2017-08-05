@@ -1,7 +1,7 @@
-from angr.procedures.cgc.receive import receive
+from ....procedures.cgc.receive import receive
 
 import logging
-l = logging.getLogger("tracer.simprocedures.FixedInReceive")
+l = logging.getLogger("angr.analyses.tracer.simprocedures.fixedinreceive")
 
 def cache_pass(_):
     l.warning("cache_hook never set")

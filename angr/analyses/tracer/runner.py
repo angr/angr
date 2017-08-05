@@ -1,5 +1,4 @@
 import os
-import angr
 import time
 import shutil
 import signal
@@ -9,13 +8,14 @@ import resource
 import tempfile
 import subprocess
 import contextlib
-import shellphish_qemu
 
 from .tracerpov import TracerPoV
 from .tracer import TracerEnvironmentError, TracerInstallError
 from .tinycore import TinyCore
 
-l = logging.getLogger("tracer.Runner")
+from ...project import Project
+
+l = logging.getLogger("angr.analyses.tracer.runner")
 
 multicb_available = True
 
@@ -24,6 +24,14 @@ try:
 except ImportError:
     l.warning("Unable to import shellphish_afl, multicb tracing will be disabled")
     multicb_available = False
+
+try:
+    import shellphish_qemu
+except ImportError:
+    l.error("Python package shellphish_qemu is required by angr.analyses.tracer.Runner,\
+             please install it before proceeding.")
+    assert False
+
 
 class Runner(object):
     """
@@ -393,7 +401,7 @@ class Runner(object):
             os.remove(mname)
 
     def _load_core_values(self, core_file):
-        p = angr.Project(core_file)
+        p = Project(core_file)
         self.reg_vals = {reg:val for (reg, val) in p.loader.main_bin.initial_register_values()}
         self._state = p.factory.entry_state()
         self.memory = self._state.memory
