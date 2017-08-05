@@ -329,8 +329,7 @@ class SimLinux(SimOS):
         self.project.hook(self._loader_addr, P['linux_loader']['LinuxLoader']())
         self.project.hook(self._loader_lock_addr, P['linux_loader']['_dl_rtld_lock_recursive']())
         self.project.hook(self._loader_unlock_addr, P['linux_loader']['_dl_rtld_unlock_recursive']())
-        self.project.hook(self._error_catch_tsd_addr, P['linux_loader']['_dl_initial_error_catch_tsd'](), kwargs={
-            'static_addr': self.project._extern_obj.anon_allocation()})
+        self.project.hook(self._error_catch_tsd_addr, P['linux_loader']['_dl_initial_error_catch_tsd'](static_addr=self.project.loader.extern_object.allocate()))
         self.project.hook(self._vsyscall_addr, P['linux_kernel']['_vsyscall']())
 
         ld_obj = self.project.loader.linux_loader_object
