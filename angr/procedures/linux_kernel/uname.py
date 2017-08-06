@@ -18,9 +18,12 @@ class uname(angr.SimProcedure):
         off += self._store(uname_buf, "localhost", off)
         off += self._store(uname_buf, "4.0.0", off)
         off += self._store(uname_buf, "#1 SMP Mon Jan 01 00:00:00 GMT 1970", off)
-        self._store(uname_buf, "x86_64", off)
+        if self.state.arch.bits == 64:
+            self._store(uname_buf, "x86_64", off)
+        else:
+            self._store(uname_buf, "x86", off)
 
-        return self.state.se.BVV(0, 64) # success
+        return 0 # success
 
     def _store(self, uname_buf, val, off):
         self.state.memory.store(uname_buf + off, val + ("\0" * (65 - len(val))))
