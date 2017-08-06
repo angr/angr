@@ -196,7 +196,6 @@ class Tracer(object):
 
         # keep track of the last basic block we hit
         self.previous = None
-        self.previous_addr = None
 
         # whether we should follow the qemu trace
         self.no_follow = False
@@ -262,9 +261,9 @@ class Tracer(object):
                         self.bb_cnt += 1
 
                 # handle hooked functions
-                elif project.is_hooked(self.previous_addr) and self.previous_addr in self._hooks:
-                    l.debug("ending hook for %s", project.hooked_by(self.previous_addr))
-                    l.debug("previous addr %#x", self.previous_addr)
+                elif project.is_hooked(self.current.history.addr) and self.current.history.addr in self._hooks:
+                    l.debug("ending hook for %s", project.hooked_by(self.current.history.addr))
+                    l.debug("previous addr %#x", self.current.history.addr)
                     l.debug("bb_cnt %d", self.bb_cnt)
                     # we need step to the return
                     current_addr = current.addr
@@ -296,8 +295,6 @@ class Tracer(object):
 
             # shouldn't need to copy
             self.previous = current
-            # TODO this shouldn't be needed, fish fix the bug plesae
-            self.previous_addr = current.addr
 
             # Basic block's max size in angr is greater than the one in Qemu
             # We follow the one in Qemu
