@@ -21,8 +21,8 @@ class CacheManager(object):
 
     def _dump_cache_data(self, simstate, dump_fp=None):
 
-        if self.tracer.previous != None:
-            state = self.tracer.previous
+        if self.tracer.predecessors[-1] != None:
+            state = self.tracer.predecessors[-1]
         else:
             state = None
 

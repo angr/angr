@@ -51,7 +51,7 @@ class Tracer(object):
                  add_options=None, remove_options=None, trim_history=True,
                  project=None, dump_syscall=False, dump_cache=True,
                  max_size = None, exclude_sim_procedures_list=None,
-                 argv = None):
+                 argv=None, keep_predecessors=1):
         """
         :param binary: path to the binary to be traced
         :param input: concrete input string to feed to binary
@@ -79,6 +79,8 @@ class Tracer(object):
             at load time. Defaults to ["malloc","free","calloc","realloc"]
         :param argv: Optionally specify argv params (i,e,: ['./calc', 'parm1'])
             defaults to binary name with no params.
+        :param keep_predecessors: Number of states before the final state we
+            should preserve. Default 1, must be greater than 0
         """
 
         self.binary = binary
@@ -195,7 +197,9 @@ class Tracer(object):
         self.bb_cnt = 0
 
         # keep track of the last basic block we hit
-        self.previous = None
+        if keep_predecessors < 1:
+            raise ValueError("Must have keep_predecessors >= 1")
+        self.predecessors = [None] * keep_predecessors
 
         # whether we should follow the qemu trace
         self.no_follow = False
@@ -291,8 +295,9 @@ class Tracer(object):
                     else:
                         raise TracerMisfollowError
 
-            # shouldn't need to copy
-            self.previous = current
+            # maintain the predecessors list
+            self.predecessors.append(current)
+            self.predecessors.pop(0)
 
             # Basic block's max size in angr is greater than the one in Qemu
             # We follow the one in Qemu
@@ -474,9 +479,9 @@ class Tracer(object):
                     l.info("crash occured in basic block %x", last_block)
 
                 # time to recover the crashing state
-                self.final_state = self.crash_windup(self.previous, self.constrained_addrs)
+                self.final_state = self.crash_windup(self.predecessors[-1], self.constrained_addrs)
                 l.debug("tracing done!")
-                return (self.previous, self.final_state)
+                return (self.predecessors[-1], self.final_state)
 
         # this is a concrete trace, there should only be ONE path
         all_paths = branches.active + branches.deadended
