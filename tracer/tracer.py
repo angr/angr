@@ -261,9 +261,10 @@ class Tracer(object):
                         self.bb_cnt += 1
 
                 # handle hooked functions
-                elif project.is_hooked(self.current.history.addr) and self.current.history.addr in self._hooks:
-                    l.debug("ending hook for %s", project.hooked_by(self.current.history.addr))
-                    l.debug("previous addr %#x", self.current.history.addr)
+                # TODO: thihs branch is totally missed by the test cases
+                elif project.is_hooked(current.history.addr) and current.history.addr in self._hooks:
+                    l.debug("ending hook for %s", project.hooked_by(current.history.addr))
+                    l.debug("previous addr %#x", current.history.addr)
                     l.debug("bb_cnt %d", self.bb_cnt)
                     # we need step to the return
                     current_addr = current.addr
