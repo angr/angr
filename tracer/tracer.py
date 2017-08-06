@@ -464,7 +464,6 @@ class Tracer(object):
         branches = None
         while (branches is None or len(branches.active)) and self.bb_cnt < len(self.trace):
             branches = self.next_branch()
-            project = branches._project
 
             # if we spot a crashed path in crash mode return the goods
             if self.crash_mode and 'crashed' in branches.stashes:
@@ -475,66 +474,9 @@ class Tracer(object):
                     l.info("crash occured in basic block %x", last_block)
 
                 # time to recover the crashing state
-
-                # before we step through and collect the actions we have to set
-                # up a special case for address concretization in the case of a
-                # controlled read or write vulnerability
-
-                if constrained_addrs is None:
-                    self.constrained_addrs = []
-                else:
-                    self.constrained_addrs = constrained_addrs
-
-                bp1 = self.previous.inspect.b(
-                    'address_concretization',
-                    angr.BP_BEFORE,
-                    action=self._dont_add_constraints)
-
-                bp2 = self.previous.inspect.b(
-                    'address_concretization',
-                    angr.BP_AFTER,
-                    action=self._grab_concretization_results)
-
-                # step to the end of the crashing basic block,
-                # to capture its actions with those breakpoints
-                project.factory.successors(self.previous)
-
-                # Add the constraints from concretized addrs back
-                for var, concrete_vals in self._address_concretization:
-                    if len(concrete_vals) > 0:
-                        l.debug("constraining addr to be %#x", concrete_vals[0])
-                        self.previous.add_constraints(var == concrete_vals[0])
-
-                # then we step again up to the crashing instruction
-                p_block = project.factory.block(self.previous.addr, backup_state=self.previous)
-                inst_cnt = len(p_block.instruction_addrs)
-                insts = 0 if inst_cnt == 0 else inst_cnt - 1
-                succs = project.factory.successors(self.previous, num_inst=insts).flat_successors
-                if len(succs) > 0:
-                    if len(succs) > 1:
-                        succs = [s for s in succs if s.se.satisfiable()]
-                    self.previous = succs[0]
-
-                # remove the preconstraints
-                l.debug("removing preconstraints")
-                self.remove_preconstraints(self.previous)
-
-                l.debug("reconstraining... ")
-                self.reconstrain(self.previous)
-
-                l.debug("final step...")
-                succs = project.factory.successors(self.previous)
-
-                # now remove our breakpoints since other people might not want them
-                self.previous.inspect.remove_breakpoint("address_concretization", bp1)
-                self.previous.inspect.remove_breakpoint("address_concretization", bp2)
-
-                successors = succs.flat_successors + succs.unconstrained_successors
-                state = successors[0]
-
+                self.final_state = self.crash_windup(self.previous, self.constrained_addrs)
                 l.debug("tracing done!")
-                self.final_state = state
-                return (self.previous, state)
+                return (self.previous, self.final_state)
 
         # this is a concrete trace, there should only be ONE path
         all_paths = branches.active + branches.deadended
@@ -1086,3 +1028,59 @@ class Tracer(object):
         """
         plt = self._p.loader.main_object.sections_map['.plt']
         return addr >= plt.min_addr and addr <= plt.max_addr
+
+    def crash_windup(self, state, constrained_addrs=None):
+        # before we step through and collect the actions we have to set
+        # up a special case for address concretization in the case of a
+        # controlled read or write vulnerability
+
+        if constrained_addrs is None:
+            self.constrained_addrs = []
+        else:
+            self.constrained_addrs = constrained_addrs
+
+        bp1 = state.inspect.b(
+            'address_concretization',
+            angr.BP_BEFORE,
+            action=self._dont_add_constraints)
+
+        bp2 = state.inspect.b(
+            'address_concretization',
+            angr.BP_AFTER,
+            action=self._grab_concretization_results)
+
+        # step to the end of the crashing basic block,
+        # to capture its actions with those breakpoints
+        state.project.factory.successors(state)
+
+        # Add the constraints from concretized addrs back
+        for var, concrete_vals in self._address_concretization:
+            if len(concrete_vals) > 0:
+                l.debug("constraining addr to be %#x", concrete_vals[0])
+                state.add_constraints(var == concrete_vals[0])
+
+        # then we step again up to the crashing instruction
+        p_block = state.project.factory.block(state.addr, backup_state=state)
+        inst_cnt = len(p_block.instruction_addrs)
+        insts = 0 if inst_cnt == 0 else inst_cnt - 1
+        succs = state.project.factory.successors(state, num_inst=insts).flat_successors
+        if len(succs) > 0:
+            if len(succs) > 1:
+                succs = [s for s in succs if s.se.satisfiable()]
+            state = succs[0]
+
+        # remove the preconstraints
+        l.debug("removing preconstraints")
+        self.remove_preconstraints(state)
+
+        l.debug("reconstraining... ")
+        self.reconstrain(state)
+
+        # now remove our breakpoints since other people might not want them
+        state.inspect.remove_breakpoint("address_concretization", bp1)
+        state.inspect.remove_breakpoint("address_concretization", bp2)
+
+        l.debug("final step...")
+        succs = state.project.factory.successors(state)
+        successors = succs.flat_successors + succs.unconstrained_successors
+        return successors[0]
