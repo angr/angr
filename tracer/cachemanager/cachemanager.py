@@ -29,6 +29,7 @@ class CacheManager(object):
         if dump_fp:
             proj = state.project
             state.project = None
+            state.history.trim()
             try:
                 pickle.dump((self.tracer.bb_cnt, self.tracer.cgc_flag_bytes, state, claripy.ast.base.var_counter), dump_fp, pickle.HIGHEST_PROTOCOL)
             except RuntimeError as e: # maximum recursion depth can be reached here
