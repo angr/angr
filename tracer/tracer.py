@@ -213,9 +213,6 @@ class Tracer(object):
         # this is used to track constrained addresses
         self._address_concretization = []
 
-        # init for pylint
-        self.prev_simgr = None
-
 # EXPOSED
 
     def next_branch(self):
@@ -326,35 +323,25 @@ class Tracer(object):
             if self.trim_history and not self.crash_mode:
                 current.history.trim()
 
-            self.prev_simgr = self.simgr
-            self.simgr = self.simgr.step(size=bbl_max_bytes)
+            self.simgr.step(size=bbl_max_bytes)
 
             if self.crash_type == EXEC_STACK:
-                self.simgr = self.simgr.stash(from_stash='active',
-                        to_stash='crashed')
+                self.simgr.stash(from_stash='active', to_stash='crashed')
                 return self.simgr
             # if our input was preconstrained we have to keep on the lookout
             # for unsat paths
             if self.preconstrain_input:
-                self.simgr = self.simgr.stash(from_stash='unsat',
-                                                        to_stash='active')
+                self.simgr.stash(from_stash='unsat', to_stash='active')
 
-            self.simgr = self.simgr.drop(stash='unsat')
+            self.simgr.drop(stash='unsat')
 
             # check to see if we reached a deadend
-            if self.bb_cnt >= len(self.trace):
-                tpg = self.simgr.step()
+            if self.bb_cnt >= len(self.trace) and self.crash_mode:
                 # if we're in crash mode let's populate the crashed stash
-                if self.crash_mode:
+                    self.simgr.step()
                     self.crash_type = QEMU_CRASH
-                    tpg = tpg.stash(from_stash='active', to_stash='crashed')
-                    return tpg
-                # if we're in normal follow mode, just step the path to
-                # the deadend
-                else:
-                    if len(tpg.active) == 0:
-                        self.simgr = tpg
-                        return self.simgr
+                    self.simgr.stash(from_stash='active', to_stash='crashed')
+                    return self.simgr
 
         # if we stepped to a point where there are no active paths,
         # return the simgr
@@ -363,6 +350,7 @@ class Tracer(object):
             # crash mode
             return self.simgr
 
+        # if we get to this point there's more than one active path
         # if we have to ditch the trace we use satisfiability
         # or if a split occurs in a library routine
         a_paths = self.simgr.active
@@ -370,25 +358,18 @@ class Tracer(object):
         if self.no_follow or all(map(
                 lambda p: not self._address_in_binary(p.addr), a_paths
                 )):
-            self.simgr = self.simgr.prune(to_stash='missed')
+            self.simgr.prune(to_stash='missed')
         else:
             l.debug("bb %d / %d", self.bb_cnt, len(self.trace))
-            self.simgr = self.simgr.stash_not_addr(
-                                           self.trace[self.bb_cnt],
-                                           to_stash='missed')
+            self.simgr.stash_not_addr(self.trace[self.bb_cnt], to_stash='missed')
         if len(self.simgr.active) > 1: # rarely we get two active paths
-            self.simgr = self.simgr.prune(to_stash='missed')
+            self.simgr.prune(to_stash='missed')
 
         if len(self.simgr.active) > 1: # might still be two active
-            self.simgr = self.simgr.stash(
-                    to_stash='missed',
-                    filter_func=lambda x: x.jumpkind == "Ijk_EmWarn"
-            )
+            self.simgr.stash(to_stash='missed', filter_func=lambda x: x.jumpkind == "Ijk_EmWarn")
 
         # make sure we only have one or zero active paths at this point
         assert len(self.simgr.active) < 2
-
-        rpg = self.simgr
 
         # something weird... maybe we hit a rep instruction?
         # qemu and vex have slightly different behaviors...
@@ -409,19 +390,17 @@ class Tracer(object):
 
                     l.info("rep discrepency detected, repairing...")
                     # swap the stashes
-                    s = self.simgr.move('missed', 'chosen')
-                    s = s.move('active', 'missed')
-                    s = s.move('chosen', 'active')
-                    self.simgr = s
+                    self.simgr.move('missed', 'chosen')
+                    self.simgr.move('active', 'missed')
+                    self.simgr.move('chosen', 'active')
 
                     corrected = True
 
             if not corrected:
                 l.warning("Unable to correct discrepancy between qemu and angr.")
 
-        self.simgr = self.simgr.drop(stash='missed')
-
-        return rpg
+        self.simgr.drop(stash='missed')
+        return self.simgr
 
     def _grab_concretization_results(self, state):
         """
@@ -1011,7 +990,6 @@ class Tracer(object):
                 action=self.check_stack)
         pg = project.factory.simgr(
             entry_state,
-            immutable=True,
             save_unsat=True,
             hierarchy=False,
             save_unconstrained=self.crash_mode)
