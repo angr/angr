@@ -233,30 +233,24 @@ class Tracer(object):
             current = self.simgr.active[0]
             project = self.simgr._project
 
-            try:
-                if current.history.recent_block_count > 1:
-                    # executed unicorn fix bb_cnt
-                    self.bb_cnt += current.history.recent_block_count - 1 - current.history.recent_syscall_count
-            except AttributeError:
-                pass
+            if current.history.recent_block_count > 1:
+                # executed unicorn fix bb_cnt
+                self.bb_cnt += current.history.recent_block_count - 1 - current.history.recent_syscall_count
 
             if not self.no_follow:
 
-                # expected behavor, the dynamic trace and symbolic trace hit
-                # the same basic block
+                # termination condition: we exhausted the dynamic trace log
                 if self.bb_cnt >= len(self.trace):
                     return self.simgr
 
+                # now, we switch through several ways that the dynamic and symbolic traces can interact
+                # basic, convenient case: the two traces match
                 if current.addr == self.trace[self.bb_cnt]:
                     self.bb_cnt += 1
 
-                # angr steps through the same basic block twice when a syscall
-                # occurs
-                elif current.addr == self.previous_addr or \
-                        (self.previous_addr is not None and project._simos.is_syscall_addr(self.previous_addr)):
-                    pass
+                # angr will count a syscall as a step, qemu will not. they will sync next step.
                 elif current.history.jumpkind.startswith("Ijk_Sys"):
-                    self.bb_cnt += 1
+                    pass
 
                 # handle library calls and simprocedures
                 elif project.is_hooked(current.addr) or \
