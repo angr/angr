@@ -149,7 +149,7 @@ class SimulationManager(ana.Storable):
         if self._immutable if immutable is None else immutable:
             result = self._make_stashes_dict(**{k: list(v) for k, v in self.stashes.items()})
         else:
-            result = self.stashes
+            result = defaultdict(list, self.stashes)
 
         return result
 
@@ -174,7 +174,7 @@ class SimulationManager(ana.Storable):
             del new_stashes[self.DROP]
 
         if not self._immutable:
-            self.stashes = defaultdict(list, new_stashes.iteritems())
+            self.stashes = new_stashes
             return self
         else:
             return self.copy(stashes=new_stashes)
