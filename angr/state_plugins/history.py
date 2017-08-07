@@ -240,7 +240,7 @@ class SimStateHistory(SimStatePlugin):
         return self.descriptions
     @property
     def addr_trace(self):
-        print ".addr trace is deprecated: please use .bbl_addrs"
+        print ".addr_trace is deprecated: please use .bbl_addrs"
         return self.bbl_addrs
     @property
     def stack_actions(self):
