@@ -1,4 +1,5 @@
 from . import ExplorationTechnique
+from ..misc import exploration
 
 import logging
 l = logging.getLogger("angr.exploration_techniques.explorer")
@@ -21,8 +22,8 @@ class Explorer(ExplorationTechnique):
     """
     def __init__(self, find=None, avoid=None, find_stash='found', avoid_stash='avoid', cfg=None, num_find=1, avoid_priority=False):
         super(Explorer, self).__init__()
-        self.find = self._condition_to_lambda(find)
-        self.avoid = self._condition_to_lambda(avoid)
+        self.find = exploration.condition_to_lambda(find)
+        self.avoid = exploration.condition_to_lambda(avoid)
         self.find_stash = find_stash
         self.avoid_stash = avoid_stash
         self.cfg = cfg
