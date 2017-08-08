@@ -806,6 +806,7 @@ os_mapping = defaultdict(lambda: SimOS)
 def register_simos(name, cls):
     os_mapping[name] = cls
 
-register_simos('unix', SimLinux)
+# Pulling in all EI_OSABI options supported by elftools
+for k, v in _DESCR_EI_OSABI.items(): register_simos(v, SimLinux)
 register_simos('windows', SimWindows)
 register_simos('cgc', SimCGC)
