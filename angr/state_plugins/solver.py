@@ -510,21 +510,17 @@ class SimSolver(SimStatePlugin):
         except SimUnsatError:
             return [ ]
 
-    def exactly_n(self, e, n, **kwargs):
-        r = self.any_n_int(e, n, **kwargs)
-        if len(r) != n:
-            raise SimValueError("concretized %d values (%d required) in exactly_n" % (len(r), n))
-        return r
-
     def exactly_n_int(self, e, n, **kwargs):
-        r = self.any_n_int(e, n, **kwargs)
+        r = self.any_n_int(e, n + 1, **kwargs)
+        if len(r) == 0:
+            raise SimUnsatError('expected exactly %d solutions for an unsatisfiable state' % n)
         if len(r) != n:
             raise SimValueError("concretized %d values (%d required) in exactly_n" % (len(r), n))
         return r
 
     def exactly_int(self, e, default=None, **kwargs):
         try:
-            r = self.any_n_int(e, 1, **kwargs)
+            r = self.any_n_int(e, 2, **kwargs)
         except (SimValueError, SimSolverModeError):
             if default is not None:
                 return default
@@ -532,7 +528,10 @@ class SimSolver(SimStatePlugin):
 
         if len(r) != 1:
             if default is None:
-                raise SimValueError("concretized %d values (%d required) in exactly_int", len(r), 1)
+                if len(r) == 0:
+                    raise SimUnsatError('expected exactly one solution for an unsatisfiable state')
+                else:
+                    raise SimValueError("concretized %d values (%d required) in exactly_int", len(r), 1)
             else:
                 return default
         return r[0]
