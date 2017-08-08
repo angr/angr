@@ -271,7 +271,7 @@ def test_inspect_engine_process():
     def check_state(state):
         nose.tools.assert_in(hex(state.inspect.sim_successors.addr), ('0x40068eL', '0x4006dbL'))
 
-    state = p.factory.entry_state(addr=p.loader.find_symbol('main').addr)
+    state = p.factory.entry_state(addr=p.loader.find_symbol('main').rebased_addr)
     pg = p.factory.simgr(state)
     state.inspect.b('engine_process',
                     when=BP_BEFORE,
@@ -283,7 +283,7 @@ def test_inspect_engine_process():
                     condition=first_symbolic_fork)
     pg.step(until=lambda lpg: len(lpg.active) == 0)
 
-    state = p.factory.entry_state(addr=p.loader.find_symbol('main').addr)
+    state = p.factory.entry_state(addr=p.loader.find_symbol('main').rebased_addr)
     pg = p.factory.simgr(state)
     state.inspect.b('engine_process',
                     when=BP_BEFORE,
