@@ -393,7 +393,7 @@ def test_resolve_x86_elf_pic_plt():
     # there should be only one successor, which jumps to SimProcedure puts
     nose.tools.assert_equal(len(puts_node.successors), 1)
     puts_successor = puts_node.successors[0]
-    nose.tools.assert_equal(puts_successor.addr, proj.hooked_symbol_addr('puts'))
+    nose.tools.assert_equal(puts_successor.addr, proj.loader.find_symbol('puts').rebased_addr)
 
     # the SimProcedure puts should have more than one successors, which are all return targets
     nose.tools.assert_equal(len(puts_successor.successors), 3)

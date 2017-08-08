@@ -56,7 +56,7 @@ class SimLibrary(object):
 
     def _apply_metadata(self, proc, arch):
         if proc.cc is None and arch.name in self.default_ccs:
-            proc.cc = self.default_ccs[arch.name]()
+            proc.cc = self.default_ccs[arch.name](arch)
         if proc.display_name in self.prototypes:
             if proc.cc is None:
                 proc.cc = self.fallback_cc[arch.name]()
@@ -76,7 +76,7 @@ class SimLibrary(object):
             return self.get_stub(name, arch)
 
     def get_stub(self, name, arch):
-        proc = self.fallback_proc(display_name=name)
+        proc = self.fallback_proc(display_name=name, is_stub=True)
         self._apply_metadata(proc, arch)
         return proc
 
@@ -118,13 +118,13 @@ class SimSyscallLibrary(SimLibrary):
         if number in mapping:
             return mapping[number], arch
         else:
-            return 'sys_%d (unsupported)' % number, arch
+            return 'sys_%d' % number, arch
 
     def _apply_numerical_metadata(self, proc, number, arch):
         proc.syscall_number = number
         for min_num, max_num, cc_cls in self.ranged_default_ccs[arch.name]:
             if min_num <= number <= max_num:
-                new_cc = cc_cls()
+                new_cc = cc_cls(arch)
                 old_cc = proc.cc
                 if old_cc is not None:
                     new_cc.func_ty = old_cc.func_ty

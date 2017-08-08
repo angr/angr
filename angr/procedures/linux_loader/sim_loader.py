@@ -11,7 +11,7 @@ class LinuxLoader(angr.SimProcedure):
     # pylint: disable=unused-argument,arguments-differ,attribute-defined-outside-init
     local_vars = ('initializers',)
     def run(self):
-        self.initializers = self.project.loader.get_initializers()
+        self.initializers = self.project.loader.initializers
         self.run_initializer()
 
     def run_initializer(self):

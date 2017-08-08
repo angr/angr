@@ -32,8 +32,8 @@ class _IO_getc(angr.SimProcedure):
         # limit will always be concrete, if it's zero we EOF'd
         if limit != 0:
             data = fp.read_from(1)
-            data = data.zero_extend(32 - data.size())
+            data = data.zero_extend(self.state.arch.bits - data.size())
         else:
             data = -1 #EOF
-            data = BVV(data, 32)
+            data = BVV(data, self.state.arch.bits)
         return data

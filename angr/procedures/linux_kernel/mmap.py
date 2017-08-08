@@ -59,7 +59,7 @@ class mmap(angr.SimProcedure):
         flags = self.state.se.any_n_int(flags,2)
 
         if len(flags) == 2:
-            err = "Cannot handle symbolic flags arugment for mmap."
+            err = "Cannot handle symbolic flags argument for mmap."
             l.error(err)
             raise angr.errors.SimPosixError(err)
 
@@ -80,7 +80,7 @@ class mmap(angr.SimProcedure):
                 if flags & MAP_FIXED:
                     return self.state.se.BVV(-1, self.state.arch.bits)
 
-                # Can't give you that address. Find a different one.
+                # Can't give you that address. Find a different one and loop back around to try again.
                 addr = self.allocate_memory(size)
 
 

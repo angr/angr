@@ -25,3 +25,4 @@ angr/screenlog.0
 /tags
 MANIFEST
 dist
+.eggs

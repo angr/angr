@@ -466,6 +466,50 @@ class SimTypeString(SimTypeArray):
         return self
 
 
+class SimTypeWString(SimTypeArray):
+    """
+    A wide-character null-terminated string, where each character is 2 bytes.
+    """
+
+    _fields = SimTypeArray._fields + ('length',)
+
+    def __init__(self, length=None, label=None):
+        super(SimTypeWString, self).__init__(SimTypeNum(16, False), label=label, length=length)
+
+    def __repr__(self):
+        return 'wstring_t'
+
+    def extract(self, state, addr, concrete=False):
+        if self.length is None:
+            out = None
+            last_byte = state.memory.load(addr, 2)
+            addr += 2
+            while not claripy.is_true(last_byte == 0):
+                out = last_byte if out is None else out.concat(last_byte)
+                last_byte = state.memory.load(addr, 2)
+                addr += 2
+        else:
+            out = state.memory.load(addr, self.length*2)
+        if out is None: out = claripy.BVV(0, 0)
+        if not concrete:
+            return out
+        else:
+            return u''.join(unichr(state.se.any_int(x.reversed if state.arch.memory_endness == 'Iend_LE' else x)) for x in out.chop(16))
+
+    _can_refine_int = True
+
+    def _refine(self, view, k):
+        return view._deeper(addr=view._addr + k * 2, ty=SimTypeNum(16, False))
+
+    @property
+    def size(self):
+        if self.length is None:
+            return 4096
+        return self.length * 2 + 2
+
+    def _with_arch(self, arch):
+        return self
+
 class SimTypeFunction(SimType):
     """
     SimTypeFunction is a type that specifies an actual function (i.e. not a pointer) with certain types of arguments and
@@ -722,6 +766,7 @@ ALL_TYPES = {
     'uintptr_t': SimTypeLong(False),
 
     'string': SimTypeString(),
+    'wstring': SimTypeWString(),
 }
 
 ALL_TYPES.update(BASIC_TYPES)
@@ -736,7 +781,7 @@ def make_preamble():
             continue
 
         typ = ALL_TYPES[ty]
-        if isinstance(typ, (SimTypeFunction, SimTypeString)):
+        if isinstance(typ, (SimTypeFunction, SimTypeString, SimTypeWString)):
             continue
 
         if isinstance(typ, (SimTypeNum, SimTypeInt)) and str(typ) not in BASIC_TYPES:

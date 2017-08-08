@@ -544,8 +544,8 @@ class FunctionDiff(object):
                 continue
             # if both are in the binary we'll assume it's okay, although we should really match globals
             # TODO use global matches
-            if self._project_a.loader.main_bin.contains_addr(c.value_a) and \
-                    self._project_b.loader.main_bin.contains_addr(c.value_b):
+            if self._project_a.loader.main_object.contains_addr(c.value_a) and \
+                    self._project_b.loader.main_object.contains_addr(c.value_b):
                 continue
             # if the difference is equal to the difference in block addr's or successor addr's we'll say it's also okay
             if c.value_b - c.value_a in acceptable_differences:
@@ -823,10 +823,10 @@ class FunctionDiff(object):
 
         # get the difference between the data segments
         # this is hackish
-        if ".bss" in self._project_a.loader.main_bin.sections_map and \
-                ".bss" in self._project_b.loader.main_bin.sections_map:
-            bss_a = self._project_a.loader.main_bin.sections_map[".bss"].min_addr
-            bss_b = self._project_b.loader.main_bin.sections_map[".bss"].min_addr
+        if ".bss" in self._project_a.loader.main_object.sections_map and \
+                ".bss" in self._project_b.loader.main_object.sections_map:
+            bss_a = self._project_a.loader.main_object.sections_map[".bss"].min_addr
+            bss_b = self._project_b.loader.main_object.sections_map[".bss"].min_addr
             acceptable_differences.add(bss_b - bss_a)
             acceptable_differences.add((bss_b - block_b_base) - (bss_a - block_a_base))
 
@@ -1028,9 +1028,9 @@ class BinDiff(Analysis):
 
     def _get_plt_matches(self):
         plt_matches = []
-        for name, addr in self.project.loader.main_bin.plt.items():
-            if name in self._p2.loader.main_bin.plt:
-                plt_matches.append((addr, self._p2.loader.main_bin.plt[name]))
+        for name, addr in self.project.loader.main_object.plt.items():
+            if name in self._p2.loader.main_object.plt:
+                plt_matches.append((addr, self._p2.loader.main_object.plt[name]))
 
         # in the case of sim procedures the actual sim procedure might be in the interfunction graph, not the plt entry
         func_to_addr_a = dict()
@@ -1106,9 +1106,9 @@ class BinDiff(Analysis):
             l.debug("Processing (%#x, %#x)", func_a, func_b)
 
             # we could find new matches in the successors or predecessors of functions
-            if not self.project.loader.main_bin.contains_addr(func_a):
+            if not self.project.loader.main_object.contains_addr(func_a):
                 continue
-            if not self._p2.loader.main_bin.contains_addr(func_b):
+            if not self._p2.loader.main_object.contains_addr(func_b):
                 continue
 
             func_a_succ = self.cfg_a.kb.callgraph.successors(func_a) if func_a in callgraph_a_nodes else []
@@ -1155,7 +1155,7 @@ class BinDiff(Analysis):
         self.function_matches = set()
         for x,y in matched_a.items():
             # only keep if the pair is in the binary ranges
-            if self.project.loader.main_bin.contains_addr(x) and self._p2.loader.main_bin.contains_addr(y):
+            if self.project.loader.main_object.contains_addr(x) and self._p2.loader.main_object.contains_addr(y):
                 self.function_matches.add((x, y))
 
         # get the unmatched functions

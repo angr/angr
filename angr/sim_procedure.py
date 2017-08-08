@@ -7,6 +7,7 @@ l = logging.getLogger("angr.procedures.sim_procedure")
 
 symbolic_count = itertools.count()
 
+
 class SimProcedure(object):
     """
     A SimProcedure is a wonderful object which describes a procedure to run on a state.
@@ -18,8 +19,8 @@ class SimProcedure(object):
     """
     def __init__(
         self, project=None, cc=None, symbolic_return=None,
-        returns=None, is_syscall=None,
-        num_args=None, display_name=None,
+        returns=None, is_syscall=None, is_stub=False,
+        num_args=None, display_name=None, library_name=None,
         is_function=None, **kwargs
     ):
         """
@@ -46,6 +47,7 @@ class SimProcedure(object):
 
         self.kwargs = kwargs
         self.display_name = type(self).__name__ if display_name is None else display_name
+        self.library_name = library_name
         self.syscall_number = None
         self.symbolic_return = symbolic_return
 
@@ -57,10 +59,10 @@ class SimProcedure(object):
         self.returns = returns if returns is not None else not self.NO_RET
         self.is_syscall = is_syscall if is_syscall is not None else self.IS_SYSCALL
         self.is_function = is_function if is_function is not None else self.IS_FUNCTION
+        self.is_stub = is_stub
         self.is_continuation = False
         self.continuations = {}
         self.run_func = 'run'
-        self.library_name = None
 
         # Get the concrete number of arguments that should be passed to this procedure
         if num_args is None:
@@ -79,7 +81,8 @@ class SimProcedure(object):
 
     def __repr__(self):
         syscall = ' (syscall)' if self.IS_SYSCALL else ''
-        return "<SimProcedure %s%s>" % (self.display_name, syscall)
+        stub = ' (stub)' if self.is_stub else ''
+        return "<SimProcedure %s%s%s>" % (self.display_name, syscall, stub)
 
     def execute(self, state, successors=None, arguments=None, ret_to=None):
         """
@@ -119,9 +122,11 @@ class SimProcedure(object):
                 r = override(state, run=inst)
             except TypeError:
                 r = override(state)
+            inst.use_state_arguments = True
 
         elif override is not None:
             r = override
+            inst.use_state_arguments = True
 
         else:
             # get the arguments
@@ -159,7 +164,7 @@ class SimProcedure(object):
         # make a copy of the canon copy, customize it for the specific continuation, then hook it
         if name not in self.canonical.continuations:
             cont = copy.copy(self.canonical)
-            cont.addr = self.project._extern_obj.anon_allocation()
+            cont.addr = self.project.loader.extern_object.allocate()
             cont.is_continuation = True
             cont.run_func = name
             self.canonical.continuations[name] = cont
@@ -238,31 +243,6 @@ class SimProcedure(object):
         l.debug("returning argument")
         return r
 
-    def set_return_expr(self, expr):
-        """
-        Set this expression as the return value for the function.
-        If this is not an inline call, this will write the expression to the state via the
-        calling convention.
-        """
-        if isinstance(expr, (int, long)):
-            expr = self.state.se.BVV(expr, self.state.arch.bits)
-
-        if o.SIMPLIFY_RETS in self.state.options:
-            l.debug("... simplifying")
-            l.debug("... before: %s", expr)
-            expr = self.state.se.simplify(expr)
-            l.debug("... after: %s", expr)
-
-        if self.symbolic_return:
-            size = len(expr)
-            new_expr = self.state.se.Unconstrained("symbolic_return_" + self.__class__.__name__, size) #pylint:disable=maybe-no-member
-            self.state.add_constraints(new_expr == expr)
-            expr = new_expr
-
-        self.ret_expr = expr
-        if self.use_state_arguments:
-            self.cc.return_val.set_value(self.state, expr)
-
     #
     # Control Flow
     #
@@ -289,20 +269,36 @@ class SimProcedure(object):
         If this is not an inline call, set a return expression with the calling convention.
         """
         if expr is not None:
-            self.set_return_expr(expr)
+            if o.SIMPLIFY_RETS in self.state.options:
+                l.debug("... simplifying")
+                l.debug("... before: %s", expr)
+                expr = self.state.se.simplify(expr)
+                l.debug("... after: %s", expr)
+
+            if self.symbolic_return:
+                size = len(expr)
+                new_expr = self.state.se.Unconstrained("symbolic_return_" + self.__class__.__name__, size) #pylint:disable=maybe-no-member
+                self.state.add_constraints(new_expr == expr)
+                expr = new_expr
+
+            self.ret_expr = expr
+
+        ret_addr = None
+        if self.use_state_arguments:
+            ret_addr = self.cc.teardown_callsite(
+                    self.state,
+                    expr,
+                    arg_types=[False]*self.num_args if self.cc.args is None else None)
 
         if not self.should_add_successors:
             l.debug("Returning without setting exits due to 'internal' call.")
             return
 
         if self.ret_to is not None:
-            # TODO: If set ret_to, do we also want to pop an unused ret addr from the stack?
             ret_addr = self.ret_to
-        else:
-            if self.state.arch.call_pushes_ret:
-                ret_addr = self.state.stack_pop()
-            else:
-                ret_addr = self.state.registers.load(self.state.arch.lr_offset, self.state.arch.bytes)
+
+        if ret_addr is None:
+            raise SimProcedureError("No source for return address in ret() call!")
 
         self._exit_action(self.state, ret_addr)
         self.successors.add_successor(self.state, ret_addr, self.state.se.true, 'Ijk_Ret')
@@ -379,7 +375,7 @@ class SimProcedure(object):
     def ty_ptr(self, ty):
         return SimTypePointer(self.arch, ty)
 
-from angr import sim_options as o
+from . import sim_options as o
 from angr.errors import SimProcedureError, SimProcedureArgumentError
 from angr.sim_type import SimTypePointer
 from angr.state_plugins.sim_action import SimActionExit

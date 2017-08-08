@@ -1045,8 +1045,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self.kb.functions.clear()
 
         if self._use_symbols:
-            starting_points |= set(AT.from_lva(addr, self._binary).to_mva()
-                                   for addr in self._function_addresses_from_symbols)
+            starting_points |= self._function_addresses_from_symbols
 
         if self._extra_function_starts:
             starting_points |= set(self._extra_function_starts)
@@ -1072,9 +1071,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._nodes_by_addr = defaultdict(list)
 
         if self._use_function_prologues:
-            self._function_prologue_addrs = sorted(
-                set(AT.from_lva(addr, self._binary).to_mva() for addr in self._func_addrs_from_prologues())
-            )
+            self._function_prologue_addrs = sorted(self._func_addrs_from_prologues())
             # make a copy of those prologue addresses, so that we can pop from the list
             self._remaining_function_prologue_addrs = self._function_prologue_addrs[::]
 
@@ -1291,12 +1288,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # make return edges
         self._make_return_edges()
 
-        if self.project.loader.main_bin.sections:
+        if self.project.loader.main_object.sections:
             # this binary has sections
             # make sure we have data entries assigned at the beginning of each data section
-            for sec in self.project.loader.main_bin.sections:
+            for sec in self.project.loader.main_object.sections:
                 if sec.memsize > 0 and not sec.is_executable and sec.is_readable:
-                    for seg in self.project.loader.main_bin.segments:
+                    for seg in self.project.loader.main_object.segments:
                         if seg.vaddr <= sec.vaddr < seg.vaddr + seg.memsize:
                             break
                     else:
@@ -1347,7 +1344,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             regexes.append(r)
 
         # Construct the binary blob first
-        # TODO: We shouldn't directly access the _memory of main_bin. An interface
+        # TODO: We shouldn't directly access the _memory of main_object. An interface
         # TODO: to that would be awesome.
 
         strides = self._binary.memory.stride_repr
@@ -1361,7 +1358,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     position = mo.start() + start_
                     if position % self.project.arch.instruction_alignment == 0:
                         if self._addr_in_exec_memory_regions(position):
-                            unassured_functions.append(position)
+                            unassured_functions.append(AT.from_rva(position, self._binary).to_mva())
 
         return unassured_functions
 
@@ -1994,7 +1991,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             # data might be at the end of some section or segment...
             # let's take a look
-            for segment in self.project.loader.main_bin.segments:
+            for segment in self.project.loader.main_object.segments:
                 if segment.vaddr + segment.memsize == data_addr:
                     # yeah!
                     if data_addr not in self._memory_data:
@@ -2046,7 +2043,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # goes until the end of the section/segment
                 # TODO: the logic needs more testing
 
-                obj = self.project.loader.addr_belongs_to_object(data_addr)
+                obj = self.project.loader.find_object_containing(data_addr)
                 sec = self._addr_belongs_to_section(data_addr)
                 next_sec_addr = None
                 if sec is not None:
@@ -2146,8 +2143,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         ptr = struct.unpack(fmt, ptr_str)[0]  # type:int
 
                         # is this pointer coming from the current binary?
-                        obj = self.project.loader.addr_belongs_to_object(ptr)
-                        if obj is not self.project.loader.main_bin:
+                        obj = self.project.loader.find_object_containing(ptr)
+                        if obj is not self.project.loader.main_object:
                             # the pointer does not come from current binary. skip.
                             continue
 
@@ -2198,8 +2195,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         pointer_size = self.project.arch.bits / 8
 
         # who's using it?
-        if isinstance(self.project.loader.main_bin, cle.MetaELF):
-            plt_entry = self.project.loader.main_bin.reverse_plt.get(irsb_addr, None)
+        if isinstance(self.project.loader.main_object, cle.MetaELF):
+            plt_entry = self.project.loader.main_object.reverse_plt.get(irsb_addr, None)
             if plt_entry is not None:
                 # IRSB is owned by plt!
                 return "GOT PLT Entry", pointer_size
@@ -2325,8 +2322,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             ip = simsucc.successors[0].ip
             if ip._model_concrete is not ip:
                 target_addr = ip._model_concrete.value
-                if (self.project.loader.addr_belongs_to_object(target_addr) is not
-                        self.project.loader.main_bin) \
+                if (self.project.loader.find_object_containing(target_addr) is not
+                        self.project.loader.main_object) \
                         or self.project.is_hooked(target_addr):
                     # resolved!
                     # Fill the IndirectJump object
@@ -3323,7 +3320,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 # if possible, check the distance between `addr` and the end of this section
                 distance = None
-                obj = self.project.loader.addr_belongs_to_object(addr)
+                obj = self.project.loader.find_object_containing(addr)
                 if obj:
                     # is there a section?
                     has_executable_section = len([ sec for sec in obj.sections if sec.is_executable ]) > 0  # pylint:disable=len-as-condition

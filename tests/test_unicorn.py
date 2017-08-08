@@ -56,14 +56,14 @@ def test_stops():
     nose.tools.assert_equal(p_symbolic_angr.history.bbl_addrs.hardcopy, p_symbolic.history.bbl_addrs.hardcopy)
 
     # test STOP_SEGFAULT
-    s_segfault = p.factory.entry_state(args=['a', 'a', 'a', 'a', 'a', 'a', 'a'], add_options=so.unicorn | {so.STRICT_PAGE_ACCESS})
+    s_segfault = p.factory.entry_state(args=['a', 'a', 'a', 'a', 'a', 'a', 'a'], add_options=so.unicorn | {so.STRICT_PAGE_ACCESS, so.ENABLE_NX})
     pg_segfault = p.factory.simgr(s_segfault).run()
     p_segfault = pg_segfault.errored[0].state
     # TODO: fix the permissions segfault to commit if it's a MEM_FETCH
     # this will extend the last simunicorn one more block
     _compare_trace(p_segfault.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_SEGFAULT after 3 steps) from 0x80484b6: 1 sat>', '<IRSB from 0x80484a6: 1 sat>'])
 
-    s_segfault_angr = p.factory.entry_state(args=['a', 'a', 'a', 'a', 'a', 'a', 'a'], add_options={so.STRICT_PAGE_ACCESS})
+    s_segfault_angr = p.factory.entry_state(args=['a', 'a', 'a', 'a', 'a', 'a', 'a'], add_options={so.STRICT_PAGE_ACCESS, so.ENABLE_NX})
     pg_segfault_angr = p.factory.simgr(s_segfault_angr).run()
     p_segfault_angr = pg_segfault_angr.errored[0].state
     nose.tools.assert_equal(p_segfault_angr.history.bbl_addrs.hardcopy, p_segfault.history.bbl_addrs.hardcopy)
@@ -142,7 +142,7 @@ def test_fp():
         cc = p.factory.cc(func_ty=type_cache[function])
         args = list(range(len(cc.func_ty.args)))
         answer = float(sum(args))
-        addr = p.loader.main_bin.get_symbol(function).rebased_addr
+        addr = p.loader.find_symbol(function).rebased_addr
         my_callable = p.factory.callable(addr, cc=cc)
         my_callable.set_base_state(p.factory.blank_state(add_options=so.unicorn))
         result = my_callable(*args)

@@ -445,7 +445,7 @@ class Director(ExplorationTechnique):
         if self._cfg is None:
 
             starts = list(pg.active)
-            self._cfg_kb = KnowledgeBase(self.project, self.project.loader.main_bin)
+            self._cfg_kb = KnowledgeBase(self.project, self.project.loader.main_object)
 
             self._cfg = self.project.analyses.CFGAccurate(kb=self._cfg_kb, starts=starts, max_steps=self._peek_blocks,
                                                           keep_state=self._cfg_keep_states

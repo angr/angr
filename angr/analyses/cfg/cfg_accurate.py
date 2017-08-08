@@ -1416,8 +1416,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         extra_info = job.extra_info
         successor_status = job.successor_status
 
-        function_name = self.project.loader.find_symbol_name(job.addr)
-        module_name = self.project.loader.find_module_name(job.addr)
+        func = self.project.loader.find_symbol(job.addr)
+        obj = self.project.loader.find_object_containing(job.addr)
+        function_name = func.name if func is not None else None
+        module_name = obj.provides if obj is not None else None
 
         depth_str = "(D:%s)" % self.get_node(job.block_id).depth if self.get_node(job.block_id).depth is not None \
             else ""
@@ -1927,8 +1929,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         elif jumpkind == 'Ijk_Boring':
 
-            src_obj = self.project.loader.addr_belongs_to_object(src_node.addr)
-            dest_obj = self.project.loader.addr_belongs_to_object(dst_node.addr)
+            src_obj = self.project.loader.find_object_containing(src_node.addr)
+            dest_obj = self.project.loader.find_object_containing(dst_node.addr)
 
             if src_obj is dest_obj:
 
@@ -2103,8 +2105,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                             should_resolve = False
                         else:
                             concrete_target = legit_successor.se.any_int(legit_successor.ip)
-                            if not self.project.loader.addr_belongs_to_object(
-                                    concrete_target) is self.project.loader.main_bin:
+                            if not self.project.loader.find_object_containing(
+                                    concrete_target) is self.project.loader.main_object:
                                 should_resolve = False
 
                 else:
@@ -2730,7 +2732,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         except AngrError:
             exception_info = sys.exc_info()
-            section = self.project.loader.main_bin.find_section_containing(addr)
+            section = self.project.loader.main_object.find_section_containing(addr)
             if section is None:
                 sec_name = 'No section'
             else:

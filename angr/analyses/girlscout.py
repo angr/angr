@@ -35,9 +35,9 @@ class GirlScout(Analysis):
     """
 
     def __init__(self, binary=None, start=None, end=None, pickle_intermediate_results=False, perform_full_code_scan=False):
-        self._binary = binary if binary is not None else self.project.loader.main_bin
-        self._start = start if start is not None else self._binary.get_min_addr()
-        self._end = end if end is not None else self._binary.get_max_addr()
+        self._binary = binary if binary is not None else self.project.loader.main_object
+        self._start = start if start is not None else self._binary.min_addr
+        self._end = end if end is not None else self._binary.max_addr
         self._pickle_intermediate_results = pickle_intermediate_results
         self._perform_full_code_scan = perform_full_code_scan
 
@@ -449,10 +449,10 @@ class GirlScout(Analysis):
         # TODO: Make sure self._start is aligned
 
         # Construct the binary blob first
-        # TODO: We shouldn't directly access the _memory of main_bin. An interface
+        # TODO: We shouldn't directly access the _memory of main_object. An interface
         # to that would be awesome.
 
-        strides = self.project.loader.main_bin.memory.stride_repr
+        strides = self.project.loader.main_object.memory.stride_repr
 
         for start_, end_, bytes in strides:
             for regex in regexes:
@@ -572,7 +572,7 @@ class GirlScout(Analysis):
         :returns:
         """
 
-        pseudo_base_addr = self.project.loader.main_bin.get_min_addr()
+        pseudo_base_addr = self.project.loader.main_object.min_addr
 
         base_addr_ctr = { }
 

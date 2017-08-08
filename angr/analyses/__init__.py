@@ -24,3 +24,4 @@ from .binary_optimizer import BinaryOptimizer
 from .disassembly import Disassembly
 from .variable_recovery import VariableRecovery
 from .identifier import Identifier
+from .callee_cleanup_finder import CalleeCleanupFinder

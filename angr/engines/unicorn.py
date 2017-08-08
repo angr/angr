@@ -98,14 +98,8 @@ class SimEngineUnicorn(SimEngine):
         finally:
             state.unicorn.destroy()
 
-        if state.unicorn.errno:
-            # error from unicorn
-            #err = str(unicorn.UcError(state.unicorn.errno))
-            successors.initial_state.unicorn.countdown_symbolic_memory = state.unicorn.countdown_symbolic_memory
-            successors.initial_state.unicorn.countdown_symbolic_registers = state.unicorn.countdown_symbolic_registers
-            successors.initial_state.unicorn.countdown_nonunicorn_blocks = state.unicorn.countdown_nonunicorn_blocks
-            return
-        elif state.unicorn.steps == 0:
+        if state.unicorn.steps == 0 or state.unicorn.stop_reason == STOP.STOP_NOSTART:
+            # fail out, force fallback to next engine
             successors.initial_state.unicorn.countdown_symbolic_memory = state.unicorn.countdown_symbolic_memory
             successors.initial_state.unicorn.countdown_symbolic_registers = state.unicorn.countdown_symbolic_registers
             successors.initial_state.unicorn.countdown_nonunicorn_blocks = state.unicorn.countdown_nonunicorn_blocks

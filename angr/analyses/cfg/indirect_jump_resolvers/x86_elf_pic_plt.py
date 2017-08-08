@@ -64,7 +64,7 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
 
     def resolve(self, cfg, addr, func_addr, block, jumpkind):
 
-        obj = cfg.project.loader.addr_belongs_to_object(addr)
+        obj = cfg.project.loader.find_object_containing(addr)
         if obj is None:
             return False, [ ]
 

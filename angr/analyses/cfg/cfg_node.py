@@ -78,11 +78,19 @@ class CFGNode(object):
         self._callstack_key = self.callstack.stack_suffix(self._cfg.context_sensitivity_level) \
             if self.callstack is not None else callstack_key
 
-        self.name = simprocedure_name or cfg.project.loader.find_symbol_name(addr)
+        self.name = simprocedure_name
+        if self.name is None:
+            sym = cfg.project.loader.find_symbol(addr)
+            if sym is not None:
+                self.name = sym.name
         if self.name is None and isinstance(cfg.project.arch, archinfo.ArchARM) and addr & 1:
-            self.name = cfg.project.loader.find_symbol_name(addr - 1)
+            sym = cfg.project.loader.find_symbol(addr - 1)
+            if sym is not None:
+                self.name = sym.name
         if function_address and self.name is None:
-            self.name = cfg.project.loader.find_symbol_name(function_address)
+            sym = cfg.project.loader.find_symbol(function_address)
+            if sym is not None:
+                self.name = sym.name
             if self.name is not None:
                 offset = addr - function_address
                 self.name = "%s%+#x" % (self.name, offset)

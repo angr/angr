@@ -1,10 +1,12 @@
-""" angr module """
 # pylint: disable=wildcard-import
 
 # first: let's set up some bootstrap logging
+import logging
+logging.getLogger("angr").addHandler(logging.NullHandler())
 from .misc.loggers import Loggers
 loggers = Loggers()
 del Loggers
+del logging
 
 # this must happen first, prior to initializing analyses
 from .sim_procedure import SimProcedure

@@ -69,6 +69,7 @@ class SimulationManager(ana.Storable):
         self._hooks_step_state = []
         self._hooks_filter = []
         self._hooks_complete = []
+        self._hooks_all = []
 
         if threads is not None:
             self.use_technique(exploration_techniques.Threading(threads))
@@ -89,12 +90,24 @@ class SimulationManager(ana.Storable):
         s = dict(self.__dict__)
         if self._hierarchy is not False:
             s['_hierarchy'] = None
+        del s['_hooks_step']
+        del s['_hooks_step_state']
+        del s['_hooks_filter']
+        del s['_hooks_complete']
         return s
 
     def _ana_setstate(self, s):
+        hooks = s.pop('_hooks_all')
         self.__dict__.update(s)
         if self._hierarchy is None:
             self._hierarchy = StateHierarchy()
+        self._hooks_step = []
+        self._hooks_step_state = []
+        self._hooks_filter = []
+        self._hooks_complete = []
+        self._hooks_all = []
+        for hook in hooks:
+            s._apply_hooks(hook)
 
     #
     # Util functions
@@ -136,7 +149,7 @@ class SimulationManager(ana.Storable):
         if self._immutable if immutable is None else immutable:
             result = self._make_stashes_dict(**{k: list(v) for k, v in self.stashes.items()})
         else:
-            result = self.stashes
+            result = defaultdict(list, self.stashes)
 
         return result
 
@@ -161,7 +174,7 @@ class SimulationManager(ana.Storable):
             del new_stashes[self.DROP]
 
         if not self._immutable:
-            self.stashes = defaultdict(list, new_stashes.iteritems())
+            self.stashes = new_stashes
             return self
         else:
             return self.copy(stashes=new_stashes)
@@ -775,12 +788,21 @@ class SimulationManager(ana.Storable):
         tech.project = self._project
         self.remove_tech(tech)
         tech.setup(self)
+        self._apply_hooks(tech)
+
+    def _apply_hooks(self, tech):
+        self._hooks_all.append(tech)
         for hook in ['step_state', 'step', 'filter', 'complete']:
             hookfunc = getattr(tech, hook)
             if hookfunc.im_func is not getattr(exploration_techniques.ExplorationTechnique, hook).im_func:
                 getattr(self, '_hooks_' + hook).append(hookfunc)
 
     def remove_tech(self, tech):
+        try:
+            self._hooks_all.remove(tech)
+        except ValueError:
+            return
+
         for hook in ['step_state', 'step', 'filter', 'complete']:
             try:
                 getattr(self, '_hooks_' + hook).remove(getattr(tech, hook))

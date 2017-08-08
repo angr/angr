@@ -211,7 +211,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         # TODO: support other sections other than '.bss'.
         # TODO: this is very hackish. fix it after the chaos.
-        for section in self.project.loader.main_bin.sections:
+        for section in self.project.loader.main_object.sections:
             if section.name == '.bss':
                 self._bss_regions.append((section.vaddr, section.memsize))
                 break

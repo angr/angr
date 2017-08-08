@@ -110,6 +110,7 @@ class SimSuccessors(object):
         self._preprocess_successor(state, add_guard=add_guard)
         self._categorize_successor(state)
         state._inspect('exit', BP_AFTER, exit_target=target, exit_guard=guard, exit_jumpkind=jumpkind)
+        state.inspect.downsize()
 
     #
     # Successor management
@@ -242,6 +243,7 @@ class SimSuccessors(object):
                     for n in concrete_syscall_nums:
                         split_state = state.copy()
                         split_state.add_constraints(symbolic_syscall_num == n)
+                        split_state.inspect.downsize()
 
                         self.flat_successors.append(split_state)
                 else:
@@ -282,6 +284,7 @@ class SimSuccessors(object):
                         else:
                             split_state.add_constraints(target == a, action=True)
                             split_state.regs.ip = a
+                        split_state.inspect.downsize()
                         self.flat_successors.append(split_state)
                     self.successors.append(state)
             except SimSolverModeError:

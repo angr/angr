@@ -60,9 +60,13 @@ def internaltest_project(p):
     nose.tools.assert_equals(p.filename, loaded_p.filename)
     nose.tools.assert_equals(p.entry, loaded_p.entry)
 
-def test_serialization():
+def setup():
     ana.set_dl(ana.DirDataLayer('/tmp/ana'))
+def teardown():
+    ana.set_dl(ana.SimpleDataLayer())
 
+@nose.with_setup(setup, teardown)
+def test_serialization():
     for d in internaltest_arch:
         for f in internaltest_files:
             fpath = os.path.join(internaltest_location, d,f)

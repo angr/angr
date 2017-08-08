@@ -242,8 +242,11 @@ KEEP_IP_SYMBOLIC = "KEEP_IP_SYMBOLIC"
 # It is only applied to SimAbstractMemory
 KEEP_MEMORY_READS_DISCRETE = "KEEP_MEMORY_READS_DISCRETE"
 
-# Raise a SigSegfaultError on illegal memory accesses
+# Raise a SimSegfaultError on illegal memory accesses
 STRICT_PAGE_ACCESS = "STRICT_PAGE_ACCESS"
+
+# Raise a SimSegfaultError when executing nonexecutable memory
+ENABLE_NX = "ENABLE_NX"
 
 # Track variables in state.solver.all_variables
 TRACK_SOLVER_VARIABLES = "TRACK_SOLVER_VARIABLES"
