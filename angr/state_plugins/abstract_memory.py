@@ -393,10 +393,6 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     def _store(self, req):
         address_wrappers = self.normalize_address(req.addr, is_write=True, convert_to_valueset=False)
         req.actual_addresses = [ ]
-        req.fallback_values = [ ]
-        req.symbolic_sized_values = [ ]
-        req.conditional_values = [ ]
-        req.simplified_values = [ ]
         req.stored_values = [ ]
 
         for aw in address_wrappers:
@@ -408,10 +404,6 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
                 req.actual_addresses.append(aw.to_valueset(self.state))
                 req.constraints.extend(r.constraints)
-                req.fallback_values.extend(r.fallback_values)
-                req.symbolic_sized_values.extend(r.symbolic_sized_values)
-                req.conditional_values.extend(r.conditional_values)
-                req.simplified_values.extend(r.simplified_values)
                 req.stored_values.extend(r.stored_values)
 
         # No constraints are generated...
@@ -569,7 +561,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
                     sizes.append(seg.size)
                     next_pos += seg.size
 
-            if len(sizes) == 0:
+
+            if not sizes:
                 return [ size ]
             return sizes
         else:
