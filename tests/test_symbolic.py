@@ -6,7 +6,7 @@ import nose
 #   zero = SimValue(se.BVV(0, 64))
 #   nose.tools.assert_false(zero.is_symbolic())
 #   nose.tools.assert_equal(zero.any_int(), 0)
-#   nose.tools.assert_raises(ConcretizingException, zero.exactly_n, 2)
+#   nose.tools.assert_raises(ConcretizingException, zero.exactly_n_int, 2)
 #
 #   # symbolic symvalue
 #   x = se.BVS('x', 64)
@@ -15,7 +15,7 @@ import nose
 #   nose.tools.assert_equal(sym.min_int(), 101)
 #   nose.tools.assert_equal(sym.max_int(), 199)
 #   nose.tools.assert_items_equal(sym.any_n_int(99), range(101, 200))
-#   nose.tools.assert_raises(ConcretizingException, zero.exactly_n, 102)
+#   nose.tools.assert_raises(ConcretizingException, zero.exactly_n_int, 102)
 
 def test_concretization_strategies():
     initial_memory = {0: 'A', 1: 'B', 2: 'C', 3: 'D'}
