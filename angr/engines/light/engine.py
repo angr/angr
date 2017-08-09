@@ -124,34 +124,83 @@ class SimEngineLightVEX(SimEngineLight):
     def _handle_Load(self, expr):
         raise NotImplementedError('Please implement the Load handler with your own logic.')
 
-    def _handle_UnaryOp(self, expr):
+    def _handle_Unop(self, expr):
         simop = vex_operations[expr.op]
         if simop._conversion:
-            handler_name = '_handle_Conversion'
+            return self._handle_Conversion(expr)
+        elif expr.op.startswith('Iop_Not1'):
+            return self._handle_Not1(*expr.args)
         else:
-            handler_name = '_handle_%s' % expr.op
+            l.warning('Unsupported Unop %s.', expr.op)
 
-        try:
-            handler = getattr(self, handler_name)
-        except AttributeError:
-            l.warning('Unsupported UnaryOp %s.', expr.op)
-            return None
-
-        return handler(expr)
+        return None
 
     def _handle_Binop(self, expr):
-        if expr.op.startswith('Iop_Add'):
+        if expr.op.startswith('Iop_And'):
+            return self._handle_And(*expr.args)
+        elif expr.op.startswith('Iop_Or'):
+            return self._handle_Or(*expr.args)
+        elif expr.op.startswith('Iop_Add'):
             return self._handle_Add(*expr.args)
         elif expr.op.startswith('Iop_Sub'):
             return self._handle_Sub(*expr.args)
+        elif expr.op.startswith('Iop_Shr'):
+            return self._handle_Shr(*expr.args)
+        elif expr.op.startswith('Iop_CmpNE'):
+            return self._handle_CmpNE(*expr.args)
         elif expr.op.startswith('Const'):
             return self._handle_Const(*expr.args)
+        else:
+            l.warning('Unsupported Binop %s', expr.op)
 
         return None
 
     #
+    # Unary operation handlers
+    #
+
+    def _handle_Conversion(expr):
+        raise NotImplementedError('Please implement the Conversion handler with your own logic.')
+
+    def _handle_Not1(self, arg0):
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+
+        try:
+            return expr_0 != 1
+        except TypeError:
+            return None
+
+    #
     # Binary operation handlers
     #
+
+    def _handle_And(self, arg0, arg1):
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            return expr_0 & expr_1
+        except TypeError:
+            return None
+
+    def _handle_Or(self, arg0, arg1):
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            return expr_0 | expr_1
+        except TypeError:
+            return None
 
     def _handle_Add(self, arg0, arg1):
         expr_0 = self._expr(arg0)
@@ -176,6 +225,32 @@ class SimEngineLightVEX(SimEngineLight):
 
         try:
             return expr_0 - expr_1
+        except TypeError:
+            return None
+
+    def _handle_Shr(self, arg0, arg1):
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            return expr_0 >> expr_1
+        except TypeError:
+            return None
+
+    def _handle_CmpNE(self, arg0, arg1):
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            return expr_0 != expr_1
         except TypeError:
             return None
 
