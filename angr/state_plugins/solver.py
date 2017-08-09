@@ -528,7 +528,7 @@ class SimSolver(SimStatePlugin):
         :return: The value for `e`
         """
         try:
-            return self.eval_exact(e, 1, **{k: v for (k, v) in kwargs.iteritems() if k != 'default'})
+            return self.eval_exact(e, 1, **{k: v for (k, v) in kwargs.iteritems() if k != 'default'})[0]
         except (SimUnsatError, SimValueError):
             if 'default' in kwargs:
                 return kwargs.pop('default')
