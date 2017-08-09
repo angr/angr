@@ -450,8 +450,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         self.state.scratch.pop_priv()
         return default_mo
 
-    def _read_from(self, addr, num_bytes, inspect=True, events=True):
-        items = self.mem.load_objects(addr, num_bytes)
+    def _read_from(self, addr, num_bytes, inspect=True, events=True, ret_on_segv=False):
+        items = self.mem.load_objects(addr, num_bytes, ret_on_segv=ret_on_segv)
 
         # optimize the case where we have a single object return
         if len(items) == 1 and items[0][1].includes(addr) and items[0][1].includes(addr + num_bytes - 1):
@@ -491,7 +491,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             r = self.state.se.BVV(0, 0)
         return r
 
-    def _load(self, dst, size, condition=None, fallback=None, inspect=True, events=True):
+    def _load(self, dst, size, condition=None, fallback=None,
+            inspect=True, events=True, ret_on_segv=False):
         if self.state.se.symbolic(size):
             l.warning("Concretizing symbolic length. Much sad; think about implementing.")
 
@@ -518,7 +519,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             else:
                 raise
 
-        read_value = self._read_from(addrs[0], size, inspect=inspect, events=events)
+        read_value = self._read_from(addrs[0], size, inspect=inspect,
+                events=events, ret_on_segv=ret_on_segv)
         constraint_options = [ dst == addrs[0] ]
 
         for a in addrs[1:]:
@@ -571,7 +573,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if i - chunk_start > chunk_size - seek_size:
                 l.debug("loading new chunk")
                 chunk_start += chunk_size - seek_size + 1
-                chunk = self.load(start+chunk_start, chunk_size, endness="Iend_BE")
+                chunk = self.load(start+chunk_start, chunk_size,
+                        endness="Iend_BE", ret_on_segv=True)
 
             chunk_off = i-chunk_start
             b = chunk[chunk_size*8 - chunk_off*8 - 1 : chunk_size*8 - chunk_off*8 - seek_size*8]
