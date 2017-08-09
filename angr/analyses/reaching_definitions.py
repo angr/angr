@@ -1,7 +1,9 @@
 import logging
+import struct
 from collections import defaultdict
 
 import ailment
+import cffi
 import pyvex
 
 from ..keyed_region import KeyedRegion
@@ -79,6 +81,9 @@ class MemoryLocation(Atom):
 
         self.addr = addr
         self.size = size
+
+    def __repr__(self):
+        return "<Mem %d<%d>>" % (self.addr, self.size)
 
     @property
     def bits(self):
@@ -273,10 +278,11 @@ class DataSet(object):
 
 
 class ReachingDefinitions(object):
-    def __init__(self, arch, track_tmps=False, analysis=None, init_func=False, cc=None, num_param=None):
+    def __init__(self, arch, loader, track_tmps=False, analysis=None, init_func=False, cc=None, num_param=None):
 
         # handy short-hands
         self.arch = arch
+        self.loader = loader
         self._track_tmps = track_tmps
         self.analysis = analysis
 
@@ -333,6 +339,7 @@ class ReachingDefinitions(object):
     def copy(self):
         rd = ReachingDefinitions(
             self.arch,
+            self.loader,
             track_tmps=self._track_tmps,
             analysis=self.analysis,
             init_func=False,
@@ -478,7 +485,35 @@ def get_engine(base_engine):
                 else:
                     l.warning('memory address undefined, ins_addr = 0x%x', self.ins_addr)
 
+        def _handle_StoreG(self, stmt):
+            guard = self._expr(stmt.guard)
+            if guard is True:
+                self._handle_Store(stmt)
+            elif guard is False:
+                pass
+            else:
+                l.warning('could not resolve guard %s for StoreG' % str(guard))
+
+        # CAUTION: experimental
+        def _handle_LoadG(self, stmt):
+            guard = self._expr(stmt.guard)
+            if guard is True:
+                # FIXME: full conversion support
+                if stmt.cvt.find('Ident') < 0:
+                    l.warning('conversion %s in LoadG not implemented' % stmt.cvt)
+                load_expr = pyvex.expr.Load(stmt.end, stmt.cvt_types[1], stmt.addr)
+                wr_tmp_stmt = pyvex.stmt.WrTmp(stmt.dst, load_expr)
+                self._handle_WrTmp(wr_tmp_stmt)
+            elif guard is False:
+                wr_tmp_stmt = pyvex.stmt.WrTmp(stmt.dst, alt)
+                self._handle_WrTmp(wr_tmp_stmt)
+            else:
+                l.warning('could not resolve guard %s for LoadG' % str(guard))
+
         def _handle_Exit(self, stmt):
+            pass
+
+        def _handle_IMark(self, stmt):
             pass
 
         #
@@ -519,11 +554,31 @@ def get_engine(base_engine):
             for a in addr:
                 if a is not None:
                     current_defs = self.state.memory_definitions.get_objects_by_offset(a)
-                    for current_def in current_defs:
-                        if current_def.data is not None:
-                            data.update(current_def.data)
-                        else:
-                            l.warning('memory at address 0x%x undefined, ins_addr = 0x%x', a, self.ins_addr)
+                    if current_defs:
+                        for current_def in current_defs:
+                            if current_def.data is not None:
+                                data.update(current_def.data)
+                            else:
+                                l.warning('memory at address 0x%x undefined, ins_addr = 0x%x', a, self.ins_addr)
+                    else:
+                        mem = self.state.loader.memory.read_bytes(a, size)
+                        if mem:
+                            if self.arch.memory_endness == 'Iend_LE':
+                                fmt = "<"
+                            else:
+                                fmt = ">"
+
+                            if size == 8:
+                                fmt += "Q"
+                            elif size == 4:
+                                fmt += "I"
+
+                            # FIXME: generate FFI only once
+                            if size in [4, 8] and size == len(mem):
+                                ffi = cffi.FFI()
+                                mem_str = ''.join(mem)
+                                data.update(struct.unpack(fmt, mem_str)[0])
+
                     # FIXME: _add_memory_use() iterates over the same loop
                     self.state.add_use(MemoryLocation(a, size), self._codeloc())
                 else:
@@ -532,6 +587,22 @@ def get_engine(base_engine):
             data = data.compact()
 
             return data
+
+        # CAUTION: experimental
+        def _handle_ITE(self, expr):
+            cond = self._expr(expr.cond)
+            iffalse = self._expr(expr.iffalse)
+            iftrue = self._expr(expr.iftrue)
+
+            if cond is True:
+                return iftrue
+            elif cond is False:
+                return iffalse
+            else:
+                # FIXME: ret DataSet of iff and ift
+                l.warning('could not resolve ITE condition %s' % str(cond))
+
+            return None
 
         def _handle_Conversion(self, expr):
             simop = vex_operations[expr.op]
@@ -801,7 +872,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         pass
 
     def _initial_abstract_state(self, node):
-        return ReachingDefinitions(self.project.arch, track_tmps=self._track_tmps, analysis=self,
+        return ReachingDefinitions(self.project.arch, self.project.loader, track_tmps=self._track_tmps, analysis=self,
                                    init_func=self._init_func, cc=self._cc, num_param=self._num_param)
 
     def _merge_states(self, node, *states):
