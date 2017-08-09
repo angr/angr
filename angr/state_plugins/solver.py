@@ -518,9 +518,10 @@ class SimSolver(SimStatePlugin):
     def eval_one(self, e, **kwargs):
         """
         Evaluate an expression to get the only possible solution. Errors if either no or more than one solution is
-        returned.
+        returned. A kwarg parameter `default` can be specified to be returned instead of failure!
 
         :param e: the expression to get a solution for
+        :param default: A value can be passed as a kwarg here. It will be returned in case of failure.
         :param kwargs: Any additional kwargs will be passed down to `eval_upto`
         :raise SimUnsatError: if no solution could be found satisfying the given constraints
         :raise SimValueError: if more than one solution was found to satisfy the given constraints
