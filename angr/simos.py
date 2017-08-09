@@ -55,6 +55,7 @@ class SimOS(object):
         self.continue_addr = None
         self.return_deadend = None
         self.syscall_library = None
+        self.kernel_base = None
 
     def syscall(self, state, allow_unsupported=True):
         """
@@ -87,18 +88,20 @@ class SimOS(object):
         return proc
 
     def is_syscall_addr(self, addr):
-        addr -= self.project.loader.kernel_object.mapped_base
-        return 0 <= addr < 0x4000
+        if self.kernel_base is None:
+            return False
+        addr -= self.kernel_base
+        return 0 <= addr < 0x4000 # TODO: make this number come from somewhere
 
     def syscall_from_addr(self, addr, allow_unsupported=True):
-        number = addr - self.project.loader.kernel_object.mapped_base
+        number = addr - self.kernel_base
         return self.syscall_from_number(number, allow_unsupported=allow_unsupported)
 
     def syscall_from_number(self, number, allow_unsupported=True):
         if not allow_unsupported and not self.syscall_library:
             raise AngrUnsupportedSyscallError("%s does not have a library of syscalls implemented", self.name)
 
-        addr = number + self.project.loader.kernel_object.mapped_base
+        addr = number + self.kernel_base
 
         if self.syscall_library is None:
             proc = P['stubs']['syscall']()
@@ -317,6 +320,7 @@ class SimLinux(SimOS):
         self._loader_unlock_addr = None
         self._vsyscall_addr = None
         self.syscall_library = L['linux']
+        self.kernel_base = self.project.loader.kernel_object.mapped_base
 
     def configure_project(self):
         super(SimLinux, self).configure_project()
@@ -566,6 +570,7 @@ class SimCGC(SimOS):
         super(SimCGC, self).__init__(*args, name="CGC", **kwargs)
 
         self.syscall_library = L['cgcabi']
+        self.kernel_base = self.project.loader.kernel_object.mapped_base
 
     def state_blank(self, fs=None, **kwargs):
         s = super(SimCGC, self).state_blank(**kwargs)  # pylint:disable=invalid-name
@@ -683,6 +688,10 @@ class SimCGC(SimOS):
 
 
 class SimWindows(SimOS):
+    def __init__(self, project):
+        super(SimWindows, self).__init__(project)
+        self.kernel_base = self.project.loader.kernel_object.mapped_base
+
     def configure_project(self):
         # here are some symbols which we MUST hook, regardless of what the user wants
         self._weak_hook_symbol('GetProcAddress', L['kernel32.dll'].get('GetProcAddress', self.arch))
