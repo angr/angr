@@ -349,7 +349,7 @@ class SimSolver(SimStatePlugin):
     @timed_function
     @ast_stripping_decorator
     @error_converter
-    def eval(self, e, n, extra_constraints=(), exact=None):
+    def _eval(self, e, n, extra_constraints=(), exact=None):
         """
         Evaluate an expression, using the solver if necessary. Returns primitives.
 
@@ -461,80 +461,65 @@ class SimSolver(SimStatePlugin):
     # And some convenience stuff
     #
 
-    @concrete_path_scalar
-    def any_int(self, e, **kwargs):
+    def _cast_to(self, expression, value, cast_to):
+        if cast_to is str:
+            return '{:x}'.format(value).zfill(len(expression)/4).decode('hex')
+
+        if cast_to is not int:
+            l.error("Unknown cast target {!r}".format(cast_to))
+
+        return value
+
+    def eval(self, e, n, cast_to=int, **kwargs):
         """
-        Evaluate an expression, using the solver if necessary. Returns an integer.
+        Evaluate an expression, using the solver if necessary. Returns primitives cast to values
+        as specified by the `cast_to` parameter.
 
         :param e: the expression
+        :param n: the number of desired solutions
         :param extra_constraints: extra constraints to apply to the solver
         :param exact: if False, returns approximate solutions
-        :return: a single integer solution, in the form of a Python primitive
-        :rtype: int
+        :param cast_to: A type to cast the resulting values to
+        :return: a tuple of the solutions, in the form of Python primitives
+        :rtype: tuple
         """
-        ans = self.eval(e, 1, **kwargs)
-        if len(ans) > 0: return ans[0]
-        else: raise SimUnsatError("Not satisfiable: %s" % e.shallow_repr())
+        concrete_val = _concrete_value(e)
+        if concrete_val is not None:
+            return [self._cast_to(e, concrete_val, cast_to)]
 
-    def any_str(self, e, **kwargs):
-        """
-        Evaluate an expression, using the solver if necessary. Returns a string.
+        return [self._cast_to(e, v, cast_to) for v in self._eval(e, n, **kwargs)]
 
-        :param e: the expression
-        :param extra_constraints: extra constraints to apply to the solver
-        :param exact: if False, returns approximate solutions
-        :return: a single string solution, in the form of a Python primitive
-        :rtype: string
-        """
-        ans = self.any_n_str(e, 1, **kwargs)
-        if len(ans) > 0: return ans[0]
-        else: raise SimUnsatError("Not satisfiable: %s" % e.shallow_repr())
-
-    def any_n_str_iter(self, e, n, **kwargs):
-        if len(e) == 0:
-            yield ""
-            return
-
-        for s in self.eval(e, n, **kwargs):
-            yield ("%x" % s).zfill(len(e)/4).decode('hex')
-
-    def any_n_str(self, e, n, **kwargs):
-        return list(self.any_n_str_iter(e, n, **kwargs))
-
-    min_int = min
-    max_int = max
-
-    def any_n_int(self, e, n, **kwargs):
+    def eval_one(self, e, **kwargs):
         try:
-            return list(self.eval(e, n, **kwargs))
-        except SimUnsatError:
-            return [ ]
-
-    def exactly_n_int(self, e, n, **kwargs):
-        r = self.any_n_int(e, n + 1, **kwargs)
-        if len(r) == 0:
-            raise SimUnsatError('expected exactly %d solutions for an unsatisfiable state' % n)
-        if len(r) != n:
-            raise SimValueError("concretized %d values (%d required) in exactly_n" % (len(r), n))
-        return r
-
-    def exactly_int(self, e, default=None, **kwargs):
-        try:
-            r = self.any_n_int(e, 2, **kwargs)
-        except (SimValueError, SimSolverModeError):
-            if default is not None:
-                return default
+            return self.eval_exact(e, 1, **{k: v for (k, v) in kwargs.iteritems() if k != 'default'})
+        except (SimUnsatError, SimValueError):
+            if 'default' in kwargs:
+                return kwargs.pop('default')
             raise
 
-        if len(r) != 1:
-            if default is None:
-                if len(r) == 0:
-                    raise SimUnsatError('expected exactly one solution for an unsatisfiable state')
-                else:
-                    raise SimValueError("concretized %d values (%d required) in exactly_int", len(r), 1)
-            else:
-                return default
-        return r[0]
+    def eval_atmost(self, e, n, **kwargs):
+        r = self.eval(e, n+1, **kwargs)
+        if len(r) == 0:
+            raise SimUnsatError('Not satisfiable: %s, expected %d solutions in eval_atmost' % (e.shallow_repr(), n))
+        if len(r) > n:
+            raise SimValueError("Concretized %d values (must be at most %d) in eval_atmost" % (len(r), n))
+        return r
+
+    def eval_atleast(self, e, n, **kwargs):
+        r = self.eval(e, n, **kwargs)
+        if len(r) == 0:
+            raise SimUnsatError('Not satisfiable: %s, expected %d solutions in eval_atleast' % (e.shallow_repr(), n))
+        if len(r) != n:
+            raise SimValueError("Concretized %d values (must be at least %d) in eval_atleast" % (len(r), n))
+        return r
+
+    def eval_exact(self, e, n, **kwargs):
+        r = self.eval(e, n + 1, **kwargs)
+        if len(r) == 0:
+            raise SimUnsatError('Not satisfiable: %s, expected %d solutions in eval_exact' % (e.shallow_repr(), n))
+        if len(r) != n:
+            raise SimValueError("Concretized %d values (must be exactly %d) in eval_exact" % (len(r), n))
+        return r
 
     @timed_function
     @ast_stripping_decorator
