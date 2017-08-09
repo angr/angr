@@ -33,8 +33,8 @@ class fopen(angr.SimProcedure):
         m_strlen = self.inline_call(strlen, m_addr)
         p_expr = self.state.memory.load(p_addr, p_strlen.max_null_index, endness='Iend_BE')
         m_expr = self.state.memory.load(m_addr, m_strlen.max_null_index, endness='Iend_BE')
-        path = self.state.se.any_str(p_expr)
-        mode = self.state.se.any_str(m_expr)
+        path = self.state.se.eval(p_expr, cast_to=str)
+        mode = self.state.se.eval(m_expr, cast_to=str)
 
         # TODO: handle append
         fd = self.state.posix.open(path, mode_to_flag(mode))

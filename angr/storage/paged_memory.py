@@ -958,7 +958,7 @@ class SimPagedMemory(object):
             raise SimMemoryError("page permissions cannot currently be looked up for symbolic addresses")
 
         if isinstance(addr, claripy.ast.bv.BV):
-            addr = self.state.se.any_int(addr)
+            addr = self.state.se.eval(addr)
 
         page_num = addr / self._page_size
 

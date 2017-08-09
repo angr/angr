@@ -180,11 +180,11 @@ class JumpTableResolver(IndirectJumpResolver):
 
                 jump_table = []
 
-                for idx, a in enumerate(state.se.any_n_int(jump_addr, total_cases)):
+                for idx, a in enumerate(state.se.eval_upto(jump_addr, total_cases)):
                     if idx % 100 == 0 and idx != 0:
                         l.debug("%d targets have been resolved for the indirect jump at %#x...", idx, addr)
                     jump_target = state.memory.load(a, state.arch.bits / 8, endness=state.arch.memory_endness)
-                    target = state.se.any_int(jump_target)
+                    target = state.se.eval(jump_target)
                     all_targets.append(target)
                     jump_table.append(target)
 
@@ -228,8 +228,8 @@ class JumpTableResolver(IndirectJumpResolver):
             # don't touch it
             return
 
-        concrete_read_addr = state.se.any_int(read_addr)
-        concrete_read_length = state.se.any_int(read_length)
+        concrete_read_addr = state.se.eval(read_addr)
+        concrete_read_length = state.se.eval(read_length)
 
         for start, size in self._bss_regions:
             if start <= concrete_read_addr < start + size:

@@ -263,7 +263,7 @@ def x86g_dirtyhelper_FINIT(state, gsptr): #pylint:disable=unused-argument
 def x86g_dirtyhelper_write_cr0(state, value):
     # make a deep copy of the arch before modifying it so we don't accidentally modify it for all other states
     state.arch = state.arch.copy()
-    state.arch.vex_archinfo['x86_cr0'] = state.se.exactly_int(value)
+    state.arch.vex_archinfo['x86_cr0'] = state.se.eval_one(value)
     return None, [ ]
 
 def x86g_dirtyhelper_loadF80le(state, addr):

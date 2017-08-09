@@ -845,7 +845,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             elif isinstance(item, SimState):
                 # SimState
                 state = item.copy()  # pylint: disable=no-member
-                ip = state.se.exactly_int(state.ip)
+                ip = state.se.eval_one(state.ip)
                 state.set_mode('fastpath')
 
             self._symbolic_function_initial_state[ip] = state
@@ -1264,7 +1264,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             for src_, dst_ in self._base_graph.edges_iter():
                 if src_.addr == addr:
                     basegraph_successor_addrs.add(dst_.addr)
-            successor_addrs = set([s.se.any_int(s.ip) for s in successors])
+            successor_addrs = set([s.se.eval(s.ip) for s in successors])
             extra_successor_addrs = basegraph_successor_addrs - successor_addrs
 
             if all_successors:  # make sure we have a base state to use
@@ -1437,7 +1437,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             else:
                 exit_type_str = "-"
             try:
-                l.debug("|    target: %#x %s [%s] %s", suc.se.exactly_int(suc.ip), successor_status[suc],
+                l.debug("|    target: %#x %s [%s] %s", suc.se.eval_one(suc.ip), successor_status[suc],
                         exit_type_str, jumpkind)
             except (SimValueError, SimSolverModeError):
                 l.debug("|    target cannot be concretized. %s [%s] %s", successor_status[suc], exit_type_str,
@@ -1596,7 +1596,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Get target address
         try:
-            target_addr = state.se.exactly_n_int(state.ip, 1)[0]
+            target_addr = state.se.eval_one(state.ip)
         except (SimValueError, SimSolverModeError):
             # It cannot be concretized currently. Maybe we can handle it later, maybe it just cannot be concretized
             target_addr = None
@@ -1761,7 +1761,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             for a in actions:
                 if a.type == "mem" and a.action == "read":
                     try:
-                        addr = se.exactly_int(a.addr.ast, default=0)
+                        addr = se.eval_one(a.addr.ast, default=0)
                     except claripy.ClaripyError:
                         continue
                     if (self.project.arch.call_pushes_ret and addr >= new_sp_addr) or \
@@ -2073,7 +2073,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                 else:
                     # It's concrete. Does it make sense?
-                    ip_int = suc.se.exactly_int(suc.ip)
+                    ip_int = suc.se.eval_one(suc.ip)
 
                     if self._is_address_executable(ip_int) or \
                             self.project.is_hooked(ip_int):
@@ -2104,7 +2104,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         if legit_successor.history.jumpkind == 'Ijk_Call':
                             should_resolve = False
                         else:
-                            concrete_target = legit_successor.se.any_int(legit_successor.ip)
+                            concrete_target = legit_successor.se.eval(legit_successor.ip)
                             if not self.project.loader.find_object_containing(
                                     concrete_target) is self.project.loader.main_object:
                                 should_resolve = False
@@ -2163,7 +2163,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             if symbolic_successors:
                 for suc in symbolic_successors:
                     if o.SYMBOLIC in suc.options:
-                        targets = suc.se.any_n_int(suc.ip, 32)
+                        targets = suc.se.eval_upto(suc.ip, 32)
                         if len(targets) < 32:
                             all_successors = []
                             resolved = True
@@ -2206,7 +2206,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                         # Remove successors whose IP doesn't make sense
                         successors = [suc for suc in successors
-                                          if self._is_address_executable(suc.se.exactly_int(suc.ip))]
+                                          if self._is_address_executable(suc.se.eval_one(suc.ip))]
 
                         # mark jump as resolved if we got successors
                         if successors:
@@ -2557,7 +2557,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     # TODO: segments
                     # Now let's live with this big hack...
                     try:
-                        const = successor_state.se.exactly_n_int(data.ast, 1)[0]
+                        const = successor_state.se.eval_one(data.ast)
                     except:  # pylint: disable=bare-except
                         continue
 
@@ -2770,8 +2770,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # Notice: We assume the last exit is the simulated one
             if len(all_jobs) > 1 and all_jobs[-1].history.jumpkind == "Ijk_FakeRet":
                 se = all_jobs[-1].se
-                retn_target_addr = se.exactly_int(all_jobs[-1].ip, default=0)
-                sp = se.exactly_int(all_jobs[-1].regs.sp, default=0)
+                retn_target_addr = se.eval_one(all_jobs[-1].ip, default=0)
+                sp = se.eval_one(all_jobs[-1].regs.sp, default=0)
 
                 new_call_stack = new_call_stack.call(addr, exit_target,
                                     retn_target=retn_target_addr,
@@ -2781,7 +2781,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # This is a syscall. It returns to the same address as itself (with a different jumpkind)
                 retn_target_addr = exit_target
                 se = all_jobs[0].se
-                sp = se.exactly_int(all_jobs[0].regs.sp, default=0)
+                sp = se.eval_one(all_jobs[0].regs.sp, default=0)
                 new_call_stack = new_call_stack.call(addr, exit_target,
                                     retn_target=retn_target_addr,
                                     stack_pointer=sp)
@@ -2791,7 +2791,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # this call doesn't return.
                 new_call_stack = CallStack()
                 se = all_jobs[-1].se
-                sp = se.exactly_int(all_jobs[-1].regs.sp, default=0)
+                sp = se.eval_one(all_jobs[-1].regs.sp, default=0)
 
                 new_call_stack = new_call_stack.call(addr, exit_target, retn_target=None, stack_pointer=sp)
 
@@ -2804,7 +2804,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 pass
 
             se = all_jobs[-1].se
-            sp = se.exactly_int(all_jobs[-1].regs.sp, default=0)
+            sp = se.eval_one(all_jobs[-1].regs.sp, default=0)
             old_sp = job.current_stack_pointer
 
             # Calculate the delta of stack pointer
@@ -2997,12 +2997,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 se = suc.se
                 # Examine the path log
                 actions = suc.history.recent_actions
-                sp = se.exactly_int(suc.regs.sp, default=0) + self.project.arch.call_sp_fix
+                sp = se.eval_one(suc.regs.sp, default=0) + self.project.arch.call_sp_fix
                 for ac in actions:
                     if ac.type == "reg" and ac.action == "write":
                         regs_overwritten.add(ac.offset)
                     elif ac.type == "mem" and ac.action == "write":
-                        addr = se.exactly_int(ac.addr.ast, default=0)
+                        addr = se.eval_one(ac.addr.ast, default=0)
                         if (self.project.arch.call_pushes_ret and addr >= sp + self.project.arch.bits / 8) or \
                                 (not self.project.arch.call_pushes_ret and addr >= sp):
                             offset = addr - sp

@@ -18,7 +18,7 @@ class random(angr.SimProcedure):
                         or self.state.cgc.addr_invalid(buf):
                     return self.state.cgc.EFAULT
 
-                max_count = self.state.se.exactly_int(count)
+                max_count = self.state.se.eval_one(count)
                 random_num = self.state.se.Unconstrained('random_%d' % rand_count.next(), max_count * 8)
                 self.state.memory.store(buf, random_num, size=count)
                 if self.state.se.is_true(rnd_bytes != 0):

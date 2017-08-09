@@ -56,7 +56,7 @@ class Caller(Explorer):
         """
         Maps the state.se."func" function for all the return address states. This is a generator.
 
-        :param func: the function name, used as getattr(p.state.se, func). Normally any_n_int or any_n_str
+        :param func: the function name, used as getattr(p.state.se, func). Normally eval_upto or any_n_str
         :param runs: the maximum number of runs to execute
         :param solutions: check only returns with this value as a possible solution
         :param sort: sort the result before yielding it

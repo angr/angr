@@ -67,7 +67,7 @@ class FormatString(object):
                 # integers, for most of these we'll end up concretizing values..
                 else:
                     i_val = args(argpos)
-                    c_val = int(self.parser.state.se.any_int(i_val))
+                    c_val = int(self.parser.state.se.eval(i_val))
                     c_val &= (1 << (fmt_spec.size * 8)) - 1
                     if fmt_spec.signed and (c_val & (1 << ((fmt_spec.size * 8) - 1))):
                         c_val -= (1 << fmt_spec.size * 8)
@@ -421,7 +421,7 @@ class FormatParser(SimProcedure):
 
         length = self._sim_strlen(fmtstr_ptr)
         if self.state.se.symbolic(length):
-            all_lengths = self.state.se.any_n_int(length, 2)
+            all_lengths = self.state.se.eval_upto(length, 2)
             if len(all_lengths) != 1:
                 raise SimProcedureError("Symbolic (format) string, game over :(")
             length = all_lengths[0]
@@ -434,7 +434,7 @@ class FormatParser(SimProcedure):
         fmt = [ ]
         for i in xrange(fmt_xpr.size(), 0, -8):
             char = fmt_xpr[i - 1 : i - 8]
-            concrete_chars = self.state.se.any_n_int(char, 2)
+            concrete_chars = self.state.se.eval_upto(char, 2)
             if len(concrete_chars) == 1:
                 # Concrete chars are directly appended to the list
                 fmt.append(chr(concrete_chars[0]))

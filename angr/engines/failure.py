@@ -10,7 +10,7 @@ class SimEngineFailure(SimEngine): #pylint:disable=abstract-method
 
     def _check(self, state, **kwargs):
 
-        addr = state.se.any_int(state._ip)
+        addr = state.se.eval(state._ip)
         jumpkind = state.history.jumpkind
 
         if jumpkind in ('Ijk_EmFail', 'Ijk_MapFail') or jumpkind.startswith('Ijk_Sig'):

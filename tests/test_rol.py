@@ -21,7 +21,7 @@ def test_rol_x86_64():
     pg.explore(find=0x401013, avoid=0x401010)
     found_state = pg.found[0]
 
-    result = found_state.se.any_int(r_rax)
+    result = found_state.se.eval(r_rax)
     nose.tools.assert_equal(result, 0x37B7AB70)
 
 def test_rol_i386():
@@ -37,7 +37,7 @@ def test_rol_i386():
     pg.explore(find=0x401013, avoid=0x401010)
     found_state = pg.found[0]
 
-    result = found_state.se.any_int(r_eax)
+    result = found_state.se.eval(r_eax)
     nose.tools.assert_equal(result, 0x37B7AB70) 
 
 def test_all():

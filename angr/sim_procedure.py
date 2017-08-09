@@ -41,7 +41,7 @@ class SimProcedure(object):
         # WE'LL FIGURE IT OUT
         self.project = project
         self.arch = project.arch if project is not None else None
-        self.addr = None
+        #self.addr = None
         self.cc = cc
         self.canonical = self
 
@@ -92,8 +92,8 @@ class SimProcedure(object):
         provide arguments to the function.
         """
         # fill out all the fun stuff we don't want to frontload
-        if self.addr is None:
-            self.addr = state.addr
+        #if self.addr is None:
+        #    self.addr = state.addr
         if self.arch is None:
             self.arch = state.arch
         if self.project is None:

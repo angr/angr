@@ -47,7 +47,7 @@ class free(Func):
             if state is None:
                 l.critical("malloc failed")
                 raise IdentifierException("malloc failed")
-            malloc_vals.append(state.se.any_int(state.regs.eax))
+            malloc_vals.append(state.se.eval(state.regs.eax))
             if malloc_vals[-1] < 0x10000:
                 return False
             test_input = [malloc_vals[-1]]

@@ -86,7 +86,7 @@ class SimIRExpr(object):
 
     # Concretize this expression
     def make_concrete(self):
-        concrete_value = self.state.se.BVV(self.state.se.any_int(self.expr), self.expr.size())
+        concrete_value = self.state.se.BVV(self.state.se.eval(self.expr), self.expr.size())
         self._constraints.append(self.expr == concrete_value)
         self.state.add_constraints(self.expr == concrete_value)
         self.expr = concrete_value

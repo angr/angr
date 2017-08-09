@@ -34,7 +34,7 @@ class SimConcretizationStrategy(object):
         """
         Gets any solution of an address.
         """
-        return memory.state.se.any_int(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
+        return memory.state.se.eval(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
 
     def _eval(self, memory, addr, n, **kwargs):
         """

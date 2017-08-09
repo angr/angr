@@ -55,7 +55,7 @@ class SimFastMemory(SimMemory):
         """
         if isinstance(a, claripy.ast.Base) and not a.singlevalued:
             raise SimFastMemoryError("address not supported")
-        return self.state.se.any_int(a)
+        return self.state.se.eval(a)
 
     def _translate_data(self, d): #pylint:disable=no-self-use
         """
@@ -71,7 +71,7 @@ class SimFastMemory(SimMemory):
             raise SimFastMemoryError("size not supported")
         if s is None:
             return s
-        return self.state.se.any_int(s)
+        return self.state.se.eval(s)
 
     def _translate_cond(self, c): #pylint:disable=no-self-use
         """

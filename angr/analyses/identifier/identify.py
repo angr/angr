@@ -389,7 +389,7 @@ class Identifier(Analysis):
         args_as_stack_vars = []
         for a in args:
             if not a.symbolic:
-                sp_off = succ_state.se.any_int(a-succ_state.regs.sp-arch_bytes)
+                sp_off = succ_state.se.eval(a-succ_state.regs.sp-arch_bytes)
                 if calling_func_info.bp_based:
                     bp_off = sp_off - calling_func_info.bp_sp_diff
                 else:
@@ -483,7 +483,7 @@ class Identifier(Analysis):
         succ = succs.all_successors[0]
 
         if succ.history.jumpkind == "Ijk_Call":
-            goal_sp = succ.se.any_int(succ.regs.sp + self.project.arch.bytes)
+            goal_sp = succ.se.eval(succ.regs.sp + self.project.arch.bytes)
             # could be that this is wrong since we could be pushing args...
             # so let's do a hacky check for pushes after a sub
             bl = self.project.factory.block(func.startpoint.addr)
@@ -491,21 +491,21 @@ class Identifier(Analysis):
             for i, insn in enumerate(bl.capstone.insns):
                 if str(insn.mnemonic) == "sub" and str(insn.op_str).startswith("esp"):
                     succ = self.project.factory.successors(initial_state, num_inst=i+1).all_successors[0]
-                    goal_sp = succ.se.any_int(succ.regs.sp)
+                    goal_sp = succ.se.eval(succ.regs.sp)
 
         elif succ.history.jumpkind == "Ijk_Ret":
             # here we need to know the min sp val
-            min_sp = initial_state.se.any_int(initial_state.regs.sp)
+            min_sp = initial_state.se.eval(initial_state.regs.sp)
             for i in xrange(self.project.factory.block(func.startpoint.addr).instructions):
                 succ = self.project.factory.successors(initial_state, num_inst=i).all_successors[0]
-                test_sp = succ.se.any_int(succ.regs.sp)
+                test_sp = succ.se.eval(succ.regs.sp)
                 if test_sp < min_sp:
                     min_sp = test_sp
                 elif test_sp > min_sp:
                     break
             goal_sp = min_sp
         else:
-            goal_sp = succ.se.any_int(succ.regs.sp)
+            goal_sp = succ.se.eval(succ.regs.sp)
 
         # find the end of the preamble
         num_preamble_inst = None
@@ -515,7 +515,7 @@ class Identifier(Analysis):
                 succ = initial_state
             if i != 0:
                 succ = self.project.factory.successors(initial_state, num_inst=i).all_successors[0]
-            test_sp = succ.se.any_int(succ.regs.sp)
+            test_sp = succ.se.eval(succ.regs.sp)
             if test_sp == goal_sp:
                 num_preamble_inst = i
                 break
@@ -531,17 +531,17 @@ class Identifier(Analysis):
             succ = self.project.factory.successors(initial_state, num_inst=num_preamble_inst).all_successors[0]
 
         min_sp = goal_sp
-        initial_sp = initial_state.se.any_int(initial_state.regs.sp)
+        initial_sp = initial_state.se.eval(initial_state.regs.sp)
         frame_size = initial_sp - min_sp - self.project.arch.bytes
         if num_preamble_inst is None or succ is None:
             raise IdentifierException("preamble checks failed for %#x" % func.startpoint.addr)
 
-        bp_based = bool(len(succ.se.any_n_int((initial_state.regs.sp - succ.regs.bp), 2)) == 1)
+        bp_based = bool(len(succ.se.eval_upto((initial_state.regs.sp - succ.regs.bp), 2)) == 1)
 
         preamble_sp_change = succ.regs.sp - initial_state.regs.sp
         if preamble_sp_change.symbolic:
             raise IdentifierException("preamble sp change")
-        preamble_sp_change = initial_state.se.any_int(preamble_sp_change)
+        preamble_sp_change = initial_state.se.eval(preamble_sp_change)
 
         main_state = self._make_regs_symbolic(succ, self._reg_list, self.project)
         if bp_based:
@@ -550,7 +550,7 @@ class Identifier(Analysis):
         pushed_regs = []
         for a in succ.history.recent_actions:
             if a.type == "mem" and a.action == "write":
-                addr = succ.se.any_int(a.addr.ast)
+                addr = succ.se.eval(a.addr.ast)
                 if min_sp <= addr <= initial_sp:
                     if hash(a.data.ast) in reg_dict:
                         pushed_regs.append(reg_dict[hash(a.data.ast)])
@@ -581,7 +581,7 @@ class Identifier(Analysis):
 
         bp_sp_diff = None
         if bp_based:
-            bp_sp_diff = main_state.se.any_int(main_state.regs.bp - main_state.regs.sp)
+            bp_sp_diff = main_state.se.eval(main_state.regs.bp - main_state.regs.sp)
 
         all_addrs = set()
         for bl_addr in func.block_addrs:
@@ -638,7 +638,7 @@ class Identifier(Analysis):
                     is_buffer = True
                 else:
                     is_buffer = False
-                sp_off = succ.se.any_int(simplified)
+                sp_off = succ.se.eval(simplified)
                 if sp_off > 2 ** (self.project.arch.bits - 1):
                     sp_off = 2 ** self.project.arch.bits - sp_off
 
@@ -660,7 +660,7 @@ class Identifier(Analysis):
                     is_buffer = True
                 else:
                     is_buffer = False
-                bp_off = succ.se.any_int(simplified)
+                bp_off = succ.se.eval(simplified)
                 if bp_off > 2 ** (self.project.arch.bits - 1):
                     bp_off = -(2 ** self.project.arch.bits - bp_off)
                 stack_var_accesses[bp_off].add((addr, action))
@@ -723,7 +723,7 @@ class Identifier(Analysis):
             return True
         if len(diff.variables) > 1 or any("ebp" in v for v in diff.variables):
             return False
-        if len(succ.se.any_n_int((state.regs.sp - succ.regs.bp), 2)) == 1:
+        if len(succ.se.eval_upto((state.regs.sp - succ.regs.bp), 2)) == 1:
             return True
         return False
 

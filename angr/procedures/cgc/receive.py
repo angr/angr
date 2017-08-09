@@ -19,7 +19,7 @@ class receive(angr.SimProcedure):
                 actual_size = count
                 data = self.state.se.Unconstrained(
                     'receive_data_%d' % fastpath_data_counter.next(),
-                    self.state.se.exactly_int(actual_size) * 8
+                    self.state.se.eval_one(actual_size) * 8
                 )
                 self.state.memory.store(buf, data)
             else:
@@ -35,7 +35,7 @@ class receive(angr.SimProcedure):
                     self.state.se.min_int(buf + count) < self.state.se.min_int(buf):
                 return 2
             try:
-                writable = self.state.se.any_int(self.state.memory.permissions(self.state.se.any_int(buf))) & 2 != 0
+                writable = self.state.se.eval(self.state.memory.permissions(self.state.se.eval(buf))) & 2 != 0
             except angr.SimMemoryError:
                 writable = False
             if not writable:

@@ -135,7 +135,7 @@ class SimEngineVEX(SimEngine):
                     raise SimSegfaultError(addr, 'exec-miss')
                 else:
                     if not perms.symbolic:
-                        perms = state.se.any_int(perms)
+                        perms = state.se.eval(perms)
                         if not perms & 4 and o.ENABLE_NX in state.options:
                             raise SimSegfaultError(addr, 'non-executable')
 
@@ -392,7 +392,7 @@ class SimEngineVEX(SimEngine):
 
         # phase 1: parameter defaults
         if addr is None:
-            addr = state.se.any_int(state._ip)
+            addr = state.se.eval(state._ip)
         if size is not None:
             size = min(size, VEX_IRSB_MAX_SIZE)
         if size is None:
@@ -519,7 +519,7 @@ class SimEngineVEX(SimEngine):
         # If that didn't work, try to load from the state
         if size == 0 and state:
             if addr in state.memory and addr + max_size - 1 in state.memory:
-                buff = state.se.any_str(state.memory.load(addr, max_size, inspect=False))
+                buff = state.se.eval(state.memory.load(addr, max_size, inspect=False), cast_to=str)
                 size = max_size
             else:
                 good_addrs = []
@@ -529,7 +529,7 @@ class SimEngineVEX(SimEngine):
                     else:
                         break
 
-                buff = ''.join(chr(state.se.any_int(state.memory.load(i, 1, inspect=False))) for i in good_addrs)
+                buff = ''.join(chr(state.se.eval(state.memory.load(i, 1, inspect=False))) for i in good_addrs)
                 size = len(buff)
 
         size = min(max_size, size)

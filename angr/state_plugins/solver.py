@@ -594,7 +594,7 @@ class SimSolver(SimStatePlugin):
         if o.SYMBOLIC not in self.state.options and self.symbolic(e):
             return False
 
-        r = self.any_n_int(e, 2, **kwargs)
+        r = self.eval_upto(e, 2, **kwargs)
         if len(r) == 1:
             self.add(e == r[0])
             return True

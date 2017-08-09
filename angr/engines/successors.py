@@ -166,7 +166,7 @@ class SimSuccessors(object):
             if state.arch.call_pushes_ret:
                 ret_addr = state.mem[state.regs._sp].long.concrete
             else:
-                ret_addr = state.se.any_int(state.regs._lr)
+                ret_addr = state.se.eval(state.regs._lr)
             try:
                 state_addr = state.addr
             except SimValueError:
@@ -174,7 +174,7 @@ class SimSuccessors(object):
             new_frame = CallStack(
                     call_site_addr=state.history.recent_bbl_addrs[-1],
                     func_addr=state_addr,
-                    stack_ptr=state.se.any_int(state.regs._sp),
+                    stack_ptr=state.se.eval(state.regs._sp),
                     ret_addr=ret_addr,
                     jumpkind='Ijk_Call')
             state.callstack.push(new_frame)
@@ -267,12 +267,12 @@ class SimSuccessors(object):
                     if len(addrs) > 256:
                         # It is not a library
                         l.debug("It is not a Library")
-                        addrs = state.se.any_n_int(target, 257)
+                        addrs = state.se.eval_upto(target, 257)
                         if len(addrs) == 1:
                             state.add_constraints(target == addrs[0])
                         l.debug("addrs :%s", addrs)
                 else:
-                    addrs = state.se.any_n_int(target, 257)
+                    addrs = state.se.eval_upto(target, 257)
 
                 if len(addrs) > 256:
                     l.warning(
@@ -312,7 +312,7 @@ class SimSuccessors(object):
             l.debug("Not resolving symbolic syscall number")
             return syscall_num, None
         maximum = state.posix.maximum_symbolic_syscalls
-        possible = state.se.any_n_int(syscall_num, maximum + 1)
+        possible = state.se.eval_upto(syscall_num, maximum + 1)
 
         if len(possible) == 0:
             raise UnsupportedSyscallError("Unsatisfiable state attempting to do a syscall")

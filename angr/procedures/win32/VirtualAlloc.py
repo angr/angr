@@ -37,7 +37,7 @@ def deconvert_prot(prot):
 # https://msdn.microsoft.com/en-us/library/windows/desktop/aa366890(v=vs.85).aspx
 class VirtualAlloc(angr.SimProcedure):
     def run(self, lpAddress, dwSize, flAllocationType, flProtect):
-        addrs = self.state.se.any_n_int(lpAddress, 2)
+        addrs = self.state.se.eval_upto(lpAddress, 2)
         if len(addrs) != 1:
             raise angr.errors.SimValueError("VirtualAlloc can't handle symbolic lpAddress")
         addr = addrs[0]
@@ -49,12 +49,12 @@ class VirtualAlloc(angr.SimProcedure):
                       dwSize, size, self.state.libc.max_variable_size)
             size = self.state.libc.max_variable_size
 
-        flagss = self.state.se.any_n_int(flAllocationType, 2)
+        flagss = self.state.se.eval_upto(flAllocationType, 2)
         if len(flagss) != 1:
             raise angr.errors.SimValueError("VirtualAlloc can't handle symbolic flAllocationType")
         flags = flagss[0]
 
-        prots = self.state.se.any_n_int(flProtect, 2)
+        prots = self.state.se.eval_upto(flProtect, 2)
         if len(prots) != 1:
             raise angr.errors.SimValueError("VirtualAlloc can't handle symbolic flProtect")
         prot = prots[0]

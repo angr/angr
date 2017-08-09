@@ -14,14 +14,14 @@ class lseek(angr.SimProcedure):
             l.error(err)
             raise angr.errors.SimPosixError(err)
 
-        whence = self.state.se.any_int(whence)
+        whence = self.state.se.eval(whence)
 
         if self.state.se.symbolic(seek):
             err = "Symbolic seek is not supported in lseek syscall."
             l.error(err)
             raise angr.errors.SimPosixError(err)
 
-        seek = self.state.se.any_int(seek)
+        seek = self.state.se.eval(seek)
 
         # Symbolic fd case is handled in posix.seek
 

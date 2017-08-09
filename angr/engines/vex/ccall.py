@@ -31,7 +31,8 @@ def boolean_extend(state, O, a, b, size):
     return state.se.If(O(a, b), state.se.BVV(1, size), state.se.BVV(0, size))
 
 def flag_concretize(state, flag):
-    return state.se.exactly_n_int(flag, 1)[0]
+    return state.se.eval(flag)
+    return state.se.eval_one(flag)
 
 ##################
 ### x86* data ###
@@ -818,7 +819,7 @@ def x86g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
         raise SimError('Hit a symbolic "sz" in x86g_calculate_RCR. Panic.')
 
     # convert sz to concrete value
-    sz = state.se.exactly_int(sz)
+    sz = state.se.eval_one(sz)
     bits = sz * 8
 
     # construct bitvec to use for rotation amount - 9/17/33 bits
@@ -855,7 +856,7 @@ def x86g_calculate_RCL(state, arg, rot_amt, eflags_in, sz):
         raise SimError('Hit a symbolic "sz" in x86g_calculate_RCR. Panic.')
 
     # convert sz to concrete value
-    sz = state.se.exactly_int(sz)
+    sz = state.se.eval_one(sz)
     bits = sz * 8
 
     # construct bitvec to use for rotation amount - 9/17/33 bits
@@ -907,7 +908,7 @@ def x86g_create_fpucw(state, fpround):
 def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
     assert len(flags_and_AX) == 32
     assert not opcode.symbolic
-    opcode = state.se.any_int(opcode)
+    opcode = state.se.eval(opcode)
 
     r_O  = flags_and_AX[data['X86']['CondBitOffsets']['G_CC_SHIFT_O'] + 16].zero_extend(31)
     r_S  = flags_and_AX[data['X86']['CondBitOffsets']['G_CC_SHIFT_S'] + 16].zero_extend(31)
@@ -1005,7 +1006,7 @@ def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
 def x86g_calculate_aad_aam(state, flags_and_AX, opcode):
     assert len(flags_and_AX) == 32
     assert not opcode.symbolic
-    opcode = state.se.any_int(opcode)
+    opcode = state.se.eval(opcode)
 
     r_AL = (flags_and_AX >> 0) & 0xFF
     r_AH = (flags_and_AX >> 8) & 0xFF
@@ -1085,7 +1086,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     tiBit = (seg_selector >> 2) & 1
     if state.se.is_true(tiBit == 0):
         # GDT access
-        gdt_value = state.se.exactly_int(gdt)
+        gdt_value = state.se.eval_one(gdt)
         if gdt_value == 0:
             return ((seg_selector << 16) + virtual_addr).zero_extend(32), ()
 
@@ -1097,11 +1098,11 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
             return bad("index out of range")
 
         gdt_base = gdt[47:16]
-        gdt_base_value = state.se.exactly_int(gdt_base)
+        gdt_base_value = state.se.eval_one(gdt_base)
         descriptor = state.memory.load(gdt_base_value + seg_selector * 8, 8, endness='Iend_LE')
     else:
         # LDT access
-        ldt_value = state.se.exactly_int(ldt)
+        ldt_value = state.se.eval_one(ldt)
         if ldt_value == 0:
             return ((seg_selector << 16) + virtual_addr).zero_extend(32), ()
 
@@ -1113,9 +1114,9 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
             return bad("index out of range")
 
         ldt_base = ldt[47:16]
-        ldt_base_value = state.se.exactly_int(ldt_base)
+        ldt_base_value = state.se.eval_one(ldt_base)
 
-        ldt_value = state.se.exactly_int(ldt_base)
+        ldt_value = state.se.eval_one(ldt_base)
         descriptor = state.memory.load(ldt_value + seg_selector * 8, 8, endness='Iend_LE')
 
     present = descriptor[47]

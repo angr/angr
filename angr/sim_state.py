@@ -188,7 +188,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         :return: an int
         """
 
-        return self.se.exactly_int(self.regs._ip)
+        return self.se.eval_one(self.regs._ip)
 
     #
     # Plugin accessors
@@ -563,7 +563,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         e = self.registers.load(*args, **kwargs)
         if self.se.symbolic(e):
             raise SimValueError("target of reg_concrete is symbolic!")
-        return self.se.any_int(e)
+        return self.se.eval(e)
 
     def mem_concrete(self, *args, **kwargs):
         """
@@ -573,7 +573,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         e = self.memory.load(*args, **kwargs)
         if self.se.symbolic(e):
             raise SimValueError("target of mem_concrete is symbolic!")
-        return self.se.any_int(e)
+        return self.se.eval(e)
 
     ###############################
     ### Stack operation helpers ###
@@ -619,9 +619,9 @@ class SimState(ana.Storable): # pylint: disable=R0904
             return expr
 
         if not self.se.symbolic(expr):
-            return self.se.any_int(expr)
+            return self.se.eval(expr)
 
-        v = self.se.any_int(expr)
+        v = self.se.eval(expr)
         self.add_constraints(expr == v)
         return v
 
@@ -644,7 +644,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             if self.se.symbolic(stack_value):
                 concretized_value = "SYMBOLIC - %s" % repr(stack_value)
             else:
-                if len(self.se.any_n_int(stack_value, 2)) == 2:
+                if len(self.se.eval_upto(stack_value, 2)) == 2:
                     concretized_value = repr(stack_value)
                 else:
                     concretized_value = repr(stack_value)
@@ -667,12 +667,12 @@ class SimState(ana.Storable): # pylint: disable=R0904
         elif self.se.symbolic(bp_sim) and depth is None:
             result = "BP is SYMBOLIC"
         else:
-            sp_value = sp if sp is not None else self.se.any_int(sp_sim)
+            sp_value = sp if sp is not None else self.se.eval(sp_sim)
             if self.se.symbolic(bp_sim):
                 result = "SP = 0x%08x, BP is symbolic\n" % (sp_value)
                 bp_value = None
             else:
-                bp_value = self.se.any_int(bp_sim)
+                bp_value = self.se.eval(bp_sim)
                 result = "SP = 0x%08x, BP = 0x%08x\n" % (sp_value, bp_value)
             if depth is None:
                 # bp_value cannot be None here
@@ -727,7 +727,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
             return new_state.satisfiable()
 
         else:
-            concrete_ip = self.se.any_int(self.regs.ip)
+            concrete_ip = self.se.eval(self.regs.ip)
             return concrete_ip % 2 == 1
 
     #

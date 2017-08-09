@@ -32,7 +32,7 @@ class realloc(Func):
         max_steps = 10
         test = TestData(test_input, test_output, return_val, max_steps)
         state = runner.get_out_state(func, test)
-        if state is not None and state.se.any_int(state.regs.eax) != 0:
+        if state is not None and state.se.eval(state.regs.eax) != 0:
             return False
 
         # we should be able to get different outputs if we call malloc multiple times
@@ -47,13 +47,13 @@ class realloc(Func):
         state = runner.get_out_state(func, test)
         if state is None:
             return False
-        returned_locs.append(state.se.any_int(state.regs.eax))
+        returned_locs.append(state.se.eval(state.regs.eax))
 
         for i in range(10): #pylint disable=unused-variable
             state = runner.get_out_state(func, test, initial_state=state)
             if state is None:
                 return False
-            returned_locs.append(state.se.any_int(state.regs.eax))
+            returned_locs.append(state.se.eval(state.regs.eax))
 
         # if we got the same value 2x it didnt work
         if len(set(returned_locs)) != len(returned_locs):
@@ -69,7 +69,7 @@ class realloc(Func):
 
         # they all should be writable/readable
         try:
-            if any(state.se.any_int(state.memory.permissions(a)) & 3 != 3 for a in returned_locs):
+            if any(state.se.eval(state.memory.permissions(a)) & 3 != 3 for a in returned_locs):
                 return False
         except SimMemoryError:
             return False
@@ -85,13 +85,13 @@ class realloc(Func):
         state = runner.get_out_state(func, test)
         if state is None:
             return False
-        returned_locs2.append(state.se.any_int(state.regs.eax))
+        returned_locs2.append(state.se.eval(state.regs.eax))
 
         for i in range(10):
             state = runner.get_out_state(func, test, initial_state=state)
             if state is None:
                 return False
-            returned_locs2.append(state.se.any_int(state.regs.eax))
+            returned_locs2.append(state.se.eval(state.regs.eax))
 
         if returned_locs == returned_locs2:
             return False

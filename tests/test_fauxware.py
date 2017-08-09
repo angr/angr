@@ -105,12 +105,12 @@ def run_merge(arch):
     yes, no = path.history.merge_conditions
     inp = path.posix.files[0].content.load(0, 18)
     try:
-        assert 'SOSNEAKY' in path.se.any_str(inp, extra_constraints=(yes,))
-        assert 'SOSNEAKY' not in path.se.any_str(inp, extra_constraints=(no,))
+        assert 'SOSNEAKY' in path.se.eval(inp, cast_to=str, extra_constraints=(yes,))
+        assert 'SOSNEAKY' not in path.se.eval(inp, cast_to=str, extra_constraints=(no,))
     except AssertionError:
         yes, no = no, yes
-        assert 'SOSNEAKY' in path.se.any_str(inp, extra_constraints=(yes,))
-        assert 'SOSNEAKY' not in path.se.any_str(inp, extra_constraints=(no,))
+        assert 'SOSNEAKY' in path.se.eval(inp, cast_to=str, extra_constraints=(yes,))
+        assert 'SOSNEAKY' not in path.se.eval(inp, cast_to=str, extra_constraints=(no,))
 
 def test_merge():
     for arch in target_addrs:

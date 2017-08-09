@@ -204,12 +204,12 @@ class GirlScout(Analysis):
                         if real_ref.action == 'write':
                             addr = real_ref.addr
                             if not run.initial_state.se.symbolic(addr):
-                                concrete_addr = run.initial_state.se.any_int(addr)
+                                concrete_addr = run.initial_state.se.eval(addr)
                                 self._write_addr_to_run[addr].append(run.addr)
                         elif real_ref.action == 'read':
                             addr = real_ref.addr
                             if not run.initial_state.se.symbolic(addr):
-                                concrete_addr = run.initial_state.se.any_int(addr)
+                                concrete_addr = run.initial_state.se.eval(addr)
                             self._read_addr_to_run[addr].append(run.addr)
 
     def _scan_code(self, traced_addresses, function_exits, initial_state, starting_address):
@@ -354,7 +354,7 @@ class GirlScout(Analysis):
             try:
                 # Try to concretize the target. If we can't, just move on
                 # to the next target
-                next_addr = suc.se.exactly_n_int(suc.ip, 1)[0]
+                next_addr = suc.se.eval_one(suc.ip)
             except (SimValueError, SimSolverModeError) as ex:
                 # Undecidable jumps (might be a function return, or a conditional branch, etc.)
 
@@ -494,7 +494,7 @@ class GirlScout(Analysis):
 
                 try:
                     r = (path.next_run.successors + path.next_run.unsat_successors)[0]
-                    ip = r.se.exactly_n_int(r.ip, 1)[0]
+                    ip = r.se.eval_one(r.ip)
 
                     function_starts.add(ip)
                     continue
@@ -557,7 +557,7 @@ class GirlScout(Analysis):
                             se = r.next_run.successors[0].se
 
                             if not se.symbolic(target_ip):
-                                concrete_ip = se.exactly_n_int(target_ip, 1)[0]
+                                concrete_ip = se.eval_one(target_ip)
                                 function_starts.add(concrete_ip)
                                 l.info("Found a function address %x", concrete_ip)
 

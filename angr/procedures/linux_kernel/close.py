@@ -10,7 +10,7 @@ class close(angr.SimProcedure):
     IS_SYSCALL = True
 
     def run(self, fd):
-        fd = self.state.se.any_int(fd)
+        fd = self.state.se.eval(fd)
 
         # Return error if file descriptor does not exist or file is already closed
         if fd not in self.state.posix.files or self.state.posix.files[fd].closed is True:

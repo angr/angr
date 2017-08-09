@@ -48,10 +48,10 @@ class Path(object):
             self.callstack = CallStack()
             self.callstack_backtrace = []
 
-            # Note that stack pointer might be symbolic, and simply calling state.se.any_int over sp will fail in that
+            # Note that stack pointer might be symbolic, and simply calling state.se.eval over sp will fail in that
             # case. We should catch exceptions here.
             try:
-                stack_ptr = self.state.se.any_int(self.state.regs.sp)
+                stack_ptr = self.state.se.eval(self.state.regs.sp)
             except (SimSolverModeError, SimUnsatError, AttributeError):
                 stack_ptr = None
 
@@ -102,7 +102,7 @@ class Path(object):
 
     @property
     def addr(self):
-        return self.state.se.any_int(self.state.regs.ip)
+        return self.state.se.eval(self.state.regs.ip)
 
     @addr.setter
     def addr(self, val):
@@ -218,7 +218,7 @@ class Path(object):
         out = [Path(self._project, s, path=self, strong_reference=strong_reference) for s in self._run.flat_successors]
         if 'insn_bytes' in run_args and 'addr' not in run_args and len(out) == 1 \
                 and isinstance(self._run, simuvex.SimIRSB) \
-                and self.addr + self._run.irsb.size == out[0].state.se.any_int(out[0].state.regs.ip):
+                and self.addr + self._run.irsb.size == out[0].state.se.eval(out[0].state.regs.ip):
             out[0].state.regs.ip = self.addr
 
         for p in out:
@@ -703,7 +703,7 @@ class Path(object):
             if isinstance(addr, claripy.ast.Base):
                 if addr.symbolic:
                     return False
-                addr = self.state.se.any_int(addr)
+                addr = self.state.se.eval(addr)
             if addr != read_offset:
                 return False
             return True
@@ -721,7 +721,7 @@ class Path(object):
             if isinstance(addr, claripy.ast.Base):
                 if addr.symbolic:
                     return False
-                addr = self.state.se.any_int(addr)
+                addr = self.state.se.eval(addr)
             if addr != write_offset:
                 return False
             return True

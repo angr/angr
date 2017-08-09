@@ -40,7 +40,7 @@ class memcmp(angr.SimProcedure):
         else:
             definite_answer = self.state.se.BVV(0, self.state.arch.bits)
 
-        if not self.state.se.symbolic(definite_answer) and self.state.se.any_int(definite_answer) != 0:
+        if not self.state.se.symbolic(definite_answer) and self.state.se.eval(definite_answer) != 0:
             return definite_answer
 
         if conditional_size > 0:

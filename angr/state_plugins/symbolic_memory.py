@@ -317,7 +317,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     def _resolve_size_range(self, size):
         if not self.state.se.symbolic(size):
-            i = self.state.se.any_int(size)
+            i = self.state.se.eval(size)
             if i > self._maximum_concrete_size:
                 raise SimMemoryLimitError("Concrete size %d outside of allowable limits" % i)
             return i, i
@@ -400,7 +400,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if isinstance(addr, (int, long)):
             return [ addr ]
         elif not self.state.se.symbolic(addr):
-            return [ self.state.se.any_int(addr) ]
+            return [ self.state.se.eval(addr) ]
 
         strategies = self.write_strategies if strategies is None else strategies
         return self._apply_concretization_strategies(addr, strategies, 'store')
@@ -417,7 +417,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if isinstance(addr, (int, long)):
             return [ addr ]
         elif not self.state.se.symbolic(addr):
-            return [ self.state.se.any_int(addr) ]
+            return [ self.state.se.eval(addr) ]
 
         strategies = self.read_strategies if strategies is None else strategies
         return self._apply_concretization_strategies(addr, strategies, 'load')
@@ -596,7 +596,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             else:
                 # other modes (e.g. symbolic mode)
-                if not b.symbolic and not symbolic_what and self.state.se.any_int(b) == self.state.se.any_int(what):
+                if not b.symbolic and not symbolic_what and self.state.se.eval(b) == self.state.se.eval(what):
                     l.debug("... found concrete")
                     break
                 else:
@@ -628,7 +628,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             l.warning("Currently unable to do SimMemory.__contains__ on symbolic variables.")
             return False
         else:
-            addr = self.state.se.any_int(dst)
+            addr = self.state.se.eval(dst)
         return addr in self.mem
 
     def was_written_to(self, dst):
@@ -638,7 +638,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             l.warning("Currently unable to do SimMemory.was_written_to on symbolic variables.")
             return False
         else:
-            addr = self.state.se.any_int(dst)
+            addr = self.state.se.eval(dst)
         return self.mem.contains_no_backer(addr)
 
     #
@@ -656,7 +656,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             return req
 
         if req.size is not None and self.state.se.symbolic(req.size) and options.CONCRETIZE_SYMBOLIC_WRITE_SIZES in self.state.options:
-            new_size = self.state.se.any_int(req.size)
+            new_size = self.state.se.eval(req.size)
             req.constraints.append(req.size == new_size)
             req.size = new_size
 
@@ -705,7 +705,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 ])
                 req.symbolic_sized_values.append(sv)
         else:
-            needed_bytes = self.state.se.any_int(req.size)
+            needed_bytes = self.state.se.eval(req.size)
             if needed_bytes < max_bytes:
                 sv = req.data[max_bytes*8-1:(max_bytes-needed_bytes)*8]
                 req.symbolic_sized_values = [ sv ] * num_addresses

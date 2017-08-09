@@ -111,7 +111,7 @@ def test_inspect_exit():
     def handle_exit_before(state):
         counts.exit_before += 1
         exit_target = state.inspect.exit_target
-        nose.tools.assert_equal(state.se.any_int(exit_target), 0x3f8)
+        nose.tools.assert_equal(state.se.eval(exit_target), 0x3f8)
         # change exit target
         state.inspect.exit_target = 0x41414141
         nose.tools.assert_equal(state.inspect.exit_jumpkind, "Ijk_Boring")
@@ -131,7 +131,7 @@ def test_inspect_exit():
     succ = SimEngineVEX().process(s, irsb).flat_successors
 
     # check
-    nose.tools.assert_equal( succ[0].se.any_int(succ[0].ip), 0x41414141)
+    nose.tools.assert_equal( succ[0].se.eval(succ[0].ip), 0x41414141)
     nose.tools.assert_equal(counts.exit_before, 1)
     nose.tools.assert_equal(counts.exit_after, 1)
 

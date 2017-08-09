@@ -44,7 +44,7 @@ class Checker(object):
             return True
 
         stdin_input = path.posix.files[0].content.load(1, 10) # skip the first char used in switch
-        some_strings = path.se.any_n_str(stdin_input, 1000)
+        some_strings = path.se.eval_upto(stdin_input, 1000, cast_to=str)
 
         for s in some_strings:
 

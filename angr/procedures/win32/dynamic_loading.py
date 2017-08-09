@@ -49,7 +49,7 @@ class GetProcAddress(angr.SimProcedure):
 
         if claripy.is_true(name_addr < 0x10000):
             # this matches the bogus name specified in the loader...
-            ordinal = self.state.se.any_int(name_addr)
+            ordinal = self.state.se.eval(name_addr)
             name = 'ordinal.%d' % ordinal
         else:
             name = self.state.mem[name_addr].string.concrete

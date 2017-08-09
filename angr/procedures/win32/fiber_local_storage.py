@@ -29,7 +29,7 @@ class FlsFree(angr.SimProcedure):
 
 class FlsSetValue(angr.SimProcedure):
     def run(self, index, value):
-        conc_indexs = self.state.se.any_n_int(index, 2)
+        conc_indexs = self.state.se.eval_upto(index, 2)
         if len(conc_indexs) != 1:
             raise angr.errors.SimValueError("Can't handle symbolic index in FlsSetValue")
         conc_index = conc_indexs[0]
@@ -42,7 +42,7 @@ class FlsSetValue(angr.SimProcedure):
 
 class FlsGetValue(angr.SimProcedure):
     def run(self, index):
-        conc_indexs = self.state.se.any_n_int(index, 2)
+        conc_indexs = self.state.se.eval_upto(index, 2)
         if len(conc_indexs) != 1:
             raise angr.errors.SimValueError("Can't handle symbolic index in FlsGetValue")
         conc_index = conc_indexs[0]

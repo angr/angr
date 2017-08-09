@@ -130,7 +130,7 @@ class SimTypeReg(SimType):
         out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
         if not concrete:
             return out
-        return state.se.any_int(out)
+        return state.se.eval(out)
 
     def store(self, state, addr, value):
         store_endness = state.arch.memory_endness
@@ -172,7 +172,7 @@ class SimTypeNum(SimType):
         out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
         if not concrete:
             return out
-        n = state.se.any_int(out)
+        n = state.se.eval(out)
         if self.signed and n >= 1 << (self.size-1):
             n -= 1 << (self.size)
         return n
@@ -231,7 +231,7 @@ class SimTypeInt(SimTypeReg):
         out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
         if not concrete:
             return out
-        n = state.se.any_int(out)
+        n = state.se.eval(out)
         if self.signed and n >= 1 << (self.size-1):
             n -= 1 << (self.size)
         return n
@@ -449,7 +449,7 @@ class SimTypeString(SimTypeArray):
         if not concrete:
             return out if out is not None else claripy.BVV(0, 0)
         else:
-            return state.se.any_str(out) if out is not None else ''
+            return state.se.eval(out, cast_to=str) if out is not None else ''
 
     _can_refine_int = True
 
@@ -494,7 +494,7 @@ class SimTypeWString(SimTypeArray):
         if not concrete:
             return out
         else:
-            return u''.join(unichr(state.se.any_int(x.reversed if state.arch.memory_endness == 'Iend_LE' else x)) for x in out.chop(16))
+            return u''.join(unichr(state.se.eval(x.reversed if state.arch.memory_endness == 'Iend_LE' else x)) for x in out.chop(16))
 
     _can_refine_int = True
 
@@ -585,7 +585,7 @@ class SimTypeFloat(SimTypeReg):
     def extract(self, state, addr, concrete=False):
         itype = claripy.fpToFP(super(SimTypeFloat, self).extract(state, addr, False), self.sort)
         if concrete:
-            return state.se.any_int(itype)
+            return state.se.eval(itype)
         return itype
 
     def store(self, state, addr, value):

@@ -2437,7 +2437,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 try:
                     r = (succ.flat_successors + succ.unsat_successors)[0]
-                    ip = r.se.exactly_n_int(r.ip, 1)[0]
+                    ip = r.se.eval_one(r.ip)
 
                     function_starts.add(ip)
                     continue
@@ -2499,7 +2499,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             se = r.next_run.successors[0].se
 
                             if not se.symbolic(target_ip):
-                                concrete_ip = se.exactly_n_int(target_ip, 1)[0]
+                                concrete_ip = se.eval_one(target_ip)
                                 function_starts.add(concrete_ip)
                                 l.info("Found a function address %x", concrete_ip)
 

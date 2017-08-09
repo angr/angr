@@ -162,7 +162,7 @@ class Slicecutor(Surveyor):
 
         # Set whitelists and last statements
         for s in self.active:
-            addr = s.se.exactly_n_int(s.ip, 1)[0]
+            addr = s.se.eval_one(s.ip)
             whitelist = self._annotated_cfg.get_whitelisted_statements(addr)
             last_stmt = self._annotated_cfg.get_last_statement_index(addr)
             s._whitelist = whitelist

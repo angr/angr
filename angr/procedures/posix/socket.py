@@ -10,7 +10,7 @@ class socket(angr.SimProcedure):
     def run(self, sim_sock_type):
         # TODO: Handling parameters
 
-        sock_type = self.state.se.any_int(sim_sock_type)
+        sock_type = self.state.se.eval(sim_sock_type)
         # TODO handle errors and symbolic path
         fd = self.state.posix.open("socket_socket", "rw")
 

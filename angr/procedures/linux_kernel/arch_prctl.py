@@ -14,7 +14,7 @@ class arch_prctl(angr.SimProcedure):
         if self.state.se.symbolic(code):
             raise angr.errors.SimValueError("Code value passed to arch_prctl must be concrete.")
 
-        code = self.state.se.any_int(code)
+        code = self.state.se.eval(code)
 
         #ARCH_SET_GS
         if code == 0x1001:

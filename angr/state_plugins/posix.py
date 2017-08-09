@@ -109,8 +109,8 @@ class SimStateSystem(SimStatePlugin):
             self.brk = self.state.se.If(new_brk < self.brk, self.brk, new_brk)
 
         else:
-            conc_start = self.state.se.any_int(self.brk)
-            conc_end = self.state.se.any_int(new_brk)
+            conc_start = self.state.se.eval(self.brk)
+            conc_end = self.state.se.eval(new_brk)
             # failure case: new brk is less than old brk
             if conc_end < conc_start:
                 pass
@@ -197,7 +197,7 @@ class SimStateSystem(SimStatePlugin):
 
             # if we're in read mode get the file contents
             if not isinstance(mode, (int, long)):
-                mode = self.state.se.any_int(mode)
+                mode = self.state.se.eval(mode)
             if mode == Flags.O_RDONLY or (mode & Flags.O_RDWR):
                 try:
                     with open(name, "r") as fp:
@@ -248,7 +248,7 @@ class SimStateSystem(SimStatePlugin):
         if self.state.se.symbolic(fd):
             raise SimPosixError("Symbolic fd ?")
 
-        fd = self.state.se.any_int(fd)
+        fd = self.state.se.eval(fd)
         retval = self.get_file(fd).close()
 
         # Remove from file descriptor table
@@ -275,7 +275,7 @@ class SimStateSystem(SimStatePlugin):
         if fd.symbolic:
             mode = self.state.se.BVS('st_mode', 32)
         else:
-            fd = self.state.se.any_int(fd)
+            fd = self.state.se.eval(fd)
             mode = self.state.se.BVS('st_mode', 32) if not self.files[fd].name.startswith('/dev/') else self.state.se.BVV(0, 32)
             # return this weird bogus zero value to keep code paths in libc simple :\
 
@@ -303,7 +303,7 @@ class SimStateSystem(SimStatePlugin):
             l.error("Symbolic file descriptor is not supported in seek().")
             raise SimPosixError('Symbolic file descriptor is not supported in seek()')
 
-        fd = self.state.se.any_int(fd)
+        fd = self.state.se.eval(fd)
 
         if fd in (0, 1, 2):
             # We can't seek in stdin, stdout or stderr
@@ -369,7 +369,7 @@ class SimStateSystem(SimStatePlugin):
         """
         if self._sigmask is None:
             if sigsetsize is not None:
-                sc = self.state.se.any_int(sigsetsize)
+                sc = self.state.se.eval(sigsetsize)
                 self.state.add_constraints(sc == sigsetsize)
                 self._sigmask = self.state.se.BVS('initial_sigmask', sc*8)
             else:

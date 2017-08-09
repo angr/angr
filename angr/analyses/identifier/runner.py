@@ -178,17 +178,17 @@ class Runner(object):
         # kill path that try to read/write large amounts
         syscall_name = state.inspect.syscall_name
         if syscall_name == "transmit":
-            count = state.se.any_int(state.regs.edx)
+            count = state.se.eval(state.regs.edx)
             if count > 0x10000:
                 state.regs.edx = 0
                 state.add_constraints(claripy.BoolV(False))
         if syscall_name == "receive":
-            count = state.se.any_int(state.regs.edx)
+            count = state.se.eval(state.regs.edx)
             if count > 0x10000:
                 state.regs.edx = 0
                 state.add_constraints(claripy.BoolV(False))
         if syscall_name == "random":
-            count = state.se.any_int(state.regs.ecx)
+            count = state.se.eval(state.regs.ecx)
             if count > 0x1000:
                 state.regs.ecx = 0
                 state.add_constraints(claripy.BoolV(False))
@@ -199,10 +199,10 @@ class Runner(object):
         # kill path that try to read/write large amounts
         syscall_name = state.inspect.syscall_name
         if syscall_name == "random":
-            count = state.se.any_int(state.regs.ecx)
+            count = state.se.eval(state.regs.ecx)
             if count > 100:
                 return
-            buf = state.se.any_int(state.regs.ebx)
+            buf = state.se.eval(state.regs.ebx)
             for i in range(count):
                 a = random.randint(0, 255)
                 state.memory.store(buf+i, state.se.BVV(a, 8))
@@ -289,7 +289,7 @@ class Runner(object):
                 l.info("symbolic memory output")
                 return False
             else:
-                outputs.append(result_state.se.any_str(out))
+                outputs.append(result_state.se.eval(out, cast_to=str))
 
         if outputs != test_data.expected_output_args:
             # print map(lambda x: x.encode('hex'), [a for a in outputs if a is not None]), map(lambda x: x.encode('hex'), [a for a in test_data.expected_output_args if a is not None])
@@ -303,22 +303,22 @@ class Runner(object):
         if test_data.expected_return_val is not None and test_data.expected_return_val < 0:
             test_data.expected_return_val &= (2**self.project.arch.bits - 1)
         if test_data.expected_return_val is not None and \
-                result_state.se.any_int(result) != test_data.expected_return_val:
-            l.info("return val mismatch got %#x, expected %#x", result_state.se.any_int(result), test_data.expected_return_val)
+                result_state.se.eval(result) != test_data.expected_return_val:
+            l.info("return val mismatch got %#x, expected %#x", result_state.se.eval(result), test_data.expected_return_val)
             return False
 
         if result_state.se.symbolic(result_state.posix.files[1].pos):
             l.info("symbolic stdout pos")
             return False
 
-        if result_state.se.any_int(result_state.posix.files[1].pos) == 0:
+        if result_state.se.eval(result_state.posix.files[1].pos) == 0:
             stdout = ""
         else:
             stdout = result_state.posix.files[1].content.load(0, result_state.posix.files[1].pos)
             if stdout.symbolic:
                 l.info("symbolic stdout")
                 return False
-            stdout = result_state.se.any_str(stdout)
+            stdout = result_state.se.eval(stdout, cast_to=str)
 
         if stdout != test_data.expected_stdout:
             l.info("mismatch stdout")

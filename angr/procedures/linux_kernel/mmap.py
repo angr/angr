@@ -19,7 +19,7 @@ class mmap(angr.SimProcedure):
     IS_SYSCALL = True
 
     def run(self, addr, length, prot, flags, fd, offset): #pylint:disable=arguments-differ,unused-argument
-        #if self.state.se.symbolic(flags) or self.state.se.any_int(flags) != 0x22:
+        #if self.state.se.symbolic(flags) or self.state.se.eval(flags) != 0x22:
         #   raise Exception("mmap with other than MAP_PRIVATE|MAP_ANONYMOUS unsupported")
 
         #
@@ -32,14 +32,14 @@ class mmap(angr.SimProcedure):
                 l.warn("mmap size requested of %d exceeds libc.max_variable_size. Using size %d instead.", size,self.state.libc.max_variable_size)
                 size = self.state.libc.max_variable_size
         else:
-            size = self.state.se.any_int(length)
+            size = self.state.se.eval(length)
 
         #
         # Addr
         #
 
         # Not handling symbolic addr for now
-        addrs = self.state.se.any_n_int(addr,2)
+        addrs = self.state.se.eval_upto(addr,2)
         if len(addrs) == 2:
             err = "Cannot handle symbolic addr argument for mmap."
             l.error(err)
@@ -56,7 +56,7 @@ class mmap(angr.SimProcedure):
         #
 
         # Only want concrete flags
-        flags = self.state.se.any_n_int(flags,2)
+        flags = self.state.se.eval_upto(flags,2)
 
         if len(flags) == 2:
             err = "Cannot handle symbolic flags argument for mmap."

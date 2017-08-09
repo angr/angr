@@ -13,7 +13,7 @@ class SimEngineSyscall(SimEngine): #pylint:disable=abstract-method
     def process(self, state, **kwargs):
         l.debug("Invoking system call handler")
         sys_procedure = self.project._simos.syscall(state)
-        addr = state.se.any_int(state._ip)
+        addr = state.se.eval(state._ip)
         return self.project.factory.procedure_engine.process(state, sys_procedure, force_addr=addr)
 
     #

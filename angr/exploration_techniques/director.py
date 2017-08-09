@@ -344,7 +344,7 @@ class CallFunctionGoal(BaseGoal):
             # we do not support symbolic arguments
             return False
 
-        return state.se.any_int(real_string) == state.se.any_int(expected)
+        return state.se.eval(real_string) == state.se.eval(expected)
 
     @staticmethod
     def _compare_integer_content(state, val, expected):
@@ -355,7 +355,7 @@ class CallFunctionGoal(BaseGoal):
             # we do not support symboli arguments
             return False
 
-        return state.se.any_int(val) == state.se.any_int(expected)
+        return state.se.eval(val) == state.se.eval(expected)
 
 
 class Director(ExplorationTechnique):

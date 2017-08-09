@@ -50,7 +50,7 @@ def test_ctype_b_loc():
     result = ''
     for i in range(-128, 256):
         # Each entry is 2 bytes
-        result += "%d->0x%x\n" % (i, state.se.any_int(state.memory.load(table_ptr + (i*2),
+        result += "%d->0x%x\n" % (i, state.se.eval(state.memory.load(table_ptr + (i*2),
                                                                         2,
                                                                         endness='Iend_BE')))
 
@@ -102,7 +102,7 @@ def test_ctype_tolower_loc():
 
     result = ''
     for i in range(-128, 256):
-        result += "%d->0x%x\n" % (i, state.se.any_int(state.memory.load(table_ptr + (i*4),
+        result += "%d->0x%x\n" % (i, state.se.eval(state.memory.load(table_ptr + (i*4),
                                                                         4,
                                                                         endness=state.arch.memory_endness)))
 
@@ -154,7 +154,7 @@ def test_ctype_toupper_loc():
 
     result = ''
     for i in range(-128, 256):
-        result += "%d->0x%x\n" % (i, state.se.any_int(state.memory.load(table_ptr + (i*4),
+        result += "%d->0x%x\n" % (i, state.se.eval(state.memory.load(table_ptr + (i*4),
                                                                         4,
                                                                         endness=state.arch.memory_endness)))
 
