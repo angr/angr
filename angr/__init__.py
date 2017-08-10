@@ -17,6 +17,7 @@ options = sim_options  # alias
 
 # enums
 from .state_plugins.inspect import BP_BEFORE, BP_AFTER, BP_BOTH, BP_IPDB, BP_IPYTHON
+from .calling_conventions import DEFAULT_CC, SYSCALL_CC
 
 # other stuff
 
@@ -40,7 +41,6 @@ from .state_hierarchy import StateHierarchy
 
 from .sim_state import SimState
 from .engines import SimEngineVEX
-from .calling_conventions import DEFAULT_CC, SYSCALL_CC
 
 # now that we have everything loaded, re-grab the list of loggers
 loggers.load_all_loggers()
