@@ -17,12 +17,12 @@ class FixedInReceive(receive):
 
     def run(self, fd, buf, count, rx_bytes):
 
-        if self.state.se.any_int(self.state.posix.files[0].pos) == 0:
+        if self.state.se.eval(self.state.posix.files[0].pos) == 0:
             if cache_hook is not None:
                 cache_hook(self.state)
 
         if self.state.se.any_n_int(fd, 2) < 2:
-            if self.state.se.any_int(fd) == 1:
+            if self.state.se.eval(fd) == 1:
                 l.debug("fixed receive call's fd")
                 fd = self.state.se.BVV(0, self.state.arch.bits)
 

@@ -947,7 +947,7 @@ class Tracer(object):
         return pg
 
     def syscall(self, state):
-        syscall_addr = state.se.any_int(state.ip)
+        syscall_addr = state.se.eval(state.ip)
         # 0xa000008 is terminate, which we exclude from syscall statistics.
         if syscall_addr != 0xa000008:
             args = angr.SYSCALL_CC['X86']['CGC'](self._p.arch).get_args(state, 4)

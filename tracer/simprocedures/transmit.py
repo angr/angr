@@ -11,8 +11,8 @@ class FixedOutTransmit(transmit):
 
     def run(self, fd, buf, count, tx_bytes):
 
-        if len(self.state.se.any_n_int(fd, 2)) < 2:
-            if self.state.se.any_int(fd) == 0:
+        if len(self.state.se.eval_upto(fd, 2)) < 2:
+            if self.state.se.eval(fd) == 0:
                 l.debug("fixed transmit's call fd")
                 fd = self.state.se.BVV(1, self.state.arch.bits)
 
