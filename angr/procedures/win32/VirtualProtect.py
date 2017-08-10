@@ -7,7 +7,7 @@ l = logging.getLogger('angr.procedures.win32.VirtualProtect')
 
 class VirtualProtect(angr.SimProcedure):
     def run(self, lpAddress, dwSize, flNewProtect, lpfOldProtect):
-        addrs = self.state.se.any_n_int(lpAddress, 2)
+        addrs = self.state.se.eval_upto(lpAddress, 2)
         if len(addrs) != 1:
             raise angr.errors.SimValueError("VirtualProtect can't handle symbolic lpAddress")
         addr = addrs[0]
@@ -18,7 +18,7 @@ class VirtualProtect(angr.SimProcedure):
                       dwSize, size, self.state.libc.max_variable_size)
             size = self.state.libc.max_variable_size
 
-        prots = self.state.se.any_n_int(flNewProtect, 2)
+        prots = self.state.se.eval_upto(flNewProtect, 2)
         if len(prots) != 1:
             raise angr.errors.SimValueError("VirtualProtect can't handle symbolic flNewProtect")
         prot = prots[0]
@@ -37,7 +37,7 @@ class VirtualProtect(angr.SimProcedure):
             for page in range(page_start, page_end + 0x1000, 0x1000):
                 old_prot = self.state.memory.permissions(page)
                 if first_prot is None:
-                    first_prot = self.state.solver.any_int(old_prot)
+                    first_prot = self.state.solver.eval(old_prot)
         except angr.errors.SimMemoryError:
             return 0
 

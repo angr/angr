@@ -38,7 +38,7 @@ class GetProcAddress(angr.SimProcedure):
     def run(self, lib_handle, name_addr):
         if lib_handle.symbolic:
             raise angr.errors.SimValueError("GetProcAddress called with symbolic library handle %s" % lib_handle)
-        lib_handle = self.state.se.any_int(lib_handle)
+        lib_handle = self.state.se.eval(lib_handle)
 
         for obj in self.project.loader.all_pe_objects:
             if obj.mapped_base == lib_handle:
