@@ -701,6 +701,7 @@ class SimWindows(SimOS):
     def state_entry(self, args=None, **kwargs):
         if args is None: args = []
         state = super(SimWindows, self).state_entry(**kwargs)
+        state.regs.sp = state.regs.sp - 0x80    # give us some stack space to work with...?
 
         return state
 
