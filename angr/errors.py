@@ -205,7 +205,7 @@ class SimSegfaultException(SimException, SimMemoryError):
 
 SimSegfaultError = SimSegfaultException
 
-class SimZeroDivisionException(SimException):
+class SimZeroDivisionException(SimException, SimOperationError):
     pass
 
 #
