@@ -324,8 +324,8 @@ class CongruencyCheck(Analysis):
         # make sure the flags are the same
         if sl.arch.name in ("AMD64", "X86", "ARM", "AARCH64"):
             if sl.arch.name in ('AMD64', 'X86'):
-                n_flags = sr.regs.eflags
-                u_flags = sl.regs.eflags
+                n_flags = sr.regs.eflags.canonicalize(var_map=n_map, counter=n_counter)[-1]
+                u_flags = sl.regs.eflags.canonicalize(var_map=u_map, counter=u_counter)[-1]
             else:
                 n_flags = engines.vex.ccall._get_flags(sr)[0].canonicalize(var_map=n_map, counter=n_counter)[-1]
                 u_flags = engines.vex.ccall._get_flags(sl)[0].canonicalize(var_map=u_map, counter=u_counter)[-1]

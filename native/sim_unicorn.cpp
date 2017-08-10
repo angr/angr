@@ -97,6 +97,7 @@ private:
 	bool hooked;
 
 	uc_context *saved_regs;
+	uint64_t workaround_ip;
 
 	std::vector<mem_access_t> mem_writes;
 	std::map<uint64_t, taint_t *> active_pages;
@@ -120,6 +121,7 @@ public:
 	int32_t cur_size;
 
 	uc_arch arch;
+	uc_mode mode;
 	bool interrupt_handled;
 	uint32_t transmit_sysno;
 	uint32_t transmit_bbl_addr;
@@ -156,6 +158,7 @@ public:
 			block_cache = it->second.block_cache;
 		}
 		arch = *((uc_arch*)uc); // unicorn hides all its internals...
+		mode = *((uc_mode*)((void*)uc + sizeof(uc_arch)));
 	}
 	
 	/*
@@ -224,7 +227,7 @@ public:
 		}
 
 		uc_err out = uc_emu_start(uc, pc, 0, 0, 0);
-		rollback();
+		set_instruction_pointer(workaround_ip);
 		return out;
 	}
 
@@ -271,6 +274,8 @@ public:
 				msg = "unknown error";
 		}
 		stop_reason = reason;
+		rollback();
+		workaround_ip = get_instruction_pointer();
 		//LOG_D("stop: %s", msg);
 		uc_emu_stop(uc);
 
@@ -284,7 +289,7 @@ public:
 			bbl_addrs.push_back(current_address);
 		}
 		if (track_stack) {
-			stack_pointers.push_back(get_stack_pointer(uc));
+			stack_pointers.push_back(get_stack_pointer());
 		}
 		cur_address = current_address;
 		cur_size = size;
@@ -577,27 +582,6 @@ public:
 
 	bool in_cache(uint64_t address) {
 		return page_cache->find(address) != page_cache->end();
-	}
-
-	uint64_t get_stack_pointer(uc_engine *uc) {
-		// Note that only registers are stored - accessing anything other than stored registers from `cpu_arch_state` will
-		// result in out-of-bound read.
-
-		uint64_t sp = 0;
-
-		if (arch == UC_ARCH_X86) {
-			uc_reg_read(uc, UC_X86_REG_ESP, &sp);
-		} else if (arch == UC_ARCH_ARM) {
-			uc_reg_read(uc, UC_ARM_REG_SP, &sp);
-		} else if (arch == UC_ARCH_ARM64) {
-			uc_reg_read(uc, UC_ARM64_REG_SP, &sp);
-		} else if (arch == UC_ARCH_MIPS) {
-			uc_reg_read(uc, UC_MIPS_REG_SP, &sp);
-		} else {
-			//LOG_W("get_stack_pointer() does not support this architecture. Returning 0 as the stack pointer value.");
-		}
-
-		return sp;
 	}
 
 	//
@@ -931,6 +915,75 @@ public:
 			log_write(address - start + 0x1000, end + 1, clean);
 		}
 	}
+
+	inline unsigned int arch_pc_reg() {
+		switch (arch) {
+			case UC_ARCH_X86:
+				return mode == UC_MODE_64 ? UC_X86_REG_RIP : UC_X86_REG_EIP;
+			case UC_ARCH_ARM:
+				return UC_ARM_REG_PC;
+			case UC_ARCH_ARM64:
+				return UC_ARM64_REG_PC;
+			case UC_ARCH_MIPS:
+				return UC_MIPS_REG_PC;
+			default:
+				return -1;
+		}
+	}
+
+	inline unsigned int arch_sp_reg() {
+		switch (arch) {
+			case UC_ARCH_X86:
+				return mode == UC_MODE_64 ? UC_X86_REG_RSP : UC_X86_REG_ESP;
+			case UC_ARCH_ARM:
+				return UC_ARM_REG_SP;
+			case UC_ARCH_ARM64:
+				return UC_ARM64_REG_SP;
+			case UC_ARCH_MIPS:
+				return UC_MIPS_REG_SP;
+			default:
+				return -1;
+		}
+	}
+
+	uint64_t get_instruction_pointer() {
+		uint64_t out = 0;
+		unsigned int reg = arch_pc_reg();
+		if (reg == -1) {
+			out = 0;
+		} else {
+			uc_reg_read(uc, reg, &out);
+		}
+
+		return out;
+	}
+
+	uint64_t get_stack_pointer() {
+		uint64_t out = 0;
+		unsigned int reg = arch_sp_reg();
+		if (reg == -1) {
+			out = 0;
+		} else {
+			uc_reg_read(uc, reg, &out);
+		}
+
+		return out;
+	}
+
+	void set_instruction_pointer(uint64_t val) {
+		unsigned int reg = arch_pc_reg();
+		if (reg != -1) {
+			uc_reg_write(uc, reg, &val);
+		}
+	}
+
+	void set_stack_pointer(uint64_t val) {
+		unsigned int reg = arch_sp_reg();
+		if (reg != -1) {
+			uc_reg_write(uc, reg, &val);
+		}
+	}
+
 };
 
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
