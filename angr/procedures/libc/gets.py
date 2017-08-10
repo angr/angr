@@ -9,7 +9,6 @@ class gets(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, string):
-        DELIMITERS = ["\x00", "\x09", "\x0a", "\x0b", "\x0d", "\x20"]
         self.argument_types = {0: self.ty_ptr(SimTypeString())}
         self.return_type = self.argument_types[0]
 
@@ -26,11 +25,6 @@ class gets(angr.SimProcedure):
         mm = self.state.se.If(ohr == 0, position + max_str_len, ohr)
         length = self.state.se.max_int(mm - position)
         src_str = region.load(position, length)
-
-        for delimiter in set(DELIMITERS) - {'\x00'}:
-            delim_bvv = self.state.se.BVV(delimiter)
-            for i in range(length):
-                self.state.add_constraints(region.load(position + i, 1) != delim_bvv)
 
         self.state.memory.store(string, src_str)
         self.state.memory.store(string + length, self.state.se.BVV(0, 8))
