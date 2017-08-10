@@ -693,6 +693,8 @@ class SimWindows(SimOS):
         self.kernel_base = self.project.loader.kernel_object.mapped_base
 
     def configure_project(self):
+        super(SimWindows, self).configure_project()
+
         # here are some symbols which we MUST hook, regardless of what the user wants
         self._weak_hook_symbol('GetProcAddress', L['kernel32.dll'].get('GetProcAddress', self.arch))
         self._weak_hook_symbol('LoadLibraryA', L['kernel32.dll'].get('LoadLibraryA', self.arch))
