@@ -7,7 +7,7 @@ import claripy
 
 from ...sim_type import SimTypeFunction, SimTypeInt
 from ... import sim_options as so
-from ... import SIM_PROCEDURES
+from ... import SIM_LIBRARIES
 from ... import BP_BEFORE, BP_AFTER
 from ...storage.file import SimFile
 from ...errors import AngrCallableMultistateError, AngrCallableError, AngrError, SimError
@@ -112,8 +112,8 @@ class Runner(object):
     def setup_state(self, function, test_data, initial_state=None, concrete_rand=False):
         # FIXME fdwait should do something concrete...
         # FixedInReceive and FixedOutReceive always are applied
-        SIM_PROCEDURES['cgc']['transmit'] = self.FixedOutTransmit
-        SIM_PROCEDURES['cgc']['receive'] = self.FixedInReceive
+        SIM_LIBRARIES['cgcabi'].add('transmit', self.FixedOutTransmit)
+        SIM_LIBRARIES['cgcabi'].add('receive', self.FixedInReceive)
 
         fs = {'/dev/stdin': SimFile(
             "/dev/stdin", "r",
