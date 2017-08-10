@@ -185,8 +185,8 @@ def test_inspect_concretization():
     s = SimState(arch='AMD64')
     s.inspect.b('address_concretization', BP_BEFORE, action=change_symbolic_target)
     s.memory.store(x, 'A')
-    assert list(s.se.eval(x, 10)) == [ 0x1000 ]
-    assert list(s.se.eval(s.memory.load(0x1000, 1), 10)) == [ 0x41 ]
+    assert list(s.se.eval_upto(x, 10)) == [ 0x1000 ]
+    assert list(s.se.eval_upto(s.memory.load(0x1000, 1), 10)) == [ 0x41 ]
 
     #
     # This tests disabling constraint adding through siminspect -- the write still happens
@@ -198,7 +198,7 @@ def test_inspect_concretization():
     s = SimState(arch='AMD64')
     s.inspect.b('address_concretization', BP_BEFORE, action=dont_add_constraints)
     s.memory.store(x, 'A')
-    assert len(s.se.eval(x, 10)) == 10
+    assert len(s.se.eval_upto(x, 10)) == 10
 
     #
     # This tests raising an exception if symbolic concretization fails (i.e., if the address

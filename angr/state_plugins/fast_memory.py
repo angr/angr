@@ -82,7 +82,7 @@ class SimFastMemory(SimMemory):
         if c is None:
             return True
         else:
-            return self.state.se.eval(c, 1)[0]
+            return self.state.se.eval_upto(c, 1)[0]
 
     def _resolve_access(self, addr, size):
         """

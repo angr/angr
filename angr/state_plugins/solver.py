@@ -584,6 +584,9 @@ class SimSolver(SimStatePlugin):
             raise SimValueError("Concretized %d values (must be exactly %d) in eval_exact" % (len(r), n))
         return r
 
+    min_int = min
+    max_int = max
+
     @timed_function
     @ast_stripping_decorator
     def unique(self, e, **kwargs):

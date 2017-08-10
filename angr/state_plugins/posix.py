@@ -437,7 +437,7 @@ class SimStateSystem(SimStatePlugin):
         Returns the concrete content for a file by path.
 
         :param path: file path as string
-        :param kwargs: passed to state.se.any_str
+        :param kwargs: passed to state.se.eval
         :return: file contents as string
         """
         return self.fs[path].concretize(**kwargs)

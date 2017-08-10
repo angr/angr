@@ -19,7 +19,7 @@ def test_copy():
     nose.tools.assert_equals(sorted(s.se.eval_upto(x, 100)), range(10))
     result = s.memory.load(0x200, 5)
     nose.tools.assert_equals(sorted(s.se.eval_upto(result, 100, cast_to=str)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])
-    nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100, extra_constraints=[x==3])), [ "ABCXX" ])
+    nose.tools.assert_equals(sorted(s.se.eval_upto(result, 100, cast_to=str, extra_constraints=[x==3])), [ "ABCXX" ])
 
     s = SimState(arch="AMD64")
     s.posix.write(0, "ABCDEFGHIJKLMNOP", len("ABCDEFGHIJKLMNOP"))
@@ -32,7 +32,7 @@ def test_copy():
     nose.tools.assert_equals(sorted(s.se.eval_upto(x, 100)), range(10))
     result = s.memory.load(0x200, 5)
     nose.tools.assert_equals(sorted(s.se.eval_upto(result, 100, cast_to=str)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])
-    nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100, extra_constraints=[x==3])), [ "ABCXX" ])
+    nose.tools.assert_equals(sorted(s.se.eval_upto(result, 100, cast_to=str, extra_constraints=[x==3])), [ "ABCXX" ])
 
     s = SimState(arch="AMD64")
     s.posix.write(0, "ABCDEFGHIJKLMNOP", len("ABCDEFGHIJKLMNOP"))
@@ -46,10 +46,10 @@ def test_copy():
     nose.tools.assert_equals(sorted(s.se.eval_upto(x, 100)), range(10))
     result = s.memory.load(0x200, 5)
     nose.tools.assert_equals(sorted(s.se.eval_upto(result, 100, cast_to=str)), [ "ABCDE", "ABCDX", "ABCXX", "ABXXX", "AXXXX", "XXXXX" ])
-    nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100, extra_constraints=[x==3])), [ "ABCXX" ])
+    nose.tools.assert_equals(sorted(s.se.eval_upto(result, 100, cast_to=str, extra_constraints=[x==3])), [ "ABCXX" ])
 
     nose.tools.assert_equals(sorted(s.se.eval_upto(ret_x, 100)), range(10))
-    nose.tools.assert_equals(sorted(s.se.any_n_str(result, 100, extra_constraints=[ret_x==3])), [ "ABCXX" ])
+    nose.tools.assert_equals(sorted(s.se.eval_upto(result, 100, cast_to=str, extra_constraints=[ret_x==3])), [ "ABCXX" ])
 
 def _concrete_memory_tests(s):
     # Store a 4-byte variable to memory directly...
@@ -132,8 +132,8 @@ def test_memory():
 
     c = s.se.BVS('condition', 8)
     expr = s.memory.load(10, 1, condition=c==1, fallback=s.se.BVV('X'))
-    nose.tools.assert_equal(s.se.any_n_str(expr, 10, extra_constraints=[c==1]), [ 'B' ])
-    nose.tools.assert_equal(s.se.any_n_str(expr, 10, extra_constraints=[c!=1]), [ 'X' ])
+    nose.tools.assert_equal(s.se.eval_upto(expr, 10, cast_to=str, extra_constraints=[c==1]), [ 'B' ])
+    nose.tools.assert_equal(s.se.eval_upto(expr, 10, cast_to=str, extra_constraints=[c!=1]), [ 'X' ])
 
     x = s.se.BVS('ref_test', 16, explicit_name=True)
     s.memory.store(0x1000, x)
@@ -156,7 +156,7 @@ def test_memory():
     s.memory.store(0x3000, s.se.BVS('replace_old', 32, explicit_name=True))
     s.memory.store(0x3001, s.se.BVV('AB'))
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set((0x3000, 0x3003)))
-    nose.tools.assert_equal(s.se.any_n_str(s.memory.load(0x3001, 2), 10), ["AB"])
+    nose.tools.assert_equal(s.se.eval_upto(s.memory.load(0x3001, 2), 10, cast_to=str), ["AB"])
 
     n = s.se.BVS('replace_new', 32, explicit_name=True)
     c = s.se.BVS('replace_cool', 32, explicit_name=True)
@@ -166,7 +166,7 @@ def test_memory():
     s.memory.replace_memory_object(next(iter(mo)), n)
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set())
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), set((0x3000, 0x3003)))
-    nose.tools.assert_equal(s.se.any_n_str(s.memory.load(0x3001, 2), 10), ["AB"])
+    nose.tools.assert_equal(s.se.eval_upto(s.memory.load(0x3001, 2), 10, cast_to=str), ["AB"])
 
     s.memory.store(0x4000, s.se.If(n == 0, n+10, n+20))
 
@@ -175,14 +175,14 @@ def test_memory():
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set())
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), set())
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_cool')), set((0x3000, 0x3003, 0x4000, 0x4001, 0x4002, 0x4003)))
-    nose.tools.assert_equal(s.se.any_n_str(s.memory.load(0x3001, 2), 10), ["AB"])
+    nose.tools.assert_equal(s.se.eval_upto(s.memory.load(0x3001, 2), 10, cast_to=str), ["AB"])
 
     z = s.se.BVV(0, 32)
     s.memory.replace_all(c, z)
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set())
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), set())
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_cool')), set())
-    nose.tools.assert_equal(s.se.any_n_str(s.memory.load(0x3001, 2), 10), ["AB"])
+    nose.tools.assert_equal(s.se.eval_upto(s.memory.load(0x3001, 2), 10, cast_to=str), ["AB"])
     nose.tools.assert_equal(s.se.eval_upto(s.memory.load(0x3000, 4), 10), [0x00414200])
     nose.tools.assert_equal(s.se.eval_upto(s.memory.load(0x4000, 4), 10), [0x0000000a])
 
@@ -239,7 +239,7 @@ def test_cased_store():
     so = SimState(arch="AMD64", memory_backer=initial_memory)
 
     # sanity check
-    nose.tools.assert_equal(so.se.any_n_str(so.memory.load(0, 4), 2), ['AAAA'])
+    nose.tools.assert_equal(so.se.eval_upto(so.memory.load(0, 4), 2, cast_to=str), ['AAAA'])
 
     # the values
     values = [
@@ -256,7 +256,7 @@ def test_cased_store():
     s.memory.store_cases(0, values, [ x == i for i in range(len(values)) ])
     for i,v in enumerate(values):
         v = '' if v is None else s.se.eval(v, cast_to=str)
-        w = s.se.any_n_str(s.memory.load(0, 4), 2, extra_constraints=[x==i])
+        w = s.se.eval_upto(s.memory.load(0, 4), 2, cast_to=str, extra_constraints=[x==i])
         nose.tools.assert_equal(w, [v.ljust(4, 'A')])
 
     # and now with a fallback
@@ -264,7 +264,7 @@ def test_cased_store():
     s.memory.store_cases(0, values, [ y == i for i in range(len(values)) ], fallback=s.se.BVV('XXXX'))
     for i,v in enumerate(values):
         v = '' if v is None else s.se.eval(v, cast_to=str)
-        w = s.se.any_n_str(s.memory.load(0, 4), 2, extra_constraints=[y==i])
+        w = s.se.eval_upto(s.memory.load(0, 4), 2, cast_to=str, extra_constraints=[y==i])
         nose.tools.assert_equal(w, [v.ljust(4, 'X')])
 
     # and now with endness
@@ -272,7 +272,7 @@ def test_cased_store():
     s.memory.store_cases(0, values, [ y == i for i in range(len(values)) ], fallback=s.se.BVV('XXXX'), endness="Iend_LE")
     for i,v in enumerate(values):
         v = '' if v is None else s.se.eval(v, cast_to=str)
-        w = s.se.any_n_str(s.memory.load(0, 4), 2, extra_constraints=[y==i])
+        w = s.se.eval_upto(s.memory.load(0, 4), 2, cast_to=str, extra_constraints=[y==i])
         print w, v.rjust(4, 'X')
         nose.tools.assert_equal(w, [v.rjust(4, 'X')])
 
@@ -281,14 +281,14 @@ def test_cased_store():
     z = s.se.BVS('z', 32)
     s.memory.store_cases(0, [ None, None, None ], [ z == 0, z == 1, z == 2])
     for i in range(len(values)):
-        w = s.se.any_n_str(s.memory.load(0, 4), 2, extra_constraints=[z==i])
+        w = s.se.eval_upto(s.memory.load(0, 4), 2, cast_to=str, extra_constraints=[z==i])
         nose.tools.assert_equal(w, ['AAAA'])
 
     # and all Nones with a fallback
     u = s.se.BVS('w', 32)
     s.memory.store_cases(0, [ None, None, None ], [ u == 0, u == 1, u == 2], fallback=s.se.BVV('WWWW'))
     for i,v in enumerate(values):
-        w = s.se.any_n_str(s.memory.load(0, 4), 2, extra_constraints=[u==i])
+        w = s.se.eval_upto(s.memory.load(0, 4), 2, cast_to=str, extra_constraints=[u==i])
         nose.tools.assert_equal(w, ['WWWW'])
 
     # and all identical values
@@ -313,7 +313,7 @@ def test_cased_store():
     s.memory.store_cases(0, [ s.se.BVV(v) for v in values ], [ u == i for i in range(len(values))], fallback=s.se.BVV('XX'))
     r = s.memory.load(0, 2)
     for i,v in enumerate(values + ['XX']):
-        w = s.se.any_n_str(s.memory.load(0, 2), 2, extra_constraints=[u==i])
+        w = s.se.eval_upto(s.memory.load(0, 2), 2, cast_to=str, extra_constraints=[u==i])
         nose.tools.assert_equal(w, [(values+['XX'])[i]])
 
 def test_abstract_memory():

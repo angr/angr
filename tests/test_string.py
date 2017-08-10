@@ -565,7 +565,7 @@ def test_strncpy():
     s.memory.store(src_addr, src)
     strncpy(s, arguments=[dst_addr, src_addr, maxlen])
     r = s.memory.load(dst_addr, 4, endness='Iend_BE')
-    #print repr(r.se.any_n_str(10))
+    #print repr(r.se.eval_upto(r, 10, cast_to=str))
     nose.tools.assert_items_equal(s.se.eval_upto(r, 10, cast_to=str), [ "AAA\x00", 'BAA\x00', 'BBA\x00', 'BB\x00\x00' ] )
 
 
@@ -635,13 +635,13 @@ def broken_sprintf():
         j = random.randint(10**i, 10**(i+1))
         s2 = s.copy()
         s2.add_constraints(arg == j)
-        #print s2.se.any_n_str(s2.memory.load(dst_addr, i+2), 2), repr("%d\x00" % j)
-        nose.tools.assert_equal(s2.se.any_n_str(s2.memory.load(dst_addr, i+2), 2), ["%d\x00" % j])
+        #print s2.se.eval_upto(s2.memory.load(dst_addr, i+2), 2, cast_to=str), repr("%d\x00" % j)
+        nose.tools.assert_equal(s2.se.eval_upto(s2.memory.load(dst_addr, i+2), 2, cast_to=str), ["%d\x00" % j])
 
     s2 = s.copy()
     s2.add_constraints(arg == 0)
-    #print s2.se.any_n_str(s2.memory.load(dst_addr, 2), 2), repr("%d\x00" % 0)
-    nose.tools.assert_equal(s2.se.any_n_str(s2.memory.load(dst_addr, 2), 2), ["%d\x00" % 0])
+    #print s2.se.eval_upto(s2.memory.load(dst_addr, 2), 2, cast_to=str), repr("%d\x00" % 0)
+    nose.tools.assert_equal(s2.se.eval_upto(s2.memory.load(dst_addr, 2), 2, cast_to=str), ["%d\x00" % 0])
 
 #@nose.tools.timed(10)
 def test_memset():
@@ -896,7 +896,7 @@ def test_scanf():
     s.posix.files[0].content.store(0, "Hello\0")
     s.memory.store(0x2000, "%1s\0")
     scanf(s, arguments=[0x2000, 0x1000])
-    assert s.se.any_n_str(s.memory.load(0x1000, 2), 2) == [ "H\x00" ]
+    assert s.se.eval_upto(s.memory.load(0x1000, 2), 2, cast_to=str) == [ "H\x00" ]
 
 def test_strcmp():
     l.info("concrete a, concrete b")

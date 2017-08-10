@@ -40,7 +40,7 @@ class SimConcretizationStrategy(object):
         """
         Gets n solutions for an address.
         """
-        return memory.state.se.eval(addr, n, exact=kwargs.pop('exact', self._exact), **kwargs)
+        return memory.state.se.eval_upto(addr, n, exact=kwargs.pop('exact', self._exact), **kwargs)
 
     def _range(self, memory, addr, **kwargs):
         """

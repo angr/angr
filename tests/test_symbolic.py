@@ -23,14 +23,14 @@ def test_concretization_strategies():
     s = angr.SimState(arch='AMD64', memory_backer=initial_memory)
 
     # sanity check
-    nose.tools.assert_equal(s.se.any_n_str(s.memory.load(3, 1), 2), ['D'])
+    nose.tools.assert_equal(s.se.eval_upto(s.memory.load(3, 1), 2, cast_to=str), ['D'])
 
     x = s.se.BVS('x', s.arch.bits)
     s.add_constraints(x >= 1)
     s.add_constraints(x <= 3)
 
     ss = s.copy()
-    nose.tools.assert_equal(tuple(sorted(ss.se.any_n_str(ss.memory.load(x, 1), 10))), ('B', 'C', 'D'))
+    nose.tools.assert_equal(tuple(sorted(ss.se.eval_upto(ss.memory.load(x, 1), 10, cast_to=str))), ('B', 'C', 'D'))
 
     ss = s.copy()
     x = s.se.BVS('x', s.arch.bits)
