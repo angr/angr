@@ -472,6 +472,8 @@ class SimSolver(SimStatePlugin):
         :return: The value of `solution` cast to type `cast_to`
         """
         if cast_to is str:
+            if len(e) == 0:
+                return ""
             return '{:x}'.format(solution).zfill(len(e)/4).decode('hex')
 
         if cast_to is not int:

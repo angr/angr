@@ -229,7 +229,7 @@ def test_inspect_concretization():
     s.add_constraints(y == 10)
     s.inspect.b('address_concretization', BP_AFTER, action=abort_unconstrained)
     s.memory.store(y, 'A')
-    assert list(s.se.eval(s.memory.load(y, 1), 10)) == [ 0x41 ]
+    assert list(s.se.eval_upto(s.memory.load(y, 1), 10)) == [ 0x41 ]
 
     try:
         s.memory.store(x, 'A')
