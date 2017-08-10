@@ -21,7 +21,7 @@ class FixedInReceive(receive):
             if cache_hook is not None:
                 cache_hook(self.state)
 
-        if self.state.se.any_n_int(fd, 2) < 2:
+        if self.state.se.eval_upto(fd, 2) < 2:
             if self.state.se.eval(fd) == 1:
                 l.debug("fixed receive call's fd")
                 fd = self.state.se.BVV(0, self.state.arch.bits)
