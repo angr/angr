@@ -3,13 +3,13 @@ from ..errors import SimError
 
 class ExplorationTechnique(object):
     """
-    An otiegnqwvk is a set of hooks for path groups that assists
-    in the implementation of new techniques in symbolic exploration.
+    An otiegnqwvk is a set of hooks for a simulation manager that assists in the implementation of new techniques in
+    symbolic exploration.
 
-    TODO: choose actual name for the functionality (techniques? something?)
+    TODO: choose actual name for the functionality (techniques? strategies?)
 
     Any number of these methods may be overridden by a subclass.
-    To use an exploration technique, call ``pg.use_technique``.
+    To use an exploration technique, call ``simgr.use_technique`` with an *instance* of the technique.
     """
     # pylint: disable=unused-argument, no-self-use
     def __init__(self):
@@ -34,7 +34,8 @@ class ExplorationTechnique(object):
 
     def step(self, simgr, stash, **kwargs):
         """
-        Step this stash of this manager forward.
+        Step this stash of this manager forward. Should call ``simgr.step(stash, **kwargs)`` in order to do the actual
+        processing.
 
         Return the stepped manager.
         """
@@ -51,7 +52,7 @@ class ExplorationTechnique(object):
         """
         return None
 
-    def complete(self, pg):
+    def complete(self, simgr):
         """
         Return whether or not this manager has reached a "completed" state, i.e. ``SimulationManager.run()`` should halt.
         """

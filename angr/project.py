@@ -65,16 +65,38 @@ class Project(object):
     This is the main class of the angr module. It is meant to contain a set of binaries and the relationships between
     them, and perform analyses on them.
 
-    :ivar analyses: The available analyses.
-    :type analyses: angr.analysis.Analyses
-    :ivar entry:    The program entrypoint.
-    :ivar factory:  Provides access to important analysis elements such as path groups and symbolic execution results.
-    :type factory:  AngrObjectFactory
-    :ivar filename: The filename of the executable.
-    :ivar loader:   The program loader.
-    :type loader:   cle.Loader
-    :ivar surveyor: The available surveyors.
-    :type surveyor: angr.surveyor.Surveyors
+    :param thing:                       The path to the main executable object to analyze, or a CLE Loader object.
+
+    The following parameters are optional.
+
+    :param default_analysis_mode:       The mode of analysis to use by default. Defaults to 'symbolic'.
+    :param ignore_functions:            A list of function names that, when imported from shared libraries, should
+                                        never be stepped into in analysis (calls will return an unconstrained value).
+    :param use_sim_procedures:          Whether to replace resolved dependencies for which simprocedures are
+                                        available with said simprocedures.
+    :param exclude_sim_procedures_func: A function that, when passed a function name, returns whether or not to wrap
+                                        it with a simprocedure.
+    :param exclude_sim_procedures_list: A list of functions to *not* wrap with simprocedures.
+    :param arch:                        The target architecture (auto-detected otherwise).
+    :param simos:                       a SimOS class to use for this project.
+    :param bool translation_cache:      If True, cache translated basic blocks rather than re-translating them.
+    :param support_selfmodifying_code:  Whether we aggressively support self-modifying code. When enabled, emulation
+                                        will try to read code from the current state instead of the original memory,
+                                        regardless of the current memory protections.
+    :type support_selfmodifying_code:   bool
+
+    Any additional keyword arguments passed will be passed onto ``cle.Loader``.
+
+    :ivar analyses:     The available analyses.
+    :type analyses:     angr.analysis.Analyses
+    :ivar entry:        The program entrypoint.
+    :ivar factory:      Provides access to important analysis elements such as path groups and symbolic execution results.
+    :type factory:      AngrObjectFactory
+    :ivar filename:     The filename of the executable.
+    :ivar loader:       The program loader.
+    :type loader:       cle.Loader
+    :ivar surveyors:    The available surveyors.
+    :type surveyors:    angr.surveyors.surveyor.Surveyors
     """
 
     def __init__(self, thing,
@@ -88,29 +110,6 @@ class Project(object):
                  translation_cache=True,
                  support_selfmodifying_code=False,
                  **kwargs):
-        """
-        :param thing:                       The path to the main executable object to analyze, or a CLE Loader object.
-
-        The following parameters are optional.
-
-        :param default_analysis_mode:       The mode of analysis to use by default. Defaults to 'symbolic'.
-        :param ignore_functions:            A list of function names that, when imported from shared libraries, should
-                                            never be stepped into in analysis (calls will return an unconstrained value).
-        :param use_sim_procedure:           Whether to replace resolved dependencies for which simprocedures are
-                                            available with said simprocedures.
-        :param exclude_sim_procedures_func: A function that, when passed a function name, returns whether or not to wrap
-                                            it with a simprocedure.
-        :param exclude_sim_procedures_list: A list of functions to *not* wrap with simprocedures.
-        :param arch:                        The target architecture (auto-detected otherwise).
-        :param simos:                       a SimOS class to use for this project.
-        :param translation_cache:           If True, cache translated basic blocks rather than re-translating them.
-        :param support_selfmodifying_code:  Whether we support self-modifying code. When enabled, Project.sim_block()
-                                            will try to read code from the current state instead of the original memory
-                                            regions.
-        :type  support_selfmodifying_code:  bool
-
-        Any additional keyword arguments passed will be passed onto ``cle.Loader``.
-        """
 
         # Step 1: Load the binary
         if load_options is None: load_options = {}
@@ -322,12 +321,13 @@ class Project(object):
         control flow.
 
         When hook is not specified, it returns a function decorator that allows easy hooking.
-        Usage:
-        # Assuming proj is an instance of angr.Project, we will add a custom hook at the entry
-        # point of the project.
-        @proj.hook(proj.entry)
-        def my_hook(state):
-            print "Hola! My hook is called!"
+        Usage::
+
+            # Assuming proj is an instance of angr.Project, we will add a custom hook at the entry
+            # point of the project.
+            @proj.hook(proj.entry)
+            def my_hook(state):
+                print "Welcome to execution!"
 
         :param addr:        The address to hook.
         :param hook:        A :class:`angr.project.Hook` describing a procedure to run at the
@@ -472,15 +472,15 @@ class Project(object):
 
         This function can be run in three different ways:
 
-        - When run with no parameters, this function begins symbolic execution
-        from the entrypoint.
-        - It can also be run with a "state" parameter specifying a SimState to
-          begin symbolic execution from.
-        - Finally, it can accept any arbitrary keyword arguments, which are all
-          passed to project.factory.full_init_state.
+            - When run with no parameters, this function begins symbolic execution
+              from the entrypoint.
+            - It can also be run with a "state" parameter specifying a SimState to
+              begin symbolic execution from.
+            - Finally, it can accept any arbitrary keyword arguments, which are all
+              passed to project.factory.full_init_state.
 
         If symbolic execution finishes, this function returns the resulting
-        SimulationManager.
+        simulation manager.
         """
 
         if args:

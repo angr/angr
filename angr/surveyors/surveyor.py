@@ -310,10 +310,10 @@ class Surveyor(object):
                 self._hierarchy.simplify()
                 continue
             except (AngrError, SimError, claripy.ClaripyError) as e:
-                self.errored.append(ErroredState(state, e, sys.exc_info()[2]))
+                self.errored.append(ErrorRecord(state, e, sys.exc_info()[2]))
                 continue
             except (TypeError, ValueError, ArithmeticError, MemoryError) as e:
-                self.errored.append(ErroredState(state, e, sys.exc_info()[2]))
+                self.errored.append(ErrorRecord(state, e, sys.exc_info()[2]))
                 continue
 
             if not all_successors.flat_successors and not all_successors.unconstrained_successors:
@@ -518,4 +518,4 @@ class Surveyor(object):
 from ..errors import AngrError, PathUnreachableError, SimUnsatError, SimError
 from ..state_hierarchy import StateHierarchy
 from . import all_surveyors
-from ..manager import ErroredState
+from ..manager import ErrorRecord

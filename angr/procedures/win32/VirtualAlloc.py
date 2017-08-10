@@ -3,6 +3,37 @@ import logging
 
 l = logging.getLogger('angr.procedures.win32.VirtualAlloc')
 
+def convert_prot(prot):
+    """
+    Convert from a windows memory protection constant to an angr bitmask
+    """
+    # https://msdn.microsoft.com/en-us/library/windows/desktop/aa366786(v=vs.85).aspx
+    if prot & 0x10:
+        return 4
+    if prot & 0x20:
+        return 5
+    if prot & 0x40:
+        return 7
+    if prot & 0x80:
+        return 7
+    if prot & 0x01:
+        return 0
+    if prot & 0x02:
+        return 1
+    if prot & 0x04:
+        return 3
+    if prot & 0x08:
+        return 3
+    raise angr.errors.SimValueError("Unknown windows memory protection constant: %#x" % prot)
+
+def deconvert_prot(prot):
+    """
+    Convert from a angr bitmask to a windows memory protection constant
+    """
+    if prot in (2, 6):
+        raise angr.errors.SimValueError("Invalid memory protection for windows process")
+    return [0x01, 0x02, None, 0x04, 0x10, 0x20, None, 0x40][prot]
+
 # https://msdn.microsoft.com/en-us/library/windows/desktop/aa366890(v=vs.85).aspx
 class VirtualAlloc(angr.SimProcedure):
     def run(self, lpAddress, dwSize, flAllocationType, flProtect):
@@ -27,7 +58,7 @@ class VirtualAlloc(angr.SimProcedure):
         if len(prots) != 1:
             raise angr.errors.SimValueError("VirtualAlloc can't handle symbolic flProtect")
         prot = prots[0]
-        angr_prot = self.convert_prot(prot)
+        angr_prot = convert_prot(prot)
 
         if flags & 0x00080000 or flags & 0x1000000:
             l.warning("VirtualAlloc with MEM_RESET and MEM_RESET_UNDO are not supported")
@@ -69,23 +100,3 @@ class VirtualAlloc(angr.SimProcedure):
         self.state.libc.mmap_base = new_base
         return addr
 
-    @staticmethod
-    def convert_prot(prot):
-        # https://msdn.microsoft.com/en-us/library/windows/desktop/aa366786(v=vs.85).aspx
-        if prot & 0x10:
-            return 4
-        if prot & 0x20:
-            return 5
-        if prot & 0x40:
-            return 7
-        if prot & 0x80:
-            return 7
-        if prot & 0x01:
-            return 0
-        if prot & 0x02:
-            return 1
-        if prot & 0x04:
-            return 3
-        if prot & 0x08:
-            return 3
-        raise angr.errors.SimValueError("Unknown value of VirtualAlloc flProtect: %#x" % prot)

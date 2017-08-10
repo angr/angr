@@ -7,11 +7,16 @@ def once(key):
         once_set.add(key)
         return True
 
-def deprecated(f, replacement=None):
-    def deprecated_wrapper(*args, **kwargs):
-        if replacement is not None:
-            print "ERROR: FUNCTION %s IS DEPRECATED. PLEASE UPDATE YOUR CODE." % f
-        else:
-            print "ERROR: FUNCTION %s IS DEPRECATED. PLEASE UPDATE YOUR CODE: %s" % (f, replacement)
-        return f(*args, **kwargs)
-    return deprecated_wrapper
+already_complained = set()
+def deprecated(replacement=None):
+    def outer(func):
+        def inner(*args, **kwargs):
+            if func not in already_complained:
+                if replacement is None:
+                    print "\x1b[31;1mDeprecation warning: Don't use %s\x1b[0m" % (func.func_name)
+                else:
+                    print "\x1b[31;1mDeprecation warning: Use %s instead of %s\x1b[0m" % (replacement, func.func_name)
+                already_complained.add(func)
+            return func(*args, **kwargs)
+        return inner
+    return outer

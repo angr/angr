@@ -47,15 +47,32 @@ class GetProcAddress(angr.SimProcedure):
 
         if claripy.is_true(name_addr < 0x10000):
             # this matches the bogus name specified in the loader...
-            name = 'ordinal.%d' % self.state.se.any_int(name_addr)
+            ordinal = self.state.se.any_int(name_addr)
+            name = 'ordinal.%d' % ordinal
         else:
             name = self.state.mem[name_addr].string.concrete
+
         full_name = '%s.%s' % (obj.provides, name)
         self.procs.add(full_name)
 
         sym = obj.get_symbol(name)
+        if sym is None and name.endswith('@'):
+            # There seems to be some mangling parsing being done in the linker?
+            # I don't know what I'm doing
+            for suffix in ['Z', 'XZ']:
+                sym = obj.get_symbol(name + suffix)
+                if sym is not None:
+                    name = name + suffix
+                    break
+
         if sym is None:
             l.warning("GetProcAddress: object %s does not contain %s", obj.provides, name)
+            return 0
+        else:
+            name = sym.name # fix ordinal names
+            full_name = '%s.%s' % (obj.provides, name)
+            self.procs.add(full_name)
+
         return sym.rebased_addr
 
     KEY = 'dynamically_loaded_procedures'

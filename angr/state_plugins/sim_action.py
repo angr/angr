@@ -29,7 +29,7 @@ class SimAction(SimEvent):
 
     def __repr__(self):
         if self.sim_procedure is not None:
-            location = "%s()" % self.sim_procedure
+            location = "%s()" % self.sim_procedure.display_name
         else:
             if self.stmt_idx is not None:
                 location = "0x%x:%d" % (self.bbl_addr, self.stmt_idx)
