@@ -865,6 +865,9 @@ class Unicorn(SimStatePlugin):
                 self.transmit_addr = 0
             _UC_NATIVE.set_transmit_sysno(self._uc_state, 2, self.transmit_addr)
 
+        # just fyi there's a GDT in memory
+        _UC_NATIVE.activate(self._uc_state, 0x1000, 0x1000, 0)
+
     def start(self, step=None):
         self.jumpkind = 'Ijk_Boring'
         self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
@@ -950,9 +953,13 @@ class Unicorn(SimStatePlugin):
         while bool(p_update):
             update = p_update.contents
             address, length = update.address, update.length
-            s = str(self.uc.mem_read(address, length))
-            l.debug('...changed memory: [%#x, %#x] = %s', address, address + length, s.encode('hex'))
-            self.state.memory.store(address, s)
+            if 0x1000 <= address < 0x2000:
+                l.warning("Emulation touched fake GDT at 0x1000, discarding changes")
+            else:
+                s = str(self.uc.mem_read(address, length))
+                l.debug('...changed memory: [%#x, %#x] = %s', address, address + length, s.encode('hex'))
+                self.state.memory.store(address, s)
+
             p_update = update.next
 
         _UC_NATIVE.destroy(head)    # free the linked list
