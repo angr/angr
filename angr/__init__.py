@@ -32,7 +32,6 @@ from .simos import SimOS
 from .manager import SimulationManager
 from .analyses import Analysis, register_analysis
 from . import analyses
-from . import knowledge
 from . import knowledge_plugins
 from . import exploration_techniques
 from . import type_backend
