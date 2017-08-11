@@ -180,7 +180,14 @@ class SimFileError(SimMemoryError):
 class SimPosixError(SimStateError):
     pass
 
-class SimSegfaultError(SimMemoryError):
+#
+# Errors that may be handled by exception handling
+#
+
+class SimException(SimError):
+    pass
+
+class SimSegfaultError(SimException, SimMemoryError):
     def __init__(self, addr, reason):
         self.addr = addr
         self.reason = reason
