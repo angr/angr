@@ -17,6 +17,7 @@ event_types = {
     'irsb',
     'constraints',
     'exit',
+    'fork',
     'symbolic_variable',
     'call',
     'return',
