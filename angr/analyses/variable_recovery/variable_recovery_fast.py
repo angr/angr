@@ -7,7 +7,7 @@ from .. import Analysis, register_analysis
 
 from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
-from ...knowledge.keyed_region import KeyedRegion
+from ...keyed_region import KeyedRegion
 from ...sim_variable import SimStackVariable, SimRegisterVariable
 
 l = logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast")

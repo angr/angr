@@ -13,7 +13,7 @@ from cle import ELF, PE, Blob, TLSObject, ExternObject, KernelObject
 from .cfg_node import CFGNode
 from ... import SIM_PROCEDURES
 from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError, AngrUnsupportedSyscallError
-from ...knowledge import HookNode, BlockNode
+from ...codenode import HookNode, BlockNode
 from ...knowledge_plugins import FunctionManager
 
 l = logging.getLogger("angr.analyses.cfg.cfg_base")

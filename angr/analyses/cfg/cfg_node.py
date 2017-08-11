@@ -203,4 +203,4 @@ class CFGNode(object):
             return HookNode(self.addr, self.size, self.simprocedure_name)
         return BlockNode(self.addr, self.size, thumb=self.thumb)
 
-from ...knowledge.codenode import BlockNode, HookNode
+from ...codenode import BlockNode, HookNode

@@ -359,6 +359,6 @@ class AngrObjectFactory(object):
 
 from .errors import AngrExitError, AngrError, AngrUnsupportedSyscallError
 from .manager import SimulationManager
-from .knowledge import HookNode
+from .codenode import HookNode
 from .block import Block
 from . import sim_options as o

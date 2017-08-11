@@ -8,7 +8,7 @@ from .annotations import StackLocationAnnotation
 from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 from ... import BP, BP_AFTER
-from ...knowledge.keyed_region import KeyedRegion
+from ...keyed_region import KeyedRegion
 from ...sim_variable import SimRegisterVariable, SimStackVariable, SimStackVariablePhi
 
 l = logging.getLogger("angr.analyses.variable_recovery.variable_recovery")

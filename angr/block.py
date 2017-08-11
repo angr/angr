@@ -225,4 +225,4 @@ class CapstoneInsn(object):
         return '<CapstoneInsn "%s" for %#x>' % (self.mnemonic, self.address)
 
 
-from .knowledge.codenode import BlockNode
+from .codenode import BlockNode
