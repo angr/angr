@@ -10,6 +10,8 @@ class LoadLibraryA(angr.SimProcedure):
         return self.load(lib)
 
     def load(self, lib):
+        if '.' not in lib:
+            lib += '.dll'
         loaded = self.project.loader.dynamic_load(lib)
         if loaded is None:
             return 0
