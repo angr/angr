@@ -1075,6 +1075,7 @@ static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address,
 
 static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
 	State *state = (State *)user_data;
+	//printf("Segfault data: %d %#llx %d %#llx\n", type, address, size, value);
 	state->stop(STOP_SEGFAULT);
 	return true;
 }

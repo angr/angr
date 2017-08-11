@@ -15,6 +15,8 @@
 *.obj
 *.lib
 *.exp
+*.pdb
+*.ilk
 angr/tests/*.png
 screenlog.0
 angr/tests/screenlog.0
