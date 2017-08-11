@@ -173,7 +173,8 @@ class Project(object):
                 stop_points=self._sim_procedures,
                 use_cache=translation_cache,
                 support_selfmodifying_code=support_selfmodifying_code)
-        procedure_engine = SimEngineHook(self)
+        procedure_engine = SimEngineProcedure()
+        hook_engine = SimEngineHook(self)
         failure_engine = SimEngineFailure(self)
         syscall_engine = SimEngineSyscall(self)
         unicorn_engine = SimEngineUnicorn(self._sim_procedures)
@@ -183,7 +184,7 @@ class Project(object):
                 self,
                 engine,
                 procedure_engine,
-                [failure_engine, syscall_engine, procedure_engine, unicorn_engine, engine])
+                [failure_engine, syscall_engine, hook_engine, unicorn_engine, engine])
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
         self.kb = KnowledgeBase(self, self.loader.main_object)
@@ -538,6 +539,6 @@ from .simos import SimOS, os_mapping
 from .analyses.analysis import Analyses
 from .surveyors import Surveyors
 from .knowledge_base import KnowledgeBase
-from .engines import SimEngineFailure, SimEngineSyscall, SimEngineHook, SimEngineVEX, SimEngineUnicorn
+from .engines import SimEngineFailure, SimEngineSyscall, SimEngineProcedure, SimEngineVEX, SimEngineUnicorn, SimEngineHook
 from .misc.ux import once
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES

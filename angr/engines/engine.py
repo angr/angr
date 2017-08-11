@@ -58,7 +58,6 @@ class SimEngine(object):
         #if o.TRACK_ACTION_HISTORY not in old_state.options:
         #    old_state.history.recent_events = []
 
-
         return successors
 
     def check(self, state, *args, **kwargs):
