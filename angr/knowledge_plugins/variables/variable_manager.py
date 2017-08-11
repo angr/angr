@@ -4,12 +4,13 @@ from collections import defaultdict
 from itertools import count
 
 from claripy.utils.orderedset import OrderedSet
-from ..sim_variable import SimStackVariable, SimMemoryVariable, SimRegisterVariable, SimMemoryVariablePhi, \
+from ...sim_variable import SimStackVariable, SimMemoryVariable, SimRegisterVariable, SimMemoryVariablePhi, \
     SimStackVariablePhi, SimRegisterVariablePhi
 
-from .keyed_region import KeyedRegion
+from ...knowledge.keyed_region import KeyedRegion
 from .variable_access import VariableAccess
 
+from ..plugin import KnowledgeBasePlugin
 
 l = logging.getLogger("angr.knowledge.variable_manager")
 
@@ -283,12 +284,13 @@ class VariableManagerInternal(object):
                 var.name = var.ident
 
 
-class VariableManager(object):
+class VariableManager(KnowledgeBasePlugin):
     """
     Manage variables.
     """
-    def __init__(self, kb=None):
-        self.kb = kb
+    def __init__(self, kb):
+        super(VariableManager, self).__init__()
+        self._kb = kb
         self.global_manager = VariableManagerInternal(self)
         self.function_managers = { }
 
@@ -342,3 +344,9 @@ class VariableManager(object):
 
         l.warning('get_variable_accesses(): Region %s is not found.', variable.region)
         return [ ]
+
+    def copy(self):
+        raise NotImplementedError
+
+
+KnowledgeBasePlugin.register_default('variables', VariableManager)

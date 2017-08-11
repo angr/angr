@@ -1,9 +1,6 @@
 """Representing the artifacts of a project."""
 
-from .knowledge.data import Data
-from .knowledge.function_manager import FunctionManager
-from .knowledge.variable_manager import VariableManager
-from .knowledge.labels import Labels
+from .knowledge_plugins.plugin import default_plugins
 
 
 class KnowledgeBase(object):
@@ -14,16 +11,48 @@ class KnowledgeBase(object):
     def __init__(self, project, obj):
         self._project = project
         self.obj = obj
-        self.data = Data(self)
-        self.functions = FunctionManager(self)
-        self.variables = VariableManager(self)
-        self.labels = Labels(self)
-        self.comments = {}
-
-        # a set of unresolved and a set of resolved indirect jumps
-        self._unresolved_indirect_jumps = set()
-        self._resolved_indirect_jumps = set()
+        self._plugins = {}
 
     @property
     def callgraph(self):
         return self.functions.callgraph
+
+    @property
+    def unresolved_indirect_jumps(self):
+        return self.indirect_jumps.unresolved
+
+    @property
+    def resolved_indirect_jumps(self):
+        return self.indirect_jumps.resolved
+
+    #
+    # Plugin accessor
+    #
+
+    def __getattr__(self, v):
+        try:
+            return self.get_plugin(v)
+        except KeyError:
+            raise AttributeError(v)
+
+    #
+    # Plugins
+    #
+
+    def has_plugin(self, name):
+        return name in self._plugins
+
+    def get_plugin(self, name):
+        if name not in self._plugins:
+            p = default_plugins[name](self)
+            self.register_plugin(name, p)
+            return p
+        return self._plugins[name]
+
+    def register_plugin(self, name, plugin):
+        self._plugins[name] = plugin
+        return plugin
+
+    def release_plugin(self, name):
+        if name in self._plugins:
+            del self._plugins[name]

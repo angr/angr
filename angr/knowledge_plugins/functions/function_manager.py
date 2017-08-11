@@ -1,12 +1,13 @@
 import logging
 import collections
 
-import bintrees
 import networkx
 
-from ..errors import SimEngineError
+from ...errors import SimEngineError
 
 from .function import Function
+
+from ..plugin import KnowledgeBasePlugin
 
 l = logging.getLogger("angr.knowledge.function_manager")
 
@@ -18,7 +19,6 @@ class FunctionDict(dict):
     """
     def __init__(self, backref, *args, **kwargs):
         self._backref = backref
-        self._avltree = bintrees.AVLTree()
         super(FunctionDict, self).__init__(*args, **kwargs)
 
     def __missing__(self, key):
@@ -31,32 +31,19 @@ class FunctionDict(dict):
         self[addr] = t
         return t
 
-    def __setitem__(self, addr, func):
-        self._avltree[addr] = func
-        super(FunctionDict, self).__setitem__(addr, func)
 
-    def __delitem__(self, addr):
-        del self._avltree[addr]
-        super(FunctionDict, self).__delitem__(addr)
-
-    def floor_addr(self, addr):
-        return self._avltree.floor_key(addr)
-
-    def ceiling_addr(self, addr):
-        return self._avltree.ceiling_key(addr)
-
-
-class FunctionManager(collections.Mapping):
+class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
     """
     This is a function boundaries management tool. It takes in intermediate
     results during CFG generation, and manages a function map of the binary.
     """
     def __init__(self, kb):
+        super(FunctionManager, self).__init__()
         self._kb = kb
         self._function_map = FunctionDict(self)
         self.callgraph = networkx.MultiDiGraph()
         self.block_map = {}
-
+        
         # Registers used for passing arguments around
         self._arg_registers = kb._project.arch.argument_registers
 
@@ -233,37 +220,6 @@ class FunctionManager(collections.Mapping):
         """
         return addr in self._function_map
 
-    def ceiling_func(self, addr):
-        """
-        Return the function who has the least address that is greater than or equal to `addr`.
-
-        :param int addr: The address to query.
-        :return:         A Function instance, or None if there is no other function after `addr`.
-        :rtype:          Function or None
-        """
-
-        try:
-            next_addr = self._function_map.ceiling_addr(addr)
-            return self._function_map[next_addr]
-
-        except KeyError:
-            return None
-
-    def floor_func(self, addr):
-        """
-        Return the function who has the greatest address that is less than or equal to `addr`.
-
-        :param int addr: The address to query.
-        :return:         A Function instance, or None if there is no other function before `addr`.
-        :rtype:          Function or None
-        """
-
-        try:
-            prev_addr = self._function_map.floor_addr(addr)
-            return self._function_map[prev_addr]
-
-        except KeyError:
-            return None
 
     def function(self, addr=None, name=None, create=False, syscall=False, plt=None):
         """
@@ -303,3 +259,6 @@ class FunctionManager(collections.Mapping):
         for func_addr, func in self._function_map.iteritems():
             filename = "%s%#08x.png" % (prefix, func_addr)
             func.dbg_draw(filename)
+
+
+KnowledgeBasePlugin.register_default('functions', FunctionManager)

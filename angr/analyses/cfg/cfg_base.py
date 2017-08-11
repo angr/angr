@@ -13,7 +13,8 @@ from cle import ELF, PE, Blob, TLSObject, ExternObject, KernelObject
 from .cfg_node import CFGNode
 from ... import SIM_PROCEDURES
 from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError, AngrUnsupportedSyscallError
-from ...knowledge import HookNode, BlockNode, FunctionManager
+from ...knowledge import HookNode, BlockNode
+from ...knowledge_plugins import FunctionManager
 
 l = logging.getLogger("angr.analyses.cfg.cfg_base")
 
@@ -131,7 +132,7 @@ class CFGBase(Analysis):
         A reference to the FunctionManager in the current knowledge base.
 
         :return: FunctionManager with all functions
-        :rtype: angr.knowledge.FunctionManager
+        :rtype: angr.knowledge_plugins.FunctionManager
         """
         return self.kb.functions
 
@@ -1321,7 +1322,7 @@ class CFGBase(Analysis):
         In the example above, `process_irrational_functions` will remove function 0x400080, and merge it with function
         0x400010.
 
-        :param angr.knowledge.FunctionManager functions: all functions that angr recovers, including those ones that are
+        :param angr.knowledge_plugins.FunctionManager functions: all functions that angr recovers, including those ones that are
             misidentified as functions.
         :param dict blockaddr_to_function: A mapping between block addresses and Function instances.
         :return: a list of addresses of all removed functions
@@ -1457,7 +1458,7 @@ class CFGBase(Analysis):
 
         :param int addr: Address to convert
         :param dict blockaddr_to_function: A mapping between block addresses to Function instances.
-        :param angr.knowledge.FunctionManager known_functions: Recovered functions.
+        :param angr.knowledge_plugins.FunctionManager known_functions: Recovered functions.
         :return: a Function object
         :rtype: angr.knowledge.Function
         """
@@ -1494,7 +1495,7 @@ class CFGBase(Analysis):
         :param list starts: A collection of beginning nodes to start graph traversal.
         :param func callback: Callback function for each edge and node.
         :param dict blockaddr_to_function: A mapping between block addresses to Function instances.
-        :param angr.knowledge.FunctionManager known_functions: Already recovered functions.
+        :param angr.knowledge_plugins.FunctionManager known_functions: Already recovered functions.
         :param set traversed_cfg_nodes: A set of CFGNodes that are traversed before.
         :return: None
         """
@@ -1537,7 +1538,7 @@ class CFGBase(Analysis):
         :param CFGNode dst: Destination of the edge. For processing a single node, `dst` is None.
         :param dict data: Edge data in the CFG. 'jumpkind' should be there if it's not None.
         :param dict blockaddr_to_function: A mapping between block addresses to Function instances.
-        :param angr.knowledge.FunctionManager known_functions: Already recovered functions.
+        :param angr.knowledge_plugins.FunctionManager known_functions: Already recovered functions.
         :param list or None all_edges: All edges going out from src.
         :return: None
         """
