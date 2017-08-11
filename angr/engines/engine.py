@@ -44,7 +44,7 @@ class SimEngine(object):
         new_state.register_plugin('history', old_state.history.make_child())
         new_state.history.recent_bbl_addrs.append(addr)
 
-        successors = SimSuccessors(addr, new_state)
+        successors = SimSuccessors(addr, old_state)
 
         new_state._inspect('engine_process', when=BP_BEFORE, sim_engine=self, sim_successors=successors)
         successors = new_state._inspect_getattr('sim_successors', successors)
