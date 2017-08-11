@@ -346,7 +346,7 @@ class SimIROp(object):
             raise SimOperationError("IROp needs all args as claripy expressions")
 
         if not self._float:
-            args = tuple(arg.to_bv() for arg in args)
+            args = tuple(arg.raw_to_bv() for arg in args)
 
         try:
             return self.extend_size(self._calculate(args))
@@ -432,7 +432,7 @@ class SimIROp(object):
 
     def _op_float_op_just_low(self, args):
         chopped = [arg[(self._vector_size - 1):0].raw_to_fp() for arg in args]
-        result = getattr(claripy, 'fp' + self._generic_name)(claripy.fp.RM.default(), *chopped).to_bv()
+        result = getattr(claripy, 'fp' + self._generic_name)(claripy.fp.RM.default(), *chopped).raw_to_bv()
         return claripy.Concat(args[0][(args[0].length - 1):self._vector_size], result)
 
     def _op_concat(self, args):
@@ -711,14 +711,14 @@ class SimIROp(object):
         rm = self._translate_rm(args[0] if rm_exists else claripy.BVV(0, 32))
         arg = args[1 if rm_exists else 0]
 
-        return arg.signed_to_fp(rm, claripy.fp.FSort.from_size(self._output_size_bits))
+        return arg.val_to_fp(claripy.fp.FSort.from_size(self._output_size_bits), signed=True, rm=rm)
 
     def _op_fp_to_fp(self, args):
         rm_exists = self._from_size != 32 or self._to_size != 64
         rm = self._translate_rm(args[0] if rm_exists else claripy.BVV(0, 32))
         arg = args[1 if rm_exists else 0].raw_to_fp()
 
-        return arg.raw_to_fp().to_fp(rm, claripy.fp.FSort.from_size(self._output_size_bits))
+        return arg.raw_to_fp().to_fp(claripy.fp.FSort.from_size(self._output_size_bits), rm=rm)
 
     def _op_fp_to_int(self, args):
         rm = self._translate_rm(args[0])
@@ -739,7 +739,7 @@ class SimIROp(object):
 
     def _op_fgeneric_Reinterp(self, args):
         if self._to_type == 'I':
-            return args[0].to_bv()
+            return args[0].raw_to_bv()
         elif self._to_type == 'F':
             return args[0].raw_to_fp()
         else:
@@ -819,7 +819,7 @@ class SimIROp(object):
 
     #def _op_Iop_Yl2xF64(self, args):
     #   rm = self._translate_rm(args[0])
-    #   arg2_bv = args[2].to_bv()
+    #   arg2_bv = args[2].raw_to_bv()
     #   # IEEE754 double looks like this:
     #   # SEEEEEEEEEEEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
     #   # thus, we extract the exponent bits, re-bias them, then
@@ -828,7 +828,7 @@ class SimIROp(object):
     #   # = x - 1 for 1.0 <= x < 2.0 to account for the mantissa.
 
     #   # the bias for doubles is 1023
-    #   arg2_exp = (arg2_bv[62:52] - 1023).signed_to_fp(rm, claripy.fp.FSORT_DOUBLE)
+    #   arg2_exp = (arg2_bv[62:52] - 1023).val_to_fp(claripy.fp.FSORT_DOUBLE, signed=True, rm=rm)
     #   arg2_mantissa = claripy.Concat(claripy.BVV(int('001111111111', 2), 12), arg2_bv[51:0]).raw_to_fp()
     #   # this is the hacky approximation:
     #   log2_arg2_mantissa = claripy.fpSub(rm, arg2_mantissa, claripy.FPV(1.0, claripy.fp.FSORT_DOUBLE))

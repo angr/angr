@@ -116,12 +116,12 @@ def test_manyfloatsum_symbolic():
         yield run_manyfloatsum_symbolic, arch
 
 if __name__ == "__main__":
-    print 'testing manyfloatsum with symbolic arguments'
-    for func, march in test_manyfloatsum_symbolic():
-        print '* testing ' + march
-        func(march)
     print 'testing manyfloatsum'
     for func, march in test_manyfloatsum():
+        print '* testing ' + march
+        func(march)
+    print 'testing manyfloatsum with symbolic arguments'
+    for func, march in test_manyfloatsum_symbolic():
         print '* testing ' + march
         func(march)
     print 'testing fauxware'

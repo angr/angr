@@ -393,7 +393,7 @@ class SimMemory(SimStatePlugin):
             data_e = self.state.se.BVV(data_e, size_e*8 if size_e is not None
                                        else self.state.arch.bits)
         else:
-            data_e = data_e.to_bv()
+            data_e = data_e.raw_to_bv()
 
         return data_e
 
