@@ -1,15 +1,14 @@
 import logging
-l = logging.getLogger("angr.knowledge.codenode")
+l = logging.getLogger("angr.codenode")
 
 
 class CodeNode(object):
 
-    __slots__ = ['addr', 'size', 'function', '_graph', 'thumb']
+    __slots__ = ['addr', 'size', 'function', '_graph']
 
-    def __init__(self, addr, size, graph=None, thumb=False):
+    def __init__(self, addr, size, graph=None):
         self.addr = addr
         self.size = size
-        self.thumb = thumb
         self.function = None
         self._graph = graph
 
@@ -22,8 +21,7 @@ class CodeNode(object):
         return type(self) is type(other) and \
             self.addr == other.addr and \
             self.size == other.size and \
-            self.is_hook == other.is_hook and \
-            self.thumb == other.thumb
+            self.is_hook == other.is_hook
 
     def __ne__(self, other):
         return not self == other
@@ -97,4 +95,4 @@ class HookNode(CodeNode):
     def __setstate__(self, dat):
         self.__init__(*dat)
 
-from ..block import Block
+from angr.block import Block

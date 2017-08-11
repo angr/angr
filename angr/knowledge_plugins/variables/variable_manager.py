@@ -7,7 +7,7 @@ from claripy.utils.orderedset import OrderedSet
 from ...sim_variable import SimStackVariable, SimMemoryVariable, SimRegisterVariable, SimMemoryVariablePhi, \
     SimStackVariablePhi, SimRegisterVariablePhi
 
-from ...knowledge.keyed_region import KeyedRegion
+from ...keyed_region import KeyedRegion
 from .variable_access import VariableAccess
 
 from ..plugin import KnowledgeBasePlugin

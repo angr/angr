@@ -981,5 +981,5 @@ class Function(object):
         self.normalized = True
 
 
-from ...knowledge.codenode import BlockNode
+from ...codenode import BlockNode
 from ...errors import AngrValueError
