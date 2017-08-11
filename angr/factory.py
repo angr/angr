@@ -85,8 +85,10 @@ class AngrObjectFactory(object):
         if r.successors and r.successors[0].history.jumpkind.startswith('Ijk_Sys'):
             self._fix_syscall_ip(r.successors[0])
         # fix up the descriptions... TODO do something better than this
+        description = str(r)
+        l.info("Ticked state: %s", description)
         for succ in r.successors:
-            succ.history.description = str(r)
+            succ.history.description = description
 
         return r
 
