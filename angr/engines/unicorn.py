@@ -110,8 +110,13 @@ class SimEngineUnicorn(SimEngine):
         state.history.recent_block_count += state.unicorn.steps
         state.history.description = description
 
-        for bbl_addr in state.history.recent_bbl_addrs:
-            state._inspect('irsb', BP_AFTER, address=bbl_addr)
+        # this can be expensive, so check first
+        if state.has_plugin('inspect'):
+            for bp in state.inspect._breakpoints['irsb']:
+                if bp.check(state, BP_AFTER):
+                    for bbl_addr in state.history.recent_bbl_addrs:
+                        state._inspect('irsb', BP_AFTER, address=bbl_addr)
+                    break
 
         if state.unicorn.jumpkind.startswith('Ijk_Sys'):
             state.ip = state.unicorn._syscall_pc

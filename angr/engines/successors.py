@@ -149,7 +149,6 @@ class SimSuccessors(object):
         if len(self.successors) != 0:
             # This is a fork!
             state._inspect('fork', BP_AFTER)
-            state.unicorn.clear()
 
         # clean up the state
         state.options.discard(o.AST_DEPS)

@@ -467,7 +467,7 @@ public:
 		if (after != page_cache->end()) {
 			if (address + size >= after->first) {
 				if (address >= after->first) {
-					printf("[%#lx, %#lx] overlaps with [%#lx, %#lx].\n", address, address + size, after->first, after->first + after->second.size);
+					printf("[%#llx, %#llx](%#x) overlaps with [%#llx, %#llx](%#x).\n", address, address + size, size, after->first, after->first + after->second.size, after->second.size);
 					// A complete overlap
 					return;
 				}
@@ -479,7 +479,7 @@ public:
 			if (address < before->first + before->second.size) {
 				if (address + size <= before->first + before->second.size) {
 					// A complete overlap
-					printf("[%#lx, %#lx] overlaps with [%#lx, %#lx].\n", address, address + size, before->first, before->first + before->second.size);
+					printf("[%#llx, %#llx](%#x) overlaps with [%#llx, %#llx](%#x).\n", address, address + size, size, after->first, after->first + after->second.size, after->second.size);
 					return;
 				}
 				size = address + size - (before->first + before->second.size);
@@ -487,18 +487,37 @@ public:
 			}
 		}
 
-		uint8_t *copy = (uint8_t *)malloc(size);
-		CachedPage cached_page = {
-			size,
-			copy,
-			permissions
-		};
-		// address should be aligned to 0x1000
-		memcpy(copy, bytes, size);
-		page_cache->insert(std::pair<uint64_t, CachedPage>(address, cached_page));
+		for (uint64_t offset = 0; offset < size; offset += 0x1000) {
+			uint8_t *copy = (uint8_t *)malloc(0x1000);
+			CachedPage cached_page = {
+				0x1000,
+				copy,
+				permissions
+			};
+			// address should be aligned to 0x1000
+			memcpy(copy, &bytes[offset], 0x1000);
+			page_cache->insert(std::pair<uint64_t, CachedPage>(address+offset, cached_page));
+		}
 	}
 
-	bool map_cache(uint64_t address) {
+	void uncache_page(uint64_t address) {
+		if (address & 0xfff != 0) {
+			printf("Warning: Address #%llx passed to uncache_page is not aligned\n", address);
+			return;
+		}
+
+		auto page = page_cache->find(address);
+		if (page != page_cache->end()) {
+			//printf("Internal: unmapping %#llx size %#x, result %#x", page->first, page->second.size, uc_mem_unmap(uc, page->first, page->second.size));
+			uc_mem_unmap(uc, page->first, page->second.size);
+			//free(page->second.bytes); // other forks might need this I guess :( how the HELL do you make memory management sane?
+			page_cache->erase(page);
+		} else {
+			//printf("Uh oh! Couldn't find page at %#llx\n", address);
+		}
+	}
+
+	bool map_cache(uint64_t address, size_t size) {
 		auto it = page_cache->lower_bound(address);
 
 		if (it == page_cache->end() && it != page_cache->begin()) {
@@ -513,16 +532,28 @@ public:
 				cached_page_addr = it->first;
 			}
 			auto itt = it->second;
-			size_t size = itt.size;
+			size_t page_size = itt.size;
 			uint8_t *bytes = itt.bytes;
 			uint64_t permissions = itt.perms;
 
-			if (address >= cached_page_addr && address < cached_page_addr + size) {
-				//LOG_D("hit cache [%#lx, %#lx]", address, address + size);
-				uc_err err = uc_mem_map_ptr(uc, cached_page_addr, size, permissions, bytes);
-				if (err) {
-					//LOG_E("map_cache [%#lx, %#lx]: %s", address, address + size, uc_strerror(err));
-					return false;
+			if (address >= cached_page_addr && address < cached_page_addr + page_size) {
+				while (cached_page_addr < address + size) {
+					//LOG_D("hit cache [%#lx, %#lx]", address, address + size);
+					uc_err err = uc_mem_map_ptr(uc, cached_page_addr, page_size, permissions, bytes);
+					if (err) {
+						//LOG_E("map_cache [%#lx, %#lx]: %s", address, address + size, uc_strerror(err));
+						return false;
+					}
+
+					it++;
+					if (it != page_cache->end()) {
+						cached_page_addr = it->first;
+						page_size = it->second.size;
+						bytes = it->second.bytes;
+						permissions = it->second.perms;
+					} else {
+						break;
+					}
 				}
 				return true;
 			}
@@ -1034,7 +1065,7 @@ static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address,
 	uint64_t end = (address + size - 1) & ~0xFFFULL;
 
 	// only hook nonwritable pages
-	if (type != UC_MEM_WRITE_UNMAPPED && state->map_cache(start) && (start == end || state->map_cache(end))) {
+	if (type != UC_MEM_WRITE_UNMAPPED && state->map_cache(start, 0x1000) && (start == end || state->map_cache(end, 0x1000))) {
 		//LOG_D("handle unmapped page natively");
 		return true;
 	}
@@ -1232,7 +1263,13 @@ bool simunicorn_cache_page(State *state, uint64_t address, uint64_t length, char
 	//LOG_I("caching [%#lx, %#lx]", address, address + length);
 
 	state->cache_page(address, length, bytes, permissions);
-	if (!state->map_cache(address))
+	if (!state->map_cache(address, length)) {
 		return false;
+	}
 	return true;
+}
+
+extern "C"
+void simunicorn_uncache_page(State *state, uint64_t address) {
+	state->uncache_page(address);
 }
