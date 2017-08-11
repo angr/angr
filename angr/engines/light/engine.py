@@ -25,10 +25,12 @@ class SimEngineLight(SimEngine):
         self.stmt_idx = None
         self.ins_addr = None
         self.tmps = None
+        self._function_summaries = {}
 
     def process(self, state, *args, **kwargs):
         # we are using a completely different state. Therefore, we directly call our _process() method before
         # SimEngine becomes flexible enough.
+        self._function_summaries = kwargs.pop('function_summaries', {})
         self._process(state, None, block=kwargs.pop('block', None))
 
 
@@ -67,6 +69,8 @@ class SimEngineLightVEX(SimEngineLight):
 
             self._handle_Stmt(stmt)
 
+        if self.block.vex.jumpkind == 'Ijk_Call':
+            self._hl_handle_Call(stmt)
     #
     # Helper methods
     #
@@ -257,6 +261,8 @@ class SimEngineLightVEX(SimEngineLight):
     def _handle_Const(self, arg):  #pylint:disable=no-self-use
         return arg.con.value
 
+    def _hl_handle_Call(self, arg):
+        raise NotImplementedError('Please implement the Call handler with your own logic.')
 
 class SimEngineLightAIL(SimEngineLight):
     def __init__(self):

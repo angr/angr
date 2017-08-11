@@ -543,7 +543,6 @@ def get_engine(base_engine):
 
         # e.g. t27 = LDle:I64(t9), t9 might include multiple values
         def _handle_Load(self, expr):
-
             addr = self._expr(expr.addr)
             size = expr.result_size(self.tyenv) / 8
 
@@ -776,12 +775,27 @@ def get_engine(base_engine):
         def _ail_handle_Const(self, expr):
             return expr
 
+        #
+        # User defined high level statement handlers
+        #
+
+        def _hl_handle_Call(self, expr):
+            pc = self.arch.registers['pc']
+            target = self.state.register_definitions.get_objects_by_offset(pc[0]).copy()
+            assert len(target) == 1, 'Pc should be uniquely assigned before a Call'
+
+            target_addr = target.pop().data
+            function_name = self.state.loader.find_symbol_name(target_addr)
+
+            if function_name in self._function_summaries:
+                return self._function_summaries[function_name](self.state)
+
     return SimEngineRD
 
 
 class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
     def __init__(self, func=None, block=None, max_iterations=3, track_tmps=False, observation_points=None,
-                 init_func=False, cc=None, num_param=None):
+                 init_func=False, cc=None, num_param=None, function_summaries={}):
         """
 
         :param angr.knowledge.Function func:    The function to run reaching definition analysis on.
@@ -795,6 +809,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         :param bool init_func:                  Whether stack and arguments are initialized or not
         :param SimCC cc:                        Calling convention of the function (DefaultCC of arch if not set)
         :param int num_param:                   Number of arguments that are passed to the function
+        :param list function_summaries          List of function summaries provided by a user
         """
 
         if func is not None:
@@ -816,6 +831,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         self._function = func
         self._block = block
         self._observation_points = observation_points
+        self._function_summaries = function_summaries
 
         self._init_func = init_func
         self._cc = cc
@@ -893,7 +909,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
 
         state = input_state.copy()
 
-        engine.process(state, block=block)
+        engine.process(state, block=block, function_summaries=self._function_summaries)
 
         # clear the tmp store
         # state.tmp_uses.clear()
