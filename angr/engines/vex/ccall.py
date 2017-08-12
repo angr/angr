@@ -7,6 +7,7 @@ l = logging.getLogger("angr.engines.vex.ccall")
 # pylint: disable=R0911
 # pylint: disable=W0613
 # pylint: disable=W0612
+# pylint: disable=invalid-unary-operand-type
 
 ###############
 ### Helpers ###
@@ -32,7 +33,7 @@ def boolean_extend(state, O, a, b, size):
 
 def flag_concretize(state, flag):
     return state.se.eval(flag)
-    return state.se.eval_one(flag)
+    #return state.se.eval_one(flag)
 
 ##################
 ### x86* data ###
@@ -924,7 +925,7 @@ def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
     #    old_AL = r_AL
     #    old_C  = r_C
     #    r_C = state.se.If((r_AL & 0xF) > 9 || r_A == 1, old_C, state.se.BVV(0, 32))
-    #    r_A = state.se.If((r_AL & 0xF) > 9 || r_A == 1, 
+    #    r_A = state.se.If((r_AL & 0xF) > 9 || r_A == 1,
     #    if ((r_AL & 0xF) > 9 || r_A == 1) {
     #        r_AL = r_AL + 6;
     #        r_C  = old_C;

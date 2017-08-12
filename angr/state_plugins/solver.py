@@ -461,7 +461,8 @@ class SimSolver(SimStatePlugin):
     # And some convenience stuff
     #
 
-    def _cast_to(self, e, solution, cast_to):
+    @staticmethod
+    def _cast_to(e, solution, cast_to):
         """
         Casts a solution for the given expression to type `cast_to`.
 
