@@ -12,26 +12,26 @@ def setup():
 def teardown():
     ana.set_dl(ana.SimpleDataLayer())
 
-def pickle_callback(path):
-    path.globals['pickled'] = True
-def unpickle_callback(path):
-    path.globals['unpickled'] = True
-def priority_key(path):
-    return hash(tuple(path.history.bbl_addrs)) # to help ensure determinism
+def pickle_callback(state):
+    state.globals['pickled'] = True
+def unpickle_callback(state):
+    state.globals['unpickled'] = True
+def priority_key(state):
+    return hash(tuple(state.history.bbl_addrs)) # to help ensure determinism
 
 @nose.with_setup(setup, teardown)
 def test_basic():
     project = angr.Project(_bin('tests/cgc/sc2_0b32aa01_01'))
-    path = project.factory.entry_state()
+    state = project.factory.entry_state()
     spiller = angr.exploration_techniques.Spiller(pickle_callback=pickle_callback, unpickle_callback=unpickle_callback)
-    spiller._pickle([path])
+    spiller._pickle([state])
 
-    del path
+    del state
     gc.collect()
-    path = spiller._unpickle(1)[0]
+    state = spiller._unpickle(1)[0]
 
-    assert path.globals['pickled']
-    assert path.globals['unpickled']
+    assert state.globals['pickled']
+    assert state.globals['unpickled']
 
 @nose.with_setup(setup, teardown)
 def test_palindrome2():
@@ -52,8 +52,14 @@ def test_palindrome2():
 
     assert spiller._ever_pickled > 0
     assert spiller._ever_unpickled == spiller._ever_pickled
-    assert all(('pickled' not in path.globals and 'unpickled' not in path.globals) or (path.globals['pickled'] and path.globals['unpickled']) for path in pg.cut)
+    assert all(
+        ('pickled' not in state.globals and 'unpickled' not in state.globals) or
+        (state.globals['pickled'] and state.globals['unpickled'])
+        for state in pg.cut
+    )
 
 if __name__ == '__main__':
+    setup()
     test_basic()
     test_palindrome2()
+    teardown()

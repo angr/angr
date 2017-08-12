@@ -1,7 +1,6 @@
 import logging
 
 l = logging.getLogger("angr.exploration_techniques.spiller")
-l.setLevel('DEBUG')
 
 import ana
 from . import ExplorationTechnique
