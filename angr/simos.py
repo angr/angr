@@ -246,6 +246,20 @@ class SimOS(object):
             basic_addr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
         return basic_addr, basic_addr
 
+    # Dummy stuff to allow this API to be used freely
+
+    def syscall(self, state, allow_unsupported=True):
+        return None
+
+    def is_syscall_addr(self, addr):
+        return False
+
+    def syscall_from_addr(self, addr, allow_unsupported=True):
+        return None
+
+    def syscall_from_number(self, number, allow_unsupported=True):
+        return None
+
 
 class SimUserland(SimOS):
     """

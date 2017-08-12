@@ -64,7 +64,7 @@ class Function(object):
             if project.is_hooked(addr):
                 hooker = project.hooked_by(addr)
                 name = hooker.display_name
-            else:
+            elif project._simos.is_syscall_addr(addr):
                 syscall_inst = project._simos.syscall_from_addr(addr)
                 name = syscall_inst.display_name
 
