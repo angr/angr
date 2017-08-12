@@ -248,6 +248,7 @@ class SimOS(object):
 
     # Dummy stuff to allow this API to be used freely
 
+    # pylint: disable=unused-argument, no-self-use
     def syscall(self, state, allow_unsupported=True):
         return None
 
@@ -435,8 +436,9 @@ class SimLinux(SimUserland):
                         self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](**kwargs))
                         self.project.loader.memory.write_addr_at(gotaddr, randaddr)
 
+    # pylint: disable=arguments-differ
     def state_blank(self, fs=None, concrete_fs=False, chroot=None, **kwargs):
-        state = super(SimLinux, self).state_blank(**kwargs) #pylint:disable=invalid-name
+        state = super(SimLinux, self).state_blank(**kwargs)
 
         if self.project.loader.tls_object is not None:
             if isinstance(state.arch, ArchAMD64):
@@ -609,6 +611,7 @@ class SimCGC(SimUserland):
     def __init__(self, project, **kwargs):
         super(SimCGC, self).__init__(project, syscall_library=L['cgcabi'], name="CGC", **kwargs)
 
+    # pylint: disable=arguments-differ
     def state_blank(self, fs=None, **kwargs):
         s = super(SimCGC, self).state_blank(**kwargs)  # pylint:disable=invalid-name
 
@@ -736,6 +739,7 @@ class SimWindows(SimOS):
         self._weak_hook_symbol('LoadLibraryA', L['kernel32.dll'].get('LoadLibraryA', self.arch))
         self._weak_hook_symbol('LoadLibraryExW', L['kernel32.dll'].get('LoadLibraryExW', self.arch))
 
+    # pylint: disable=arguments-differ
     def state_entry(self, args=None, **kwargs):
         if args is None: args = []
         state = super(SimWindows, self).state_entry(**kwargs)
