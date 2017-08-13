@@ -29,6 +29,9 @@ class KnowledgeBase(object):
     # Plugin accessor
     #
 
+    def __contains__(self, plugin_name):
+        return plugin_name in self._plugins
+
     def __getattr__(self, v):
         try:
             return self.get_plugin(v)

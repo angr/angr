@@ -6,7 +6,7 @@ import nose
 
 import angr
 from angr.sim_variable import SimStackVariable
-from angr.knowledge.variable_manager import VariableType
+from angr.knowledge_plugins.variables import VariableType
 
 
 l = logging.getLogger('test_variablerecovery')

@@ -1,1 +1,2 @@
-from .variable_manager import VariableManager
+
+from .variable_manager import VariableManager, VariableType
