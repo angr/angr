@@ -105,7 +105,7 @@ class CFGNode(object):
         if not instruction_addrs and not self.is_simprocedure:
             # We have to collect instruction addresses by ourselves
             if irsb is not None:
-                self.instruction_addrs = [ s.addr for s in irsb.statements if type(s) is pyvex.IRStmt.IMark ]  # pylint:disable=unidiomatic-typecheck
+                self.instruction_addrs = [ s.addr + s.delta for s in irsb.statements if type(s) is pyvex.IRStmt.IMark ]  # pylint:disable=unidiomatic-typecheck
 
         self.final_states = [ ] if final_states is None else final_states
         self.irsb = irsb
