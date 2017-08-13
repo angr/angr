@@ -2833,12 +2833,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         except KeyError:
                             call_site_node = fr.call_site_addr
 
-                        try:
-                            return_to_node = self._to_snippet(self._nodes[fr.return_to])
-                        except KeyError:
-                            return_to_node = fr.return_to
+                        # We always use the address instead of the block here, because the first time this fake ret is
+                        # added into the function, we might be using the address, and in that case, the size of the
+                        # block in function.blocks is unknown to us.
+                        return_to = fr.return_to
 
-                        self.kb.functions._remove_fakeret(fr.caller_func_addr, call_site_node, return_to_node)
+                        self.kb.functions._remove_fakeret(fr.caller_func_addr, call_site_node, return_to)
 
                     del self._function_returns[not_returning_function.addr]
 
