@@ -992,7 +992,7 @@ def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
         r_C = state.se.If(condition, one, zero)
         r_O = r_S = r_Z = r_P = 0
     else:
-        assert False
+        raise UnsupportedCCallError('daa/das are not supported.')
 
     result =   ( (r_O & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_O']) ) \
              | ( (r_S & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_S']) ) \
@@ -1649,5 +1649,5 @@ def _get_nbits(cc_str):
         nbits = 64
     return nbits
 
-from ...errors import SimError, SimCCallError
+from ...errors import SimError, SimCCallError, UnsupportedCCallError
 from ...sim_options import USE_SIMPLIFIED_CCALLS
