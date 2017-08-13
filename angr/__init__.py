@@ -40,7 +40,7 @@ from .state_hierarchy import StateHierarchy
 
 from .sim_state import SimState
 from .engines import SimEngineVEX
-from .calling_conventions import DEFAULT_CC, SYSCALL_CC
+from .calling_conventions import DEFAULT_CC, SYSCALL_CC, PointerWrapper
 
 # now that we have everything loaded, re-grab the list of loggers
 loggers.load_all_loggers()
