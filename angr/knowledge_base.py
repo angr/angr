@@ -25,6 +25,19 @@ class KnowledgeBase(object):
     def resolved_indirect_jumps(self):
         return self.indirect_jumps.resolved
 
+    def __setstate__(self, state):
+        self._project = state['project']
+        self.obj = state['obj']
+        self._plugins = state['plugins']
+
+    def __getstate__(self):
+        s = {
+            'project': self._project,
+            'obj': self.obj,
+            'plugins': self._plugins,
+        }
+        return s
+
     #
     # Plugin accessor
     #
