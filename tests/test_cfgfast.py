@@ -422,6 +422,33 @@ def test_function_names_for_unloaded_libraries():
     nose.tools.assert_in('__stack_chk_fail', function_names)
     nose.tools.assert_in('exit', function_names)
 
+#
+# Basic blocks
+#
+
+def test_block_instruction_addresses_armhf():
+    path = os.path.join(test_location, 'armhf', 'fauxware')
+    proj = angr.Project(path, auto_load_libs=False)
+
+    import logging
+    logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.DEBUG)
+
+    cfg = proj.analyses.CFGFast()
+
+    main_func = cfg.kb.functions['main']
+
+    # all instruction addresses of the block must be odd
+    block = next((b for b in main_func.blocks if b.addr == main_func.addr))
+
+    nose.tools.assert_equal(len(block.instruction_addrs), 12)
+    for instr_addr in block.instruction_addrs:
+        nose.tools.assert_true(instr_addr % 2 == 1)
+
+    main_node = cfg.get_any_node(main_func.addr)
+    nose.tools.assert_is_not_none(main_node)
+    nose.tools.assert_equal(len(main_node.instruction_addrs), 12)
+    for instr_addr in main_node.instruction_addrs:
+        nose.tools.assert_true(instr_addr % 2 == 1)
 
 def run_all():
 
