@@ -1,6 +1,7 @@
 import logging
 import collections
 
+import bintrees
 import networkx
 
 from ..errors import SimEngineError
@@ -17,6 +18,7 @@ class FunctionDict(dict):
     """
     def __init__(self, backref, *args, **kwargs):
         self._backref = backref
+        self._avltree = bintrees.AVLTree()
         super(FunctionDict, self).__init__(*args, **kwargs)
 
     def __missing__(self, key):
@@ -28,6 +30,20 @@ class FunctionDict(dict):
         t = Function(self._backref, addr)
         self[addr] = t
         return t
+
+    def __setitem__(self, addr, func):
+        self._avltree[addr] = func
+        super(FunctionDict, self).__setitem__(addr, func)
+
+    def __delitem__(self, addr):
+        del self._avltree[addr]
+        super(FunctionDict, self).__delitem__(addr)
+
+    def floor_addr(self, addr):
+        return self._avltree.floor_key(addr)
+
+    def ceiling_addr(self, addr):
+        return self._avltree.ceiling_key(addr)
 
 
 class FunctionManager(collections.Mapping):
@@ -217,6 +233,37 @@ class FunctionManager(collections.Mapping):
         """
         return addr in self._function_map
 
+    def ceiling_func(self, addr):
+        """
+        Return the function who has the least address that is greater than or equal to `addr`.
+
+        :param int addr: The address to query.
+        :return:         A Function instance, or None if there is no other function after `addr`.
+        :rtype:          Function or None
+        """
+
+        try:
+            next_addr = self._function_map.ceiling_addr(addr)
+            return self._function_map[next_addr]
+
+        except KeyError:
+            return None
+
+    def floor_func(self, addr):
+        """
+        Return the function who has the greatest address that is less than or equal to `addr`.
+
+        :param int addr: The address to query.
+        :return:         A Function instance, or None if there is no other function before `addr`.
+        :rtype:          Function or None
+        """
+
+        try:
+            prev_addr = self._function_map.floor_addr(addr)
+            return self._function_map[prev_addr]
+
+        except KeyError:
+            return None
 
     def function(self, addr=None, name=None, create=False, syscall=False, plt=None):
         """

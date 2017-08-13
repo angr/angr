@@ -3336,6 +3336,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         distance = min(distance, VEX_IRSB_MAX_SIZE)
                     # TODO: handle segment information as well
 
+                # also check the distance between `addr` and the closest function.
+                # we don't want to have a basic block that spans across function boundaries
+                next_func = self.functions.ceiling_func(addr)
+                if next_func is not None:
+                    distance_to_func = next_func.addr - addr
+                    if distance_to_func != 0:
+                        if distance is None:
+                            distance = distance_to_func
+                        else:
+                            distance = min(distance, distance_to_func)
+
                 # Let's try to create the pyvex IRSB directly, since it's much faster
                 nodecode = False
                 irsb = None
