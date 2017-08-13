@@ -74,6 +74,12 @@ class SimSuccessors(object):
         return not self.all_successors and not self.flat_successors and not self.unsat_successors and \
                not self.unconstrained_successors
 
+    def __getitem__(self, k):
+        return self.flat_successors[k]
+
+    def __iter__(self):
+        return iter(self.flat_successors)
+
     def add_successor(self, state, target, guard, jumpkind, add_guard=True, exit_stmt_idx=None, exit_ins_addr=None,
                       source=None):
         """
