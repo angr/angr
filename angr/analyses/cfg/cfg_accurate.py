@@ -1806,6 +1806,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             else:
                 is_syscall = False
 
+            if isinstance(self.project.arch, ArchARM) and addr % 2 == 1:
+                is_thumb = True
+            else:
+                is_thumb = False
 
             pt = CFGNode(self._block_id_addr(node_key),
                          None,
@@ -1816,6 +1820,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                          function_address=func_addr,
                          callstack_key=self._block_id_callstack_key(node_key),
                          is_syscall=is_syscall,
+                         thumb=is_thumb
                          )
             if self._keep_state:
                 # We don't have an input state available for it (otherwise we won't have to create a
@@ -1825,7 +1830,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             self._nodes[node_key] = pt
             self._nodes_by_addr[pt.addr].append(pt)
 
-            if isinstance(self.project.arch, ArchARM) and addr % 2 == 1:
+            if is_thumb:
                 self._thumb_addrs.add(addr)
                 self._thumb_addrs.add(addr - 1)
 

@@ -453,7 +453,7 @@ class CFGBase(Analysis):
             size = hooker.kwargs.get('length', 0)
             return HookNode(addr, size, type(hooker))
 
-        return BlockNode(cfg_node.addr, cfg_node.size)  # pylint: disable=no-member
+        return BlockNode(cfg_node.addr, cfg_node.size, thumb=cfg_node.thumb)  # pylint: disable=no-member
 
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs

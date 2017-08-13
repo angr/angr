@@ -165,7 +165,7 @@ class Block(object):
 
     @property
     def codenode(self):
-        return BlockNode(self.addr, self.size, bytestr=self.bytes)
+        return BlockNode(self.addr, self.size, bytestr=self.bytes, thumb=self.thumb)
 
     @property
     def bytes(self):

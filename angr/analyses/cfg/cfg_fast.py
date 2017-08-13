@@ -2569,7 +2569,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                             instruction_addrs=[i for i in a.instruction_addrs
                                                                if next_node_addr <= i
                                                                 < next_node_addr + next_node_size
-                                                               ]
+                                                               ],
+                                            thumb=a.thumb
                                             )
                         # create edges accordingly
                         all_out_edges = self.graph.out_edges(a, data=True)
@@ -2723,7 +2724,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                            function_address=None if remove_function else node.function_address,
                            instruction_addrs=[i for i in node.instruction_addrs
                                               if node.addr <= i < node.addr + new_size
-                                              ]
+                                              ],
+                           thumb=node.thumb,
                            )
 
         old_in_edges = self.graph.in_edges(node, data=True)
@@ -2737,7 +2739,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         else:
             successor = CFGNode(successor_node_addr, new_size, self,
                                 function_address=successor_node_addr if remove_function else node.function_address,
-                                instruction_addrs=[i for i in node.instruction_addrs if i >= node.addr + new_size]
+                                instruction_addrs=[i for i in node.instruction_addrs if i >= node.addr + new_size],
+                                thumb=node.thumb,
                                 )
         self.graph.add_edge(new_node, successor, jumpkind='Ijk_Boring')
 
@@ -3391,18 +3394,20 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     self._seg_list.occupy(addr, irsb_size, 'nodecode')
                     return None, None, None, None
 
+                is_thumb = False
                 # Occupy the block in segment list
                 if irsb.size > 0:
                     if self.project.arch.name in ('ARMHF', 'ARMEL') and addr % 2 == 1:
                         # thumb mode
                         real_addr = addr - 1
+                        is_thumb=True
                     else:
                         real_addr = addr
                     self._seg_list.occupy(real_addr, irsb.size, "code")
 
                 # Create a CFG node, and add it to the graph
                 cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, block_id=addr,
-                                   irsb=irsb
+                                   irsb=irsb, thumb=is_thumb
                                    )
 
                 self._nodes[addr] = cfg_node

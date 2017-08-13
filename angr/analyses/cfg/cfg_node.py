@@ -50,7 +50,8 @@ class CFGNode(object):
                  instruction_addrs=None,
                  depth=None,
                  callstack_key=None,
-                 creation_failure_info=None):
+                 creation_failure_info=None,
+                 thumb=False):
         """
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -70,6 +71,7 @@ class CFGNode(object):
         self.function_address = function_address
         self.block_id = block_id
         self.depth = depth
+        self.thumb = thumb
 
         self.creation_failure_info = None
         if creation_failure_info is not None:
@@ -199,6 +201,6 @@ class CFGNode(object):
     def to_codenode(self):
         if self.is_simprocedure:
             return HookNode(self.addr, self.size, self.simprocedure_name)
-        return BlockNode(self.addr, self.size)
+        return BlockNode(self.addr, self.size, thumb=self.thumb)
 
 from ...knowledge.codenode import BlockNode, HookNode

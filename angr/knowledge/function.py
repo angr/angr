@@ -922,7 +922,7 @@ class Function(object):
                 if new_node is None:
                     # TODO: Do this correctly for hook nodes
                     # Create a new one
-                    new_node = BlockNode(n.addr, new_size, graph=graph)
+                    new_node = BlockNode(n.addr, new_size, graph=graph, thumb=n.thumb)
                     self._block_sizes[n.addr] = new_size
                     self._addr_to_block_node[n.addr] = new_node
                     # Put the newnode into end_addresses
