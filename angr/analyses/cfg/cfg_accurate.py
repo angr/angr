@@ -2121,7 +2121,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # TODO: Handle those successors
                 if not should_resolve:
                     l.debug("This might not be an indirect jump that has multiple targets. Skipped.")
-                    self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
+                    self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
 
                 else:
                     more_successors = self._resolve_indirect_jump(cfg_node, sim_successors, func_addr)
@@ -2141,11 +2141,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                         l.debug('The indirect jump is successfully resolved.')
 
-                        self.kb._resolved_indirect_jumps.add(cfg_node.addr)
+                        self.kb.resolved_indirect_jumps.add(cfg_node.addr)
 
                     else:
                         l.debug('Failed to resolve the indirect jump.')
-                        self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
+                        self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
 
             else:
                 if not successors:
@@ -2193,12 +2193,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         successors = self._symbolically_back_traverse(sim_successors, artifacts, cfg_node)
                         # mark jump as resolved if we got successors
                         if successors:
-                            self.kb._resolved_indirect_jumps.add(cfg_node.addr)
+                            self.kb.resolved_indirect_jumps.add(cfg_node.addr)
                         else:
-                            self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
+                            self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
                         l.debug("Got %d concrete exits in symbolic mode.", len(successors))
                     else:
-                        self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
+                        self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
                         # keep fake_rets
                         successors = [s for s in successors if s.history.jumpkind == "Ijk_FakeRet"]
 
@@ -2215,12 +2215,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                         # mark jump as resolved if we got successors
                         if successors:
-                            self.kb._resolved_indirect_jumps.add(cfg_node.addr)
+                            self.kb.resolved_indirect_jumps.add(cfg_node.addr)
                         else:
-                            self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
+                            self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
                         l.debug('Got %d concrete exits in symbolic mode', len(successors))
                     else:
-                        self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
+                        self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
                         successors = []
 
                 elif successors and all([ex.history.jumpkind == 'Ijk_Ret' for ex in successors]):
@@ -2228,7 +2228,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                 else:
                     l.debug('Cannot resolve this indirect jump: %s', cfg_node)
-                    self.kb._unresolved_indirect_jumps.add(cfg_node.addr)
+                    self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
 
         return successors
 

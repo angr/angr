@@ -2408,7 +2408,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                    )
                 # tell KnowledgeBase that it's not resolved
                 # TODO: self.kb._unresolved_indirect_jumps is not processed during normalization. Fix it.
-                self.kb._unresolved_indirect_jumps.add(jump.addr)
+                self.kb.unresolved_indirect_jumps.add(jump.addr)
 
         return all_targets
 
