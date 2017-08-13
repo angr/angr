@@ -423,6 +423,24 @@ class SimState(ana.Storable): # pylint: disable=R0904
     # State branching operations
     #
 
+    def step(self, **kwargs):
+        """
+        Perform a step of symbolic execution using this state.
+        Any arguments to `AngrObjectFactory.successors` can be passed to this.
+
+        :return: A SimSuccessors object categorizing the results of the step.
+        """
+        return self.project.factory.successors(self, **kwargs)
+
+    def block(self, **kwargs):
+        """
+        Represent the basic block at this state's instruction pointer.
+        Any arguments to `AngrObjectFactory.block` can ba passed to this.
+
+        :return: A Block object describing the basic block of code at this point.
+        """
+        return self.project.factory.block(self.addr, backup_state=self, **kwargs)
+
     # Returns a dict that is a copy of all the state's plugins
     def _copy_plugins(self):
         return { n: p.copy() for n,p in self.plugins.iteritems() }
