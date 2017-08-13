@@ -480,6 +480,7 @@ def run_all():
 
     test_resolve_x86_elf_pic_plt()
     test_function_names_for_unloaded_libraries()
+    test_block_instruction_addresses_armhf()
 
 
 def main():
