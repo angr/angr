@@ -971,7 +971,7 @@ class SimWindows(SimOS):
         state.mem[addr + 0xb4].uint32_t = state.regs.ebp
         state.mem[addr + 0xb8].uint32_t = state.regs.eip
         state.mem[addr + 0xbc].uint32_t = 0  # cs
-        state.mem[addr + 0xc0].uint32_t = 0  # TODO eflags
+        state.mem[addr + 0xc0].uint32_t = state.regs.eflags
         state.mem[addr + 0xc4].uint32_t = state.regs.esp
         state.mem[addr + 0xc8].uint32_t = 0  # ss
         # and then 512 bytes of extended registers
@@ -994,7 +994,7 @@ class SimWindows(SimOS):
         state.regs.eax = state.mem[addr + 0xb0].uint32_t.resolved
         state.regs.ebp = state.mem[addr + 0xb4].uint32_t.resolved
         state.regs.eip = state.mem[addr + 0xb8].uint32_t.resolved
-        #state.regs.eflags = state.mem[addr + 0xc0].uint32_t.resolved  # TODO eflags
+        state.regs.eflags = state.mem[addr + 0xc0].uint32_t.resolved
         state.regs.esp = state.mem[addr + 0xc4].uint32_t.resolved
 
 os_mapping = defaultdict(lambda: SimOS)
