@@ -104,7 +104,6 @@ private:
 	bool hooked;
 
 	uc_context *saved_regs;
-	uint64_t workaround_ip;
 
 	std::vector<mem_access_t> mem_writes;
 	std::map<uint64_t, taint_t *> active_pages;
@@ -234,7 +233,7 @@ public:
 		}
 
 		uc_err out = uc_emu_start(uc, pc, 0, 0, 0);
-		set_instruction_pointer(workaround_ip);
+		rollback();
 		return out;
 	}
 
@@ -260,7 +259,6 @@ public:
 			case STOP_SYSCALL:
 				msg = "unable to handle syscall";
 				commit();
-				uc_context_save(uc, saved_regs);
 				break;
 			case STOP_ZEROPAGE:
 				msg = "accessing zero page";
@@ -281,8 +279,6 @@ public:
 				msg = "unknown error";
 		}
 		stop_reason = reason;
-		rollback();
-		workaround_ip = get_instruction_pointer();
 		//LOG_D("stop: %s", msg);
 		uc_emu_stop(uc);
 
@@ -291,7 +287,6 @@ public:
 	}
 
 	void step(uint64_t current_address, int32_t size, bool check_stop_points=true) {
-		uc_context_save(uc, saved_regs); // save current registers
 		if (track_bbls) {
 			bbl_addrs.push_back(current_address);
 		}
@@ -355,6 +350,10 @@ public:
 	 * commit all memory actions.
 	 */
 	void commit() {
+		// save registers
+		uc_context_save(uc, saved_regs);
+
+		// mark memory sync status
 		// we might miss some dirty bits, this happens if hitting the memory
 		// write before mapping
 		for (auto it = mem_writes.begin(); it != mem_writes.end(); it++) {
@@ -365,15 +364,17 @@ public:
 				//LOG_D("commit: lazy initialize mem_write [%#lx, %#lx]", it->address, it->address + it->size);
 			}
 		}
+
+		// clear memory rollback status
 		mem_writes.clear();
 		cur_steps++;
 	}
 
 	/*
 	 * undo recent memory actions.
-	 * TODO reload registers
 	 */
 	void rollback() {
+		// roll back memory changes
 		for (auto rit = mem_writes.rbegin(); rit != mem_writes.rend(); rit++) {
 			if (rit->clean == -1) {
 				// all bytes were clean before this write
@@ -405,6 +406,7 @@ public:
 		}
 		mem_writes.clear();
 
+		// restore registers
 		uc_context_restore(uc, saved_regs);
 		bbl_addrs.pop_back();
 	}
@@ -1007,7 +1009,6 @@ public:
 			uc_reg_write(uc, reg, &val);
 		}
 	}
-
 };
 
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
