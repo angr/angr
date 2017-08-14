@@ -248,6 +248,9 @@ STRICT_PAGE_ACCESS = "STRICT_PAGE_ACCESS"
 # Raise a SimSegfaultError when executing nonexecutable memory
 ENABLE_NX = "ENABLE_NX"
 
+# Ask the SimOS to handle segfaults
+EXCEPTION_HANDLING = "EXCEPTION_HANDLING"
+
 # Track variables in state.solver.all_variables
 TRACK_SOLVER_VARIABLES = "TRACK_SOLVER_VARIABLES"
 

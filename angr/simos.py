@@ -6,17 +6,24 @@ import os
 import logging
 from collections import defaultdict
 from archinfo import ArchARM, ArchMIPS32, ArchMIPS64, ArchX86, ArchAMD64, ArchPPC32, ArchPPC64, ArchAArch64
-from .sim_state import SimState
-from .state_plugins import SimStateSystem, SimActionData
-from . import sim_options as o
-from .calling_conventions import DEFAULT_CC, SYSCALL_CC
-from .procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
 from cle import MetaELF, BackedCGC
 from cle.address_translator import AT
 import claripy
 
-from .errors import AngrUnsupportedSyscallError, AngrCallableError, AngrCallableMultistateError, AngrSimOSError
+from .errors import (
+    AngrUnsupportedSyscallError,
+    AngrCallableError,
+    AngrCallableMultistateError,
+    AngrSimOSError,
+    SimUnsupportedError,
+    SimSegfaultError,
+)
 from .tablespecs import StringTableSpec
+from .sim_state import SimState
+from .state_plugins import SimStateSystem, SimActionData
+from .calling_conventions import DEFAULT_CC, SYSCALL_CC
+from .procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
+from . import sim_options as o
 
 l = logging.getLogger("angr.simos")
 
@@ -246,6 +253,21 @@ class SimOS(object):
             basic_addr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
         return basic_addr, basic_addr
 
+    def handle_exception(self, successors, engine, exc_type, exc_value, exc_traceback):
+        """
+        Perform exception handling. This method will be called when, during execution, a SimException is thrown.
+        Currently, this can only indicate a segfault, but in the future it could indicate any unexpected exceptional
+        behavior that can't be handled by ordinary control flow.
+
+        The method may mutate the provided SimSuccessors object in any way it likes, or re-raise the exception.
+
+        :param successors:      The SimSuccessors object currently being executed on
+        :param engine:          The engine that was processing this step
+        :param exc_type:        The value of sys.exc_info()[0] from the error, the type of the exception that was raised
+        :param exc_value:       The value of sys.exc_info()[1] from the error, the actual exception object
+        :param exc_traceback:   The value of sys.exc_info()[2] from the error, the traceback from the exception
+        """
+        raise exc_type, exc_value, exc_traceback
     # Dummy stuff to allow this API to be used freely
 
     # pylint: disable=unused-argument, no-self-use
@@ -731,6 +753,11 @@ class SimWindows(SimOS):
     """
     Environemnt for the Windows Win32 subsystem. Does not support syscalls currently.
     """
+    def __init__(self, project, **kwargs):
+        super(SimWindows, self).__init__(project, name='Win32', **kwargs)
+
+        self._exception_handler = None
+
     def configure_project(self):
         super(SimWindows, self).configure_project()
 
@@ -738,6 +765,9 @@ class SimWindows(SimOS):
         self._weak_hook_symbol('GetProcAddress', L['kernel32.dll'].get('GetProcAddress', self.arch))
         self._weak_hook_symbol('LoadLibraryA', L['kernel32.dll'].get('LoadLibraryA', self.arch))
         self._weak_hook_symbol('LoadLibraryExW', L['kernel32.dll'].get('LoadLibraryExW', self.arch))
+
+        self._exception_handler = self.project.loader.extern_object.allocate()
+        self.project.hook(self._exception_handler, P['ntdll']['KiUserExceptionDispatcher']())
 
     # pylint: disable=arguments-differ
     def state_entry(self, args=None, **kwargs):
@@ -851,6 +881,121 @@ class SimWindows(SimOS):
 
         return state
 
+    def handle_exception(self, successors, engine, exc_type, exc_value, exc_traceback):
+        if engine is not self.project.factory.default_engine:
+            raise exc_type, exc_value, exc_traceback
+
+        # we'll need to wind up to the exception to get the correct state to resume from...
+        # exc will be a SimError, for sure
+        # executed_instruction_count is incremented when we see an imark BUT it starts at -1, so this is the correct val
+        num_inst = exc_value.executed_instruction_count
+        if num_inst >= 1:
+            # scary...
+            try:
+                # what would marking this as "inline" do?
+                r = self.project.factory.default_engine.process(successors.initial_state, num_inst=num_inst)
+                if len(r.flat_successors) != 1:
+                    l.error("Got %d successors while re-executing %d instructions at %#x for exception windup", num_inst, successors.initial_state.addr)
+                    raise exc_type, exc_value, exc_traceback
+                exc_state = r.flat_successors[0]
+            except:
+                # lol no
+                l.error("Got some weirdo error while re-executing %d instructions at %#x for exception windup", num_inst, successors.initial_state.addr)
+                raise exc_type, exc_value, exc_traceback
+        else:
+            # duplicate the history-cycle code here...
+            exc_state = successors.initial_state.copy()
+            exc_state.register_plugin('history', successors.initial_state.history.make_child())
+            exc_state.history.recent_bbl_addrs.append(successors.initial_state.addr)
+
+        # first check that we actually have an exception handler
+        # we check is_true since if it's symbolic this is exploitable maybe?
+        tib_addr = exc_state.regs.fs.concat(exc_state.solver.BVV(0, 16))
+        if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == -1):
+            exc_value.args = ('Unhandled exception: %s' % exc_value,)
+            raise exc_type, exc_value, exc_traceback
+        # catch nested exceptions here with magic value
+        if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == 0xBADFACE):
+            exc_value.args = ('Unhandled exception: %s' % exc_value,)
+            raise exc_type, exc_value, exc_traceback
+
+        # serialize the thread context and set up the exception record...
+        self._dump_regs(exc_state, exc_state.regs.esp - 0x300)
+        exc_state.regs.esp -= 0x400
+        record = exc_state.regs.esp + 0x20
+        context = exc_state.regs.esp + 0x100
+        exc_state.mem[record + 0x4].uint32_t = 0 # flags = continuable
+        exc_state.mem[record + 0x8].uint32_t = 0 # FUCK chained exceptions
+        exc_state.mem[record + 0xc].uint32_t = exc_state.regs.eip  # exceptionaddress
+        for i in xrange(16): # zero out the arg count and args array
+            exc_state.mem[record + 0x10 + 4*i].uint32_t = 0
+        # TOTAL SIZE: 0x50
+
+        # the rest of the parameters have to be set per-exception type
+        if exc_type is SimSegfaultError:
+            exc_state.mem[record].uint32_t = 0xc0000005 # EXCEPTION_ACCESS_VIOLATION
+            exc_state.mem[record + 0x10].uint32_t = 2
+            exc_state.mem[record + 0x14].uint32_t = 1 if exc_value.reason.startswith('write-') else 0
+            exc_state.mem[record + 0x18].uint32_t = exc_value.addr
+
+        # set up parameters to userland dispatcher
+        exc_state.mem[exc_state.regs.esp].uint32_t = 0xBADC0DE # god help us if we return from this func
+        exc_state.mem[exc_state.regs.esp + 4].uint32_t = record
+        exc_state.mem[exc_state.regs.esp + 8].uint32_t = context
+
+        # let's go let's go!
+        successors.add_successor(exc_state, self._exception_handler, exc_state.solver.true, 'Ijk_Exception')
+        successors.processed = True
+
+    # these two methods load and store register state from a struct CONTEXT
+    # https://www.nirsoft.net/kernel_struct/vista/CONTEXT.html
+    @staticmethod
+    def _dump_regs(state, addr):
+        if state.arch.name != 'X86':
+            raise SimUnsupportedError("I don't know how to work with struct CONTEXT outside of i386")
+
+        # I decline to load and store the floating point/extended registers
+        state.mem[addr + 0].uint32_t = 0x07        # contextflags = control | integer | segments
+        # dr0 - dr7 are at 0x4-0x18
+        # fp state is at 0x1c: 8 ulongs plus a char[80] gives it size 0x70
+        state.mem[addr + 0x8c].uint32_t = state.regs.gs.concat(state.solver.BVV(0, 16))
+        state.mem[addr + 0x90].uint32_t = state.regs.fs.concat(state.solver.BVV(0, 16))
+        state.mem[addr + 0x94].uint32_t = 0  # es
+        state.mem[addr + 0x98].uint32_t = 0  # ds
+        state.mem[addr + 0x9c].uint32_t = state.regs.edi
+        state.mem[addr + 0xa0].uint32_t = state.regs.esi
+        state.mem[addr + 0xa4].uint32_t = state.regs.ebx
+        state.mem[addr + 0xa8].uint32_t = state.regs.edx
+        state.mem[addr + 0xac].uint32_t = state.regs.ecx
+        state.mem[addr + 0xb0].uint32_t = state.regs.eax
+        state.mem[addr + 0xb4].uint32_t = state.regs.ebp
+        state.mem[addr + 0xb8].uint32_t = state.regs.eip
+        state.mem[addr + 0xbc].uint32_t = 0  # cs
+        state.mem[addr + 0xc0].uint32_t = 0  # TODO eflags
+        state.mem[addr + 0xc4].uint32_t = state.regs.esp
+        state.mem[addr + 0xc8].uint32_t = 0  # ss
+        # and then 512 bytes of extended registers
+        # TOTAL SIZE: 0x2cc
+
+    @staticmethod
+    def _load_regs(state, addr):
+        if state.arch.name != 'X86':
+            raise SimUnsupportedError("I don't know how to work with struct CONTEXT outside of i386")
+
+        # TODO: check contextflags to see what parts to deserialize
+        state.regs.gs = state.mem[addr + 0x8c].uint32_t.resolved[31:16]
+        state.regs.fs = state.mem[addr + 0x90].uint32_t.resolved[31:16]
+
+        state.regs.edi = state.mem[addr + 0x9c].uint32_t.resolved
+        state.regs.esi = state.mem[addr + 0xa0].uint32_t.resolved
+        state.regs.ebx = state.mem[addr + 0xa4].uint32_t.resolved
+        state.regs.edx = state.mem[addr + 0xa8].uint32_t.resolved
+        state.regs.ecx = state.mem[addr + 0xac].uint32_t.resolved
+        state.regs.eax = state.mem[addr + 0xb0].uint32_t.resolved
+        state.regs.ebp = state.mem[addr + 0xb4].uint32_t.resolved
+        state.regs.eip = state.mem[addr + 0xb8].uint32_t.resolved
+        #state.regs.eflags = state.mem[addr + 0xc0].uint32_t.resolved  # TODO eflags
+        state.regs.esp = state.mem[addr + 0xc4].uint32_t.resolved
 
 os_mapping = defaultdict(lambda: SimOS)
 

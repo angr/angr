@@ -16,6 +16,20 @@ class SimProcedure(object):
     and then either returning a value or jumping away somehow.
 
     A detailed discussion of programming SimProcedures may be found at https://docs.angr.io/docs/simprocedures.md
+
+    :param arch:            The architecture to use for this procedure
+
+    The following parameters are optional:
+
+    :param symbolic_return: Whether the procedure's return value should be stubbed into a
+                            single symbolic variable constratined to the real return value
+    :param returns:         Whether the procedure should return to its caller afterwards
+    :param is_syscall:      Whether this procedure is a syscall
+    :param num_args:        The number of arguments this procedure should extract
+    :param display_name:    The name to use when displaying this procedure
+    :param cc:              The SimCC to use for this procedure
+    :param sim_kwargs:      Additional keyword arguments to be passed to run()
+    :param is_function:     Whether this procedure emulates a function
     """
     def __init__(
         self, project=None, cc=None, symbolic_return=None,
@@ -23,21 +37,6 @@ class SimProcedure(object):
         num_args=None, display_name=None, library_name=None,
         is_function=None, **kwargs
     ):
-        """
-        :param arch:            The architecture to use for this procedure
-
-        The following parameters are optional:
-
-        :param symbolic_return: Whether the procedure's return value should be stubbed into a
-                                single symbolic variable constratined to the real return value
-        :param returns:         Whether the procedure should return to its caller afterwards
-        :param is_syscall:      Whether this procedure is a syscall
-        :param num_args:        The number of arguments this procedure should extract
-        :param display_name:    The name to use when displaying this procedure
-        :param cc:              The SimCC to use for this procedure
-        :param sim_kwargs:      Additional keyword arguments to be passed to run()
-        :param is_function:     Whether this procedure emulates a function
-        """
         # WE'LL FIGURE IT OUT
         self.project = project
         self.arch = project.arch if project is not None else None
@@ -78,6 +77,7 @@ class SimProcedure(object):
         self.use_state_arguments = None
         self.ret_to = None
         self.ret_expr = None
+        self.call_ret_expr = None
 
     def __repr__(self):
         syscall = ' (syscall)' if self.IS_SYSCALL else ''
@@ -140,6 +140,7 @@ class SimProcedure(object):
                 state.regs.sp = saved_sp
                 inst.arguments = sim_args
                 inst.use_state_arguments = True
+                inst.call_ret_expr = state.registers.load(state.arch.ret_offset, state.arch.bytes, endness=state.arch.register_endness)
                 for name, val in saved_local_vars:
                     setattr(inst, name, val)
             else:

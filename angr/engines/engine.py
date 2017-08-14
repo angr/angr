@@ -1,3 +1,4 @@
+import sys
 import logging
 
 l = logging.getLogger("angr.engines.engine")
@@ -48,7 +49,13 @@ class SimEngine(object):
 
         new_state._inspect('engine_process', when=BP_BEFORE, sim_engine=self, sim_successors=successors)
         successors = new_state._inspect_getattr('sim_successors', successors)
-        self._process(new_state, successors, *args, **kwargs)
+        try:
+            self._process(new_state, successors, *args, **kwargs)
+        except SimException:
+            if o.EXCEPTION_HANDLING not in old_state.options:
+                raise
+            old_state.project._simos.handle_exception(successors, self, *sys.exc_info())
+
         new_state._inspect('engine_process', when=BP_AFTER, sim_successors=successors)
         successors = new_state._inspect_getattr('sim_successors', successors)
 
@@ -104,3 +111,4 @@ class SimEngine(object):
 from .. import sim_options as o
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
 from .successors import SimSuccessors
+from ..errors import SimException
