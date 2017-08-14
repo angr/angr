@@ -53,6 +53,7 @@ class STOP(object): # stop_t
     STOP_NOSTART        = 8
     STOP_SEGFAULT       = 9
     STOP_ZERO_DIV       = 10
+    STOP_NODECODE       = 11
 
     @staticmethod
     def name_stop(num):

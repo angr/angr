@@ -46,6 +46,7 @@ typedef enum stop {
 	STOP_NOSTART,
 	STOP_SEGFAULT,
 	STOP_ZERO_DIV,
+	STOP_NODECODE,
 } stop_t;
 
 typedef struct block_entry {
@@ -234,6 +235,10 @@ public:
 
 		uc_err out = uc_emu_start(uc, pc, 0, 0, 0);
 		rollback();
+
+		if (out == UC_ERR_INSN_INVALID) {
+			stop_reason = STOP_NODECODE;
+		}
 		return out;
 	}
 
@@ -274,6 +279,9 @@ public:
 				break;
 			case STOP_ZERO_DIV:
 				msg = "divide by zero";
+				break;
+			case STOP_NODECODE:
+				msg = "instruction decoding error";
 				break;
 			default:
 				msg = "unknown error";
