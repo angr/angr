@@ -575,6 +575,11 @@ class SimulationManager(ana.Storable):
         :param num_inst:        The maximum number of instructions.
         :param traceflags:      traceflags to be passed to VEX. Default: 0
 
+        The following parameters are specific to the unicorn-engine.
+
+        :param extra_stop_points: A collection of addresses where unicorn should stop, in addition to default program
+                                  points at which unicorn stops (e.g., hook points).
+
         :returns:               The resulting SimulationManager.
         :rtype:                 SimulationManager
         """
