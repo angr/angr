@@ -62,7 +62,7 @@ class SimRegNameView(SimStatePlugin):
 
     def __dir__(self):
         if self.state.arch.name in ('X86', 'AMD64'):
-            return self.state.arch.registers.keys() + ['st%d' % n for n in xrange(8)] + ['tag%d' % n for n in xrange(8)]
+            return self.state.arch.registers.keys() + ['st%d' % n for n in xrange(8)] + ['tag%d' % n for n in xrange(8)] + ['flags', 'eflags', 'rflags']
         return self.state.arch.registers.keys()
 
     def copy(self):

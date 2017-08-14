@@ -6,6 +6,7 @@ l = logging.getLogger("angr.storage.memory")
 
 import claripy
 from ..state_plugins.plugin import SimStatePlugin
+from ..engines.vex.ccall import _get_flags
 
 stn_map = { 'st%d' % n: n for n in xrange(8) }
 tag_map = { 'tag%d' % n: n for n in xrange(8) }
@@ -360,13 +361,19 @@ class SimMemory(SimStatePlugin):
                 self._stack_region_map = None
                 self._generic_region_map = None
 
-    def _resolve_location_name(self, name):
+    def _resolve_location_name(self, name, is_write=False):
         if self.category == 'reg':
             if self.state.arch.name in ('X86', 'AMD64'):
                 if name in stn_map:
                     return (((stn_map[name] + self.load('ftop')) & 7) << 3) + self.state.arch.registers['fpu_regs'][0], 8
                 elif name in tag_map:
                     return ((tag_map[name] + self.load('ftop')) & 7) + self.state.arch.registers['fpu_tags'][0], 1
+                elif name in ('flags', 'eflags', 'rflags'):
+                    # we tweak the state to convert the vex condition registers into the flags register
+                    self.store('cc_op', 0) # OP_COPY
+                    if not is_write: # this work doesn't need to be done if we're just gonna overwrite it
+                        self.store('cc_dep1', _get_flags(self.state)[0]) # TODO: can constraints be added by this?
+                    return self.state.arch.registers['cc_dep1'][0], self.state.arch.bytes
 
             return self.state.arch.registers[name]
         elif name[0] == '*':
@@ -467,7 +474,7 @@ class SimMemory(SimStatePlugin):
         add_constraints = True if add_constraints is None else add_constraints
 
         if isinstance(addr, str):
-            named_addr, named_size = self._resolve_location_name(addr)
+            named_addr, named_size = self._resolve_location_name(addr, is_write=True)
             addr = named_addr
             addr_e = addr
             if size is None:
