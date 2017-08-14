@@ -787,73 +787,60 @@ class SimState(ana.Storable): # pylint: disable=R0904
     #
 
     @property
-    @deprecated
     def state(self):
         return self
 
     @property
-    @deprecated
     def length(self):
         return self.history.block_count
 
     @property
-    @deprecated
     def jumpkind(self):
         return self.scratch.jumpkind
 
     @property
-    @deprecated
     def last_actions(self):
         return self.history.recent_actions
 
     @property
-    @deprecated
     def history_iterator(self):
         return self.history.lineage
 
     @property
-    @deprecated
     def addr_trace(self):
         return self.history.addr_trace
 
     @property
-    @deprecated
     def trace(self):
         return self.history.trace
 
     @property
-    @deprecated
     def targets(self):
         return self.history.jump_targets
 
     @property
-    @deprecated
     def guards(self):
         return self.history.jump_guards
 
     @property
-    @deprecated
     def jumpkinds(self):
         return self.history.jumpkinds
 
     @property
-    @deprecated
     def events(self):
         return self.history.events
 
     @property
-    @deprecated
     def actions(self):
         return self.history.actions
+
+    @property
+    def reachable(self):
+        return self.history.reachable()
 
     @deprecated
     def trim_history(self):
         self.history.trim()
-
-    @property
-    @deprecated
-    def reachable(self):
-        return self.history.reachable()
 
 from .state_plugins.symbolic_memory import SimSymbolicMemory
 from .state_plugins.fast_memory import SimFastMemory
