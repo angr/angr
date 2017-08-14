@@ -12,7 +12,7 @@ class KiUserExceptionDispatcher(angr.SimProcedure):
         if self.state.arch.name != 'X86':
             raise angr.errors.SimUnsupportedError("KiUserDispatchException is only implemented for X86")
 
-        self.tib_ptr = self.state.regs.fs.concat(self.state.solver.BVV(0, 16))
+        self.tib_ptr = self.state.regs._fs.concat(self.state.solver.BVV(0, 16))
         self.top_record = self.state.mem[self.tib_ptr].uint32_t.resolved
         self.cur_ptr = self.top_record
 
@@ -31,7 +31,7 @@ class KiUserExceptionDispatcher(angr.SimProcedure):
                 self.project._simos._load_regs(self.state, context)
                 # TODO: re-set the exception handler somehow?
                 #self.state.mem[self.tib_ptr].uint32_t
-                self.jump(self.state.regs.ip)
+                self.jump(self.state.regs._ip)
                 return
             elif disposition == 1: # unhandled, continue search
                 pass

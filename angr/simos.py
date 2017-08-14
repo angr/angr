@@ -910,7 +910,7 @@ class SimWindows(SimOS):
 
         # first check that we actually have an exception handler
         # we check is_true since if it's symbolic this is exploitable maybe?
-        tib_addr = exc_state.regs.fs.concat(exc_state.solver.BVV(0, 16))
+        tib_addr = exc_state.regs._fs.concat(exc_state.solver.BVV(0, 16))
         if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == -1):
             exc_value.args = ('Unhandled exception: %s' % exc_value,)
             raise exc_type, exc_value, exc_traceback
@@ -920,13 +920,13 @@ class SimWindows(SimOS):
             raise exc_type, exc_value, exc_traceback
 
         # serialize the thread context and set up the exception record...
-        self._dump_regs(exc_state, exc_state.regs.esp - 0x300)
+        self._dump_regs(exc_state, exc_state.regs._esp - 0x300)
         exc_state.regs.esp -= 0x400
-        record = exc_state.regs.esp + 0x20
-        context = exc_state.regs.esp + 0x100
+        record = exc_state.regs._esp + 0x20
+        context = exc_state.regs._esp + 0x100
         exc_state.mem[record + 0x4].uint32_t = 0 # flags = continuable
         exc_state.mem[record + 0x8].uint32_t = 0 # FUCK chained exceptions
-        exc_state.mem[record + 0xc].uint32_t = exc_state.regs.eip  # exceptionaddress
+        exc_state.mem[record + 0xc].uint32_t = exc_state.regs._eip  # exceptionaddress
         for i in xrange(16): # zero out the arg count and args array
             exc_state.mem[record + 0x10 + 4*i].uint32_t = 0
         # TOTAL SIZE: 0x50
@@ -939,9 +939,9 @@ class SimWindows(SimOS):
             exc_state.mem[record + 0x18].uint32_t = exc_value.addr
 
         # set up parameters to userland dispatcher
-        exc_state.mem[exc_state.regs.esp].uint32_t = 0xBADC0DE # god help us if we return from this func
-        exc_state.mem[exc_state.regs.esp + 4].uint32_t = record
-        exc_state.mem[exc_state.regs.esp + 8].uint32_t = context
+        exc_state.mem[exc_state.regs._esp].uint32_t = 0xBADC0DE # god help us if we return from this func
+        exc_state.mem[exc_state.regs._esp + 4].uint32_t = record
+        exc_state.mem[exc_state.regs._esp + 8].uint32_t = context
 
         # let's go let's go!
         successors.add_successor(exc_state, self._exception_handler, exc_state.solver.true, 'Ijk_Exception')
