@@ -328,7 +328,7 @@ class Identifier(Analysis):
                 if len(succ.unconstrained_successors) > 0:
                     s = succ.unconstrained_successors[0]
                     if s.history.jumpkind == "Ijk_Call":
-                        s.regs.eax = s.se.BVS("unconstrained_ret_%#x" % s.addr, s.arch.bits)
+                        s.regs.eax = s.se.BVS("unconstrained_ret", s.arch.bits)
                         s.regs.ip = s.stack_pop()
                         s.history.jumpkind = "Ijk_Ret"
                     s.regs.ip = addr_trace[0]
