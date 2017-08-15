@@ -16,11 +16,6 @@ arch_data = { # (steps, [hit addrs], finished)
 }
 
 def emulate(p, steps, hit_addrs, finished):
-
-    #if arch not in ('x86_64', 'i386'):
-    #     state = p.factory.full_init_state(args=['./test_arrays'])
-    #else:
-    #    state = p.factory.full_init_state(args=['./test_arrays'], add_options={simuvex.o.STRICT_PAGE_ACCESS})
     state = p.factory.full_init_state(args=['./test_arrays'], add_options={angr.options.STRICT_PAGE_ACCESS, angr.options.ENABLE_NX, angr.options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY, angr.options.USE_SYSTEM_TIMES})
 
     pg = p.factory.simgr(state)
@@ -62,7 +57,7 @@ def test_emulation():
         yield emulate, p, steps, hit_addrs, finished
 
 def test_windows():
-    yield emulate, angr.Project(test_location + 'i386/test_arrays.exe'), 40, [], False
+    yield emulate, angr.Project(test_location + 'i386/test_arrays.exe'), 49, [], False # blocked on GetLastError or possibly dynamic loading
 
 def test_locale():
     p = angr.Project(test_location + 'i386/isalnum', use_sim_procedures=False)
