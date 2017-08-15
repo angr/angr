@@ -133,7 +133,7 @@ class SimEngineLightVEX(SimEngineLight):
         if simop._conversion:
             return self._handle_Conversion(expr)
         elif expr.op.startswith('Iop_Not1'):
-            return self._handle_Not1(*expr.args)
+            return self._handle_Not1(expr)
         else:
             l.warning('Unsupported Unop %s.', expr.op)
 
@@ -141,19 +141,26 @@ class SimEngineLightVEX(SimEngineLight):
 
     def _handle_Binop(self, expr):
         if expr.op.startswith('Iop_And'):
-            return self._handle_And(*expr.args)
+            return self._handle_And(expr)
         elif expr.op.startswith('Iop_Or'):
-            return self._handle_Or(*expr.args)
+            return self._handle_Or(expr)
         elif expr.op.startswith('Iop_Add'):
-            return self._handle_Add(*expr.args)
+            return self._handle_Add(expr)
         elif expr.op.startswith('Iop_Sub'):
-            return self._handle_Sub(*expr.args)
+            return self._handle_Sub(expr)
+        elif expr.op.startswith('Iop_Shl'):
+            return self._handle_Shl(expr)
         elif expr.op.startswith('Iop_Shr'):
-            return self._handle_Shr(*expr.args)
+            return self._handle_Shr(expr)
+        elif expr.op.startswith('Iop_Sal'):
+            # intended use of SHL
+            return self._handle_Shl(expr)
+        elif expr.op.startswith('Iop_Sar'):
+            return self._handle_Sar(expr)
         elif expr.op.startswith('Iop_CmpNE'):
-            return self._handle_CmpNE(*expr.args)
+            return self._handle_CmpNE(expr)
         elif expr.op.startswith('Const'):
-            return self._handle_Const(*expr.args)
+            return self._handle_Const(expr)
         else:
             l.warning('Unsupported Binop %s', expr.op)
 
@@ -163,10 +170,11 @@ class SimEngineLightVEX(SimEngineLight):
     # Unary operation handlers
     #
 
-    def _handle_Conversion(expr):
+    def _handle_Conversion(self, expr):
         raise NotImplementedError('Please implement the Conversion handler with your own logic.')
 
-    def _handle_Not1(self, arg0):
+    def _handle_Not1(self, expr):
+        arg0 = expr.args[0]
         expr_0 = self._expr(arg0)
         if expr_0 is None:
             return None
@@ -180,7 +188,8 @@ class SimEngineLightVEX(SimEngineLight):
     # Binary operation handlers
     #
 
-    def _handle_And(self, arg0, arg1):
+    def _handle_And(self, expr):
+        arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
         if expr_0 is None:
             return None
@@ -193,7 +202,8 @@ class SimEngineLightVEX(SimEngineLight):
         except TypeError:
             return None
 
-    def _handle_Or(self, arg0, arg1):
+    def _handle_Or(self, expr):
+        arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
         if expr_0 is None:
             return None
@@ -206,7 +216,8 @@ class SimEngineLightVEX(SimEngineLight):
         except TypeError:
             return None
 
-    def _handle_Add(self, arg0, arg1):
+    def _handle_Add(self, expr):
+        arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
         if expr_0 is None:
             return None
@@ -214,12 +225,15 @@ class SimEngineLightVEX(SimEngineLight):
         if expr_1 is None:
             return None
 
+        # self.tyenv is not used
+        mask = (1 << expr.result_size(self.tyenv)) - 1
         try:
-            return expr_0 + expr_1
+            return (expr_0 + expr_1) & mask
         except TypeError:
             return None
 
-    def _handle_Sub(self, arg0, arg1):
+    def _handle_Sub(self, expr):
+        arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
         if expr_0 is None:
             return None
@@ -227,12 +241,31 @@ class SimEngineLightVEX(SimEngineLight):
         if expr_1 is None:
             return None
 
+        # self.tyenv is not used
+        mask = (1 << expr.result_size(self.tyenv)) - 1
         try:
-            return expr_0 - expr_1
+            return (expr_0 - expr_1) & mask
         except TypeError:
             return None
 
-    def _handle_Shr(self, arg0, arg1):
+    def _handle_Shl(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        # self.tyenv is not used
+        mask = (1 << expr.result_size(self.tyenv)) - 1
+        try:
+            return (expr_0 << expr_1) & mask
+        except TypeError:
+            return None
+
+    def _handle_Shr(self, expr):
+        arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
         if expr_0 is None:
             return None
@@ -245,7 +278,28 @@ class SimEngineLightVEX(SimEngineLight):
         except TypeError:
             return None
 
-    def _handle_CmpNE(self, arg0, arg1):
+    def _handle_Sar(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        size = expr.result_size(self.tyenv)
+        # check if msb is set
+        if expr_0 >> (size - 1) == 0:
+            head = 0
+        else:
+            head = ((1 << expr_1) - 1) << (size - expr_1)
+        try:
+            return head | (expr_0 >> expr_1)
+        except TypeError:
+            return None
+
+    def _handle_CmpNE(self, expr):
+        arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
         if expr_0 is None:
             return None
@@ -258,8 +312,8 @@ class SimEngineLightVEX(SimEngineLight):
         except TypeError:
             return None
 
-    def _handle_Const(self, arg):  #pylint:disable=no-self-use
-        return arg.con.value
+    def _handle_Const(self, expr):
+        return expr.con.value
 
     def _hl_handle_Call(self, arg):
         raise NotImplementedError('Please implement the Call handler with your own logic.')
