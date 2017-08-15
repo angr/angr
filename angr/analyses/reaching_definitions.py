@@ -1,4 +1,5 @@
 import logging
+import operator
 import struct
 from collections import defaultdict
 
@@ -209,13 +210,13 @@ class DataSet(object):
         else:
             return self
 
-    def __add__(self, other):
+    def _op(self, other, op):
         res = set()
         if type(other) is DataSet:
             for d in self.data:
                 for o in other.data:
                     if d is not None and o is not None:
-                        res.add(d + o)
+                        res.add(op(d, o))
                     else:
                         res.add(None)
         else:
@@ -224,44 +225,39 @@ class DataSet(object):
             else:
                 for d in self.data:
                     if d is not None:
-                        res.add(d + other)
+                        res.add(op(d, other))
                     else:
                         res.add(None)
 
         return DataSet(res).compact()
+
+    def __add__(self, other):
+        return self._op(other, operator.add)
 
     def __radd__(self, other):
-        return self + other
+        return self._op(other, operator.add)
 
     def __sub__(self, other):
-        res = set()
-        if type(other) is DataSet:
-            for d in self.data:
-                for o in other.data:
-                    if d is not None and o is not None:
-                        res.add(d - o)
-                    else:
-                        res.add(None)
-        else:
-            if other is None:
-                res.add(None)
-            else:
-                for d in self.data:
-                    if d is not None:
-                        res.add(d - other)
-                    else:
-                        res.add(None)
-
-        return DataSet(res).compact()
+        return self._op(other, operator.sub)
 
     def __rsub__(self, other):
-        tmp = self - other
+        tmp = self._op(other, operator.sub)
         if type(tmp) is DataSet:
-            res = DataSet({-t for t in tmp.data if t is not None})
-            if None in tmp.data:
-                res.data.add(None)
+            res = -tmp
         else:
             res = -tmp if tmp is not None else None
+        return res
+
+    def __and__(self, other):
+        return self._op(other, operator.and_)
+
+    def __rand__(self, other):
+        return self._op(other, operator.and_)
+
+    def __neg__(self):
+        res = DataSet({-d for d in self.data if d is not None})
+        if None in self.data:
+            res.data.add(None)
         return res
 
     def __eq__(self, other):
