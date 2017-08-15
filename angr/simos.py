@@ -767,7 +767,7 @@ class SimWindows(SimOS):
         self._weak_hook_symbol('LoadLibraryExW', L['kernel32.dll'].get('LoadLibraryExW', self.arch))
 
         self._exception_handler = self.project.loader.extern_object.allocate()
-        self.project.hook(self._exception_handler, P['ntdll']['KiUserExceptionDispatcher']())
+        self.project.hook(self._exception_handler, P['ntdll']['KiUserExceptionDispatcher'](library_name='ntdll.dll'))
 
     # pylint: disable=arguments-differ
     def state_entry(self, args=None, **kwargs):
@@ -796,7 +796,7 @@ class SimWindows(SimOS):
         LDR_addr = fun_stuff_addr + 0x2000
 
         if state.arch.name == 'X86':
-            state.mem[TIB_addr + 0].dword = 0 # Initial SEH frame
+            state.mem[TIB_addr + 0].dword = -1 # Initial SEH frame
             state.mem[TIB_addr + 4].dword = state.regs.sp # stack base (high addr)
             state.mem[TIB_addr + 8].dword = state.regs.sp - 0x100000 # stack limit (low addr)
             state.mem[TIB_addr + 0x18].dword = TIB_addr # myself!
@@ -912,11 +912,11 @@ class SimWindows(SimOS):
         # we check is_true since if it's symbolic this is exploitable maybe?
         tib_addr = exc_state.regs._fs.concat(exc_state.solver.BVV(0, 16))
         if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == -1):
-            exc_value.args = ('Unhandled exception: %s' % exc_value,)
+            exc_value.args = ('Unhandled exception: %r' % exc_value,)
             raise exc_type, exc_value, exc_traceback
         # catch nested exceptions here with magic value
         if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == 0xBADFACE):
-            exc_value.args = ('Unhandled exception: %s' % exc_value,)
+            exc_value.args = ('Unhandled exception: %r' % exc_value,)
             raise exc_type, exc_value, exc_traceback
 
         # serialize the thread context and set up the exception record...
