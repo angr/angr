@@ -4,7 +4,6 @@ import struct
 from collections import defaultdict
 
 import ailment
-import cffi
 import pyvex
 
 from ..keyed_region import KeyedRegion
@@ -84,7 +83,7 @@ class MemoryLocation(Atom):
         self.size = size
 
     def __repr__(self):
-        return "<Mem %d<%d>>" % (self.addr, self.size)
+        return "<Mem 0x%08x<%d>>" % (self.addr, self.size)
 
     @property
     def bits(self):
@@ -152,7 +151,7 @@ class Uses(object):
         self._current_uses.set_object(definition.offset, definition, definition.size)
 
     def get_uses(self, definition):
-        if not definition in self._uses_by_definition:
+        if definition not in self._uses_by_definition:
             return set()
         return self._uses_by_definition[definition]
 
@@ -446,7 +445,7 @@ def get_engine(base_engine):
             data = self._expr(stmt.data)
 
             if (type(data) is DataSet and None in data) or (data is None):
-                l.warning('data in register with offset %d undefined, ins_addr = 0x%x', reg_offset, self.ins_addr)
+                l.info('data in register with offset %d undefined, ins_addr = 0x%x', reg_offset, self.ins_addr)
 
             self.state.kill_and_add_definition(reg, self._codeloc(), data)
 
@@ -463,14 +462,14 @@ def get_engine(base_engine):
             for a in addr:
                 if a is not None:
                     if (type(data) is DataSet and None in data) or (data is None):
-                        l.warning('memory at address 0x%08x undefined, ins_addr = 0x%x', a, self.ins_addr)
+                        l.info('memory at address 0x%08x undefined, ins_addr = 0x%x', a, self.ins_addr)
 
                     memloc = MemoryLocation(a, size)
                     # different addresses are not killed by a subsequent iteration, because kill only removes entries
                     # with same index and same size
                     self.state.kill_and_add_definition(memloc, self._codeloc(), data)
                 else:
-                    l.warning('memory address undefined, ins_addr = 0x%x', self.ins_addr)
+                    l.info('memory address undefined, ins_addr = 0x%x', self.ins_addr)
 
         def _handle_StoreG(self, stmt):
             guard = self._expr(stmt.guard)
@@ -479,7 +478,7 @@ def get_engine(base_engine):
             elif guard is False:
                 pass
             else:
-                l.warning('could not resolve guard %s for StoreG' % str(guard))
+                l.info('could not resolve guard %s for StoreG' % str(guard))
 
         # CAUTION: experimental
         def _handle_LoadG(self, stmt):
@@ -492,15 +491,18 @@ def get_engine(base_engine):
                 wr_tmp_stmt = pyvex.stmt.WrTmp(stmt.dst, load_expr)
                 self._handle_WrTmp(wr_tmp_stmt)
             elif guard is False:
-                wr_tmp_stmt = pyvex.stmt.WrTmp(stmt.dst, alt)
+                wr_tmp_stmt = pyvex.stmt.WrTmp(stmt.dst, stmt.alt)
                 self._handle_WrTmp(wr_tmp_stmt)
             else:
-                l.warning('could not resolve guard %s for LoadG' % str(guard))
+                l.info('could not resolve guard %s for LoadG' % str(guard))
 
         def _handle_Exit(self, stmt):
             pass
 
         def _handle_IMark(self, stmt):
+            pass
+
+        def _handle_AbiHint(self, stmt):
             pass
 
         #
@@ -521,7 +523,7 @@ def get_engine(base_engine):
                     # current_def.data can be a primitive type or a DataSet
                     data.update(current_def.data)
                 else:
-                    l.warning('data in register with offset %d undefined, ins_addr = 0x%x', reg_offset, self.ins_addr)
+                    l.info('data in register with offset %d undefined, ins_addr = 0x%x', reg_offset, self.ins_addr)
             data = data.compact()
 
             self.state.add_use(Register(reg_offset, size), self._codeloc())
@@ -545,7 +547,7 @@ def get_engine(base_engine):
                             if current_def.data is not None:
                                 data.update(current_def.data)
                             else:
-                                l.warning('memory at address 0x%x undefined, ins_addr = 0x%x', a, self.ins_addr)
+                                l.info('memory at address 0x%x undefined, ins_addr = 0x%x', a, self.ins_addr)
                     else:
                         mem = self.state.loader.memory.read_bytes(a, size)
                         if mem:
@@ -559,16 +561,14 @@ def get_engine(base_engine):
                             elif size == 4:
                                 fmt += "I"
 
-                            # FIXME: generate FFI only once
                             if size in [4, 8] and size == len(mem):
-                                ffi = cffi.FFI()
                                 mem_str = ''.join(mem)
                                 data.update(struct.unpack(fmt, mem_str)[0])
 
                     # FIXME: _add_memory_use() iterates over the same loop
                     self.state.add_use(MemoryLocation(a, size), self._codeloc())
                 else:
-                    l.warning('memory address undefined, ins_addr = 0x%x', self.ins_addr)
+                    l.info('memory address undefined, ins_addr = 0x%x', self.ins_addr)
 
             data = data.compact()
 
@@ -585,10 +585,8 @@ def get_engine(base_engine):
             elif cond is False:
                 return iffalse
             else:
-                # FIXME: ret DataSet of iff and ift
-                l.warning('could not resolve ITE condition %s' % str(cond))
-
-            return None
+                l.info('could not resolve condition %s for ITE' % str(cond))
+                return DataSet({iftrue, iffalse}).compact()
 
         def _handle_Conversion(self, expr):
             simop = vex_operations[expr.op]
