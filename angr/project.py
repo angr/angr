@@ -62,6 +62,14 @@ fake_project_unpickler.__safe_for_unpickling__ = True
 
 
 def load_shellcode(shellcode, arch, start_offset=0, load_address=0):
+    """
+    Load a new project based on a string of raw bytecode.
+
+    :param shellcode:       The data to load
+    :param arch:            The name of the arch to use, or an archinfo class
+    :param start_offset:    The offset into the data to start analysis (default 0)
+    :param load_address:    The address to place the data in memory (default 0)
+    """
     return Project(
             StringIO.StringIO(shellcode),
             main_opts={
