@@ -315,7 +315,7 @@ class Project(object):
     # They're all related to hooking!
     #
 
-    def hook(self, addr, hook=None, length=0, kwargs=None):
+    def hook(self, addr, hook=None, length=0, kwargs=None, replace=False):
         """
         Hook a section of code with a custom function. This is used internally to provide symbolic
         summaries of library functions, and can be used to instrument execution or to modify
@@ -339,6 +339,9 @@ class Project(object):
         :param kwargs:      If you provide a SimProcedure for the hook, these are the keyword
                             arguments that will be passed to the procedure's `run` method
                             eventually.
+        :param replace:     Control the behavior on finding that the address is already hooked. If
+                            true, silently replace the hook. If false (default), warn and do not
+                            replace the hook. If none, warn and replace the hook.
         """
         if hook is None:
             # if we haven't been passed a thing to hook with, assume we're being used as a decorator
@@ -349,12 +352,17 @@ class Project(object):
         l.debug('hooking %#x with %s', addr, hook)
 
         if self.is_hooked(addr):
-            l.warning("Address is already hooked [hook(%#x, %s)]. Not re-hooking.", addr, hook)
-            return
+            if replace is True:
+                pass
+            elif replace is False:
+                l.warning("Address is already hooked, during hook(%#x, %s). Not re-hooking.", addr, hook)
+                return
+            else:
+                l.warning("Address is already hooked, during hook(%#x, %s). Re-hooking.", addr, hook)
 
         if isinstance(hook, type):
             if once("hook_instance_warning"):
-                l.critical("Hooking with a SimProcedure instance is deprecated! Please hook with an instance.")
+                l.critical("Hooking with a SimProcedure class is deprecated! Please hook with an instance.")
             hook = hook(**kwargs)
 
         if callable(hook):
@@ -398,17 +406,20 @@ class Project(object):
 
         del self._sim_procedures[addr]
 
-    def hook_symbol(self, symbol_name, obj, kwargs=None):
+    def hook_symbol(self, symbol_name, obj, kwargs=None, replace=None):
         """
-        Resolve a dependency in a binary. Uses the "externs object" (project.loader.extern_object) to
-        allocate an address for a new symbol in the binary, and then tells the loader to re-perform
-        the relocation process, taking into account the new symbol.
+        Resolve a dependency in a binary. Looks up the address of the given symbol, and then hooks that
+        address. If the symbol was not available in the loaded libraries, this address may be provided
+        by the CLE externs object.
 
         :param symbol_name: The name of the dependency to resolve.
         :param obj:         The thing with which to satisfy the dependency.
         :param kwargs:      If you provide a SimProcedure for the hook, these are the keyword
                             arguments that will be passed to the procedure's `run` method
                             eventually.
+        :param replace:     Control the behavior on finding that the address is already hooked. If
+                            true, silently replace the hook. If false, warn and do not replace the
+                            hook. If none (default), warn and replace the hook.
         :returns:           The address of the new symbol.
         :rtype:             int
         """
@@ -425,20 +436,10 @@ class Project(object):
 
         hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
 
-        if self.is_hooked(hook_addr):
-            l.warning("Re-hooking symbol %s", symbol_name)
-            self.unhook(hook_addr)
-
-        self.hook(hook_addr, obj, kwargs=kwargs)
+        self.hook(hook_addr, obj, kwargs=kwargs, replace=replace)
         return hook_addr
 
     def hook_symbol_batch(self, hooks):
-        """
-        Hook many symbols at once.
-
-        :param dict hooks:     A mapping from symbol name to hook
-        """
-
         if once("hook_symbol_batch warning"):
             l.critical("Due to advances in technology, hook_symbol_batch is no longer necessary for performance. Please use hook_symbol several times.")
 
@@ -459,6 +460,22 @@ class Project(object):
             return False
         hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
         return self.is_hooked(hook_addr)
+
+    def unhook_symbol(self, symbol_name):
+        """
+        Remove the hook on a symbol.
+        This function will fail if the symbol is provided by the extern object, as that would result in a state where
+        analysis would be unable to cope with a call to this symbol.
+        """
+        sym = self.loader.find_symbol(symbol_name)
+        if sym is None:
+            l.warning("Could not find symbol %s", symbol_name)
+            return False
+        if sym.owner_obj is self.loader._extern_object:
+            l.warning("Not unhooking extern symbol %s", symbol_name)
+
+        hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
+        self.unhook(hook_addr)
 
     #
     # A convenience API (in the style of triton and manticore) for symbolic execution.
