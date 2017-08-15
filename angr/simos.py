@@ -773,7 +773,17 @@ class SimWindows(SimOS):
     def state_entry(self, args=None, **kwargs):
         if args is None: args = []
         state = super(SimWindows, self).state_entry(**kwargs)
-        state.regs.sp = state.regs.sp - 0x80    # give us some stack space to work with...?
+        state.regs.sp = state.regs.sp - 0x80    # give us some stack space to work with
+
+        kernel32 = self.project.loader.shared_objects.get('kernel32.dll', None)
+        if kernel32:
+            # fake return address from entry point
+            state.mem[state.regs.sp].dword = kernel32.get_symbol('ExitProcess').rebased_addr
+
+        # first argument appears to be PEB
+        tib_addr = state.regs.fs.concat(state.solver.BVV(0, 16))
+        peb_addr = state.mem[tib_addr + 0x30].dword.resolved
+        state.mem[state.regs.sp + 4].dword = peb_addr
 
         return state
 
