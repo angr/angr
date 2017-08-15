@@ -1273,12 +1273,14 @@ class CFGBase(Analysis):
                                    tmp_functions
                                    )
 
-        # Remove all stubs after PLT entries
         to_remove = set()
-        for fn in self.kb.functions.values():
-            addr = fn.addr - (fn.addr % 16)
-            if addr != fn.addr and addr in self.kb.functions and self.kb.functions[addr].is_plt:
-                to_remove.add(fn.addr)
+
+        # Remove all stubs after PLT entries
+        if self.project.arch.name not in {'ARMEL', 'ARMHF'}:
+            for fn in self.kb.functions.values():
+                addr = fn.addr - (fn.addr % 16)
+                if addr != fn.addr and addr in self.kb.functions and self.kb.functions[addr].is_plt:
+                    to_remove.add(fn.addr)
 
         # remove empty functions
         for function in self.kb.functions.values():
