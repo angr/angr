@@ -199,6 +199,9 @@ class AngrObjectFactory(object):
         return self._project._simos.state_call(addr, *args, **kwargs)
 
     def simgr(self, thing=None, **kwargs):
+        return self.simulation_manager(thing=thing, **kwargs)
+
+    def simulation_manager(self, thing=None, **kwargs):
         """
         Constructs a new simulation manager.
 
