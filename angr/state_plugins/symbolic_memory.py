@@ -522,8 +522,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         constraint_options = [ dst == addrs[0] ]
 
         for a in addrs[1:]:
-            read_value = self.state.se.If(dst == a, self._read_from(a, size), read_value, inspect=inspect,
-                                          events=events)
+            read_value = self.state.se.If(dst == a, self._read_from(a, size, inspect=inspect, events=events),
+                                          read_value)
             constraint_options.append(dst == a)
 
         if len(constraint_options) > 1:
