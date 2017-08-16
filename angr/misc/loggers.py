@@ -1,16 +1,18 @@
 import logging
 import sys
 
-_original_emit = logging.StreamHandler.emit
-
 class Loggers(object):
     def __init__(self, default_level=logging.WARNING):
         self.default_level = default_level
         self._loggers = {}
         self.load_all_loggers()
 
-        if not self.detect_test_env():
-            self._install_root_logger()
+        self.handler = CuteHandler()
+        self.handler.setFormatter(logging.Formatter('%(levelname)-7s | %(asctime)-23s | %(name)-8s | %(message)s'))
+
+        if not self.detect_test_env() and len(logging.root.handlers) == 0:
+            self.enable_root_logger()
+            logging.root.setLevel(self.default_level)
 
     IN_SCOPE = ('angr', 'claripy', 'cle', 'pyvex', 'archinfo', 'tracer', 'driller', 'rex', 'patcherex', 'identifier')
 
@@ -34,32 +36,22 @@ class Loggers(object):
     def __dir__(self):
         return super(Loggers, self).__dir__() + self._loggers.keys()
 
-    def _install_root_logger(self):
-        if len(logging.root.handlers) == 0:
-            # The default level is INFO
-            fmt='%(levelname)-7s | %(asctime)-23s | %(name)-8s | %(message)s'
-            logging.basicConfig(format=fmt, level=self.default_level)
-            logging.StreamHandler.emit = self._emit_wrap
+    def enable_root_logger(self):
+        """
+        Enable angr's default logger
+        """
+        logging.root.addHandler(self.handler)
+
+    def disable_root_logger(self):
+        """
+        Disable angr's default logger
+        """
+        logging.root.removeHandler(self.handler)
 
     @staticmethod
     def setall(level):
         for name in logging.Logger.manager.loggerDict.keys():
             logging.getLogger(name).setLevel(level)
-
-    @staticmethod
-    def _emit_wrap(*args, **kwargs):
-        record = args[1]
-        color = hash(record.name) % 7 + 31
-        try:
-            record.name = ("\x1b[%dm" % color) + record.name + "\x1b[0m"
-        except Exception:
-            pass
-
-        try:
-            record.msg = ("\x1b[%dm" % color) + record.msg + "\x1b[0m"
-        except Exception:
-            pass
-        _original_emit(*args, **kwargs)
 
     @staticmethod
     def detect_test_env():
@@ -78,5 +70,17 @@ class Loggers(object):
 
         return True
 
-# Set the default to INFO at import time
-# Loggers.setall(logging.INFO)
+class CuteHandler(logging.StreamHandler):
+    def emit(self, record):
+        color = hash(record.name) % 7 + 31
+        try:
+            record.name = ("\x1b[%dm" % color) + record.name + "\x1b[0m"
+        except Exception:
+            pass
+
+        try:
+            record.msg = ("\x1b[%dm" % color) + record.msg + "\x1b[0m"
+        except Exception:
+            pass
+
+        super(CuteHandler, self).emit(record)
