@@ -220,7 +220,7 @@ class SimSolver(SimStatePlugin):
     #
     # Get unconstrained stuff
     #
-    def Unconstrained(self, name, bits, uninitialized=True, **kwargs):
+    def Unconstrained(self, name, bits, uninitialized=True, inspect=True, events=True, **kwargs):
         if o.SYMBOLIC_INITIAL_VALUES in self.state.options:
             # Return a symbolic value
             if o.ABSTRACT_MEMORY in self.state.options:
@@ -229,9 +229,9 @@ class SimSolver(SimStatePlugin):
             else:
                 l.debug("Creating new unconstrained BV named %s", name)
                 if o.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
-                    r = self.BVS(name, bits, uninitialized=uninitialized, **kwargs)
+                    r = self.BVS(name, bits, uninitialized=uninitialized, inspect=inspect, events=events, **kwargs)
                 else:
-                    r = self.BVS(name, bits, uninitialized=uninitialized, **kwargs)
+                    r = self.BVS(name, bits, uninitialized=uninitialized, inspect=inspect, events=events, **kwargs)
 
             return r
         else:
