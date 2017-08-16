@@ -906,6 +906,7 @@ def translate(state, op, s_args):
             else:
                 raise
     elif options.EXTENDED_IROP_SUPPORT in state.options:
+        irop = None
         try:
             l.info("Using our imagination for op " + op)
             attrs = op_attrs(op)
@@ -922,12 +923,12 @@ def translate(state, op, s_args):
                 raise
         except SimOperationError:
             l.warning("IROp error (for operation %s)", op, exc_info=True)
-            if options.BYPASS_ERRORED_IROP in state.options:
-                return state.se.Unconstrained("irop_error", operations[op]._output_size_bits)
+            if irop is not None and options.BYPASS_ERRORED_IROP in state.options:
+                return state.se.Unconstrained("irop_error", irop._output_size_bits)
             else:
                 raise
         except:
-            l.exception("Error imagining operation " + op)
+            l.exception("Error imagining operation %s", op)
         return None
 
     l.error("Unsupported operation: %s", op)
