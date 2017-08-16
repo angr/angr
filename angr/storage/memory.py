@@ -719,7 +719,8 @@ class SimMemory(SimStatePlugin):
         ):
             self._constrain_underconstrained_index(addr_e)
 
-        a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
+        a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e, inspect=inspect,
+                           events=not disable_actions)
         add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
         if add_constraints and c:
             self.state.add_constraints(*c)
@@ -793,7 +794,7 @@ class SimMemory(SimStatePlugin):
         """
         return [ addr ]
 
-    def _load(self, addr, size, condition=None, fallback=None):
+    def _load(self, addr, size, condition=None, fallback=None, inspect=True, events=True):
         raise NotImplementedError()
 
     def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):

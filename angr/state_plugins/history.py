@@ -53,7 +53,14 @@ class SimStateHistory(SimStatePlugin):
         self._all_constraints = ()
         self._satisfiable = None
 
+        self.successor_ip = None if clone is None else clone.successor_ip
+
         self.strongref_state = None if clone is None else clone.strongref_state
+
+    def set_state(self, state):
+        super(SimStateHistory, self).set_state(state)
+
+        self.successor_ip = self.state._ip
 
     def __getstate__(self):
         # flatten ancestry, otherwise we hit recursion errors trying to get the entire history...
@@ -68,6 +75,7 @@ class SimStateHistory(SimStatePlugin):
         d = super(SimStateHistory, self).__getstate__()
         d['strongref_state'] = None
         d['ancestry'] = ancestry
+        d['successor_ip'] = self.successor_ip
         return d
 
     def __setstate__(self, d):
