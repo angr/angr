@@ -911,13 +911,13 @@ def translate_inner(state, irop, s_args):
         if state.mode == 'static' and len(s_args) == 2 and state.se.is_true(s_args[1] == 0):
             # Monkeypatch the dividend to another value instead of 0
             s_args[1] = state.se.BVV(1, s_args[1].size())
-            return operations[op].calculate(*s_args)
+            return irop.calculate(*s_args)
         else:
             raise
     except SimOperationError:
-        l.warning("IROp error (for operation %s)", op, exc_info=True)
+        l.warning("IROp error (for operation %s)", irop.name, exc_info=True)
         if options.BYPASS_ERRORED_IROP in state.options:
-            return state.se.Unconstrained("irop_error", operations[op]._output_size_bits)
+            return state.se.Unconstrained("irop_error", irop._output_size_bits)
         else:
             raise
 
