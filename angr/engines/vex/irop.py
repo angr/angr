@@ -905,9 +905,9 @@ def translate(state, op, s_args):
                 return state.se.Unconstrained("irop_error", operations[op]._output_size_bits)
             else:
                 raise
-    else:
+    elif options.EXTENDED_IROP_SUPPORT in state.options:
         try:
-            l.warning("Using our imagination for op " + op)
+            l.info("Using our imagination for op " + op)
             attrs = op_attrs(op)
             irop = SimIROp(op, **attrs)
             if irop._float and not options.SUPPORT_FLOATING_POINT in state.options:
