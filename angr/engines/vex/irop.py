@@ -885,11 +885,13 @@ class SimIROp(object):
 
 def translate(state, op, s_args):
     if op in operations:
-        return translate_inner(state, irop, s_args)
+        return translate_inner(state, operations[op], s_args)
     elif options.EXTENDED_IROP_SUPPORT in state.options:
         try:
             l.info("Using our imagination for op " + op)
             attrs = op_attrs(op)
+            if attrs is None:
+                raise SimOperationError
             irop = SimIROp(op, **attrs)
         except SimOperationError:
             l.info("...failed to make op")
