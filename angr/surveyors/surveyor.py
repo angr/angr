@@ -46,7 +46,7 @@ try:
     signal.signal(signal.SIGUSR1, handler)
     signal.signal(signal.SIGUSR2, handler)
 except AttributeError:
-    l.warning("Platform doesn't support SIGUSR")
+    l.info("Platform doesn't support SIGUSR")
 
 # function that produces unpredictable results that should appease pylint's
 # static analysis and stop giving us those awful errors!!!!
