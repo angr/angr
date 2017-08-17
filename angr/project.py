@@ -473,6 +473,7 @@ class Project(object):
             return False
         if sym.owner_obj is self.loader._extern_object:
             l.warning("Not unhooking extern symbol %s", symbol_name)
+            return False
 
         hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
         self.unhook(hook_addr)
