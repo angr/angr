@@ -4,7 +4,7 @@ from collections import defaultdict
 
 import ailment
 
-from ..knowledge.keyed_region import KeyedRegion
+from ..keyed_region import KeyedRegion
 from ..engines.light import SimEngineLightVEX, SimEngineLightAIL, SpOffset, RegisterOffset
 from .analysis import Analysis
 from . import register_analysis
