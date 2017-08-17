@@ -253,6 +253,9 @@ ENABLE_NX = "ENABLE_NX"
 # Ask the SimOS to handle segfaults
 EXCEPTION_HANDLING = "EXCEPTION_HANDLING"
 
+# Use system timestamps in simprocedures instead of returning symbolic values
+USE_SYSTEM_TIMES = "USE_SYSTEM_TIMES"
+
 # Track variables in state.solver.all_variables
 TRACK_SOLVER_VARIABLES = "TRACK_SOLVER_VARIABLES"
 
