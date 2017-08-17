@@ -196,7 +196,7 @@ class DataSet(object):
         self.data = data
 
     def update(self, data):
-        if type(data) == DataSet:
+        if type(data) is DataSet:
             self.data.update(data.data)
         else:
             self.data.add(data)
@@ -252,6 +252,12 @@ class DataSet(object):
 
     def __rand__(self, other):
         return self._op(other, operator.and_)
+
+    def __or__(self, other):
+        return self._op(other, operator.or_)
+
+    def __ror__(self, other):
+        return self._op(other, operator.or_)
 
     def __neg__(self):
         res = DataSet({-d for d in self.data if d is not None})
@@ -494,7 +500,13 @@ def get_engine(base_engine):
                 wr_tmp_stmt = pyvex.stmt.WrTmp(stmt.dst, stmt.alt)
                 self._handle_WrTmp(wr_tmp_stmt)
             else:
-                l.info('could not resolve guard %s for LoadG' % str(guard))
+                if stmt.cvt.find('Ident') < 0:
+                    l.warning('conversion %s in LoadG not implemented' % stmt.cvt)
+                load_expr = pyvex.expr.Load(stmt.end, stmt.cvt_types[1], stmt.addr)
+                data = DataSet(set())
+                data.update(self._expr(load_expr))
+                data.update(self._expr(stmt.alt))
+                self._handle_WrTmpData(stmt.dst, data.compact())
 
         def _handle_Exit(self, stmt):
             pass
@@ -586,7 +598,10 @@ def get_engine(base_engine):
                 return iffalse
             else:
                 l.info('could not resolve condition %s for ITE' % str(cond))
-                return DataSet({iftrue, iffalse}).compact()
+                res = DataSet(set())
+                res.update(iffalse)
+                res.update(iftrue)
+                return res.compact()
 
         def _handle_Conversion(self, expr):
             simop = vex_operations[expr.op]
@@ -603,6 +618,13 @@ def get_engine(base_engine):
                     size = simop._to_size
                     mask = 2 ** size - 1
                     o &= mask
+                elif type(o) is Parameter:
+                    if type(o.value) is Register:
+                        o.value.size = simop._to_size / 8
+                    elif type(o.value) is SpOffset:
+                        o.value.bits = simop._to_size
+                    else:
+                        l.warning('Unsupported conversion type Parameter->%s' % type(o.value).__name__)
                 else:
                     l.warning('Unsupported conversion type %s' % type(o).__name__)
                 res.update(o)
