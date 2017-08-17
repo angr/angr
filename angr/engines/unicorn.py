@@ -92,6 +92,8 @@ class SimEngineUnicorn(SimEngine):
         state.unicorn.setup()
         try:
             state.unicorn.set_stops(extra_stop_points)
+            state.unicorn.set_tracking(track_bbls=o.UNICORN_TRACK_BBL_ADDRS in state.options,
+                                       track_stack=o.UNICORN_TRACK_STACK_POINTERS in state.options)
             state.unicorn.hook()
             state.unicorn.start(step=step)
             state.unicorn.finish()

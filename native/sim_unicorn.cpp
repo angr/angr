@@ -127,6 +127,9 @@ public:
 	VexArchInfo vex_archinfo;
 	RegisterSet symbolic_registers; // tracking of symbolic registers
 
+	bool track_bbls;
+	bool track_stack;
+
 	State(uc_engine *_uc, uint64_t cache_key):uc(_uc)
 	{
 		hooked = false;
@@ -272,8 +275,12 @@ public:
 
 	void step(uint64_t current_address, int32_t size, bool check_stop_points=true) {
 		uc_context_save(uc, saved_regs); // save current registers
-		bbl_addrs.push_back(current_address);
-		stack_pointers.push_back(get_stack_pointer(uc));
+		if (track_bbls) {
+			bbl_addrs.push_back(current_address);
+		}
+		if (track_stack) {
+			stack_pointers.push_back(get_stack_pointer(uc));
+		}
 		cur_address = current_address;
 		cur_size = size;
 
@@ -1273,4 +1280,11 @@ bool simunicorn_cache_page(State *state, uint64_t address, uint64_t length, char
 extern "C"
 void simunicorn_uncache_page(State *state, uint64_t address) {
 	state->uncache_page(address);
+}
+
+// Tracking settings
+extern "C"
+void simunicorn_set_tracking(State *state, bool track_bbls, bool track_stack) {
+	state->track_bbls = track_bbls;
+	state->track_stack = track_stack;
 }

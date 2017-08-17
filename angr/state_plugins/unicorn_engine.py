@@ -226,6 +226,7 @@ def _load_native():
         _setup_prototype(h, 'is_interrupt_handled', ctypes.c_bool, state_t)
         _setup_prototype(h, 'set_transmit_sysno', None, state_t, ctypes.c_uint32, ctypes.c_uint64)
         _setup_prototype(h, 'process_transmit', ctypes.POINTER(TRANSMIT_RECORD), state_t, ctypes.c_uint32)
+        _setup_prototype(h, 'set_tracking', None, state_t, ctypes.c_bool, ctypes.c_bool)
 
         l.info('native plugin is enabled')
 
@@ -499,6 +500,9 @@ class Unicorn(SimStatePlugin):
             ctypes.c_uint64(len(stop_points)),
             (ctypes.c_uint64 * len(stop_points))(*map(ctypes.c_uint64, stop_points))
         )
+
+    def set_tracking(self, track_bbls, track_stack):
+        _UC_NATIVE.set_tracking(self._uc_state, track_bbls, track_stack)
 
     def hook(self):
         #l.debug('adding native hooks')
@@ -965,11 +969,13 @@ class Unicorn(SimStatePlugin):
             self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
 
         # get the address list out of the state
-        bbl_addrs = _UC_NATIVE.bbl_addrs(self._uc_state)
-        self.state.history.recent_bbl_addrs = bbl_addrs[:self.steps]
+        if options.UNICORN_TRACK_BBL_ADDRS in self.state.options:
+            bbl_addrs = _UC_NATIVE.bbl_addrs(self._uc_state)
+            self.state.history.recent_bbl_addrs = bbl_addrs[:self.steps]
         # get the stack pointers
-        stack_pointers = _UC_NATIVE.stack_pointers(self._uc_state)
-        self.state.scratch.stack_pointer_list = stack_pointers[ : self.steps]
+        if options.UNICORN_TRACK_STACK_POINTERS in self.state.options:
+            stack_pointers = _UC_NATIVE.stack_pointers(self._uc_state)
+            self.state.scratch.stack_pointer_list = stack_pointers[:self.steps]
         # syscall counts
         self.state.history.recent_syscall_count = _UC_NATIVE.syscall_count(self._uc_state)
 
