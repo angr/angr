@@ -148,6 +148,8 @@ class SimEngineLightVEX(SimEngineLight):
             return self._handle_Add(expr)
         elif expr.op.startswith('Iop_Sub'):
             return self._handle_Sub(expr)
+        elif expr.op.startswith('Iop_Xor'):
+            return self._handle_Xor(expr)
         elif expr.op.startswith('Iop_Shl'):
             return self._handle_Shl(expr)
         elif expr.op.startswith('Iop_Shr'):
@@ -157,8 +159,12 @@ class SimEngineLightVEX(SimEngineLight):
             return self._handle_Shl(expr)
         elif expr.op.startswith('Iop_Sar'):
             return self._handle_Sar(expr)
+        elif expr.op.startswith('Iop_CmpEQ'):
+            return self._handle_CmpEQ(expr)
         elif expr.op.startswith('Iop_CmpNE'):
             return self._handle_CmpNE(expr)
+        elif expr.op.startswith('Iop_CmpORD'):
+            return self._handle_CmpORD(expr)
         elif expr.op.startswith('Const'):
             return self._handle_Const(expr)
         else:
@@ -248,6 +254,20 @@ class SimEngineLightVEX(SimEngineLight):
         except TypeError:
             return None
 
+    def _handle_Xor(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            return expr_0 ^ expr_1
+        except TypeError:
+            return None
+
     def _handle_Shl(self, expr):
         arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
@@ -298,6 +318,17 @@ class SimEngineLightVEX(SimEngineLight):
         except TypeError:
             return None
 
+    def _handle_CmpEQ(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        return expr_0 == expr_1
+
     def _handle_CmpNE(self, expr):
         arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
@@ -309,6 +340,26 @@ class SimEngineLightVEX(SimEngineLight):
 
         try:
             return expr_0 != expr_1
+        except TypeError:
+            return None
+
+    # ppc only
+    def _handle_CmpORD(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            if expr_0 < expr_1:
+                return 0x08
+            elif expr_0 > expr_1:
+                return 0x04
+            else:
+                return 0x02
         except TypeError:
             return None
 
