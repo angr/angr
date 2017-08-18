@@ -6,7 +6,7 @@ import nose.tools
 
 import archinfo
 import angr
-from angr.calling_conventions import SimStackArg, SimRegArg, SimCCCdecl
+from angr.calling_conventions import SimStackArg, SimRegArg, SimCCCdecl, SimCCSystemVAMD64
 
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(str(__file__))), '..', '..',
@@ -42,11 +42,21 @@ def run_cgc(binary_name):
 
 def test_fauxware():
 
+    amd64 = archinfo.arch_from_id('amd64')
+
     args = {
         'i386': [
             ('authenticate', SimCCCdecl(
                 archinfo.arch_from_id('i386'),
                 args=[SimStackArg(4, 4), SimStackArg(8, 4)], sp_delta=4
+                )
+             ),
+        ],
+        'x86_64': [
+            ('authenticate', SimCCSystemVAMD64(
+                amd64,
+                args=[SimRegArg('rdi', 8), SimRegArg('rsi', 8)],
+                sp_delta=8
                 )
              ),
         ],
