@@ -992,7 +992,7 @@ def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
         r_C = state.se.If(condition, one, zero)
         r_O = r_S = r_Z = r_P = 0
     else:
-        assert False
+        raise SimCCallError("DAA/DAS instructions are unsupported")
 
     result =   ( (r_O & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_O']) ) \
              | ( (r_S & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_S']) ) \
@@ -1019,7 +1019,7 @@ def x86g_calculate_aad_aam(state, flags_and_AX, opcode):
         r_AL = ((r_AH * 10) + r_AL) & 0xff
         r_AH = state.se.BVV(0, 32)
     else:
-        assert False
+        raise SimCCallError("Unknown opcode %#x in AAD/AAM ccall", opcode)
 
     r_O = state.se.BVV(0, 32)
     r_C = state.se.BVV(0, 32)
