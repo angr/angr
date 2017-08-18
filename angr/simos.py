@@ -823,7 +823,7 @@ class SimWindows(SimOS):
             # http://sandsprite.com/CodeStuff/Understanding_the_Peb_Loader_Data_List.html
             THUNK_SIZE = 0x100
             num_pe_objects = len(self.project.loader.all_pe_objects)
-            ALLOC_AREA = LDR_addr + THUNK_SIZE * num_pe_objects
+            ALLOC_AREA = LDR_addr + THUNK_SIZE * (num_pe_objects + 1)
             for i, obj in enumerate(self.project.loader.all_pe_objects):
                 # Create a LDR_MODULE, we'll handle the links later...
                 obj.module_id = i+1 # HACK HACK HACK HACK
@@ -833,20 +833,20 @@ class SimWindows(SimOS):
 
                 # Allocate some space from the same region to store the paths
                 path = obj.binary # we're in trouble if this is None
-                alloc_size = len(path) * 2 + 2
-                tail_start = (len(path) - len(os.path.basename(path))) * 2
-                state.mem[addr+0x24].short = alloc_size
-                state.mem[addr+0x26].short = alloc_size
+                string_size = len(path) * 2
+                tail_size = len(os.path.basename(path)) * 2
+                state.mem[addr+0x24].short = string_size
+                state.mem[addr+0x26].short = string_size
                 state.mem[addr+0x28].dword = ALLOC_AREA
-                state.mem[addr+0x2C].short = alloc_size - tail_start
-                state.mem[addr+0x2E].short = alloc_size - tail_start
-                state.mem[addr+0x30].dword = ALLOC_AREA + tail_start
+                state.mem[addr+0x2C].short = tail_size
+                state.mem[addr+0x2E].short = tail_size
+                state.mem[addr+0x30].dword = ALLOC_AREA + string_size - tail_size
 
                 for j, c in enumerate(path):
                     # if this segfaults, increase the allocation size
                     state.mem[ALLOC_AREA + j*2].short = ord(c)
-                state.mem[ALLOC_AREA + alloc_size - 2].short = 0
-                ALLOC_AREA += alloc_size
+                state.mem[ALLOC_AREA + string_size].short = 0
+                ALLOC_AREA += string_size + 2
 
             # handle the links. we construct a python list in the correct order for each, and then, uh,
             mem_order = sorted(self.project.loader.all_pe_objects, key=lambda x: x.mapped_base)
@@ -860,7 +860,8 @@ class SimWindows(SimOS):
                     if dep in self.project.loader.shared_objects:
                         depo = self.project.loader.shared_objects[dep]
                         fuck_load(depo)
-                        init_order.append(depo)
+                        if depo not in init_order:
+                            init_order.append(depo)
 
             fuck_load(self.project.loader.main_object)
             load_order = [self.project.loader.main_object] + init_order
@@ -885,6 +886,9 @@ class SimWindows(SimOS):
                 else:
                     link(LDR_addr + 12, LDR_addr + 12)
 
+            l.debug("Load order: %s", load_order)
+            l.debug("In-memory order: %s", mem_order)
+            l.debug("Initialization order: %s", init_order)
             link_list(load_order, 0)
             link_list(mem_order, 8)
             link_list(init_order, 16)
