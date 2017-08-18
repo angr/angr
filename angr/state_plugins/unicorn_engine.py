@@ -9,6 +9,7 @@ import pkg_resources
 import logging
 import pyvex
 import claripy
+import time
 
 from ..sim_options import UNICORN_HANDLE_TRANSMIT_SYSCALL
 from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimUnicornError
@@ -338,6 +339,8 @@ class Unicorn(SimStatePlugin):
 
         # the address to use for concrete transmits
         self.transmit_addr = None
+
+        self.time = None
 
     def copy(self):
         u = Unicorn(
@@ -902,7 +905,9 @@ class Unicorn(SimStatePlugin):
 
         addr = self.state.se.eval(self.state.ip)
         l.info('started emulation at %#x (%d steps)', addr, self.max_steps if step is None else step)
+        self.time = time.time()
         self.errno = _UC_NATIVE.start(self._uc_state, addr, self.max_steps if step is None else step)
+        self.time = time.time() - self.time
 
     def finish(self):
         # do the superficial synchronization
@@ -968,6 +973,24 @@ class Unicorn(SimStatePlugin):
             self.countdown_symbolic_memory = self.cooldown_symbolic_memory
         else:
             self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
+
+        if self.steps / self.time < 10: # TODO: make this tunable
+            l.info(
+                "Unicorn stepped %d block%s in %fsec (%f blocks/sec), enabling cooldown",
+                self.steps,
+                '' if self.steps == 1 else 's',
+                self.time,
+                self.steps/self.time
+            )
+            self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
+        else:
+            l.info(
+                "Unicorn stepped %d block%s in %fsec (%f blocks/sec)",
+                self.steps,
+                '' if self.steps == 1 else 's',
+                self.time,
+                self.steps/self.time
+            )
 
         # get the address list out of the state
         if options.UNICORN_TRACK_BBL_ADDRS in self.state.options:
