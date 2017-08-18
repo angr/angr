@@ -523,7 +523,11 @@ class SimMemory(SimStatePlugin):
             self._constrain_underconstrained_index(addr_e)
 
         request = MemoryStoreRequest(addr_e, data=data_e, size=size_e, condition=condition_e, endness=endness)
-        self._store(request)
+        try:
+            self._store(request)
+        except SimSegfaultError as e:
+            e.original_addr = addr_e
+            raise
 
         if inspect is True:
             if self.category == 'reg': self.state._inspect('reg_write', BP_AFTER)
@@ -719,8 +723,12 @@ class SimMemory(SimStatePlugin):
         ):
             self._constrain_underconstrained_index(addr_e)
 
-        a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e, inspect=inspect,
-                           events=not disable_actions)
+        try:
+            a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e, inspect=inspect,
+                               events=not disable_actions)
+        except SimSegfaultError as e:
+            e.original_addr = addr_e
+            raise
         add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
         if add_constraints and c:
             self.state.add_constraints(*c)
@@ -860,5 +868,5 @@ from bintrees import AVLTree
 from .. import sim_options as o
 from ..state_plugins.sim_action import SimActionData
 from ..state_plugins.sim_action_object import SimActionObject, _raw_ast
-from ..errors import SimMemoryError, SimRegionMapError
+from ..errors import SimMemoryError, SimRegionMapError, SimSegfaultError
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER

@@ -892,8 +892,13 @@ class SimWindows(SimOS):
         return state
 
     def handle_exception(self, successors, engine, exc_type, exc_value, exc_traceback):
+        # don't bother handling non-vex exceptions
         if engine is not self.project.factory.default_engine:
             raise exc_type, exc_value, exc_traceback
+        # don't bother handling symbolic-address exceptions
+        if exc_type is SimSegfaultError:
+            if exc_value.original_addr is not None and exc_value.original_addr.symbolic:
+                raise exc_type, exc_value, exc_traceback
 
         # we'll need to wind up to the exception to get the correct state to resume from...
         # exc will be a SimError, for sure
