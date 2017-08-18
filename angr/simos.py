@@ -8,6 +8,8 @@ from collections import defaultdict
 from archinfo import ArchARM, ArchMIPS32, ArchMIPS64, ArchX86, ArchAMD64, ArchPPC32, ArchPPC64, ArchAArch64
 from cle import MetaELF, BackedCGC
 from cle.address_translator import AT
+from elftools.elf.descriptions import _DESCR_EI_OSABI
+
 import claripy
 
 from .errors import (
