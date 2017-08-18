@@ -107,10 +107,39 @@ class CallingConventionAnalysis(Analysis):
                     continue
                 arg = SimStackArg(variable.offset - ret_addr_offset, variable.size)
                 args.append(arg)
+            elif isinstance(variable, SimRegisterVariable):
+                # a register variable, convert it to a register argument
+                if not self._is_sane_register_variable(variable):
+                    continue
+                arg = SimRegArg(self.project.arch.register_size_names[(variable.reg, variable.size)], variable.size)
+                args.append(arg)
             else:
                 l.error('Unsupported type of variable %s.', type(variable))
 
         return args
+
+    def _is_sane_register_variable(self, variable):
+        """
+        Filters all registers that are surly not members of function arguments.
+        This can be seen as a workaround, since VariableRecoveryFast sometimes gives input variables of cc_ndep (which
+        is a VEX-specific register) :-(
+
+        :param SimRegisterVariable variable: The variable to test.
+        :return:                             True if it is an acceptable function argument, False otherwise.
+        :rtype:                              bool
+        """
+
+        arch = self.project.arch
+
+        if arch.name == 'X86':
+            return (variable.reg < 40  # cc_op
+                    or 160 <= variable.reg < 288)
+
+        elif arch.name == 'AMD64':
+            return (variable.reg < 144  # cc_op
+                    or 224 <= variable.reg <= 768)
+
+        return True
 
 
 register_analysis(CallingConventionAnalysis, "CallingConvention")
