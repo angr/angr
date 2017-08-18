@@ -6,10 +6,13 @@ import ctypes
 import threading
 import itertools
 import pkg_resources
-
 import logging
+import pyvex
+import claripy
 
 from ..sim_options import UNICORN_HANDLE_TRANSMIT_SYSCALL
+from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimUnicornError
+from .plugin import SimStatePlugin
 
 l = logging.getLogger("angr.state_plugins.unicorn_engine")
 
@@ -18,11 +21,6 @@ try:
 except ImportError:
     l.warning("Unicorn is not installed. Support disabled.")
     unicorn = None
-
-import pyvex
-import claripy
-from .plugin import SimStatePlugin
-from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError
 
 class MEM_PATCH(ctypes.Structure): # mem_update_t
     pass
@@ -919,6 +917,9 @@ class Unicorn(SimStatePlugin):
         elif self.stop_reason == STOP.STOP_SYMBOLIC_MEM:
             stopping_memory = _UC_NATIVE.stopping_memory(self._uc_state)
             self._report_symbolic_blocker(self.state.memory.load(stopping_memory, 1), 'mem')
+
+        if self.stop_reason == STOP.STOP_NOSTART and self.steps > 0:
+            raise SimUnicornError("Got STOP_NOSTART but a positive number of steps. This indicates a serious unicorn bug.")
 
         addr = self.state.se.eval(self.state.ip)
         l.info('finished emulation at %#x after %d steps: %s', addr, self.steps, STOP.name_stop(self.stop_reason))

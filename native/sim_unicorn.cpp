@@ -464,7 +464,7 @@ public:
 			stop_points.insert(stops[i]);
 	}
 
-	void cache_page(uint64_t address, size_t size, char* bytes, uint64_t permissions)
+	std::pair<uint64_t, size_t> cache_page(uint64_t address, size_t size, char* bytes, uint64_t permissions)
 	{
 		//printf("caching page %#lx - %#lx.\n", address, address + size);
 		// Make sure this page is not overlapping with any existing cached page
@@ -476,7 +476,7 @@ public:
 				if (address >= after->first) {
 					printf("[%#llx, %#llx](%#x) overlaps with [%#llx, %#llx](%#x).\n", address, address + size, size, after->first, after->first + after->second.size, after->second.size);
 					// A complete overlap
-					return;
+					return std::make_pair(address, size);
 				}
 				size = after->first - address;
 			}
@@ -487,7 +487,7 @@ public:
 				if (address + size <= before->first + before->second.size) {
 					// A complete overlap
 					printf("[%#llx, %#llx](%#x) overlaps with [%#llx, %#llx](%#x).\n", address, address + size, size, after->first, after->first + after->second.size, after->second.size);
-					return;
+					return std::make_pair(address, size);
 				}
 				size = address + size - (before->first + before->second.size);
 				address = before->first + before->second.size;
@@ -505,6 +505,7 @@ public:
 			memcpy(copy, &bytes[offset], 0x1000);
 			page_cache->insert(std::pair<uint64_t, CachedPage>(address+offset, cached_page));
 		}
+		return std::make_pair(address, size);
 	}
 
 	void uncache_page(uint64_t address) {
@@ -1270,8 +1271,8 @@ extern "C"
 bool simunicorn_cache_page(State *state, uint64_t address, uint64_t length, char *bytes, uint64_t permissions) {
 	//LOG_I("caching [%#lx, %#lx]", address, address + length);
 
-	state->cache_page(address, length, bytes, permissions);
-	if (!state->map_cache(address, length)) {
+	auto actual = state->cache_page(address, length, bytes, permissions);
+	if (!state->map_cache(actual.first, actual.second)) {
 		return false;
 	}
 	return true;
