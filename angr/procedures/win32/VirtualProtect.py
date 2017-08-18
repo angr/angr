@@ -22,7 +22,6 @@ class VirtualProtect(angr.SimProcedure):
         if len(prots) != 1:
             raise angr.errors.SimValueError("VirtualProtect can't handle symbolic flNewProtect")
         prot = prots[0]
-        angr_prot = convert_prot(prot)
 
         try:
             if not self.state.solver.is_false(self.state.memory.permissions(lpfOldProtect) & 2 == 0):
@@ -40,6 +39,8 @@ class VirtualProtect(angr.SimProcedure):
                     first_prot = self.state.solver.eval(old_prot)
         except angr.errors.SimMemoryError:
             return 0
+
+        angr_prot = convert_prot(prot)
 
         # we're good! make the changes.
         for page in range(page_start, page_end + 0x1000, 0x1000):
