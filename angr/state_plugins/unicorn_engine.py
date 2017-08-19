@@ -974,7 +974,7 @@ class Unicorn(SimStatePlugin):
         else:
             self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
 
-        if self.steps / self.time < 10: # TODO: make this tunable
+        if self.time != 0 and self.steps / self.time < 10: # TODO: make this tunable
             l.info(
                 "Unicorn stepped %d block%s in %fsec (%f blocks/sec), enabling cooldown",
                 self.steps,
@@ -989,7 +989,7 @@ class Unicorn(SimStatePlugin):
                 self.steps,
                 '' if self.steps == 1 else 's',
                 self.time,
-                self.steps/self.time
+                self.steps/self.time if self.time != 0 else float('nan')
             )
 
         # get the address list out of the state
