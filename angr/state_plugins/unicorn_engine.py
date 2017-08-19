@@ -51,6 +51,7 @@ class STOP(object): # stop_t
     STOP_ZEROPAGE       = 7
     STOP_NOSTART        = 8
     STOP_SEGFAULT       = 9
+    STOP_ZERO_DIV       = 10
 
     @staticmethod
     def name_stop(num):
@@ -525,6 +526,8 @@ class Unicorn(SimStatePlugin):
             raise SimUnicornUnsupport
 
     def _hook_intr_mips(self, uc, intno, user_data):
+        self.trap_ip = self.uc.reg_read(unicorn.mips_const.UC_MIPS_REG_PC)
+
         if intno == 17: # EXCP_SYSCALL
             sysno = uc.reg_read(self._uc_regs['v0'])
             pc = uc.reg_read(self._uc_regs['pc'])
@@ -539,7 +542,16 @@ class Unicorn(SimStatePlugin):
         if _UC_NATIVE.is_interrupt_handled(self._uc_state):
             return
 
-        if intno == 0x80:
+        if self.state.arch.bits == 32:
+            self.trap_ip = self.uc.reg_read(unicorn.x86_const.UC_X86_REG_EIP)
+        else:
+            self.trap_ip = self.uc.reg_read(unicorn.x86_const.UC_X86_REG_RIP)
+
+        # http://wiki.osdev.org/Exceptions
+        if intno == 0:
+            # divide by zero
+            _UC_NATIVE.stop(self._uc_state, STOP.STOP_ZERO_DIV)
+        elif intno == 0x80:
             if self.state.arch.bits == 32:
                 self._hook_syscall_i386(uc, user_data)
             else:
@@ -995,6 +1007,8 @@ class Unicorn(SimStatePlugin):
         # get the address list out of the state
         if options.UNICORN_TRACK_BBL_ADDRS in self.state.options:
             bbl_addrs = _UC_NATIVE.bbl_addrs(self._uc_state)
+            #bbl_addr_count = _UC_NATIVE.bbl_addr_count(self._uc_state)
+            # why is bbl_addr_count unused?
             self.state.history.recent_bbl_addrs = bbl_addrs[:self.steps]
         # get the stack pointers
         if options.UNICORN_TRACK_STACK_POINTERS in self.state.options:
@@ -1138,7 +1152,8 @@ class Unicorn(SimStatePlugin):
         uc.reg_write(self._uc_const.UC_X86_REG_FS, selector)
         selector = self.create_selector(4, S_GDT | S_PRIV_0)
         uc.reg_write(self._uc_const.UC_X86_REG_GS, selector)
-        uc.mem_unmap(GDT_ADDR, GDT_LIMIT)
+        #if programs want to access this memory....... let them
+        #uc.mem_unmap(GDT_ADDR, GDT_LIMIT)
 
     @staticmethod
     def create_selector(idx, flags):

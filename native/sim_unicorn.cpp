@@ -38,6 +38,7 @@ typedef enum stop {
 	STOP_ZEROPAGE,
 	STOP_NOSTART,
 	STOP_SEGFAULT,
+	STOP_ZERO_DIV,
 } stop_t;
 
 typedef struct block_entry {
@@ -222,7 +223,9 @@ public:
 		  return UC_ERR_MAP;
 		}
 
-		return uc_emu_start(uc, pc, 0, 0, 0);
+		uc_err out = uc_emu_start(uc, pc, 0, 0, 0);
+		rollback();
+		return out;
 	}
 
 	void stop(stop_t reason) {
@@ -261,12 +264,14 @@ public:
 			case STOP_SEGFAULT:
 				msg = "permissions or mapping error";
 				break;
+			case STOP_ZERO_DIV:
+				msg = "divide by zero";
+				break;
 			default:
 				msg = "unknown error";
 		}
 		stop_reason = reason;
 		//LOG_D("stop: %s", msg);
-		rollback();
 		uc_emu_stop(uc);
 
 		// if we errored out right away, fix the step count to 0

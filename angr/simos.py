@@ -18,7 +18,8 @@ from .errors import (
     AngrCallableMultistateError,
     AngrSimOSError,
     SimUnsupportedError,
-    SimSegfaultError,
+    SimSegfaultException,
+    SimZeroDivisionException,
 )
 from .tablespecs import StringTableSpec
 from .sim_state import SimState
@@ -915,9 +916,11 @@ class SimWindows(SimOS):
         if engine is not self.project.factory.default_engine:
             raise exc_type, exc_value, exc_traceback
         # don't bother handling symbolic-address exceptions
-        if exc_type is SimSegfaultError:
+        if exc_type is SimSegfaultException:
             if exc_value.original_addr is not None and exc_value.original_addr.symbolic:
                 raise exc_type, exc_value, exc_traceback
+
+        l.debug("Handling exception from block at %#x", successors.addr)
 
         # If our state was just living out the rest of an unsatisfiable guard, discard it
         # it's possible this is incomplete because of implicit constraints added by memory or ccalls...
@@ -976,6 +979,7 @@ class SimWindows(SimOS):
         exc_state.regs.esp -= 0x400
         record = exc_state.regs._esp + 0x20
         context = exc_state.regs._esp + 0x100
+        # https://msdn.microsoft.com/en-us/library/windows/desktop/aa363082(v=vs.85).aspx
         exc_state.mem[record + 0x4].uint32_t = 0 # flags = continuable
         exc_state.mem[record + 0x8].uint32_t = 0 # FUCK chained exceptions
         exc_state.mem[record + 0xc].uint32_t = exc_state.regs._eip  # exceptionaddress
@@ -984,11 +988,15 @@ class SimWindows(SimOS):
         # TOTAL SIZE: 0x50
 
         # the rest of the parameters have to be set per-exception type
-        if exc_type is SimSegfaultError:
-            exc_state.mem[record].uint32_t = 0xc0000005 # EXCEPTION_ACCESS_VIOLATION
+        # https://msdn.microsoft.com/en-us/library/cc704588.aspx
+        if exc_type is SimSegfaultException:
+            exc_state.mem[record].uint32_t = 0xc0000005 # STATUS_ACCESS_VIOLATION
             exc_state.mem[record + 0x10].uint32_t = 2
             exc_state.mem[record + 0x14].uint32_t = 1 if exc_value.reason.startswith('write-') else 0
             exc_state.mem[record + 0x18].uint32_t = exc_value.addr
+        elif exc_type is SimZeroDivisionException:
+            exc_state.mem[record].uint32_t = 0xC0000094 # STATUS_INTEGER_DIVIDE_BY_ZERO
+            exc_state.mem[record + 0x10].uint32_t = 0
 
         # set up parameters to userland dispatcher
         exc_state.mem[exc_state.regs._esp].uint32_t = 0xBADC0DE # god help us if we return from this func

@@ -189,7 +189,7 @@ class SimPosixError(SimStateError):
 class SimException(SimError):
     pass
 
-class SimSegfaultError(SimException, SimMemoryError):
+class SimSegfaultException(SimException, SimMemoryError):
     def __init__(self, addr, reason, original_addr=None):
         self.addr = addr
         self.reason = reason
@@ -197,11 +197,16 @@ class SimSegfaultError(SimException, SimMemoryError):
         super(SimSegfaultError, self).__init__('%#x (%s)' % (addr, reason))
 
     def __repr__(self):
-        return 'SimSegfaultError(%#x (%s%s)' % (
+        return 'SimSegfaultException(%#x (%s%s)' % (
             self.addr,
             self.reason,
             (', original %s' % self.original_addr.__repr__(max_depth=3)) if self.original_addr is not None else ''
         )
+
+SimSegfaultError = SimSegfaultException
+
+class SimZeroDivisionException(SimException):
+    pass
 
 #
 # Error class during VEX parsing
