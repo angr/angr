@@ -777,15 +777,20 @@ class SimWindows(SimOS):
         state = super(SimWindows, self).state_entry(**kwargs)
         state.regs.sp = state.regs.sp - 0x80    # give us some stack space to work with
 
+        # fake return address from entry point
+        return_addr = self.return_deadend
         kernel32 = self.project.loader.shared_objects.get('kernel32.dll', None)
         if kernel32:
-            # fake return address from entry point
-            state.mem[state.regs.sp].dword = kernel32.get_symbol('ExitProcess').rebased_addr
+            # some programs will use the return address from start to find the kernel32 base
+            return_addr = kernel32.get_symbol('ExitProcess').rebased_addr
 
-        # first argument appears to be PEB
-        tib_addr = state.regs.fs.concat(state.solver.BVV(0, 16))
-        peb_addr = state.mem[tib_addr + 0x30].dword.resolved
-        state.mem[state.regs.sp + 4].dword = peb_addr
+        if state.arch.name == 'X86':
+            state.mem[state.regs.sp].dword = return_addr
+
+            # first argument appears to be PEB
+            tib_addr = state.regs.fs.concat(state.solver.BVV(0, 16))
+            peb_addr = state.mem[tib_addr + 0x30].dword.resolved
+            state.mem[state.regs.sp + 4].dword = peb_addr
 
         return state
 
