@@ -805,14 +805,14 @@ class SimWindows(SimOS):
         fun_stuff_addr = state.libc.mmap_base
         if fun_stuff_addr & 0xffff != 0:
             fun_stuff_addr += 0x10000 - (fun_stuff_addr & 0xffff)
-        state.libc.mmap_base = fun_stuff_addr + 0x5000
-        state.memory.map_region(fun_stuff_addr, 0x5000, claripy.BVV(3, 3))
+        state.memory.map_region(fun_stuff_addr, 0x2000, claripy.BVV(3, 3))
 
         TIB_addr = fun_stuff_addr
         PEB_addr = fun_stuff_addr + 0x1000
-        LDR_addr = fun_stuff_addr + 0x2000
 
         if state.arch.name == 'X86':
+            LDR_addr = fun_stuff_addr + 0x2000
+
             state.mem[TIB_addr + 0].dword = -1 # Initial SEH frame
             state.mem[TIB_addr + 4].dword = state.regs.sp # stack base (high addr)
             state.mem[TIB_addr + 8].dword = state.regs.sp - 0x100000 # stack limit (low addr)
@@ -830,7 +830,15 @@ class SimWindows(SimOS):
             # http://sandsprite.com/CodeStuff/Understanding_the_Peb_Loader_Data_List.html
             THUNK_SIZE = 0x100
             num_pe_objects = len(self.project.loader.all_pe_objects)
-            ALLOC_AREA = LDR_addr + THUNK_SIZE * (num_pe_objects + 1)
+            thunk_alloc_size = THUNK_SIZE * (num_pe_objects + 1)
+            string_alloc_size = sum(len(obj.binary)*2 + 2 for obj in self.project.loader.all_pe_objects)
+            total_alloc_size = thunk_alloc_size + string_alloc_size
+            if total_alloc_size & 0xfff != 0:
+                total_alloc_size += 0x1000 - (total_alloc_size & 0xfff)
+            state.memory.map_region(LDR_addr, total_alloc_size, claripy.BVV(3, 3))
+            state.libc.mmap_base = LDR_addr + total_alloc_size
+
+            string_area = LDR_addr + thunk_alloc_size
             for i, obj in enumerate(self.project.loader.all_pe_objects):
                 # Create a LDR_MODULE, we'll handle the links later...
                 obj.module_id = i+1 # HACK HACK HACK HACK
@@ -844,16 +852,16 @@ class SimWindows(SimOS):
                 tail_size = len(os.path.basename(path)) * 2
                 state.mem[addr+0x24].short = string_size
                 state.mem[addr+0x26].short = string_size
-                state.mem[addr+0x28].dword = ALLOC_AREA
+                state.mem[addr+0x28].dword = string_area
                 state.mem[addr+0x2C].short = tail_size
                 state.mem[addr+0x2E].short = tail_size
-                state.mem[addr+0x30].dword = ALLOC_AREA + string_size - tail_size
+                state.mem[addr+0x30].dword = string_area + string_size - tail_size
 
                 for j, c in enumerate(path):
                     # if this segfaults, increase the allocation size
-                    state.mem[ALLOC_AREA + j*2].short = ord(c)
-                state.mem[ALLOC_AREA + string_size].short = 0
-                ALLOC_AREA += string_size + 2
+                    state.mem[string_area + j*2].short = ord(c)
+                state.mem[string_area + string_size].short = 0
+                string_area += string_size + 2
 
             # handle the links. we construct a python list in the correct order for each, and then, uh,
             mem_order = sorted(self.project.loader.all_pe_objects, key=lambda x: x.mapped_base)
