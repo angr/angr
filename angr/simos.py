@@ -965,7 +965,7 @@ class SimWindows(SimOS):
         exc_state.mem[exc_state.regs._esp + 8].uint32_t = context
 
         # let's go let's go!
-        successors.add_successor(exc_state, self._exception_handler, exc_state.solver.true, 'Ijk_Exception')
+        successors.add_successor(exc_state, self._exception_handler, exc_state.scratch.guard, 'Ijk_Exception')
         successors.processed = True
 
     # these two methods load and store register state from a struct CONTEXT
