@@ -135,12 +135,14 @@ class SimError(Exception):
     stmt_idx = None
     ins_addr = None
     executed_instruction_count = None
+    guard = None
 
     def record_state(self, state):
         self.bbl_addr = state.scratch.bbl_addr
         self.stmt_idx = state.scratch.stmt_idx
         self.ins_addr = state.scratch.ins_addr
         self.executed_instruction_count = state.history.recent_instruction_count
+        self.guard = state.scratch.guard
         return self
 
 #

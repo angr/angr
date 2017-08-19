@@ -906,6 +906,12 @@ class SimWindows(SimOS):
             if exc_value.original_addr is not None and exc_value.original_addr.symbolic:
                 raise exc_type, exc_value, exc_traceback
 
+        # If our state was just living out the rest of an unsatisfiable guard, discard it
+        # it's possible this is incomplete because of implicit constraints added by memory or ccalls...
+        if not successors.initial_state.satisfiable(extra_constraints=(exc_value.guard,)):
+            successors.processed = True
+            return
+
         # we'll need to wind up to the exception to get the correct state to resume from...
         # exc will be a SimError, for sure
         # executed_instruction_count is incremented when we see an imark BUT it starts at -1, so this is the correct val
@@ -913,12 +919,24 @@ class SimWindows(SimOS):
         if num_inst >= 1:
             # scary...
             try:
-                # what would marking this as "inline" do?
                 r = self.project.factory.default_engine.process(successors.initial_state, num_inst=num_inst)
                 if len(r.flat_successors) != 1:
-                    l.error("Got %d successors while re-executing %d instructions at %#x for exception windup", num_inst, successors.initial_state.addr)
-                    raise exc_type, exc_value, exc_traceback
-                exc_state = r.flat_successors[0]
+                    if exc_value.guard.is_true():
+                        l.error("Got %d successors while re-executing %d instructions at %#x for unconditional exception windup", num_inst, successors.initial_state.addr)
+                        raise exc_type, exc_value, exc_traceback
+                    # Try to figure out which successor is ours...
+                    _, _, canon_guard = exc_value.guard.canonicalize()
+                    for possible_succ in r.flat_successors:
+                        _, _, possible_guard = possible_succ.recent_events[-1].constraint.canonicalize()
+                        if canon_guard is possible_guard:
+                            exc_state = possible_succ
+                            break
+                    else:
+                        l.error("None of the %d successors while re-executing %d instructions at %#x for conditional exception windup matched guard", num_inst, successors.initial_state.addr)
+                        raise exc_type, exc_value, exc_traceback
+
+                else:
+                    exc_state = r.flat_successors[0]
             except:
                 # lol no
                 l.error("Got some weirdo error while re-executing %d instructions at %#x for exception windup", num_inst, successors.initial_state.addr)
@@ -965,7 +983,8 @@ class SimWindows(SimOS):
         exc_state.mem[exc_state.regs._esp + 8].uint32_t = context
 
         # let's go let's go!
-        successors.add_successor(exc_state, self._exception_handler, exc_state.scratch.guard, 'Ijk_Exception')
+        # we want to use a true guard here. if it's not true, then it's already been added in windup.
+        successors.add_successor(exc_state, self._exception_handler, exc_state.solver.true, 'Ijk_Exception')
         successors.processed = True
 
     # these two methods load and store register state from a struct CONTEXT
