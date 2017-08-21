@@ -11,7 +11,6 @@ l = logging.getLogger("angr.engines.light.engine")
 
 
 class SimEngineLight(SimEngine):
-
     def __init__(self, engine_type='vex'):
         super(SimEngineLight, self).__init__()
 
@@ -33,9 +32,14 @@ class SimEngineLight(SimEngine):
         self._function_summaries = kwargs.pop('function_summaries', {})
         self._process(state, None, block=kwargs.pop('block', None))
 
+    def _process(self, new_state, successors, *args, **kwargs):
+        raise NotImplementedError()
+
+    def _check(self, state, *args, **kwargs):
+        raise NotImplementedError()
+
 
 class SimEngineLightVEX(SimEngineLight):
-
     def __init__(self):
         super(SimEngineLightVEX, self).__init__()
 
@@ -47,7 +51,7 @@ class SimEngineLightVEX(SimEngineLight):
         assert block is not None
 
         # initialize local variables
-        self.tmps = { }
+        self.tmps = {}
         self.block = block
         self.state = state
         self.arch = state.arch
@@ -71,6 +75,7 @@ class SimEngineLightVEX(SimEngineLight):
 
         if self.block.vex.jumpkind == 'Ijk_Call':
             self._hl_handle_Call(stmt)
+
     #
     # Helper methods
     #
@@ -175,9 +180,13 @@ class SimEngineLightVEX(SimEngineLight):
         elif expr.op.startswith('Const'):
             return self._handle_Const(expr)
         else:
-            l.error('Unsupported Binop %s.', expr.op)
+            l.error('Unsupported Binop %s', expr.op)
 
         return None
+
+    def _handle_CCall(self, expr):
+        l.error('Unsupported expression type CCall with callee %s.' % str(expr.cee))
+        return
 
     #
     # Unary operation handlers
@@ -378,13 +387,14 @@ class SimEngineLightVEX(SimEngineLight):
     def _hl_handle_Call(self, arg):
         raise NotImplementedError('Please implement the Call handler with your own logic.')
 
+
 class SimEngineLightAIL(SimEngineLight):
     def __init__(self):
         super(SimEngineLightAIL, self).__init__(engine_type='ail')
 
     def _process(self, state, successors, block=None):
 
-        self.tmps = { }
+        self.tmps = {}
         self.block = block
         self.state = state
         self.arch = state.arch
@@ -490,7 +500,7 @@ class SimEngineLightAIL(SimEngineLight):
         try:
             return expr_0 + expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Add', [ expr_0, expr_1 ], **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Add', [expr_0, expr_1], **expr.tags)
 
     def _ail_handle_Sub(self, expr):
 
@@ -507,4 +517,4 @@ class SimEngineLightAIL(SimEngineLight):
         try:
             return expr_0 - expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Sub', [ expr_0, expr_1 ], **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Sub', [expr_0, expr_1], **expr.tags)
