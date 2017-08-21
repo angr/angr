@@ -343,22 +343,23 @@ class ReachingDefinitions(object):
         sp_def = Definition(sp, None, self.arch.initial_sp)
         self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
 
-        for arg in cc.args:
-            # initialize register parameters asd
-            if type(arg) is SimRegArg:
-                # FIXME: implement reg_offset handling in SimRegArg
-                reg_offset = self.arch.registers[arg.reg_name][0]
-                reg = Register(reg_offset, self.arch.bytes)
-                reg_def = Definition(reg, None, Parameter(reg))
-                self.register_definitions.set_object(reg.reg_offset, reg_def, reg.size)
-            # initialize stack parameters
-            elif type(arg) is SimStackArg:
-                ml = MemoryLocation(self.arch.initial_sp + arg.stack_offset, self.arch.bytes)
-                sp_offset = SpOffset(arg.size * 8, arg.stack_offset)
-                ml_def = Definition(ml, None, Parameter(sp_offset))
-                self.memory_definitions.set_object(ml.addr, ml_def, ml.size)
-            else:
-                raise TypeError('Unsupported parameter type %s.' % type(arg).__name__)
+        if cc is not None:
+            for arg in cc.args:
+                # initialize register parameters asd
+                if type(arg) is SimRegArg:
+                    # FIXME: implement reg_offset handling in SimRegArg
+                    reg_offset = self.arch.registers[arg.reg_name][0]
+                    reg = Register(reg_offset, self.arch.bytes)
+                    reg_def = Definition(reg, None, Parameter(reg))
+                    self.register_definitions.set_object(reg.reg_offset, reg_def, reg.size)
+                # initialize stack parameters
+                elif type(arg) is SimStackArg:
+                    ml = MemoryLocation(self.arch.initial_sp + arg.stack_offset, self.arch.bytes)
+                    sp_offset = SpOffset(arg.size * 8, arg.stack_offset)
+                    ml_def = Definition(ml, None, Parameter(sp_offset))
+                    self.memory_definitions.set_object(ml.addr, ml_def, ml.size)
+                else:
+                    raise TypeError('Unsupported parameter type %s.' % type(arg).__name__)
 
     def copy(self):
         rd = ReachingDefinitions(
@@ -454,8 +455,9 @@ class ReachingDefinitions(object):
 
 def get_engine(base_engine):
     class SimEngineRD(base_engine):
-        def __init__(self):
+        def __init__(self, function_handler=None):
             super(SimEngineRD, self).__init__()
+            self._function_handler = function_handler
 
         def _process(self, state, successors, block=None):
             super(SimEngineRD, self)._process(state, successors, block=block)
@@ -466,13 +468,11 @@ def get_engine(base_engine):
 
         def _handle_Stmt(self, stmt):
 
-            # FIXME: observe() should only be called once per ins_addr
             if self.state.analysis:
                 self.state.analysis.observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
 
             super(SimEngineRD, self)._handle_Stmt(stmt)
 
-            # FIXME: see above
             if self.state.analysis:
                 self.state.analysis.observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
 
@@ -666,6 +666,35 @@ def get_engine(base_engine):
 
             return res
 
+        def _handle_Sar(self, expr):
+            arg0, arg1 = expr.args
+            expr_0 = self._expr(arg0)
+            if expr_0 is None:
+                return None
+            expr_1 = self._expr(arg1)
+            if expr_1 is None:
+                return None
+
+            if type(expr_0) is not DataSet:
+                expr_0 = {expr_0}
+
+            size = expr.result_size(self.tyenv)
+            res = DataSet(set(), size)
+            for e0 in expr_0:
+                for e1 in expr_0:
+                    try:
+                        if e0 >> (size - 1) == 0:
+                            head = 0
+                        else:
+                            head = ((1 << e1) - 1) << (size - e1)
+                        res.update(head | (e0 >> e1))
+                    except TypeError as e:
+                        l.warning(e)
+                        res.update(None)
+            res = res.compact()
+
+            return res
+
         #
         # AIL statement handlers
         #
@@ -820,23 +849,32 @@ def get_engine(base_engine):
         # User defined high level statement handlers
         #
 
-        def _hl_handle_Call(self, expr):
-            pc = self.arch.registers['pc']
-            target = self.state.register_definitions.get_objects_by_offset(pc[0]).copy()
-            assert len(target) == 1, 'Pc should be uniquely assigned before a Call'
+        def _handle_function(self):
+            ip = self.arch.ip_offset
+            ip_defs = self.state.register_definitions.get_objects_by_offset(ip)
+            if len(ip_defs) != 1:
+                raise ValueError('Invalid definitions for IP')
+            ip_addr = next(iter(ip_defs)).data
+            if not isinstance(ip_addr, (int, long)):
+                raise ValueError('Invalid type %s for IP' % type(ip_addr).__name__)
 
-            target_addr = target.pop().data
-            function_name = self.state.loader.find_symbol_name(target_addr)
-
-            if function_name in self._function_summaries:
-                return self._function_summaries[function_name](self.state)
+            # FIXME: multi architecture support
+            plt_stub_name = self.state.loader.find_plt_stub_name(ip_addr)
+            if plt_stub_name is not None:
+                symbol = self.state.loader.find_symbol(plt_stub_name)
+                if symbol is not None and symbol.is_extern is True:
+                    handler_name = 'handle_%s' % symbol.name
+                    if hasattr(self._function_handler, handler_name):
+                        getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                    else:
+                        l.warning('Unsupported external function %s.', symbol.name)
 
     return SimEngineRD
 
 
 class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
     def __init__(self, func=None, block=None, max_iterations=3, track_tmps=False, observation_points=None,
-                 init_func=False, cc=None, function_summaries={}):
+                 init_func=False, cc=None, function_handler=None):
         """
 
         :param angr.knowledge.Function func:    The function to run reaching definition analysis on.
@@ -849,7 +887,8 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
                                                 OP_AFTER.
         :param bool init_func:                  Whether stack and arguments are initialized or not
         :param SimCC cc:                        Calling convention of the function
-        :param list function_summaries:         List of function summaries provided by a user
+        :param list function_handler:           Handler for functions, naming scheme: handle_<func_name>(
+                                                <ReachingDefinitions>, <Codeloc>)
         """
 
         if func is not None:
@@ -871,7 +910,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         self._function = func
         self._block = block
         self._observation_points = observation_points
-        self._function_summaries = function_summaries
+        self._function_handler = function_handler
 
         self._init_func = init_func
         self._cc = cc
@@ -888,8 +927,8 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         self._node_iterations = defaultdict(int)
         self._states = {}
 
-        self._engine_vex = get_engine(SimEngineLightVEX)()
-        self._engine_ail = get_engine(SimEngineLightAIL)()
+        self._engine_vex = get_engine(SimEngineLightVEX)(function_handler)
+        self._engine_ail = get_engine(SimEngineLightAIL)(function_handler)
 
         self.observed_results = {}
 
@@ -908,8 +947,10 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
     def observe(self, ins_addr, stmt, block, state, ob_type):
         if self._observation_points is not None:
             if (ins_addr, ob_type) in self._observation_points:
+                # OP_BEFORE: stmt has to be IMark
                 if ob_type == OP_BEFORE and type(stmt) is pyvex.IRStmt.IMark:
                     self.observed_results[(ins_addr, ob_type)] = state.copy()
+                # OP_AFTER: stmt has to be last stmt of block or next stmt has to be IMark
                 elif ob_type == OP_AFTER:
                     idx = block.vex.statements.index(stmt)
                     if idx == len(block.vex.statements) - 1 or type(
@@ -948,7 +989,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
 
         state = input_state.copy()
 
-        engine.process(state, block=block, function_summaries=self._function_summaries)
+        engine.process(state, block=block)
 
         # clear the tmp store
         # state.tmp_uses.clear()
