@@ -87,14 +87,21 @@ class SimEngineLightVEX(SimEngineLight):
         if hasattr(self, handler):
             getattr(self, handler)(stmt)
         else:
-            l.warning('Unsupported statement type %s.', type(stmt).__name__)
+            l.error('Unsupported statement type %s.', type(stmt).__name__)
 
+    # synchronize with function _handle_WrTmpData()
     def _handle_WrTmp(self, stmt):
         data = self._expr(stmt.data)
         if data is None:
             return
 
         self.tmps[stmt.tmp] = data
+
+    # invoked by LoadG
+    def _handle_WrTmpData(self, tmp, data):
+        if data is None:
+            return
+        self.tmps[tmp] = data
 
     def _handle_Put(self, stmt):
         raise NotImplementedError('Please implement the Put handler with your own logic.')
@@ -112,7 +119,7 @@ class SimEngineLightVEX(SimEngineLight):
         if hasattr(self, handler):
             return getattr(self, handler)(expr)
         else:
-            l.warning('Unsupported expression type %s.', type(expr).__name__)
+            l.error('Unsupported expression type %s.', type(expr).__name__)
         return None
 
     def _handle_RdTmp(self, expr):
@@ -130,12 +137,12 @@ class SimEngineLightVEX(SimEngineLight):
 
     def _handle_Unop(self, expr):
         simop = vex_operations[expr.op]
-        if simop._conversion:
+        if simop.op_attrs['conversion']:
             return self._handle_Conversion(expr)
         elif expr.op.startswith('Iop_Not1'):
             return self._handle_Not1(expr)
         else:
-            l.warning('Unsupported Unop %s.', expr.op)
+            l.error('Unsupported Unop %s.', expr.op)
 
         return None
 
@@ -168,7 +175,7 @@ class SimEngineLightVEX(SimEngineLight):
         elif expr.op.startswith('Const'):
             return self._handle_Const(expr)
         else:
-            l.warning('Unsupported Binop %s', expr.op)
+            l.error('Unsupported Binop %s.', expr.op)
 
         return None
 
@@ -185,10 +192,10 @@ class SimEngineLightVEX(SimEngineLight):
         if expr_0 is None:
             return None
 
-        try:
-            return expr_0 != 1
-        except TypeError:
-            return None
+        if not isinstance(expr_0, (int, long)):
+            l.warning('Comparison of multiple values / different types: \'%s\'.', type(expr_0).__name__)
+
+        return expr_0 != 1
 
     #
     # Binary operation handlers
@@ -205,7 +212,8 @@ class SimEngineLightVEX(SimEngineLight):
 
         try:
             return expr_0 & expr_1
-        except TypeError:
+        except TypeError as e:
+            l.warning(e)
             return None
 
     def _handle_Or(self, expr):
@@ -219,7 +227,8 @@ class SimEngineLightVEX(SimEngineLight):
 
         try:
             return expr_0 | expr_1
-        except TypeError:
+        except TypeError as e:
+            l.warning(e)
             return None
 
     def _handle_Add(self, expr):
@@ -235,7 +244,8 @@ class SimEngineLightVEX(SimEngineLight):
         mask = (1 << expr.result_size(self.tyenv)) - 1
         try:
             return (expr_0 + expr_1) & mask
-        except TypeError:
+        except TypeError as e:
+            l.warning(e)
             return None
 
     def _handle_Sub(self, expr):
@@ -251,7 +261,8 @@ class SimEngineLightVEX(SimEngineLight):
         mask = (1 << expr.result_size(self.tyenv)) - 1
         try:
             return (expr_0 - expr_1) & mask
-        except TypeError:
+        except TypeError as e:
+            l.warning(e)
             return None
 
     def _handle_Xor(self, expr):
@@ -265,7 +276,8 @@ class SimEngineLightVEX(SimEngineLight):
 
         try:
             return expr_0 ^ expr_1
-        except TypeError:
+        except TypeError as e:
+            l.warning(e)
             return None
 
     def _handle_Shl(self, expr):
@@ -281,7 +293,8 @@ class SimEngineLightVEX(SimEngineLight):
         mask = (1 << expr.result_size(self.tyenv)) - 1
         try:
             return (expr_0 << expr_1) & mask
-        except TypeError:
+        except TypeError as e:
+            l.warning(e)
             return None
 
     def _handle_Shr(self, expr):
@@ -295,7 +308,8 @@ class SimEngineLightVEX(SimEngineLight):
 
         try:
             return expr_0 >> expr_1
-        except TypeError:
+        except TypeError as e:
+            l.warning(e)
             return None
 
     def _handle_Sar(self, expr):
@@ -315,7 +329,8 @@ class SimEngineLightVEX(SimEngineLight):
             head = ((1 << expr_1) - 1) << (size - expr_1)
         try:
             return head | (expr_0 >> expr_1)
-        except TypeError:
+        except TypeError as e:
+            l.warning(e)
             return None
 
     def _handle_CmpEQ(self, expr):
@@ -338,10 +353,7 @@ class SimEngineLightVEX(SimEngineLight):
         if expr_1 is None:
             return None
 
-        try:
-            return expr_0 != expr_1
-        except TypeError:
-            return None
+        return expr_0 != expr_1
 
     # ppc only
     def _handle_CmpORD(self, expr):
@@ -353,15 +365,12 @@ class SimEngineLightVEX(SimEngineLight):
         if expr_1 is None:
             return None
 
-        try:
-            if expr_0 < expr_1:
-                return 0x08
-            elif expr_0 > expr_1:
-                return 0x04
-            else:
-                return 0x02
-        except TypeError:
-            return None
+        if expr_0 < expr_1:
+            return 0x08
+        elif expr_0 > expr_1:
+            return 0x04
+        else:
+            return 0x02
 
     def _handle_Const(self, expr):
         return expr.con.value
