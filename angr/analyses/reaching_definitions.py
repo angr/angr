@@ -6,13 +6,13 @@ from collections import defaultdict
 import ailment
 import pyvex
 
-from ..keyed_region import KeyedRegion
+from . import register_analysis
+from .analysis import Analysis
+from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 from ..calling_conventions import SimRegArg, SimStackArg
 from ..engines.light import SimEngineLightVEX, SimEngineLightAIL, SpOffset, RegisterOffset
 from ..engines.vex.irop import operations as vex_operations
-from .analysis import Analysis
-from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
-from . import register_analysis
+from ..keyed_region import KeyedRegion
 
 l = logging.getLogger('angr.analyses.reaching_definitions')
 
@@ -188,12 +188,24 @@ class DataSet(object):
     data must always include a set.
     """
 
-    def __init__(self, data):
+    def __init__(self, data, bits):
         assert type(data) is set
         self.data = data
+        self._bits = bits
+        self._mask = (1 << bits) - 1
+
+    @property
+    def bits(self):
+        return self._bits
+
+    @property
+    def mask(self):
+        return self._mask
 
     def update(self, data):
         if type(data) is DataSet:
+            if self.bits != data.bits:
+                ValueError('Cannot operate on DataSets with different size.')
             self.data.update(data.data)
         else:
             self.data.add(data)
@@ -206,65 +218,88 @@ class DataSet(object):
         else:
             return self
 
-    def _op(self, other, op):
+    def _un_op(self, op):
         res = set()
-        if type(other) is DataSet:
-            for d in self.data:
-                for o in other.data:
-                    if d is not None and o is not None:
-                        res.add(op(d, o))
-                    else:
-                        res.add(None)
-        else:
-            if other is None:
+
+        for s in self:
+            if s is None:
                 res.add(None)
             else:
-                for d in self.data:
-                    if d is not None:
-                        res.add(op(d, other))
-                    else:
+                try:
+                    tmp = op(s)
+                    if isinstance(tmp, (int, long)):
+                        tmp &= self._mask
+                    res.add(tmp)
+                except TypeError as e:
+                    l.warning(e)
+                    res.add(None)
+
+        return DataSet(res, self._bits).compact()
+
+    def _bin_op(self, other, op):
+        res = set()
+
+        if type(other) is not DataSet:
+            other = {other}
+        else:
+            if self._bits != other.bits:
+                ValueError('Cannot operate on DataSets with different size.')
+
+        for o in other:
+            for s in self:
+                if o is None or s is None:
+                    res.add(None)
+                else:
+                    try:
+                        tmp = op(s, o)
+                        if isinstance(tmp, (int, long)):
+                            tmp &= self._mask
+                        res.add(tmp)
+                    except TypeError as e:
+                        l.warning(e)
                         res.add(None)
 
-        return DataSet(res).compact()
+        return DataSet(res, self._bits).compact()
 
     def __add__(self, other):
-        return self._op(other, operator.add)
+        return self._bin_op(other, operator.add)
 
     def __radd__(self, other):
-        return self._op(other, operator.add)
+        return self._bin_op(other, operator.add)
 
     def __sub__(self, other):
-        return self._op(other, operator.sub)
+        return self._bin_op(other, operator.sub)
 
     def __rsub__(self, other):
-        tmp = self._op(other, operator.sub)
-        if type(tmp) is DataSet:
-            res = -tmp
+        tmp = self._bin_op(other, operator.sub)
+
+        if tmp is None:
+            return None
         else:
-            res = -tmp if tmp is not None else None
-        return res
+            try:
+                return -tmp
+            except TypeError as e:
+                l.warning(e)
+                return None
 
     def __and__(self, other):
-        return self._op(other, operator.and_)
+        return self._bin_op(other, operator.and_)
 
     def __rand__(self, other):
-        return self._op(other, operator.and_)
+        return self._bin_op(other, operator.and_)
 
     def __or__(self, other):
-        return self._op(other, operator.or_)
+        return self._bin_op(other, operator.or_)
 
     def __ror__(self, other):
-        return self._op(other, operator.or_)
+        return self._bin_op(other, operator.or_)
 
     def __neg__(self):
-        res = DataSet({-d for d in self.data if d is not None})
-        if None in self.data:
-            res.data.add(None)
-        return res
+        return self._un_op(operator.neg)
 
     def __eq__(self, other):
         if type(other) == DataSet:
-            return self.data == other.data
+            return self.data == other.data and self._bits == other.bits and self._mask == other.mask
         else:
             return False
 
@@ -272,7 +307,7 @@ class DataSet(object):
         return iter(self.data)
 
     def __str__(self):
-        return 'DataSet: ' + str(self.data)
+        return 'DataSet<%d>: %s' % (self._bits, str(self.data))
 
 
 class ReachingDefinitions(object):
@@ -501,10 +536,11 @@ def get_engine(base_engine):
                 if stmt.cvt.find('Ident') < 0:
                     l.warning('Unsupported conversion %s in LoadG.', stmt.cvt)
                 load_expr = pyvex.expr.Load(stmt.end, stmt.cvt_types[1], stmt.addr)
-                data = DataSet(set())
+                data = DataSet(set(), load_expr.result_size(self.tyenv))
                 data.update(self._expr(load_expr))
                 data.update(self._expr(stmt.alt))
-                self._handle_WrTmpData(stmt.dst, data.compact())
+                data = data.compact()
+                self._handle_WrTmpData(stmt.dst, data)
 
         def _handle_Exit(self, stmt):
             pass
@@ -526,7 +562,7 @@ def get_engine(base_engine):
             size = expr.result_size(self.tyenv)
 
             # FIXME: size, overlapping
-            data = DataSet(set())
+            data = DataSet(set(), expr.result_size(self.tyenv))
             current_defs = self.state.register_definitions.get_objects_by_offset(reg_offset)
             for current_def in current_defs:
                 if current_def.data is not None:
@@ -548,7 +584,7 @@ def get_engine(base_engine):
             if type(addr) is not DataSet:
                 addr = {addr}
 
-            data = DataSet(set())
+            data = DataSet(set(), expr.result_size(self.tyenv))
             for a in addr:
                 if a is not None:
                     current_defs = self.state.memory_definitions.get_objects_by_offset(a)
@@ -587,45 +623,44 @@ def get_engine(base_engine):
         # CAUTION: experimental
         def _handle_ITE(self, expr):
             cond = self._expr(expr.cond)
-            iffalse = self._expr(expr.iffalse)
-            iftrue = self._expr(expr.iftrue)
 
             if cond is True:
-                return iftrue
+                return self._expr(expr.iftrue)
             elif cond is False:
-                return iffalse
+                return self._expr(expr.iffalse)
             else:
                 l.info('Could not resolve condition %s for ITE.', str(cond))
-                res = DataSet(set())
-                res.update(iffalse)
-                res.update(iftrue)
+                res = DataSet(set(), expr.result_size(self.tyenv))
+                res.update(self._expr(expr.iftrue))
+                res.update(self._expr(expr.iffalse))
                 return res.compact()
 
         def _handle_Conversion(self, expr):
             simop = vex_operations[expr.op]
-            operand = self._expr(expr.args[0])
+            arg_0 = self._expr(expr.args[0])
 
-            if type(operand) is not DataSet:
-                operand = {operand}
+            if type(arg_0) is not DataSet:
+                arg_0 = {arg_0}
 
-            res = DataSet(set())
             bits = int(simop.op_attrs['to_size'])
-            for o in operand:
-                if o is None:
+            res = DataSet(set(), bits)
+            # convert operand if possible otherwise keep it unchanged
+            for a in arg_0:
+                if a is None:
                     pass
-                elif isinstance(o, (int, long)):
+                elif isinstance(a, (int, long)):
                     mask = 2 ** bits - 1
-                    o &= mask
-                elif type(o) is Parameter:
-                    if type(o.value) is Register:
-                        o.value.size = bits / 8
-                    elif type(o.value) is SpOffset:
-                        o.value.bits = bits
+                    a &= mask
+                elif type(a) is Parameter:
+                    if type(a.value) is Register:
+                        a.value.size = bits / 8
+                    elif type(a.value) is SpOffset:
+                        a.value.bits = bits
                     else:
-                        l.warning('Unsupported type Parameter->%s for conversion.', type(o.value).__name__)
+                        l.warning('Unsupported type Parameter->%s for conversion.', type(a.value).__name__)
                 else:
-                    l.warning('Unsupported type %s for conversion.', type(o).__name__)
-                res.update(o)
+                    l.warning('Unsupported type %s for conversion.', type(a).__name__)
+                res.update(a)
 
             res = res.compact()
 

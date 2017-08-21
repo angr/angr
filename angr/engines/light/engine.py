@@ -249,10 +249,13 @@ class SimEngineLightVEX(SimEngineLight):
         if expr_1 is None:
             return None
 
-        # self.tyenv is not used
-        mask = (1 << expr.result_size(self.tyenv)) - 1
         try:
-            return (expr_0 + expr_1) & mask
+            if isinstance(expr_0, (int, long)) and isinstance(expr_1, (int, long)):
+                # self.tyenv is not used
+                mask = (1 << expr.result_size(self.tyenv)) - 1
+                return (expr_0 + expr_1) & mask
+            else:
+                return expr_0 + expr_1
         except TypeError as e:
             l.warning(e)
             return None
@@ -266,10 +269,13 @@ class SimEngineLightVEX(SimEngineLight):
         if expr_1 is None:
             return None
 
-        # self.tyenv is not used
-        mask = (1 << expr.result_size(self.tyenv)) - 1
         try:
-            return (expr_0 - expr_1) & mask
+            if isinstance(expr_0, (int, long)) and isinstance(expr_1, (int, long)):
+                # self.tyenv is not used
+                mask = (1 << expr.result_size(self.tyenv)) - 1
+                return (expr_0 - expr_1) & mask
+            else:
+                return expr_0 - expr_1
         except TypeError as e:
             l.warning(e)
             return None
@@ -298,10 +304,13 @@ class SimEngineLightVEX(SimEngineLight):
         if expr_1 is None:
             return None
 
-        # self.tyenv is not used
-        mask = (1 << expr.result_size(self.tyenv)) - 1
         try:
-            return (expr_0 << expr_1) & mask
+            if isinstance(expr_0, (int, long)) and isinstance(expr_1, (int, long)):
+                # self.tyenv is not used
+                mask = (1 << expr.result_size(self.tyenv)) - 1
+                return (expr_0 << expr_1) & mask
+            else:
+                return expr_0 << expr_1
         except TypeError as e:
             l.warning(e)
             return None
