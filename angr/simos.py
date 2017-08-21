@@ -920,7 +920,7 @@ class SimWindows(SimOS):
             if exc_value.original_addr is not None and exc_value.original_addr.symbolic:
                 raise exc_type, exc_value, exc_traceback
 
-        l.debug("Handling exception from block at %#x", successors.addr)
+        l.debug("Handling exception from block at %#x: %r", successors.addr, exc_value)
 
         # If our state was just living out the rest of an unsatisfiable guard, discard it
         # it's possible this is incomplete because of implicit constraints added by memory or ccalls...
