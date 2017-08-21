@@ -32,8 +32,7 @@ class Atom(object):
 
 
 class Tmp(Atom):
-
-    __slots__ = [ 'tmp_idx' ]
+    __slots__ = ['tmp_idx']
 
     def __init__(self, tmp_idx):
         super(Tmp, self).__init__()
@@ -44,15 +43,14 @@ class Tmp(Atom):
 
     def __eq__(self, other):
         return type(other) is Tmp and \
-                self.tmp_idx == other.tmp_idx
+               self.tmp_idx == other.tmp_idx
 
     def __hash__(self):
         return hash(('tmp', self.tmp_idx))
 
 
 class Register(Atom):
-
-    __slots__ = [ 'reg_offset', 'size' ]
+    __slots__ = ['reg_offset', 'size']
 
     def __init__(self, reg_offset, size):
         super(Register, self).__init__()
@@ -65,16 +63,15 @@ class Register(Atom):
 
     def __eq__(self, other):
         return type(other) is Register and \
-                self.reg_offset == other.reg_offset and \
-                self.size == other.size
+               self.reg_offset == other.reg_offset and \
+               self.size == other.size
 
     def __hash__(self):
         return hash(('reg', self.reg_offset, self.size))
 
 
 class MemoryLocation(Atom):
-
-    __slots__ = [ 'addr', 'size' ]
+    __slots__ = ['addr', 'size']
 
     def __init__(self, addr, size):
         super(MemoryLocation, self).__init__()
@@ -91,8 +88,8 @@ class MemoryLocation(Atom):
 
     def __eq__(self, other):
         return type(other) is MemoryLocation and \
-                self.addr == other.addr and \
-                self.size == other.size
+               self.addr == other.addr and \
+               self.size == other.size
 
     def __hash__(self):
         return hash(('mem', self.addr, self.size))
@@ -419,6 +416,7 @@ class ReachingDefinitions(object):
         for current_def in current_defs:
             self.memory_uses.add_use(current_def, code_loc)
 
+
 def get_engine(base_engine):
     class SimEngineRD(base_engine):
         def __init__(self):
@@ -611,18 +609,18 @@ def get_engine(base_engine):
                 operand = {operand}
 
             res = DataSet(set())
+            bits = int(simop.op_attrs['to_size'])
             for o in operand:
                 if o is None:
                     pass
                 elif isinstance(o, (int, long)):
-                    size = simop._to_size
-                    mask = 2 ** size - 1
+                    mask = 2 ** bits - 1
                     o &= mask
                 elif type(o) is Parameter:
                     if type(o.value) is Register:
-                        o.value.size = simop._to_size / 8
+                        o.value.size = bits / 8
                     elif type(o.value) is SpOffset:
-                        o.value.bits = simop._to_size
+                        o.value.bits = bits
                     else:
                         l.warning('Unsupported type Parameter->%s for conversion.', type(o.value).__name__)
                 else:
@@ -759,25 +757,26 @@ def get_engine(base_engine):
             return MemoryLocation(addr, size)
 
         def _ail_handle_Convert(self, expr):
-            return ailment.Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, self._expr(expr.operand))
+            return ailment.Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
+                                        self._expr(expr.operand))
 
         def _ail_handle_CmpEQ(self, expr):
             op0 = self._expr(expr.operands[0])
             op1 = self._expr(expr.operands[1])
 
-            return ailment.Expr.BinaryOp(expr.idx, expr.op, [ op0, op1 ], **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], **expr.tags)
 
         def _ail_handle_CmpLE(self, expr):
             op0 = self._expr(expr.operands[0])
             op1 = self._expr(expr.operands[1])
 
-            return ailment.Expr.BinaryOp(expr.idx, expr.op, [ op0, op1 ], **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], **expr.tags)
 
         def _ail_handle_Xor(self, expr):
             op0 = self._expr(expr.operands[0])
             op1 = self._expr(expr.operands[1])
 
-            return ailment.Expr.BinaryOp(expr.idx, expr.op, [ op0, op1 ], **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], **expr.tags)
 
         def _ail_handle_Const(self, expr):
             return expr
@@ -852,12 +851,12 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
                       )
 
         self._node_iterations = defaultdict(int)
-        self._states = { }
+        self._states = {}
 
         self._engine_vex = get_engine(SimEngineLightVEX)()
         self._engine_ail = get_engine(SimEngineLightAIL)()
 
-        self.observed_results = { }
+        self.observed_results = {}
 
         self._analyze()
 
@@ -932,5 +931,6 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
 
     def _post_analysis(self):
         pass
+
 
 register_analysis(ReachingDefinitionAnalysis, "ReachingDefinitions")
