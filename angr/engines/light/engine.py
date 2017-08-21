@@ -24,12 +24,10 @@ class SimEngineLight(SimEngine):
         self.stmt_idx = None
         self.ins_addr = None
         self.tmps = None
-        self._function_summaries = {}
 
     def process(self, state, *args, **kwargs):
         # we are using a completely different state. Therefore, we directly call our _process() method before
         # SimEngine becomes flexible enough.
-        self._function_summaries = kwargs.pop('function_summaries', {})
         self._process(state, None, block=kwargs.pop('block', None))
 
     def _process(self, new_state, successors, *args, **kwargs):
@@ -74,7 +72,7 @@ class SimEngineLightVEX(SimEngineLight):
             self._handle_Stmt(stmt)
 
         if self.block.vex.jumpkind == 'Ijk_Call':
-            self._hl_handle_Call(stmt)
+            self._handle_function()
 
     #
     # Helper methods
@@ -180,20 +178,21 @@ class SimEngineLightVEX(SimEngineLight):
         elif expr.op.startswith('Const'):
             return self._handle_Const(expr)
         else:
-            l.error('Unsupported Binop %s', expr.op)
+            l.error('Unsupported Binop %s.', expr.op)
 
         return None
 
     def _handle_CCall(self, expr):
         l.error('Unsupported expression type CCall with callee %s.' % str(expr.cee))
-        return
+        return None
 
     #
     # Unary operation handlers
     #
 
     def _handle_Conversion(self, expr):
-        raise NotImplementedError('Please implement the Conversion handler with your own logic.')
+        l.error('Unsupported Unop Conversion.')
+        return None
 
     def _handle_Not1(self, expr):
         arg0 = expr.args[0]
@@ -331,25 +330,8 @@ class SimEngineLightVEX(SimEngineLight):
             return None
 
     def _handle_Sar(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
-
-        size = expr.result_size(self.tyenv)
-        # check if msb is set
-        if expr_0 >> (size - 1) == 0:
-            head = 0
-        else:
-            head = ((1 << expr_1) - 1) << (size - expr_1)
-        try:
-            return head | (expr_0 >> expr_1)
-        except TypeError as e:
-            l.warning(e)
-            return None
+        l.error('Unsupported Binop Sar.')
+        return None
 
     def _handle_CmpEQ(self, expr):
         arg0, arg1 = expr.args
@@ -393,8 +375,8 @@ class SimEngineLightVEX(SimEngineLight):
     def _handle_Const(self, expr):
         return expr.con.value
 
-    def _hl_handle_Call(self, arg):
-        raise NotImplementedError('Please implement the Call handler with your own logic.')
+    def _handle_function(self):
+        l.warning('Function handler not implemented.')
 
 
 class SimEngineLightAIL(SimEngineLight):
