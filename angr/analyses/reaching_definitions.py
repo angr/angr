@@ -326,7 +326,7 @@ class ReachingDefinitions(object):
                 ml_def = Definition(ml, None, Parameter(sp_offset))
                 self.memory_definitions.set_object(ml.addr, ml_def, ml.size)
             else:
-                raise TypeError('unsupported parameter type %s' % type(arg).__name__)
+                raise TypeError('Unsupported parameter type %s.' % type(arg).__name__)
 
     def copy(self):
         rd = ReachingDefinitions(
@@ -451,7 +451,7 @@ def get_engine(base_engine):
             data = self._expr(stmt.data)
 
             if (type(data) is DataSet and None in data) or (data is None):
-                l.info('data in register with offset %d undefined, ins_addr = 0x%x', reg_offset, self.ins_addr)
+                l.info('Data in register with offset %d undefined, ins_addr = 0x%x.', reg_offset, self.ins_addr)
 
             self.state.kill_and_add_definition(reg, self._codeloc(), data)
 
@@ -468,14 +468,14 @@ def get_engine(base_engine):
             for a in addr:
                 if a is not None:
                     if (type(data) is DataSet and None in data) or (data is None):
-                        l.info('memory at address 0x%08x undefined, ins_addr = 0x%x', a, self.ins_addr)
+                        l.info('Memory at address 0x%08x undefined, ins_addr = 0x%x.', a, self.ins_addr)
 
                     memloc = MemoryLocation(a, size)
                     # different addresses are not killed by a subsequent iteration, because kill only removes entries
                     # with same index and same size
                     self.state.kill_and_add_definition(memloc, self._codeloc(), data)
                 else:
-                    l.info('memory address undefined, ins_addr = 0x%x', self.ins_addr)
+                    l.info('Memory address undefined, ins_addr = 0x%x.', self.ins_addr)
 
         def _handle_StoreG(self, stmt):
             guard = self._expr(stmt.guard)
@@ -484,7 +484,7 @@ def get_engine(base_engine):
             elif guard is False:
                 pass
             else:
-                l.info('could not resolve guard %s for StoreG' % str(guard))
+                l.info('Could not resolve guard %s for StoreG.', str(guard))
 
         # CAUTION: experimental
         def _handle_LoadG(self, stmt):
@@ -492,7 +492,7 @@ def get_engine(base_engine):
             if guard is True:
                 # FIXME: full conversion support
                 if stmt.cvt.find('Ident') < 0:
-                    l.warning('conversion %s in LoadG not implemented' % stmt.cvt)
+                    l.warning('Unsupported conversion %s in LoadG.', stmt.cvt)
                 load_expr = pyvex.expr.Load(stmt.end, stmt.cvt_types[1], stmt.addr)
                 wr_tmp_stmt = pyvex.stmt.WrTmp(stmt.dst, load_expr)
                 self._handle_WrTmp(wr_tmp_stmt)
@@ -501,7 +501,7 @@ def get_engine(base_engine):
                 self._handle_WrTmp(wr_tmp_stmt)
             else:
                 if stmt.cvt.find('Ident') < 0:
-                    l.warning('conversion %s in LoadG not implemented' % stmt.cvt)
+                    l.warning('Unsupported conversion %s in LoadG.', stmt.cvt)
                 load_expr = pyvex.expr.Load(stmt.end, stmt.cvt_types[1], stmt.addr)
                 data = DataSet(set())
                 data.update(self._expr(load_expr))
@@ -535,7 +535,7 @@ def get_engine(base_engine):
                     # current_def.data can be a primitive type or a DataSet
                     data.update(current_def.data)
                 else:
-                    l.info('data in register with offset %d undefined, ins_addr = 0x%x', reg_offset, self.ins_addr)
+                    l.info('Data in register with offset %d undefined, ins_addr = 0x%x.', reg_offset, self.ins_addr)
             data = data.compact()
 
             self.state.add_use(Register(reg_offset, size), self._codeloc())
@@ -559,7 +559,7 @@ def get_engine(base_engine):
                             if current_def.data is not None:
                                 data.update(current_def.data)
                             else:
-                                l.info('memory at address 0x%x undefined, ins_addr = 0x%x', a, self.ins_addr)
+                                l.info('Memory at address 0x%x undefined, ins_addr = 0x%x.', a, self.ins_addr)
                     else:
                         mem = self.state.loader.memory.read_bytes(a, size)
                         if mem:
@@ -580,7 +580,7 @@ def get_engine(base_engine):
                     # FIXME: _add_memory_use() iterates over the same loop
                     self.state.add_use(MemoryLocation(a, size), self._codeloc())
                 else:
-                    l.info('memory address undefined, ins_addr = 0x%x', self.ins_addr)
+                    l.info('Memory address undefined, ins_addr = 0x%x.', self.ins_addr)
 
             data = data.compact()
 
@@ -597,7 +597,7 @@ def get_engine(base_engine):
             elif cond is False:
                 return iffalse
             else:
-                l.info('could not resolve condition %s for ITE' % str(cond))
+                l.info('Could not resolve condition %s for ITE.', str(cond))
                 res = DataSet(set())
                 res.update(iffalse)
                 res.update(iftrue)
@@ -624,9 +624,9 @@ def get_engine(base_engine):
                     elif type(o.value) is SpOffset:
                         o.value.bits = simop._to_size
                     else:
-                        l.warning('Unsupported conversion type Parameter->%s' % type(o.value).__name__)
+                        l.warning('Unsupported type Parameter->%s for conversion.', type(o.value).__name__)
                 else:
-                    l.warning('Unsupported conversion type %s' % type(o).__name__)
+                    l.warning('Unsupported type %s for conversion.', type(o).__name__)
                 res.update(o)
 
             res = res.compact()
