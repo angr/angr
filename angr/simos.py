@@ -925,6 +925,7 @@ class SimWindows(SimOS):
         # If our state was just living out the rest of an unsatisfiable guard, discard it
         # it's possible this is incomplete because of implicit constraints added by memory or ccalls...
         if not successors.initial_state.satisfiable(extra_constraints=(exc_value.guard,)):
+            l.debug("... NOT handling unreachable exception")
             successors.processed = True
             return
 
@@ -963,14 +964,18 @@ class SimWindows(SimOS):
             exc_state.register_plugin('history', successors.initial_state.history.make_child())
             exc_state.history.recent_bbl_addrs.append(successors.initial_state.addr)
 
+        l.debug("... wound up state to %#x", exc_state.addr)
+
         # first check that we actually have an exception handler
         # we check is_true since if it's symbolic this is exploitable maybe?
         tib_addr = exc_state.regs._fs.concat(exc_state.solver.BVV(0, 16))
         if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == -1):
+            l.debug("... no handlers register")
             exc_value.args = ('Unhandled exception: %r' % exc_value,)
             raise exc_type, exc_value, exc_traceback
         # catch nested exceptions here with magic value
         if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == 0xBADFACE):
+            l.debug("... nested exception")
             exc_value.args = ('Unhandled exception: %r' % exc_value,)
             raise exc_type, exc_value, exc_traceback
 

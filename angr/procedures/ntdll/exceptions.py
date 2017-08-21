@@ -17,7 +17,7 @@ class KiUserExceptionDispatcher(angr.SimProcedure):
         self.cur_ptr = self.top_record
 
         # set magic value to detect nested exceptions
-        self.state.mem[self.tib_ptr].long = 0xBADC0DE
+        self.state.mem[self.tib_ptr].long = 0xBADFACE
 
         self.dispatch(record, context)
 
