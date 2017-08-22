@@ -439,7 +439,7 @@ class CFGBase(Analysis):
         if edge in self._graph:
             self._graph.remove_edge(*edge)
 
-    def _to_snippet(self, cfg_node=None, addr=None, size=None, thumb=None, jumpkind=None, base_state=None):
+    def _to_snippet(self, cfg_node=None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None):
         """
         Convert a CFGNode instance to a CodeNode object.
 
