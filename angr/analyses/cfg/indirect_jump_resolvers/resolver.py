@@ -1,4 +1,6 @@
 
+from ....errors import SimMemoryError
+
 
 class IndirectJumpResolver(object):
     def __init__(self, arch=None, timeless=False, base_state=None):
@@ -53,10 +55,9 @@ class IndirectJumpResolver(object):
             try:
                 if self.base_state.solver.is_true((self.base_state.memory.permissions(target) & 4) == 4):
                     return True
-            except:
+            except SimMemoryError:
                 pass
-            finally:
-                return False
+            return False
 
         if cfg._addr_in_exec_memory_regions(target):
             # the jump target is executable
