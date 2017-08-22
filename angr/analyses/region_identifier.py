@@ -125,6 +125,7 @@ class GraphRegion(object):
         out_edges = self.graph.out_edges(sub_region)
 
         self.graph.remove_node(sub_region)
+        self.graph.add_node(replace_with)
 
         for src, _ in in_edges:
             if src is sub_region:
@@ -279,6 +280,12 @@ class RegionIdentifier(Analysis):
             for node in networkx.dfs_postorder_nodes(graph):
                 succs = graph.successors(node)
                 if not succs:
+                    # the root element of the region hierarchy should always be a GraphRegion,
+                    # so we transform it into one, if necessary
+                    if not graph.predecessors(node) and not isinstance(node, GraphRegion):
+                        subgraph = networkx.DiGraph()
+                        subgraph.add_node(node)
+                        self._abstract_region(graph, GraphRegion(node, subgraph), [])
                     continue
                 # TODO: handling loops
                 # compute its region
@@ -392,6 +399,7 @@ class RegionIdentifier(Analysis):
 
         graph.remove_node(node_a)
         graph.remove_node(node_b)
+        graph.add_node(new_node)
 
         for src, _, data in in_edges:
             if src is node_b:
