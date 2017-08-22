@@ -509,32 +509,10 @@ class SimLinux(SimUserland):
         table = StringTableSpec()
 
         # Add args to string table
-        for arg in args:
-            table.add_string(arg)
-        table.add_null()
+        table.append_args(args)
 
         # Add environment to string table
-        for k, v in env.iteritems():
-            if type(k) is str:  # pylint: disable=unidiomatic-typecheck
-                k = claripy.BVV(k)
-            elif type(k) is unicode:  # pylint: disable=unidiomatic-typecheck
-                k = claripy.BVV(k.encode('utf-8'))
-            elif isinstance(k, claripy.ast.Bits):
-                pass
-            else:
-                raise TypeError("Key in env must be either string or bitvector")
-
-            if type(v) is str:  # pylint: disable=unidiomatic-typecheck
-                v = claripy.BVV(v)
-            elif type(v) is unicode:  # pylint: disable=unidiomatic-typecheck
-                v = claripy.BVV(v.encode('utf-8'))
-            elif isinstance(v, claripy.ast.Bits):
-                pass
-            else:
-                raise TypeError("Value in env must be either string or bitvector")
-
-            table.add_string(k.concat(claripy.BVV('='), v))
-        table.add_null()
+        table.append_env(env)
 
         # Prepare the auxiliary vector and add it to the end of the string table
         # TODO: Actually construct a real auxiliary vector
@@ -751,7 +729,6 @@ class SimCGC(SimUserland):
 
         return state
 
-
 class SimWindows(SimOS):
     """
     Environemnt for the Windows Win32 subsystem. Does not support syscalls currently.
@@ -773,9 +750,38 @@ class SimWindows(SimOS):
         self.project.hook(self._exception_handler, P['ntdll']['KiUserExceptionDispatcher'](library_name='ntdll.dll'))
 
     # pylint: disable=arguments-differ
-    def state_entry(self, args=None, **kwargs):
-        if args is None: args = []
+    def state_entry(self, args=None, env=None, argc=None, **kwargs):
         state = super(SimWindows, self).state_entry(**kwargs)
+
+        if args is None: args = []
+        if env is None: env = {}
+
+        # Prepare argc
+        if argc is None:
+            argc = claripy.BVV(len(args), state.arch.bits)
+        elif type(argc) in (int, long):  # pylint: disable=unidiomatic-typecheck
+            argc = claripy.BVV(argc, state.arch.bits)
+
+        # Make string table for args and env
+        table = StringTableSpec()
+        table.append_args(args)
+        table.append_env(env)
+
+        # Dump the table onto the stack, calculate pointers to args, env
+        state.memory.store(state.regs.sp - 16, claripy.BVV(0, 8*16))
+        argv = table.dump(state, state.regs.sp - 16)
+        envp = argv + ((len(args) + 1) * state.arch.bytes)
+
+        # Put argc on stack and fix the stack pointer
+        newsp = argv - state.arch.bytes
+        state.memory.store(newsp, argc, endness=state.arch.memory_endness)
+        state.regs.sp = newsp
+
+        # store argc argv envp in the posix plugin
+        state.posix.argv = argv
+        state.posix.argc = argc
+        state.posix.environ = envp
+
         state.regs.sp = state.regs.sp - 0x80    # give us some stack space to work with
 
         # fake return address from entry point
