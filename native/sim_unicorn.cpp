@@ -1,6 +1,8 @@
 #include <unicorn/unicorn.h>
 
 #include <cstring>
+#include <cstdint>
+#include <cinttypes>
 
 #include <memory>
 #include <map>
@@ -484,7 +486,7 @@ public:
 		if (after != page_cache->end()) {
 			if (address + size >= after->first) {
 				if (address >= after->first) {
-					printf("[%#llx, %#llx](%#x) overlaps with [%#llx, %#llx](%#x).\n", address, address + size, size, after->first, after->first + after->second.size, after->second.size);
+					printf("[%#" PRIx64 ", %#" PRIx64 "](%#zx) overlaps with [%#" PRIx64 ", %#" PRIx64 "](%#zx).\n", address, address + size, size, after->first, after->first + after->second.size, after->second.size);
 					// A complete overlap
 					return std::make_pair(address, size);
 				}
@@ -496,7 +498,7 @@ public:
 			if (address < before->first + before->second.size) {
 				if (address + size <= before->first + before->second.size) {
 					// A complete overlap
-					printf("[%#llx, %#llx](%#x) overlaps with [%#llx, %#llx](%#x).\n", address, address + size, size, after->first, after->first + after->second.size, after->second.size);
+					printf("[%#" PRIx64 ", %#" PRIx64 "](%#zx) overlaps with [%#" PRIx64 ", %#" PRIx64 "](%#zx).\n", address, address + size, size, after->first, after->first + after->second.size, after->second.size);
 					return std::make_pair(address, size);
 				}
 				size = address + size - (before->first + before->second.size);
