@@ -213,6 +213,8 @@ class Clinic(Analysis):
             ail_block = self._blocks.get((node.addr, node.size), node)
             node_to_block_mapping[node] = ail_block
 
+            self.graph.add_node(ail_block)
+
         for src_node, dst_node, data in self.function.transition_graph.edges_iter(data=True):
             src = node_to_block_mapping[src_node]
             dst = node_to_block_mapping[dst_node]
