@@ -618,6 +618,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  data_type_guessing_handlers=None,
                  arch_options=None,
                  indirect_jump_resolvers=None,
+                 base_state=None,
                  start=None,  # deprecated
                  end=None,  # deprecated
                  **extra_arch_options
@@ -652,6 +653,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :param list indirect_jump_resolvers: A custom list of indirect jump resolvers. If this list is None or empty,
                                              default indirect jump resolvers specific to this architecture and binary
                                              types will be loaded.
+        :param base_state:              A state to use as a backer for all memory loads
         :param int start:               (Deprecated) The beginning address of CFG recovery.
         :param int end:                 (Deprecated) The end address of CFG recovery.
         :param CFGArchOptions arch_options: Architecture-specific options.
@@ -666,7 +668,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         ForwardAnalysis.__init__(self, allow_merging=False)
-        CFGBase.__init__(self, 'fast', 0, normalize=normalize, binary=binary, force_segment=force_segment)
+        CFGBase.__init__(
+            self,
+            'fast',
+            0,
+            normalize=normalize,
+            binary=binary,
+            force_segment=force_segment,
+            base_state=base_state)
 
         # necessary warnings
         if self.project.loader._auto_load_libs is True and end is None and len(self.project.loader.all_objects) > 3:
@@ -1456,8 +1465,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 l.warning("%s is supposed to yield new exits, but it fails to do so.", name)
                 return [ ]
             blocks_ahead = [
-                self.project.factory.block(grandparent_nodes[0].addr).vex,
-                self.project.factory.block(previous_src_node.addr).vex,
+                self._lift(grandparent_nodes[0].addr).vex,
+                self._lift(previous_src_node.addr).vex,
             ]
             procedure.project = self.project
             procedure.arch = self.project.arch
@@ -1872,7 +1881,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             if empty_insn:
                 # make sure opt_level is 0
-                irsb = self.project.factory.block(addr=irsb_addr, size=irsb.size, opt_level=0).vex
+                irsb = self._lift(addr=irsb_addr, size=irsb.size, opt_level=0).vex
 
         # for each statement, collect all constants that are referenced or used.
         self._collect_data_references_core(irsb, irsb_addr)
@@ -2356,7 +2365,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             targets = None
 
             for resolver in self.indirect_jump_resolvers:
-                block = self.project.factory.block(jump.addr)
+                resolver.base_state = self._base_state
+                block = self._lift(jump.addr)
 
                 if not resolver.filter(self, jump.addr, jump.func_addr, block, jump.jumpkind):
                     continue
@@ -2446,14 +2456,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 # Not resolved
                 # Do a backward slicing from the call
-                irsb = self.project.factory.block(irsb_addr).vex
+                irsb = self._lift(irsb_addr).vex
 
                 # Start slicing from the "next"
                 b = Blade(self.graph, irsb.addr, -1, project=self.project)
 
                 # Debugging output
                 for addr, stmt_idx in sorted(list(b.slice.nodes())):
-                    irsb = self.project.factory.block(addr).vex
+                    irsb = self._lift(addr).vex
                     stmts = irsb.statements
                     print "%x: %d | " % (addr, stmt_idx),
                     print "%s" % stmts[stmt_idx],
@@ -2537,7 +2547,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # no one is calling it
                     # this function might be created from linear sweeping
                     try:
-                        block = self.project.factory.block(a.addr, size=0x10 - (a.addr % 0x10))
+                        block = self._lift(a.addr, size=0x10 - (a.addr % 0x10))
                         vex_block = block.vex
                     except SimTranslationError:
                         continue
@@ -3251,7 +3261,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                            if isinstance(stmt, pyvex.IRStmt.IMark)
                            ), 0
                           )
-        tmp_irsb = self.project.factory.block(last_imark.addr + last_imark.delta).vex
+        tmp_irsb = self._lift(last_imark.addr + last_imark.delta).vex
         # pylint:disable=too-many-nested-blocks
         for stmt in tmp_irsb.statements:
             if isinstance(stmt, pyvex.IRStmt.WrTmp):
@@ -3354,7 +3364,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 nodecode = False
                 irsb = None
                 try:
-                    irsb = self.project.factory.block(addr, size=distance).vex
+                    irsb = self._lift(addr, size=distance).vex
                 except SimTranslationError:
                     nodecode = True
 
@@ -3374,7 +3384,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         return addr_0, cfg_node.function_address, cfg_node, irsb
 
                     try:
-                        irsb = self.project.factory.block(addr_0, size=distance).vex
+                        irsb = self._lift(addr_0, size=distance).vex
                     except SimTranslationError:
                         nodecode = True
 

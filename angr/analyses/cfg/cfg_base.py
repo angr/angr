@@ -49,7 +49,7 @@ class CFGBase(Analysis):
     """
     The base class for control flow graphs.
     """
-    def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None):
+    def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None, base_state=None):
         self.sort = sort
         self._context_sensitivity_level=context_sensitivity_level
 
@@ -60,6 +60,7 @@ class CFGBase(Analysis):
         self._binary = binary if binary is not None else self.project.loader.main_object
         self._force_segment = force_segment
         self._iropt_level = iropt_level
+        self._base_state = base_state
 
         # Initialization
         self._graph = None
@@ -477,7 +478,7 @@ class CFGBase(Analysis):
         it_counter = 0
         conc_temps = {}
         can_produce_exits = set()
-        bb = self.project.factory.block(addr, thumb=True, opt_level=0)
+        bb = self._lift(addr, thumb=True, opt_level=0)
 
         for stmt in bb.vex.statements:
             if stmt.tag == 'Ist_IMark':
@@ -1760,3 +1761,11 @@ class CFGBase(Analysis):
             if data.get('jumpkind', None) == 'Ijk_FakeRet':
                 return dst
         return None
+
+    def _lift(self, *args, **kwargs):
+        """
+        Lift a basic block of code. Will use the base state as a source of bytes if possible.
+        """
+        if 'backup_state' not in kwargs:
+            kwargs['backup_state'] = self._base_state
+        return self.project.factory.block(*args, **kwargs)

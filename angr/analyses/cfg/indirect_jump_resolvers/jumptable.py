@@ -70,7 +70,10 @@ class JumpTableResolver(IndirectJumpResolver):
         self._max_targets = cfg._indirect_jump_target_limit
 
         # Perform a backward slicing from the jump target
-        b = Blade(cfg.graph, addr, -1, cfg=cfg, project=project, ignore_sp=False, ignore_bp=False, max_level=3)
+        b = Blade(cfg.graph, addr, -1,
+            cfg=cfg, project=project,
+            ignore_sp=False, ignore_bp=False,
+            max_level=3, base_state=self.base_state)
 
         stmt_loc = (addr, 'default')
         if stmt_loc not in b.slice:
@@ -83,7 +86,7 @@ class JumpTableResolver(IndirectJumpResolver):
             if len(preds) != 1:
                 return False, None
             block_addr, stmt_idx = stmt_loc = preds[0]
-            block = project.factory.block(block_addr).vex
+            block = project.factory.block(block_addr, backup_state=self.base_state).vex
             stmt = block.statements[stmt_idx]
             if isinstance(stmt, (pyvex.IRStmt.WrTmp, pyvex.IRStmt.Put)):
                 if isinstance(stmt.data, (pyvex.IRExpr.Get, pyvex.IRExpr.RdTmp)):
@@ -276,7 +279,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         for addr in sorted(stmts.keys()):
             stmt_ids = stmts[addr]
-            irsb = self.project.factory.block(addr).vex
+            irsb = self.project.factory.block(addr, backup_state=self.base_state).vex
 
             print "  ####"
             print "  #### Block %#x" % addr
