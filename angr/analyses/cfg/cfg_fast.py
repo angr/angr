@@ -2650,11 +2650,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # this is mostly because we misidentified the function beginning. In fact a is the function beginning,
                 # but somehow we thought b is the beginning
                 if a.addr + a.size == b.addr + b.size:
-                    in_edges = len([ _ for _, _, data in self.graph.in_edges(b, data=True) ])
+                    in_edges = len([ _ for _, _, data in self.graph.in_edges([b], data=True) ])
                     if in_edges == 0:
                         # we use node a to replace node b
                         # link all successors of b to a
-                        for _, dst, data in self.graph.out_edges(b, data=True):
+                        for _, dst, data in self.graph.out_edges([b], data=True):
                             self.graph.add_edge(a, dst, **data)
 
                         if b.addr in self._nodes:
