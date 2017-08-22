@@ -2580,7 +2580,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                                if next_node_addr <= i
                                                                 < next_node_addr + next_node_size
                                                                ],
-                                            thumb=a.thumb
+                                            thumb=a.thumb,
+                                            byte_string=None if a.byte_string is None else a.byte_string[nop_length:],
                                             )
                         # create edges accordingly
                         all_out_edges = self.graph.out_edges(a, data=True)
@@ -2738,6 +2739,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                               if node.addr <= i < node.addr + new_size
                                               ],
                            thumb=node.thumb,
+                           byte_string=None if node.byte_string is None else node.byte_string[:new_size]
                            )
 
         old_in_edges = self.graph.in_edges(node, data=True)
@@ -2749,10 +2751,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if successor_node_addr in self._nodes:
             successor = self._nodes[successor_node_addr]
         else:
-            successor = CFGNode(successor_node_addr, new_size, self,
+            successor_size = node.size - new_size
+            successor = CFGNode(successor_node_addr, successor_size, self,
                                 function_address=successor_node_addr if remove_function else node.function_address,
                                 instruction_addrs=[i for i in node.instruction_addrs if i >= node.addr + new_size],
                                 thumb=node.thumb,
+                                byte_string=None if node.byte_string is None else node.byte_string[new_size:]
                                 )
         self.graph.add_edge(new_node, successor, jumpkind='Ijk_Boring')
 
@@ -3375,8 +3379,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # Let's try to create the pyvex IRSB directly, since it's much faster
                 nodecode = False
                 irsb = None
+                irsb_string = None
                 try:
-                    irsb = self._lift(addr, size=distance).vex
+                    lifted_block = self._lift(addr, size=distance)
+                    irsb = lifted_block.vex
+                    irsb_string = lifted_block.bytes[:irsb.size]
                 except SimTranslationError:
                     nodecode = True
 
@@ -3396,7 +3403,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         return addr_0, cfg_node.function_address, cfg_node, irsb
 
                     try:
-                        irsb = self._lift(addr_0, size=distance).vex
+                        lifted_block = self._lift(addr_0, size=distance)
+                        irsb = lifted_block.vex
+                        irsb_string = lifted_block.bytes[:irsb.size]
                     except SimTranslationError:
                         nodecode = True
 
@@ -3429,7 +3438,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 # Create a CFG node, and add it to the graph
                 cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, block_id=addr,
-                                   irsb=irsb, thumb=is_thumb
+                                   irsb=irsb, thumb=is_thumb, byte_string=irsb_string,
                                    )
 
                 self._nodes[addr] = cfg_node
