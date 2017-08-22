@@ -370,9 +370,9 @@ class SimMemory(SimStatePlugin):
                     return ((tag_map[name] + self.load('ftop')) & 7) + self.state.arch.registers['fpu_tags'][0], 1
                 elif name in ('flags', 'eflags', 'rflags'):
                     # we tweak the state to convert the vex condition registers into the flags register
-                    self.store('cc_op', 0) # OP_COPY
                     if not is_write: # this work doesn't need to be done if we're just gonna overwrite it
                         self.store('cc_dep1', _get_flags(self.state)[0]) # TODO: can constraints be added by this?
+                    self.store('cc_op', 0) # OP_COPY
                     return self.state.arch.registers['cc_dep1'][0], self.state.arch.bytes
 
             return self.state.arch.registers[name]

@@ -1043,12 +1043,12 @@ class Unicorn(SimStatePlugin):
             gs = self.state.se.eval(self.state.regs.gs)
             self.write_msr(fs, 0xC0000100)
             self.write_msr(gs, 0xC0000101)
-            flags = self._process_value(ccall._get_flags(self.state)[0], 'reg')
+            flags = self._process_value(self.state.regs.eflags, 'reg')
             if flags is None:
                 raise SimValueError('symbolic eflags')
             uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.eval(flags))
         elif self.state.arch.qemu_name == 'i386':
-            flags = self._process_value(ccall._get_flags(self.state)[0], 'reg')
+            flags = self._process_value(self.state.regs.eflags, 'reg')
             if flags is None:
                 raise SimValueError('symbolic eflags')
             uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.se.eval(flags))
@@ -1244,8 +1244,7 @@ class Unicorn(SimStatePlugin):
                 self.state.registers.store('ip_at_syscall', self.state.regs.ip - 2)
 
             # update the eflags
-            self.state.regs.cc_dep1 = self.state.se.BVV(self.uc.reg_read(self._uc_const.UC_X86_REG_EFLAGS), self.state.arch.bits)
-            self.state.regs.cc_op = ccall.data[self.state.arch.name]['OpTypes']['G_CC_OP_COPY']
+            self.state.regs.eflags = self.state.se.BVV(self.uc.reg_read(self._uc_const.UC_X86_REG_EFLAGS), self.state.arch.bits)
 
             # sync the fp clerical data
             status = self.uc.reg_read(unicorn.x86_const.UC_X86_REG_FPSW)
