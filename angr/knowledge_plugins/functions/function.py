@@ -150,7 +150,7 @@ class Function(object):
 
         for block_addr, block in self._local_blocks.iteritems():
             try:
-                yield self._get_block(block_addr, block.size)
+                yield self._get_block(block_addr, size=block.size, byte_string=block.bytestr)
             except (SimEngineError, SimMemoryError):
                 pass
 
@@ -175,7 +175,7 @@ class Function(object):
 
         return self._local_block_addrs
 
-    def _get_block(self, addr, size=None):
+    def _get_block(self, addr, size=None, byte_string=None):
         if addr in self._block_cache:
             b = self._block_cache[addr]
             if size is None or b.size == size:
@@ -188,9 +188,7 @@ class Function(object):
             # we know the size
             size = self._block_sizes[addr]
 
-
-
-        block = self._project.factory.block(addr, size=size)
+        block = self._project.factory.block(addr, size=size, byte_string=byte_string)
         if size is None:
             # update block_size dict
             self._block_sizes[addr] = block.size
@@ -762,7 +760,7 @@ class Function(object):
 
         for b in self._local_blocks.itervalues():
             # TODO: should I call get_blocks?
-            block = self._get_block(b.addr, size=b.size)
+            block = self._get_block(b.addr, size=b.size, byte_string=b.bytestr)
             common_insns = set(block.instruction_addrs).intersection(ins_addrs)
             if common_insns:
                 blocks.append(b)
@@ -800,7 +798,7 @@ class Function(object):
         """
 
         for b in self.blocks:
-            block = self._get_block(b.addr, size=b.size)
+            block = self._get_block(b.addr, size=b.size, byte_string=b.bytestr)
             if insn_addr in block.instruction_addrs:
                 index = block.instruction_addrs.index(insn_addr)
                 if index == len(block.instruction_addrs) - 1:
