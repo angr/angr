@@ -521,8 +521,8 @@ public:
 	}
 
 	void uncache_page(uint64_t address) {
-		if (address & 0xfff != 0) {
-			printf("Warning: Address #%llx passed to uncache_page is not aligned\n", address);
+		if ((address & 0xfff) != 0) {
+			printf("Warning: Address #%" PRIx64 " passed to uncache_page is not aligned\n", address);
 			return;
 		}
 
