@@ -3051,7 +3051,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if target_node is None:
                 target_snippet = self._to_snippet(addr=addr, base_state=self._base_state)
             else:
-                target_snippet = self._to_snippet(cfg_node=self._nodes[addr])
+                target_snippet = self._to_snippet(cfg_node=target_node)
 
             if src_node is None:
                 # Add this basic block into the function manager
@@ -3093,11 +3093,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 src_snippet = self._to_snippet(cfg_node=src_node)
 
-                dst_node = self._nodes.get(ret_addr, None)
-                if dst_node is None:
-                    ret_snippet = self._to_snippet(addr=ret_addr, base_state=self._base_state)
+                if ret_addr is None:
+                    ret_snippet = None
                 else:
-                    ret_snippet = self._to_snippet(cfg_node=dst_node)
+                    dst_node = self._nodes.get(ret_addr, None)
+                    if dst_node is None:
+                        ret_snippet = self._to_snippet(addr=ret_addr, base_state=self._base_state)
+                    else:
+                        ret_snippet = self._to_snippet(cfg_node=dst_node)
 
                 self.kb.functions._add_call_to(function_addr, src_snippet, addr, ret_snippet, syscall=syscall,
                                                stmt_idx=stmt_idx, ins_addr=ins_addr,
