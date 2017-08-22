@@ -308,8 +308,8 @@ class AngrObjectFactory(object):
                      backup_state=backup_state, opt_level=opt_level, num_inst=num_inst, traceflags=traceflags
                      )
 
-    def fresh_block(self, addr, size):
-        return Block(addr, project=self._project, size=size)
+    def fresh_block(self, addr, size, backup_state=None):
+        return Block(addr, project=self._project, size=size, backup_state=backup_state)
 
     cc.SimRegArg = SimRegArg
     cc.SimStackArg = SimStackArg

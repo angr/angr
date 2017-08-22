@@ -2625,7 +2625,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # They are overlapping
 
                 try:
-                    block = self.project.factory.fresh_block(a.addr, b.addr - a.addr)
+                    block = self.project.factory.fresh_block(a.addr, b.addr - a.addr, backup_state=self._base_state)
                 except SimTranslationError:
                     a = b
                     continue
