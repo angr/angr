@@ -150,7 +150,8 @@ class Function(object):
 
         for block_addr, block in self._local_blocks.iteritems():
             try:
-                yield self._get_block(block_addr, size=block.size, byte_string=block.bytestr)
+                yield self._get_block(block_addr, size=block.size,
+                                      byte_string=block.bytestr if isinstance(block, BlockNode) else None)
             except (SimEngineError, SimMemoryError):
                 pass
 
