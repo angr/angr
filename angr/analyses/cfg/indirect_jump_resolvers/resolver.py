@@ -1,6 +1,4 @@
 
-from ....errors import SimMemoryError
-
 
 class IndirectJumpResolver(object):
     def __init__(self, arch=None, timeless=False, base_state=None):
