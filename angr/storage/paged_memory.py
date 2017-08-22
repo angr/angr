@@ -951,7 +951,7 @@ class SimPagedMemory(object):
         """
         Returns the permissions for a page at address `addr`.
 
-        If optional arugment permissions is given, set page permissions to that prior to returning permissions.
+        If optional argument permissions is given, set page permissions to that prior to returning permissions.
         """
 
         if self.state.se.symbolic(addr):
