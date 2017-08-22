@@ -696,6 +696,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._regions = regions if regions is not None else self._executable_memory_regions(None, force_segment)
         # sort it
         self._regions = sorted(self._regions, key=lambda x: x[0])
+        self._regions_size = sum((b - a) for a, b in self._regions)
 
         self._pickle_intermediate_results = pickle_intermediate_results
         self._indirect_jump_target_limit = indirect_jump_target_limit
@@ -928,7 +929,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Make sure curr_addr exists in binary
         accepted = False
-        for start, end in self._exec_mem_regions:
+        for start, end in self._regions:
             if start <= curr_addr < end:
                 # accept
                 accepted = True
@@ -1101,7 +1102,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Do not calculate progress if the user doesn't care about the progress at all
         if self._show_progressbar or self._progress_callback:
             max_percentage_stage_1 = 50.0
-            percentage = self._seg_list.occupied_size * max_percentage_stage_1 / self._exec_mem_region_size
+            percentage = self._seg_list.occupied_size * max_percentage_stage_1 / self._regions_size
             if percentage > max_percentage_stage_1:
                 percentage = max_percentage_stage_1
 
