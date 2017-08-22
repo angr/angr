@@ -160,7 +160,7 @@ public:
 			block_cache = it->second.block_cache;
 		}
 		arch = *((uc_arch*)uc); // unicorn hides all its internals...
-		mode = *((uc_mode*)((void*)uc + sizeof(uc_arch)));
+		mode = *((uc_mode*)((uc_arch*)uc + 1));
 	}
 	
 	/*
