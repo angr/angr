@@ -439,23 +439,41 @@ class CFGBase(Analysis):
         if edge in self._graph:
             self._graph.remove_edge(*edge)
 
-    def _to_snippet(self, cfg_node, jumpkind=None):
+    def _to_snippet(self, cfg_node=None, addr=None, size=None, thumb=None, jumpkind=None, base_state=None):
         """
         Convert a CFGNode instance to a CodeNode object.
 
         :param angr.analyses.CFGNode cfg_node: The CFGNode instance.
+        :param int addr: Address of the node. Only used when `cfg_node` is None.
+        :param bool thumb: Whether this is in THUMB mode or not. Only used for ARM code and when `cfg_node` is None.
+        :param str or None jumpkind: Jumpkind of this node.
+        :param SimState or None base_state: The state where BlockNode should be created from.
         :return: A converted CodeNode instance.
         :rtype: CodeNode
         """
 
-        addr = cfg_node.addr
+        if cfg_node is not None:
+            addr = cfg_node.addr
+            size = cfg_node.size
+            thumb = cfg_node.thumb
+        else:
+            addr = addr
+            size = size
+            thumb = thumb
+
+        if addr is None:
+            raise ValueError('_to_snippet(): Either cfg_node or addr must be provided.')
 
         if self.project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
             hooker = self.project._sim_procedures[addr]
             size = hooker.kwargs.get('length', 0)
             return HookNode(addr, size, type(hooker))
 
-        return BlockNode(cfg_node.addr, cfg_node.size, thumb=cfg_node.thumb)  # pylint: disable=no-member
+        if cfg_node is not None:
+            return BlockNode(addr, size, thumb=thumb, bytestr=cfg_node.byte_string)  # pylint: disable=no-member
+        else:
+            return self.project.factory.snippet(addr, size=size, jumpkind=jumpkind, thumb=thumb,
+                                                backup_state=base_state)
 
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
@@ -1584,13 +1602,14 @@ class CFGBase(Analysis):
             dst_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
 
             n = self.get_any_node(src_addr)
-            if n is None: src_node = src_addr
-            else: src_node = self._to_snippet(n)
+            if n is None: src_snippet = self._to_snippet(addr=src_addr, base_state=self._base_state)
+            else: src_snippet = self._to_snippet(cfg_node=n)
 
             fakeret_node = None if not all_edges else self._one_fakeret_node(all_edges)
-            fakeret_addr = fakeret_node.addr if fakeret_node is not None else None
+            if fakeret_node is None: fakeret_snippet = None
+            else: fakeret_snippet = self._to_snippet(cfg_node=fakeret_node)
 
-            self.kb.functions._add_call_to(src_function.addr, src_node, dst_addr, fakeret_addr, syscall=is_syscall,
+            self.kb.functions._add_call_to(src_function.addr, src_snippet, dst_addr, fakeret_snippet, syscall=is_syscall,
                                            ins_addr=ins_addr, stmt_idx=stmt_idx)
 
             if dst_function.returning:
@@ -1604,10 +1623,10 @@ class CFGBase(Analysis):
                 to_outside = not blockaddr_to_function[returning_target] is src_function
 
                 n = self.get_any_node(returning_target)
-                if n is None: returning_node = returning_target
-                else: returning_node = self._to_snippet(n)
+                if n is None: returning_snippet = self._to_snippet(addr=returning_target, base_state=self._base_state)
+                else: returning_snippet = self._to_snippet(cfg_node=n)
 
-                self.kb.functions._add_fakeret_to(src_function.addr, src_node, returning_node, confirmed=True,
+                self.kb.functions._add_fakeret_to(src_function.addr, src_snippet, returning_snippet, confirmed=True,
                                                   to_outside=to_outside
                                                   )
 
@@ -1616,11 +1635,11 @@ class CFGBase(Analysis):
             # convert src_addr and dst_addr to CodeNodes
             n = self.get_any_node(src_addr)
             if n is None: src_node = src_addr
-            else: src_node = self._to_snippet(n)
+            else: src_node = self._to_snippet(cfg_node=n)
 
             n = self.get_any_node(dst_addr)
             if n is None: dst_node = dst_addr
-            else: dst_node = self._to_snippet(n)
+            else: dst_node = self._to_snippet(cfg_node=n)
 
             # pre-check: if source and destination do not belong to the same section, it must be jumping to another
             # function
