@@ -113,7 +113,7 @@ class SimEngineUnicorn(SimEngine):
         state.history.description = description
 
         # this can be expensive, so check first
-        if state.has_plugin('inspect'):
+        if state.has_plugin('inspector'):
             for bp in state.inspect._breakpoints['irsb']:
                 if bp.check(state, BP_AFTER):
                     for bbl_addr in state.history.recent_bbl_addrs:
