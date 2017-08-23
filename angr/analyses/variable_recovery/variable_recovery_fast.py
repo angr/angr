@@ -5,11 +5,13 @@ from collections import defaultdict
 import ailment
 
 from .. import Analysis
+from ..calling_convention import CallingConventionAnalysis
 from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 from ...engines.light import SpOffset, SimEngineLightVEX, SimEngineLightAIL
 from ...errors import SimEngineError
 from ...keyed_region import KeyedRegion
+from ...knowledge_plugins import Function
 from ...sim_variable import SimStackVariable, SimRegisterVariable
 
 l = logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast")
@@ -39,6 +41,9 @@ class ProcessorState(object):
         return s
 
     def merge(self, other):
+        if not self == other:
+            l.warn("Inconsistent merge: %s %s ", self, other)
+
         # FIXME: none of the following logic makes any sense...
         if other.sp_adjusted is True:
             self.sp_adjusted = True
@@ -48,6 +53,17 @@ class ProcessorState(object):
         self.bp = max(self.bp, other.bp)
         return self
 
+    def __eq__(self, other):
+        if not isinstance(other, ProcessorState):
+            return False
+        return (self.sp_adjusted == other.sp_adjusted and
+                self.sp_adjustment == other.sp_adjustment and
+                self.bp == other.bp and
+                self.bp_as_base == other.bp_as_base)
+
+    def __repr__(self):
+        return "<ProcessorState %s%#x%s %s>" % (self.bp, self.sp_adjustment,
+            " adjusted" if self.sp_adjusted else "", bp_as_base)
 
 def get_engine(base_engine):
     class SimEngineVR(base_engine):
@@ -490,6 +506,8 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         # phi nodes dict
         self._cached_phi_nodes = { }
 
+        self._node_to_cc = { }
+
         self._analyze()
 
     #
@@ -497,7 +515,13 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
     #
 
     def _pre_analysis(self):
-        pass
+        CallingConventionAnalysis.recover_calling_conventions(self.project)
+
+        # initialize node_to_cc map
+        function_nodes = [n for n in self.function.transition_graph.nodes() if isinstance(n, Function)]
+        for func_node in function_nodes:
+            for callsite_node in self.function.transition_graph.predecessors(func_node):
+                self._node_to_cc[callsite_node.addr] = func_node.calling_convention
 
     def _pre_job_handling(self, job):
         pass
@@ -610,6 +634,13 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
 
         processor = self._ail_engine if isinstance(block, ailment.Block) else self._vex_engine
         processor.process(state, block=block, fail_fast=self._fail_fast)
+
+        # readjusting sp at the end for blocks that end in a call
+        if block.addr in self._node_to_cc:
+            cc = self._node_to_cc[block.addr]
+            state.processor_state.sp_adjustment += cc.sp_delta
+            state.processor_state.sp_adjusted = True
+            l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.', block.addr, state.processor_state.sp_adjustment)
 
     def _make_phi_node(self, block_addr, *variables):
 
