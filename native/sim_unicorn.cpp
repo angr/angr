@@ -9,6 +9,7 @@
 #include <vector>
 #include <unordered_set>
 #include <unordered_map>
+#include <set>
 
 extern "C" {
 #include <libvex.h>
@@ -19,6 +20,10 @@ extern "C" {
 #define PAGE_SHIFT 12
 
 #define MAX_REG_SIZE 0x2000 // hope it's big enough
+
+// Maximum size of a qemu/unicorn basic block
+// See State::step for why this is necessary
+static const uint32_t MAX_BB_SIZE = 800;
 
 extern "C" void x86_reg_update(uc_engine *uc, uint8_t *buf, int save);
 extern "C" void mips_reg_update(uc_engine *uc, uint8_t *buf, int save);
@@ -103,7 +108,7 @@ private:
 
 	std::vector<mem_access_t> mem_writes;
 	std::map<uint64_t, taint_t *> active_pages;
-	std::unordered_set<uint64_t> stop_points;
+	std::set<uint64_t> stop_points;
 
 public:
 	std::vector<uint64_t> bbl_addrs;
@@ -298,8 +303,25 @@ public:
 
 		if (cur_steps >= max_steps) {
 			stop(STOP_NORMAL);
-		} else if (check_stop_points && stop_points.count(current_address) == 1) {
-			stop(STOP_STOPPOINT);
+		} else if (check_stop_points) {
+			// If size is zero, that means that the current basic block was too large for qemu
+			// and it got split into multiple parts. unicorn will only call this hook for the
+			// first part and not for the remaining ones, so it is impossible to find the
+			// accurate size of the BB block here.
+			//
+			// See https://github.com/unicorn-engine/unicorn/issues/874
+			//
+			// Until that is resolved, we use the maximum size of a Qemu basic block here. This means
+			// that some stop points may not work, but there is no way to do better.
+			uint32_t real_size = size == 0 ? MAX_BB_SIZE : size;
+
+			// if there are any stop points in the current basic block, then there is no chance
+			// for us to stop in the middle of a block.
+			// since we do not support stopping in the middle of a block.
+			auto stop_point = stop_points.lower_bound(current_address);
+			if (stop_point != stop_points.end() && *stop_point < current_address + real_size) {
+				stop(STOP_STOPPOINT);
+			}
 		}
 	}
 
