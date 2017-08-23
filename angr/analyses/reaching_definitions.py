@@ -858,16 +858,23 @@ def get_engine(base_engine):
             if not isinstance(ip_addr, (int, long)):
                 raise ValueError('Invalid type %s for IP' % type(ip_addr).__name__)
 
-            # FIXME: multi architecture support
-            plt_stub_name = self.state.loader.find_plt_stub_name(ip_addr)
-            if plt_stub_name is not None:
-                symbol = self.state.loader.find_symbol(plt_stub_name)
-                if symbol is not None and symbol.is_extern is True:
-                    handler_name = 'handle_%s' % symbol.name
-                    if hasattr(self._function_handler, handler_name):
-                        getattr(self._function_handler, handler_name)(self.state, self._codeloc())
-                    else:
-                        l.warning('Unsupported external function %s.', symbol.name)
+            func_name = None
+            # Check if the address points to a plt stub or an external function
+            if self.state.loader.main_object.contains_addr(ip_addr) is True:
+                func_name = self.state.loader.find_plt_stub_name(ip_addr)
+            else:
+                symbol = self.state.loader.find_symbol(ip_addr)
+                if symbol is not None:
+                    func_name = symbol.name
+
+            if func_name:
+                handler_name = 'handle_%s' % func_name
+                if hasattr(self._function_handler, handler_name):
+                    getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                else:
+                    l.warning('Unsupported function %s.', func_name)
+            else:
+                l.warning('Cound not find function name for address 0x%08x', ip_addr)
 
     return SimEngineRD
 
