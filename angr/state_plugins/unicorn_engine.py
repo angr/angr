@@ -14,6 +14,7 @@ import time
 from ..sim_options import UNICORN_HANDLE_TRANSMIT_SYSCALL
 from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimUnicornError
 from .plugin import SimStatePlugin
+from ..misc.testing import is_testing
 
 l = logging.getLogger("angr.state_plugins.unicorn_engine")
 
@@ -993,7 +994,7 @@ class Unicorn(SimStatePlugin):
         else:
             self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
 
-        if self.time != 0 and self.steps / self.time < 10: # TODO: make this tunable
+        if not is_testing and self.time != 0 and self.steps / self.time < 10: # TODO: make this tunable
             l.info(
                 "Unicorn stepped %d block%s in %fsec (%f blocks/sec), enabling cooldown",
                 self.steps,

@@ -1,5 +1,5 @@
 import logging
-import sys
+from .testing import is_testing
 
 class Loggers(object):
     def __init__(self, default_level=logging.WARNING):
@@ -10,7 +10,7 @@ class Loggers(object):
         self.handler = CuteHandler()
         self.handler.setFormatter(logging.Formatter('%(levelname)-7s | %(asctime)-23s | %(name)-8s | %(message)s'))
 
-        if not self.detect_test_env() and len(logging.root.handlers) == 0:
+        if not is_testing and len(logging.root.handlers) == 0:
             self.enable_root_logger()
             logging.root.setLevel(self.default_level)
 
@@ -52,23 +52,6 @@ class Loggers(object):
     def setall(level):
         for name in logging.Logger.manager.loggerDict.keys():
             logging.getLogger(name).setLevel(level)
-
-    @staticmethod
-    def detect_test_env():
-        i = 0
-        while True:
-            i += 1
-            try:
-                frame_module = sys._getframe(i).f_globals.get('__name__')
-            except ValueError:
-                break
-
-            if frame_module == '__main__' or frame_module == '__console__':
-                return False
-            elif frame_module is not None and frame_module.startswith('nose.'):
-                break
-
-        return True
 
 class CuteHandler(logging.StreamHandler):
     def emit(self, record):
