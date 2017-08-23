@@ -45,6 +45,22 @@ def test_stops():
     p_normal_angr = pg_normal_angr.one_deadended
     nose.tools.assert_equal(p_normal_angr.history.bbl_addrs.hardcopy, p_normal.history.bbl_addrs.hardcopy)
 
+    # test STOP_STOPPOINT on an address that is not a basic block start
+    s_stoppoints = p.factory.call_state(p.loader.find_symbol("main").rebased_addr, 1, [], add_options=so.unicorn)
+
+    # this address is right before/after the bb for the stop_normal() function ends
+    # we should not stop there, since that code is never hit
+    stop_fake = [0x08048436, 0x08048457]
+
+    # this is an address inside main that is not the beginning of a basic block. we should stop here
+    stop_in_bb = 0x08048511
+    stop_bb = 0x0804850c # basic block of the above address
+    pg_stoppoints = p.factory.simgr(s_stoppoints).step(n=1, extra_stop_points=stop_fake + [stop_in_bb])
+    nose.tools.assert_equal(len(pg_stoppoints.active), 1) # path should not branch
+    p_stoppoints = pg_stoppoints.one_active
+    nose.tools.assert_equal(p_stoppoints.addr, stop_bb) # should stop at bb before stop_in_bb
+    _compare_trace(p_stoppoints.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 107 steps) from 0x80484b6: 1 sat>'])
+
     # test STOP_SYMBOLIC
     s_symbolic = p.factory.entry_state(args=['a', 'a'], add_options=so.unicorn)
     pg_symbolic = p.factory.simgr(s_symbolic).run()
