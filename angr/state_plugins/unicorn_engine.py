@@ -510,7 +510,7 @@ class Unicorn(SimStatePlugin):
         #l.debug('adding native hooks')
         _UC_NATIVE.hook(self._uc_state) # prefer to use native hooks
 
-        self.uc.hook_add(unicorn.UC_HOOK_MEM_UNMAPPED, self._hook_mem_unmapped, None, 1, 0)
+        self.uc.hook_add(unicorn.UC_HOOK_MEM_UNMAPPED, self._hook_mem_unmapped, None, 1)
 
         arch = self.state.arch.qemu_name
         if arch == 'x86_64':
@@ -866,7 +866,7 @@ class Unicorn(SimStatePlugin):
             _UC_NATIVE.set_transmit_sysno(self._uc_state, 2, self.transmit_addr)
 
         # just fyi there's a GDT in memory
-        _UC_NATIVE.activate(self._uc_state, 0x1000, 0x1000, 0)
+        _UC_NATIVE.activate(self._uc_state, 0x1000, 0x1000, None)
 
     def start(self, step=None):
         self.jumpkind = 'Ijk_Boring'
