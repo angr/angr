@@ -376,6 +376,9 @@ class Tracer(object):
         # make sure we only have one or zero active paths at this point
         assert len(self.simgr.active) < 2
 
+        # we will return the simgr before dropping the missed stash
+        rsimgr = self.simgr.copy()
+
         # something weird... maybe we hit a rep instruction?
         # qemu and vex have slightly different behaviors...
         if not self.simgr.active[0].se.satisfiable():
@@ -405,7 +408,7 @@ class Tracer(object):
                 l.warning("Unable to correct discrepancy between qemu and angr.")
 
         self.simgr.drop(stash='missed')
-        return self.simgr
+        return rsimgr
 
     def _grab_concretization_results(self, state):
         """
