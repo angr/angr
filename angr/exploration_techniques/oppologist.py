@@ -35,10 +35,7 @@ class Oppologist(ExplorationTechnique):
 
         irsb = self.project.factory.block(pn.addr).vex
         addrs = [ s.addr for s in irsb.statements if isinstance(s, pyvex.IRStmt.IMark) ]
-        if len(addrs) > 1:
-            stops = [ addrs[1] ]
-        else:
-            stops = None
+        stops = None
 
         pn.options.add(sim_options.UNICORN)
         pn.options.add(sim_options.UNICORN_AGGRESSIVE_CONCRETIZATION)
