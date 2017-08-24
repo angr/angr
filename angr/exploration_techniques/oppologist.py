@@ -1,6 +1,5 @@
 from collections import defaultdict
 
-import pyvex
 import claripy
 import functools
 
@@ -33,8 +32,6 @@ class Oppologist(ExplorationTechnique):
     def _oppologize(self, state, pn, **kwargs):
         l.debug("... pn: %s", pn)
 
-        irsb = self.project.factory.block(pn.addr).vex
-        addrs = [ s.addr for s in irsb.statements if isinstance(s, pyvex.IRStmt.IMark) ]
         stops = None
 
         pn.options.add(sim_options.UNICORN)
