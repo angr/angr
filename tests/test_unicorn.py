@@ -2,6 +2,7 @@ import nose
 import angr
 import pickle
 import re
+from nose.plugins.attrib import attr
 
 import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../'))
@@ -127,6 +128,7 @@ def run_similarity(binpath, depth, prehook=None):
         cc.simgr = prehook(cc.simgr)
     cc.run(depth=depth)
 
+@attr(speed='slow')
 def test_similarity_fauxware():
     def cooldown(pg):
         # gotta skip the initializers because of cpuid and RDTSC
