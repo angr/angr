@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-
+import claripy
 import logging
 l = logging.getLogger("angr.engines.vex.ccall")
 #l.setLevel(logging.DEBUG)
@@ -249,12 +248,20 @@ def pc_make_rdata(nbits, cf, pf, af, zf, sf, of, platform=None):
     return cf, pf, af, zf, sf, of
 
 def pc_make_rdata_if_necessary(nbits, cf, pf, af, zf, sf, of, platform=None):
-    return  cf.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_C'] | \
-            pf.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_P'] | \
-            af.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_A'] | \
-            zf.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'] | \
-            sf.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_S'] | \
-            of.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_O']
+
+    vec = [(data[platform]['CondBitOffsets']['G_CC_SHIFT_C'], cf),
+           (data[platform]['CondBitOffsets']['G_CC_SHIFT_P'], pf),
+           (data[platform]['CondBitOffsets']['G_CC_SHIFT_A'], af),
+           (data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'], zf),
+           (data[platform]['CondBitOffsets']['G_CC_SHIFT_S'], sf),
+           (data[platform]['CondBitOffsets']['G_CC_SHIFT_O'], of)]
+    vec.sort(reverse=True)
+    result = claripy.BVV(0, 0)
+    for offset, bit in vec:
+        current_position = 31 - result.length
+        result = result.concat(claripy.BVV(0, current_position - offset), bit)
+    result = result.concat(claripy.BVV(0, nbits - result.length))
+    return result
 
 def pc_actions_ADD(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
     data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
