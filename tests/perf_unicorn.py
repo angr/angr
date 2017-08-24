@@ -19,9 +19,6 @@ def perf_unicorn_0():
     pg_unicorn.run()
     elapsed = time.time() - start
 
-    if len(pg_unicorn.errored) > 0:
-        pg_unicorn.errored[0].debug()
-
     print "Elapsed %f sec" % elapsed
     print pg_unicorn.one_deadended
 
@@ -35,9 +32,6 @@ def perf_unicorn_1():
     start = time.time()
     pg_unicorn.run()
     elapsed = time.time() - start
-
-    if len(pg_unicorn.errored) > 0:
-        pg_unicorn.errored[0].debug()
 
     print "Elapsed %f sec" % elapsed
     print pg_unicorn.one_deadended
