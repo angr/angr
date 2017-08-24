@@ -66,10 +66,10 @@ class BlockNode(CodeNode):
         return '<BlockNode at %#x (size %d)>' % (self.addr, self.size)
 
     def __getstate__(self):
-        return (self.addr, self.size, self.bytestr)
+        return (self.addr, self.size, self.bytestr, self.thumb)
 
     def __setstate__(self, dat):
-        self.__init__(*dat)
+        self.__init__(*dat[:-1], thumb=dat[-1])
 
 
 class HookNode(CodeNode):
