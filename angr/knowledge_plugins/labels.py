@@ -117,7 +117,7 @@ class LabelsPlugin(KnowledgeBasePlugin):
         if addr not in namespace.inv and default:
             if default is True:
                 default = self._generate_default_label(addr)
-            return namespace.setdefault(addr, default)
+            return namespace.setdefault(default, addr)
 
         else:
             return namespace.inv.get(addr)
