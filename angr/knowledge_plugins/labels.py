@@ -183,7 +183,7 @@ class LabelsPlugin(KnowledgeBasePlugin):
     #
 
     def _generate_default_label(self, addr):
-        return 'lbl_%#x' % addr
+        return 'lbl_%x' % addr
 
 
 KnowledgeBasePlugin.register_default('labels', LabelsPlugin)
