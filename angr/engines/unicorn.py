@@ -126,6 +126,7 @@ class SimEngineUnicorn(SimEngine):
             successors.initial_state.unicorn.countdown_symbolic_memory = state.unicorn.countdown_symbolic_memory
             successors.initial_state.unicorn.countdown_symbolic_registers = state.unicorn.countdown_symbolic_registers
             successors.initial_state.unicorn.countdown_nonunicorn_blocks = state.unicorn.countdown_nonunicorn_blocks
+            successors.initial_state.unicorn.countdown_stop_point = state.unicorn.countdown_stop_point
             return
 
         description = 'Unicorn (%s after %d steps)' % (STOP.name_stop(state.unicorn.stop_reason), state.unicorn.steps)
@@ -153,6 +154,8 @@ class SimEngineUnicorn(SimEngine):
         state.unicorn.countdown_nonunicorn_blocks -= 1
         state.unicorn.countdown_symbolic_registers -= 1
         state.unicorn.countdown_symbolic_memory -= 1
+        state.unicorn.countdown_symbolic_memory -= 1
+        state.unicorn.countdown_stop_point -= 1
 
     #
     # Pickling

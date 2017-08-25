@@ -40,6 +40,7 @@ class Oppologist(ExplorationTechnique):
         pn.unicorn.countdown_symbolic_registers = 0
         pn.unicorn.countdown_symbolic_memory = 0
         pn.unicorn.countdown_nonunicorn_blocks = 0
+        pn.unicorn.countdown_stop_point = 0
         ss = self.project.factory.successors(pn, extra_stop_points=stops, throw=True, **kwargs)
 
         fixup = functools.partial(self._restore_state, state)

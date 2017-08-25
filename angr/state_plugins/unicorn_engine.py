@@ -268,6 +268,7 @@ class Unicorn(SimStatePlugin):
         cooldown_symbolic_registers=100,
         cooldown_symbolic_memory=100,
         cooldown_nonunicorn_blocks=100,
+        cooldown_stop_point=1,
         max_steps=1000000,
     ):
         """
@@ -292,9 +293,11 @@ class Unicorn(SimStatePlugin):
         self.cooldown_nonunicorn_blocks = cooldown_nonunicorn_blocks
         self.cooldown_symbolic_registers = cooldown_symbolic_registers
         self.cooldown_symbolic_memory = cooldown_symbolic_memory
+        self.cooldown_stop_point = cooldown_stop_point
         self.countdown_nonunicorn_blocks = 0
         self.countdown_symbolic_registers = 0
         self.countdown_symbolic_memory = 0
+        self.countdown_stop_point = 0
 
         # the default step limit
         self.max_steps = max_steps
@@ -366,6 +369,7 @@ class Unicorn(SimStatePlugin):
         u.countdown_nonunicorn_blocks = self.countdown_nonunicorn_blocks
         u.countdown_symbolic_registers = self.countdown_symbolic_registers
         u.countdown_symbolic_memory = self.countdown_symbolic_memory
+        u.countdown_stop_point = self.countdown_stop_point
         u.transmit_addr = self.transmit_addr
         u._uncache_pages = list(self._uncache_pages)
         return u
@@ -394,6 +398,10 @@ class Unicorn(SimStatePlugin):
         self.countdown_symbolic_memory = max(
             self.countdown_symbolic_memory,
             max(o.countdown_symbolic_memory for o in others)
+        )
+        self.countdown_stop_point = max(
+            self.countdown_stop_point,
+            max(o.countdown_stop_point for o in others)
         )
 
         # get a fresh unicount, just in case
@@ -981,8 +989,11 @@ class Unicorn(SimStatePlugin):
             self.state.posix.write(1, string, record.contents.count)
             i += 1
 
-        if self.stop_reason in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT, STOP.STOP_SYSCALL):
+        if self.stop_reason in (STOP.STOP_NORMAL, STOP.STOP_SYSCALL):
             self.countdown_nonunicorn_blocks = 0
+        elif self.stop_reason == STOP.STOP_STOPPOINT:
+            self.countdown_nonunicorn_blocks = 0
+            self.countdown_stop_point = self.cooldown_stop_point
         elif self.stop_reason == STOP.STOP_SYMBOLIC_REG:
             #if self.steps < 128:
             #   self.cooldown_symbolic_registers = min(self.cooldown_symbolic_registers * 2, 256)
