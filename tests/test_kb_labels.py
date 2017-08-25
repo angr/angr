@@ -32,5 +32,9 @@ def test_kb_plugins():
         nose.tools.assert_is_instance(name, (str, unicode, bytes))
         nose.tools.assert_is_instance(addr, (int, long))
 
+    # Copy check. 
+    labels_copy = labels.copy()
+    nose.tools.assert_equal(labels._namespaces, labels_copy._namespaces)
+
 if __name__ == '__main__':
     test_kb_plugins()
