@@ -60,16 +60,19 @@ class ExplorationTechnique(object):
 
     def _condition_to_lambda(self, condition, default=False):
         """
-        Translates an integer, set or list into a lambda that checks a state address against the given addresses, and the
+        Translates an integer, set, list or lambda into a lambda that checks a state address against the given addresses, and the
         other ones from the same basic block
 
-        :param condition:   An integer, set, or list to convert to a lambda.
+        :param condition:   An integer, set, list or lambda to convert to a lambda.
         :param default:     The default return value of the lambda (in case condition is None). Default: false.
 
         :returns:           A lambda that takes a state and returns the set of addresses that it matched from the condition
+                            The lambda has an `.addrs` attribute that contains the full set of the addresses at which it matches if that
+                            can be determined statically.
         """
         if condition is None:
             condition_function = lambda p: default
+            condition_function.addrs = set()
 
         elif isinstance(condition, (int, long)):
             return self._condition_to_lambda((condition,))
@@ -89,6 +92,7 @@ class ExplorationTechnique(object):
                     return addrs.intersection(set(self.project.factory.block(p.addr).instruction_addrs))
                 except (AngrError, SimError):
                     return False
+            condition_function.addrs = addrs
         elif hasattr(condition, '__call__'):
             condition_function = condition
         else:
