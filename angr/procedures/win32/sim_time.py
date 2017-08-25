@@ -98,3 +98,29 @@ class GetLocalTime(angr.SimProcedure):
         self.wMinute = dt.minute
         self.wSecond = dt.second
         self.wMilliseconds = dt.microsecond // 1000
+
+class QueryPerformanceCounter(angr.SimProcedure):
+    def run(self, ptr):
+        if angr.options.USE_SYSTEM_TIMES in self.state.options:
+            val = int(time.clock() * 1000000) + 12345678
+            self.state.mem[ptr].qword = val
+        else:
+            self.state.mem[ptr].qword = self.state.solver.BVS('QueryPerformanceCounter_result', 64)
+        return 1
+
+class GetTickCount(angr.SimProcedure):
+    def run(self, ptr):
+        if angr.options.USE_SYSTEM_TIMES in self.state.options:
+            return int(time.clock() * 1000) + 12345
+        else:
+            val = self.state.solver.BVS('GetTickCount_result', 64)
+            self.state.solver.add_constraints(val < 2**32)
+            return val
+
+class GetTickCount64(angr.SimProcedure):
+    KEY = ('sim_time', 'GetTickCount')
+    def run(self, ptr):
+        if angr.options.USE_SYSTEM_TIMES in self.state.options:
+            return int(time.clock() * 1000) + 12345
+        else:
+            return self.state.solver.BVS('GetTickCount64_result', 64)
