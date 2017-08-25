@@ -21,24 +21,30 @@ class LabelsPlugin(KnowledgeBasePlugin):
 
     _global_ns = ''
 
-    def __init__(self, kb):
+    def __init__(self, kb, copy=False):
         super(KnowledgeBasePlugin, self).__init__()
         self._namespaces = defaultdict(bidict)
 
-        # TODO: This should be done somewhere else. Here for compat reasons only.
-        for obj in kb._project.loader.all_objects:
-            for k, v in obj.symbols_by_addr.iteritems():
-                if v.name:
-                    # Original logic implies overwriting existing labels,
-                    # hence the force=True
-                    self.set_label(v.rebased_addr, v.name, force=True)
-            try:
-                for k, v in obj.plt.iteritems():
-                    # Original logic implies overwriting existing labels,
-                    # hence the force=True
-                    self.set_label(v, k, force=True)
-            except AttributeError:
-                pass
+        if not copy:
+            # TODO: This should be done somewhere else. Here for compat reasons only.
+            for obj in kb._project.loader.all_objects:
+                for k, v in obj.symbols_by_addr.iteritems():
+                    if v.name:
+                        # Original logic implies overwriting existing labels,
+                        # hence the force=True
+                        self.set_label(v.rebased_addr, v.name, force=True)
+                try:
+                    for k, v in obj.plt.iteritems():
+                        # Original logic implies overwriting existing labels,
+                        # hence the force=True
+                        self.set_label(v, k, force=True)
+                except AttributeError:
+                    pass
+
+    def copy(self):
+        o = LabelsPlugin(None, copy=True)
+        o._namespaces = self._namespaces.copy()
+        return o
 
     #
     #   ...
