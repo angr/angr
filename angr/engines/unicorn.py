@@ -53,6 +53,12 @@ class SimEngineUnicorn(SimEngine):
 
         self._countdown(state)
 
+        # should the countdown still be updated if we're not stepping a whole block?
+        # current decision: leave it updated, since we are moving forward
+        if kwargs.get("num_inst", None) is not None:
+            # we don't support single stepping with unicorn
+            return False
+
         unicorn = state.unicorn  # shorthand
         if state.regs.ip.symbolic:
             l.debug("symbolic IP!")
