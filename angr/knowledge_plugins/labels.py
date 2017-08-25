@@ -122,9 +122,13 @@ class LabelsPlugin(KnowledgeBasePlugin):
     def get_label(self, addr, ns=_global_ns, default=None):
         """Get a label that is present within the given namespace and is assigned to the specified address.
         
-        :param addr: 
-        :param ns: 
-        :param default:
+        :param addr:    The address for which the label is assigned.
+        :param ns:      The namespace to look into.
+        :param default: The name of the label to assign to the address, if there is no label present.
+                        This accepts the following values: 
+                            True - assign a new label with default name; 
+                            None - don't do anything, i.e. return None if the address is not labeled; 
+                            Any other value - create a new label with the given value.
         :return: 
         """
         namespace = self._namespaces[ns]  # a shorthand
@@ -140,8 +144,8 @@ class LabelsPlugin(KnowledgeBasePlugin):
     def del_label(self, name, ns=_global_ns):
         """Delete a label that is present within the given namespace and is assigned to the specified address.
         
-        :param name: 
-        :param ns: 
+        :param name:    The name of the label which is to be deleted.
+        :param ns:      The namespace in which the given label is present.
         :return: 
         """
         namespace = self._namespaces[ns]  # a shorthand
@@ -152,11 +156,11 @@ class LabelsPlugin(KnowledgeBasePlugin):
         del namespace[name]
 
     def iter_labels(self, addr, ns_set=None):
-        """
+        """Iterate over labels that are assigned to a given address in the given set of namespaces.
         
-        :param addr: 
-        :param ns_set: 
-        :return: 
+        :param addr:    An address for which to yield assigned labels.
+        :param ns_set:  A set of namespaces to work with.
+        :return:        Tuples of (namespace, label).
         """
         if ns_set is None:
             ns_set = set(self._namespaces)
@@ -173,11 +177,11 @@ class LabelsPlugin(KnowledgeBasePlugin):
     #
 
     def get_addr(self, name, ns=_global_ns, default=None):
-        """
+        """Get the address for the label in the given namespace.
         
-        :param name: 
-        :param ns: 
-        :param default: 
+        :param name:    The label name.
+        :param ns:      The namespace to look into.
+        :param default: Default value if the label is not present in the given namespace.
         :return: 
         """
         namespace = self._namespaces[ns]  # a shorthand
@@ -189,6 +193,11 @@ class LabelsPlugin(KnowledgeBasePlugin):
     #
 
     def _generate_default_label(self, addr):
+        """Generate a default label for the given address.
+        
+        :param addr:    The address to generate a label for.
+        :return:        A default label for the given address.
+        """
         return 'lbl_%x' % addr
 
 
