@@ -25,14 +25,20 @@ class LabelsPlugin(KnowledgeBasePlugin):
         super(KnowledgeBasePlugin, self).__init__()
         self._namespaces = defaultdict(bidict)
 
-        # # TODO: This should be done somewhere else. Here for compat reasons only.
-        # for obj in kb._project.loader.all_objects:
-        #     for k, v in obj.symbols_by_addr.iteritems():
-        #         if v.name:
-        #             self.set_label(v.rebased_addr, v.name)
-        #     if hasattr(obj, 'plt'):
-        #         for v, k in obj.plt.iteritems():
-        #             self.set_label(v, k)
+        # TODO: This should be done somewhere else. Here for compat reasons only.
+        for obj in kb._project.loader.all_objects:
+            for k, v in obj.symbols_by_addr.iteritems():
+                if v.name:
+                    # Original logic implies overwriting existing labels,
+                    # hence the force=True
+                    self.set_label(v.rebased_addr, v.name, force=True)
+            try:
+                for k, v in obj.plt.iteritems():
+                    # Original logic implies overwriting existing labels,
+                    # hence the force=True
+                    self.set_label(v, k, force=True)
+            except AttributeError:
+                pass
 
     #
     #   ...
@@ -78,31 +84,34 @@ class LabelsPlugin(KnowledgeBasePlugin):
     #   ...
     #
 
-    def set_label(self, addr, name, ns=_global_ns):
+    def set_label(self, addr, name, ns=_global_ns, force=False):
         """Label address `addr` as `name` within namespace `namespace`
         
         :param addr:        The address to put a label on.
         :param name:        The name of the label.
         :param ns:          The namespace to register label to.
+        :param force:
 
         :return: 
         """
         namespace = self._namespaces[ns]  # a shorthand
 
-        if name in namespace:
-            # Name is already present in the namespace.
-            # Here we forbid to assigning different addresses with the same name.
-            if namespace.inv[name] != addr:
-                raise ValueError("Label '%s' is already in present in the namespace "
-                                 "'%s' with a different address %#x" % (name, ns, addr))
+        if not force:
+            if name in namespace:
+                # Name is already present in the namespace.
+                # Here we forbid assigning different addresses with the same name.
+                if namespace[name] != addr:
+                    raise ValueError("Label '%s' is already in present in the namespace "
+                                     "'%s' with an address %#x, different from %#x"
+                                     % (name, ns, namespace[name], addr))
+                # Specified address is already labeled.
+                # Here we forbid assigning different labels to a single address.
+                if addr in namespace.inv:
+                    raise ValueError("Address %#x is already labeled with '%s' "
+                                     "in the namespace '%s'" % (addr, name, ns))
 
-        elif addr not in namespace.inv:
-            # Create a new label!
-            namespace[name] = addr
-
-        else:
-            raise ValueError("Address %#x is already labeled with '%s' "
-                             "in the namespace '%s'" % (addr, name, ns))
+        # Create a new label!
+        namespace[name] = addr
 
     def get_label(self, addr, ns=_global_ns, default=None):
         """Get a label that is present within the given namespace and is assigned to the specified address.
