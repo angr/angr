@@ -72,6 +72,8 @@ class SimEngineUnicorn(SimEngine):
         if unicorn.countdown_nonunicorn_blocks > 0:
             l.info("not enough runs since last unicorn (%d)", unicorn.countdown_nonunicorn_blocks)
             return False
+        if unicorn.countdown_stop_point > 0:
+            l.info("not enough blocks since stop point (%d more)", unicorn.countdown_stop_point)
         elif o.UNICORN_SYM_REGS_SUPPORT not in state.options and not unicorn._check_registers():
             l.info("failed register check")
             unicorn.countdown_symbolic_registers = unicorn.cooldown_symbolic_registers
@@ -86,13 +88,26 @@ class SimEngineUnicorn(SimEngine):
             extra_stop_points = set(self.base_stop_points)
         else:
             # convert extra_stop_points to a set
-            if not isinstance(extra_stop_points, set):
-                extra_stop_points = set(extra_stop_points)
+            extra_stop_points = set(extra_stop_points)
             extra_stop_points.update(self.base_stop_points)
         if successors.addr in extra_stop_points:
             return  # trying to start unicorn execution on a stop point
 
         successors.sort = 'Unicorn'
+
+        # add all instruction breakpoints as extra_stop_points
+        if state.has_plugin('inspector'):
+            for bp in state.inspect._breakpoints['instruction']:
+                # if there is an instruction breakpoint on every instruction, it does not make sense
+                # to use unicorn.
+                if "instruction" not in bp.kwargs:
+                    l.info("disabling unicorn because of breakpoint on every instruction")
+                    return
+
+                # add the breakpoint to extra_stop_points. We don't care if the breakpoint is BP_BEFORE or
+                # BP_AFTER, this is only to stop unicorn when we get near a breakpoint. The breakpoint itself
+                # will then be handled by another engine that can more accurately step instruction-by-instruction.
+                extra_stop_points.add(bp.kwargs["instruction"])
 
         # initialize unicorn plugin
         state.unicorn.setup()
