@@ -162,12 +162,7 @@ class LabelsPlugin(KnowledgeBasePlugin):
         :param ns_set:  A set of namespaces to work with.
         :return:        Tuples of (namespace, label).
         """
-        if ns_set is None:
-            ns_set = set(self._namespaces)
-        elif isinstance(ns_set, Iterable):
-            ns_set = set(ns_set)
-        else:
-            raise TypeError("ns_set must be an Iterable")
+        ns_set = self._normalize_ns_set(ns_set)
 
         for ns in ns_set:
             yield ns, self.get_label(addr, ns)
@@ -188,6 +183,18 @@ class LabelsPlugin(KnowledgeBasePlugin):
 
         return namespace.get(name, default)
 
+    def iter_addrs(self, name, ns_set=None):
+        """Iterate over address that have a label with a given name in the given set of namespaces. 
+        
+        :param name:    The name of the labels.
+        :param ns_set:  A set of namespaces to work with.
+        :return:        Tuples of (namespace, addr).
+        """
+        ns_set = self._normalize_ns_set(ns_set)
+
+        for ns in ns_set:
+            yield ns, self.get_addr(name, ns)
+
     #
     #   ...
     #
@@ -199,6 +206,14 @@ class LabelsPlugin(KnowledgeBasePlugin):
         :return:        A default label for the given address.
         """
         return 'lbl_%x' % addr
+
+    def _normalize_ns_set(self, thing):
+        if thing is None:
+            return set(self._namespaces)
+        elif isinstance(thing, Iterable):
+            return set(thing)
+        else:
+            raise TypeError("ns_set must be an instance of Iterable")
 
 
 KnowledgeBasePlugin.register_default('labels', LabelsPlugin)
