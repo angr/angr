@@ -15,6 +15,12 @@ def test_kb_plugins():
     labels.set_label(0x1000, 'label2', 'bar')
     labels.set_label(0x2000, 'label1', 'bar')
 
+    with nose.tools.assert_raises(ValueError):
+        labels.set_label(0x3000, 'label1', 'foo')
+
+    with nose.tools.assert_raises(ValueError):
+        labels.set_label(0x2000, 'label3', 'bar')
+
     nose.tools.assert_equal(labels.get_label(0x1000, 'foo'), 'label1')
     nose.tools.assert_equal(labels.get_label(0x1000, 'bar'), 'label2')
     nose.tools.assert_equal(labels.get_label(0x2000, 'foo'), 'label2')
