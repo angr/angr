@@ -65,6 +65,10 @@ class LabelsPlugin(KnowledgeBasePlugin):
         return self._global_namespace[k]
 
     def __setitem__(self, k, v):
+        if self.get_addr(k) is not None:
+            self.del_label(k)
+        elif self.get_label(v) is not None:
+            self.del_addr(v)
         self.set_label(v, k)
 
     def __delitem__(self, k):
