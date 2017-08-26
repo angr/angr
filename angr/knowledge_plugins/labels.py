@@ -142,7 +142,7 @@ class LabelsPlugin(KnowledgeBasePlugin):
             return namespace.inv.get(addr)
 
     def del_label(self, name, ns=_global_ns):
-        """Delete a label that is present within the given namespace and is assigned to the specified address.
+        """Delete a label that is present within the given namespace.
         
         :param name:    The name of the label which is to be deleted.
         :param ns:      The namespace in which the given label is present.
