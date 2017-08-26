@@ -183,6 +183,20 @@ class LabelsPlugin(KnowledgeBasePlugin):
 
         return namespace.get(name, default)
 
+    def del_addr(self, addr, ns=_global_ns):
+        """Delete a label that is assigned to the given address within the given namespace.
+
+        :param addr:    The address from which to remove a label in the given namespace.
+        :param ns:      The namespace in which the given address is present.
+        :return: 
+        """
+        namespace = self._namespaces[ns]  # a shorthand
+
+        if addr not in namespace.inv:
+            raise ValueError("Namespace '%s' doesn't have a label on address %#x" % (ns, addr))
+
+        del namespace.inv[addr]
+
     def iter_addrs(self, name, ns_set=None):
         """Iterate over address that have a label with a given name in the given set of namespaces. 
         
