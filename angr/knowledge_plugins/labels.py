@@ -103,18 +103,18 @@ class LabelsPlugin(KnowledgeBasePlugin):
         """
         namespace = self._namespaces[ns]  # a shorthand
 
-        if name in namespace:
-            # Name is already present in the namespace.
-            # Here we forbid assigning different addresses with the same name.
-            if namespace[name] != addr:
-                raise ValueError("Label '%s' is already in present in the namespace "
-                                 "'%s' with an address %#x, different from %#x"
-                                 % (name, ns, namespace[name], addr))
-            # Specified address is already labeled.
-            # Here we forbid assigning different labels to a single address.
-            if addr in namespace.inv:
-                raise ValueError("Address %#x is already labeled with '%s' "
-                                 "in the namespace '%s'" % (addr, name, ns))
+        # Name is already present in the namespace.
+        # Here we forbid assigning different addresses with the same name.
+        if name in namespace and namespace[name] != addr:
+            raise ValueError("Label '%s' is already in present in the namespace "
+                             "'%s' with an address %#x, different from %#x"
+                             % (name, ns, namespace[name], addr))
+
+        # Specified address is already labeled.
+        # Here we forbid assigning different labels to a single address.
+        if addr in namespace.inv and namespace.inv[addr] != name:
+            raise ValueError("Address %#x is already labeled with '%s' "
+                             "in the namespace '%s'" % (addr, name, ns))
 
         # Create a new label!
         namespace[name] = addr
