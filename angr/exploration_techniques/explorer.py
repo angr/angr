@@ -58,7 +58,7 @@ class Explorer(ExplorationTechnique):
                 l.error("Usage of the CFG has been disabled for this explorer.")
                 self.cfg = None
                 return
-            find = find.addrs
+            find = self.find.addrs
 
             for a in avoid:
                 if cfg.get_any_node(a) is None:
