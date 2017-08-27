@@ -2,13 +2,12 @@ import nose
 import angr
 import pickle
 import re
+from angr import options as so
 from nose.plugins.attrib import attr
 
 import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../'))
 
-import angr
-from angr import options as so
 
 
 def _remove_addr_from_trace_item(trace_item_str):
@@ -234,7 +233,8 @@ def test_concrete_transmits():
 def test_inspect():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/uc_stop'))
 
-    def main_state(argc, add_options=so.unicorn):
+    def main_state(argc, add_options=None):
+        add_options = add_options or so.unicorn
         main_addr = p.loader.find_symbol("main").rebased_addr
         return p.factory.call_state(main_addr, argc, [], add_options=add_options)
 
@@ -248,7 +248,7 @@ def test_inspect():
     hits = { addr0 : 0, addr1: 0, addr2: 0, addr3: 0, addr4: 0 }
 
     def create_addr_action(addr):
-        def action(state):
+        def action(_state):
             hits[addr] += 1
         return action
 
@@ -277,7 +277,8 @@ def test_inspect():
 def test_explore():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/uc_stop'))
 
-    def main_state(argc, add_options=so.unicorn):
+    def main_state(argc, add_options=None):
+        add_options = add_options or so.unicorn
         main_addr = p.loader.find_symbol("main").rebased_addr
         return p.factory.call_state(main_addr, argc, [], add_options=add_options)
 
@@ -297,7 +298,9 @@ def test_explore():
 def test_single_step():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/uc_stop'))
 
-    def main_state(argc, add_options=so.unicorn):
+
+    def main_state(argc, add_options=None):
+        add_options = add_options or so.unicorn
         main_addr = p.loader.find_symbol("main").rebased_addr
         return p.factory.call_state(main_addr, argc, [], add_options=add_options)
 
