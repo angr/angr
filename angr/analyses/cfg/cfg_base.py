@@ -14,7 +14,7 @@ from .cfg_node import CFGNode
 from ... import SIM_PROCEDURES
 from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError, AngrUnsupportedSyscallError
 from ...codenode import HookNode, BlockNode
-from ...knowledge_plugins import FunctionManager
+from ...knowledge_plugins import FunctionManager, Function
 
 l = logging.getLogger("angr.analyses.cfg.cfg_base")
 
@@ -859,22 +859,36 @@ class CFGBase(Analysis):
 
             # if this function has jump-out sites or ret-out sites, it returns as long as any of the target function
             # returns
-            for goout_site in func.jumpout_sites + func.retout_sites:
+            for goout_site, type_ in [ (site, 'jumpout') for site in func.jumpout_sites ] + \
+                    [ (site, 'retout') for site in func.retout_sites ]:
 
                 if func.returning:
                     # if there are multiple jump out sites and we have determined the "returning status" from one of
                     # the jump out sites, we can exit the loop early
-                    continue
+                    break
+
+                # determine where it jumps/returns to
                 goout_site_successors = goout_site.successors()
                 if not goout_site_successors:
                     # not sure where it jumps to. bail out
                     bail_out = True
                     continue
-                goout_target = goout_site_successors[0]
+
+                # for retout sites, determine what function it calls
+                if type_ == 'retout':
+                    # see whether the function being called returns or not
+                    func_successors = [ succ for succ in goout_site_successors if isinstance(succ, Function) ]
+                    if func_successors and all(func_successor.returning in (None, False) for func_successor in func_successors):
+                        # the returning of all possible function calls are undermined, or they do not return
+                        # ignore this site
+                        continue
+
+                goout_target = next(succ for succ in goout_site_successors if not isinstance(succ, Function))
                 if not self.kb.functions.contains_addr(goout_target.addr):
                     # wait it does not jump to a function?
                     bail_out = True
                     continue
+
                 target_func = self.kb.functions[goout_target.addr]
                 if target_func.returning is True:
                     func.returning = True
