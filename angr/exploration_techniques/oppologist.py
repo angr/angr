@@ -32,8 +32,6 @@ class Oppologist(ExplorationTechnique):
     def _oppologize(self, state, pn, **kwargs):
         l.debug("... pn: %s", pn)
 
-        stops = None
-
         pn.options.add(sim_options.UNICORN)
         pn.options.add(sim_options.UNICORN_AGGRESSIVE_CONCRETIZATION)
         pn.unicorn.max_steps = 1
@@ -41,7 +39,7 @@ class Oppologist(ExplorationTechnique):
         pn.unicorn.countdown_symbolic_memory = 0
         pn.unicorn.countdown_nonunicorn_blocks = 0
         pn.unicorn.countdown_stop_point = 0
-        ss = self.project.factory.successors(pn, extra_stop_points=stops, throw=True, **kwargs)
+        ss = self.project.factory.successors(pn, throw=True, **kwargs)
 
         fixup = functools.partial(self._restore_state, state)
 
