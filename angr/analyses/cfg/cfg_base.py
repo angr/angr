@@ -857,24 +857,25 @@ class CFGBase(Analysis):
 
             bail_out = False
 
-            # if this function has jump out sites, it returns as long as any of the target function returns
-            for jump_out_site in func.jumpout_sites:
+            # if this function has jump-out sites or ret-out sites, it returns as long as any of the target function
+            # returns
+            for goout_site in func.jumpout_sites + func.retout_sites:
 
                 if func.returning:
                     # if there are multiple jump out sites and we have determined the "returning status" from one of
                     # the jump out sites, we can exit the loop early
                     continue
-                jump_out_site_successors = jump_out_site.successors()
-                if not jump_out_site_successors:
+                goout_site_successors = goout_site.successors()
+                if not goout_site_successors:
                     # not sure where it jumps to. bail out
                     bail_out = True
                     continue
-                jump_out_target = jump_out_site_successors[0]
-                if not self.kb.functions.contains_addr(jump_out_target.addr):
+                goout_target = goout_site_successors[0]
+                if not self.kb.functions.contains_addr(goout_target.addr):
                     # wait it does not jump to a function?
                     bail_out = True
                     continue
-                target_func = self.kb.functions[jump_out_target.addr]
+                target_func = self.kb.functions[goout_target.addr]
                 if target_func.returning is True:
                     func.returning = True
                     changes['functions_return'].append(func)

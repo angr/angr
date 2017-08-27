@@ -95,7 +95,8 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         dst_func._register_nodes(True, node)
         self.block_map[node.addr] = node
 
-    def _add_call_to(self, function_addr, from_node, to_addr, retn_node, syscall=None, stmt_idx=None, ins_addr=None):
+    def _add_call_to(self, function_addr, from_node, to_addr, retn_node, syscall=None, stmt_idx=None, ins_addr=None,
+                     return_to_outside=False):
 
         if type(from_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
@@ -105,10 +106,15 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         if syscall in (True, False):
             dest_func.is_syscall = syscall
 
-        self._function_map[function_addr]._call_to(from_node, dest_func, retn_node, stmt_idx=stmt_idx,
-                                                   ins_addr=ins_addr
-                                                   )
-        self._function_map[function_addr]._add_call_site(from_node.addr, to_addr, retn_node.addr if retn_node else None)
+        func = self._function_map[function_addr]
+
+        func._call_to(from_node, dest_func, retn_node, stmt_idx=stmt_idx, ins_addr=ins_addr,
+                      return_to_outside=return_to_outside
+                      )
+        func._add_call_site(from_node.addr, to_addr, retn_node.addr if retn_node else None)
+
+        if return_to_outside:
+            func.add_retout_site(from_node)
 
         # is there any existing edge on the callgraph?
         edge_data = {'type': 'call'}
@@ -180,14 +186,15 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
                     edge_data not in self.callgraph[function_addr][to_function_addr].values():
                 self.callgraph.add_edge(function_addr, to_function_addr, **edge_data)
 
-    def _add_return_from_call(self, function_addr, src_function_addr, to_node):
+    def _add_return_from_call(self, function_addr, src_function_addr, to_node, to_outside=False):
 
         # Note that you will never return to a syscall
 
         if type(to_node) in (int, long):  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
-        self._function_map[function_addr]._return_from_call(
-            self._function_map[src_function_addr], to_node)
+        func = self._function_map[function_addr]
+        src_func = self._function_map[src_function_addr]
+        func._return_from_call(src_func, to_node, to_outside=to_outside)
 
     #
     # Dict methods

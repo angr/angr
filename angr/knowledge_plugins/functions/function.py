@@ -34,6 +34,8 @@ class Function(object):
         self._jumpout_sites = set()
         # block nodes at whose ends the function calls out to another non-returning function
         self._callout_sites = set()
+        # block nodes that ends the function by returning out to another function (returns outside). This is rare.
+        self._retout_sites = set()
         # block nodes (basic block nodes) at whose ends the function terminates
         # in theory, if everything works fine, endpoints == ret_sites | jumpout_sites | callout_sites
         self._endpoints = defaultdict(set)
@@ -430,6 +432,10 @@ class Function(object):
         return list(self._jumpout_sites)
 
     @property
+    def retout_sites(self):
+        return list(self._retout_sites)
+
+    @property
     def callout_sites(self):
         return list(self._callout_sites)
 
@@ -457,6 +463,26 @@ class Function(object):
         self._register_nodes(True, node)
         self._jumpout_sites.add(node)
         self._add_endpoint(node, 'transition')
+
+    def add_retout_site(self, node):
+        """
+        Add a custom retout site.
+
+        Retout (returning to outside of the function) sites are very rare. It mostly occurs during CFG recovery when we
+        incorrectly identify the beginning of a function in the first iteration, and then correctly identify that
+        function later in the same iteration (function alignments can lead to this bizarre case). We will mark all edges
+        going out of the header of that function as a outside edge, because all successors now belong to the
+        incorrectly-identified function. This identification error will be fixed in the second iteration of CFG
+        recovery. However, we still want to keep track of jumpouts/retouts during the first iteration so other logic in
+        CFG recovery still work.
+
+        :param node: The address of the basic block that control flow leaves the current function after a call.
+        :return:     None
+        """
+
+        self._register_nodes(True, node)
+        self._retout_sites.add(node)
+        self._add_endpoint(node, 'return')
 
     def _clear_transition_graph(self):
         self._block_cache = {}
@@ -513,7 +539,7 @@ class Function(object):
         # clear the cache
         self._local_transition_graph = None
 
-    def _call_to(self, from_node, to_func, ret_node, stmt_idx=None, ins_addr=None):
+    def _call_to(self, from_node, to_func, ret_node, stmt_idx=None, ins_addr=None, return_to_outside=False):
         """
         Registers an edge between the caller basic block and callee function.
 
@@ -537,7 +563,7 @@ class Function(object):
         else:
             self.transition_graph.add_edge(from_node, to_func, type='call', stmt_idx=stmt_idx, ins_addr=ins_addr)
             if ret_node is not None:
-                self._fakeret_to(from_node, ret_node)
+                self._fakeret_to(from_node, ret_node, to_outside=return_to_outside)
 
         self._local_transition_graph = None
 
@@ -560,8 +586,8 @@ class Function(object):
 
         self._local_transition_graph = None
 
-    def _return_from_call(self, from_func, to_node):
-        self.transition_graph.add_edge(from_func, to_node, type='real_return')
+    def _return_from_call(self, from_func, to_node, to_outside=False):
+        self.transition_graph.add_edge(from_func, to_node, type='real_return', to_outside=to_outside)
         for _, _, data in self.transition_graph.in_edges(to_node, data=True):
             if 'type' in data and data['type'] == 'fake_return':
                 data['confirmed'] = True
