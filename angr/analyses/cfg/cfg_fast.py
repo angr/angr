@@ -3093,6 +3093,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 src_snippet = self._to_snippet(cfg_node=src_node)
 
+                return_to_outside = False
+
                 if ret_addr is None:
                     ret_snippet = None
                 else:
@@ -3101,9 +3103,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         ret_snippet = self._to_snippet(addr=ret_addr, base_state=self._base_state)
                     else:
                         ret_snippet = self._to_snippet(cfg_node=dst_node)
+                        return_to_outside = dst_node.function_address != function_addr
 
                 self.kb.functions._add_call_to(function_addr, src_snippet, addr, ret_snippet, syscall=syscall,
                                                stmt_idx=stmt_idx, ins_addr=ins_addr,
+                                               return_to_outside=return_to_outside,
                                                )
             return True
         except (SimMemoryError, SimEngineError):
@@ -3163,10 +3167,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         return_to_node = self._nodes.get(return_to_addr, None)
         if return_to_node is None:
             return_to_snippet = self._to_snippet(addr=return_to_addr, base_state=self._base_state)
+            to_outside = False
         else:
             return_to_snippet = self._to_snippet(cfg_node=return_to_node)
+            to_outside = return_to_node.function_address != function_addr
 
-        self.kb.functions._add_return_from_call(function_addr, return_from_addr, return_to_snippet)
+        self.kb.functions._add_return_from_call(function_addr, return_from_addr, return_to_snippet,
+                                                to_outside=to_outside)
 
     #
     # Architecture-specific methods
