@@ -1214,7 +1214,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if self._resolve_indirect_jumps and self._indirect_jumps_to_resolve:
             jump_targets = list(set(self._process_indirect_jumps()))
 
-            for addr, func_addr, source_addr in jump_targets:
+            for addr, func_addr, source_addr, jumpkind in jump_targets:
                 to_outside = addr in self.functions
 
                 if not to_outside:
@@ -1224,7 +1224,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if r:
                     # TODO: get a better estimate of the function address
                     target_func_addr = func_addr if not to_outside else addr
-                    job = CFGJob(addr, target_func_addr, "Ijk_Boring", last_addr=source_addr,
+                    job = CFGJob(addr, target_func_addr, jumpkind, last_addr=source_addr,
                                  src_node=self._nodes[source_addr],
                                  src_stmt_idx=None,
                                  )
@@ -2350,8 +2350,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         Currently we support resolving the following types of indirect jumps:
         - Ijk_Call (disabled now): indirect calls where the function address is passed in from a proceeding basic block
         - Ijk_Boring: jump tables
+        - For an up-to-date list, see analyses/cfg/indirect_jump_resolvers
 
-        :return: a set of 2-tuples: (resolved indirect jump target, function address)
+        :return: a set of 4-tuples: (resolved indirect jump target, caller's func addr, caller's basic block addr, jumpkind)
         :rtype: set
         """
 
@@ -2390,7 +2391,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     ij.resolved_targets |= set(targets)
                 """
 
-                all_targets |= set([ (t, jump.func_addr, jump.addr) for t in targets ])
+                all_targets |= set([ (t, jump.func_addr, jump.addr, jump.jumpkind) for t in targets ])
 
         for jump, resolved in jumps_resolved.iteritems():
             self._indirect_jumps_to_resolve.remove(jump)
