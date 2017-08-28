@@ -287,7 +287,7 @@ common_options = common_options_without_simplification | simplification
 unicorn = { UNICORN, UNICORN_SYM_REGS_SUPPORT, INITIALIZE_ZERO_REGISTERS, UNICORN_HANDLE_TRANSMIT_SYSCALL, UNICORN_TRACK_BBL_ADDRS, UNICORN_TRACK_STACK_POINTERS }
 
 modes = { }
-modes['symbolic'] = common_options | symbolic | refs #| approximation | { VALIDATE_APPROXIMATIONS }
-modes['symbolic_approximating'] = common_options | symbolic | refs | approximation
+modes['symbolic'] = common_options | symbolic #| approximation | { VALIDATE_APPROXIMATIONS }
+modes['symbolic_approximating'] = common_options | symbolic | approximation
 modes['static'] = common_options_without_simplification | { REGION_MAPPING, BEST_EFFORT_MEMORY_STORING, SYMBOLIC_INITIAL_VALUES, DO_CCALLS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, ABSTRACT_SOLVER, USE_SIMPLIFIED_CCALLS, REVERSE_MEMORY_NAME_MAP }
-modes['fastpath'] = ((modes['symbolic'] | { TRACK_OP_ACTIONS, BEST_EFFORT_MEMORY_STORING, AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, IGNORE_EXIT_GUARDS, SYMBOLIC_INITIAL_VALUES, DO_RET_EMULATION, NO_SYMBOLIC_JUMP_RESOLUTION, NO_SYMBOLIC_SYSCALL_RESOLUTION, FAST_REGISTERS } | resilience_options) - simplification - approximation) - { SYMBOLIC, DO_CCALLS } - refs
+modes['fastpath'] = ((modes['symbolic'] | { TRACK_OP_ACTIONS, BEST_EFFORT_MEMORY_STORING, AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, IGNORE_EXIT_GUARDS, SYMBOLIC_INITIAL_VALUES, DO_RET_EMULATION, NO_SYMBOLIC_JUMP_RESOLUTION, NO_SYMBOLIC_SYSCALL_RESOLUTION, FAST_REGISTERS } | resilience_options) - simplification - approximation) - { SYMBOLIC, DO_CCALLS }
