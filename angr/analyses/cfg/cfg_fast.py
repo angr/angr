@@ -2379,8 +2379,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             if resolved:
                 jumps_resolved[jump] = True
-                # Remove all targets that don't make sense
-                targets = [ t for t in targets if any(iter((a <= t < b) for a, b in self._exec_mem_regions)) ]
 
                 """
                 if jump.addr in self.indirect_jumps:
