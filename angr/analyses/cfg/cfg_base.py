@@ -878,12 +878,19 @@ class CFGBase(Analysis):
                 if type_ == 'retout':
                     # see whether the function being called returns or not
                     func_successors = [ succ for succ in goout_site_successors if isinstance(succ, Function) ]
-                    if func_successors and all(func_successor.returning in (None, False) for func_successor in func_successors):
+                    if func_successors and all(func_successor.returning in (None, False)
+                                               for func_successor in func_successors):
                         # the returning of all possible function calls are undermined, or they do not return
                         # ignore this site
                         continue
 
-                goout_target = next(succ for succ in goout_site_successors if not isinstance(succ, Function))
+                if type_ == 'retout':
+                    goout_target = next((succ for succ in goout_site_successors if not isinstance(succ, Function)), None)
+                else:
+                    goout_target = next((succ for succ in goout_site_successors), None)
+                if goout_target is None:
+                    # there is no jumpout site, which is weird, but what can we do...
+                    continue
                 if not self.kb.functions.contains_addr(goout_target.addr):
                     # wait it does not jump to a function?
                     bail_out = True
