@@ -4,6 +4,7 @@ from collections import defaultdict
 
 import pyvex
 
+from ....errors import AngrError, SimError
 from ....blade import Blade
 from ....annocfg import AnnotatedCFG
 from .... import sim_options as o
@@ -151,7 +152,12 @@ class JumpTableResolver(IndirectJumpResolver):
 
             # Get the jumping targets
             for r in slicecutor.reached_targets:
-                succ = project.factory.successors(r)
+                try:
+                    succ = project.factory.successors(r)
+                except (AngrError, SimError):
+                    # oops there are errors
+                    l.warning('Cannot get jump successor states from a path that has reached the target. Skip it.')
+                    continue
                 all_states = succ.flat_successors + succ.unconstrained_successors
                 if not all_states:
                     l.warning("Slicecutor failed to execute the program slice. No output state is available.")
