@@ -1,6 +1,8 @@
 import claripy
 import logging
 
+from elftools.elf.descriptions import _DESCR_EI_OSABI
+
 from . import ExplorationTechnique
 from .oppologist import Oppologist
 
@@ -59,21 +61,22 @@ class Tracer(ExplorationTechnique):
                                   should preserve. Default 1, must be greater than 0.
         """
         self.r = runner
-        self.preconstrain_input = preconstrain_input
-        self.preconstrain_flag = preconstrain_flag
-        self.simprocedures = {} if simprocedures is None else simprocedures
+        self._preconstrain_input = preconstrain_input
+        self._preconstrain_flag = preconstrain_flag
+        self._simprocedures = {} if simprocedures is None else simprocedures
         self._hooks = {} if hooks is None else hooks
-        self.input_max_size = max_size or len(input) if input is not None else None
-        self.exclude_sim_procedures_list = exclude_sim_procedures_list or ["malloc", "free", "calloc", "realloc"]
+        self._input_max_size = max_size or len(input) if input is not None else None
+        self._exclude_sim_procedures_list = exclude_sim_procedures_list or ["malloc", "free", "calloc", "realloc"]
+        self._old_simprocedures = {}
 
         for h in self._hooks:
             l.debug("Hooking %#x -> %s", h, self._hooks[h].display_name)
 
-        self.resiliency = resiliency
-        self.chroot = chroot
-        self.add_options = set() if add_options is None else add_options
-        self.trim_history = trim_history
-        self.constrained_addrs = []
+        self._resiliency = resiliency
+        self._chroot = chroot
+        self._add_options = set() if add_options is None else add_options
+        self._trim_history = trim_history
+        self._constrained_addrs = []
 
         # the final state after execution with input/pov_file
         self.final_state = None
@@ -87,21 +90,21 @@ class Tracer(ExplorationTechnique):
         self._loaded_from_cache = False
 
         if remove_options is None:
-            self.remove_options = set()
+            self._remove_options = set()
         else:
-            self.remove_options = remove_options
+            self._remove_options = remove_options
 
         # set up cache hook
         receive.cache_hook = self._cache_manager.cacher
 
         # CGC flag data
-        self.cgc_flag_bytes = [claripy.BVS("cgc-flag-byte-%d" % i, 8) for i in xrange(0x1000)]
+        self._cgc_flag_bytes = [claripy.BVS("cgc-flag-byte-%d" % i, 8) for i in xrange(0x1000)]
 
-        self.preconstraints = []
+        self._preconstraints = []
 
         # map of variable string names to preconstraints, for re-applying
         # constraints
-        self.variable_map = {}
+        self._variable_map = {}
 
         # initialize the basic block counter to 0
         self.bb_cnt = 0
@@ -109,13 +112,13 @@ class Tracer(ExplorationTechnique):
         # keep track of the last basic block we hit
         if keep_predecessors < 1:
             raise ValueError("Must have keep_predecessors >= 1")
-        self.predecessors = [None] * keep_predecessors
+        self._predecessors = [None] * keep_predecessors
 
         # whether we should follow the qemu trace
-        self.no_follow = False
+        self._no_follow = False
 
         # this will be set by _prepare_paths
-        self.unicorn_enabled = False
+        self._unicorn_enabled = False
 
         # initilize the syscall statistics if the flag is on
         self._dump_syscall = dump_syscall
@@ -142,7 +145,7 @@ class Tracer(ExplorationTechnique):
         Preconstrain the entry state to the input.
         """
 
-        if not self.preconstrain_input:
+        if not self._preconstrain_input:
             return
 
         repair_entry_state_opts = False
@@ -150,7 +153,7 @@ class Tracer(ExplorationTechnique):
             repair_entry_state_opts = True
             entry_state.options -= {so.TRACK_ACTION_HISTORY}
 
-        if self.pov:  # a PoV, need to navigate the dialogue
+        if self.r.pov:  # a PoV, need to navigate the dialogue
             stdin_dialogue = entry_state.posix.get_file(0)
             for write in self.pov_file.writes:
                 for b in write:
@@ -190,7 +193,7 @@ class Tracer(ExplorationTechnique):
         """
         Preconstrain the data in the flag page.
         """
-        if not self.preconstrain_flag:
+        if not self._preconstrain_flag:
             return
 
         for b in range(0x1000):
@@ -226,7 +229,7 @@ class Tracer(ExplorationTechnique):
             else: # if we're not restoring from a cache, the cacher will preconstrain
                 self._cgc_prepare_state(simgr)
 
-        elif self.project.loader.main_object.os == "unix":
+        elif self.project.loader.main_object.os in _DESCR_EI_OSABI.values():
             l.warn("Tracer was heavily tested only for CGC. If it doesn't work for other platforms, we are sorry!")
             self._linux_prepare_state(simgr)
 
@@ -261,8 +264,8 @@ class Tracer(ExplorationTechnique):
 
         self._set_hooks()
 
-        if not self.pov:
-            fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=self.r.input_max_size)}
+        if not self.r.pov:
+            fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=self._input_max_size)}
         else:
             fs = self._prepare_dialogue()
 
@@ -313,8 +316,8 @@ class Tracer(ExplorationTechnique):
 
             entry_state = state
 
-        if not self.pov:
-            entry_state.cgc.input_size = self.input_max_size
+        if not self.r.pov:
+            entry_state.cgc.input_size = self._input_max_size
 
         if len(self._hooks):
             self._set_simproc_limits(entry_state)
@@ -355,7 +358,7 @@ class Tracer(ExplorationTechnique):
         """
         Prepare the initial state for Linux binaries.
         """
-        for symbol in self.exclude_sim_procedures_list:
+        for symbol in self._exclude_sim_procedures_list:
             self.project.unhook_symbol(symbol)
 
         if not self.crash_mode:
@@ -364,7 +367,7 @@ class Tracer(ExplorationTechnique):
         self._set_hooks()
 
         # fix stdin to the size of the input being traced
-        fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=self.input_max_size)}
+        fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=self._input_max_size)}
 
         options = set()
         options.add(so.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
@@ -405,12 +408,12 @@ class Tracer(ExplorationTechnique):
         # anywhere but the entry point
 
     def _set_cgc_simprocedures(self):
-        for symbol in self.simprocedures:
-            angr.SIM_LIBRARIES['cgcabi'].add(symbol, self.simprocedures[symbol])
+        for symbol in self._simprocedures:
+            angr.SIM_LIBRARIES['cgcabi'].add(symbol, self._simprocedures[symbol])
 
     def _set_linux_simprocedures(self, project):
-        for symbol in self.simprocedures:
-            project.hook_symbol(symbol, self.simprocedures[symbol])
+        for symbol in self._simprocedures:
+            project.hook_symbol(symbol, self._simprocedures[symbol])
 
     @staticmethod
     def _set_simproc_limits(state):
