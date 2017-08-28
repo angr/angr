@@ -56,7 +56,7 @@ class Runner(object):
             options.add(so.UNICORN)
             l.info("unicorn tracing enabled")
 
-            remove_options = so.simplification | set(so.LAZY_SOLVES) | so.resilience_options | set(so.SUPPORT_FLOATING_POINT)
+            remove_options = so.simplification | set(so.LAZY_SOLVES) | so.resilience | set(so.SUPPORT_FLOATING_POINT)
             add_options = options
             entry_state = self.project.factory.entry_state(
                     add_options=add_options,

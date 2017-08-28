@@ -2429,7 +2429,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                          add_options={
                                                                          o.DO_RET_EMULATION,
                                                                          o.CONSERVATIVE_READ_STRATEGY,
-                                                                     } | o.resilience_options
+                                                                     } | o.resilience
                                                          )
                 # Avoid concretization of any symbolic read address that is over a certain limit
                 # TODO: test case is needed for this option
