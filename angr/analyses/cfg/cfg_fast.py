@@ -18,12 +18,8 @@ from .cfg_node import CFGNode
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 from ..forward_analysis import ForwardAnalysis
 from ... import sim_options as o
-from ...annocfg import AnnotatedCFG
-from ...blade import Blade
 from ...engines import SimEngineVEX
-from ...errors import AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError, \
-    SimSolverModeError
-from ...surveyors import Slicecutor
+from ...errors import AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError
 
 VEX_IRSB_MAX_SIZE = 400
 
@@ -447,17 +443,17 @@ class FunctionReturn(object):
         self.call_site_addr = call_site_addr
         self.return_to = return_to
 
-    def __eq__(self, o):
+    def __eq__(self, other):
         """
         Comparison
 
-        :param FunctionReturn o: The other object
+        :param FunctionReturn other: The other object
         :return: True if equal, False otherwise
         """
-        return self.callee_func_addr == o.callee_func_addr and \
-                self.caller_func_addr == o.caller_func_addr and \
-                self.call_site_addr == o.call_site_addr and \
-                self.return_to == o.return_to
+        return self.callee_func_addr == other.callee_func_addr and \
+                self.caller_func_addr == other.caller_func_addr and \
+                self.call_site_addr == other.call_site_addr and \
+                self.return_to == other.return_to
 
     def __hash__(self):
         return hash((self.callee_func_addr, self.caller_func_addr, self.call_site_addr, self.return_to))
@@ -2379,16 +2375,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             if resolved:
                 jumps_resolved[jump] = True
-
-                """
-                if jump.addr in self.indirect_jumps:
-                    ij = self.indirect_jumps[jump.addr]
-                    ij.jumptable = True
-                    ij.resolved = True
-                    # Fill the IndirectJump object
-                    ij.resolved_targets |= set(targets)
-                """
-
                 all_targets |= set([ (t, jump.func_addr, jump.addr, jump.jumpkind) for t in targets ])
 
         for jump, resolved in jumps_resolved.iteritems():
