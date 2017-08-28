@@ -18,12 +18,8 @@ from .cfg_node import CFGNode
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 from ..forward_analysis import ForwardAnalysis
 from ... import sim_options as o
-from ...annocfg import AnnotatedCFG
-from ...blade import Blade
 from ...engines import SimEngineVEX
-from ...errors import AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError, \
-    SimSolverModeError
-from ...surveyors import Slicecutor
+from ...errors import AngrCFGError, SimEngineError, SimMemoryError, SimTranslationError, SimValueError
 
 VEX_IRSB_MAX_SIZE = 400
 
@@ -447,17 +443,17 @@ class FunctionReturn(object):
         self.call_site_addr = call_site_addr
         self.return_to = return_to
 
-    def __eq__(self, o):
+    def __eq__(self, other):
         """
         Comparison
 
-        :param FunctionReturn o: The other object
+        :param FunctionReturn other: The other object
         :return: True if equal, False otherwise
         """
-        return self.callee_func_addr == o.callee_func_addr and \
-                self.caller_func_addr == o.caller_func_addr and \
-                self.call_site_addr == o.call_site_addr and \
-                self.return_to == o.return_to
+        return self.callee_func_addr == other.callee_func_addr and \
+                self.caller_func_addr == other.caller_func_addr and \
+                self.call_site_addr == other.call_site_addr and \
+                self.return_to == other.return_to
 
     def __hash__(self):
         return hash((self.callee_func_addr, self.caller_func_addr, self.call_site_addr, self.return_to))
@@ -1214,7 +1210,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if self._resolve_indirect_jumps and self._indirect_jumps_to_resolve:
             jump_targets = list(set(self._process_indirect_jumps()))
 
-            for addr, func_addr, source_addr in jump_targets:
+            for addr, func_addr, source_addr, jumpkind in jump_targets:
                 to_outside = addr in self.functions
 
                 if not to_outside:
@@ -1224,7 +1220,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if r:
                     # TODO: get a better estimate of the function address
                     target_func_addr = func_addr if not to_outside else addr
-                    job = CFGJob(addr, target_func_addr, "Ijk_Boring", last_addr=source_addr,
+                    job = CFGJob(addr, target_func_addr, jumpkind, last_addr=source_addr,
                                  src_node=self._nodes[source_addr],
                                  src_stmt_idx=None,
                                  )
@@ -2350,8 +2346,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         Currently we support resolving the following types of indirect jumps:
         - Ijk_Call (disabled now): indirect calls where the function address is passed in from a proceeding basic block
         - Ijk_Boring: jump tables
+        - For an up-to-date list, see analyses/cfg/indirect_jump_resolvers
 
-        :return: a set of 2-tuples: (resolved indirect jump target, function address)
+        :return: a set of 4-tuples: (resolved indirect jump target, caller's func addr, caller's basic block addr, jumpkind)
         :rtype: set
         """
 
@@ -2378,19 +2375,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             if resolved:
                 jumps_resolved[jump] = True
-                # Remove all targets that don't make sense
-                targets = [ t for t in targets if any(iter((a <= t < b) for a, b in self._exec_mem_regions)) ]
-
-                """
-                if jump.addr in self.indirect_jumps:
-                    ij = self.indirect_jumps[jump.addr]
-                    ij.jumptable = True
-                    ij.resolved = True
-                    # Fill the IndirectJump object
-                    ij.resolved_targets |= set(targets)
-                """
-
-                all_targets |= set([ (t, jump.func_addr, jump.addr) for t in targets ])
+                all_targets |= set([ (t, jump.func_addr, jump.addr, jump.jumpkind) for t in targets ])
 
         for jump, resolved in jumps_resolved.iteritems():
             self._indirect_jumps_to_resolve.remove(jump)
@@ -2422,99 +2407,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self.kb.unresolved_indirect_jumps.add(jump.addr)
 
         return all_targets
-
-    def _resolve_indirect_calls(self):
-        """
-
-        :return:
-        """
-
-        # TODO: Fix and enable this method later
-
-        function_starts = set()
-
-        for jumpkind, irsb_addr in self._indirect_jumps_to_resolve:
-            # First execute the current IRSB in concrete mode
-
-            if len(function_starts) > 20:
-                break
-
-            if jumpkind == "Ijk_Call":
-                state = self.project.factory.blank_state(addr=irsb_addr, mode="concrete",
-                                                         add_options={o.SYMBOLIC_INITIAL_VALUES}
-                                                         )
-                succ = self.project.factory.successors(state)
-                print hex(irsb_addr)
-
-                try:
-                    r = (succ.flat_successors + succ.unsat_successors)[0]
-                    ip = r.se.eval_one(r.ip)
-
-                    function_starts.add(ip)
-                    continue
-                except SimSolverModeError:
-                    pass
-
-                # Not resolved
-                # Do a backward slicing from the call
-                irsb = self._lift(irsb_addr).vex
-
-                # Start slicing from the "next"
-                b = Blade(self.graph, irsb.addr, -1, project=self.project)
-
-                # Debugging output
-                for addr, stmt_idx in sorted(list(b.slice.nodes())):
-                    irsb = self._lift(addr).vex
-                    stmts = irsb.statements
-                    print "%x: %d | " % (addr, stmt_idx),
-                    print "%s" % stmts[stmt_idx],
-                    print "%d" % b.slice.in_degree((addr, stmt_idx))
-
-                print ""
-
-                # Get all sources
-                sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
-
-                # Create the annotated CFG
-                annotatedcfg = AnnotatedCFG(self.project, None, detect_loops=False)
-                annotatedcfg.from_digraph(b.slice)
-
-                for src_irsb, _ in sources:
-                    # Use slicecutor to execute each one, and get the address
-                    # We simply give up if any exception occurs on the way
-
-                    start_state = self.project.factory.blank_state(
-                            addr=src_irsb,
-                            add_options={
-                                o.DO_RET_EMULATION,
-                                o.TRUE_RET_EMULATION_GUARD
-                            }
-                    )
-
-                    # Create the slicecutor
-                    slicecutor = Slicecutor(self.project, annotatedcfg, start=start_state, targets=(irsb_addr,))
-
-                    # Run it!
-                    try:
-                        slicecutor.run()
-                    except KeyError as ex:
-                        # This is because the program slice is incomplete.
-                        # Blade will support more IRExprs and IRStmts
-                        l.debug("KeyError occurred due to incomplete program slice.", exc_info=ex)
-                        continue
-
-                    # Get the jumping targets
-                    for r in slicecutor.reached_targets:
-                        if r.next_run.successors:
-                            target_ip = r.next_run.successors[0].ip
-                            se = r.next_run.successors[0].se
-
-                            if not se.symbolic(target_ip):
-                                concrete_ip = se.eval_one(target_ip)
-                                function_starts.add(concrete_ip)
-                                l.info("Found a function address %x", concrete_ip)
-
-        return function_starts
 
     # Removers
 
