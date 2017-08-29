@@ -1355,16 +1355,11 @@ def armg_calculate_data_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     z, c2 = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     c, c3 = armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     v, c4 = armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-    n = state.se.Extract(0, 0, n)
-    z = state.se.Extract(0, 0, z)
-    c = state.se.Extract(0, 0, c)
-    v = state.se.Extract(0, 0, v)
-    vec = [(ARMG_CC_SHIFT_N, n),
-           (ARMG_CC_SHIFT_Z, z),
-           (ARMG_CC_SHIFT_C, c),
-           (ARMG_CC_SHIFT_V, v)]
+    vec = [(ARMG_CC_SHIFT_N, state.se.Extract(0, 0, n)),
+           (ARMG_CC_SHIFT_Z, state.se.Extract(0, 0, z)),
+           (ARMG_CC_SHIFT_C, state.se.Extract(0, 0, c)),
+           (ARMG_CC_SHIFT_V, state.se.Extract(0, 0, v))]
     return _concat_flags(ARMG_NBITS, vec), c1 + c2 + c3 + c4
-    return (n << ARMG_CC_SHIFT_N) | (z << ARMG_CC_SHIFT_Z) | (c << ARMG_CC_SHIFT_C) | (v << ARMG_CC_SHIFT_V), c1 + c2 + c3 + c4
 
 def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
     cond = state.se.LShR(cond_n_op, 4)
