@@ -17,8 +17,8 @@ DEFAULT_RESOLVERS = {
 }
 
 
-def default_indirect_jump_resolvers(arch, obj, project=None):
-    arch_specific = DEFAULT_RESOLVERS.get(arch.name, { })
+def default_indirect_jump_resolvers(obj, project):
+    arch_specific = DEFAULT_RESOLVERS.get(project.arch.name, { })
     resolvers = [ ]
     for k, lst in arch_specific.iteritems():
         if isinstance(obj, k):
@@ -27,4 +27,4 @@ def default_indirect_jump_resolvers(arch, obj, project=None):
 
     resolvers += DEFAULT_RESOLVERS['ALL']
 
-    return [ r(arch=project.arch, project=project) for r in resolvers ]
+    return [ r(project) for r in resolvers ]
