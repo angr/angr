@@ -182,7 +182,8 @@ class SimFastMemory(SimMemory):
         req.stored_values = [ data ]
         return req
 
-    def _load(self, addr, size, condition=None, fallback=None, inspect=True, events=True):
+    def _load(self, addr, size, condition=None, fallback=None,
+            inspect=True, events=True, ret_on_segv=False):
         if not self._translate_cond(condition):
             l.debug("Received false condition. Returning fallback.")
             return fallback

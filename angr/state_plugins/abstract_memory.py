@@ -430,7 +430,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         return r
 
-    def _load(self, addr, size, condition=None, fallback=None, inspect=True, events=True):
+    def _load(self, addr, size, condition=None, fallback=None,
+            inspect=True, events=True, ret_on_segv=False):
         address_wrappers = self.normalize_address(addr, is_write=False)
 
         if isinstance(size, claripy.ast.BV) and isinstance(size._model_vsa, ValueSet):

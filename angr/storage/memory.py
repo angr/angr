@@ -661,7 +661,7 @@ class SimMemory(SimStatePlugin):
             return self._store(req)
 
     def load(self, addr, size=None, condition=None, fallback=None, add_constraints=None, action=None, endness=None,
-             inspect=True, disable_actions=False):
+             inspect=True, disable_actions=False, ret_on_segv=False):
         """
         Loads size bytes from dst.
 
@@ -675,6 +675,7 @@ class SimMemory(SimStatePlugin):
         :param bool inspect:    Whether this store should trigger SimInspect breakpoints or not.
         :param bool disable_actions: Whether this store should avoid creating SimActions or not. When set to False,
                                      state options are respected.
+        :param bool ret_on_segv: Whether returns the memory that is already loaded before a segmentation fault is triggered. The default is False.
 
         There are a few possible return values. If no condition or fallback are passed in,
         then the return is the bytes at the address, in the form of a claripy expression.
@@ -725,7 +726,7 @@ class SimMemory(SimStatePlugin):
 
         try:
             a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e, inspect=inspect,
-                               events=not disable_actions)
+                               events=not disable_actions, ret_on_segv=ret_on_segv)
         except SimSegfaultError as e:
             e.original_addr = addr_e
             raise
@@ -802,7 +803,7 @@ class SimMemory(SimStatePlugin):
         """
         return [ addr ]
 
-    def _load(self, addr, size, condition=None, fallback=None, inspect=True, events=True):
+    def _load(self, addr, size, condition=None, fallback=None, inspect=True, events=True, ret_on_segv=False):
         raise NotImplementedError()
 
     def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
