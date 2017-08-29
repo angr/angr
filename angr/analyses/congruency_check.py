@@ -2,7 +2,6 @@ import logging
 
 import claripy
 
-from .. import engines
 from . import Analysis, register_analysis
 
 l = logging.getLogger("angr.analyses.congruency_check")
