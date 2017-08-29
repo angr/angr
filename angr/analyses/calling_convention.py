@@ -141,5 +141,24 @@ class CallingConventionAnalysis(Analysis):
 
         return True
 
+    @staticmethod
+    def recover_calling_conventions(project, kb=None):
+        """
+
+        :return:
+        """
+        if kb == None:
+            kb = project.kb
+
+        new_cc_found = True
+        while new_cc_found:
+            new_cc_found = False
+            for func in kb.functions.itervalues():
+                if func.calling_convention is None:
+                    # determine the calling convention of each function
+                    cc_analysis = project.analyses.CallingConvention(func)
+                    if cc_analysis.cc is not None:
+                        func.calling_convention = cc_analysis.cc
+                        new_cc_found = True
 
 register_analysis(CallingConventionAnalysis, "CallingConvention")
