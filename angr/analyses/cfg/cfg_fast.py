@@ -1300,7 +1300,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if self._use_function_prologues and self._remaining_function_prologue_addrs:
             while self._remaining_function_prologue_addrs:
                 prolog_addr = self._remaining_function_prologue_addrs[0]
-                self._remaining_function_prologue_addrs = self._remaining_function_prologue_addrs[1:]
+                self._remaining_function_prologue_addrs.pop(0)
                 if self._seg_list.is_occupied(prolog_addr):
                     continue
 
