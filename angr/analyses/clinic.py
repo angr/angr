@@ -5,6 +5,7 @@ import networkx
 
 from . import Analysis, register_analysis
 from ..codenode import BlockNode
+from .calling_convention import CallingConventionAnalysis
 
 import ailment
 import ailment.analyses
@@ -68,7 +69,7 @@ class Clinic(Analysis):
 
     def _analyze(self):
 
-        self._recover_calling_conventions()
+        CallingConventionAnalysis.recover_calling_conventions(self.project)
 
         # initialize the AIL conversion manager
         self._ail_manager = ailment.Manager(arch=self.project.arch)
@@ -85,22 +86,6 @@ class Clinic(Analysis):
 
         # print ri.region.dbg_print()
 
-    def _recover_calling_conventions(self):
-        """
-
-        :return:
-        """
-
-        new_cc_found = True
-        while new_cc_found:
-            new_cc_found = False
-            for func in self.kb.functions.itervalues():
-                if func.calling_convention is None:
-                    # determine the calling convention of each function
-                    cc_analysis = self.project.analyses.CallingConvention(func)
-                    if cc_analysis.cc is not None:
-                        func.calling_convention = cc_analysis.cc
-                        new_cc_found = True
 
     def _convert_all(self):
         """
