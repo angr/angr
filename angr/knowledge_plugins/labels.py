@@ -17,6 +17,8 @@ class LabelsPlugin(KnowledgeBasePlugin):
        
     :var _global_ns:    The name of the global namespace.
     :type _global_ns:   str
+    :var _default_ns:   The default namespace to use for operating. Defaults to _global_ns.
+    :type _default_ns:  str
     """
 
     _global_ns = ''
@@ -24,6 +26,7 @@ class LabelsPlugin(KnowledgeBasePlugin):
     def __init__(self, kb, copy=False):
         super(KnowledgeBasePlugin, self).__init__()
         self._namespaces = defaultdict(bidict)
+        self._default_ns = self._global_ns
 
         if not copy:
             # TODO: This should be done somewhere else. Here for compat reasons only.
@@ -96,7 +99,19 @@ class LabelsPlugin(KnowledgeBasePlugin):
     #   ...
     #
 
-    def set_label(self, addr, name, ns=_global_ns):
+    @property
+    def default_namespace(self):
+        return self._default_ns
+
+    @default_namespace.setter
+    def default_namespace(self, name):
+        self._default_ns = name
+
+    #
+    #   ...
+    #
+
+    def set_label(self, addr, name, ns=None):
         """Label address `addr` as `name` within namespace `namespace`
         
         :param addr:        The address to put a label on.
@@ -105,7 +120,7 @@ class LabelsPlugin(KnowledgeBasePlugin):
 
         :return: 
         """
-        namespace = self._namespaces[ns]  # a shorthand
+        namespace = self._get_namespace_dict(ns)
 
         # Name is already present in the namespace.
         # Here we forbid assigning different addresses with the same name.
@@ -123,7 +138,7 @@ class LabelsPlugin(KnowledgeBasePlugin):
         # Create a new label!
         namespace[name] = addr
 
-    def get_label(self, addr, ns=_global_ns, default=None):
+    def get_label(self, addr, ns=None, default=None):
         """Get a label that is present within the given namespace and is assigned to the specified address.
         
         :param addr:    The address for which the label is assigned.
@@ -135,7 +150,7 @@ class LabelsPlugin(KnowledgeBasePlugin):
                             Any other value - create a new label with the given value.
         :return: 
         """
-        namespace = self._namespaces[ns]  # a shorthand
+        namespace = self._get_namespace_dict(ns)
 
         if addr not in namespace.inv and default:
             if default is True:
@@ -145,14 +160,14 @@ class LabelsPlugin(KnowledgeBasePlugin):
         else:
             return namespace.inv.get(addr)
 
-    def del_label(self, name, ns=_global_ns):
+    def del_label(self, name, ns=None):
         """Delete a label that is present within the given namespace.
         
         :param name:    The name of the label which is to be deleted.
         :param ns:      The namespace in which the given label is present.
         :return: 
         """
-        namespace = self._namespaces[ns]  # a shorthand
+        namespace = self._get_namespace_dict(ns)
 
         if name not in namespace:
             raise ValueError("Namespace '%s' doesn't have a label named '%s'" % (ns, name))
@@ -175,7 +190,7 @@ class LabelsPlugin(KnowledgeBasePlugin):
     #   ...
     #
 
-    def get_addr(self, name, ns=_global_ns, default=None):
+    def get_addr(self, name, ns=None, default=None):
         """Get the address for the label in the given namespace.
         
         :param name:    The label name.
@@ -183,18 +198,18 @@ class LabelsPlugin(KnowledgeBasePlugin):
         :param default: Default value if the label is not present in the given namespace.
         :return: 
         """
-        namespace = self._namespaces[ns]  # a shorthand
+        namespace = self._get_namespace_dict(ns)
 
         return namespace.get(name, default)
 
-    def del_addr(self, addr, ns=_global_ns):
+    def del_addr(self, addr, ns=None):
         """Delete a label that is assigned to the given address within the given namespace.
 
         :param addr:    The address from which to remove a label in the given namespace.
         :param ns:      The namespace in which the given address is present.
         :return: 
         """
-        namespace = self._namespaces[ns]  # a shorthand
+        namespace = self._get_namespace_dict(ns)
 
         if addr not in namespace.inv:
             raise ValueError("Namespace '%s' doesn't have a label on address %#x" % (ns, addr))
@@ -216,6 +231,11 @@ class LabelsPlugin(KnowledgeBasePlugin):
     #
     #   ...
     #
+
+    def _get_namespace_dict(self, ns=None):
+        if ns is None:
+            ns = self._default_ns
+        return self._namespaces[ns]
 
     def _generate_default_label(self, addr):
         """Generate a default label for the given address.
