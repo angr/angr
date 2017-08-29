@@ -13,7 +13,7 @@ class LabelsPlugin(KnowledgeBasePlugin):
     An address is allowed to have a different labels within different namespace, but it is not allowed
     for address to have a different labels within a single namespace.
     
-    The global namespace is the empty string.
+    The global namespace defaults to empty string.
        
     :var _global_ns:    The name of the global namespace.
     :type _global_ns:   str
