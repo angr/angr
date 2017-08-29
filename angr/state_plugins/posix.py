@@ -400,11 +400,18 @@ class SimStateSystem(SimStatePlugin):
             oldmask
         )
 
+    @staticmethod
+    def memocopy(x, memo):
+        if id(x) not in memo:
+            memo[id(x)] = x.copy()
+        return memo[id(x)]
 
     def copy(self):
         sockets = {}
-        fs = {path:f.copy() for path,f in self.fs.iteritems()}
-        files = { fd:f.copy() for fd,f in self.files.iteritems() }
+        memo = {}
+
+        fs = {path:self.memocopy(f,memo) for path,f in self.fs.iteritems()}
+        files = { fd:self.memocopy(f,memo) for fd,f in self.files.iteritems() }
         for f in self.files:
             if f in self.sockets:
                 sockets[f] = files[f]
