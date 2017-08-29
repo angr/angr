@@ -20,7 +20,7 @@ class malloc(angr.SimProcedure):
             if size > self.state.libc.max_variable_size:
                 size = self.state.libc.max_variable_size
         else:
-            size = self.state.se.any_int(sim_size)
+            size = self.state.se.eval(sim_size)
 
         addr = self.state.libc.heap_location
         self.state.libc.heap_location += size

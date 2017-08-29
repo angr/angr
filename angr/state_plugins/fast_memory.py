@@ -39,15 +39,15 @@ class SimFastMemory(SimMemory):
         if self.width is None:
             self.width = self.state.arch.bytes
 
-    def _handle_uninitialized_read(self, addr):
+    def _handle_uninitialized_read(self, addr, inspect=True, events=True):
         """
         The default uninitialized read handler. Returns symbolic bytes.
         """
         if self._uninitialized_read_handler is None:
-            v = self.state.se.BVS("%s_%s" % (self.id, addr), self.width*8)
+            v = self.state.se.BVS("%s_%s" % (self.id, addr), self.width*8, inspect=inspect, events=events)
             return v.reversed if self.endness == "Iend_LE" else v
         else:
-            return self._uninitialized_read_handler(self, addr)
+            return self._uninitialized_read_handler(self, addr, inspect=inspect, events=events)
 
     def _translate_addr(self, a): #pylint:disable=no-self-use
         """
@@ -55,7 +55,7 @@ class SimFastMemory(SimMemory):
         """
         if isinstance(a, claripy.ast.Base) and not a.singlevalued:
             raise SimFastMemoryError("address not supported")
-        return self.state.se.any_int(a)
+        return self.state.se.eval(a)
 
     def _translate_data(self, d): #pylint:disable=no-self-use
         """
@@ -71,7 +71,7 @@ class SimFastMemory(SimMemory):
             raise SimFastMemoryError("size not supported")
         if s is None:
             return s
-        return self.state.se.any_int(s)
+        return self.state.se.eval(s)
 
     def _translate_cond(self, c): #pylint:disable=no-self-use
         """
@@ -82,7 +82,7 @@ class SimFastMemory(SimMemory):
         if c is None:
             return True
         else:
-            return self.state.se.eval(c, 1)[0]
+            return self.state.se.eval_upto(c, 1)[0]
 
     def _resolve_access(self, addr, size):
         """
@@ -107,14 +107,14 @@ class SimFastMemory(SimMemory):
 
         return accesses
 
-    def _single_load(self, addr, offset, size):
+    def _single_load(self, addr, offset, size, inspect=True, events=True):
         """
         Performs a single load.
         """
         try:
             d = self._contents[addr]
         except KeyError:
-            d = self._handle_uninitialized_read(addr)
+            d = self._handle_uninitialized_read(addr, inspect=inspect, events=events)
             self._contents[addr] = d
 
         if offset == 0 and size == self.width:
@@ -179,7 +179,8 @@ class SimFastMemory(SimMemory):
         req.stored_values = [ data ]
         return req
 
-    def _load(self, addr, size, condition=None, fallback=None):
+    def _load(self, addr, size, condition=None, fallback=None,
+            inspect=True, events=True, ret_on_segv=False):
         if not self._translate_cond(condition):
             l.debug("Received false condition. Returning fallback.")
             return fallback
@@ -189,7 +190,7 @@ class SimFastMemory(SimMemory):
         accesses = self._resolve_access(addr, size)
         if len(accesses) == 1:
             a,o,s = accesses[0]
-            return [addr], self._single_load(a, o, s), []
+            return [addr], self._single_load(a, o, s, inspect=inspect, events=events), []
         else:
             return [addr], claripy.Concat(*[self._single_load(a, o, s) for a,o,s in accesses]), []
 

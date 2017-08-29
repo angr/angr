@@ -7,7 +7,7 @@ import itertools
 from collections import defaultdict
 
 import claripy
-from ..errors import SimEngineError, SimMemoryError
+from ...errors import SimEngineError, SimMemoryError
 
 l = logging.getLogger("angr.knowledge.function")
 
@@ -34,6 +34,8 @@ class Function(object):
         self._jumpout_sites = set()
         # block nodes at whose ends the function calls out to another non-returning function
         self._callout_sites = set()
+        # block nodes that ends the function by returning out to another function (returns outside). This is rare.
+        self._retout_sites = set()
         # block nodes (basic block nodes) at whose ends the function terminates
         # in theory, if everything works fine, endpoints == ret_sites | jumpout_sites | callout_sites
         self._endpoints = defaultdict(set)
@@ -64,13 +66,13 @@ class Function(object):
             if project.is_hooked(addr):
                 hooker = project.hooked_by(addr)
                 name = hooker.display_name
-            else:
+            elif project._simos.is_syscall_addr(addr):
                 syscall_inst = project._simos.syscall_from_addr(addr)
                 name = syscall_inst.display_name
 
         # try to get the name from the symbols
         #if name is None:
-        #   so = project.loader.addr_belongs_to_object(addr)
+        #   so = project.loader.find_object_containing(addr)
         #   if so is not None and addr in so.symbols_by_addr:
         #       name = so.symbols_by_addr[addr].name
         #       print name
@@ -150,7 +152,8 @@ class Function(object):
 
         for block_addr, block in self._local_blocks.iteritems():
             try:
-                yield self._get_block(block_addr, block.size)
+                yield self._get_block(block_addr, size=block.size,
+                                      byte_string=block.bytestr if isinstance(block, BlockNode) else None)
             except (SimEngineError, SimMemoryError):
                 pass
 
@@ -175,7 +178,7 @@ class Function(object):
 
         return self._local_block_addrs
 
-    def _get_block(self, addr, size=None):
+    def _get_block(self, addr, size=None, byte_string=None):
         if addr in self._block_cache:
             b = self._block_cache[addr]
             if size is None or b.size == size:
@@ -188,9 +191,7 @@ class Function(object):
             # we know the size
             size = self._block_sizes[addr]
 
-
-
-        block = self._project.factory.block(addr, size=size)
+        block = self._project.factory.block(addr, size=size, byte_string=byte_string)
         if size is None:
             # update block_size dict
             self._block_sizes[addr] = block.size
@@ -207,7 +208,7 @@ class Function(object):
     @property
     def has_unresolved_jumps(self):
         for addr in self.block_addrs:
-            if addr in self._function_manager._kb._unresolved_indirect_jumps:
+            if addr in self._function_manager._kb.unresolved_indirect_jumps:
                 b = self._function_manager._kb._project.factory.block(addr)
                 if b.vex.jumpkind == 'Ijk_Boring':
                     return True
@@ -216,7 +217,7 @@ class Function(object):
     @property
     def has_unresolved_calls(self):
         for addr in self.block_addrs:
-            if addr in self._function_manager._kb._unresolved_indirect_jumps:
+            if addr in self._function_manager._kb.unresolved_indirect_jumps:
                 b = self._function_manager._kb._project.factory.block(addr)
                 if b.vex.jumpkind == 'Ijk_Call':
                     return True
@@ -293,7 +294,7 @@ class Function(object):
         """
         constants = set()
 
-        if not self._project.loader.main_bin.contains_addr(self.addr):
+        if not self._project.loader.main_object.contains_addr(self.addr):
             return constants
 
         # FIXME the old way was better for architectures like mips, but we need the initial irsb
@@ -312,20 +313,20 @@ class Function(object):
         # process the nodes in a breadth-first order keeping track of which nodes have already been analyzed
         analyzed = set()
         q = [fresh_state]
-        analyzed.add(fresh_state.se.any_int(fresh_state.ip))
+        analyzed.add(fresh_state.se.eval(fresh_state.ip))
         while len(q) > 0:
             state = q.pop()
             # make sure its in this function
-            if state.se.any_int(state.ip) not in graph_addrs:
+            if state.se.eval(state.ip) not in graph_addrs:
                 continue
             # don't trace into simprocedures
-            if self._project.is_hooked(state.se.any_int(state.ip)):
+            if self._project.is_hooked(state.se.eval(state.ip)):
                 continue
             # don't trace outside of the binary
-            if not self._project.loader.main_bin.contains_addr(state.se.any_int(state.ip)):
+            if not self._project.loader.main_object.contains_addr(state.se.eval(state.ip)):
                 continue
 
-            curr_ip = state.se.any_int(state.ip)
+            curr_ip = state.se.eval(state.ip)
 
             # get runtime values from logs of successors
             successors = self._project.factory.successors(state)
@@ -335,11 +336,11 @@ class Function(object):
                         if not isinstance(ao.ast, claripy.ast.Base):
                             constants.add(ao.ast)
                         elif not ao.ast.symbolic:
-                            constants.add(succ.se.any_int(ao.ast))
+                            constants.add(succ.se.eval(ao.ast))
 
                 # add successors to the queue to analyze
                 if not succ.se.symbolic(succ.ip):
-                    succ_ip = succ.se.any_int(succ.ip)
+                    succ_ip = succ.se.eval(succ.ip)
                     if succ_ip in self and succ_ip not in analyzed:
                         analyzed.add(succ_ip)
                         q.insert(0, succ)
@@ -383,7 +384,7 @@ class Function(object):
                             if not isinstance(ao.ast, claripy.ast.Base):
                                 constants.add(ao.ast)
                             elif not ao.ast.symbolic:
-                                constants.add(s.se.any_int(ao.ast))
+                                constants.add(s.se.eval(ao.ast))
         return constants
 
     @property
@@ -431,6 +432,10 @@ class Function(object):
         return list(self._jumpout_sites)
 
     @property
+    def retout_sites(self):
+        return list(self._retout_sites)
+
+    @property
     def callout_sites(self):
         return list(self._callout_sites)
 
@@ -445,7 +450,7 @@ class Function(object):
         :return: The object this function belongs to.
         """
 
-        return self._project.loader.addr_belongs_to_object(self.addr)
+        return self._project.loader.find_object_containing(self.addr)
 
     def add_jumpout_site(self, node):
         """
@@ -458,6 +463,26 @@ class Function(object):
         self._register_nodes(True, node)
         self._jumpout_sites.add(node)
         self._add_endpoint(node, 'transition')
+
+    def add_retout_site(self, node):
+        """
+        Add a custom retout site.
+
+        Retout (returning to outside of the function) sites are very rare. It mostly occurs during CFG recovery when we
+        incorrectly identify the beginning of a function in the first iteration, and then correctly identify that
+        function later in the same iteration (function alignments can lead to this bizarre case). We will mark all edges
+        going out of the header of that function as a outside edge, because all successors now belong to the
+        incorrectly-identified function. This identification error will be fixed in the second iteration of CFG
+        recovery. However, we still want to keep track of jumpouts/retouts during the first iteration so other logic in
+        CFG recovery still work.
+
+        :param node: The address of the basic block that control flow leaves the current function after a call.
+        :return:     None
+        """
+
+        self._register_nodes(True, node)
+        self._retout_sites.add(node)
+        self._add_endpoint(node, 'return')
 
     def _clear_transition_graph(self):
         self._block_cache = {}
@@ -514,7 +539,7 @@ class Function(object):
         # clear the cache
         self._local_transition_graph = None
 
-    def _call_to(self, from_node, to_func, ret_node, stmt_idx=None, ins_addr=None):
+    def _call_to(self, from_node, to_func, ret_node, stmt_idx=None, ins_addr=None, return_to_outside=False):
         """
         Registers an edge between the caller basic block and callee function.
 
@@ -538,7 +563,7 @@ class Function(object):
         else:
             self.transition_graph.add_edge(from_node, to_func, type='call', stmt_idx=stmt_idx, ins_addr=ins_addr)
             if ret_node is not None:
-                self._fakeret_to(from_node, ret_node)
+                self._fakeret_to(from_node, ret_node, to_outside=return_to_outside)
 
         self._local_transition_graph = None
 
@@ -561,8 +586,8 @@ class Function(object):
 
         self._local_transition_graph = None
 
-    def _return_from_call(self, from_func, to_node):
-        self.transition_graph.add_edge(from_func, to_node, type='real_return')
+    def _return_from_call(self, from_func, to_node, to_outside=False):
+        self.transition_graph.add_edge(from_func, to_node, type='real_return', to_outside=to_outside)
         for _, _, data in self.transition_graph.in_edges(to_node, data=True):
             if 'type' in data and data['type'] == 'fake_return':
                 data['confirmed'] = True
@@ -762,7 +787,7 @@ class Function(object):
 
         for b in self._local_blocks.itervalues():
             # TODO: should I call get_blocks?
-            block = self._get_block(b.addr, size=b.size)
+            block = self._get_block(b.addr, size=b.size, byte_string=b.bytestr)
             common_insns = set(block.instruction_addrs).intersection(ins_addrs)
             if common_insns:
                 blocks.append(b)
@@ -800,7 +825,7 @@ class Function(object):
         """
 
         for b in self.blocks:
-            block = self._get_block(b.addr, size=b.size)
+            block = self._get_block(b.addr, size=b.size, byte_string=b.bytestr)
             if insn_addr in block.instruction_addrs:
                 index = block.instruction_addrs.index(insn_addr)
                 if index == len(block.instruction_addrs) - 1:
@@ -922,7 +947,7 @@ class Function(object):
                 if new_node is None:
                     # TODO: Do this correctly for hook nodes
                     # Create a new one
-                    new_node = BlockNode(n.addr, new_size, graph=graph)
+                    new_node = BlockNode(n.addr, new_size, graph=graph, thumb=n.thumb)
                     self._block_sizes[n.addr] = new_size
                     self._addr_to_block_node[n.addr] = new_node
                     # Put the newnode into end_addresses
@@ -981,5 +1006,5 @@ class Function(object):
         self.normalized = True
 
 
-from .codenode import BlockNode
-from ..errors import AngrValueError
+from ...codenode import BlockNode
+from ...errors import AngrValueError

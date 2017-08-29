@@ -422,7 +422,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         return r
 
-    def _load(self, addr, size, condition=None, fallback=None):
+    def _load(self, addr, size, condition=None, fallback=None,
+            inspect=True, events=True, ret_on_segv=False):
         address_wrappers = self.normalize_address(addr, is_write=False)
 
         if isinstance(size, claripy.ast.BV) and isinstance(size._model_vsa, ValueSet):
@@ -628,6 +629,25 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             return address_wrapper.address in self.regions[address_wrapper.region]
 
         return False
+
+    def map_region(self, addr, length, permissions, init_zero=False):
+        """
+        Map a number of pages at address `addr` with permissions `permissions`.
+        :param addr: address to map the pages at
+        :param length: length in bytes of region to map, will be rounded upwards to the page size
+        :param permissions: AST of permissions to map, will be a bitvalue representing flags
+        """
+        l.warning('map_region() is not yet supported by SimAbstractMmeory.')
+        return
+
+    def unmap_region(self, addr, length):
+        """
+        Unmap a number of pages at address `addr`
+        :param addr: address to unmap the pages at
+        :param length: length in bytes of region to map, will be rounded upwards to the page size
+        """
+        l.warning('unmap_region() is not yet supported by SimAbstractMmeory.')
+        return
 
     def was_written_to(self, dst):
 

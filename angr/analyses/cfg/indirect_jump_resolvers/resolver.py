@@ -1,9 +1,10 @@
 
 
 class IndirectJumpResolver(object):
-    def __init__(self, arch=None, timeless=False):
-        self.arch = arch
+    def __init__(self, project, timeless=False, base_state=None):
+        self.project = project
         self.timeless = timeless
+        self.base_state = base_state
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
         """
@@ -48,10 +49,18 @@ class IndirectJumpResolver(object):
         :rtype:             bool
         """
 
+        if self.base_state is not None:
+            try:
+                if self.base_state.solver.is_true((self.base_state.memory.permissions(target) & 4) == 4):
+                    return True
+            except SimMemoryError:
+                pass
+            return False
+
         if cfg._addr_in_exec_memory_regions(target):
             # the jump target is executable
             return True
-        if cfg.project.is_hooked(target):
+        if self.project.is_hooked(target):
             # the jump target is hooked
             return True
         return False

@@ -591,8 +591,16 @@ class Disassembly(Analysis):
             self.raw_result_map['hooks'][block.addr] = hook
 
         else:
-            cs = self.project.arch.capstone
-            bytestr = ''.join(self.project.loader.memory.read_bytes(block.addr, block.size))
+            if block.thumb:
+                aligned_block_addr = (block.addr >> 1) << 1
+                cs = self.project.arch.capstone_thumb
+            else:
+                aligned_block_addr = block.addr
+                cs = self.project.arch.capstone
+            if block.bytestr is None:
+                bytestr = ''.join(self.project.loader.memory.read_bytes(aligned_block_addr, block.size))
+            else:
+                bytestr = block.bytestr
             self.block_to_insn_addrs[block.addr] = []
             for cs_insn in cs.disasm(bytestr, block.addr):
                 if cs_insn.address in self.kb.labels:

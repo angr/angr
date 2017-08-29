@@ -18,6 +18,7 @@ EXPORTS
   simunicorn_activate
   simunicorn_set_stops
   simunicorn_cache_page
+  simunicorn_uncache_page
   simunicorn_enable_symbolic_reg_tracking
   simunicorn_disable_symbolic_reg_tracking
   simunicorn_symbolic_register_data
@@ -27,3 +28,4 @@ EXPORTS
   simunicorn_is_interrupt_handled
   simunicorn_set_transmit_sysno
   simunicorn_process_transmit
+  simunicorn_set_tracking

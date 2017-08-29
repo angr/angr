@@ -1,12 +1,15 @@
 #include <unicorn/unicorn.h>
 
 #include <cstring>
+#include <cstdint>
+#include <cinttypes>
 
 #include <memory>
 #include <map>
 #include <vector>
 #include <unordered_set>
 #include <unordered_map>
+#include <set>
 
 extern "C" {
 #include <libvex.h>
@@ -17,6 +20,10 @@ extern "C" {
 #define PAGE_SHIFT 12
 
 #define MAX_REG_SIZE 0x2000 // hope it's big enough
+
+// Maximum size of a qemu/unicorn basic block
+// See State::step for why this is necessary
+static const uint32_t MAX_BB_SIZE = 800;
 
 extern "C" void x86_reg_update(uc_engine *uc, uint8_t *buf, int save);
 extern "C" void mips_reg_update(uc_engine *uc, uint8_t *buf, int save);
@@ -38,6 +45,7 @@ typedef enum stop {
 	STOP_ZEROPAGE,
 	STOP_NOSTART,
 	STOP_SEGFAULT,
+	STOP_ZERO_DIV,
 } stop_t;
 
 typedef struct block_entry {
@@ -96,10 +104,11 @@ private:
 	bool hooked;
 
 	uc_context *saved_regs;
+	uint64_t workaround_ip;
 
 	std::vector<mem_access_t> mem_writes;
 	std::map<uint64_t, taint_t *> active_pages;
-	std::unordered_set<uint64_t> stop_points;
+	std::set<uint64_t> stop_points;
 
 public:
 	std::vector<uint64_t> bbl_addrs;
@@ -119,6 +128,7 @@ public:
 	int32_t cur_size;
 
 	uc_arch arch;
+	uc_mode mode;
 	bool interrupt_handled;
 	uint32_t transmit_sysno;
 	uint32_t transmit_bbl_addr;
@@ -126,6 +136,9 @@ public:
 	VexArch vex_guest;
 	VexArchInfo vex_archinfo;
 	RegisterSet symbolic_registers; // tracking of symbolic registers
+
+	bool track_bbls;
+	bool track_stack;
 
 	State(uc_engine *_uc, uint64_t cache_key):uc(_uc)
 	{
@@ -152,6 +165,7 @@ public:
 			block_cache = it->second.block_cache;
 		}
 		arch = *((uc_arch*)uc); // unicorn hides all its internals...
+		mode = *((uc_mode*)((uc_arch*)uc + 1));
 	}
 	
 	/*
@@ -219,7 +233,9 @@ public:
 		  return UC_ERR_MAP;
 		}
 
-		return uc_emu_start(uc, pc, 0, 0, 0);
+		uc_err out = uc_emu_start(uc, pc, 0, 0, 0);
+		set_instruction_pointer(workaround_ip);
+		return out;
 	}
 
 	void stop(stop_t reason) {
@@ -258,12 +274,16 @@ public:
 			case STOP_SEGFAULT:
 				msg = "permissions or mapping error";
 				break;
+			case STOP_ZERO_DIV:
+				msg = "divide by zero";
+				break;
 			default:
 				msg = "unknown error";
 		}
 		stop_reason = reason;
-		//LOG_D("stop: %s", msg);
 		rollback();
+		workaround_ip = get_instruction_pointer();
+		//LOG_D("stop: %s", msg);
 		uc_emu_stop(uc);
 
 		// if we errored out right away, fix the step count to 0
@@ -272,15 +292,36 @@ public:
 
 	void step(uint64_t current_address, int32_t size, bool check_stop_points=true) {
 		uc_context_save(uc, saved_regs); // save current registers
-		bbl_addrs.push_back(current_address);
-		stack_pointers.push_back(get_stack_pointer(uc));
+		if (track_bbls) {
+			bbl_addrs.push_back(current_address);
+		}
+		if (track_stack) {
+			stack_pointers.push_back(get_stack_pointer());
+		}
 		cur_address = current_address;
 		cur_size = size;
 
 		if (cur_steps >= max_steps) {
 			stop(STOP_NORMAL);
-		} else if (check_stop_points && stop_points.count(current_address) == 1) {
-			stop(STOP_STOPPOINT);
+		} else if (check_stop_points) {
+			// If size is zero, that means that the current basic block was too large for qemu
+			// and it got split into multiple parts. unicorn will only call this hook for the
+			// first part and not for the remaining ones, so it is impossible to find the
+			// accurate size of the BB block here.
+			//
+			// See https://github.com/unicorn-engine/unicorn/issues/874
+			//
+			// Until that is resolved, we use the maximum size of a Qemu basic block here. This means
+			// that some stop points may not work, but there is no way to do better.
+			uint32_t real_size = size == 0 ? MAX_BB_SIZE : size;
+
+			// if there are any stop points in the current basic block, then there is no chance
+			// for us to stop in the middle of a block.
+			// since we do not support stopping in the middle of a block.
+			auto stop_point = stop_points.lower_bound(current_address);
+			if (stop_point != stop_points.end() && *stop_point < current_address + real_size) {
+				stop(STOP_STOPPOINT);
+			}
 		}
 	}
 
@@ -457,7 +498,7 @@ public:
 			stop_points.insert(stops[i]);
 	}
 
-	void cache_page(uint64_t address, size_t size, char* bytes, uint64_t permissions)
+	std::pair<uint64_t, size_t> cache_page(uint64_t address, size_t size, char* bytes, uint64_t permissions)
 	{
 		//printf("caching page %#lx - %#lx.\n", address, address + size);
 		// Make sure this page is not overlapping with any existing cached page
@@ -467,9 +508,9 @@ public:
 		if (after != page_cache->end()) {
 			if (address + size >= after->first) {
 				if (address >= after->first) {
-					printf("[%#lx, %#lx] overlaps with [%#lx, %#lx].\n", address, address + size, after->first, after->first + after->second.size);
+					printf("[%#" PRIx64 ", %#" PRIx64 "](%#zx) overlaps with [%#" PRIx64 ", %#" PRIx64 "](%#zx).\n", address, address + size, size, after->first, after->first + after->second.size, after->second.size);
 					// A complete overlap
-					return;
+					return std::make_pair(address, size);
 				}
 				size = after->first - address;
 			}
@@ -479,26 +520,46 @@ public:
 			if (address < before->first + before->second.size) {
 				if (address + size <= before->first + before->second.size) {
 					// A complete overlap
-					printf("[%#lx, %#lx] overlaps with [%#lx, %#lx].\n", address, address + size, before->first, before->first + before->second.size);
-					return;
+					printf("[%#" PRIx64 ", %#" PRIx64 "](%#zx) overlaps with [%#" PRIx64 ", %#" PRIx64 "](%#zx).\n", address, address + size, size, after->first, after->first + after->second.size, after->second.size);
+					return std::make_pair(address, size);
 				}
 				size = address + size - (before->first + before->second.size);
 				address = before->first + before->second.size;
 			}
 		}
 
-		uint8_t *copy = (uint8_t *)malloc(size);
-		CachedPage cached_page = {
-			size,
-			copy,
-			permissions
-		};
-		// address should be aligned to 0x1000
-		memcpy(copy, bytes, size);
-		page_cache->insert(std::pair<uint64_t, CachedPage>(address, cached_page));
+		for (uint64_t offset = 0; offset < size; offset += 0x1000) {
+			uint8_t *copy = (uint8_t *)malloc(0x1000);
+			CachedPage cached_page = {
+				0x1000,
+				copy,
+				permissions
+			};
+			// address should be aligned to 0x1000
+			memcpy(copy, &bytes[offset], 0x1000);
+			page_cache->insert(std::pair<uint64_t, CachedPage>(address+offset, cached_page));
+		}
+		return std::make_pair(address, size);
 	}
 
-	bool map_cache(uint64_t address) {
+	void uncache_page(uint64_t address) {
+		if ((address & 0xfff) != 0) {
+			printf("Warning: Address #%" PRIx64 " passed to uncache_page is not aligned\n", address);
+			return;
+		}
+
+		auto page = page_cache->find(address);
+		if (page != page_cache->end()) {
+			//printf("Internal: unmapping %#llx size %#x, result %#x", page->first, page->second.size, uc_mem_unmap(uc, page->first, page->second.size));
+			uc_mem_unmap(uc, page->first, page->second.size);
+			//free(page->second.bytes); // other forks might need this I guess :( how the HELL do you make memory management sane?
+			page_cache->erase(page);
+		} else {
+			//printf("Uh oh! Couldn't find page at %#llx\n", address);
+		}
+	}
+
+	bool map_cache(uint64_t address, size_t size) {
 		auto it = page_cache->lower_bound(address);
 
 		if (it == page_cache->end() && it != page_cache->begin()) {
@@ -513,16 +574,28 @@ public:
 				cached_page_addr = it->first;
 			}
 			auto itt = it->second;
-			size_t size = itt.size;
+			size_t page_size = itt.size;
 			uint8_t *bytes = itt.bytes;
 			uint64_t permissions = itt.perms;
 
-			if (address >= cached_page_addr && address < cached_page_addr + size) {
-				//LOG_D("hit cache [%#lx, %#lx]", address, address + size);
-				uc_err err = uc_mem_map_ptr(uc, cached_page_addr, size, permissions, bytes);
-				if (err) {
-					//LOG_E("map_cache [%#lx, %#lx]: %s", address, address + size, uc_strerror(err));
-					return false;
+			if (address >= cached_page_addr && address < cached_page_addr + page_size) {
+				while (cached_page_addr < address + size) {
+					//LOG_D("hit cache [%#lx, %#lx]", address, address + size);
+					uc_err err = uc_mem_map_ptr(uc, cached_page_addr, page_size, permissions, bytes);
+					if (err) {
+						//LOG_E("map_cache [%#lx, %#lx]: %s", address, address + size, uc_strerror(err));
+						return false;
+					}
+
+					it++;
+					if (it != page_cache->end()) {
+						cached_page_addr = it->first;
+						page_size = it->second.size;
+						bytes = it->second.bytes;
+						permissions = it->second.perms;
+					} else {
+						break;
+					}
 				}
 				return true;
 			}
@@ -533,27 +606,6 @@ public:
 
 	bool in_cache(uint64_t address) {
 		return page_cache->find(address) != page_cache->end();
-	}
-
-	uint64_t get_stack_pointer(uc_engine *uc) {
-		// Note that only registers are stored - accessing anything other than stored registers from `cpu_arch_state` will
-		// result in out-of-bound read.
-
-		uint64_t sp = 0;
-
-		if (arch == UC_ARCH_X86) {
-			uc_reg_read(uc, UC_X86_REG_ESP, &sp);
-		} else if (arch == UC_ARCH_ARM) {
-			uc_reg_read(uc, UC_ARM_REG_SP, &sp);
-		} else if (arch == UC_ARCH_ARM64) {
-			uc_reg_read(uc, UC_ARM64_REG_SP, &sp);
-		} else if (arch == UC_ARCH_MIPS) {
-			uc_reg_read(uc, UC_MIPS_REG_SP, &sp);
-		} else {
-			//LOG_W("get_stack_pointer() does not support this architecture. Returning 0 as the stack pointer value.");
-		}
-
-		return sp;
 	}
 
 	//
@@ -887,6 +939,75 @@ public:
 			log_write(address - start + 0x1000, end + 1, clean);
 		}
 	}
+
+	inline unsigned int arch_pc_reg() {
+		switch (arch) {
+			case UC_ARCH_X86:
+				return mode == UC_MODE_64 ? UC_X86_REG_RIP : UC_X86_REG_EIP;
+			case UC_ARCH_ARM:
+				return UC_ARM_REG_PC;
+			case UC_ARCH_ARM64:
+				return UC_ARM64_REG_PC;
+			case UC_ARCH_MIPS:
+				return UC_MIPS_REG_PC;
+			default:
+				return -1;
+		}
+	}
+
+	inline unsigned int arch_sp_reg() {
+		switch (arch) {
+			case UC_ARCH_X86:
+				return mode == UC_MODE_64 ? UC_X86_REG_RSP : UC_X86_REG_ESP;
+			case UC_ARCH_ARM:
+				return UC_ARM_REG_SP;
+			case UC_ARCH_ARM64:
+				return UC_ARM64_REG_SP;
+			case UC_ARCH_MIPS:
+				return UC_MIPS_REG_SP;
+			default:
+				return -1;
+		}
+	}
+
+	uint64_t get_instruction_pointer() {
+		uint64_t out = 0;
+		unsigned int reg = arch_pc_reg();
+		if (reg == -1) {
+			out = 0;
+		} else {
+			uc_reg_read(uc, reg, &out);
+		}
+
+		return out;
+	}
+
+	uint64_t get_stack_pointer() {
+		uint64_t out = 0;
+		unsigned int reg = arch_sp_reg();
+		if (reg == -1) {
+			out = 0;
+		} else {
+			uc_reg_read(uc, reg, &out);
+		}
+
+		return out;
+	}
+
+	void set_instruction_pointer(uint64_t val) {
+		unsigned int reg = arch_pc_reg();
+		if (reg != -1) {
+			uc_reg_write(uc, reg, &val);
+		}
+	}
+
+	void set_stack_pointer(uint64_t val) {
+		unsigned int reg = arch_sp_reg();
+		if (reg != -1) {
+			uc_reg_write(uc, reg, &val);
+		}
+	}
+
 };
 
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
@@ -1034,7 +1155,7 @@ static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address,
 	uint64_t end = (address + size - 1) & ~0xFFFULL;
 
 	// only hook nonwritable pages
-	if (type != UC_MEM_WRITE_UNMAPPED && state->map_cache(start) && (start == end || state->map_cache(end))) {
+	if (type != UC_MEM_WRITE_UNMAPPED && state->map_cache(start, 0x1000) && (start == end || state->map_cache(end, 0x1000))) {
 		//LOG_D("handle unmapped page natively");
 		return true;
 	}
@@ -1044,6 +1165,7 @@ static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address,
 
 static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
 	State *state = (State *)user_data;
+	//printf("Segfault data: %d %#llx %d %#llx\n", type, address, size, value);
 	state->stop(STOP_SEGFAULT);
 	return true;
 }
@@ -1231,8 +1353,21 @@ extern "C"
 bool simunicorn_cache_page(State *state, uint64_t address, uint64_t length, char *bytes, uint64_t permissions) {
 	//LOG_I("caching [%#lx, %#lx]", address, address + length);
 
-	state->cache_page(address, length, bytes, permissions);
-	if (!state->map_cache(address))
+	auto actual = state->cache_page(address, length, bytes, permissions);
+	if (!state->map_cache(actual.first, actual.second)) {
 		return false;
+	}
 	return true;
+}
+
+extern "C"
+void simunicorn_uncache_page(State *state, uint64_t address) {
+	state->uncache_page(address);
+}
+
+// Tracking settings
+extern "C"
+void simunicorn_set_tracking(State *state, bool track_bbls, bool track_stack) {
+	state->track_bbls = track_bbls;
+	state->track_stack = track_stack;
 }

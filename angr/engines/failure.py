@@ -5,14 +5,12 @@ l = logging.getLogger("angr.engines.failure")
 
 class SimEngineFailure(SimEngine): #pylint:disable=abstract-method
     def __init__(self, project):
-
         super(SimEngineFailure, self).__init__()
-
         self.project = project
 
     def _check(self, state, **kwargs):
 
-        addr = state.se.any_int(state._ip)
+        addr = state.se.eval(state._ip)
         jumpkind = state.history.jumpkind
 
         if jumpkind in ('Ijk_EmFail', 'Ijk_MapFail') or jumpkind.startswith('Ijk_Sig'):
@@ -27,21 +25,18 @@ class SimEngineFailure(SimEngine): #pylint:disable=abstract-method
 
         from ..procedures import SIM_PROCEDURES
 
-        addr = state.se.any_int(state._ip)
-
         if state.history.jumpkind in ("Ijk_EmFail", "Ijk_MapFail") or "Ijk_Sig" in state.history.jumpkind:
             raise AngrExitError("Cannot execute following jumpkind %s" % state.history.jumpkind)
 
-        elif state.history.jumpkind == "Ijk_NoDecode" and not self.project.is_hooked(addr):
+        elif state.history.jumpkind == "Ijk_NoDecode" and not self.project.is_hooked(state.addr):
             raise AngrExitError("IR decoding error at %#x. You can hook this instruction with "
                                 "a python replacement using project.hook"
-                                "(%#x, your_function, length=length_of_instruction)." % (addr, addr))
+                                "(%#x, your_function, length=length_of_instruction)." % (state.addr, state.addr))
 
         elif state.history.jumpkind == 'Ijk_Exit':
-            l.debug('Execution terminated at %#x', addr)
+            l.debug('Execution terminated at %#x', state.addr)
             terminator = SIM_PROCEDURES['stubs']['PathTerminator'](project=self.project)
-            peng = self.project.factory.procedure_engine
-            return peng.process(state, terminator, force_addr=addr)
+            return self.project.factory.procedure_engine.process(state, terminator, force_addr=state.addr)
 
         else:
             return SimSuccessors.failure()

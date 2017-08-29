@@ -40,7 +40,7 @@ class memcmp(Func):
         return_val = None
         test = TestData(test_input, test_output, return_val, max_steps)
         s = runner.get_out_state(func, test)
-        if s is None or s.se.any_int(s.regs.eax) != 0:
+        if s is None or s.se.eval(s.regs.eax) != 0:
             return False
 
         bufa = "asd\x00a"
@@ -51,7 +51,7 @@ class memcmp(Func):
         x = runner.get_out_state(func, test)
         if x is None:
             return False
-        outval1 = x.se.any_int(x.regs.eax)
+        outval1 = x.se.eval(x.regs.eax)
 
         bufa = "asd\x00c"
         bufb = "asd\x00b"
@@ -62,7 +62,7 @@ class memcmp(Func):
         if s is None:
             return False
 
-        outval2 = s.se.any_int(s.regs.eax)
+        outval2 = s.se.eval(s.regs.eax)
 
         if outval1 != 0 or outval2 == 0:
             return False

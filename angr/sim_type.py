@@ -130,7 +130,7 @@ class SimTypeReg(SimType):
         out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
         if not concrete:
             return out
-        return state.se.any_int(out)
+        return state.se.eval(out)
 
     def store(self, state, addr, value):
         store_endness = state.arch.memory_endness
@@ -172,7 +172,7 @@ class SimTypeNum(SimType):
         out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
         if not concrete:
             return out
-        n = state.se.any_int(out)
+        n = state.se.eval(out)
         if self.signed and n >= 1 << (self.size-1):
             n -= 1 << (self.size)
         return n
@@ -231,7 +231,7 @@ class SimTypeInt(SimTypeReg):
         out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
         if not concrete:
             return out
-        n = state.se.any_int(out)
+        n = state.se.eval(out)
         if self.signed and n >= 1 << (self.size-1):
             n -= 1 << (self.size)
         return n
@@ -449,7 +449,7 @@ class SimTypeString(SimTypeArray):
         if not concrete:
             return out if out is not None else claripy.BVV(0, 0)
         else:
-            return state.se.any_str(out) if out is not None else ''
+            return state.se.eval(out, cast_to=str) if out is not None else ''
 
     _can_refine_int = True
 
@@ -465,6 +465,50 @@ class SimTypeString(SimTypeArray):
     def _with_arch(self, arch):
         return self
 
+
+class SimTypeWString(SimTypeArray):
+    """
+    A wide-character null-terminated string, where each character is 2 bytes.
+    """
+
+    _fields = SimTypeArray._fields + ('length',)
+
+    def __init__(self, length=None, label=None):
+        super(SimTypeWString, self).__init__(SimTypeNum(16, False), label=label, length=length)
+
+    def __repr__(self):
+        return 'wstring_t'
+
+    def extract(self, state, addr, concrete=False):
+        if self.length is None:
+            out = None
+            last_byte = state.memory.load(addr, 2)
+            addr += 2
+            while not claripy.is_true(last_byte == 0):
+                out = last_byte if out is None else out.concat(last_byte)
+                last_byte = state.memory.load(addr, 2)
+                addr += 2
+        else:
+            out = state.memory.load(addr, self.length*2)
+        if out is None: out = claripy.BVV(0, 0)
+        if not concrete:
+            return out
+        else:
+            return u''.join(unichr(state.se.eval(x.reversed if state.arch.memory_endness == 'Iend_LE' else x)) for x in out.chop(16))
+
+    _can_refine_int = True
+
+    def _refine(self, view, k):
+        return view._deeper(addr=view._addr + k * 2, ty=SimTypeNum(16, False))
+
+    @property
+    def size(self):
+        if self.length is None:
+            return 4096
+        return self.length * 2 + 2
+
+    def _with_arch(self, arch):
+        return self
 
 class SimTypeFunction(SimType):
     """
@@ -541,7 +585,7 @@ class SimTypeFloat(SimTypeReg):
     def extract(self, state, addr, concrete=False):
         itype = claripy.fpToFP(super(SimTypeFloat, self).extract(state, addr, False), self.sort)
         if concrete:
-            return state.se.any_int(itype)
+            return state.se.eval(itype)
         return itype
 
     def store(self, state, addr, value):
@@ -722,6 +766,7 @@ ALL_TYPES = {
     'uintptr_t': SimTypeLong(False),
 
     'string': SimTypeString(),
+    'wstring': SimTypeWString(),
 }
 
 ALL_TYPES.update(BASIC_TYPES)
@@ -736,7 +781,7 @@ def make_preamble():
             continue
 
         typ = ALL_TYPES[ty]
-        if isinstance(typ, (SimTypeFunction, SimTypeString)):
+        if isinstance(typ, (SimTypeFunction, SimTypeString, SimTypeWString)):
             continue
 
         if isinstance(typ, (SimTypeNum, SimTypeInt)) and str(typ) not in BASIC_TYPES:

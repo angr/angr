@@ -17,6 +17,7 @@ event_types = {
     'irsb',
     'constraints',
     'exit',
+    'fork',
     'symbolic_variable',
     'call',
     'return',
@@ -101,6 +102,7 @@ inspect_attributes = {
     # simprocedure
     'simprocedure_name',
     'simprocedure_addr',
+    'simprocedure',
 
     # engine_process
     'sim_engine',

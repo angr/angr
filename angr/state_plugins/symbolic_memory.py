@@ -430,10 +430,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     # Memory reading
     #
 
-    def _fill_missing(self, addr, num_bytes):
+    def _fill_missing(self, addr, num_bytes, inspect=True, events=True):
         name = "%s_%x" % (self.id, addr)
         all_missing = [
-            self.get_unconstrained_bytes(name, min(self.mem._page_size, num_bytes)*8, source=i)
+            self.get_unconstrained_bytes(name, min(self.mem._page_size, num_bytes)*8, source=i, inspect=inspect,
+                                         events=events)
             for i in range(addr, addr+num_bytes, self.mem._page_size)
         ]
         if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
@@ -442,15 +443,16 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             all_missing = [ a.reversed for a in all_missing ]
         b = self.state.se.Concat(*all_missing) if len(all_missing) > 1 else all_missing[0]
 
-        self.state.history.add_event('uninitialized', memory_id=self.id, addr=addr, size=num_bytes)
+        if events:
+            self.state.history.add_event('uninitialized', memory_id=self.id, addr=addr, size=num_bytes)
         default_mo = SimMemoryObject(b, addr)
         self.state.scratch.push_priv(True)
         self.mem.store_memory_object(default_mo, overwrite=False)
         self.state.scratch.pop_priv()
         return default_mo
 
-    def _read_from(self, addr, num_bytes):
-        items = self.mem.load_objects(addr, num_bytes)
+    def _read_from(self, addr, num_bytes, inspect=True, events=True, ret_on_segv=False):
+        items = self.mem.load_objects(addr, num_bytes, ret_on_segv=ret_on_segv)
 
         # optimize the case where we have a single object return
         if len(items) == 1 and items[0][1].includes(addr) and items[0][1].includes(addr + num_bytes - 1):
@@ -490,7 +492,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             r = self.state.se.BVV(0, 0)
         return r
 
-    def _load(self, dst, size, condition=None, fallback=None):
+    def _load(self, dst, size, condition=None, fallback=None,
+            inspect=True, events=True, ret_on_segv=False):
         if self.state.se.symbolic(size):
             l.warning("Concretizing symbolic length. Much sad; think about implementing.")
 
@@ -517,11 +520,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             else:
                 raise
 
-        read_value = self._read_from(addrs[0], size)
+        read_value = self._read_from(addrs[0], size, inspect=inspect,
+                events=events, ret_on_segv=ret_on_segv)
         constraint_options = [ dst == addrs[0] ]
 
         for a in addrs[1:]:
-            read_value = self.state.se.If(dst == a, self._read_from(a, size), read_value)
+            read_value = self.state.se.If(dst == a, self._read_from(a, size, inspect=inspect, events=events),
+                                          read_value)
             constraint_options.append(dst == a)
 
         if len(constraint_options) > 1:
@@ -569,7 +574,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if i - chunk_start > chunk_size - seek_size:
                 l.debug("loading new chunk")
                 chunk_start += chunk_size - seek_size + 1
-                chunk = self.load(start+chunk_start, chunk_size, endness="Iend_BE")
+                chunk = self.load(start+chunk_start, chunk_size,
+                        endness="Iend_BE", ret_on_segv=True)
 
             chunk_off = i-chunk_start
             b = chunk[chunk_size*8 - chunk_off*8 - 1 : chunk_size*8 - chunk_off*8 - seek_size*8]
@@ -943,7 +949,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return req
 
-    def get_unconstrained_bytes(self, name, bits, source=None):
+    def get_unconstrained_bytes(self, name, bits, source=None, inspect=True, events=True):
         """
         Get some consecutive unconstrained bytes.
         :param name: Name of the unconstrained variable
@@ -966,12 +972,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 if source is not None and type(source) in (int, long):
                     alloc_depth = self.state.uc_manager.get_alloc_depth(source)
                     kwargs['uc_alloc_depth'] = 0 if alloc_depth is None else alloc_depth + 1
-            r = self.state.se.Unconstrained(name, bits, **kwargs)
+            r = self.state.se.Unconstrained(name, bits, inspect=inspect, events=events, **kwargs)
             return r
 
     # Unconstrain a byte
-    def unconstrain_byte(self, addr):
-        unconstrained_byte = self.get_unconstrained_bytes("%s_unconstrain_0x%x" % (self.id, addr), 8)
+    def unconstrain_byte(self, addr, inspect=True, events=True):
+        unconstrained_byte = self.get_unconstrained_bytes("%s_unconstrain_0x%x" % (self.id, addr), 8, inspect=inspect,
+                                                          events=events)
         self.store(addr, unconstrained_byte)
 
     # Replaces the differences between self and other with unconstrained bytes.
@@ -1139,7 +1146,12 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         :param permissions: Integer or BVV to optionally set page permissions to
         :return:            AST representing the permissions on the page
         """
-        return self.mem.permissions(addr, permissions)
+        out = self.mem.permissions(addr, permissions)
+        # if unicorn is in play and we've marked a page writable, it must be uncached
+        if permissions is not None and self.state.solver.is_true(permissions & 2 == 2):
+            if self.state.has_plugin('unicorn'):
+                self.state.unicorn.uncache_page(addr)
+        return out
 
     def map_region(self, addr, length, permissions, init_zero=False):
         """

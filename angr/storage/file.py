@@ -129,7 +129,7 @@ class SimFile(SimStatePlugin):
                     self.state.se.satisfiable(extra_constraints=(length_constraint,)):
                 self.state.add_constraints(length_constraint)
             elif not self.state.se.symbolic(real_length) or not self.state.se.symbolic(max_length):
-                real_length = min(self.state.se.any_int(max_length), self.state.se.any_int(real_length))
+                real_length = min(self.state.se.eval(max_length), self.state.se.eval(real_length))
 
         self.content.copy_contents(dst_addr, self.pos, real_length , dst_memory=self.state.memory)
         self.read_pos += _deps_unpack(real_length)[0]
@@ -180,6 +180,14 @@ class SimFile(SimStatePlugin):
         for i in range(min_idx, max_idx+1):
             buff.append(self.content.load(i, 1))
         return self.state.se.Concat(*buff)
+
+    def concretize(self, **kwargs):
+        """
+        Returns a concrete value for this file satisfying the current state constraints.
+
+        Or: generate a testcase for this file.
+        """
+        return self.state.se.eval(self.all_bytes(), cast_to=str, **kwargs)
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         """
@@ -270,7 +278,7 @@ class SimDialogue(SimFile):
 
         # we assume the length passed to read can always be concretized to a single value
         # because our dialogue entries will always be preconstrained
-        lengths = self.state.se.any_n_int(length, 2)
+        lengths = self.state.se.eval_upto(length, 2)
         if len(lengths) > 1:
             raise ValueError("read called with a symbolic length which can be more than a single value")
         length_c = lengths[0]

@@ -1,10 +1,12 @@
-""" angr module """
 # pylint: disable=wildcard-import
 
 # first: let's set up some bootstrap logging
+import logging
+logging.getLogger("angr").addHandler(logging.NullHandler())
 from .misc.loggers import Loggers
 loggers = Loggers()
 del Loggers
+del logging
 
 # this must happen first, prior to initializing analyses
 from .sim_procedure import SimProcedure
@@ -30,7 +32,7 @@ from .simos import SimOS
 from .manager import SimulationManager
 from .analyses import Analysis, register_analysis
 from . import analyses
-from . import knowledge
+from . import knowledge_plugins
 from . import exploration_techniques
 from . import type_backend
 from . import sim_type as types
@@ -38,7 +40,7 @@ from .state_hierarchy import StateHierarchy
 
 from .sim_state import SimState
 from .engines import SimEngineVEX
-from .calling_conventions import DEFAULT_CC, SYSCALL_CC
+from .calling_conventions import DEFAULT_CC, SYSCALL_CC, PointerWrapper
 
 # now that we have everything loaded, re-grab the list of loggers
 loggers.load_all_loggers()

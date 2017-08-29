@@ -33,7 +33,7 @@ def test_lseek_set():
 
     # Seek to the top of the file
     current_pos = lseek(state,[fd,0,SEEK_SET]).ret_expr
-    current_pos = state.se.any_int(current_pos)
+    current_pos = state.se.eval(current_pos)
 
     # We should be at the start
     nose.tools.assert_equal(current_pos,0)
@@ -42,7 +42,7 @@ def test_lseek_set():
 
     # Seek to the top of the file
     current_pos = lseek(state,[fd,8,SEEK_SET]).ret_expr
-    current_pos = state.se.any_int(current_pos)
+    current_pos = state.se.eval(current_pos)
 
     # We should be at the start
     nose.tools.assert_equal(current_pos,8)
@@ -51,7 +51,7 @@ def test_lseek_set():
 
     # Seek to the top of the file
     current_pos = lseek(state,[fd,3,SEEK_SET]).ret_expr
-    current_pos = state.se.any_int(current_pos)
+    current_pos = state.se.eval(current_pos)
 
     # We should be at the start
     nose.tools.assert_equal(current_pos,3)
@@ -69,7 +69,7 @@ def test_lseek_cur():
 
     # Add 12
     current_pos = lseek(state,[fd,12,SEEK_CUR]).ret_expr
-    current_pos = state.se.any_int(current_pos)
+    current_pos = state.se.eval(current_pos)
 
     # We should be at the start
     nose.tools.assert_equal(current_pos,12)
@@ -78,7 +78,7 @@ def test_lseek_cur():
 
     # Remove 3
     current_pos = lseek(state,[fd,-3,SEEK_CUR]).ret_expr
-    current_pos = state.se.any_int(current_pos)
+    current_pos = state.se.eval(current_pos)
 
     # We should be at the start
     nose.tools.assert_equal(current_pos,9)
@@ -99,7 +99,7 @@ def test_lseek_end():
 
     # Add 5
     current_pos = lseek(state,[fd,5,SEEK_END]).ret_expr
-    current_pos = state.se.any_int(current_pos)
+    current_pos = state.se.eval(current_pos)
 
     # We should be at the end + offset
     nose.tools.assert_equal(current_pos,21)
@@ -108,7 +108,7 @@ def test_lseek_end():
 
     # Minus 6. End of file never actually changed
     current_pos = lseek(state,[fd,-6,SEEK_END]).ret_expr
-    current_pos = state.se.any_int(current_pos)
+    current_pos = state.se.eval(current_pos)
 
     # We should be at the end + offset
     nose.tools.assert_equal(current_pos,10)
@@ -118,21 +118,21 @@ def test_lseek_unseekable():
 
     # Illegal seek
     current_pos = lseek(state,[0,0,SEEK_SET]).ret_expr
-    current_pos = state.se.any_int(current_pos)
+    current_pos = state.se.eval(current_pos)
 
     # Assert we have a negative return value
     nose.tools.assert_true(current_pos & (1 << 63) != 0)
 
     # Illegal seek
     current_pos = lseek(state,[1,0,SEEK_SET]).ret_expr
-    current_pos = state.se.any_int(current_pos)
+    current_pos = state.se.eval(current_pos)
 
     # Assert we have a negative return value
     nose.tools.assert_true(current_pos & (1 << 63) != 0)
 
     # Illegal seek
     current_pos = lseek(state,[2,0,SEEK_SET]).ret_expr
-    current_pos = state.se.any_int(current_pos)
+    current_pos = state.se.eval(current_pos)
 
     # Assert we have a negative return value
     nose.tools.assert_true(current_pos & (1 << 63) != 0)

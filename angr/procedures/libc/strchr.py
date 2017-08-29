@@ -24,7 +24,7 @@ class strchr(angr.SimProcedure):
             a, c, i = self.state.memory.find(s_addr, c, s_strlen.max_null_index, max_symbolic_bytes=max_sym, default=0)
         else:
             l.debug("concrete strlen")
-            max_search = self.state.se.any_int(s_strlen.ret_expr)
+            max_search = self.state.se.eval(s_strlen.ret_expr)
             a, c, i = self.state.memory.find(s_addr, c, max_search, default=0)
 
         if len(i) != 0:

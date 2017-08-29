@@ -85,8 +85,10 @@ class AngrObjectFactory(object):
         if r.successors and r.successors[0].history.jumpkind.startswith('Ijk_Sys'):
             self._fix_syscall_ip(r.successors[0])
         # fix up the descriptions... TODO do something better than this
+        description = str(r)
+        l.info("Ticked state: %s", description)
         for succ in r.successors:
-            succ.history.description = str(r)
+            succ.history.description = description
 
         return r
 
@@ -197,6 +199,9 @@ class AngrObjectFactory(object):
         return self._project._simos.state_call(addr, *args, **kwargs)
 
     def simgr(self, thing=None, **kwargs):
+        return self.simulation_manager(thing=thing, **kwargs)
+
+    def simulation_manager(self, thing=None, **kwargs):
         """
         Constructs a new simulation manager.
 
@@ -303,8 +308,8 @@ class AngrObjectFactory(object):
                      backup_state=backup_state, opt_level=opt_level, num_inst=num_inst, traceflags=traceflags
                      )
 
-    def fresh_block(self, addr, size):
-        return Block(addr, project=self._project, size=size)
+    def fresh_block(self, addr, size, backup_state=None):
+        return Block(addr, project=self._project, size=size, backup_state=backup_state)
 
     cc.SimRegArg = SimRegArg
     cc.SimStackArg = SimStackArg
@@ -357,6 +362,6 @@ class AngrObjectFactory(object):
 
 from .errors import AngrExitError, AngrError, AngrUnsupportedSyscallError
 from .manager import SimulationManager
-from .knowledge import HookNode
+from .codenode import HookNode
 from .block import Block
 from . import sim_options as o

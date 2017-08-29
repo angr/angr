@@ -70,7 +70,12 @@ class Block(object):
         self._parse_vex_info()
 
         if byte_string is None:
-            self._bytes = None
+            if backup_state is not None:
+                self._bytes = self._vex_engine._load_bytes(addr - thumb, size, state=backup_state)[0]
+                if type(self._bytes) is not str:
+                    self._bytes = str(pyvex.ffi.buffer(self._bytes, size))
+            else:
+                self._bytes = None
         elif type(byte_string) is str:
             if self.size is not None:
                 self._bytes = byte_string[:self.size]
@@ -160,7 +165,7 @@ class Block(object):
 
     @property
     def codenode(self):
-        return BlockNode(self.addr, self.size, bytestr=self.bytes)
+        return BlockNode(self.addr, self.size, bytestr=self.bytes, thumb=self.thumb)
 
     @property
     def bytes(self):
@@ -220,4 +225,4 @@ class CapstoneInsn(object):
         return '<CapstoneInsn "%s" for %#x>' % (self.mnemonic, self.address)
 
 
-from .knowledge.codenode import BlockNode
+from .codenode import BlockNode

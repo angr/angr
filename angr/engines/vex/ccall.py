@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-
+import claripy
 import logging
 l = logging.getLogger("angr.engines.vex.ccall")
 #l.setLevel(logging.DEBUG)
@@ -7,6 +6,7 @@ l = logging.getLogger("angr.engines.vex.ccall")
 # pylint: disable=R0911
 # pylint: disable=W0613
 # pylint: disable=W0612
+# pylint: disable=invalid-unary-operand-type
 
 ###############
 ### Helpers ###
@@ -31,7 +31,8 @@ def boolean_extend(state, O, a, b, size):
     return state.se.If(O(a, b), state.se.BVV(1, size), state.se.BVV(0, size))
 
 def flag_concretize(state, flag):
-    return state.se.exactly_n_int(flag, 1)[0]
+    return state.se.eval(flag)
+    #return state.se.eval_one(flag)
 
 ##################
 ### x86* data ###
@@ -247,12 +248,20 @@ def pc_make_rdata(nbits, cf, pf, af, zf, sf, of, platform=None):
     return cf, pf, af, zf, sf, of
 
 def pc_make_rdata_if_necessary(nbits, cf, pf, af, zf, sf, of, platform=None):
-    return  cf.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_C'] | \
-            pf.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_P'] | \
-            af.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_A'] | \
-            zf.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'] | \
-            sf.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_S'] | \
-            of.zero_extend(nbits - 1) << data[platform]['CondBitOffsets']['G_CC_SHIFT_O']
+
+    vec = [(data[platform]['CondBitOffsets']['G_CC_SHIFT_C'], cf),
+           (data[platform]['CondBitOffsets']['G_CC_SHIFT_P'], pf),
+           (data[platform]['CondBitOffsets']['G_CC_SHIFT_A'], af),
+           (data[platform]['CondBitOffsets']['G_CC_SHIFT_Z'], zf),
+           (data[platform]['CondBitOffsets']['G_CC_SHIFT_S'], sf),
+           (data[platform]['CondBitOffsets']['G_CC_SHIFT_O'], of)]
+    vec.sort(reverse=True)
+    result = claripy.BVV(0, 0)
+    for offset, bit in vec:
+        current_position = 31 - result.length
+        result = result.concat(claripy.BVV(0, current_position - offset), bit)
+    result = result.concat(claripy.BVV(0, nbits - result.length))
+    return result
 
 def pc_actions_ADD(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
     data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
@@ -811,66 +820,80 @@ def amd64g_calculate_rflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
 ###########################
 ### X86-specific ones ###
 ###########################
-def x86g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
-    tempCOUNT = rot_amt & 0x1f
 
-    # make sure sz and rot_amt are not symbolic
+def x86g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
+    # make sure sz is not symbolic
     if sz.symbolic:
         raise SimError('Hit a symbolic "sz" in x86g_calculate_RCR. Panic.')
-    if tempCOUNT.symbolic:
-        raise ValueError('Hit a symbolic "rot_amt" in x86g_calculate_RCR. Panic.')
 
-    # convert sz and tempCount to concrete values
-    sz = state.se.exactly_int(sz)
-    tempCOUNT = state.se.exactly_int(tempCOUNT)
+    # convert sz to concrete value
+    sz = state.se.eval_one(sz)
+    bits = sz * 8
 
-    # zero extend eflags and arg to 64-bit values
-    eflags_in = state.se.ZeroExt(32, eflags_in)
-    arg = state.se.ZeroExt(32, arg)
-
-    if sz == 4:
-        cf = (eflags_in >> data['X86']['CondBitOffsets']['G_CC_SHIFT_C']) & 1
-        of = ((arg >> 31) ^ cf) & 1
-        while tempCOUNT > 0:
-            tempcf = arg & 1
-            arg = (arg >> 1) | (cf << 31)
-            cf = tempcf
-            tempCOUNT -= 1
-
-    elif sz == 2:
-        while tempCOUNT >= 17:
-            tempCOUNT -= 17
-
-        cf = (eflags_in >> data['X86']['CondBitOffsets']['G_CC_SHIFT_C']) & 1
-        of = ((arg >> 15) ^ cf) & 1
-        while tempCOUNT > 0:
-            tempcf = arg & 1
-            arg = ((arg >> 1) & 0x7fff) | (cf << 15)
-            cf = tempcf
-            tempCOUNT -= 1
-
-    elif sz == 1:
-        while tempCOUNT >= 9:
-            tempCOUNT -= 9
-
-        cf = (eflags_in >> data['X86']['CondBitOffsets']['G_CC_SHIFT_C']) & 1
-        of = ((arg >> 7) ^ cf) & 1
-        while tempCOUNT > 0:
-            tempcf = arg & 1
-            arg = ((arg >> 1) & 0x7f) | (cf << 7)
-            cf = tempcf
-            tempCOUNT -= 1
-
+    # construct bitvec to use for rotation amount - 9/17/33 bits
+    if bits == 32:
+        sized_amt = (rot_amt & 0x1f).zero_extend(1)
     else:
-        raise SimError('Unsupported "sz" value %d. Panic.' % sz)
+        sized_amt = (rot_amt & 0x1f)[bits:0]
 
-    cf &= 1
-    of &= 1
-    eflags_in &= ~(data['X86']['CondBitMasks']['G_CC_MASK_C'] | data['X86']['CondBitMasks']['G_CC_MASK_O'])
-    eflags_in |= (cf << data['X86']['CondBitOffsets']['G_CC_SHIFT_C']) | \
-                 (of << data['X86']['CondBitOffsets']['G_CC_SHIFT_O'])
+    # construct bitvec to use for rotating value - 9/17/33 bits
+    carry_bit_in = eflags_in[data['X86']['CondBitOffsets']['G_CC_SHIFT_C']]
+    sized_arg_in = arg[bits-1:0]
+    rotatable_in = carry_bit_in.concat(sized_arg_in)
 
-    return (eflags_in << 32) | arg, [ ]
+    # compute and extract
+    rotatable_out = state.se.RotateRight(rotatable_in, sized_amt)
+    sized_arg_out = rotatable_out[bits-1:0]
+    carry_bit_out = rotatable_out[bits]
+    arg_out = sized_arg_out.zero_extend(32 - bits)
+    overflow_bit_out = arg_out[bits-2] ^ arg_out[bits-1]
+
+    # construct final answer
+    cf = carry_bit_out.zero_extend(31)
+    of = overflow_bit_out.zero_extend(31)
+    eflags_out = eflags_in
+    eflags_out &= ~(data['X86']['CondBitMasks']['G_CC_MASK_C'] | data['X86']['CondBitMasks']['G_CC_MASK_O'])
+    eflags_out |= (cf << data['X86']['CondBitOffsets']['G_CC_SHIFT_C']) | \
+                  (of << data['X86']['CondBitOffsets']['G_CC_SHIFT_O'])
+
+    return eflags_out.concat(arg_out), []
+
+def x86g_calculate_RCL(state, arg, rot_amt, eflags_in, sz):
+    # make sure sz is not symbolic
+    if sz.symbolic:
+        raise SimError('Hit a symbolic "sz" in x86g_calculate_RCR. Panic.')
+
+    # convert sz to concrete value
+    sz = state.se.eval_one(sz)
+    bits = sz * 8
+
+    # construct bitvec to use for rotation amount - 9/17/33 bits
+    if bits == 32:
+        sized_amt = (rot_amt & 0x1f).zero_extend(1)
+    else:
+        sized_amt = (rot_amt & 0x1f)[bits:0]
+
+    # construct bitvec to use for rotating value - 9/17/33 bits
+    carry_bit_in = eflags_in[data['X86']['CondBitOffsets']['G_CC_SHIFT_C']]
+    sized_arg_in = arg[bits-1:0]
+    rotatable_in = carry_bit_in.concat(sized_arg_in)
+
+    # compute and extract
+    rotatable_out = state.se.RotateLeft(rotatable_in, sized_amt)
+    sized_arg_out = rotatable_out[bits-1:0]
+    carry_bit_out = rotatable_out[bits]
+    arg_out = sized_arg_out.zero_extend(32 - bits)
+    overflow_bit_out = carry_bit_out ^ arg_out[bits-1]
+
+    # construct final answer
+    cf = carry_bit_out.zero_extend(31)
+    of = overflow_bit_out.zero_extend(31)
+    eflags_out = eflags_in
+    eflags_out &= ~(data['X86']['CondBitMasks']['G_CC_MASK_C'] | data['X86']['CondBitMasks']['G_CC_MASK_O'])
+    eflags_out |= (cf << data['X86']['CondBitOffsets']['G_CC_SHIFT_C']) | \
+                  (of << data['X86']['CondBitOffsets']['G_CC_SHIFT_O'])
+
+    return eflags_out.concat(arg_out), []
 
 def x86g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
     if USE_SIMPLIFIED_CCALLS in state.options:
@@ -893,7 +916,7 @@ def x86g_create_fpucw(state, fpround):
 def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
     assert len(flags_and_AX) == 32
     assert not opcode.symbolic
-    opcode = state.se.any_int(opcode)
+    opcode = state.se.eval(opcode)
 
     r_O  = flags_and_AX[data['X86']['CondBitOffsets']['G_CC_SHIFT_O'] + 16].zero_extend(31)
     r_S  = flags_and_AX[data['X86']['CondBitOffsets']['G_CC_SHIFT_S'] + 16].zero_extend(31)
@@ -909,7 +932,7 @@ def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
     #    old_AL = r_AL
     #    old_C  = r_C
     #    r_C = state.se.If((r_AL & 0xF) > 9 || r_A == 1, old_C, state.se.BVV(0, 32))
-    #    r_A = state.se.If((r_AL & 0xF) > 9 || r_A == 1, 
+    #    r_A = state.se.If((r_AL & 0xF) > 9 || r_A == 1,
     #    if ((r_AL & 0xF) > 9 || r_A == 1) {
     #        r_AL = r_AL + 6;
     #        r_C  = old_C;
@@ -976,7 +999,7 @@ def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
         r_C = state.se.If(condition, one, zero)
         r_O = r_S = r_Z = r_P = 0
     else:
-        assert False
+        raise SimCCallError("DAA/DAS instructions are unsupported")
 
     result =   ( (r_O & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_O']) ) \
              | ( (r_S & 1) << (16 + data['X86']['CondBitOffsets']['G_CC_SHIFT_S']) ) \
@@ -991,7 +1014,7 @@ def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
 def x86g_calculate_aad_aam(state, flags_and_AX, opcode):
     assert len(flags_and_AX) == 32
     assert not opcode.symbolic
-    opcode = state.se.any_int(opcode)
+    opcode = state.se.eval(opcode)
 
     r_AL = (flags_and_AX >> 0) & 0xFF
     r_AH = (flags_and_AX >> 8) & 0xFF
@@ -1003,7 +1026,7 @@ def x86g_calculate_aad_aam(state, flags_and_AX, opcode):
         r_AL = ((r_AH * 10) + r_AL) & 0xff
         r_AH = state.se.BVV(0, 32)
     else:
-        assert False
+        raise SimCCallError("Unknown opcode %#x in AAD/AAM ccall", opcode)
 
     r_O = state.se.BVV(0, 32)
     r_C = state.se.BVV(0, 32)
@@ -1071,7 +1094,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     tiBit = (seg_selector >> 2) & 1
     if state.se.is_true(tiBit == 0):
         # GDT access
-        gdt_value = state.se.exactly_int(gdt)
+        gdt_value = state.se.eval_one(gdt)
         if gdt_value == 0:
             return ((seg_selector << 16) + virtual_addr).zero_extend(32), ()
 
@@ -1083,11 +1106,11 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
             return bad("index out of range")
 
         gdt_base = gdt[47:16]
-        gdt_base_value = state.se.exactly_int(gdt_base)
+        gdt_base_value = state.se.eval_one(gdt_base)
         descriptor = state.memory.load(gdt_base_value + seg_selector * 8, 8, endness='Iend_LE')
     else:
         # LDT access
-        ldt_value = state.se.exactly_int(ldt)
+        ldt_value = state.se.eval_one(ldt)
         if ldt_value == 0:
             return ((seg_selector << 16) + virtual_addr).zero_extend(32), ()
 
@@ -1099,9 +1122,9 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
             return bad("index out of range")
 
         ldt_base = ldt[47:16]
-        ldt_base_value = state.se.exactly_int(ldt_base)
+        ldt_base_value = state.se.eval_one(ldt_base)
 
-        ldt_value = state.se.exactly_int(ldt_base)
+        ldt_value = state.se.eval_one(ldt_base)
         descriptor = state.memory.load(ldt_value + seg_selector * 8, 8, endness='Iend_LE')
 
     present = descriptor[47]

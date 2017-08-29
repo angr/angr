@@ -12,7 +12,7 @@ class futex(angr.SimProcedure):
     IS_SYSCALL = True
 
     def run(self, uaddr, futex_op, val, timeout, uaddr2, val3):
-        op = self.state.se.any_int(futex_op)
+        op = self.state.se.eval(futex_op)
         if op & 1:  # FUTEX_WAKE
             l.debug('futex(FUTEX_WAKE)')
             return 0

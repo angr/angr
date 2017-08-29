@@ -29,7 +29,7 @@ def test_mips():
     xpl.run()
 
     found = xpl.found[0]
-    conc = found.se.any_str(found.memory.load(found.registers.load('sp'), 400))
+    conc = found.se.eval(found.memory.load(found.registers.load('sp'), 400), cast_to=str)
 
     nose.tools.assert_equals("Yan is a noob" in conc, True)
 
@@ -54,7 +54,7 @@ def test_mipsel():
     xpl.run()
 
     found = xpl.found[0]
-    conc = found.se.any_str(found.memory.load(found.registers.load('sp'), 400))
+    conc = found.se.eval(found.memory.load(found.registers.load('sp'), 400), cast_to=str)
 
     nose.tools.assert_equals("Yan is a noob" in conc, True)
 
@@ -79,7 +79,7 @@ def test_i386():
     xpl.run()
 
     found = xpl.found[0]
-    conc = found.se.any_str(found.memory.load(found.registers.load('sp'), 400))
+    conc = found.se.eval(found.memory.load(found.registers.load('sp'), 400), cast_to=str)
 
     nose.tools.assert_equals("Yan is a noob" in conc, True)
 
@@ -104,7 +104,7 @@ def test_amd64():
     xpl.run()
 
     found = xpl.found[0]
-    conc = found.se.any_str(found.memory.load(found.registers.load('sp'), 400))
+    conc = found.se.eval(found.memory.load(found.registers.load('sp'), 400), cast_to=str)
 
     nose.tools.assert_equals("Yan is a noob" in conc, True)
 
@@ -130,7 +130,7 @@ def test_arm():
     xpl.run()
 
     found = xpl.found[0]
-    conc = found.se.any_str(found.memory.load(found.registers.load('sp'), 400))
+    conc = found.se.eval(found.memory.load(found.registers.load('sp'), 400), cast_to=str)
 
     nose.tools.assert_equals("Yan is a noob" in conc, True)
 
@@ -156,7 +156,7 @@ def test_ppc32():
     xpl.run()
 
     found = xpl.found[0]
-    conc = found.se.any_str(found.memory.load(found.registers.load('sp'), 400))
+    conc = found.se.eval(found.memory.load(found.registers.load('sp'), 400), cast_to=str)
 
     nose.tools.assert_equals("Yan is a noob" in conc, True)
 

@@ -20,7 +20,7 @@ class SimStatePlugin(object):
         self.state = state
 
     def set_strongref_state(self, state):
-        raise NotImplementedError()
+        pass
 
     def __getstate__(self):
         d = dict(self.__dict__)

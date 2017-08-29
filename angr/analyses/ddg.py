@@ -520,7 +520,7 @@ class DDG(Analysis):
                 new_defs = self._track(state, live_defs, node.irsb.statements if node.irsb is not None else None)
 
                 #corresponding_successors = [n for n in successing_nodes if
-                #                            not state.ip.symbolic and n.addr == state.se.any_int(state.ip)]
+                #                            not state.ip.symbolic and n.addr == state.se.eval(state.ip)]
                 #if not corresponding_successors:
                 #    continue
 
@@ -529,7 +529,7 @@ class DDG(Analysis):
                 for successing_node in successing_nodes:
 
                     if (state.history.jumpkind == 'Ijk_Call' or state.history.jumpkind.startswith('Ijk_Sys')) and \
-                            (state.ip.symbolic or successing_node.addr != state.se.any_int(state.ip)):
+                            (state.ip.symbolic or successing_node.addr != state.se.eval(state.ip)):
                         # this might be the block after the call, and we are not tracing into the call
                         # TODO: make definition killing architecture independent and calling convention independent
                         filtered_defs = LiveDefinitions()
@@ -595,8 +595,8 @@ class DDG(Analysis):
         data_generated = None
 
         # tracks stack pointer and base pointer
-        #sp = state.se.any_int(state.regs.sp) if not state.regs.sp.symbolic else None
-        #bp = state.se.any_int(state.regs.bp) if not state.regs.bp.symbolic else None
+        #sp = state.se.eval(state.regs.sp) if not state.regs.sp.symbolic else None
+        #bp = state.se.eval(state.regs.bp) if not state.regs.bp.symbolic else None
 
         for a in action_list:
 
@@ -614,7 +614,7 @@ class DDG(Analysis):
                 if a.actual_addrs is None:
                     # For now, mem reads don't necessarily have actual_addrs set properly
                     try:
-                        addr_list = { state.se.any_int(a.addr.ast) }
+                        addr_list = { state.se.eval(a.addr.ast) }
                     except (SimSolverModeError, SimUnsatError, ZeroDivisionError):
                         # FIXME: ZeroDivisionError should have been caught by claripy and simuvex.
                         # FIXME: see claripy issue #75. this is just a temporary workaround.

@@ -17,7 +17,7 @@ class fputs(angr.SimProcedure):
         strlen = angr.SIM_PROCEDURES['libc']['strlen']
         p_strlen = self.inline_call(strlen, str_addr)
         str_expr = self.state.memory.load(str_addr, p_strlen.max_null_index, endness='Iend_BE')
-        str_val = self.state.se.any_str(str_expr)
+        str_val = self.state.se.eval(str_expr, cast_to=str)
 
         self.state.posix.write(fileno, str_val, p_strlen.max_null_index)
 

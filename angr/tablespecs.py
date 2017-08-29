@@ -46,7 +46,7 @@ class StringTableSpec(object):
         ptr_size = len(self._contents) * state.arch.bytes
         size = self._str_len + ptr_size
         start_addr = end_addr - size
-        zero_fill = state.se.any_int(start_addr % align)
+        zero_fill = state.se.eval(start_addr % align)
         start_addr -= zero_fill
         start_str = start_addr + ptr_size
 

@@ -444,7 +444,7 @@ class SimPagedMemory(object):
                 if self.allow_segv:
                     if ret_on_segv:
                         break
-                    raise SimSegfaultError(page_addr, 'read-miss')
+                    raise SimSegfaultError(addr, 'read-miss')
                 else:
                     continue
 
@@ -452,7 +452,7 @@ class SimPagedMemory(object):
                 #print "... SEGV"
                 if ret_on_segv:
                     break
-                raise SimSegfaultError(page_addr, 'non-readable')
+                raise SimSegfaultError(addr, 'non-readable')
             result.extend(page.load_slice(self.state, addr, end))
 
         return result
@@ -491,11 +491,11 @@ class SimPagedMemory(object):
                 if start_backer >= len(backer):
                     continue
 
-                # find permission backer associated with the address, there should be a
-                # memory backer that matches the start_backer. if not fall back to read-write
+                # find permission backer associated with the address
+                # fall back to read-write if we can't find any...
                 flags = Page.PROT_READ | Page.PROT_WRITE
                 for start, end in self._permission_map:
-                    if start == addr:
+                    if start <= new_page_addr < end:
                         flags = self._permission_map[(start, end)]
                         break
 
@@ -951,14 +951,14 @@ class SimPagedMemory(object):
         """
         Returns the permissions for a page at address `addr`.
 
-        If optional arugment permissions is given, set page permissions to that prior to returning permissions.
+        If optional argument permissions is given, set page permissions to that prior to returning permissions.
         """
 
         if self.state.se.symbolic(addr):
             raise SimMemoryError("page permissions cannot currently be looked up for symbolic addresses")
 
         if isinstance(addr, claripy.ast.bv.BV):
-            addr = self.state.se.any_int(addr)
+            addr = self.state.se.eval(addr)
 
         page_num = addr / self._page_size
 

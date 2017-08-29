@@ -11,7 +11,7 @@ class tmpnam(angr.SimProcedure):
     def run(self, tmp_file_path_addr):
         L_tmpnam = 20
 
-        if self.state.se.any_int(tmp_file_path_addr) != 0:
+        if self.state.se.eval(tmp_file_path_addr) != 0:
             return tmp_file_path_addr
 
         tmp_file_path = tempfile.mktemp()

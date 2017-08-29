@@ -16,7 +16,7 @@ class memcpy(angr.SimProcedure):
 
         if not self.state.se.symbolic(limit):
             # not symbolic so we just take the value
-            conditional_size = self.state.se.any_int(limit)
+            conditional_size = self.state.se.eval(limit)
         else:
             # constraints on the limit are added during the store
             max_memcpy_size = self.state.libc.max_memcpy_size

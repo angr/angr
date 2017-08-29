@@ -15,6 +15,8 @@ class StateHierarchy(object):
         self._graph = networkx.DiGraph()
         self._leaves = set() # nodes with no children
         self._twigs = set() # nodes with one child
+        self._weakref_cache = {} # map from object id to weakref
+        self._reverse_weakref_cache = {} # map from weakref to object id
 
     def __getstate__(self):
         histories = [ h() for h in networkx.algorithms.dfs_postorder_nodes(self._graph) ]
@@ -24,10 +26,32 @@ class StateHierarchy(object):
         self._graph = networkx.DiGraph()
         self._leaves = set()
         self._twigs = set()
+        self._weakref_cache = {}
+        self._reverse_weakref_cache = {}
 
         nodes = s[0]
         for n in nodes:
             self.add_history(n)
+
+    def get_ref(self, obj):
+        if id(obj) not in self._weakref_cache:
+            ref = weakref.ref(obj, self.clear_ref)
+            self._weakref_cache[id(obj)] = ref
+            self._reverse_weakref_cache[ref] = id(obj)
+            return ref
+        else:
+            return self._weakref_cache[id(obj)]
+
+    def clear_ref(self, ref):
+        if ref not in self._reverse_weakref_cache:
+            l.error("Cleaning mystery weakref %s", ref)
+            return
+
+        self._remove_history(ref)
+
+        # TODO: this nonsense is very much not thread safe
+        del self._weakref_cache[self._reverse_weakref_cache[ref]]
+        del self._reverse_weakref_cache[ref]
 
     #
     # Graph management
@@ -47,18 +71,19 @@ class StateHierarchy(object):
 
         self._leaves.discard(h)
         self._twigs.discard(h)
-        if h() is not None:
-            h().demote()
+        hh = h()
+        if hh is not None:
+            hh.demote()
 
     def add_state(self, s):
         h = s.history
         self.add_history(h)
 
     def add_history(self, h):
-        cur_node = weakref.ref(h, self._remove_history)
+        cur_node = self.get_ref(h)
         self._graph.add_node(cur_node)
         if h.parent is not None:
-            prev_node = weakref.ref(h.parent, self._remove_history)
+            prev_node = self.get_ref(h.parent)
             self._graph.add_edge(prev_node, cur_node)
 
             self._leaves.discard(prev_node)
@@ -101,13 +126,13 @@ class StateHierarchy(object):
         return nodes
 
     def history_successors(self, h):
-        return [ ref() for ref in self._graph.successors(weakref.ref(h)) ]
+        return [ ref() for ref in self._graph.successors(self.get_ref(h)) ]
 
     def history_predecessors(self, h):
-        return [ ref() for ref in self._graph.predecessors(weakref.ref(h)) ]
+        return [ ref() for ref in self._graph.predecessors(self.get_ref(h)) ]
 
     def history_contains(self, h):
-        return weakref.ref(h) in self._graph
+        return self.get_ref(h) in self._graph
 
     #
     # LAZY_SOLVES support
@@ -155,7 +180,7 @@ class StateHierarchy(object):
         self.unreachable_history(state.history)
 
     def unreachable_history(self, h):
-        href = weakref.ref(h)
+        href = self.get_ref(h)
 
         l.debug("Pruning tree given unreachable %s", h)
         root = self._find_root_unreachable(href)
@@ -174,15 +199,15 @@ class StateHierarchy(object):
         :returns: a tuple of: (a list of states to merge, those states' common history, a list of states to not merge yet)
         """
 
-        histories = set(weakref.ref(s.history) for s in states)
+        histories = set(self.get_ref(s.history) for s in states)
 
         for n in networkx.algorithms.dfs_postorder_nodes(self._graph):
             intersection = histories.intersection(self.all_successors(n))
             if len(intersection) > 1:
                 return (
-                    [ s for s in states if weakref.ref(s.history) in intersection ],
+                    [ s for s in states if self.get_ref(s.history) in intersection ],
                     n(),
-                    [ s for s in states if weakref.ref(s.history) not in intersection ]
+                    [ s for s in states if self.get_ref(s.history) not in intersection ]
                 )
 
         # didn't find any?

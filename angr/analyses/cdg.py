@@ -63,7 +63,7 @@ class CDG(Analysis):
         :param start:           The starting point to begin constructing the control dependence graph
         :param no_construct:    Skip the construction step. Only used in unit-testing.
         """
-        self._binary = self.project.loader.main_bin
+        self._binary = self.project.loader.main_object
         self._start = start if start is not None else self.project.entry
         self._cfg = cfg
 

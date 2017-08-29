@@ -30,9 +30,9 @@ class strncmp(angr.SimProcedure):
         concrete_run = False
         #if not self.state.se.symbolic(a_len) and not self.state.se.symbolic(b_len) and not self.state.se.symbolic(limit):
         if self.state.se.single_valued(a_len) and self.state.se.single_valued(b_len) and self.state.se.single_valued(limit):
-            c_a_len = self.state.se.any_int(a_len)
-            c_b_len = self.state.se.any_int(b_len)
-            c_limit = self.state.se.any_int(limit)
+            c_a_len = self.state.se.eval(a_len)
+            c_b_len = self.state.se.eval(b_len)
+            c_limit = self.state.se.eval(limit)
 
             l.debug("everything is concrete: a_len %d, b_len %d, limit %d", c_a_len, c_b_len, c_limit)
 
@@ -43,7 +43,7 @@ class strncmp(angr.SimProcedure):
             maxlen = min(c_a_len, c_b_len, c_limit)
         else:
             if self.state.se.single_valued(limit):
-                c_limit = self.state.se.any_int(limit)
+                c_limit = self.state.se.eval(limit)
                 maxlen = min(a_strlen.max_null_index, b_strlen.max_null_index, c_limit)
             else:
                 maxlen = max(a_strlen.max_null_index, b_strlen.max_null_index)
@@ -53,12 +53,12 @@ class strncmp(angr.SimProcedure):
         if maxlen == 0:
             # there is a corner case: if a or b are not both empty string, and limit is greater than 0, we should return
             # non-equal. Basically we only return equal when limit is 0, or a_len == b_len == 0
-            if self.state.se.single_valued(limit) and self.state.se.any_int(limit) == 0:
+            if self.state.se.single_valued(limit) and self.state.se.eval(limit) == 0:
                 # limit is 0
                 l.debug("returning equal for 0-limit")
                 return self.state.se.BVV(0, self.state.arch.bits, variables=variables)
             elif self.state.se.single_valued(a_len) and self.state.se.single_valued(b_len) and \
-                    self.state.se.any_int(a_len) == self.state.se.any_int(b_len) == 0:
+                    self.state.se.eval(a_len) == self.state.se.eval(b_len) == 0:
                 # two empty strings
                 l.debug("returning equal for two empty strings")
                 return self.state.se.BVV(0, self.state.arch.bits, variables=variables)
@@ -86,8 +86,8 @@ class strncmp(angr.SimProcedure):
             b_byte = b_bytes[maxbit-1:maxbit-8]
 
             if concrete_run and self.state.se.single_valued(a_byte) and self.state.se.single_valued(b_byte):
-                a_conc = self.state.se.any_int(a_byte)
-                b_conc = self.state.se.any_int(b_byte)
+                a_conc = self.state.se.eval(a_byte)
+                b_conc = self.state.se.eval(b_byte)
                 variables |= a_byte.variables
                 variables |= b_byte.variables
 

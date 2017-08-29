@@ -174,6 +174,7 @@ class ArgSession(object):
         else:
             self.real_args = iter(cc.args)
 
+    # TODO: use safer errors than TypeError and ValueError
     def next_arg(self, is_fp, size=None):
         if self.real_args is not None:
             try:
@@ -277,6 +278,7 @@ class SimCC(object):
     RETURN_VAL = None               # The location where the return value is stored, as a SimFunctionArgument
     FP_RETURN_VAL = None            # The location where floating-point argument return values are stored
     ARCH = None                     # The archinfo.Arch class that this CC must be used for, if relevant
+    CALLEE_CLEANUP = False          # Whether the callee has to deallocate the stack space for the arguments
 
     #
     # Here are several things you MAY want to override to change your cc's convention
@@ -356,7 +358,7 @@ class SimCC(object):
         :returns:           The number of bytes that should be allocated on the stack to store all these args,
                             NOT INCLUDING the return address.
         """
-        out = 0
+        out = self.STACKARG_SP_DIFF
         for arg in args:
             if isinstance(arg, SimStackArg):
                 out = max(out, arg.stack_offset + self.arch.bytes)
@@ -461,7 +463,7 @@ class SimCC(object):
 
     def setup_callsite(self, state, ret_addr, args, stack_base=None, alloc_base=None, grow_like_stack=True):
         """
-        Okay. this one is serious.
+        This function performs the actions of the caller getting ready to jump into a function.
 
         :param state:           The SimState to operate on
         :param ret_addr:        The address to return to when the called function finishes
@@ -515,6 +517,9 @@ class SimCC(object):
             state.regs.sp = allocator.ptr
 
         if stack_base is None:
+            # I am... not sure why we add SP_DIFF. As far as I can tell, stack_space includes it already,
+            # since it's just the max of all the end-offsets of the stack arguments?
+            # TODO: try disabling it and seeing if anything breaks
             state.regs.sp -= self.stack_space(arg_locs) + self.STACKARG_SP_DIFF
 
         for loc, val in zip(arg_locs, vals):
@@ -522,6 +527,41 @@ class SimCC(object):
                 raise ValueError("Can't fit value {} into location {}".format(repr(val), repr(loc)))
             loc.set_value(state, val, endness='Iend_BE', stack_base=stack_base)
         self.return_addr.set_value(state, ret_addr, stack_base=stack_base)
+
+    def teardown_callsite(self, state, return_val=None, arg_types=None, force_callee_cleanup=False):
+        """
+        This function performs the actions of the callee as it's getting ready to return.
+        It returns the address to return to.
+
+        :param state:                   The state to mutate
+        :param return_val:              The value to return
+        :param arg_types:               The fp-ness of each of the args. Used to calculate sizes to clean up
+        :param force_callee_cleanup:    If we should clean up the stack allocation for the arguments even if it's not
+                                        the callee's job to do so
+
+        TODO: support the stack_base parameter from setup_callsite...? Does that make sense in this context?
+        Maybe it could make sense by saying that you pass it in as something like the "saved base pointer" value?
+        """
+        if return_val is not None:
+            self.set_return_val(state, return_val)
+
+        ret_addr = self.return_addr.get_value(state)
+
+        if state.arch.sp_offset is not None:
+            if force_callee_cleanup or self.CALLEE_CLEANUP:
+                if arg_types is not None:
+                    session = self.arg_session
+                    state.regs.sp += self.stack_space([session.next_arg(x) for x in arg_types])
+                elif self.args is not None:
+                    state.regs.sp += self.stack_space(self.args)
+                else:
+                    l.warning("Can't perform callee cleanup when I have no idea how many arguments there are! Assuming 0")
+                    state.regs.sp += self.STACKARG_SP_DIFF
+            else:
+                state.regs.sp += self.STACKARG_SP_DIFF
+
+        return ret_addr
+
 
     # pylint: disable=unused-argument
     def get_return_val(self, state, is_fp=None, size=None, stack_base=None):
@@ -763,10 +803,14 @@ class SimCCCdecl(SimCC):
     RETURN_ADDR = SimStackArg(0, 4)
     ARCH = archinfo.ArchX86
 
+class SimCCStdcall(SimCCCdecl):
+    CALLEE_CLEANUP = True
+
 class SimCCX86LinuxSyscall(SimCC):
     ARG_REGS = ['ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp']
     FP_ARG_REGS = []
     RETURN_VAL = SimRegArg('eax', 4)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 4)
     ARCH = archinfo.ArchX86
 
     @classmethod
@@ -783,6 +827,7 @@ class SimCCX86WindowsSyscall(SimCC):
     ARG_REGS = [ ]
     FP_ARG_REGS = [ ]
     RETURN_VAL = SimRegArg('eax', 4)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 4)
     ARCH = archinfo.ArchX86
 
     @classmethod
@@ -834,6 +879,7 @@ class SimCCSystemVAMD64(SimCC):
 class SimCCAMD64LinuxSyscall(SimCC):
     ARG_REGS = ['rdi', 'rsi', 'rdx', 'r10', 'r8', 'r9']
     RETURN_VAL = SimRegArg('rax', 8)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 8)
     ARCH = archinfo.ArchAMD64
 
     @staticmethod
@@ -850,6 +896,7 @@ class SimCCAMD64WindowsSyscall(SimCC):
     ARG_REGS = [ ]
     FP_ARG_REGS = [ ]
     RETURN_VAL = SimRegArg('rax', 8)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 8)
     ARCH = archinfo.ArchAMD64
 
     @classmethod
@@ -872,7 +919,7 @@ class SimCCARMLinuxSyscall(SimCC):
     # TODO: Make sure all the information is correct
     ARG_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
     FP_ARG_REGS = []    # TODO: ???
-    RETURN_ADDR = SimRegArg('lr', 4)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 4)
     RETURN_VAL = SimRegArg('r0', 4)
     ARCH = archinfo.ArchARM
 
@@ -897,6 +944,7 @@ class SimCCAArch64LinuxSyscall(SimCC):
     ARG_REGS = [ 'x0', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7' ]
     FP_ARG_REGS = []    # TODO: ???
     RETURN_VAL = SimRegArg('x0', 8)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 8)
     ARCH = archinfo.ArchAArch64
 
     @classmethod
@@ -921,6 +969,7 @@ class SimCCO32LinuxSyscall(SimCC):
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
     FP_ARG_REGS = []    # TODO: ???
     RETURN_VAL = SimRegArg('v0', 4)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 4)
     ARCH = archinfo.ArchMIPS32
 
     @classmethod
@@ -945,6 +994,7 @@ class SimCCO64LinuxSyscall(SimCC):
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
     FP_ARG_REGS = []    # TODO: ???
     RETURN_VAL = SimRegArg('v0', 8)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 8)
     ARCH = archinfo.ArchMIPS64
 
     @classmethod
@@ -969,6 +1019,7 @@ class SimCCPowerPCLinuxSyscall(SimCC):
     ARG_REGS = ['r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10']
     FP_ARG_REGS = [ ]
     RETURN_VAL = SimRegArg('r3', 4)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 4)
     ARCH = archinfo.ArchPPC32
 
     @classmethod
@@ -993,6 +1044,7 @@ class SimCCPowerPC64LinuxSyscall(SimCC):
     ARG_REGS = [ ]
     FP_ARG_REGS = [ ]
     RETURN_VAL = SimRegArg('r3', 8)
+    RETURN_ADDR = SimRegArg('ip_at_syscall', 8)
     ARCH = archinfo.ArchPPC64
 
     @classmethod

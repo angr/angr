@@ -95,7 +95,7 @@ class based_atoi(Func):
         state = runner.get_out_state(func, test, concrete_rand=True)
         if state is None:
             return False
-        out_val = state.se.any_int(state.regs.eax)
+        out_val = state.se.eval(state.regs.eax)
         self.base = None
         for i in range(2, 16):
             if out_val == int(s, i):

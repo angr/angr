@@ -17,23 +17,38 @@ class SimulationManager(ana.Storable):
     """
     The Simulation Manager is the future future.
 
-    Simulation managers allow you to wrangle multiple states in a slick way.
-    States are organized into "stashes", which you can
-    step forward, filter, merge, and move around as you wish.
-    This allows you to, for example, step two different
-    stashes of states at different rates, then merge them together.
+    Simulation managers allow you to wrangle multiple states in a slick way. States are organized into "stashes", which
+    you can step forward, filter, merge, and move around as you wish. This allows you to, for example, step two
+    different stashes of states at different rates, then merge them together.
 
-    Stashes can be accessed as attributes (i.e. sc.active).
-    A mulpyplexed stash can be retrieved by prepending the name
-    with `mp_` (e.g., `sc.mp_active`).
+    Stashes can be accessed as attributes (i.e. .active).
+    A mulpyplexed stash can be retrieved by prepending the name with `mp_`, e.g. `.mp_active`.
+    A single state from the stash can be retrieved by prepending the name with `one_`, e.g. `.one_active`.
 
-    Note that you shouldn't usually be constructing SimulationManagers directly - there is
-    a convenient shortcuts for creating them in ``Project.factory``: see :class:`angr.factory.AngrObjectFactory`.
+    Note that you shouldn't usually be constructing SimulationManagers directly - there is a convenient shortcut for
+    creating them in ``Project.factory``: see :class:`angr.factory.AngrObjectFactory`.
 
-    Multithreading your search can be useful in constraint-solving-intensive situations.
-    Indeed, Python cannot multithread due to its GIL, but z3, written in C, can.
+    :param project:         A Project instance.
+    :type  project:         angr.project.Project
+
+    The following parameters are optional.
+
+    :param active_states:   Active states to seed the "active" stash with.
+    :param stashes:         A dictionary to use as the stash store.
+    :param hierarchy:       A StateHierarchy object to use to track the relationships between states.
+    :param immutable:       If True, all operations will return a new SimulationManager. Otherwise (default), all operations
+                            will modify the SimulationManager (and return it, for consistency and chaining).
+    :param threads:         the number of worker threads to concurrently analyze states (useful in z3-intensive situations).
+
+    Multithreading your search can be useful in constraint-solving-intensive situations. Indeed, Python cannot
+    multithread due to its GIL, but z3, written in C, can.
 
     The most important methods you should look at are ``step``, ``explore``, and ``use_technique``.
+
+    :ivar errored:          Not a stash, but a list of ErrorRecords. Whenever a step raises an exception that we catch,
+                            the state and some information about the error are placed in this list. You can adjust the
+                            list of caught exceptions with the `resilience` parameter.
+    :ivar stashes:          All the stashes on this instance, as a dictionary.
     """
 
     ALL = '_ALL'
@@ -42,19 +57,6 @@ class SimulationManager(ana.Storable):
     def __init__(self, project, active_states=None, stashes=None, hierarchy=None, veritesting=None,
                  veritesting_options=None, immutable=None, resilience=None, save_unconstrained=None,
                  save_unsat=None, threads=None, errored=None):
-        """
-        :param project:         A Project instance.
-        :type  project:         angr.project.Project
-
-        The following parameters are optional.
-
-        :param active_states:   Active states to seed the "active" stash with.
-        :param stashes:         A dictionary to use as the stash store.
-        :param hierarchy:       A StateHierarchy object to use to track the relationships between states.
-        :param immutable:       If True, all operations will return a new SimulationManager. Otherwise (default), all operations
-                                will modify the SimulationManager (and return it, for consistency and chaining).
-        :param threads:         the number of worker threads to concurrently analyze states (useful in z3-intensive situations).
-        """
         self._project = project
         self._hierarchy = StateHierarchy() if hierarchy is None else hierarchy
         self._immutable = False if immutable is None else immutable
@@ -69,6 +71,7 @@ class SimulationManager(ana.Storable):
         self._hooks_step_state = []
         self._hooks_filter = []
         self._hooks_complete = []
+        self._hooks_all = []
 
         if threads is not None:
             self.use_technique(exploration_techniques.Threading(threads))
@@ -89,12 +92,24 @@ class SimulationManager(ana.Storable):
         s = dict(self.__dict__)
         if self._hierarchy is not False:
             s['_hierarchy'] = None
+        del s['_hooks_step']
+        del s['_hooks_step_state']
+        del s['_hooks_filter']
+        del s['_hooks_complete']
         return s
 
     def _ana_setstate(self, s):
+        hooks = s.pop('_hooks_all')
         self.__dict__.update(s)
         if self._hierarchy is None:
             self._hierarchy = StateHierarchy()
+        self._hooks_step = []
+        self._hooks_step_state = []
+        self._hooks_filter = []
+        self._hooks_complete = []
+        self._hooks_all = []
+        for hook in hooks:
+            s._apply_hooks(hook)
 
     #
     # Util functions
@@ -136,7 +151,7 @@ class SimulationManager(ana.Storable):
         if self._immutable if immutable is None else immutable:
             result = self._make_stashes_dict(**{k: list(v) for k, v in self.stashes.items()})
         else:
-            result = self.stashes
+            result = defaultdict(list, self.stashes)
 
         return result
 
@@ -161,7 +176,7 @@ class SimulationManager(ana.Storable):
             del new_stashes[self.DROP]
 
         if not self._immutable:
-            self.stashes = defaultdict(list, new_stashes.iteritems())
+            self.stashes = new_stashes
             return self
         else:
             return self.copy(stashes=new_stashes)
@@ -250,11 +265,11 @@ class SimulationManager(ana.Storable):
                 self._hierarchy.unreachable_state(a)
                 self._hierarchy.simplify()
         except (AngrError, SimError, claripy.ClaripyError) as e:
-            self.errored.append(ErroredState(a, e, sys.exc_info()[2]))
+            self.errored.append(ErrorRecord(a, e, sys.exc_info()[2]))
         except (TypeError, ValueError, ArithmeticError, MemoryError) as e:
             if resilience is False or not self._resilience:
                 raise
-            self.errored.append(ErroredState(a, e, sys.exc_info()[2]))
+            self.errored.append(ErrorRecord(a, e, sys.exc_info()[2]))
 
         return new_stashes
 
@@ -560,6 +575,11 @@ class SimulationManager(ana.Storable):
         :param num_inst:        The maximum number of instructions.
         :param traceflags:      traceflags to be passed to VEX. Default: 0
 
+        The following parameters are specific to the unicorn-engine.
+
+        :param extra_stop_points: A collection of addresses where unicorn should stop, in addition to default program
+                                  points at which unicorn stops (e.g., hook points).
+
         :returns:               The resulting SimulationManager.
         :rtype:                 SimulationManager
         """
@@ -775,12 +795,21 @@ class SimulationManager(ana.Storable):
         tech.project = self._project
         self.remove_tech(tech)
         tech.setup(self)
+        self._apply_hooks(tech)
+
+    def _apply_hooks(self, tech):
+        self._hooks_all.append(tech)
         for hook in ['step_state', 'step', 'filter', 'complete']:
             hookfunc = getattr(tech, hook)
             if hookfunc.im_func is not getattr(exploration_techniques.ExplorationTechnique, hook).im_func:
                 getattr(self, '_hooks_' + hook).append(hookfunc)
 
     def remove_tech(self, tech):
+        try:
+            self._hooks_all.remove(tech)
+        except ValueError:
+            return
+
         for hook in ['step_state', 'step', 'filter', 'complete']:
             try:
                 getattr(self, '_hooks_' + hook).remove(getattr(tech, hook))
@@ -907,17 +936,31 @@ class SimulationManager(ana.Storable):
         return self.step(n=n, step_func=step_func, until=until_func, stash=stash)
 
 
-class ErroredState(object):
+class ErrorRecord(object):
+    """
+    A container class for a state and an error that was thrown during its execution. You can find these in
+    SimulationManager.errored.
+
+    :ivar state:        The state that encountered an error, at the point in time just before the erroring step began
+    :ivar error:        The error that was thrown
+    :ivar traceback:    The traceback for the error that was thrown
+    """
     def __init__(self, state, error, traceback):
         self.state = state
         self.error = error
         self.traceback = traceback
 
     def debug(self):
-        __import__('ipdb').post_mortem(self.traceback)
+        """
+        Launch a postmortem debug shell at the site of the error
+        """
+        try:
+            __import__('ipdb').post_mortem(self.traceback)
+        except ImportError:
+            __import__('pdb').post_mortem(self.traceback)
 
     def __repr__(self):
-        return '<State errored with %s>' % self.error
+        return '<State errored with "%s">' % self.error
 
     def __eq__(self, other):
         return self is other or self.state is other
