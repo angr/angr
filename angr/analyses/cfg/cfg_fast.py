@@ -754,7 +754,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self.timeless_indirect_jump_resolvers = [ ]
         self.indirect_jump_resolvers = [ ]
         if not indirect_jump_resolvers:
-            indirect_jump_resolvers = default_indirect_jump_resolvers(self.project.arch, self._binary, self.project)
+            indirect_jump_resolvers = default_indirect_jump_resolvers(self._binary, self.project)
         if indirect_jump_resolvers:
             # split them into different groups for the sake of speed
             for ijr in indirect_jump_resolvers:

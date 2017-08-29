@@ -17,10 +17,12 @@ l = logging.getLogger("angr.analyses.cfg.indirect_jump_resolvers.mips_elf_fast")
 
 
 class MipsElfFastResolver(IndirectJumpResolver):
-    def __init__(self, arch=archinfo.ArchMIPS32(), project=None):  # pylint:disable=unused-argument
-        super(MipsElfFastResolver, self).__init__(arch=arch, timeless=True)
+    def __init__(self, project):
+        super(MipsElfFastResolver, self).__init__(project, timeless=True)
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
+        if not isinstance(self.project.arch, archinfo.ArchMIPS32):
+            return False
         return True
 
     def resolve(self, cfg, addr, func_addr, block, jumpkind):
@@ -36,7 +38,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         :rtype: tuple
         """
 
-        project = cfg.project
+        project = self.project
 
         b = Blade(cfg._graph, addr, -1, cfg=cfg, project=project, ignore_sp=True, ignore_bp=True,
                   ignored_regs=('gp',)

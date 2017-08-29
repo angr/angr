@@ -29,17 +29,14 @@ class JumpTableResolver(IndirectJumpResolver):
         - The final jump target must be directly read out of the memory, without any further modification or altering.
 
     """
-    def __init__(self, arch, project=None):
-        super(JumpTableResolver, self).__init__(arch=arch, timeless=False)
+    def __init__(self, project):
+        super(JumpTableResolver, self).__init__(project, timeless=False)
 
         self._bss_regions = None
         # the maximum number of resolved targets. Will be initialized from CFG.
         self._max_targets = None
 
-        self.project = project
-
-        if self.project is not None:
-            self._find_bss_region()
+        self._find_bss_region()
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
         # TODO:
@@ -62,12 +59,7 @@ class JumpTableResolver(IndirectJumpResolver):
         :rtype: tuple
         """
 
-        if jumpkind != 'Ijk_Boring':
-            # how did it pass filter()?
-            l.error("JumpTableResolver only supports boring jumps.")
-            return False, None
-
-        project = cfg.project  # short-hand
+        project = self.project  # short-hand
         self._max_targets = cfg._indirect_jump_target_limit
 
         # Perform a backward slicing from the jump target
@@ -249,8 +241,8 @@ class JumpTableResolver(IndirectJumpResolver):
 
         if not state.memory.was_written_to(concrete_read_addr):
             # it was never written to before. we overwrite it with unconstrained bytes
-            for i in xrange(0, concrete_read_length, self.arch.bits / 8):
-                state.memory.store(concrete_read_addr + i, state.se.Unconstrained('unconstrained', self.arch.bits))
+            for i in xrange(0, concrete_read_length, self.project.arch.bits / 8):
+                state.memory.store(concrete_read_addr + i, state.se.Unconstrained('unconstrained', self.project.arch.bits))
 
                 # job done :-)
 
