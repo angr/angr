@@ -1442,7 +1442,7 @@ ARM64CondLE = 13 #/* <=s (signed less or equal)    : Z=1 || N!=V */
 ARM64CondAL = 14 #/* always (unconditional)        : 1 */
 ARM64CondNV = 15 #/* always (unconditional)        : 1 */
 
-ARM64_NBITS = 64
+ARM64G_NBITS = 64
 
 def arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     concrete_op = flag_concretize(state, cc_op)
@@ -1590,7 +1590,11 @@ def arm64g_calculate_data_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     z, c2 = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     c, c3 = arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     v, c4 = arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-    return (n << ARM64G_CC_SHIFT_N) | (z << ARM64G_CC_SHIFT_Z) | (c << ARM64G_CC_SHIFT_C) | (v << ARM64G_CC_SHIFT_V), c1 + c2 + c3 + c4
+    vec = [(ARM64G_CC_SHIFT_N, state.se.Extract(0, 0, n)),
+           (ARM64G_CC_SHIFT_Z, state.se.Extract(0, 0, z)),
+           (ARM64G_CC_SHIFT_C, state.se.Extract(0, 0, c)),
+           (ARM64G_CC_SHIFT_V, state.se.Extract(0, 0, v))]
+    return _concat_flags(ARM64G_NBITS, vec), c1 + c2 + c3 + c4
 
 def arm64g_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
     cond = state.se.LShR(cond_n_op, 4)
@@ -1643,8 +1647,10 @@ def _get_flags(state):
         return x86g_calculate_eflags_all(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
     elif state.arch.name == 'AMD64':
         return amd64g_calculate_rflags_all(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
-    elif state.arch.name in ('ARMEL', 'ARMHF'):
+    elif state.arch.name in ('ARMEL', 'ARMHF', 'ARM'):
         return armg_calculate_data_nzcv(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
+    elif state.arch.name == 'AARCH64':
+        return arm64g_calculate_data_nzcv(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
     else:
         l.warning("No such thing as a flags register for arch %s", state.arch.name)
 

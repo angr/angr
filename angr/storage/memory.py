@@ -374,7 +374,7 @@ class SimMemory(SimStatePlugin):
                         self.store('cc_dep1', _get_flags(self.state)[0]) # TODO: can constraints be added by this?
                     self.store('cc_op', 0) # OP_COPY
                     return self.state.arch.registers['cc_dep1'][0], self.state.arch.bytes
-            if self.state.arch.name in ('ARMEL', 'ARMHF'):
+            if self.state.arch.name in ('ARMEL', 'ARMHF', 'ARM', 'AARCH64'):
                 if name == 'flags':
                     if not is_write:
                         self.store('cc_dep1', _get_flags(self.state)[0])
