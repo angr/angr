@@ -803,7 +803,7 @@ class SimMemory(SimStatePlugin):
         """
         return [ addr ]
 
-    def _load(self, addr, size, condition=None, fallback=None, inspect=True, events=True):
+    def _load(self, addr, size, condition=None, fallback=None, inspect=True, events=True, ret_on_segv=False):
         raise NotImplementedError()
 
     def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
