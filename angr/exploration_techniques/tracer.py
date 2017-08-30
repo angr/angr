@@ -1,8 +1,6 @@
 import claripy
 import logging
 
-from elftools.elf.descriptions import _DESCR_EI_OSABI
-
 from . import ExplorationTechnique
 from .oppologist import Oppologist
 
@@ -229,7 +227,7 @@ class Tracer(ExplorationTechnique):
             else: # if we're not restoring from a cache, the cacher will preconstrain
                 self._cgc_prepare_state(simgr)
 
-        elif self.project.loader.main_object.os in _DESCR_EI_OSABI.values():
+        elif self.project.loader.main_object.os.startswith("UNIX"):
             l.warn("Tracer was heavily tested only for CGC. If it doesn't work for other platforms, we are sorry!")
             self._linux_prepare_state(simgr)
 
