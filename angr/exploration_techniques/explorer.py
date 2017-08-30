@@ -92,9 +92,9 @@ class Explorer(ExplorationTechnique):
             l.warning("Please be sure that the CFG you have passed in is complete.")
             l.warning("Providing an incomplete CFG can cause viable paths to be discarded!")
 
-    def setup(self, pg):
-        if not self.find_stash in pg.stashes: pg.stashes[self.find_stash] = []
-        if not self.avoid_stash in pg.stashes: pg.stashes[self.avoid_stash] = []
+    def setup(self, simgr):
+        if not self.find_stash in simgr.stashes: simgr.stashes[self.find_stash] = []
+        if not self.avoid_stash in simgr.stashes: simgr.stashes[self.avoid_stash] = []
 
     def step(self, simgr, stash, **kwargs):
         base_extra_stop_points = set(kwargs.get("extra_stop_points") or {})
@@ -134,5 +134,5 @@ class Explorer(ExplorationTechnique):
             if state.addr not in self.ok_blocks: return self.avoid_stash
         return None
 
-    def complete(self, pg):
-        return len(pg.stashes[self.find_stash]) >= self.num_find
+    def complete(self, simgr):
+        return len(simgr.stashes[self.find_stash]) >= self.num_find
