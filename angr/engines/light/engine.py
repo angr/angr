@@ -173,6 +173,8 @@ class SimEngineLightVEX(SimEngineLight):
             return self._handle_CmpEQ(expr)
         elif expr.op.startswith('Iop_CmpNE'):
             return self._handle_CmpNE(expr)
+        elif expr.op.startswith('Iop_CmpLT'):
+            return self._handle_CmpLT(expr)
         elif expr.op.startswith('Iop_CmpORD'):
             return self._handle_CmpORD(expr)
         elif expr.op.startswith('Const'):
@@ -354,6 +356,21 @@ class SimEngineLightVEX(SimEngineLight):
             return None
 
         return expr_0 != expr_1
+
+    def _handle_CmpLT(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        if not isinstance(expr_0, (int, long)) or not isinstance(expr_1, (int, long)):
+            l.warning('Comparison of multiple values / different types: \'%s\' and \'%s\'.', type(expr_0).__name__,
+                      type(expr_1).__name__)
+
+        return expr_0 < expr_1
 
     # ppc only
     def _handle_CmpORD(self, expr):
