@@ -71,15 +71,18 @@ class GetProcAddress(angr.SimProcedure):
                     name = name + suffix
                     break
 
-        sym = sym.resolve_forwarder()
-
         if sym is None:
             l.warning("GetProcAddress: object %s does not contain %s", obj.provides, name)
             return 0
-        else:
-            name = sym.name # fix ordinal names
-            full_name = '%s.%s' % (obj.provides, name)
-            self.procs.add(full_name)
+
+        sym = sym.resolve_forwarder()
+        if sym is None:
+            l.warning("GetProcAddress: forwarding failed for %s from %s", name, obj.provides)
+            return 0
+
+        name = sym.name # fix ordinal names
+        full_name = '%s.%s' % (obj.provides, name)
+        self.procs.add(full_name)
 
         l.debug("Imported %s (%#x) from %s", name, sym.rebased_addr, obj.provides)
         return sym.rebased_addr
