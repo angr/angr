@@ -68,6 +68,8 @@ class GetProcAddress(angr.SimProcedure):
                     name = name + suffix
                     break
 
+        sym = sym.resolve_forwarder()
+
         if sym is None:
             l.warning("GetProcAddress: object %s does not contain %s", obj.provides, name)
             return 0
