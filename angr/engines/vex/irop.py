@@ -70,7 +70,7 @@ def op_attrs(p):
 
         return attrs
 
-all_operations = pyvex.enum_IROp_fromstr.keys()
+all_operations = pyvex.irop_enums_to_ints.keys()
 operations = { }
 classified = set()
 unclassified = set()
@@ -187,7 +187,7 @@ class SimIROp(object):
 
         # determine the output size
         #pylint:disable=no-member
-        self._output_type = pyvex.typeOfIROp(name)
+        self._output_type = pyvex.get_op_retty(name)
         #pylint:enable=no-member
         self._output_size_bits = size_bits(self._output_type)
         l.debug("... VEX says the output size should be %s", self._output_size_bits)
