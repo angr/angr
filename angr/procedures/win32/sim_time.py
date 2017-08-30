@@ -109,7 +109,7 @@ class QueryPerformanceCounter(angr.SimProcedure):
         return 1
 
 class GetTickCount(angr.SimProcedure):
-    def run(self, ptr):
+    def run(self):
         if angr.options.USE_SYSTEM_TIMES in self.state.options:
             return int(time.clock() * 1000) + 12345
         else:
@@ -119,7 +119,7 @@ class GetTickCount(angr.SimProcedure):
 
 class GetTickCount64(angr.SimProcedure):
     KEY = ('sim_time', 'GetTickCount')
-    def run(self, ptr):
+    def run(self):
         if angr.options.USE_SYSTEM_TIMES in self.state.options:
             return int(time.clock() * 1000) + 12345
         else:
