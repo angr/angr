@@ -256,7 +256,7 @@ class Project(object):
                 if not sim_lib.has_implementation(export.name):
                     continue
                 l.info("Using builtin SimProcedure for %s from %s", export.name, sim_lib.name)
-                self.hook(export.rebased_addr, sim_lib.get(export.name, self.arch))
+                self.hook_symbol(export.rebased_addr, sim_lib.get(export.name, self.arch))
 
             # Step 2.3: If 2.2 didn't work, check if the symbol wants to be resolved
             # by a library we already know something about. Resolve it appropriately.
@@ -269,10 +269,10 @@ class Project(object):
                 if self._check_user_blacklists(export.name):
                     if not func.is_weak:
                         l.info("Using stub SimProcedure for unresolved %s from %s", func.name, sim_lib.name)
-                        self.hook(export.rebased_addr, sim_lib.get_stub(export.name, self.arch))
+                        self.hook_symbol(export.rebased_addr, sim_lib.get_stub(export.name, self.arch))
                 else:
                     l.info("Using builtin SimProcedure for unresolved %s from %s", export.name, sim_lib.name)
-                    self.hook(export.rebased_addr, sim_lib.get(export.name, self.arch))
+                    self.hook_symbol(export.rebased_addr, sim_lib.get(export.name, self.arch))
 
             # Step 2.4: If 2.3 didn't work (the symbol didn't request a provider we know of), try
             # looking through each of the SimLibraries we're using to resolve unresolved
@@ -285,21 +285,21 @@ class Project(object):
                         if self._check_user_blacklists(export.name):
                             if not func.is_weak:
                                 l.info("Using stub SimProcedure for unresolved %s from %s", export.name, sim_lib.name)
-                                self.hook(export.rebased_addr, sim_lib.get_stub(export.name, self.arch))
+                                self.hook_symbol(export.rebased_addr, sim_lib.get_stub(export.name, self.arch))
                         else:
                             l.info("Using builtin SimProcedure for unresolved %s from %s", export.name, sim_lib.name)
-                            self.hook(export.rebased_addr, sim_lib.get(export.name, self.arch))
+                            self.hook_symbol(export.rebased_addr, sim_lib.get(export.name, self.arch))
                         break
                 else:
                     if not func.is_weak:
                         l.info("Using stub SimProcedure for unresolved %s", export.name)
-                        self.hook(export.rebased_addr, missing_libs[0].get(export.name, self.arch))
+                        self.hook_symbol(export.rebased_addr, missing_libs[0].get(export.name, self.arch))
 
             # Step 2.5: If 2.4 didn't work (we have NO SimLibraries to work with), just
             # use the vanilla ReturnUnconstrained, assuming that this isn't a weak func
             elif not func.is_weak:
                 l.info("Using stub SimProcedure for unresolved %s", export.name)
-                self.hook(export.rebased_addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](display_name=export.name, is_stub=True))
+                self.hook_symbol(export.rebased_addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](display_name=export.name, is_stub=True))
 
     def _check_user_blacklists(self, f):
         """
@@ -413,6 +413,11 @@ class Project(object):
         address. If the symbol was not available in the loaded libraries, this address may be provided
         by the CLE externs object.
 
+        Additionally, if instead of a symbol name you provide an address, some secret functionality will
+        kick in and you will probably just hook that address, UNLESS you're on powerpc64 ABIv1 or some
+        yet-unknown scary ABI that has its function pointers point to something other than the actual
+        functions, in which case it'll do the right thing.
+
         :param symbol_name: The name of the dependency to resolve.
         :param obj:         The thing with which to satisfy the dependency.
         :param kwargs:      If you provide a SimProcedure for the hook, these are the keyword
@@ -430,12 +435,17 @@ class Project(object):
             self.loader.provide_symbol(self.loader.extern_object, symbol_name, AT.from_mva(obj, self.loader.extern_object).to_rva())
             return obj
 
-        sym = self.loader.find_symbol(symbol_name)
-        if sym is None:
-            l.error("Could not find symbol %s", symbol_name)
-            return None
+        if type(symbol_name) not in (int, long):
+            sym = self.loader.find_symbol(symbol_name)
+            if sym is None:
+                l.error("Could not find symbol %s", symbol_name)
+                return None
+            basic_addr = sym.rebased_addr
+        else:
+            basic_addr = symbol_name
+            symbol_name = None
 
-        hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
+        hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=basic_addr)
 
         self.hook(hook_addr, obj, kwargs=kwargs, replace=replace)
         return hook_addr
