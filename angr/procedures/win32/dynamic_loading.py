@@ -41,12 +41,15 @@ class GetProcAddress(angr.SimProcedure):
             raise angr.errors.SimValueError("GetProcAddress called with symbolic library handle %s" % lib_handle)
         lib_handle = self.state.se.eval(lib_handle)
 
-        for obj in self.project.loader.all_pe_objects:
-            if obj.mapped_base == lib_handle:
-                break
+        if lib_handle == 0:
+            obj = self.project.loader.main_object
         else:
-            l.warning("GetProcAddress: invalid library handle %s", lib_handle)
-            return 0
+            for obj in self.project.loader.all_pe_objects:
+                if obj.mapped_base == lib_handle:
+                    break
+            else:
+                l.warning("GetProcAddress: invalid library handle %s", lib_handle)
+                return 0
 
         if claripy.is_true(name_addr < 0x10000):
             # this matches the bogus name specified in the loader...
