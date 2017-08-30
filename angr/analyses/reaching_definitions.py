@@ -80,7 +80,7 @@ class MemoryLocation(Atom):
         self.size = size
 
     def __repr__(self):
-        return "<Mem 0x%08x<%d>>" % (self.addr, self.size)
+        return "<Mem 0x%x<%d>>" % (self.addr, self.size)
 
     @property
     def bits(self):
@@ -473,8 +473,11 @@ def get_engine(base_engine):
             super(SimEngineRD, self).__init__()
             self._function_handler = function_handler
 
-        def _process(self, state, successors, block=None):
-            super(SimEngineRD, self)._process(state, successors, block=block)
+        def process(self, state, *args, **kwargs):
+            # we are using a completely different state. Therefore, we directly call our _process() method before
+            # SimEngine becomes flexible enough.
+            self._process(state, None, block=kwargs.pop('block', None))
+            return self.state
 
         #
         # VEX statement handlers
@@ -498,7 +501,8 @@ def get_engine(base_engine):
             data = self._expr(stmt.data)
 
             if (type(data) is DataSet and None in data) or (data is None):
-                l.info('Data in register with offset %d undefined, ins_addr = 0x%x.', reg_offset, self.ins_addr)
+                l.info('Data to write into register <%s> with offset %d undefined, ins_addr = 0x%x.',
+                       self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
 
             self.state.kill_and_add_definition(reg, self._codeloc(), data)
 
@@ -515,7 +519,7 @@ def get_engine(base_engine):
             for a in addr:
                 if a is not None:
                     if (type(data) is DataSet and None in data) or (data is None):
-                        l.info('Memory at address 0x%08x undefined, ins_addr = 0x%x.', a, self.ins_addr)
+                        l.info('Data to write at address 0x%x undefined, ins_addr = 0x%x.', a, self.ins_addr)
 
                     memloc = MemoryLocation(a, size)
                     # different addresses are not killed by a subsequent iteration, because kill only removes entries
@@ -583,7 +587,8 @@ def get_engine(base_engine):
                     # current_def.data can be a primitive type or a DataSet
                     data.update(current_def.data)
                 else:
-                    l.info('Data in register with offset %d undefined, ins_addr = 0x%x.', reg_offset, self.ins_addr)
+                    l.info('Data in register <%s> with offset %d undefined, ins_addr = 0x%x.',
+                           self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
             data = data.compact()
 
             self.state.add_use(Register(reg_offset, size), self._codeloc())
@@ -872,30 +877,41 @@ def get_engine(base_engine):
             if not isinstance(ip_addr, (int, long)):
                 raise ValueError('Invalid type %s for IP' % type(ip_addr).__name__)
 
-            func_name = None
-            # Check if the address points to a plt stub or an external function
+            is_intern = False
+            ext_func_name = None
             if self.state.loader.main_object.contains_addr(ip_addr) is True:
-                func_name = self.state.loader.find_plt_stub_name(ip_addr)
+                ext_func_name = self.state.loader.find_plt_stub_name(ip_addr)
+                if ext_func_name is None:
+                    is_intern = True
             else:
                 symbol = self.state.loader.find_symbol(ip_addr)
                 if symbol is not None:
-                    func_name = symbol.name
+                    ext_func_name = symbol.name
 
-            if func_name:
-                handler_name = 'handle_%s' % func_name
+            if ext_func_name is not None:
+                handler_name = 'handle_%s' % ext_func_name
                 if hasattr(self._function_handler, handler_name):
                     getattr(self._function_handler, handler_name)(self.state, self._codeloc())
                 else:
-                    l.warning('Unsupported function %s.', func_name)
+                    l.warning('Please implement the external function handler for %s() with your own logic.',
+                              ext_func_name)
+            elif is_intern is True:
+                handler_name = 'handle_local_function'
+                if hasattr(self._function_handler, handler_name):
+                    is_updated, state = getattr(self._function_handler, handler_name)(self.state, ip_addr)
+                    if is_updated is True:
+                        self.state = state
+                else:
+                    l.warning('Please implement the local function handler with your own logic.')
             else:
-                l.warning('Cound not find function name for address 0x%08x', ip_addr)
+                l.warning('Could not find function name for external function at address 0x%x.', ip_addr)
 
     return SimEngineRD
 
 
 class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
     def __init__(self, func=None, block=None, max_iterations=3, track_tmps=False, observation_points=None,
-                 init_func=False, cc=None, function_handler=None):
+                 init_state=None, init_func=False, cc=None, function_handler=None):
         """
 
         :param angr.knowledge.Function func:    The function to run reaching definition analysis on.
@@ -906,10 +922,12 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         :param iterable observation_points:     A collection of tuples of (ins_addr, OP_TYPE) defining where reaching
                                                 definitions should be copied and stored. OP_TYPE can be OP_BEFORE or
                                                 OP_AFTER.
-        :param bool init_func:                  Whether stack and arguments are initialized or not
-        :param SimCC cc:                        Calling convention of the function
-        :param list function_handler:           Handler for functions, naming scheme: handle_<func_name>(
-                                                <ReachingDefinitions>, <Codeloc>)
+        :param ReachingDefinitions init_state:  An optional initialization state. The analysis creates and works on a
+                                                copy.
+        :param bool init_func:                  Whether stack and arguments are initialized or not.
+        :param SimCC cc:                        Calling convention of the function.
+        :param list function_handler:           Handler for functions, naming scheme: handle_<func_name>|local_function(
+                                                <ReachingDefinitions>, <Codeloc>, <IP address>).
         """
 
         if func is not None:
@@ -931,10 +949,22 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         self._function = func
         self._block = block
         self._observation_points = observation_points
+        self._init_state = init_state
         self._function_handler = function_handler
 
-        self._init_func = init_func
-        self._cc = cc
+        if self._init_state is not None:
+            self._init_state = self._init_state.copy()
+            self._init_state.analysis = self
+
+        # ignore initialization parameters if a block was passed
+        if self._function is not None:
+            self._init_func = init_func
+            self._cc = cc
+            self._func_addr = func.addr
+        else:
+            self._init_func = False
+            self._cc = None
+            self._func_addr = None
 
         # sanity check
         if self._observation_points and any(not type(op) is tuple for op in self._observation_points):
@@ -989,15 +1019,16 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         pass
 
     def _initial_abstract_state(self, node):
-        return ReachingDefinitions(self.project.arch, self.project.loader, track_tmps=self._track_tmps, analysis=self,
-                                   init_func=self._init_func, cc=self._cc)
+        if self._init_state is not None:
+            return self._init_state
+        else:
+            return ReachingDefinitions(self.project.arch, self.project.loader, track_tmps=self._track_tmps,
+                                       analysis=self, init_func=self._init_func, cc=self._cc, func_addr=self._func_addr)
 
     def _merge_states(self, node, *states):
         return states[0].merge(*states[1:])
 
     def _run_on_node(self, node, state):
-
-        input_state = state
 
         if isinstance(node, ailment.Block):
             block = node
@@ -1008,9 +1039,8 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
             block_key = node.addr
             engine = self._engine_vex
 
-        state = input_state.copy()
-
-        engine.process(state, block=block)
+        state = state.copy()
+        state = engine.process(state, block=block)
 
         # clear the tmp store
         # state.tmp_uses.clear()

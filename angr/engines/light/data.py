@@ -1,4 +1,3 @@
-
 class RegisterOffset(object):
     def __init__(self, bits, reg, offset):
         self._bits = bits
