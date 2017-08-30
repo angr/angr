@@ -30,7 +30,6 @@ class Explorer(ExplorationTechnique):
         self.ok_blocks = set()
         self.num_find = num_find
         self.avoid_priority = avoid_priority
-        self._project = None
 
         find_addrs = getattr(self.find, "addrs", None)
         avoid_addrs = getattr(self.avoid, "addrs", None)
@@ -94,7 +93,6 @@ class Explorer(ExplorationTechnique):
             l.warning("Providing an incomplete CFG can cause viable paths to be discarded!")
 
     def setup(self, pg):
-        self._project = pg._project
         if not self.find_stash in pg.stashes: pg.stashes[self.find_stash] = []
         if not self.avoid_stash in pg.stashes: pg.stashes[self.avoid_stash] = []
 
@@ -125,7 +123,7 @@ class Explorer(ExplorationTechnique):
                 while state.addr not in rFind:
                     if state.addr in rAvoid:
                         return self.avoid_stash
-                    state = self._project.factory.successors(state, num_inst=1).successors[0]
+                    state = self.project.factory.successors(state, num_inst=1).successors[0]
                 if self.avoid_priority & (state.addr in rAvoid):
                     # Only occurs if the intersection of rAvoid and rFind is not empty
                     # Why would anyone want that?
