@@ -311,7 +311,7 @@ class DataSet(object):
 
 
 class ReachingDefinitions(object):
-    def __init__(self, arch, loader, track_tmps=False, analysis=None, init_func=False, cc=None):
+    def __init__(self, arch, loader, track_tmps=False, analysis=None, init_func=False, cc=None, func_addr=None):
 
         # handy short-hands
         self.arch = arch
@@ -323,7 +323,7 @@ class ReachingDefinitions(object):
         self.memory_definitions = KeyedRegion()
 
         if init_func:
-            self._init_func(cc)
+            self._init_func(cc, func_addr)
 
         self.register_uses = Uses()
         self.memory_uses = Uses()
@@ -337,7 +337,7 @@ class ReachingDefinitions(object):
             ctnt += ", %d tmpdefs" % len(self.tmp_definitions)
         return "<%s>" % ctnt
 
-    def _init_func(self, cc):
+    def _init_func(self, cc, func_addr):
         # initialize stack pointer
         sp = Register(self.arch.sp_offset, self.arch.bytes)
         sp_def = Definition(sp, None, self.arch.initial_sp)
@@ -345,7 +345,7 @@ class ReachingDefinitions(object):
 
         if cc is not None:
             for arg in cc.args:
-                # initialize register parameters asd
+                # initialize register parameters
                 if type(arg) is SimRegArg:
                     # FIXME: implement reg_offset handling in SimRegArg
                     reg_offset = self.arch.registers[arg.reg_name][0]
@@ -360,6 +360,20 @@ class ReachingDefinitions(object):
                     self.memory_definitions.set_object(ml.addr, ml_def, ml.size)
                 else:
                     raise TypeError('Unsupported parameter type %s.' % type(arg).__name__)
+
+        # architecture depended initialization
+        if self.arch.name.lower().find('ppc64') > -1:
+            rtoc_value = self.loader.main_object.ppc64_initial_rtoc
+            if rtoc_value:
+                offset, size = self.arch.registers['rtoc']
+                rtoc = Register(offset, size)
+                rtoc_def = Definition(rtoc, None, rtoc_value)
+                self.register_definitions.set_object(rtoc.reg_offset, rtoc_def, rtoc.size)
+        elif self.arch.name.lower().find('mips64') > -1:
+            offset, size = self.arch.registers['t9']
+            t9 = Register(offset, size)
+            t9_def = Definition(t9, None, func_addr)
+            self.register_definitions.set_object(t9.reg_offset, t9_def, t9.size)
 
     def copy(self):
         rd = ReachingDefinitions(
