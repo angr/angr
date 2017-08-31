@@ -567,7 +567,7 @@ class Tracer(object):
 
         self.os = self._p.loader.main_object.os
 
-        if self.os != "cgc" and self.os != "unix":
+        if self.os != "cgc" and not self.os.startswith("UNIX"):
             l.error("\"%s\" runs on an OS not supported by the tracer",
                     self.binary)
             raise TracerEnvironmentError
@@ -591,7 +591,7 @@ class Tracer(object):
         if self.os == "cgc":
             self.tracer_qemu = "shellphish-qemu-cgc-tracer"
             qemu_platform = 'cgc-tracer'
-        elif self.os == "unix":
+        elif self.os.startswith("UNIX"):
             self.tracer_qemu = "shellphish-qemu-linux-%s" % self._p.arch.qemu_name
             qemu_platform = self._p.arch.qemu_name
 
@@ -831,7 +831,7 @@ class Tracer(object):
 
             return pg
 
-        elif self.os == "unix":
+        elif self.os.startswith("UNIX"):
             return self._linux_prepare_paths()
 
         raise TracerEnvironmentError(
