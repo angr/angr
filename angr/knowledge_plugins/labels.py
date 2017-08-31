@@ -1,6 +1,3 @@
-from collections import defaultdict, Iterable
-
-from bidict import bidict
 
 from .plugin import KnowledgeBasePlugin
 from ..misc.ux import deprecated
@@ -13,72 +10,62 @@ class LabelsPlugin(KnowledgeBasePlugin):
     An address is allowed to have a different labels within different namespace, but it is not allowed
     for address to have a different labels within a single namespace.
     
-    The global namespace defaults to empty string.
-       
-    :var _global_ns:    The name of the global namespace.
-    :type _global_ns:   str
-    :var _default_ns:   The default namespace to use for operating. Defaults to _global_ns.
-    :type _default_ns:  str
+    The default namespace is set to empty string.
     """
 
-    _global_ns = ''
+    _default_ns_name = ''
 
     def __init__(self, kb, copy=False):
         super(KnowledgeBasePlugin, self).__init__()
-        self._namespaces = defaultdict(bidict)
-        self._default_ns = self._global_ns
+
+        self._namespaces = {}
+        self._default_ns = self._default_ns_name
+        self.add_namespace(self._default_ns_name)
 
         if not copy:
-            # TODO: This should be done somewhere else. Here for compat reasons only.
+            # TODO: This should be done in LabelsImport analysis. Here for compat reasons only.
             for obj in kb._project.loader.all_objects:
                 for k, v in obj.symbols_by_addr.iteritems():
-                    if v.name:
-                        # Original logic implies overwriting existing labels.
-                        if self.get_addr(v.name):
-                            self.del_name(v.name)
+                    if v.name and not v.is_import:
                         self.set_label(v.rebased_addr, v.name)
                 try:
                     for k, v in obj.plt.iteritems():
-                        # Original logic implies overwriting existing labels.
-                        if self.get_addr(k):
-                            self.del_name(k)
                         self.set_label(v, k)
                 except AttributeError:
                     pass
 
     def copy(self):
         o = LabelsPlugin(None, copy=True)
-        o._namespaces = self._namespaces.copy()
+        o._namespaces = {k: v.copy() for k, v in self._namespaces.iteritems()}
+        o._default_ns = self._default_ns
         return o
 
     #
     #   ...
     #
 
-    # NOTE: The following works only with global namespace for comptaibility reasons.
-
-    @property
-    def _global_namespace(self):
-        return self._namespaces[self._global_ns]
+    def __getattr__(self, name):
+        try:
+            super(LabelsPlugin, self).__getattribute__(name)
+        except AttributeError:
+            namespace = self._namespaces[self.default_namespace]
+            return getattr(namespace, name)
 
     def __iter__(self):
-        return iter(self._global_namespace)
+        namespace = self._namespaces[self.default_namespace]
+        return iter(namespace)
 
-    def __getitem__(self, k):
-        return self._global_namespace[k]
+    def __getitem__(self, addr):
+        namespace = self._namespaces[self.default_namespace]
+        return namespace[addr]
 
-    def __setitem__(self, k, v):
-        if self.get_addr(k) is not None:
-            self.del_name(k)
-        elif self.get_name(v) is not None:
-            self.del_addr(v)
-        self.set_label(v, k)
+    def __delitem__(self, addr):
+        namespace = self._namespaces[self.default_namespace]
+        del namespace[addr]
 
-    def __delitem__(self, k):
-        self.del_name(k)
-
-    def __contains__(self, k):
-        return k in self._global_namespace
+    def __contains__(self, addr):
+        namespace = self._namespaces[self.default_namespace]
+        return addr in namespace
 
     #
     #   ...
@@ -86,11 +73,13 @@ class LabelsPlugin(KnowledgeBasePlugin):
 
     @deprecated(replacement='get_label')
     def get(self, addr):
-        return self[addr]
+        namespace = self._namespaces[self.default_namespace]
+        return namespace.get_name(addr)
 
     @deprecated(replacement='get_addr')
     def lookup(self, name):
-        addr = self.get_addr(name)
+        namespace = self._namespaces[self.default_namespace]
+        addr = namespace.get_addr(name)
         if addr is None:
             raise KeyError(name)
         return addr
@@ -106,156 +95,23 @@ class LabelsPlugin(KnowledgeBasePlugin):
     @default_namespace.setter
     def default_namespace(self, name):
         self._default_ns = name
+        if self._default_ns not in self._namespaces:
+            self.add_namespace(self._default_ns)
 
-    #
-    #   ...
-    #
-
-    def set_label(self, addr, name, ns=None):
-        """Label address `addr` as `name` within namespace `namespace`
+    def get_namespace(self, name=None):
+        """
         
-        :param addr:        The address to put a label on.
-        :param name:        The name of the label.
-        :param ns:          The namespace to register label to.
-
+        :param name: 
         :return: 
         """
-        namespace = self._get_namespace_dict(ns)
+        if name is None:
+            name = self.default_namespace
+        return self._namespaces[name]
 
-        # Name is already present in the namespace.
-        # Here we forbid assigning different addresses with the same name.
-        if name in namespace and namespace[name] != addr:
-            raise ValueError("Label '%s' is already in present in the namespace "
-                             "'%s' with an address %#x, different from %#x"
-                             % (name, ns, namespace[name], addr))
-
-        # Specified address is already labeled.
-        # Here we forbid assigning different labels to a single address.
-        if addr in namespace.inv and namespace.inv[addr] != name:
-            raise ValueError("Address %#x is already labeled with '%s' "
-                             "in the namespace '%s'" % (addr, name, ns))
-
-        # Create a new label!
-        namespace[name] = addr
-
-    #
-    #   ...
-    #
-
-    def get_name(self, addr, ns=None, default=None):
-        """Get a label that is present within the given namespace and is assigned to the specified address.
-        
-        :param addr:    The address for which the label is assigned.
-        :param ns:      The namespace to look into.
-        :param default: The name of the label to assign to the address, if there is no label present.
-                        This accepts the following values: 
-                            True - assign a new label with default name; 
-                            None - don't do anything, i.e. return None if the address is not labeled; 
-                            Any other value - create a new label with the given value.
-        :return: 
-        """
-        namespace = self._get_namespace_dict(ns)
-
-        if addr not in namespace.inv and default:
-            if default is True:
-                default = self._generate_default_label(addr)
-            return namespace.setdefault(default, addr)
-
-        else:
-            return namespace.inv.get(addr)
-
-    def del_name(self, name, ns=None):
-        """Delete a label that is present within the given namespace.
-        
-        :param name:    The name of the label which is to be deleted.
-        :param ns:      The namespace in which the given label is present.
-        :return: 
-        """
-        namespace = self._get_namespace_dict(ns)
-
-        if name not in namespace:
-            raise ValueError("Namespace '%s' doesn't have a label named '%s'" % (ns, name))
-
-        del namespace[name]
-
-    def iter_names(self, addr, ns_set=None):
-        """Iterate over labels that are assigned to a given address in the given set of namespaces.
-        
-        :param addr:    An address for which to yield assigned labels.
-        :param ns_set:  A set of namespaces to work with.
-        :return:        Tuples of (namespace, label).
-        """
-        ns_set = self._normalize_ns_set(ns_set)
-
-        for ns in ns_set:
-            yield ns, self.get_name(addr, ns)
-
-    #
-    #   ...
-    #
-
-    def get_addr(self, name, ns=None, default=None):
-        """Get the address for the label in the given namespace.
-        
-        :param name:    The label name.
-        :param ns:      The namespace to look into.
-        :param default: Default value if the label is not present in the given namespace.
-        :return: 
-        """
-        namespace = self._get_namespace_dict(ns)
-
-        return namespace.get(name, default)
-
-    def del_addr(self, addr, ns=None):
-        """Delete a label that is assigned to the given address within the given namespace.
-
-        :param addr:    The address from which to remove a label in the given namespace.
-        :param ns:      The namespace in which the given address is present.
-        :return: 
-        """
-        namespace = self._get_namespace_dict(ns)
-
-        if addr not in namespace.inv:
-            raise ValueError("Namespace '%s' doesn't have a label on address %#x" % (ns, addr))
-
-        del namespace.inv[addr]
-
-    def iter_addrs(self, name, ns_set=None):
-        """Iterate over address that have a label with a given name in the given set of namespaces. 
-        
-        :param name:    The name of the labels.
-        :param ns_set:  A set of namespaces to work with.
-        :return:        Tuples of (namespace, addr).
-        """
-        ns_set = self._normalize_ns_set(ns_set)
-
-        for ns in ns_set:
-            yield ns, self.get_addr(name, ns)
-
-    #
-    #   ...
-    #
-
-    def _get_namespace_dict(self, ns=None):
-        if ns is None:
-            ns = self._default_ns
-        return self._namespaces[ns]
-
-    def _generate_default_label(self, addr):
-        """Generate a default label for the given address.
-        
-        :param addr:    The address to generate a label for.
-        :return:        A default label for the given address.
-        """
-        return 'lbl_%x' % addr
-
-    def _normalize_ns_set(self, thing):
-        if thing is None:
-            return set(self._namespaces)
-        elif isinstance(thing, Iterable):
-            return set(thing)
-        else:
-            raise TypeError("ns_set must be an instance of Iterable")
+    def add_namespace(self, name):
+        if name in self._namespaces:
+            raise ValueError("Namespace %r already exists" % name)
+        self._namespaces[name] = LabelsNamespace(name)
 
 
 class LabelsNamespace(object):
@@ -281,6 +137,30 @@ class LabelsNamespace(object):
 
     def __repr__(self):
         return str(self)
+
+    def __getitem__(self, addr):
+        name = self.get_name(addr)
+        if name is None:
+            raise KeyError(addr)
+        return name
+
+    def __setitem__(self, addr, name):
+        self.set_label(addr, name)
+
+    def __delitem__(self, addr):
+        self.del_addr(addr)
+
+    def __contains__(self, addr):
+        return self.has_addr(addr)
+
+    def __iter__(self):
+        return iter(self._name_to_addr)
+
+    def copy(self):
+        o = LabelsNamespace(self._name)
+        o._name_to_addr = self._name_to_addr.copy()
+        o._addr_to_names = self._addr_to_names.copy()
+        return o
 
     #
     #   ...
@@ -339,6 +219,14 @@ class LabelsNamespace(object):
         addr = self._name_to_addr.pop(name)
         self._addr_to_names[addr].remove(name)
 
+    def has_name(self, name):
+        """
+        
+        :param name: 
+        :return: 
+        """
+        return name in self._name_to_addr
+
     def iter_names(self):
         """
         
@@ -370,6 +258,14 @@ class LabelsNamespace(object):
 
         names_list = self._addr_to_names.pop(addr)
         map(self._name_to_addr.pop, names_list)
+
+    def has_addr(self, addr):
+        """
+        
+        :param addr: 
+        :return: 
+        """
+        return addr in self._addr_to_names
 
     def iter_addrs(self):
         """
