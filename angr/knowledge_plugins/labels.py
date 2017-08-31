@@ -200,6 +200,9 @@ class LabelsNamespace(object):
 
         return name
 
+    def iter_labels(self):
+        return self._name_to_addr.iteritems()
+
     #
     #   ...
     #
