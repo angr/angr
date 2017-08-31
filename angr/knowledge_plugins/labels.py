@@ -1,6 +1,10 @@
+from collections import Counter
 
 from .plugin import KnowledgeBasePlugin
 from ..misc.ux import deprecated
+
+import logging
+l = logging.getLogger("angr.knowledge.labels")
 
 
 class LabelsPlugin(KnowledgeBasePlugin):
@@ -131,6 +135,7 @@ class LabelsNamespace(object):
         self._name = name  # here for better repr only
         self._name_to_addr = {}
         self._addr_to_names = {}
+        self._name_usage_cnt = Counter()
 
     def __str__(self):
         return "<LabelsNamespace(%s)>" % repr(self._name)
@@ -160,23 +165,30 @@ class LabelsNamespace(object):
         o = LabelsNamespace(self._name)
         o._name_to_addr = self._name_to_addr.copy()
         o._addr_to_names = self._addr_to_names.copy()
+        o._name_usage_cnt = self._name_usage_cnt.copy()
         return o
 
     #
     #   ...
     #
 
-    def set_label(self, addr, name, make_default=False):
+    def set_label(self, addr, name, make_default=False, overwrite=True):
         """Assign a name to a given address.
 
         :param addr:            An address to be assigned with a name.
         :param name:            A name to be assigned to address.
         :param make_default:    True, if the given name should be the default name for the address.
+        :param overwrite:       Whether to reassign a name to a different address.
         :return: 
         """
         if self._name_to_addr.get(name, addr) != addr:
-            raise ValueError("Name %s is already assigned to address %#x" %
-                             (name, self._name_to_addr[name]))
+            if overwrite:
+                prev_addr = self._name_to_addr[name]
+                l.warning("Reassigning name '%s' to address %#x (previous address was %#x)",
+                          name, addr, prev_addr)
+                self._addr_to_names[prev_addr].remove(name)
+            else:
+                name = self._add_suffix(name)
 
         self._name_to_addr[name] = addr
         names_list = self._addr_to_names.setdefault(addr, [])
@@ -185,6 +197,8 @@ class LabelsNamespace(object):
             names_list.insert(0, name)
         else:
             names_list.append(name)
+
+        return name
 
     #
     #   ...
@@ -278,8 +292,18 @@ class LabelsNamespace(object):
     #   ...
     #
 
-    def iter_labels(self):
-        return self._name_to_addr.iteritems()
+    def _add_suffix(self, name):
+        """
+        
+        :param name: 
+        :return: 
+        """
+        new_name = '%s_%d' % (name, self._name_usage_cnt[name])
+        self._name_usage_cnt[name] += 1
+
+        l.warning('Name %s is already present within the current namespace, '
+                  'so %s will be used instead' % (name, new_name))
+        return new_name
 
 
 KnowledgeBasePlugin.register_default('labels', LabelsPlugin)
