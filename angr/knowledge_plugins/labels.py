@@ -258,4 +258,132 @@ class LabelsPlugin(KnowledgeBasePlugin):
             raise TypeError("ns_set must be an instance of Iterable")
 
 
+class LabelsNamespace(object):
+    """
+    This represents a single labels namespace. The addresses to names relations are represented
+    with a one-to-many mapping. That means every address can have multiple names, but every name is
+    assigned to only one address.
+    
+    :ivar _name_to_addr:    A mapping from name to its assigned address.
+    :type _name_to_addr:    dict
+    :ivar _addr_to_names:   A mapping from address to a list of assigned names. The first name
+                            in a list will be the default name for the address.
+    :type _addr_to_names:   dict of lists
+    """
+
+    def __init__(self, name):
+        self._name = name  # here for better repr only
+        self._name_to_addr = {}
+        self._addr_to_names = {}
+
+    def __str__(self):
+        return "<LabelsNamespace(%s)>" % repr(self._name)
+
+    def __repr__(self):
+        return str(self)
+
+    #
+    #   ...
+    #
+
+    def set_label(self, addr, name, make_default=False):
+        """Assign a name to a given address.
+
+        :param addr:            An address to be assigned with a name.
+        :param name:            A name to be assigned to address.
+        :param make_default:    True, if the given name should be the default name for the address.
+        :return: 
+        """
+        if self._name_to_addr.get(name, addr) != addr:
+            raise ValueError("Name %s is already assigned to address %#x" %
+                             (name, self._name_to_addr[name]))
+
+        self._name_to_addr[name] = addr
+        names_list = self._addr_to_names.setdefault(addr, [])
+
+        if make_default is True:
+            names_list.insert(0, name)
+        else:
+            names_list.append(name)
+
+    #
+    #   ...
+    #
+
+    def get_name(self, addr, default=None):
+        """
+        
+        :param addr: 
+        :param default: 
+        :return: 
+        """
+        return self._addr_to_names.get(addr, [default])[0]
+
+    def get_all_names(self, addr):
+        """
+        
+        :param addr: 
+        :return: 
+        """
+        return self._addr_to_names.get(addr, [])
+
+    def del_name(self, name):
+        """
+        
+        :param name: 
+        :return: 
+        """
+        if name not in self._name_to_addr:
+            raise KeyError("No such name: %s" % name)
+
+        addr = self._name_to_addr.pop(name)
+        self._addr_to_names[addr].remove(name)
+
+    def iter_names(self):
+        """
+        
+        :return: 
+        """
+        return iter(self._name_to_addr)
+
+    #
+    #   ...
+    #
+
+    def get_addr(self, name, default=None):
+        """
+        
+        :param name: 
+        :param default: 
+        :return: 
+        """
+        return self._name_to_addr.get(name, default)
+
+    def del_addr(self, addr):
+        """
+        
+        :param addr: 
+        :return: 
+        """
+        if addr not in self._addr_to_names:
+            raise KeyError("No such address: %#x" % addr)
+
+        names_list = self._addr_to_names.pop(addr)
+        map(self._name_to_addr.pop, names_list)
+
+    def iter_addrs(self):
+        """
+        
+        :return: 
+        """
+        return iter(self._addr_to_names)
+
+    #
+    #   ...
+    #
+
+    def iter_labels(self):
+        return self._name_to_addr.iteritems()
+
+
 KnowledgeBasePlugin.register_default('labels', LabelsPlugin)
