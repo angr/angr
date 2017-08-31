@@ -59,7 +59,7 @@ def test_kb_plugins():
     nose.tools.assert_not_equal(ns.get_addr('label1'), ns_foo.get_addr('label1'))
 
     # Test with project
-    p = angr.Project(location + "/x86_64/fauxware")
+    p = angr.Project(location + "/x86_64/fauxware", auto_load_libs=False)
     labels = p.kb.labels
 
 if __name__ == '__main__':
