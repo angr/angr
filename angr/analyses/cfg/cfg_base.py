@@ -742,12 +742,14 @@ class CFGBase(Analysis):
         Perform a fast memory loading of a pointer.
 
         :param int addr: Address to read from.
-        :return:         A pointer.
+        :return:         A pointer or None if the address does not exist.
         :rtype:          int
         """
 
         pointer_size = self.project.arch.bits / 8
         buf = self._fast_memory_load(addr)
+        if buf is None:
+            return None
 
         if self.project.arch.memory_endness == 'Iend_LE':
             fmt = "<"
