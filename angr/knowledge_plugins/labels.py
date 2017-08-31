@@ -35,13 +35,13 @@ class LabelsPlugin(KnowledgeBasePlugin):
                     if v.name:
                         # Original logic implies overwriting existing labels.
                         if self.get_addr(v.name):
-                            self.del_label(v.name)
+                            self.del_name(v.name)
                         self.set_label(v.rebased_addr, v.name)
                 try:
                     for k, v in obj.plt.iteritems():
                         # Original logic implies overwriting existing labels.
                         if self.get_addr(k):
-                            self.del_label(k)
+                            self.del_name(k)
                         self.set_label(v, k)
                 except AttributeError:
                     pass
@@ -69,13 +69,13 @@ class LabelsPlugin(KnowledgeBasePlugin):
 
     def __setitem__(self, k, v):
         if self.get_addr(k) is not None:
-            self.del_label(k)
-        elif self.get_label(v) is not None:
+            self.del_name(k)
+        elif self.get_name(v) is not None:
             self.del_addr(v)
         self.set_label(v, k)
 
     def __delitem__(self, k):
-        self.del_label(k)
+        self.del_name(k)
 
     def __contains__(self, k):
         return k in self._global_namespace
@@ -138,7 +138,11 @@ class LabelsPlugin(KnowledgeBasePlugin):
         # Create a new label!
         namespace[name] = addr
 
-    def get_label(self, addr, ns=None, default=None):
+    #
+    #   ...
+    #
+
+    def get_name(self, addr, ns=None, default=None):
         """Get a label that is present within the given namespace and is assigned to the specified address.
         
         :param addr:    The address for which the label is assigned.
@@ -160,7 +164,7 @@ class LabelsPlugin(KnowledgeBasePlugin):
         else:
             return namespace.inv.get(addr)
 
-    def del_label(self, name, ns=None):
+    def del_name(self, name, ns=None):
         """Delete a label that is present within the given namespace.
         
         :param name:    The name of the label which is to be deleted.
@@ -174,7 +178,7 @@ class LabelsPlugin(KnowledgeBasePlugin):
 
         del namespace[name]
 
-    def iter_labels(self, addr, ns_set=None):
+    def iter_names(self, addr, ns_set=None):
         """Iterate over labels that are assigned to a given address in the given set of namespaces.
         
         :param addr:    An address for which to yield assigned labels.
@@ -184,7 +188,7 @@ class LabelsPlugin(KnowledgeBasePlugin):
         ns_set = self._normalize_ns_set(ns_set)
 
         for ns in ns_set:
-            yield ns, self.get_label(addr, ns)
+            yield ns, self.get_name(addr, ns)
 
     #
     #   ...
