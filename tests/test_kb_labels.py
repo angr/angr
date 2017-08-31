@@ -7,40 +7,60 @@ location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../
 
 
 def test_kb_plugins():
+    labels = angr.knowledge_plugins.LabelsPlugin(None, copy=True)
+    
+    # Use default namespace for tests
+    ns = labels.get_namespace()
+
+    # Basic tests
+    ns.set_label(0, 'zero')
+    nose.tools.assert_equal(ns.get_name(0), 'zero')
+    nose.tools.assert_equal(ns.get_all_names(0), ['zero'])
+    nose.tools.assert_equal(ns.get_addr('zero'), 0)
+
+    ns.del_name('zero')
+    nose.tools.assert_equal(ns.get_all_names(0), [])
+
+    # Test accessors
+    ns[1] = 'one'
+    ns[2] = 'two'
+    ns[3] = 'three'
+    nose.tools.assert_equal(ns[1], 'one')
+    nose.tools.assert_in(1, ns)
+    nose.tools.assert_equal(list(ns), ['one', 'two', 'three'])
+
+    del ns[3]
+    nose.tools.assert_equal(list(ns), ['one', 'two'])
+
+    # Test alternative names
+    ns.set_label(0x1000, 'label1')
+    ns.set_label(0x1000, 'label1_alt')
+    nose.tools.assert_equal(ns.get_name(0x1000), 'label1')
+    nose.tools.assert_not_equal(ns.get_name(0x1000), 'label1_alt')
+    nose.tools.assert_in('label1_alt', ns.get_all_names(0x1000))
+
+    ns.set_label(0x1000, 'label1_2', make_default=True)
+    nose.tools.assert_equal(ns.get_name(0x1000), 'label1_2')
+
+    # Test overwriting existing labels
+    ns.set_label(0x2000, 'label1')
+    nose.tools.assert_equal(ns.get_name(0x2000), 'label1')
+    nose.tools.assert_not_equal(ns.get_name(0x1000), 'label1')
+
+    ns.set_label(0x3000, 'label1', overwrite=False)
+    nose.tools.assert_equal(ns.get_name(0x3000), 'label1_0')
+    nose.tools.assert_equal(ns.get_name(0x2000), 'label1')
+
+    # Test separate namespaces
+    labels.add_namespace('foo')
+    ns_foo = labels.get_namespace('foo')
+
+    ns_foo.set_label(0x4000, 'label1')
+    nose.tools.assert_not_equal(ns.get_addr('label1'), ns_foo.get_addr('label1'))
+
+    # Test with project
     p = angr.Project(location + "/x86_64/fauxware")
     labels = p.kb.labels
-
-    labels.set_label(0x1000, 'label1', 'foo')
-    labels.set_label(0x2000, 'label2', 'foo')
-    labels.set_label(0x1000, 'label2', 'bar')
-    labels.set_label(0x2000, 'label1', 'bar')
-
-    with nose.tools.assert_raises(ValueError):
-        labels.set_label(0x3000, 'label1', 'foo')
-
-    with nose.tools.assert_raises(ValueError):
-        labels.set_label(0x2000, 'label3', 'bar')
-
-    nose.tools.assert_equal(labels.get_label(0x1000, 'foo'), 'label1')
-    nose.tools.assert_equal(labels.get_label(0x1000, 'bar'), 'label2')
-    nose.tools.assert_equal(labels.get_label(0x2000, 'foo'), 'label2')
-    nose.tools.assert_equal(labels.get_label(0x2000, 'bar'), 'label1')
-
-    nose.tools.assert_is_none(labels.get_label(0x1000))
-    nose.tools.assert_is_not_none(labels.get_label(0x1000, default=True))
-
-    nose.tools.assert_equal(set(labels.iter_labels(0x1000)),
-                            {('foo', 'label1'), ('bar', 'label2'), ('', 'lbl_1000')})
-
-    # Compat checks.
-    for name in labels:
-        addr = labels[name]
-        nose.tools.assert_is_instance(name, (str, unicode, bytes))
-        nose.tools.assert_is_instance(addr, (int, long))
-
-    # Copy check. 
-    labels_copy = labels.copy()
-    nose.tools.assert_equal(labels._namespaces, labels_copy._namespaces)
 
 if __name__ == '__main__':
     test_kb_plugins()
