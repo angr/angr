@@ -14,4 +14,3 @@ progressbar
 pyvex
 rpyc
 unicorn
-bidict
