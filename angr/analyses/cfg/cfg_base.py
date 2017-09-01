@@ -737,6 +737,22 @@ class CFGBase(Analysis):
         except KeyError:
             return None
 
+    def _fast_memory_load_byte(self, addr):
+        """
+        Perform a fast memory loading of a byte.
+
+        :param int addr: Address to read from.
+        :return:         A char or None if the address does not exist.
+        :rtype:          str or None
+        """
+
+        buf = self._fast_memory_load(addr)
+        if buf is None:
+            return None
+
+        char_str = self._ffi.unpack(self._ffi.cast('char*', buf), 1) # type: str
+        return char_str
+
     def _fast_memory_load_pointer(self, addr):
         """
         Perform a fast memory loading of a pointer.
