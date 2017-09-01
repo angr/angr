@@ -202,7 +202,7 @@ class LabelsNamespace(object):
                 prev_addr = self._name_to_addr[name]
                 l.warning("Reassigning name '%s' to address %#x (previous address was %#x)",
                           name, addr, prev_addr)
-                self._addr_to_names[prev_addr].remove(name)
+                self.del_name(name)
             else:
                 name = self._add_suffix(name)
 
@@ -255,6 +255,8 @@ class LabelsNamespace(object):
 
         addr = self._name_to_addr.pop(name)
         self._addr_to_names[addr].remove(name)
+        if not self._addr_to_names[addr]:
+            del self._addr_to_names[addr]
 
     def has_name(self, name):
         """Check whether the given name is present within the namespace.
