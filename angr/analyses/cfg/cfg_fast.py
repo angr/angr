@@ -6,16 +6,18 @@ import string
 import struct
 from collections import defaultdict
 
+from bintrees import AVLTree
+
 import claripy
 import cle
 import pyvex
-from .. import register_analysis
-
 from cle.address_translator import AT
+
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase, IndirectJump
 from .cfg_node import CFGNode
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
+from .. import register_analysis
 from ..forward_analysis import ForwardAnalysis
 from ... import sim_options as o
 from ...engines import SimEngineVEX
@@ -689,10 +691,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 l.warning('"regions", "start", and "end" are all specified. Ignoring "start" and "end".')
 
-        self._regions = regions if regions is not None else self._executable_memory_regions(None, force_segment)
+        regions = regions if regions is not None else self._executable_memory_regions(None, force_segment)
         # sort it
-        self._regions = sorted(self._regions, key=lambda x: x[0])
-        self._regions_size = sum((b - a) for a, b in self._regions)
+        regions = sorted(regions, key=lambda x: x[0])
+        self._regions_size = sum((b - a) for a, b in regions)
+        # initial self._regions as an AVL tree
+        self._regions = AVLTree()
+        for start, end in regions:
+            self._regions.insert(start, end)
 
         self._pickle_intermediate_results = pickle_intermediate_results
         self._indirect_jump_target_limit = indirect_jump_target_limit
@@ -720,7 +726,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._data_type_guessing_handlers = [ ] if data_type_guessing_handlers is None else data_type_guessing_handlers
 
         l.debug("CFG recovery covers %d regions:", len(self._regions))
-        for start_addr, end_addr in self._regions:
+        for start_addr, end_addr in self._regions.iter_items():
             l.debug("... %#x - %#x", start_addr, end_addr)
 
         # A mapping between address and the actual data in memory
@@ -853,13 +859,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype:             bool
         """
 
-        for start_addr, end_addr in self._regions:
-            if start_addr <= address < end_addr:
-                return True
-            if start_addr > address:  # the region list is sorted
-                break
-
-        return False
+        try:
+            start_addr, end_addr = self._regions.floor_item(address)
+            return start_addr <= address < end_addr
+        except KeyError:
+            return False
 
     def _get_min_addr(self):
         """
@@ -873,7 +877,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             l.error("self._regions is empty or not properly set.")
             return None
 
-        return self._regions[0][0]
+        return self._regions.min_key()
 
     def _next_address_in_regions(self, address):
         """
@@ -884,13 +888,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype:             int
         """
 
-        for start_addr, end_addr in self._regions:
+        try:
+            start_addr, end_addr = self._regions.floor_item(address)
             if start_addr <= address < end_addr:
                 return address
-            elif start_addr > address:
-                return start_addr
-
-        return None
+            else:
+                return self._regions.ceiling_key(address)
+        except KeyError:
+            return None
 
     # Methods for scanning the entire image
 
@@ -925,7 +930,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Make sure curr_addr exists in binary
         accepted = False
-        for start, end in self._regions:
+        for start, end in self._regions.iter_items():
             if start <= curr_addr < end:
                 # accept
                 accepted = True
