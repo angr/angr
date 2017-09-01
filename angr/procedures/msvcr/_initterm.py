@@ -13,6 +13,7 @@ class _initterm(angr.SimProcedure):
 
     IS_FUNCTION = True
     local_vars = ['callbacks']
+    callbacks = []
 
     #pylint:disable=arguments-differ
     def run(self, fp_a, fp_z):
@@ -21,11 +22,11 @@ class _initterm(angr.SimProcedure):
         }
         self.return_type = SimTypeInt()
 
-        if any(map(self.state.solver.symbolic, [fp_a, fp_z])):
+        if self.state.solver.symbolic(fp_a) or self.state.solver.symbolic(fp_z):
             l.warn("Symbolic argument to _initterm{_e} is not supported... returning")
             return 0 # might as well try to keep going
 
-        self.callbacks = self.get_callbacks(fp_a, fp_z) # pylint:disable=attribute-defined-outside-init
+        self.callbacks = self.get_callbacks(fp_a, fp_z)
         self.do_callbacks(fp_a, fp_z)
 
     def get_callbacks(self, fp_a, fp_z):
@@ -42,5 +43,5 @@ class _initterm(angr.SimProcedure):
             return 0 # probably best to assume each callback returned 0
         else:
             callback_addr = self.callbacks.pop(0)
-            l.debug("Calling 0x%x", callback_addr)
+            l.debug("Calling %#x", callback_addr)
             self.call(callback_addr, [], continue_at='do_callbacks')
