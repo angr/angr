@@ -234,6 +234,10 @@ class Project(object):
             if not reloc.resolved:
                 l.debug("Ignoring unresolved import '%s' from %s ...?", func.name, reloc.owner_obj)
                 continue
+            if not reloc.symbol.resolved:
+                l.debug("Ignoring unresolved symbol '%s' from %s ...?", reloc.symbol, reloc.owner_obj)
+                continue
+
             export = reloc.resolvedby
             if self.is_hooked(export.rebased_addr):
                 l.debug("Already hooked %s (%s)", export.name, export.owner_obj)
