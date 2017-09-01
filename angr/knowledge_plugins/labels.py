@@ -113,14 +113,16 @@ class LabelsPlugin(KnowledgeBasePlugin):
         if self._default_ns not in self._namespaces:
             self.add_namespace(self._default_ns)
 
-    def get_namespace(self, name=None):
-        """Get a namespace object
+    def get_namespace(self, name=None, create=True):
+        """Get or create a namespace object.
         
         :param name:    The name of the namespace to get.
         :return:        LabelsNamespace
         """
         if name is None:
             name = self.default_namespace
+        if name not in self._namespaces and create:
+            self.add_namespace(name)
         return self._namespaces[name]
 
     def add_namespace(self, name):
