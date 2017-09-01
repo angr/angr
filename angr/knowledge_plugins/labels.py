@@ -94,25 +94,41 @@ class LabelsPlugin(KnowledgeBasePlugin):
 
     @property
     def default_namespace(self):
+        """Get the default namespace name
+        
+        :return:    
+        """
         return self._default_ns
 
     @default_namespace.setter
     def default_namespace(self, name):
+        """Set the default namespace name.
+        
+        If the namespace with a given name does not exist, it will be created first.
+        
+        :param name:    The name of the the default namespace.
+        :return: 
+        """
         self._default_ns = name
         if self._default_ns not in self._namespaces:
             self.add_namespace(self._default_ns)
 
     def get_namespace(self, name=None):
-        """
+        """Get a namespace object
         
-        :param name: 
-        :return: 
+        :param name:    The name of the namespace to get.
+        :return:        LabelsNamespace
         """
         if name is None:
             name = self.default_namespace
         return self._namespaces[name]
 
     def add_namespace(self, name):
+        """Create a new namespace with the given name.
+        
+        :param name:    The name for the namespace which is to be created. 
+        :return:        
+        """
         if name in self._namespaces:
             raise ValueError("Namespace %r already exists" % name)
         self._namespaces[name] = LabelsNamespace(name)
@@ -201,6 +217,10 @@ class LabelsNamespace(object):
         return name
 
     def iter_labels(self):
+        """Iterate over the labels within this namespace.
+        
+        :return:    Tuples of (name, addr)
+        """
         return self._name_to_addr.iteritems()
 
     #
@@ -208,26 +228,26 @@ class LabelsNamespace(object):
     #
 
     def get_name(self, addr, default=None):
-        """
+        """Get the default name for an address.
         
-        :param addr: 
-        :param default: 
+        :param addr:        The address to look for.
+        :param default:     Default value to return, if the address is not present within the namespace.
         :return: 
         """
         return self._addr_to_names.get(addr, [default])[0]
 
     def get_all_names(self, addr):
-        """
+        """Get all names that a assigned to a given address.
         
-        :param addr: 
-        :return: 
+        :param addr:    The address to look for.
+        :return:        A list of all names for the given address.
         """
         return self._addr_to_names.get(addr, [])
 
     def del_name(self, name):
-        """
+        """Remove a name from the namespace.
         
-        :param name: 
+        :param name:    The name which is to be removed.
         :return: 
         """
         if name not in self._name_to_addr:
@@ -237,15 +257,15 @@ class LabelsNamespace(object):
         self._addr_to_names[addr].remove(name)
 
     def has_name(self, name):
-        """
+        """Check whether the given name is present within the namespace.
         
-        :param name: 
+        :param name:    A name to look for.
         :return: 
         """
         return name in self._name_to_addr
 
     def iter_names(self):
-        """
+        """Iterate over names that are present within the namespace.
         
         :return: 
         """
@@ -256,18 +276,19 @@ class LabelsNamespace(object):
     #
 
     def get_addr(self, name, default=None):
-        """
+        """Get the address to which the given name is assigned to.
         
-        :param name: 
-        :param default: 
+        :param name:        A name to look for.
+        :param default:     Default value to return, if the name is not present within the namespace.
         :return: 
         """
         return self._name_to_addr.get(name, default)
 
     def del_addr(self, addr):
-        """
+        """Remove the address from the namespace, thus effectivly removing all the names that 
+        are assigned to this address.
         
-        :param addr: 
+        :param addr:    The address which is to be removed.
         :return: 
         """
         if addr not in self._addr_to_names:
@@ -277,15 +298,15 @@ class LabelsNamespace(object):
         map(self._name_to_addr.pop, names_list)
 
     def has_addr(self, addr):
-        """
+        """Check whether the given address has any name assigned to it.
         
-        :param addr: 
+        :param addr:    An address to look for.
         :return: 
         """
         return addr in self._addr_to_names
 
     def iter_addrs(self):
-        """
+        """Iterate over the adresses that are present within the namespace.
         
         :return: 
         """
@@ -296,9 +317,9 @@ class LabelsNamespace(object):
     #
 
     def _add_suffix(self, name):
-        """
+        """Add an apropriate suffix to the name, if it is already present within the namespace. 
         
-        :param name: 
+        :param name:    A name to which to add the suffix.
         :return: 
         """
         new_name = '%s_%d' % (name, self._name_usage_cnt[name])
