@@ -698,17 +698,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                                                       )
         if exclude_sparse_regions:
             new_regions = [ ]
-            for start, end in regions:
-                if not self._is_region_extremely_sparse(start, end, base_state=base_state):
-                    new_regions.append((start, end))
+            for start_, end_ in regions:
+                if not self._is_region_extremely_sparse(start_, end_, base_state=base_state):
+                    new_regions.append((start_, end_))
             regions = new_regions
         if skip_specific_regions:
             if base_state is not None:
                 l.warning("You specified both base_state and skip_specific_regions. They may conflict with each other.")
             new_regions = [ ]
-            for start, end in regions:
-                if not self._should_skip_region(start):
-                    new_regions.append((start, end))
+            for start_, end_ in regions:
+                if not self._should_skip_region(start_):
+                    new_regions.append((start_, end_))
             regions = new_regions
         if not regions:
             raise AngrCFGError("Regions are empty or all regions are skipped. You may want to manually specify regions.")
@@ -717,8 +717,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._regions_size = sum((b - a) for a, b in regions)
         # initial self._regions as an AVL tree
         self._regions = AVLTree()
-        for start, end in regions:
-            self._regions.insert(start, end)
+        for start_, end_ in regions:
+            self._regions.insert(start_, end_)
 
         self._pickle_intermediate_results = pickle_intermediate_results
         self._indirect_jump_target_limit = indirect_jump_target_limit
