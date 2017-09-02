@@ -617,6 +617,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  arch_options=None,
                  indirect_jump_resolvers=None,
                  base_state=None,
+                 exclude_sparse_regions=True,
+                 skip_specific_regions=True,
                  start=None,  # deprecated
                  end=None,  # deprecated
                  **extra_arch_options
@@ -691,8 +693,26 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 l.warning('"regions", "start", and "end" are all specified. Ignoring "start" and "end".')
 
-        regions = regions if regions is not None else self._executable_memory_regions(None, force_segment)
-        # sort it
+        regions = regions if regions is not None else self._executable_memory_regions(binary=None,
+                                                                                      force_segment=force_segment
+                                                                                      )
+        if exclude_sparse_regions:
+            new_regions = [ ]
+            for start, end in regions:
+                if not self._is_region_extremely_sparse(start, end, base_state=base_state):
+                    new_regions.append((start, end))
+            regions = new_regions
+        if skip_specific_regions:
+            if base_state is not None:
+                l.warning("You specified both base_state and skip_specific_regions. They may conflict with each other.")
+            new_regions = [ ]
+            for start, end in regions:
+                if not self._should_skip_region(start):
+                    new_regions.append((start, end))
+            regions = new_regions
+        if not regions:
+            raise AngrCFGError("Regions are empty or all regions are skipped. You may want to manually specify regions.")
+        # sort the regions
         regions = sorted(regions, key=lambda x: x[0])
         self._regions_size = sum((b - a) for a, b in regions)
         # initial self._regions as an AVL tree
