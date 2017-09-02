@@ -88,7 +88,7 @@ class AngrObjectFactory(object):
         description = str(r)
         l.info("Ticked state: %s", description)
         for succ in r.successors:
-            succ.history.description = description
+            succ.history.recent_description = description
 
         return r
 
