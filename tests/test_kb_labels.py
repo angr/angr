@@ -7,7 +7,7 @@ location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../
 
 
 def test_kb_plugins():
-    labels = angr.knowledge_plugins.LabelsPlugin(None, copy=True)
+    labels = angr.knowledge_plugins.LabelsPlugin(None)
     
     # Use default namespace for tests
     ns = labels.get_namespace()
@@ -47,7 +47,7 @@ def test_kb_plugins():
     nose.tools.assert_equal(ns.get_name(0x2000), 'label1')
     nose.tools.assert_not_equal(ns.get_name(0x1000), 'label1')
 
-    ns.set_label(0x3000, 'label1', overwrite=False)
+    ns.set_label(0x3000, 'label1', dup_mode='suffix')
     nose.tools.assert_equal(ns.get_name(0x3000), 'label1_0')
     nose.tools.assert_equal(ns.get_name(0x2000), 'label1')
 
