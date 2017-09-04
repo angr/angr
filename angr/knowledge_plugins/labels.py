@@ -136,6 +136,19 @@ class LabelsPlugin(KnowledgeBasePlugin):
             raise ValueError("Namespace %r already exists" % name)
         self._namespaces[name] = LabelsNamespace(name)
 
+    def make_alias(self, name, alias):
+        if name not in self._namespaces:
+            raise ValueError("Namespace %r does not exist" % name)
+        if alias in self._namespaces:
+            raise ValueError("Namespace %r already exists" % alias)
+        self._namespaces[alias] = self._namespaces[name]
+
+    def find_labels(self, addr):
+        labels = []
+        for ns_name, namespace in self._namespaces.iteritems():
+            labels.extend((ns_name, name) for name in namespace.get_all_names(addr))
+        return labels
+
 
 class LabelsNamespace(object):
     """
