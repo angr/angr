@@ -228,6 +228,9 @@ class Project(object):
         # Step 6: Run OS-specific configuration
         self._simos.configure_project()
 
+        # Step 7: Make labels wherever symbols are available
+        self._make_labels()
+
     def _register_object(self, obj):
         """
         This scans through an objects imports and hooks them with simprocedures from our library whenever possible
@@ -331,6 +334,27 @@ class Project(object):
             f in self._exclude_sim_procedures_list or \
             f in self._ignore_functions or \
             (self._exclude_sim_procedures_func is not None and self._exclude_sim_procedures_func(f))
+
+    def _make_labels(self):
+        """
+        Make labels wherever symbols are available.
+        """
+        def compose_name(obj):
+            return os.path.split(obj.binary)[1]
+
+        labels = self.kb.labels
+        labels.default_namespace = compose_name(self.loader.main_object)
+
+        for obj in self.loader.all_objects:
+            namespace = labels.get_namespace(compose_name(obj), create=True)
+
+            for k, v in obj.symbols_by_addr.iteritems():
+                if v.name and not v.is_import:
+                    namespace.set_label(v.rebased_addr, v.name, dup_mode='suffix')
+
+            if hasattr(obj, 'plt'):
+                for k, v in obj.plt.iteritems():
+                    namespace.set_label(v, k, dup_mode='suffix')
 
     #
     # Public methods

@@ -19,27 +19,15 @@ class LabelsPlugin(KnowledgeBasePlugin):
 
     _default_ns_name = ''
 
-    def __init__(self, kb, copy=False):
+    def __init__(self, kb):
         super(KnowledgeBasePlugin, self).__init__()
 
         self._namespaces = {}
         self._default_ns = self._default_ns_name
         self.add_namespace(self._default_ns_name)
 
-        if not copy:
-            # TODO: This should be done in LabelsImport analysis. Here for compat reasons only.
-            for obj in kb._project.loader.all_objects:
-                for k, v in obj.symbols_by_addr.iteritems():
-                    if v.name and not v.is_import:
-                        self.set_label(v.rebased_addr, v.name)
-                try:
-                    for k, v in obj.plt.iteritems():
-                        self.set_label(v, k)
-                except AttributeError:
-                    pass
-
     def copy(self):
-        o = LabelsPlugin(None, copy=True)
+        o = LabelsPlugin(None)
         o._namespaces = {k: v.copy() for k, v in self._namespaces.iteritems()}
         o._default_ns = self._default_ns
         return o
