@@ -204,16 +204,19 @@ class LabelsNamespace(object):
 
             if dup_mode == 'overwrite':
                 prev_addr = self._name_to_addr[name]
-                l.warning("Reassigning name '%s' to address %#x (previous address was %#x)",
-                          name, addr, prev_addr)
+                l.warn("Reassigning name '%s' to address %#x (previous address was %#x)",
+                       name, addr, prev_addr)
                 self.del_name(name)
 
             elif dup_mode == 'suffix':
-                name = self._add_suffix(name)
+                new_name = self._add_suffix(name)
+                l.warn("Name %s is already present within the current namespace, "
+                       "so %s will be used instead" % (name, new_name))
+                name = new_name
 
             elif dup_mode == 'raise':
                 prev_addr = self._name_to_addr[name]
-                raise ValueError('Name %s is already assigned to address %#x, different from %#x' %
+                raise ValueError("Name %s is already assigned to address %#x, different from %#x" %
                                  (name, prev_addr, addr))
 
         self._name_to_addr[name] = addr
@@ -336,9 +339,6 @@ class LabelsNamespace(object):
         """
         new_name = '%s_%d' % (name, self._name_usage_cnt[name])
         self._name_usage_cnt[name] += 1
-
-        l.warning('Name %s is already present within the current namespace, '
-                  'so %s will be used instead' % (name, new_name))
         return new_name
 
 
