@@ -27,10 +27,10 @@ def test_kb_plugins():
     ns[3] = 'three'
     nose.tools.assert_equal(ns[1], 'one')
     nose.tools.assert_in(1, ns)
-    nose.tools.assert_equal(list(ns), ['one', 'two', 'three'])
+    nose.tools.assert_equal(set(ns), {'one', 'two', 'three'})
 
     del ns[3]
-    nose.tools.assert_equal(list(ns), ['one', 'two'])
+    nose.tools.assert_equal(set(ns), {'one', 'two'})
 
     # Test alternative names
     ns.set_label(0x1000, 'label1')
