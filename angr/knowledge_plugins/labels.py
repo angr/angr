@@ -50,9 +50,10 @@ class LabelsPlugin(KnowledgeBasePlugin):
 
     def __getattr__(self, name):
         try:
-            super(LabelsPlugin, self).__getattribute__(name)
+            object.__getattribute__(self, name)
         except AttributeError:
-            namespace = self._namespaces[self.default_namespace]
+            namespaces = object.__getattribute__(self, '_namespaces')
+            namespace = namespaces[self.default_namespace]
             return getattr(namespace, name)
 
     def __iter__(self):
