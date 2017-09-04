@@ -30,7 +30,6 @@ class Explorer(ExplorationTechnique):
         self.ok_blocks = set()
         self.num_find = num_find
         self.avoid_priority = avoid_priority
-        self._project = None
 
         find_addrs = getattr(self.find, "addrs", None)
         avoid_addrs = getattr(self.avoid, "addrs", None)
@@ -93,10 +92,9 @@ class Explorer(ExplorationTechnique):
             l.warning("Please be sure that the CFG you have passed in is complete.")
             l.warning("Providing an incomplete CFG can cause viable paths to be discarded!")
 
-    def setup(self, pg):
-        self._project = pg._project
-        if not self.find_stash in pg.stashes: pg.stashes[self.find_stash] = []
-        if not self.avoid_stash in pg.stashes: pg.stashes[self.avoid_stash] = []
+    def setup(self, simgr):
+        if not self.find_stash in simgr.stashes: simgr.stashes[self.find_stash] = []
+        if not self.avoid_stash in simgr.stashes: simgr.stashes[self.avoid_stash] = []
 
     def step(self, simgr, stash, **kwargs):
         base_extra_stop_points = set(kwargs.get("extra_stop_points") or {})
@@ -125,7 +123,7 @@ class Explorer(ExplorationTechnique):
                 while state.addr not in rFind:
                     if state.addr in rAvoid:
                         return self.avoid_stash
-                    state = self._project.factory.successors(state, num_inst=1).successors[0]
+                    state = self.project.factory.successors(state, num_inst=1).successors[0]
                 if self.avoid_priority & (state.addr in rAvoid):
                     # Only occurs if the intersection of rAvoid and rFind is not empty
                     # Why would anyone want that?
@@ -136,5 +134,5 @@ class Explorer(ExplorationTechnique):
             if state.addr not in self.ok_blocks: return self.avoid_stash
         return None
 
-    def complete(self, pg):
-        return len(pg.stashes[self.find_stash]) >= self.num_find
+    def complete(self, simgr):
+        return len(simgr.stashes[self.find_stash]) >= self.num_find

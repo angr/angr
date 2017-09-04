@@ -333,7 +333,9 @@ class AngrObjectFactory(object):
 
         try:
             bypass = o.BYPASS_UNSUPPORTED_SYSCALL in state.options
-            state.ip = self._project._simos.syscall(state, allow_unsupported=bypass).addr # fix the IP
+            stub = self._project._simos.syscall(state, allow_unsupported=bypass)
+            if stub: # can be None if simos is not a subclass of SimUserspace
+                state.ip = stub.addr # fix the IP
         except AngrUnsupportedSyscallError:
             pass # the syscall is not supported. don't do anything
 
