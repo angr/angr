@@ -1,7 +1,12 @@
+import claripy
+
 import logging
+import time
+
+from ... import sim_options as o
+
 l = logging.getLogger("angr.engines.vex.dirty")
 
-import claripy
 
 #####################
 # Dirty calls
@@ -21,7 +26,11 @@ def ppc32g_dirtyhelper_MFSPR_287(state):
     return state.se.BVV(0x200, 32), [ ]
 
 def amd64g_dirtyhelper_RDTSC(state):
-    return state.se.Unconstrained('RDTSC', 64), [ ]
+    if o.USE_SYSTEM_TIMES in state.options:
+        val = state.solver.BVV(int(time.clock() * 1000000) + 12345678, 64)
+    else:
+        val = state.solver.BVS('RDTSC', 64)
+    return val, []
 
 x86g_dirtyhelper_RDTSC = amd64g_dirtyhelper_RDTSC
 

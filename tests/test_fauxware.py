@@ -3,10 +3,10 @@ import os
 import pickle
 import logging
 import sys
-
 import nose
-
 import angr
+
+from nose.plugins.attrib import attr
 from angr.state_plugins.history import HistoryIter
 
 l = logging.getLogger("angr.tests")
@@ -124,6 +124,7 @@ def test_pickling():
     for arch in corrupt_addrs:
         yield run_pickling, arch
 
+@attr(speed='slow')
 def test_fastmem():
     #for arch in target_addrs:
     #   yield run_fastmem, arch

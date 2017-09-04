@@ -1,4 +1,7 @@
 import angr
+import logging
+
+l = logging.getLogger('angr.procedures.win32.GetModuleHandle')
 
 class GetModuleHandleA(angr.SimProcedure):
     def run(self, pointer):
@@ -11,12 +14,10 @@ class GetModuleHandleA(angr.SimProcedure):
         if module_name is None:
             obj = self.project.loader.main_object
         else:
-            for name in self.project.loader.shared_objects:
-                if name.lower() == module_name.lower():
-                    obj = self.project.loader.shared_objects[name]
-                    break
-                else:
-                    return 0
+            obj = self.project.loader.find_object(module_name)
+            if obj is None:
+                l.warning('GetModuleHandle: No loaded object named "%s"', module_name)
+                return 0
         return obj.mapped_base
 
 class GetModuleHandleW(GetModuleHandleA):

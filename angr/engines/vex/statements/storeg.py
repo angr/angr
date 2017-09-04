@@ -7,7 +7,7 @@ class SimIRStmt_StoreG(SimIRStmt):
     def _execute(self):
         addr = self._translate_expr(self.stmt.addr)
         data = self._translate_expr(self.stmt.data)
-        expr = data.expr.to_bv()
+        expr = data.expr.raw_to_bv()
         guard = self._translate_expr(self.stmt.guard)
 
         if o.TRACK_MEMORY_ACTIONS in self.state.options:

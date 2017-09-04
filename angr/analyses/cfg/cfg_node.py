@@ -51,7 +51,8 @@ class CFGNode(object):
                  depth=None,
                  callstack_key=None,
                  creation_failure_info=None,
-                 thumb=False):
+                 thumb=False,
+                 byte_string=None):
         """
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -72,6 +73,7 @@ class CFGNode(object):
         self.block_id = block_id
         self.depth = depth
         self.thumb = thumb
+        self.byte_string = byte_string
 
         self.creation_failure_info = None
         if creation_failure_info is not None:

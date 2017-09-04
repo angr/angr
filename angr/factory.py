@@ -199,6 +199,9 @@ class AngrObjectFactory(object):
         return self._project._simos.state_call(addr, *args, **kwargs)
 
     def simgr(self, thing=None, **kwargs):
+        return self.simulation_manager(thing=thing, **kwargs)
+
+    def simulation_manager(self, thing=None, **kwargs):
         """
         Constructs a new simulation manager.
 
@@ -305,8 +308,8 @@ class AngrObjectFactory(object):
                      backup_state=backup_state, opt_level=opt_level, num_inst=num_inst, traceflags=traceflags
                      )
 
-    def fresh_block(self, addr, size):
-        return Block(addr, project=self._project, size=size)
+    def fresh_block(self, addr, size, backup_state=None):
+        return Block(addr, project=self._project, size=size, backup_state=backup_state)
 
     cc.SimRegArg = SimRegArg
     cc.SimStackArg = SimStackArg
@@ -330,7 +333,9 @@ class AngrObjectFactory(object):
 
         try:
             bypass = o.BYPASS_UNSUPPORTED_SYSCALL in state.options
-            state.ip = self._project._simos.syscall(state, allow_unsupported=bypass).addr # fix the IP
+            stub = self._project._simos.syscall(state, allow_unsupported=bypass)
+            if stub: # can be None if simos is not a subclass of SimUserspace
+                state.ip = stub.addr # fix the IP
         except AngrUnsupportedSyscallError:
             pass # the syscall is not supported. don't do anything
 

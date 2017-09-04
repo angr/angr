@@ -10,7 +10,7 @@ class SimIRStmt_PutI(SimIRStmt):
 
         # value to put
         data = self._translate_expr(self.stmt.data)
-        expr = data.expr.to_bv()
+        expr = data.expr.raw_to_bv()
 
         # reg array data
         self.ix = self._translate_expr(self.stmt.ix)

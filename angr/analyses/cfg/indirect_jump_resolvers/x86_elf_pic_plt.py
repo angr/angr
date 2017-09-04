@@ -18,8 +18,8 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
     execution in fast path mode.
     """
 
-    def __init__(self, arch=archinfo.ArchX86(), project=None):  # pylint:disable=unused-argument
-        super(X86ElfPicPltResolver, self).__init__(arch, timeless=True)
+    def __init__(self, project):
+        super(X86ElfPicPltResolver, self).__init__(project, timeless=True)
 
         self._got_addr_cache = { }
 
@@ -48,6 +48,9 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
 
+        if not isinstance(self.project.arch, archinfo.ArchX86):
+            return False
+
         section = cfg._addr_belongs_to_section(addr)
         if section.name != '.plt':
             return False
@@ -64,7 +67,7 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
 
     def resolve(self, cfg, addr, func_addr, block, jumpkind):
 
-        obj = cfg.project.loader.find_object_containing(addr)
+        obj = self.project.loader.find_object_containing(addr)
         if obj is None:
             return False, [ ]
 

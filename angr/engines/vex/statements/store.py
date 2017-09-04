@@ -10,7 +10,7 @@ class SimIRStmt_Store(SimIRStmt):
 
         # now get the value and track everything
         data = self._translate_expr(self.stmt.data)
-        expr = data.expr.to_bv()
+        expr = data.expr.raw_to_bv()
 
         # track the write
         if o.TRACK_MEMORY_ACTIONS in self.state.options:

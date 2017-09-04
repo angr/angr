@@ -21,7 +21,7 @@ def emulate(p, steps, hit_addrs, finished):
     #     state = p.factory.full_init_state(args=['./test_arrays'])
     #else:
     #    state = p.factory.full_init_state(args=['./test_arrays'], add_options={simuvex.o.STRICT_PAGE_ACCESS})
-    state = p.factory.full_init_state(args=['./test_arrays'], add_options={angr.options.STRICT_PAGE_ACCESS, angr.options.ENABLE_NX, angr.options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY})
+    state = p.factory.full_init_state(args=['./test_arrays'], add_options={angr.options.STRICT_PAGE_ACCESS, angr.options.ENABLE_NX, angr.options.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY, angr.options.USE_SYSTEM_TIMES})
 
     pg = p.factory.simgr(state)
     pg2 = pg.step(until=lambda lpg: len(lpg.active) != 1)

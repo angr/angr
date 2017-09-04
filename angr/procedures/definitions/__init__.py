@@ -2,12 +2,14 @@ import copy
 import os
 import archinfo
 from collections import defaultdict
+import logging
 
 from ..stubs.ReturnUnconstrained import ReturnUnconstrained
 from ..stubs.syscall_stub import syscall as stub_syscall
 from ...calling_conventions import DEFAULT_CC
 from ...misc import autoimport
 
+l = logging.getLogger("angr.procedures.definitions")
 SIM_LIBRARIES = {}
 
 class SimLibrary(object):
@@ -141,6 +143,7 @@ class SimSyscallLibrary(SimLibrary):
         name, arch = self._canonicalize(number, arch)
         proc = super(SimSyscallLibrary, self).get_stub(name, arch)
         self._apply_numerical_metadata(proc, number, arch)
+        l.warn("unsupported syscall: %s", number)
         return proc
 
     def has_metadata(self, number, arch):

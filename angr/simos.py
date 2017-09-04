@@ -8,6 +8,8 @@ from collections import defaultdict
 from archinfo import ArchARM, ArchMIPS32, ArchMIPS64, ArchX86, ArchAMD64, ArchPPC32, ArchPPC64, ArchAArch64
 from cle import MetaELF, BackedCGC
 from cle.address_translator import AT
+from elftools.elf.descriptions import _DESCR_EI_OSABI
+
 import claripy
 
 from .errors import (
@@ -16,7 +18,8 @@ from .errors import (
     AngrCallableMultistateError,
     AngrSimOSError,
     SimUnsupportedError,
-    SimSegfaultError,
+    SimSegfaultException,
+    SimZeroDivisionException,
 )
 from .tablespecs import StringTableSpec
 from .sim_state import SimState
@@ -776,13 +779,28 @@ class SimWindows(SimOS):
         self._weak_hook_symbol('LoadLibraryExW', L['kernel32.dll'].get('LoadLibraryExW', self.arch))
 
         self._exception_handler = self.project.loader.extern_object.allocate()
-        self.project.hook(self._exception_handler, P['ntdll']['KiUserExceptionDispatcher']())
+        self.project.hook(self._exception_handler, P['ntdll']['KiUserExceptionDispatcher'](library_name='ntdll.dll'))
 
     # pylint: disable=arguments-differ
     def state_entry(self, args=None, **kwargs):
         if args is None: args = []
         state = super(SimWindows, self).state_entry(**kwargs)
-        state.regs.sp = state.regs.sp - 0x80    # give us some stack space to work with...?
+        state.regs.sp = state.regs.sp - 0x80    # give us some stack space to work with
+
+        # fake return address from entry point
+        return_addr = self.return_deadend
+        kernel32 = self.project.loader.shared_objects.get('kernel32.dll', None)
+        if kernel32:
+            # some programs will use the return address from start to find the kernel32 base
+            return_addr = kernel32.get_symbol('ExitProcess').rebased_addr
+
+        if state.arch.name == 'X86':
+            state.mem[state.regs.sp].dword = return_addr
+
+            # first argument appears to be PEB
+            tib_addr = state.regs.fs.concat(state.solver.BVV(0, 16))
+            peb_addr = state.mem[tib_addr + 0x30].dword.resolved
+            state.mem[state.regs.sp + 4].dword = peb_addr
 
         return state
 
@@ -797,15 +815,15 @@ class SimWindows(SimOS):
         fun_stuff_addr = state.libc.mmap_base
         if fun_stuff_addr & 0xffff != 0:
             fun_stuff_addr += 0x10000 - (fun_stuff_addr & 0xffff)
-        state.libc.mmap_base = fun_stuff_addr + 0x5000
-        state.memory.map_region(fun_stuff_addr, 0x5000, claripy.BVV(3, 3))
+        state.memory.map_region(fun_stuff_addr, 0x2000, claripy.BVV(3, 3))
 
         TIB_addr = fun_stuff_addr
         PEB_addr = fun_stuff_addr + 0x1000
-        LDR_addr = fun_stuff_addr + 0x2000
 
         if state.arch.name == 'X86':
-            state.mem[TIB_addr + 0].dword = 0 # Initial SEH frame
+            LDR_addr = fun_stuff_addr + 0x2000
+
+            state.mem[TIB_addr + 0].dword = -1 # Initial SEH frame
             state.mem[TIB_addr + 4].dword = state.regs.sp # stack base (high addr)
             state.mem[TIB_addr + 8].dword = state.regs.sp - 0x100000 # stack limit (low addr)
             state.mem[TIB_addr + 0x18].dword = TIB_addr # myself!
@@ -822,7 +840,15 @@ class SimWindows(SimOS):
             # http://sandsprite.com/CodeStuff/Understanding_the_Peb_Loader_Data_List.html
             THUNK_SIZE = 0x100
             num_pe_objects = len(self.project.loader.all_pe_objects)
-            ALLOC_AREA = LDR_addr + THUNK_SIZE * num_pe_objects
+            thunk_alloc_size = THUNK_SIZE * (num_pe_objects + 1)
+            string_alloc_size = sum(len(obj.binary)*2 + 2 for obj in self.project.loader.all_pe_objects)
+            total_alloc_size = thunk_alloc_size + string_alloc_size
+            if total_alloc_size & 0xfff != 0:
+                total_alloc_size += 0x1000 - (total_alloc_size & 0xfff)
+            state.memory.map_region(LDR_addr, total_alloc_size, claripy.BVV(3, 3))
+            state.libc.mmap_base = LDR_addr + total_alloc_size
+
+            string_area = LDR_addr + thunk_alloc_size
             for i, obj in enumerate(self.project.loader.all_pe_objects):
                 # Create a LDR_MODULE, we'll handle the links later...
                 obj.module_id = i+1 # HACK HACK HACK HACK
@@ -832,20 +858,20 @@ class SimWindows(SimOS):
 
                 # Allocate some space from the same region to store the paths
                 path = obj.binary # we're in trouble if this is None
-                alloc_size = len(path) * 2 + 2
-                tail_start = (len(path) - len(os.path.basename(path))) * 2
-                state.mem[addr+0x24].short = alloc_size
-                state.mem[addr+0x26].short = alloc_size
-                state.mem[addr+0x28].dword = ALLOC_AREA
-                state.mem[addr+0x2C].short = alloc_size - tail_start
-                state.mem[addr+0x2E].short = alloc_size - tail_start
-                state.mem[addr+0x30].dword = ALLOC_AREA + tail_start
+                string_size = len(path) * 2
+                tail_size = len(os.path.basename(path)) * 2
+                state.mem[addr+0x24].short = string_size
+                state.mem[addr+0x26].short = string_size
+                state.mem[addr+0x28].dword = string_area
+                state.mem[addr+0x2C].short = tail_size
+                state.mem[addr+0x2E].short = tail_size
+                state.mem[addr+0x30].dword = string_area + string_size - tail_size
 
                 for j, c in enumerate(path):
                     # if this segfaults, increase the allocation size
-                    state.mem[ALLOC_AREA + j*2].short = ord(c)
-                state.mem[ALLOC_AREA + alloc_size - 2].short = 0
-                ALLOC_AREA += alloc_size
+                    state.mem[string_area + j*2].short = ord(c)
+                state.mem[string_area + string_size].short = 0
+                string_area += string_size + 2
 
             # handle the links. we construct a python list in the correct order for each, and then, uh,
             mem_order = sorted(self.project.loader.all_pe_objects, key=lambda x: x.mapped_base)
@@ -859,7 +885,8 @@ class SimWindows(SimOS):
                     if dep in self.project.loader.shared_objects:
                         depo = self.project.loader.shared_objects[dep]
                         fuck_load(depo)
-                        init_order.append(depo)
+                        if depo not in init_order:
+                            init_order.append(depo)
 
             fuck_load(self.project.loader.main_object)
             load_order = [self.project.loader.main_object] + init_order
@@ -884,6 +911,9 @@ class SimWindows(SimOS):
                 else:
                     link(LDR_addr + 12, LDR_addr + 12)
 
+            l.debug("Load order: %s", load_order)
+            l.debug("In-memory order: %s", mem_order)
+            l.debug("Initialization order: %s", init_order)
             link_list(load_order, 0)
             link_list(mem_order, 8)
             link_list(init_order, 16)
@@ -891,8 +921,22 @@ class SimWindows(SimOS):
         return state
 
     def handle_exception(self, successors, engine, exc_type, exc_value, exc_traceback):
+        # don't bother handling non-vex exceptions
         if engine is not self.project.factory.default_engine:
             raise exc_type, exc_value, exc_traceback
+        # don't bother handling symbolic-address exceptions
+        if exc_type is SimSegfaultException:
+            if exc_value.original_addr is not None and exc_value.original_addr.symbolic:
+                raise exc_type, exc_value, exc_traceback
+
+        l.debug("Handling exception from block at %#x: %r", successors.addr, exc_value)
+
+        # If our state was just living out the rest of an unsatisfiable guard, discard it
+        # it's possible this is incomplete because of implicit constraints added by memory or ccalls...
+        if not successors.initial_state.satisfiable(extra_constraints=(exc_value.guard,)):
+            l.debug("... NOT handling unreachable exception")
+            successors.processed = True
+            return
 
         # we'll need to wind up to the exception to get the correct state to resume from...
         # exc will be a SimError, for sure
@@ -901,12 +945,24 @@ class SimWindows(SimOS):
         if num_inst >= 1:
             # scary...
             try:
-                # what would marking this as "inline" do?
                 r = self.project.factory.default_engine.process(successors.initial_state, num_inst=num_inst)
                 if len(r.flat_successors) != 1:
-                    l.error("Got %d successors while re-executing %d instructions at %#x for exception windup", num_inst, successors.initial_state.addr)
-                    raise exc_type, exc_value, exc_traceback
-                exc_state = r.flat_successors[0]
+                    if exc_value.guard.is_true():
+                        l.error("Got %d successors while re-executing %d instructions at %#x for unconditional exception windup", num_inst, successors.initial_state.addr)
+                        raise exc_type, exc_value, exc_traceback
+                    # Try to figure out which successor is ours...
+                    _, _, canon_guard = exc_value.guard.canonicalize()
+                    for possible_succ in r.flat_successors:
+                        _, _, possible_guard = possible_succ.recent_events[-1].constraint.canonicalize()
+                        if canon_guard is possible_guard:
+                            exc_state = possible_succ
+                            break
+                    else:
+                        l.error("None of the %d successors while re-executing %d instructions at %#x for conditional exception windup matched guard", num_inst, successors.initial_state.addr)
+                        raise exc_type, exc_value, exc_traceback
+
+                else:
+                    exc_state = r.flat_successors[0]
             except:
                 # lol no
                 l.error("Got some weirdo error while re-executing %d instructions at %#x for exception windup", num_inst, successors.initial_state.addr)
@@ -917,15 +973,19 @@ class SimWindows(SimOS):
             exc_state.register_plugin('history', successors.initial_state.history.make_child())
             exc_state.history.recent_bbl_addrs.append(successors.initial_state.addr)
 
+        l.debug("... wound up state to %#x", exc_state.addr)
+
         # first check that we actually have an exception handler
         # we check is_true since if it's symbolic this is exploitable maybe?
         tib_addr = exc_state.regs._fs.concat(exc_state.solver.BVV(0, 16))
         if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == -1):
-            exc_value.args = ('Unhandled exception: %s' % exc_value,)
+            l.debug("... no handlers register")
+            exc_value.args = ('Unhandled exception: %r' % exc_value,)
             raise exc_type, exc_value, exc_traceback
         # catch nested exceptions here with magic value
         if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == 0xBADFACE):
-            exc_value.args = ('Unhandled exception: %s' % exc_value,)
+            l.debug("... nested exception")
+            exc_value.args = ('Unhandled exception: %r' % exc_value,)
             raise exc_type, exc_value, exc_traceback
 
         # serialize the thread context and set up the exception record...
@@ -933,6 +993,7 @@ class SimWindows(SimOS):
         exc_state.regs.esp -= 0x400
         record = exc_state.regs._esp + 0x20
         context = exc_state.regs._esp + 0x100
+        # https://msdn.microsoft.com/en-us/library/windows/desktop/aa363082(v=vs.85).aspx
         exc_state.mem[record + 0x4].uint32_t = 0 # flags = continuable
         exc_state.mem[record + 0x8].uint32_t = 0 # FUCK chained exceptions
         exc_state.mem[record + 0xc].uint32_t = exc_state.regs._eip  # exceptionaddress
@@ -941,11 +1002,15 @@ class SimWindows(SimOS):
         # TOTAL SIZE: 0x50
 
         # the rest of the parameters have to be set per-exception type
-        if exc_type is SimSegfaultError:
-            exc_state.mem[record].uint32_t = 0xc0000005 # EXCEPTION_ACCESS_VIOLATION
+        # https://msdn.microsoft.com/en-us/library/cc704588.aspx
+        if exc_type is SimSegfaultException:
+            exc_state.mem[record].uint32_t = 0xc0000005 # STATUS_ACCESS_VIOLATION
             exc_state.mem[record + 0x10].uint32_t = 2
             exc_state.mem[record + 0x14].uint32_t = 1 if exc_value.reason.startswith('write-') else 0
             exc_state.mem[record + 0x18].uint32_t = exc_value.addr
+        elif exc_type is SimZeroDivisionException:
+            exc_state.mem[record].uint32_t = 0xC0000094 # STATUS_INTEGER_DIVIDE_BY_ZERO
+            exc_state.mem[record + 0x10].uint32_t = 0
 
         # set up parameters to userland dispatcher
         exc_state.mem[exc_state.regs._esp].uint32_t = 0xBADC0DE # god help us if we return from this func
@@ -953,6 +1018,7 @@ class SimWindows(SimOS):
         exc_state.mem[exc_state.regs._esp + 8].uint32_t = context
 
         # let's go let's go!
+        # we want to use a true guard here. if it's not true, then it's already been added in windup.
         successors.add_successor(exc_state, self._exception_handler, exc_state.solver.true, 'Ijk_Exception')
         successors.processed = True
 
@@ -1012,6 +1078,7 @@ os_mapping = defaultdict(lambda: SimOS)
 def register_simos(name, cls):
     os_mapping[name] = cls
 
-register_simos('unix', SimLinux)
+# Pulling in all EI_OSABI options supported by elftools
+for k, v in _DESCR_EI_OSABI.items(): register_simos(v, SimLinux)
 register_simos('windows', SimWindows)
 register_simos('cgc', SimCGC)

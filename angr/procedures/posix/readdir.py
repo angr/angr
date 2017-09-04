@@ -21,7 +21,7 @@ class readdir(angr.SimProcedure):
         malloc = angr.SIM_PROCEDURES['libc']['malloc']
         pointer = self.inline_call(malloc, 19 + 256).ret_expr
         self._store_amd64(pointer)
-        return self.state.se.If(self.condition, pointer, self.state.se.BVV(0, len(pointer)))
+        return self.state.se.If(self.condition, pointer, self.state.se.BVV(0, self.state.arch.bits))
 
     def instrument(self):
         pass # override me!

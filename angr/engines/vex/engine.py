@@ -131,7 +131,7 @@ class SimEngineVEX(SimEngine):
             if o.STRICT_PAGE_ACCESS in state.options:
                 try:
                     perms = state.memory.permissions(addr)
-                except (KeyError, SimMemoryError):  # TODO: can this still raise KeyError?
+                except SimMemoryError:
                     raise SimSegfaultError(addr, 'exec-miss')
                 else:
                     if not perms.symbolic:
@@ -164,7 +164,7 @@ class SimEngineVEX(SimEngine):
                 raise
             else:
                 break
-        state._inspect('irsb', BP_AFTER)
+        state._inspect('irsb', BP_AFTER, address=addr)
 
         successors.processed = True
 

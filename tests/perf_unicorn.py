@@ -4,7 +4,7 @@ import os
 import time
 
 import angr
-import angr.options as so
+from angr import options as so
 
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../'))
 

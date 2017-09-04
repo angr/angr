@@ -370,9 +370,15 @@ class SimMemory(SimStatePlugin):
                     return ((tag_map[name] + self.load('ftop')) & 7) + self.state.arch.registers['fpu_tags'][0], 1
                 elif name in ('flags', 'eflags', 'rflags'):
                     # we tweak the state to convert the vex condition registers into the flags register
-                    self.store('cc_op', 0) # OP_COPY
                     if not is_write: # this work doesn't need to be done if we're just gonna overwrite it
                         self.store('cc_dep1', _get_flags(self.state)[0]) # TODO: can constraints be added by this?
+                    self.store('cc_op', 0) # OP_COPY
+                    return self.state.arch.registers['cc_dep1'][0], self.state.arch.bytes
+            if self.state.arch.name in ('ARMEL', 'ARMHF', 'ARM', 'AARCH64'):
+                if name == 'flags':
+                    if not is_write:
+                        self.store('cc_dep1', _get_flags(self.state)[0])
+                    self.store('cc_op', 0)
                     return self.state.arch.registers['cc_dep1'][0], self.state.arch.bytes
 
             return self.state.arch.registers[name]
@@ -393,7 +399,7 @@ class SimMemory(SimStatePlugin):
             data_e = self.state.se.BVV(data_e, size_e*8 if size_e is not None
                                        else self.state.arch.bits)
         else:
-            data_e = data_e.to_bv()
+            data_e = data_e.raw_to_bv()
 
         return data_e
 
@@ -523,7 +529,11 @@ class SimMemory(SimStatePlugin):
             self._constrain_underconstrained_index(addr_e)
 
         request = MemoryStoreRequest(addr_e, data=data_e, size=size_e, condition=condition_e, endness=endness)
-        self._store(request)
+        try:
+            self._store(request)
+        except SimSegfaultError as e:
+            e.original_addr = addr_e
+            raise
 
         if inspect is True:
             if self.category == 'reg': self.state._inspect('reg_write', BP_AFTER)
@@ -657,7 +667,7 @@ class SimMemory(SimStatePlugin):
             return self._store(req)
 
     def load(self, addr, size=None, condition=None, fallback=None, add_constraints=None, action=None, endness=None,
-             inspect=True, disable_actions=False):
+             inspect=True, disable_actions=False, ret_on_segv=False):
         """
         Loads size bytes from dst.
 
@@ -671,6 +681,7 @@ class SimMemory(SimStatePlugin):
         :param bool inspect:    Whether this store should trigger SimInspect breakpoints or not.
         :param bool disable_actions: Whether this store should avoid creating SimActions or not. When set to False,
                                      state options are respected.
+        :param bool ret_on_segv: Whether returns the memory that is already loaded before a segmentation fault is triggered. The default is False.
 
         There are a few possible return values. If no condition or fallback are passed in,
         then the return is the bytes at the address, in the form of a claripy expression.
@@ -719,7 +730,12 @@ class SimMemory(SimStatePlugin):
         ):
             self._constrain_underconstrained_index(addr_e)
 
-        a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e)
+        try:
+            a,r,c = self._load(addr_e, size_e, condition=condition_e, fallback=fallback_e, inspect=inspect,
+                               events=not disable_actions, ret_on_segv=ret_on_segv)
+        except SimSegfaultError as e:
+            e.original_addr = addr_e
+            raise
         add_constraints = self.state._inspect_getattr('address_concretization_add_constraints', add_constraints)
         if add_constraints and c:
             self.state.add_constraints(*c)
@@ -793,7 +809,7 @@ class SimMemory(SimStatePlugin):
         """
         return [ addr ]
 
-    def _load(self, addr, size, condition=None, fallback=None):
+    def _load(self, addr, size, condition=None, fallback=None, inspect=True, events=True, ret_on_segv=False):
         raise NotImplementedError()
 
     def find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1):
@@ -859,5 +875,5 @@ from bintrees import AVLTree
 from .. import sim_options as o
 from ..state_plugins.sim_action import SimActionData
 from ..state_plugins.sim_action_object import SimActionObject, _raw_ast
-from ..errors import SimMemoryError, SimRegionMapError
+from ..errors import SimMemoryError, SimRegionMapError, SimSegfaultError
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER

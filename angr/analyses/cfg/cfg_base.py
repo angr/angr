@@ -5,16 +5,18 @@ from collections import defaultdict
 
 import cffi
 import networkx
+
 import pyvex
-from .. import Analysis
 from claripy.utils.orderedset import OrderedSet
 from cle import ELF, PE, Blob, TLSObject, ExternObject, KernelObject
 
-from .cfg_node import CFGNode
 from ... import SIM_PROCEDURES
-from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError, AngrUnsupportedSyscallError
+from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError,\
+    AngrUnsupportedSyscallError, SimError
 from ...codenode import HookNode, BlockNode
-from ...knowledge_plugins import FunctionManager
+from ...knowledge_plugins import FunctionManager, Function
+from .. import Analysis
+from .cfg_node import CFGNode
 
 l = logging.getLogger("angr.analyses.cfg.cfg_base")
 
@@ -49,7 +51,7 @@ class CFGBase(Analysis):
     """
     The base class for control flow graphs.
     """
-    def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None):
+    def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None, base_state=None):
         self.sort = sort
         self._context_sensitivity_level=context_sensitivity_level
 
@@ -60,6 +62,7 @@ class CFGBase(Analysis):
         self._binary = binary if binary is not None else self.project.loader.main_object
         self._force_segment = force_segment
         self._iropt_level = iropt_level
+        self._base_state = base_state
 
         # Initialization
         self._graph = None
@@ -438,23 +441,41 @@ class CFGBase(Analysis):
         if edge in self._graph:
             self._graph.remove_edge(*edge)
 
-    def _to_snippet(self, cfg_node, jumpkind=None):
+    def _to_snippet(self, cfg_node=None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None):
         """
         Convert a CFGNode instance to a CodeNode object.
 
         :param angr.analyses.CFGNode cfg_node: The CFGNode instance.
+        :param int addr: Address of the node. Only used when `cfg_node` is None.
+        :param bool thumb: Whether this is in THUMB mode or not. Only used for ARM code and when `cfg_node` is None.
+        :param str or None jumpkind: Jumpkind of this node.
+        :param SimState or None base_state: The state where BlockNode should be created from.
         :return: A converted CodeNode instance.
         :rtype: CodeNode
         """
 
-        addr = cfg_node.addr
+        if cfg_node is not None:
+            addr = cfg_node.addr
+            size = cfg_node.size
+            thumb = cfg_node.thumb
+        else:
+            addr = addr
+            size = size
+            thumb = thumb
+
+        if addr is None:
+            raise ValueError('_to_snippet(): Either cfg_node or addr must be provided.')
 
         if self.project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
             hooker = self.project._sim_procedures[addr]
             size = hooker.kwargs.get('length', 0)
             return HookNode(addr, size, type(hooker))
 
-        return BlockNode(cfg_node.addr, cfg_node.size, thumb=cfg_node.thumb)  # pylint: disable=no-member
+        if cfg_node is not None:
+            return BlockNode(addr, size, thumb=thumb, bytestr=cfg_node.byte_string)  # pylint: disable=no-member
+        else:
+            return self.project.factory.snippet(addr, size=size, jumpkind=jumpkind, thumb=thumb,
+                                                backup_state=base_state)
 
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
@@ -477,7 +498,7 @@ class CFGBase(Analysis):
         it_counter = 0
         conc_temps = {}
         can_produce_exits = set()
-        bb = self.project.factory.block(addr, thumb=True, opt_level=0)
+        bb = self._lift(addr, thumb=True, opt_level=0)
 
         for stmt in bb.vex.statements:
             if stmt.tag == 'Ist_IMark':
@@ -516,6 +537,67 @@ class CFGBase(Analysis):
                             )
 
         return successors_filtered
+
+    def _is_region_extremely_sparse(self, start, end, base_state=None):
+        """
+        Check whether the given memory region is extremely sparse, i.e., all bytes are the same value.
+
+        :param int start: The beginning of the region.
+        :param int end:   The end of the region.
+        :param base_state: The base state (optional).
+        :return:           True if the region is extremely sparse, False otherwise.
+        :rtype:            bool
+        """
+
+        all_bytes = None
+
+        if base_state is not None:
+            all_bytes = base_state.memory.load(start, end - start + 1)
+            try:
+                n = base_state.se.eval(all_bytes)
+                all_bytes = hex(n)[2:].strip('L').decode("hex")
+            except SimError:
+                all_bytes = None
+
+        if all_bytes is None:
+            # load from the binary
+            all_bytes = self._fast_memory_load_bytes(start, end - start + 1)
+
+        if all_bytes is None:
+            return True
+
+        the_byte_value = None
+        for b in all_bytes:
+            if the_byte_value is None:
+                the_byte_value = b
+            else:
+                if the_byte_value != b:
+                    return False
+
+        return True
+
+    def _should_skip_region(self, region_start):
+        """
+        Some regions usually do not contain any executable code, but are still marked as executable. We should skip
+        those regions by default.
+
+        :param int region_start: Address of the beginning of the region.
+        :return:                 True/False
+        :rtype:                  bool
+        """
+
+
+        obj = self.project.loader.find_object_containing(region_start)
+        if obj is None:
+            return False
+        if isinstance(obj, PE):
+            section = obj.find_section_containing(region_start)
+            if section is None:
+                return False
+            if section.name in {'.textbss'}:
+                return True
+
+        return False
 
     def _executable_memory_regions(self, binary=None, force_segment=False):
         """
@@ -718,17 +800,47 @@ class CFGBase(Analysis):
         except KeyError:
             return None
 
+    def _fast_memory_load_byte(self, addr):
+        """
+        Perform a fast memory loading of a byte.
+
+        :param int addr: Address to read from.
+        :return:         A char or None if the address does not exist.
+        :rtype:          str or None
+        """
+
+        return self._fast_memory_load_bytes(addr, 1)
+
+    def _fast_memory_load_bytes(self, addr, length):
+        """
+        Perform a fast memory loading of a byte.
+
+        :param int addr: Address to read from.
+        :param int length: Size of the string to load.
+        :return:         A string or None if the address does not exist.
+        :rtype:          str or None
+        """
+
+        buf = self._fast_memory_load(addr)
+        if buf is None:
+            return None
+
+        char_str = self._ffi.unpack(self._ffi.cast('char*', buf), length) # type: str
+        return char_str
+
     def _fast_memory_load_pointer(self, addr):
         """
         Perform a fast memory loading of a pointer.
 
         :param int addr: Address to read from.
-        :return:         A pointer.
+        :return:         A pointer or None if the address does not exist.
         :rtype:          int
         """
 
         pointer_size = self.project.arch.bits / 8
         buf = self._fast_memory_load(addr)
+        if buf is None:
+            return None
 
         if self.project.arch.memory_endness == 'Iend_LE':
             fmt = "<"
@@ -838,24 +950,46 @@ class CFGBase(Analysis):
 
             bail_out = False
 
-            # if this function has jump out sites, it returns as long as any of the target function returns
-            for jump_out_site in func.jumpout_sites:
+            # if this function has jump-out sites or ret-out sites, it returns as long as any of the target function
+            # returns
+            for goout_site, type_ in [ (site, 'jumpout') for site in func.jumpout_sites ] + \
+                    [ (site, 'retout') for site in func.retout_sites ]:
 
                 if func.returning:
                     # if there are multiple jump out sites and we have determined the "returning status" from one of
                     # the jump out sites, we can exit the loop early
-                    continue
-                jump_out_site_successors = jump_out_site.successors()
-                if not jump_out_site_successors:
+                    break
+
+                # determine where it jumps/returns to
+                goout_site_successors = goout_site.successors()
+                if not goout_site_successors:
                     # not sure where it jumps to. bail out
                     bail_out = True
                     continue
-                jump_out_target = jump_out_site_successors[0]
-                if not self.kb.functions.contains_addr(jump_out_target.addr):
+
+                # for retout sites, determine what function it calls
+                if type_ == 'retout':
+                    # see whether the function being called returns or not
+                    func_successors = [ succ for succ in goout_site_successors if isinstance(succ, Function) ]
+                    if func_successors and all(func_successor.returning in (None, False)
+                                               for func_successor in func_successors):
+                        # the returning of all possible function calls are undermined, or they do not return
+                        # ignore this site
+                        continue
+
+                if type_ == 'retout':
+                    goout_target = next((succ for succ in goout_site_successors if not isinstance(succ, Function)), None)
+                else:
+                    goout_target = next((succ for succ in goout_site_successors), None)
+                if goout_target is None:
+                    # there is no jumpout site, which is weird, but what can we do...
+                    continue
+                if not self.kb.functions.contains_addr(goout_target.addr):
                     # wait it does not jump to a function?
                     bail_out = True
                     continue
-                target_func = self.kb.functions[jump_out_target.addr]
+
+                target_func = self.kb.functions[goout_target.addr]
                 if target_func.returning is True:
                     func.returning = True
                     changes['functions_return'].append(func)
@@ -1583,13 +1717,14 @@ class CFGBase(Analysis):
             dst_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
 
             n = self.get_any_node(src_addr)
-            if n is None: src_node = src_addr
-            else: src_node = self._to_snippet(n)
+            if n is None: src_snippet = self._to_snippet(addr=src_addr, base_state=self._base_state)
+            else: src_snippet = self._to_snippet(cfg_node=n)
 
             fakeret_node = None if not all_edges else self._one_fakeret_node(all_edges)
-            fakeret_addr = fakeret_node.addr if fakeret_node is not None else None
+            if fakeret_node is None: fakeret_snippet = None
+            else: fakeret_snippet = self._to_snippet(cfg_node=fakeret_node)
 
-            self.kb.functions._add_call_to(src_function.addr, src_node, dst_addr, fakeret_addr, syscall=is_syscall,
+            self.kb.functions._add_call_to(src_function.addr, src_snippet, dst_addr, fakeret_snippet, syscall=is_syscall,
                                            ins_addr=ins_addr, stmt_idx=stmt_idx)
 
             if dst_function.returning:
@@ -1603,10 +1738,10 @@ class CFGBase(Analysis):
                 to_outside = not blockaddr_to_function[returning_target] is src_function
 
                 n = self.get_any_node(returning_target)
-                if n is None: returning_node = returning_target
-                else: returning_node = self._to_snippet(n)
+                if n is None: returning_snippet = self._to_snippet(addr=returning_target, base_state=self._base_state)
+                else: returning_snippet = self._to_snippet(cfg_node=n)
 
-                self.kb.functions._add_fakeret_to(src_function.addr, src_node, returning_node, confirmed=True,
+                self.kb.functions._add_fakeret_to(src_function.addr, src_snippet, returning_snippet, confirmed=True,
                                                   to_outside=to_outside
                                                   )
 
@@ -1615,11 +1750,11 @@ class CFGBase(Analysis):
             # convert src_addr and dst_addr to CodeNodes
             n = self.get_any_node(src_addr)
             if n is None: src_node = src_addr
-            else: src_node = self._to_snippet(n)
+            else: src_node = self._to_snippet(cfg_node=n)
 
             n = self.get_any_node(dst_addr)
             if n is None: dst_node = dst_addr
-            else: dst_node = self._to_snippet(n)
+            else: dst_node = self._to_snippet(cfg_node=n)
 
             # pre-check: if source and destination do not belong to the same section, it must be jumping to another
             # function
@@ -1760,3 +1895,11 @@ class CFGBase(Analysis):
             if data.get('jumpkind', None) == 'Ijk_FakeRet':
                 return dst
         return None
+
+    def _lift(self, *args, **kwargs):
+        """
+        Lift a basic block of code. Will use the base state as a source of bytes if possible.
+        """
+        if 'backup_state' not in kwargs:
+            kwargs['backup_state'] = self._base_state
+        return self.project.factory.block(*args, **kwargs)

@@ -12,8 +12,6 @@ class CalleeCleanupFinder(Analysis):
             starts = [imp.resolvedby.rebased_addr for imp in self.project.loader.main_object.imports.itervalues()]
 
         for addr in starts:
-            if self.project.is_hooked(addr):
-                continue
             with self._resilience():
                 size = self.analyze(addr)
                 if size is None:
@@ -23,6 +21,8 @@ class CalleeCleanupFinder(Analysis):
 
         if hook_all:
             for addr, size in self.results.iteritems():
+                if self.project.is_hooked(addr):
+                    continue
                 if size % self.project.arch.bytes != 0:
                     l.error("Function at %#x has a misaligned return?", addr)
                     continue

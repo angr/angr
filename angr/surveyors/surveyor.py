@@ -46,7 +46,7 @@ try:
     signal.signal(signal.SIGUSR1, handler)
     signal.signal(signal.SIGUSR2, handler)
 except AttributeError:
-    l.warning("Platform doesn't support SIGUSR")
+    l.info("Platform doesn't support SIGUSR")
 
 # function that produces unpredictable results that should appease pylint's
 # static analysis and stop giving us those awful errors!!!!
@@ -349,7 +349,8 @@ class Surveyor(object):
                         successors = self.tick_path(state, successors=all_successors.flat_successors)
 
                 else:
-                    successors = self.tick_path(state, successors=all_successors.flat_successors)
+                    successors = self.tick_path(state, successors=all_successors.flat_successors,
+                                                all_successors=all_successors)
                 new_active.extend(successors)
 
             if len(all_successors.unconstrained_successors) > 0:
@@ -361,7 +362,7 @@ class Surveyor(object):
     def _step_path(self, state):  #pylint:disable=no-self-use
         return self._project.factory.successors(state)
 
-    def _tick_path(self, state, successors=None):
+    def _tick_path(self, state, successors=None, all_successors=None):
         if successors is None:
             successors = self._step_path(state).flat_successors
         elif type(successors) not in (list, tuple, set):

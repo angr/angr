@@ -2,12 +2,12 @@ import nose
 import angr
 import pickle
 import re
+from angr import options as so
+from nose.plugins.attrib import attr
 
 import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../'))
 
-import angr
-from angr import options as so
 
 
 def _remove_addr_from_trace_item(trace_item_str):
@@ -43,6 +43,22 @@ def test_stops():
     pg_normal_angr = p.factory.simgr(s_normal_angr).run()
     p_normal_angr = pg_normal_angr.one_deadended
     nose.tools.assert_equal(p_normal_angr.history.bbl_addrs.hardcopy, p_normal.history.bbl_addrs.hardcopy)
+
+    # test STOP_STOPPOINT on an address that is not a basic block start
+    s_stoppoints = p.factory.call_state(p.loader.find_symbol("main").rebased_addr, 1, [], add_options=so.unicorn)
+
+    # this address is right before/after the bb for the stop_normal() function ends
+    # we should not stop there, since that code is never hit
+    stop_fake = [0x08048436, 0x08048457]
+
+    # this is an address inside main that is not the beginning of a basic block. we should stop here
+    stop_in_bb = 0x08048511
+    stop_bb = 0x0804850c # basic block of the above address
+    pg_stoppoints = p.factory.simgr(s_stoppoints).step(n=1, extra_stop_points=stop_fake + [stop_in_bb])
+    nose.tools.assert_equal(len(pg_stoppoints.active), 1) # path should not branch
+    p_stoppoints = pg_stoppoints.one_active
+    nose.tools.assert_equal(p_stoppoints.addr, stop_bb) # should stop at bb before stop_in_bb
+    _compare_trace(p_stoppoints.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 107 steps) from 0x80484b6: 1 sat>'])
 
     # test STOP_SYMBOLIC
     s_symbolic = p.factory.entry_state(args=['a', 'a'], add_options=so.unicorn)
@@ -127,6 +143,7 @@ def run_similarity(binpath, depth, prehook=None):
         cc.simgr = prehook(cc.simgr)
     cc.run(depth=depth)
 
+@attr(speed='slow')
 def test_similarity_fauxware():
     def cooldown(pg):
         # gotta skip the initializers because of cpuid and RDTSC
@@ -212,6 +229,92 @@ def test_concrete_transmits():
     pg_unicorn.step(n=10)
 
     nose.tools.assert_equal(pg_unicorn.one_active.posix.dumps(1), '1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\nRandomness added\n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n  Index: \n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n')
+
+def test_inspect():
+    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/uc_stop'))
+
+    def main_state(argc, add_options=None):
+        add_options = add_options or so.unicorn
+        main_addr = p.loader.find_symbol("main").rebased_addr
+        return p.factory.call_state(main_addr, argc, [], add_options=add_options)
+
+    # test breaking on specific addresses
+    s_break_addr = main_state(1)
+    addr0 = 0x08048454 # at the beginning of a basic block, at end of stop_normal function
+    addr1 = 0x080484c7 # this is at the beginning of main, in the middle of a basic block
+    addr2 = 0x0804843e # another non-bb address, at the start of stop_normal
+    addr3 = 0x08048457 # address of a block that should not get hit (stop_symbolc function)
+    addr4 = 0x0804850b # another address that shouldn't get hit, near end of main
+    hits = { addr0 : 0, addr1: 0, addr2: 0, addr3: 0, addr4: 0 }
+
+    def create_addr_action(addr):
+        def action(_state):
+            hits[addr] += 1
+        return action
+
+    for addr in [addr0, addr1, addr2]:
+        s_break_addr.inspect.b("instruction", instruction=addr, action=create_addr_action(addr))
+
+    pg_instruction = p.factory.simgr(s_break_addr)
+    pg_instruction.run()
+    nose.tools.assert_equal(hits[addr0], 1)
+    nose.tools.assert_equal(hits[addr1], 1)
+    nose.tools.assert_equal(hits[addr2], 1)
+    nose.tools.assert_equal(hits[addr3], 0)
+    nose.tools.assert_equal(hits[addr4], 0)
+
+    # test breaking on every instruction
+    def collect_trace(options):
+        s_break_every = main_state(1, add_options=options)
+        trace = []
+        def action_every(state):
+            trace.append(state.addr)
+        s_break_every.inspect.b("instruction", action=action_every)
+        pg_break_every = p.factory.simgr(s_break_every)
+        pg_break_every.run()
+    nose.tools.assert_equal(collect_trace(so.unicorn), collect_trace(set()))
+
+def test_explore():
+    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/uc_stop'))
+
+    def main_state(argc, add_options=None):
+        add_options = add_options or so.unicorn
+        main_addr = p.loader.find_symbol("main").rebased_addr
+        return p.factory.call_state(main_addr, argc, [], add_options=add_options)
+
+    addr = 0x08048454
+    s_explore = main_state(1)
+    pg_explore_find = p.factory.simgr(s_explore)
+    pg_explore_find.explore(find=addr)
+    nose.tools.assert_equal(len(pg_explore_find.found), 1)
+    nose.tools.assert_equal(pg_explore_find.found[0].addr, addr)
+
+    pg_explore_avoid = p.factory.simgr(s_explore)
+    pg_explore_avoid.explore(avoid=addr)
+    nose.tools.assert_equal(len(pg_explore_avoid.avoid), 1)
+    nose.tools.assert_equal(pg_explore_avoid.avoid[0].addr, addr)
+
+
+def test_single_step():
+    p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/uc_stop'))
+
+
+    def main_state(argc, add_options=None):
+        add_options = add_options or so.unicorn
+        main_addr = p.loader.find_symbol("main").rebased_addr
+        return p.factory.call_state(main_addr, argc, [], add_options=add_options)
+
+    s_main = main_state(1)
+
+    step1 = s_main.block().instruction_addrs[1]
+    successors1 = s_main.step(num_inst=1).successors
+    nose.tools.assert_equal(len(successors1), 1)
+    nose.tools.assert_equal(successors1[0].addr, step1)
+
+    step5 = s_main.block().instruction_addrs[5]
+    successors2 = successors1[0].step(num_inst=4).successors
+    nose.tools.assert_equal(len(successors2), 1)
+    nose.tools.assert_equal(successors2[0].addr, step5)
 
 if __name__ == '__main__':
     #import logging

@@ -28,3 +28,4 @@ EXPORTS
   simunicorn_is_interrupt_handled
   simunicorn_set_transmit_sysno
   simunicorn_process_transmit
+  simunicorn_set_tracking

@@ -17,7 +17,7 @@ class KiUserExceptionDispatcher(angr.SimProcedure):
         self.cur_ptr = self.top_record
 
         # set magic value to detect nested exceptions
-        self.state.mem[self.tib_ptr].long = 0xBADC0DE
+        self.state.mem[self.tib_ptr].long = 0xBADFACE
 
         self.dispatch(record, context)
 
@@ -50,5 +50,7 @@ class KiUserExceptionDispatcher(angr.SimProcedure):
         func_ptr = self.state.mem[self.cur_ptr+4].uint32_t.resolved
 
         self.cur_ptr = next_ptr
-        self.call(func_ptr, (record, cur_ptr, context, 0xBADF00D), 'dispatch')
         # as far as I can tell it doesn't actually matter whether the callback is stdcall or cdecl
+        self.call(func_ptr, (record, cur_ptr, context, 0xBADF00D), 'dispatch')
+        # bonus! after we've done the call, mutate the state even harder so ebp is pointing to some fake args
+        self.successors.successors[0].regs.ebp = self.successors.successors[0].regs.esp - 4

@@ -4,6 +4,7 @@ from collections import defaultdict
 
 import pyvex
 
+from ....errors import AngrError, SimError
 from ....blade import Blade
 from ....annocfg import AnnotatedCFG
 from .... import sim_options as o
@@ -28,17 +29,14 @@ class JumpTableResolver(IndirectJumpResolver):
         - The final jump target must be directly read out of the memory, without any further modification or altering.
 
     """
-    def __init__(self, arch, project=None):
-        super(JumpTableResolver, self).__init__(arch=arch, timeless=False)
+    def __init__(self, project):
+        super(JumpTableResolver, self).__init__(project, timeless=False)
 
         self._bss_regions = None
         # the maximum number of resolved targets. Will be initialized from CFG.
         self._max_targets = None
 
-        self.project = project
-
-        if self.project is not None:
-            self._find_bss_region()
+        self._find_bss_region()
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
         # TODO:
@@ -61,16 +59,14 @@ class JumpTableResolver(IndirectJumpResolver):
         :rtype: tuple
         """
 
-        if jumpkind != 'Ijk_Boring':
-            # how did it pass filter()?
-            l.error("JumpTableResolver only supports boring jumps.")
-            return False, None
-
-        project = cfg.project  # short-hand
+        project = self.project  # short-hand
         self._max_targets = cfg._indirect_jump_target_limit
 
         # Perform a backward slicing from the jump target
-        b = Blade(cfg.graph, addr, -1, cfg=cfg, project=project, ignore_sp=False, ignore_bp=False, max_level=3)
+        b = Blade(cfg.graph, addr, -1,
+            cfg=cfg, project=project,
+            ignore_sp=False, ignore_bp=False,
+            max_level=3, base_state=self.base_state)
 
         stmt_loc = (addr, 'default')
         if stmt_loc not in b.slice:
@@ -83,7 +79,7 @@ class JumpTableResolver(IndirectJumpResolver):
             if len(preds) != 1:
                 return False, None
             block_addr, stmt_idx = stmt_loc = preds[0]
-            block = project.factory.block(block_addr).vex
+            block = project.factory.block(block_addr, backup_state=self.base_state).vex
             stmt = block.statements[stmt_idx]
             if isinstance(stmt, (pyvex.IRStmt.WrTmp, pyvex.IRStmt.Put)):
                 if isinstance(stmt.data, (pyvex.IRExpr.Get, pyvex.IRExpr.RdTmp)):
@@ -148,7 +144,12 @@ class JumpTableResolver(IndirectJumpResolver):
 
             # Get the jumping targets
             for r in slicecutor.reached_targets:
-                succ = project.factory.successors(r)
+                try:
+                    succ = project.factory.successors(r)
+                except (AngrError, SimError):
+                    # oops there are errors
+                    l.warning('Cannot get jump successor states from a path that has reached the target. Skip it.')
+                    continue
                 all_states = succ.flat_successors + succ.unconstrained_successors
                 if not all_states:
                     l.warning("Slicecutor failed to execute the program slice. No output state is available.")
@@ -240,8 +241,8 @@ class JumpTableResolver(IndirectJumpResolver):
 
         if not state.memory.was_written_to(concrete_read_addr):
             # it was never written to before. we overwrite it with unconstrained bytes
-            for i in xrange(0, concrete_read_length, self.arch.bits / 8):
-                state.memory.store(concrete_read_addr + i, state.se.Unconstrained('unconstrained', self.arch.bits))
+            for i in xrange(0, concrete_read_length, self.project.arch.bits / 8):
+                state.memory.store(concrete_read_addr + i, state.se.Unconstrained('unconstrained', self.project.arch.bits))
 
                 # job done :-)
 
@@ -276,7 +277,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         for addr in sorted(stmts.keys()):
             stmt_ids = stmts[addr]
-            irsb = self.project.factory.block(addr).vex
+            irsb = self.project.factory.block(addr, backup_state=self.base_state).vex
 
             print "  ####"
             print "  #### Block %#x" % addr

@@ -1,13 +1,12 @@
 import nose
-
-import logging
-l = logging.getLogger('angr.tests.scanf')
-
 import os
 import string
-
 import angr
+import logging
 
+from nose.plugins.attrib import attr
+
+l = logging.getLogger('angr.tests.scanf')
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 class Checker(object):
@@ -92,6 +91,7 @@ def run_scanf(threads):
     # check that all of the outputs were seen
     nose.tools.assert_equal(total_outputs, len(expected_outputs))
 
+@attr(speed='slow')
 def test_scanf():
     yield run_scanf, None
     # yield run_scanf, 8

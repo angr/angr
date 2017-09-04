@@ -220,7 +220,7 @@ class SimSolver(SimStatePlugin):
     #
     # Get unconstrained stuff
     #
-    def Unconstrained(self, name, bits, uninitialized=True, **kwargs):
+    def Unconstrained(self, name, bits, uninitialized=True, inspect=True, events=True, **kwargs):
         if o.SYMBOLIC_INITIAL_VALUES in self.state.options:
             # Return a symbolic value
             if o.ABSTRACT_MEMORY in self.state.options:
@@ -229,16 +229,16 @@ class SimSolver(SimStatePlugin):
             else:
                 l.debug("Creating new unconstrained BV named %s", name)
                 if o.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
-                    r = self.BVS(name, bits, uninitialized=uninitialized, **kwargs)
+                    r = self.BVS(name, bits, uninitialized=uninitialized, inspect=inspect, events=events, **kwargs)
                 else:
-                    r = self.BVS(name, bits, uninitialized=uninitialized, **kwargs)
+                    r = self.BVS(name, bits, uninitialized=uninitialized, inspect=inspect, events=events, **kwargs)
 
             return r
         else:
             # Return a default value, aka. 0
             return claripy.BVV(0, bits)
 
-    def BVS(self, name, size, min=None, max=None, stride=None, uninitialized=False, explicit_name=None, **kwargs): #pylint:disable=redefined-builtin
+    def BVS(self, name, size, min=None, max=None, stride=None, uninitialized=False, explicit_name=None, inspect=True, events=True, **kwargs): #pylint:disable=redefined-builtin
         """
         Creates a bit-vector symbol (i.e., a variable). Other keyword parameters are passed directly on to the
         constructor of claripy.ast.BV.
@@ -255,9 +255,13 @@ class SimSolver(SimStatePlugin):
         :return:                A BV object representing this symbol.
         """
 
+
+
         r = claripy.BVS(name, size, min=min, max=max, stride=stride, uninitialized=uninitialized, explicit_name=explicit_name, **kwargs)
-        self.state._inspect('symbolic_variable', BP_AFTER, symbolic_name=next(iter(r.variables)), symbolic_size=size, symbolic_expr=r)
-        self.state.history.add_event('unconstrained', name=iter(r.variables).next(), bits=size, **kwargs)
+        if inspect:
+            self.state._inspect('symbolic_variable', BP_AFTER, symbolic_name=next(iter(r.variables)), symbolic_size=size, symbolic_expr=r)
+        if events:
+            self.state.history.add_event('unconstrained', name=iter(r.variables).next(), bits=size, **kwargs)
         if o.TRACK_SOLVER_VARIABLES in self.state.options:
             self.all_variables = list(self.all_variables)
             self.all_variables.append(r)

@@ -2,7 +2,6 @@ import logging
 
 import claripy
 
-from .. import engines
 from . import Analysis, register_analysis
 
 l = logging.getLogger("angr.analyses.congruency_check")
@@ -131,7 +130,7 @@ class CongruencyCheck(Analysis):
 
                     new_unicorn = npg.found[0]
                     delta = new_unicorn.history.block_count - normal_path.history.block_count
-                    normal_path.extra_length += delta
+                    normal_path.history.recent_block_count += delta
                     new_normal = normal_path
                 elif unicorn_path.arch.name == "MIPS32":
                     # unicorn gets ahead here, because VEX falls behind for unknown reasons
@@ -154,7 +153,7 @@ class CongruencyCheck(Analysis):
 
                     new_normal = npg.found[0]
                     delta = new_normal.history.block_count - unicorn_path.history.block_count
-                    unicorn_path.extra_length += delta
+                    unicorn_path.history.recent_block_count += delta
                     new_unicorn = unicorn_path
                 else:
                     l.debug("Dunno!")
@@ -323,8 +322,12 @@ class CongruencyCheck(Analysis):
 
         # make sure the flags are the same
         if sl.arch.name in ("AMD64", "X86", "ARM", "AARCH64"):
-            n_flags = engines.vex.ccall._get_flags(sr)[0].canonicalize(var_map=n_map, counter=n_counter)[-1]
-            u_flags = engines.vex.ccall._get_flags(sl)[0].canonicalize(var_map=u_map, counter=u_counter)[-1]
+            if sl.arch.name in ('AMD64', 'X86'):
+                n_flags = sr.regs.eflags.canonicalize(var_map=n_map, counter=n_counter)[-1]
+                u_flags = sl.regs.eflags.canonicalize(var_map=u_map, counter=u_counter)[-1]
+            else:
+                n_flags = sr.regs.flags.canonicalize(var_map=n_map, counter=n_counter)[-1]
+                u_flags = sl.regs.flags.canonicalize(var_map=u_map, counter=u_counter)[-1]
             if n_flags is not u_flags and sl.se.simplify(n_flags) is not sr.se.simplify(u_flags):
                 self._report_incongruency("Different flags!")
                 return False

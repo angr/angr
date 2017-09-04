@@ -432,14 +432,16 @@ class SimState(ana.Storable): # pylint: disable=R0904
         """
         return self.project.factory.successors(self, **kwargs)
 
-    def block(self, **kwargs):
+    def block(self, *args, **kwargs):
         """
         Represent the basic block at this state's instruction pointer.
         Any arguments to `AngrObjectFactory.block` can ba passed to this.
 
         :return: A Block object describing the basic block of code at this point.
         """
-        return self.project.factory.block(self.addr, backup_state=self, **kwargs)
+        if not args and 'addr' not in kwargs:
+            kwargs['addr'] = self.addr
+        return self.project.factory.block(*args, backup_state=self, **kwargs)
 
     # Returns a dict that is a copy of all the state's plugins
     def _copy_plugins(self):
