@@ -190,23 +190,30 @@ class LabelsNamespace(object):
     #   ...
     #
 
-    def set_label(self, addr, name, make_default=False, overwrite=True):
+    def set_label(self, addr, name, make_default=False, dup_mode='overwrite'):
         """Assign a name to a given address.
 
         :param addr:            An address to be assigned with a name.
         :param name:            A name to be assigned to address.
         :param make_default:    True, if the given name should be the default name for the address.
-        :param overwrite:       Whether to reassign a name to a different address.
+        :param dup_mode:   
         :return: 
         """
         if self._name_to_addr.get(name, addr) != addr:
-            if overwrite:
+
+            if dup_mode == 'overwrite':
                 prev_addr = self._name_to_addr[name]
                 l.warning("Reassigning name '%s' to address %#x (previous address was %#x)",
                           name, addr, prev_addr)
                 self.del_name(name)
-            else:
+
+            elif dup_mode == 'suffix':
                 name = self._add_suffix(name)
+
+            elif dup_mode == 'raise':
+                prev_addr = self._name_to_addr[name]
+                raise ValueError('Name %s is already assigned to address %#x, different from %#x' %
+                                 (name, prev_addr, addr))
 
         self._name_to_addr[name] = addr
         names_list = self._addr_to_names.setdefault(addr, [])
