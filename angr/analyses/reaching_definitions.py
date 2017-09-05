@@ -13,6 +13,7 @@ from ..calling_conventions import SimRegArg, SimStackArg
 from ..engines.light import SimEngineLightVEX, SimEngineLightAIL, SpOffset, RegisterOffset
 from ..engines.vex.irop import operations as vex_operations
 from ..keyed_region import KeyedRegion
+from .code_location import CodeLocation
 
 l = logging.getLogger('angr.analyses.reaching_definitions')
 
@@ -136,6 +137,14 @@ class Definition(object):
             return self.atom.size
         else:
             raise ValueError('Unsupported operation size on %s.' % type(self.atom))
+
+
+class ExternalCodeLocation(CodeLocation):
+    def __init__(self):
+        super(ExternalCodeLocation, self).__init__(0, 0)
+
+    def __repr__(self):
+        return "[External]"
 
 
 class Uses(object):
