@@ -423,7 +423,19 @@ class ReachingDefinitions(object):
     def downsize(self):
         self.analysis = None
 
-    def kill_and_add_definition(self, atom, code_loc, data):
+    def kill_definitions(self, atom, code_loc, data=None):
+        """
+        Overwrite existing definitions w.r.t 'atom' with a dummy definition instance.
+
+        :param Atom atom:
+        :param CodeLocation code_loc:
+        :param object data:
+        :return: None
+        """
+
+        self.kill_and_add_definition(atom, code_loc, data=data)
+
+    def kill_and_add_definition(self, atom, code_loc, data=None):
         if type(atom) is Register:
             self._kill_and_add_register_definition(atom, code_loc, data)
         elif type(atom) is MemoryLocation:
@@ -501,6 +513,13 @@ def get_engine(base_engine):
             # SimEngine becomes flexible enough.
             self._process(state, None, block=kwargs.pop('block', None))
             return self.state
+
+        #
+        # Private methods
+        #
+
+        def _external_codeloc(self):
+            return ExternalCodeLocation()
 
         #
         # VEX statement handlers
@@ -762,18 +781,13 @@ def get_engine(base_engine):
             dst = stmt.dst
 
             if type(dst) is ailment.Tmp:
-
-                self.state.add_definition(Tmp(dst.tmp_idx), self._codeloc())
-
+                self.state.kill_and_add_definition(Tmp(dst.tmp_idx), self._codeloc(), data=src)
                 self.tmps[dst.tmp_idx] = src
+
             elif type(dst) is ailment.Register:
-
                 reg = Register(dst.reg_offset, dst.bits / 8)
+                self.state.kill_and_add_definition(reg, self._codeloc(), data=src)
 
-                self.state.kill_definitions(reg)
-                self.state.add_definition(reg, self._codeloc())
-
-                self.state.registers[dst.reg_offset] = src
             else:
                 l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
@@ -791,21 +805,21 @@ def get_engine(base_engine):
             false_target = self._expr(stmt.false_target)
 
             ip = Register(self.arch.ip_offset, self.arch.bits / 8)
-            self.state.kill_definitions(ip)
+            self.state.kill_definitions(ip, self._codeloc())
 
             # kill all cc_ops
             # TODO: make it architecture agnostic
-            self.state.kill_definitions(Register(*self.arch.registers['cc_op']))
-            self.state.kill_definitions(Register(*self.arch.registers['cc_dep1']))
-            self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']))
-            self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']))
+            self.state.kill_definitions(Register(*self.arch.registers['cc_op']), self._codeloc())
+            self.state.kill_definitions(Register(*self.arch.registers['cc_dep1']), self._codeloc())
+            self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']), self._codeloc())
+            self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']), self._codeloc())
 
         def _ail_handle_Call(self, stmt):
             target = self._expr(stmt.target)
 
             ip = Register(self.arch.ip_offset, self.arch.bits / 8)
 
-            self.state.kill_definitions(ip)
+            self.state.kill_definitions(ip, self._codeloc())
 
             # if arguments exist, use them
             if stmt.args:
@@ -817,14 +831,14 @@ def get_engine(base_engine):
                 for reg_name in stmt.calling_convention.CALLER_SAVED_REGS:
                     offset, size = self.arch.registers[reg_name]
                     reg = Register(offset, size)
-                    self.state.kill_definitions(reg)
+                    self.state.kill_definitions(reg, self._codeloc())
 
             # kill all cc_ops
             # TODO: make it architecture agnostic
-            self.state.kill_definitions(Register(*self.arch.registers['cc_op']))
-            self.state.kill_definitions(Register(*self.arch.registers['cc_dep1']))
-            self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']))
-            self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']))
+            self.state.kill_definitions(Register(*self.arch.registers['cc_op']), self._codeloc())
+            self.state.kill_definitions(Register(*self.arch.registers['cc_dep1']), self._codeloc())
+            self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']), self._codeloc())
+            self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']), self._codeloc())
 
         #
         # AIL expression handlers
@@ -850,7 +864,24 @@ def get_engine(base_engine):
                 return SpOffset(bits, 0, is_base=True)
 
             try:
-                return self.state.registers[reg_offset]
+                data = DataSet(set(), bits)
+                defs = self.state.register_definitions.get_objects_by_offset(reg_offset)
+                if not defs:
+                    # define it right away as an external dependency
+                    self.state.kill_and_add_definition(Register(reg_offset, bits / 8), self._external_codeloc(),
+                                                       data=expr
+                                                       )
+                    defs = self.state.register_definitions.get_objects_by_offset(reg_offset)
+                    assert defs
+                for def_ in defs:
+                    if def_.data is not None:
+                        data.update(def_.data)
+                    else:
+                        l.warning('Data in register <%s> is undefined at %#x.',
+                                  self.arch.register_names[reg_offset], self.ins_addr
+                                  )
+                data = data.compact()
+                return data
             except KeyError:
                 return RegisterOffset(bits, reg_offset, 0)
 
@@ -1019,17 +1050,22 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         return next(self.observed_results.itervalues())
 
     def observe(self, ins_addr, stmt, block, state, ob_type):
-        if self._observation_points is not None:
-            if (ins_addr, ob_type) in self._observation_points:
+        if self._observation_points is not None and (ins_addr, ob_type) in self._observation_points:
+            if isinstance(stmt, pyvex.IRStmt.IRStmt):
+                # it's an angr block
+                vex_block = block.vex
                 # OP_BEFORE: stmt has to be IMark
                 if ob_type == OP_BEFORE and type(stmt) is pyvex.IRStmt.IMark:
                     self.observed_results[(ins_addr, ob_type)] = state.copy()
                 # OP_AFTER: stmt has to be last stmt of block or next stmt has to be IMark
                 elif ob_type == OP_AFTER:
-                    idx = block.vex.statements.index(stmt)
-                    if idx == len(block.vex.statements) - 1 or type(
-                            block.vex.statements[idx + 1]) is pyvex.IRStmt.IMark:
+                    idx = vex_block.statements.index(stmt)
+                    if idx == len(vex_block.statements) - 1 or type(
+                            vex_block.statements[idx + 1]) is pyvex.IRStmt.IMark:
                         self.observed_results[(ins_addr, ob_type)] = state.copy()
+            elif isinstance(stmt, ailment.Stmt.Statement):
+                # it's an AIL block
+                self.observed_results[(ins_addr, ob_type)] = state.copy()
 
     #
     # Main analysis routines
