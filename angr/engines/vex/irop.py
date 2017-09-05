@@ -329,6 +329,7 @@ class SimIROp(object):
         # if we're here and calculate is None, we don't support this
         if self._calculate is None:
             l.debug("... can't support operations")
+            print self.__dict__
             raise UnsupportedIROpError("no calculate function identified for %s" % self.name)
 
     def __repr__(self):
@@ -884,6 +885,8 @@ class SimIROp(object):
 # Op Handler
 #
 #from . import old_irop
+
+
 def translate(state, op, s_args):
     if op in operations:
         try:
@@ -904,10 +907,33 @@ def translate(state, op, s_args):
                 return state.se.Unconstrained("irop_error", operations[op]._output_size_bits)
             else:
                 raise
+    else:
+        try:
+            l.warning("Using our imagination for op " + op)
+            attrs = op_attrs(op)
+            irop = SimIROp(op, **attrs)
+            if irop._float and not options.SUPPORT_FLOATING_POINT in state.options:
+                raise UnsupportedIROpError("floating point support disabled")
+            return irop.calculate( *s_args)
+        except ZeroDivisionError:
+            if state.mode == 'static' and len(s_args) == 2 and state.se.is_true(s_args[1] == 0):
+                # Monkeypatch the dividend to another value instead of 0
+                s_args[1] = state.se.BVV(1, s_args[1].size())
+                return operations[op].calculate( *s_args)
+            else:
+                raise
+        except SimOperationError:
+            l.warning("IROp error (for operation %s)", op, exc_info=True)
+            if options.BYPASS_ERRORED_IROP in state.options:
+                return state.se.Unconstrained("irop_error", operations[op]._output_size_bits)
+            else:
+                raise
+        except:
+            l.exception("Error imagining operation " + op)
+        return None
 
     l.error("Unsupported operation: %s", op)
     raise UnsupportedIROpError("Unsupported operation: %s" % op)
-
 from . import size_bits
 from ...errors import UnsupportedIROpError, SimOperationError, SimValueError, SimZeroDivisionException
 from ... import sim_options as options
