@@ -629,7 +629,7 @@ def get_engine(base_engine):
                     # current_def.data can be a primitive type or a DataSet
                     data.update(current_def.data)
                 else:
-                    l.info('Data in register <%s> with offset %d undefined, ins_addr = 0x%x.',
+                    l.info('Data in register <%s> with offset %d undefined, ins_addr = %#x.',
                            self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
             data = data.compact()
 
