@@ -206,7 +206,6 @@ class SimIROp(object):
             conversions[(self._from_type, self._from_signed, self._to_type, self._to_signed)].append(self)
 
         if len({self._vector_type, self._from_type, self._to_type} & {'F', 'D'}) != 0:
-            # print self.op_attrs
             self._float = True
 
             if len({self._vector_type, self._from_type, self._to_type} & {'D'}) != 0:
@@ -329,7 +328,6 @@ class SimIROp(object):
         # if we're here and calculate is None, we don't support this
         if self._calculate is None:
             l.debug("... can't support operations")
-            print self.__dict__
             raise UnsupportedIROpError("no calculate function identified for %s" % self.name)
 
     def __repr__(self):
