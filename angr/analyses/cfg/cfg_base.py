@@ -5,16 +5,18 @@ from collections import defaultdict
 
 import cffi
 import networkx
+
 import pyvex
-from .. import Analysis
 from claripy.utils.orderedset import OrderedSet
 from cle import ELF, PE, Blob, TLSObject, ExternObject, KernelObject
 
-from .cfg_node import CFGNode
 from ... import SIM_PROCEDURES
-from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError, AngrUnsupportedSyscallError
+from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError,\
+    AngrUnsupportedSyscallError, SimError
 from ...codenode import HookNode, BlockNode
 from ...knowledge_plugins import FunctionManager, Function
+from .. import Analysis
+from .cfg_node import CFGNode
 
 l = logging.getLogger("angr.analyses.cfg.cfg_base")
 
@@ -536,6 +538,67 @@ class CFGBase(Analysis):
 
         return successors_filtered
 
+    def _is_region_extremely_sparse(self, start, end, base_state=None):
+        """
+        Check whether the given memory region is extremely sparse, i.e., all bytes are the same value.
+
+        :param int start: The beginning of the region.
+        :param int end:   The end of the region.
+        :param base_state: The base state (optional).
+        :return:           True if the region is extremely sparse, False otherwise.
+        :rtype:            bool
+        """
+
+        all_bytes = None
+
+        if base_state is not None:
+            all_bytes = base_state.memory.load(start, end - start + 1)
+            try:
+                n = base_state.se.eval(all_bytes)
+                all_bytes = hex(n)[2:].strip('L').decode("hex")
+            except SimError:
+                all_bytes = None
+
+        if all_bytes is None:
+            # load from the binary
+            all_bytes = self._fast_memory_load_bytes(start, end - start + 1)
+
+        if all_bytes is None:
+            return True
+
+        the_byte_value = None
+        for b in all_bytes:
+            if the_byte_value is None:
+                the_byte_value = b
+            else:
+                if the_byte_value != b:
+                    return False
+
+        return True
+
+    def _should_skip_region(self, region_start):
+        """
+        Some regions usually do not contain any executable code, but are still marked as executable. We should skip
+        those regions by default.
+
+        :param int region_start: Address of the beginning of the region.
+        :return:                 True/False
+        :rtype:                  bool
+        """
+
+
+        obj = self.project.loader.find_object_containing(region_start)
+        if obj is None:
+            return False
+        if isinstance(obj, PE):
+            section = obj.find_section_containing(region_start)
+            if section is None:
+                return False
+            if section.name in {'.textbss'}:
+                return True
+
+        return False
+
     def _executable_memory_regions(self, binary=None, force_segment=False):
         """
         Get all executable memory regions from the binaries
@@ -736,6 +799,34 @@ class CFGBase(Analysis):
 
         except KeyError:
             return None
+
+    def _fast_memory_load_byte(self, addr):
+        """
+        Perform a fast memory loading of a byte.
+
+        :param int addr: Address to read from.
+        :return:         A char or None if the address does not exist.
+        :rtype:          str or None
+        """
+
+        return self._fast_memory_load_bytes(addr, 1)
+
+    def _fast_memory_load_bytes(self, addr, length):
+        """
+        Perform a fast memory loading of a byte.
+
+        :param int addr: Address to read from.
+        :param int length: Size of the string to load.
+        :return:         A string or None if the address does not exist.
+        :rtype:          str or None
+        """
+
+        buf = self._fast_memory_load(addr)
+        if buf is None:
+            return None
+
+        char_str = self._ffi.unpack(self._ffi.cast('char*', buf), length) # type: str
+        return char_str
 
     def _fast_memory_load_pointer(self, addr):
         """

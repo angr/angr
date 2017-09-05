@@ -6,16 +6,18 @@ import string
 import struct
 from collections import defaultdict
 
+from bintrees import AVLTree
+
 import claripy
 import cle
 import pyvex
-from .. import register_analysis
-
 from cle.address_translator import AT
+
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase, IndirectJump
 from .cfg_node import CFGNode
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
+from .. import register_analysis
 from ..forward_analysis import ForwardAnalysis
 from ... import sim_options as o
 from ...engines import SimEngineVEX
@@ -615,6 +617,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  arch_options=None,
                  indirect_jump_resolvers=None,
                  base_state=None,
+                 exclude_sparse_regions=True,
+                 skip_specific_regions=True,
                  start=None,  # deprecated
                  end=None,  # deprecated
                  **extra_arch_options
@@ -689,10 +693,32 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 l.warning('"regions", "start", and "end" are all specified. Ignoring "start" and "end".')
 
-        self._regions = regions if regions is not None else self._executable_memory_regions(None, force_segment)
-        # sort it
-        self._regions = sorted(self._regions, key=lambda x: x[0])
-        self._regions_size = sum((b - a) for a, b in self._regions)
+        regions = regions if regions is not None else self._executable_memory_regions(binary=None,
+                                                                                      force_segment=force_segment
+                                                                                      )
+        if exclude_sparse_regions:
+            new_regions = [ ]
+            for start_, end_ in regions:
+                if not self._is_region_extremely_sparse(start_, end_, base_state=base_state):
+                    new_regions.append((start_, end_))
+            regions = new_regions
+        if skip_specific_regions:
+            if base_state is not None:
+                l.warning("You specified both base_state and skip_specific_regions. They may conflict with each other.")
+            new_regions = [ ]
+            for start_, end_ in regions:
+                if not self._should_skip_region(start_):
+                    new_regions.append((start_, end_))
+            regions = new_regions
+        if not regions:
+            raise AngrCFGError("Regions are empty or all regions are skipped. You may want to manually specify regions.")
+        # sort the regions
+        regions = sorted(regions, key=lambda x: x[0])
+        self._regions_size = sum((b - a) for a, b in regions)
+        # initial self._regions as an AVL tree
+        self._regions = AVLTree()
+        for start_, end_ in regions:
+            self._regions.insert(start_, end_)
 
         self._pickle_intermediate_results = pickle_intermediate_results
         self._indirect_jump_target_limit = indirect_jump_target_limit
@@ -720,7 +746,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._data_type_guessing_handlers = [ ] if data_type_guessing_handlers is None else data_type_guessing_handlers
 
         l.debug("CFG recovery covers %d regions:", len(self._regions))
-        for start_addr, end_addr in self._regions:
+        for start_addr, end_addr in self._regions.iter_items():
             l.debug("... %#x - %#x", start_addr, end_addr)
 
         # A mapping between address and the actual data in memory
@@ -853,13 +879,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype:             bool
         """
 
-        for start_addr, end_addr in self._regions:
-            if start_addr <= address < end_addr:
-                return True
-            if start_addr > address:  # the region list is sorted
-                break
-
-        return False
+        try:
+            start_addr, end_addr = self._regions.floor_item(address)
+            return start_addr <= address < end_addr
+        except KeyError:
+            return False
 
     def _get_min_addr(self):
         """
@@ -873,7 +897,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             l.error("self._regions is empty or not properly set.")
             return None
 
-        return self._regions[0][0]
+        return self._regions.min_key()
 
     def _next_address_in_regions(self, address):
         """
@@ -884,13 +908,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype:             int
         """
 
-        for start_addr, end_addr in self._regions:
+        try:
+            start_addr, end_addr = self._regions.floor_item(address)
             if start_addr <= address < end_addr:
                 return address
-            elif start_addr > address:
-                return start_addr
-
-        return None
+            else:
+                return self._regions.ceiling_key(address)
+        except KeyError:
+            return None
 
     # Methods for scanning the entire image
 
@@ -925,7 +950,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Make sure curr_addr exists in binary
         accepted = False
-        for start, end in self._regions:
+        for start, end in self._regions.iter_items():
             if start <= curr_addr < end:
                 # accept
                 accepted = True
@@ -948,6 +973,70 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         l.debug("%#x is beyond the ending point. Returning None.", curr_addr)
         return None
 
+    def _load_a_byte_as_int(self, addr):
+        if self._base_state is not None:
+            try:
+                val = chr(self._base_state.mem_concrete(addr, 1, inspect=False, disable_actions=True))
+            except SimValueError:
+                # Not concretizable
+                l.debug("Address %#x is not concretizable!", addr)
+                return None
+        else:
+            val = self._fast_memory_load_byte(addr)
+            if val is None:
+                return None
+        return val
+
+    def _scan_for_printable_strings(self, start_addr):
+        addr = start_addr
+        sz = ""
+        is_sz = True
+
+        # Get data until we meet a null-byte
+        while self._inside_regions(addr):
+            l.debug("Searching address %x", addr)
+            val = self._load_a_byte_as_int(addr)
+            if val is None:
+                break
+            if val == '\x00':
+                if len(sz) < 4:
+                    is_sz = False
+                break
+            if val not in self.PRINTABLES:
+                is_sz = False
+                break
+            sz += val
+            addr += 1
+
+        if sz and is_sz:
+            l.debug("Got a string of %d chars: [%s]", len(sz), sz)
+            string_length = len(sz) + 1
+            return string_length
+
+        # no string is found
+        return 0
+
+    def _scan_for_repeating_bytes(self, start_addr, repeating_byte):
+        assert len(repeating_byte) == 1
+        addr = start_addr
+
+        repeating_length = 0
+
+        while self._inside_regions(addr):
+            val = self._load_a_byte_as_int(addr)
+            if val is None:
+                break
+            if val == repeating_byte:
+                repeating_length += 1
+            else:
+                break
+            addr += 1
+
+        if repeating_length > self.project.arch.bits / 8:  # this is pretty random
+            return repeating_length
+        else:
+            return 0
+
     def _next_code_addr_core(self):
         """
         Call _next_unscanned_addr() first to get the next address that is not scanned. Then check if data locates at
@@ -959,43 +1048,30 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return None
 
         start_addr = next_addr
-        sz = ""
-        is_sz = True
-        while is_sz:
-            # Get data until we meet a 0
-            while next_addr in self._initial_state.memory:
-                try:
-                    l.debug("Searching address %x", next_addr)
-                    val = self._initial_state.mem_concrete(next_addr, 1, inspect=False, disable_actions=True)
-                    if val == 0:
-                        if len(sz) < 4:
-                            is_sz = False
-                        # else:
-                        #   we reach the end of the memory region
-                        break
-                    if chr(val) not in self.PRINTABLES:
-                        is_sz = False
-                        break
-                    sz += chr(val)
-                    next_addr += 1
-                except SimValueError:
-                    # Not concretizable
-                    l.debug("Address 0x%08x is not concretizable!", next_addr)
-                    break
 
-            if sz and is_sz:
-                l.debug("Got a string of %d chars: [%s]", len(sz), sz)
-                # l.debug("Occpuy %x - %x", start_addr, start_addr + len(sz) + 1)
-                self._seg_list.occupy(start_addr, len(sz) + 1, "string")
-                sz = ""
-                next_addr = self._next_unscanned_addr()
-                if next_addr is None:
-                    return None
-                # l.debug("next addr = %x", next_addr)
-                start_addr = next_addr
+        while True:
+            string_length = self._scan_for_printable_strings(start_addr)
+            if string_length:
+                self._seg_list.occupy(start_addr, string_length, "string")
+                start_addr += string_length
 
-            if is_sz:
-                next_addr += 1
+            if self.project.arch.name in ('X86', 'AMD64'):
+                cc_length = self._scan_for_repeating_bytes(start_addr, '\xcc')
+                if cc_length:
+                    self._seg_list.occupy(start_addr, cc_length, "alignment")
+                    start_addr += cc_length
+            else:
+                cc_length = 0
+
+            zeros_length = self._scan_for_repeating_bytes(start_addr, '\x00')
+            if zeros_length:
+                self._seg_list.occupy(start_addr, zeros_length, "alignment")
+                start_addr += zeros_length
+            start_addr += zeros_length
+
+            if string_length == 0 and cc_length == 0 and zeros_length == 0:
+                # umm now it's probably code
+                break
 
         instr_alignment = self._initial_state.arch.instruction_alignment
         if start_addr % instr_alignment > 0:
