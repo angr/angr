@@ -330,12 +330,14 @@ class ReachingDefinitions(object):
 
         self.register_definitions = KeyedRegion()
         self.memory_definitions = KeyedRegion()
+        self.tmp_definitions = { }
 
         if init_func:
             self._init_func(cc, func_addr)
 
         self.register_uses = Uses()
         self.memory_uses = Uses()
+        self.tmp_uses = defaultdict(set)
 
         self._dead_virgin_definitions = set()  # definitions that are killed before used
 
@@ -395,8 +397,10 @@ class ReachingDefinitions(object):
 
         rd.register_definitions = self.register_definitions.copy()
         rd.memory_definitions = self.memory_definitions.copy()
+        rd.tmp_definitions = self.tmp_definitions.copy()
         rd.register_uses = self.register_uses.copy()
         rd.memory_uses = self.memory_uses.copy()
+        rd.tmp_uses = self.tmp_uses.copy()
         rd._dead_virgin_definitions = self._dead_virgin_definitions.copy()
 
         return rd
@@ -424,6 +428,8 @@ class ReachingDefinitions(object):
             self._kill_and_add_register_definition(atom, code_loc, data)
         elif type(atom) is MemoryLocation:
             self._kill_and_add_memory_definition(atom, code_loc, data)
+        elif type(atom) is Tmp:
+            self._add_tmp_definition(atom, code_loc)
         else:
             raise NotImplementedError()
 
@@ -433,7 +439,7 @@ class ReachingDefinitions(object):
         elif type(atom) is MemoryLocation:
             self._add_memory_use(atom, code_loc)
         elif type(atom) is Tmp:
-            raise NotImplementedError()
+            self._add_tmp_use(atom, code_loc)
 
     #
     # Private methods
@@ -459,6 +465,10 @@ class ReachingDefinitions(object):
         # set_object() replaces kill (not implemented) and add (add) in one step
         self.memory_definitions.set_object(atom.addr, definition, atom.size)
 
+    def _add_tmp_definition(self, atom, code_loc):
+
+        self.tmp_definitions[atom.tmp_idx] = (atom, code_loc)
+
     def _add_register_use(self, atom, code_loc):
 
         # get all current definitions
@@ -475,6 +485,10 @@ class ReachingDefinitions(object):
         for current_def in current_defs:
             self.memory_uses.add_use(current_def, code_loc)
 
+    def _add_tmp_use(self, atom, code_loc):
+
+        current_def = self.tmp_definitions[atom.tmp_idx]
+        self.tmp_uses[atom.tmp_idx].add((code_loc, current_def))
 
 def get_engine(base_engine):
     class SimEngineRD(base_engine):
