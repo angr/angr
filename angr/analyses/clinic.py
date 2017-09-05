@@ -4,7 +4,7 @@ import logging
 import networkx
 
 from . import Analysis, register_analysis
-from ..knowledge import BlockNode
+from ..codenode import BlockNode
 
 import ailment
 import ailment.analyses
