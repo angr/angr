@@ -915,6 +915,24 @@ def get_engine(base_engine):
 
             return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], **expr.tags)
 
+        def _ail_handle_Shl(self, expr):
+            op0 = self._expr(expr.operands[0])
+            op1 = self._expr(expr.operands[1])
+
+            return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], **expr.tags)
+
+        def _ail_handle_Shr(self, expr):
+            op0 = self._expr(expr.operands[0])
+            op1 = self._expr(expr.operands[1])
+
+            return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], **expr.tags)
+
+        def _ail_handle_And(self, expr):
+            op0 = self._expr(expr.operands[0])
+            op1 = self._expr(expr.operands[1])
+
+            return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], **expr.tags)
+
         def _ail_handle_Const(self, expr):
             return expr
 
