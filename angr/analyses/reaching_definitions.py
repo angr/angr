@@ -502,10 +502,13 @@ class ReachingDefinitions(object):
         current_def = self.tmp_definitions[atom.tmp_idx]
         self.tmp_uses[atom.tmp_idx].add((code_loc, current_def))
 
+
 def get_engine(base_engine):
     class SimEngineRD(base_engine):
-        def __init__(self, function_handler=None):
+        def __init__(self, current_depth, maximum_depth, function_handler=None):
             super(SimEngineRD, self).__init__()
+            self._current_depth = current_depth
+            self._maximum_depth = maximum_depth
             self._function_handler = function_handler
 
         def process(self, state, *args, **kwargs):
@@ -923,6 +926,10 @@ def get_engine(base_engine):
         #
 
         def _handle_function(self):
+            if self._current_depth > self._maximum_depth:
+                l.warning('The analysis reached its maximum recursion depth.')
+                return None
+
             ip = self.arch.ip_offset
             ip_defs = self.state.register_definitions.get_objects_by_offset(ip)
             if len(ip_defs) != 1:
@@ -931,12 +938,12 @@ def get_engine(base_engine):
             if not isinstance(ip_addr, (int, long)):
                 raise ValueError('Invalid type %s for IP' % type(ip_addr).__name__)
 
-            is_intern = False
+            is_internal = False
             ext_func_name = None
             if self.state.loader.main_object.contains_addr(ip_addr) is True:
                 ext_func_name = self.state.loader.find_plt_stub_name(ip_addr)
                 if ext_func_name is None:
-                    is_intern = True
+                    is_internal = True
             else:
                 symbol = self.state.loader.find_symbol(ip_addr)
                 if symbol is not None:
@@ -949,10 +956,12 @@ def get_engine(base_engine):
                 else:
                     l.warning('Please implement the external function handler for %s() with your own logic.',
                               ext_func_name)
-            elif is_intern is True:
+            elif is_internal is True:
                 handler_name = 'handle_local_function'
                 if hasattr(self._function_handler, handler_name):
-                    is_updated, state = getattr(self._function_handler, handler_name)(self.state, ip_addr)
+                    is_updated, state = getattr(self._function_handler, handler_name)(self.state, ip_addr,
+                                                                                      self._current_depth + 1,
+                                                                                      self._maximum_depth)
                     if is_updated is True:
                         self.state = state
                 else:
@@ -965,7 +974,7 @@ def get_engine(base_engine):
 
 class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
     def __init__(self, func=None, block=None, max_iterations=3, track_tmps=False, observation_points=None,
-                 init_state=None, init_func=False, cc=None, function_handler=None):
+                 init_state=None, init_func=False, cc=None, function_handler=None, current_depth=0, maximum_depth=1):
         """
 
         :param angr.knowledge.Function func:    The function to run reaching definition analysis on.
@@ -982,6 +991,8 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         :param SimCC cc:                        Calling convention of the function.
         :param list function_handler:           Handler for functions, naming scheme: handle_<func_name>|local_function(
                                                 <ReachingDefinitions>, <Codeloc>, <IP address>).
+        :param int current_depth:               Current recursion depth.
+        :param int maximum_depth:               Maximum recursion depth.
         """
 
         if func is not None:
@@ -1005,6 +1016,8 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         self._observation_points = observation_points
         self._init_state = init_state
         self._function_handler = function_handler
+        self._current_depth = current_depth
+        self._maximum_depth = maximum_depth
 
         if self._init_state is not None:
             self._init_state = self._init_state.copy()
@@ -1032,8 +1045,10 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         self._node_iterations = defaultdict(int)
         self._states = {}
 
-        self._engine_vex = get_engine(SimEngineLightVEX)(function_handler)
-        self._engine_ail = get_engine(SimEngineLightAIL)(function_handler)
+        self._engine_vex = get_engine(SimEngineLightVEX)(self._current_depth, self._maximum_depth,
+                                                         self._function_handler)
+        self._engine_ail = get_engine(SimEngineLightAIL)(self._current_depth, self._maximum_depth,
+                                                         self._function_handler)
 
         self.observed_results = {}
 
