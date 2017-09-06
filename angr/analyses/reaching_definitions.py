@@ -81,7 +81,7 @@ class MemoryLocation(Atom):
         self.size = size
 
     def __repr__(self):
-        return "<Mem 0x%x<%d>>" % (self.addr, self.size)
+        return "<Mem %#x<%d>>" % (self.addr, self.size)
 
     @property
     def bits(self):
@@ -118,7 +118,7 @@ class Definition(object):
         return self.atom == other.atom and self.codeloc == other.codeloc and self.data == other.data
 
     def __repr__(self):
-        return 'Definition 0x%x {Atom: %s, Codeloc: %s, Data: %s}' % (id(self), self.atom, self.codeloc, self.data)
+        return 'Definition %#x {Atom: %s, Codeloc: %s, Data: %s}' % (id(self), self.atom, self.codeloc, self.data)
 
     @property
     def offset(self):
@@ -330,7 +330,7 @@ class ReachingDefinitions(object):
 
         self.register_definitions = KeyedRegion()
         self.memory_definitions = KeyedRegion()
-        self.tmp_definitions = { }
+        self.tmp_definitions = {}
 
         if init_func:
             self._init_func(cc, func_addr)
@@ -543,7 +543,7 @@ def get_engine(base_engine):
             data = self._expr(stmt.data)
 
             if (type(data) is DataSet and None in data) or (data is None):
-                l.info('Data to write into register <%s> with offset %d undefined, ins_addr = 0x%x.',
+                l.info('Data to write into register <%s> with offset %d undefined, ins_addr = %#x.',
                        self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
 
             self.state.kill_and_add_definition(reg, self._codeloc(), data)
@@ -561,14 +561,14 @@ def get_engine(base_engine):
             for a in addr:
                 if a is not None:
                     if (type(data) is DataSet and None in data) or (data is None):
-                        l.info('Data to write at address 0x%x undefined, ins_addr = 0x%x.', a, self.ins_addr)
+                        l.info('Data to write at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
 
                     memloc = MemoryLocation(a, size)
                     # different addresses are not killed by a subsequent iteration, because kill only removes entries
                     # with same index and same size
                     self.state.kill_and_add_definition(memloc, self._codeloc(), data)
                 else:
-                    l.info('Memory address undefined, ins_addr = 0x%x.', self.ins_addr)
+                    l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
 
         def _handle_StoreG(self, stmt):
             guard = self._expr(stmt.guard)
@@ -629,7 +629,7 @@ def get_engine(base_engine):
                     # current_def.data can be a primitive type or a DataSet
                     data.update(current_def.data)
                 else:
-                    l.info('Data in register <%s> with offset %d undefined, ins_addr = 0x%x.',
+                    l.info('Data in register <%s> with offset %d undefined, ins_addr = %#x.',
                            self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
             data = data.compact()
 
@@ -654,7 +654,7 @@ def get_engine(base_engine):
                             if current_def.data is not None:
                                 data.update(current_def.data)
                             else:
-                                l.info('Memory at address 0x%x undefined, ins_addr = 0x%x.', a, self.ins_addr)
+                                l.info('Memory at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
                     else:
                         mem = self.state.loader.memory.read_bytes(a, size)
                         if mem:
@@ -675,7 +675,7 @@ def get_engine(base_engine):
                     # FIXME: _add_memory_use() iterates over the same loop
                     self.state.add_use(MemoryLocation(a, size), self._codeloc())
                 else:
-                    l.info('Memory address undefined, ins_addr = 0x%x.', self.ins_addr)
+                    l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
 
             data = data.compact()
 
@@ -958,7 +958,7 @@ def get_engine(base_engine):
                 else:
                     l.warning('Please implement the local function handler with your own logic.')
             else:
-                l.warning('Could not find function name for external function at address 0x%x.', ip_addr)
+                l.warning('Could not find function name for external function at address %#x.', ip_addr)
 
     return SimEngineRD
 

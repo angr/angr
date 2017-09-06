@@ -185,7 +185,7 @@ class SimEngineLightVEX(SimEngineLight):
         return None
 
     def _handle_CCall(self, expr):
-        l.error('Unsupported expression type CCall with callee %s.' % str(expr.cee))
+        l.warning('Unsupported expression type CCall with callee %s.', str(expr.cee))
         return None
 
     #
