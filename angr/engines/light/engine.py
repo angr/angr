@@ -72,7 +72,11 @@ class SimEngineLightVEX(SimEngineLight):
             self._handle_Stmt(stmt)
 
         if self.block.vex.jumpkind == 'Ijk_Call':
-            self._handle_function()
+            handler = '_handle_function'
+            if hasattr(self, handler):
+                getattr(self, handler)()
+            else:
+                l.warning('Function handler not implemented.')
 
     #
     # Helper methods
@@ -139,46 +143,54 @@ class SimEngineLightVEX(SimEngineLight):
         raise NotImplementedError('Please implement the Load handler with your own logic.')
 
     def _handle_Unop(self, expr):
+        handler = None
         simop = vex_operations[expr.op]
         if simop.op_attrs['conversion']:
-            return self._handle_Conversion(expr)
+            handler = '_handle_Conversion'
         elif expr.op.startswith('Iop_Not1'):
-            return self._handle_Not1(expr)
+            handler = '_handle_Not1'
+
+        if handler is not None and hasattr(self, handler):
+            return getattr(self, handler)(expr)
         else:
             l.error('Unsupported Unop %s.', expr.op)
 
         return None
 
     def _handle_Binop(self, expr):
+        handler = None
         if expr.op.startswith('Iop_And'):
-            return self._handle_And(expr)
+            handler = '_handle_And'
         elif expr.op.startswith('Iop_Or'):
-            return self._handle_Or(expr)
+            handler = '_handle_Or'
         elif expr.op.startswith('Iop_Add'):
-            return self._handle_Add(expr)
+            handler = '_handle_Add'
         elif expr.op.startswith('Iop_Sub'):
-            return self._handle_Sub(expr)
+            handler = '_handle_Sub'
         elif expr.op.startswith('Iop_Xor'):
-            return self._handle_Xor(expr)
+            handler = '_handle_Xor'
         elif expr.op.startswith('Iop_Shl'):
-            return self._handle_Shl(expr)
+            handler = '_handle_Shl'
         elif expr.op.startswith('Iop_Shr'):
-            return self._handle_Shr(expr)
+            handler = '_handle_Shr'
         elif expr.op.startswith('Iop_Sal'):
             # intended use of SHL
-            return self._handle_Shl(expr)
+            handler = '_handle_Shl'
         elif expr.op.startswith('Iop_Sar'):
-            return self._handle_Sar(expr)
+            handler = '_handle_Sar'
         elif expr.op.startswith('Iop_CmpEQ'):
-            return self._handle_CmpEQ(expr)
+            handler = '_handle_CmpEQ'
         elif expr.op.startswith('Iop_CmpNE'):
-            return self._handle_CmpNE(expr)
+            handler = '_handle_CmpNE'
         elif expr.op.startswith('Iop_CmpLT'):
-            return self._handle_CmpLT(expr)
+            handler = '_handle_CmpLT'
         elif expr.op.startswith('Iop_CmpORD'):
-            return self._handle_CmpORD(expr)
+            handler = '_handle_CmpORD'
         elif expr.op.startswith('Const'):
-            return self._handle_Const(expr)
+            handler = '_handle_Const'
+
+        if handler is not None and hasattr(self, handler):
+            return getattr(self, handler)(expr)
         else:
             l.error('Unsupported Binop %s.', expr.op)
 
@@ -192,20 +204,8 @@ class SimEngineLightVEX(SimEngineLight):
     # Unary operation handlers
     #
 
-    def _handle_Conversion(self, expr):
-        l.error('Unsupported Unop Conversion.')
-        return None
-
-    def _handle_Not1(self, expr):
-        arg0 = expr.args[0]
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-
-        if not isinstance(expr_0, (int, long)):
-            l.warning('Comparison of multiple values / different types: \'%s\'.', type(expr_0).__name__)
-
-        return expr_0 != 1
+    def _handle_Const(self, expr):
+        return expr.con.value
 
     #
     # Binary operation handlers
@@ -330,70 +330,6 @@ class SimEngineLightVEX(SimEngineLight):
         except TypeError as e:
             l.warning(e)
             return None
-
-    def _handle_Sar(self, expr):
-        l.error('Unsupported Binop Sar.')
-        return None
-
-    def _handle_CmpEQ(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
-
-        return expr_0 == expr_1
-
-    def _handle_CmpNE(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
-
-        return expr_0 != expr_1
-
-    def _handle_CmpLT(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
-
-        if not isinstance(expr_0, (int, long)) or not isinstance(expr_1, (int, long)):
-            l.warning('Comparison of multiple values / different types: \'%s\' and \'%s\'.', type(expr_0).__name__,
-                      type(expr_1).__name__)
-
-        return expr_0 < expr_1
-
-    # ppc only
-    def _handle_CmpORD(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
-
-        if expr_0 < expr_1:
-            return 0x08
-        elif expr_0 > expr_1:
-            return 0x04
-        else:
-            return 0x02
-
-    def _handle_Const(self, expr):
-        return expr.con.value
-
-    def _handle_function(self):
-        l.warning('Function handler not implemented.')
 
 
 class SimEngineLightAIL(SimEngineLight):

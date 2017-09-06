@@ -699,6 +699,10 @@ def get_engine(base_engine):
                 res.update(self._expr(expr.iffalse))
                 return res.compact()
 
+        #
+        # Unary operation handlers
+        #
+
         def _handle_Conversion(self, expr):
             simop = vex_operations[expr.op]
             arg_0 = self._expr(expr.args[0])
@@ -730,6 +734,22 @@ def get_engine(base_engine):
 
             return res
 
+        def _handle_Not1(self, expr):
+            arg0 = expr.args[0]
+            expr_0 = self._expr(arg0)
+            if expr_0 is None:
+                return None
+
+            if isinstance(expr_0, (int, long)):
+                return expr_0 != 1
+            else:
+                l.warning('Comparison of multiple values / different types: \'%s\'.', type(expr_0).__name__)
+                return DataSet({True, False}, expr.result_size(self.tyenv))
+
+        #
+        # Binary operation handlers
+        #
+
         def _handle_Sar(self, expr):
             arg0, arg1 = expr.args
             expr_0 = self._expr(arg0)
@@ -758,6 +778,76 @@ def get_engine(base_engine):
             res = res.compact()
 
             return res
+
+        def _handle_CmpEQ(self, expr):
+            arg0, arg1 = expr.args
+            expr_0 = self._expr(arg0)
+            if expr_0 is None:
+                return None
+            expr_1 = self._expr(arg1)
+            if expr_1 is None:
+                return None
+
+            if isinstance(expr_0, (int, long)) and isinstance(expr_1, (int, long)):
+                return expr_0 == expr_1
+            else:
+                l.warning('Comparison of multiple values / different types: \'%s\' and \'%s\'.', type(expr_0).__name__,
+                          type(expr_1).__name__)
+                return DataSet({True, False}, expr.result_size(self.tyenv))
+
+        def _handle_CmpNE(self, expr):
+            arg0, arg1 = expr.args
+            expr_0 = self._expr(arg0)
+            if expr_0 is None:
+                return None
+            expr_1 = self._expr(arg1)
+            if expr_1 is None:
+                return None
+
+            if isinstance(expr_0, (int, long)) and isinstance(expr_1, (int, long)):
+                return expr_0 != expr_1
+            else:
+                l.warning('Comparison of multiple values / different types: \'%s\' and \'%s\'.', type(expr_0).__name__,
+                          type(expr_1).__name__)
+                return DataSet({True, False}, expr.result_size(self.tyenv))
+
+        def _handle_CmpLT(self, expr):
+            arg0, arg1 = expr.args
+            expr_0 = self._expr(arg0)
+            if expr_0 is None:
+                return None
+            expr_1 = self._expr(arg1)
+            if expr_1 is None:
+                return None
+
+            if isinstance(expr_0, (int, long)) and isinstance(expr_1, (int, long)):
+                return expr_0 < expr_1
+            else:
+                l.warning('Comparison of multiple values / different types: \'%s\' and \'%s\'.', type(expr_0).__name__,
+                          type(expr_1).__name__)
+                return DataSet({True, False}, expr.result_size(self.tyenv))
+
+        # ppc only
+        def _handle_CmpORD(self, expr):
+            arg0, arg1 = expr.args
+            expr_0 = self._expr(arg0)
+            if expr_0 is None:
+                return None
+            expr_1 = self._expr(arg1)
+            if expr_1 is None:
+                return None
+
+            if isinstance(expr_0, (int, long)) and isinstance(expr_1, (int, long)):
+                if expr_0 < expr_1:
+                    return 0x08
+                elif expr_0 > expr_1:
+                    return 0x04
+                else:
+                    return 0x02
+            else:
+                l.warning('Comparison of multiple values / different types: \'%s\' and \'%s\'.', type(expr_0).__name__,
+                          type(expr_1).__name__)
+                return DataSet({True, False}, expr.result_size(self.tyenv))
 
         #
         # AIL statement handlers
