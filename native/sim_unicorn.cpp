@@ -113,6 +113,8 @@ private:
 public:
 	std::vector<uint64_t> bbl_addrs;
 	std::vector<uint64_t> stack_pointers;
+	std::unordered_set<uint64_t> executed_pages;
+	std::unordered_set<uint64_t>::iterator *executed_pages_iterator;
 	uint64_t syscall_count;
 	std::vector<transmit_record_t> transmit_records;
 	uint64_t cur_steps, max_steps;
@@ -154,6 +156,7 @@ public:
 		vex_guest = VexArch_INVALID;
 		syscall_count = 0;
 		uc_context_alloc(uc, &saved_regs);
+		executed_pages_iterator = NULL;
 
 		auto it = global_cache.find(cache_key);
 		if (it == global_cache.end()) {
@@ -226,6 +229,7 @@ public:
 		stop_reason = STOP_NOSTART;
 		max_steps = step;
 		cur_steps = -1;
+		executed_pages.clear();
 
 		// error if pc is 0
 		if (pc == 0) {
@@ -301,6 +305,7 @@ public:
 		if (track_stack) {
 			stack_pointers.push_back(get_stack_pointer());
 		}
+		executed_pages.insert(current_address & ~0xFFFULL);
 		cur_address = current_address;
 		cur_size = size;
 
@@ -1264,6 +1269,24 @@ void simunicorn_activate(State *state, uint64_t address, uint64_t length, uint8_
 	// //LOG_D("activate [%#lx, %#lx]", address, address + length);
 	for (uint64_t offset = 0; offset < length; offset += 0x1000)
 		state->page_activate(address + offset, taint, offset);
+}
+
+extern "C"
+uint64_t simunicorn_executed_pages(State *state) { // this is HORRIBLE
+    if (state->executed_pages_iterator == NULL) {
+        state->executed_pages_iterator = new std::unordered_set<uint64_t>::iterator;
+        *state->executed_pages_iterator = state->executed_pages.begin();
+    }
+
+    if (*state->executed_pages_iterator == state->executed_pages.end()) {
+        delete state->executed_pages_iterator;
+        state->executed_pages_iterator = NULL;
+        return -1;
+    }
+
+    uint64_t out = **state->executed_pages_iterator;
+    (*state->executed_pages_iterator)++;
+    return out;
 }
 
 //

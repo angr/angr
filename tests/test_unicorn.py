@@ -181,7 +181,7 @@ def test_unicorn_pickle():
 
     pg = p.factory.simgr(_uni_state())
     pg.one_active.options.update(so.unicorn)
-    pg.step(until=lambda lpg: "Unicorn" in lpg.one_active.history.description)
+    pg.step(until=lambda lpg: "Unicorn" in lpg.one_active.history.recent_description)
     assert len(pg.active) > 0
 
     pgp = pickle.dumps(pg, -1)

@@ -20,6 +20,7 @@ class SimStateScratch(SimStatePlugin):
         self.sim_procedure = None
         self.bbl_addr_list = None
         self.stack_pointer_list = None
+        self.executed_pages_set = None
 
         # information on exits *from* this state
         self.jumpkind = None
@@ -53,6 +54,7 @@ class SimStateScratch(SimStatePlugin):
             self.executed_block_count = scratch.executed_block_count
             self.executed_syscall_count = scratch.executed_syscall_count
             self.executed_instruction_count = scratch.executed_instruction_count
+            self.executed_pages_set = scratch.executed_pages_set
 
             self.irsb = scratch.irsb
             self.bbl_addr = scratch.bbl_addr
