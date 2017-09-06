@@ -91,7 +91,7 @@ class CallingConventionAnalysis(Analysis):
         :return:
         """
 
-        args = []
+        args = set()
         if not self.project.arch.call_pushes_ret:
             ret_addr_offset = 0
         else:
@@ -106,13 +106,13 @@ class CallingConventionAnalysis(Analysis):
                     # TODO: make sure it was the return address
                     continue
                 arg = SimStackArg(variable.offset - ret_addr_offset, variable.size)
-                args.append(arg)
+                args.add(arg)
             elif isinstance(variable, SimRegisterVariable):
                 # a register variable, convert it to a register argument
                 if not self._is_sane_register_variable(variable):
                     continue
                 arg = SimRegArg(self.project.arch.register_size_names[(variable.reg, variable.size)], variable.size)
-                args.append(arg)
+                args.add(arg)
             else:
                 l.error('Unsupported type of variable %s.', type(variable))
 
@@ -137,7 +137,14 @@ class CallingConventionAnalysis(Analysis):
 
         elif arch.name == 'AMD64':
             return (variable.reg < 144  # cc_op
-                    or 224 <= variable.reg <= 768)
+                    or 224 <= variable.reg < 768)
+
+        elif arch.name == 'ARMHF' or arch.name == 'ARMEL':
+            return (8 <= variable.reg <= 20)  # r0-r3
+
+        elif arch.name == 'MIPS32':
+            return (24 <= variable.reg <= 36)  # a0-a3
+
 
         return True
 
