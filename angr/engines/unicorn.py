@@ -132,7 +132,7 @@ class SimEngineUnicorn(SimEngine):
         description = 'Unicorn (%s after %d steps)' % (STOP.name_stop(state.unicorn.stop_reason), state.unicorn.steps)
 
         state.history.recent_block_count += state.unicorn.steps
-        state.history.description = description
+        state.history.recent_description = description
 
         # this can be expensive, so check first
         if state.has_plugin('inspector'):

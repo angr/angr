@@ -44,6 +44,7 @@ class SimEngine(object):
         # to avoid creating a dead link in the history, messing up the statehierarchy
         new_state.register_plugin('history', old_state.history.make_child())
         new_state.history.recent_bbl_addrs.append(addr)
+        new_state.scratch.executed_pages_set = {addr & ~0xFFF}
 
         successors = SimSuccessors(addr, old_state)
 

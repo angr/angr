@@ -29,7 +29,7 @@ class SimStateHistory(SimStatePlugin):
             clone.previous_block_count
 
         # a string description of this history
-        self.description = None if clone is None else clone.description
+        self.recent_description = None if clone is None else clone.recent_description
 
         # the control flow transfer information from this history onwards (to the current state)
         self.jump_target = None if clone is None else clone.jump_target
@@ -338,7 +338,7 @@ class SimStateHistory(SimStatePlugin):
         return LambdaAttrIter(self, operator.attrgetter('jump_target'))
     @property
     def descriptions(self):
-        return LambdaAttrIter(self, operator.attrgetter('description'))
+        return LambdaAttrIter(self, operator.attrgetter('recent_description'))
     @property
     def bbl_addrs(self):
         return LambdaIterIter(self, operator.attrgetter('recent_bbl_addrs'))
