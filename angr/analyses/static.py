@@ -4,18 +4,27 @@ import logging
 import pefile
 import peutils
 import elftools
-import ntpath
+import ntpath   # More reliable if on Windows
 import os
-import time
-import requests
-import hashlib
+import time     # To parse time values in PE header
+import requests # For the VirusTotal lookups
+import hashlib  # To get hashes of the binary
 import sys
 import re
 from terminaltables import AsciiTable
 from textwrap import wrap
 
-#TODO: Add terminaltables dependency
-#TODO: Move all these to separate utils.py module if we make a package
+l = logging.getLogger('angr.analyses.Static')
+
+# TODO: PE/ELF sections
+# TODO: Add debug/warn messages
+# TODO: Pull in `pefile` warnings for debug messages (obj._pe.get_warnings())
+# TODO: Add terminaltables dependency to module
+# TODO: Separate code into utils, defines
+# TODO: Don't import the modules that are only used for PE if not analyzing PE
+
+def fmthexbytestr(val):
+    return ':'.join('{:02x}'.format(ord(c)) for c in val)
 
 def fmthextxt(val, pad=''):
     return ('{:#0'+str(pad)+'x}').format(val)
@@ -24,22 +33,52 @@ def fmtcommanum(val, label=''):
     return ('{:,}'+label).format(val)
 
 def fmtcommabytes(val):
-    return fmtcommanum(val, ' bytes')
+    return lambda: fmtcommanum(val, ' bytes')
+
+def fmttime(val):
+    return time.asctime(time.gmtime(val)) + ' UTC'
 
 def make_me_pretty(datadict, header=[['Field', 'Value']]):
     """
     Takes a dictionary in the form of { 'key': ( 'rawval', 'prettyval' ) }
-    and returns a formatted ASCII table for printing. If `prettyval` is `None`,
-    `rawval` is used but if `rawval` is a list or tuple, '...' will be printed.
+    and returns the string of a formatted ASCII table for printing.
 
-    See `get_basics` for an example use.
+    `prettyval` may be a lambda that returns a string.
+
+    `rawval` is used `if not prettyval` unless `rawval` is a collection,
+    in which case it's replaced with a simple descriptor string.
+
+    Sample:
+    {'Title':    ( 'Something, Something Dark Side', None ),
+     'Authors':  ( ['ThisGuy', 'ThatGal', 'MyDog' ], None ),
+     'Glossary': ( [], None ),
+     'Year':     ( 1950, int_to_roman(1950) )}
+
+    +----------+--------------------------------+
+    | Field    | Value                          |
+    +----------+--------------------------------+
+    | Authors  | [list] of 3 items/keys         |
+    | Glossary | [list] of 0 items/keys         |
+    | Title    | Something, something dark side |
+    | Year     | MCMLII                         |
+    +----------+--------------------------------+
     """
     datalist = []
-    for k,v in datadict.items():
-        l1 = k
-        l2 = '...' if type(v[0]) in ['list', 'tuple'] else v[0]
-        l3 = v[1] if v[1] is not None else l2
-        datalist.append([l1,l3])
+    for fieldname, tup in datadict.items():
+
+        #l.debug('Checking: %s (type: %s)', tup, type(tup))
+        if callable(tup[1]):
+            prettyval = tup[1]()
+        else:
+            prettyval = tup[1]
+
+        if not prettyval:      # Catches None, '', {}, [], etc
+            prettyval = tup[0] if not isinstance(tup[0], (list, tuple, dict)) else '[{}] of {:d} items/keys'.format(type(tup[0]).__name__, len(tup[0]))
+
+        datalist.append([fieldname,prettyval])
+
+
+
     datalist = sorted(datalist)
     tbllist = []
     tbllist.extend(header)
@@ -49,24 +88,24 @@ def make_me_pretty(datadict, header=[['Field', 'Value']]):
 
 class pe_defines:
     '''
-    Covers the enums not defined in `pefile`
+    Provides any enum value strings not defined in `pefile`
     '''
-    # REF: https://msdn.microsoft.com/en-us/library/windows/desktop/ms680339(v=vs.85).aspx
+    # REF: (IMAGE_OPTIONAL_HEADER structure) https://msdn.microsoft.com/en-us/library/windows/desktop/ms680339(v=vs.85).aspx
     class optional_header:
         magic = { 0x10b: 'IMAGE_NT_OPTIONAL_HDR32_MAGIC',
                   0x20b: 'IMAGE_NT_OPTIONAL_HDR64_MAGIC',
                   0x107: 'IMAGE_ROM_OPTIONAL_HDR_MAGIC' }
-        winver = {
-        }
 
-    #TODO: Provide OS lookup https://msdn.microsoft.com/en-us/library/windows/desktop/ms724833(v=vs.85).aspx
+    # TODO: Provide OS lookup https://msdn.microsoft.com/en-us/library/windows/desktop/ms724833(v=vs.85).aspx
+        #winver = {  }
+
 
 class Static(Analysis):
     """
     Provides an easier interface to many useful tidbits of information for ELF
     and PE binaries. Every public function returns `None` on failure or a dictionary
     on success and, optionally, pretty-prints the data in formatted ASCII tables to \
-    the terminal for easy viewing during interactive analysis. 
+    the terminal for easy viewing during interactive analysis.
 
     Dev Note: If you call a function internally, don't forget to pass `pretty=False`
               so it doesn't spit out a table confusing the user.
@@ -90,7 +129,7 @@ class Static(Analysis):
            'ws2_32.dll',
            'iphlpapi.dll',
         <snip>
-        
+
         Sample table:
         +------------------+-----------------------------------+
         | Field            | Value                             |
@@ -111,9 +150,9 @@ class Static(Analysis):
         basics['angr_backend']  = ( type(obj),          type(obj) )
         basics['angr_sections'] = ( secnames,           secnames)
         basics['angr_deps']     = ( obj.deps,           '\n  '.join(obj.deps) )
-        basics['angr_entry_point'] = ( obj.entry,          fmthextxt(obj.entry) )
+        basics['angr_entry_point'] = ( obj.entry,          lambda: fmthextxt(obj.entry) )
         basics['name']          = ( name,               name )
-        basics['size']          = ( size,               fmtcommabytes(size) )
+        basics['size']          = ( size,               lambda: fmtcommabytes(size) )
         basics['md5']           = ( hashes['md5'],      hashes['md5'] )
         basics['sha1']          = ( hashes['sha1'],     ' ↲\n  '.join(wrap(hashes['sha1'], self.data_col_wrap)) )
         basics['sha256']        = ( hashes['sha256'],   ' ↲\n  '.join(wrap(hashes['sha256'], self.data_col_wrap)) )
@@ -124,10 +163,10 @@ class Static(Analysis):
         for k,v in fhdr.items():
             basics['file_hdr.'+k] = v
 
-        
-        #TODO: Function count, warn if taken from only symbols
-        #TODO: Add "include_angr" to add/remove 'angr_' items
-        #TODO: angr_pic, angr_linked_base, angr_mapped_base
+
+        # TODO: Function count, warn if taken from only symbols (no KB or none in KB)
+        # TODO: ?Add "include_angr" to add/remove 'angr_' items
+        # TODO: Add angr_pic, angr_linked_base, angr_mapped_base
 
         if pretty:
             print make_me_pretty(basics)
@@ -145,7 +184,7 @@ class Static(Analysis):
          'Machine':
          (332, 'IMAGE_FILE_MACHINE_I386'),
         <snip>
-        
+
         Sample table:
         +----------------------+--------------------------------+
         | Field                | Value                          |
@@ -165,13 +204,13 @@ class Static(Analysis):
 
         fhdr = {}
         if hasattr(obj, '_pe'):
-            fhdr['Machine']              = ( obj._pe.FILE_HEADER.Machine, [ i[0] for i in pefile.machine_types if i[1] == obj._pe.FILE_HEADER.Machine ][0] )
-            fhdr['NumberOfSections']     = ( obj._pe.FILE_HEADER.NumberOfSections, None )
-            fhdr['TimeDateStamp']        = ( obj._pe.FILE_HEADER.TimeDateStamp, time.asctime(time.gmtime(obj._pe.FILE_HEADER.TimeDateStamp)) )
-            fhdr['PointerToSymbolTable'] = ( obj._pe.FILE_HEADER.PointerToSymbolTable, fmthextxt(obj._pe.FILE_HEADER.PointerToSymbolTable) )
-            fhdr['NumberOfSymbols']      = ( obj._pe.FILE_HEADER.NumberOfSymbols, fmtcommanum(obj._pe.FILE_HEADER.NumberOfSymbols) )
-            fhdr['SizeOfOptionalHeader'] = ( obj._pe.FILE_HEADER.SizeOfOptionalHeader, fmtcommabytes(obj._pe.FILE_HEADER.SizeOfOptionalHeader) )
-            fhdr['Characteristics']      = ( obj._pe.FILE_HEADER.Characteristics, '\n'.join([i[0] for i in pefile.image_characteristics if i[1] & obj._pe.FILE_HEADER.Characteristics != 0]) )
+            fhdr['Machine']              = ( obj._pe.FILE_HEADER.Machine,               [ i[0] for i in pefile.machine_types if i[1] == obj._pe.FILE_HEADER.Machine ][0] )
+            fhdr['NumberOfSections']     = ( obj._pe.FILE_HEADER.NumberOfSections,      None )
+            fhdr['TimeDateStamp']        = ( obj._pe.FILE_HEADER.TimeDateStamp,         lambda: fmttime(obj._pe.FILE_HEADER.TimeDateStamp) )
+            fhdr['PointerToSymbolTable'] = ( obj._pe.FILE_HEADER.PointerToSymbolTable,  lambda: fmthextxt(obj._pe.FILE_HEADER.PointerToSymbolTable) )
+            fhdr['NumberOfSymbols']      = ( obj._pe.FILE_HEADER.NumberOfSymbols,       lambda: fmtcommanum(obj._pe.FILE_HEADER.NumberOfSymbols) )
+            fhdr['SizeOfOptionalHeader'] = ( obj._pe.FILE_HEADER.SizeOfOptionalHeader,  lambda: fmtcommabytes(obj._pe.FILE_HEADER.SizeOfOptionalHeader) )
+            fhdr['Characteristics']      = ( obj._pe.FILE_HEADER.Characteristics,       '\n'.join([i[0] for i in pefile.image_characteristics if i[1] & obj._pe.FILE_HEADER.Characteristics != 0]) )
 
         elif hasattr(obj, 'reader'):
             # Temp values needed for lookups below
@@ -183,25 +222,25 @@ class Static(Analysis):
             a = obj.reader.header['e_ident']['EI_OSABI']
             g = obj.reader.header['e_ident']['EI_MAG']
 
-            fhdr['e_version']             = ( elftools.elf.enums.ENUM_E_VERSION[v], v )
-            fhdr['e_machine']             = ( elftools.elf.enums.ENUM_E_MACHINE[m], m )
-            fhdr['e_type']                = ( elftools.elf.enums.ENUM_E_TYPE[t],    t )
-            fhdr['e_ident.EI_CLASS']      = ( elftools.elf.enums.ENUM_EI_CLASS[c],  c )
-            fhdr['e_ident.EI_DATA']       = ( elftools.elf.enums.ENUM_EI_DATA[d],   d )
-            fhdr['e_ident.EI_OSABI']      = ( elftools.elf.enums.ENUM_EI_OSABI[a],  a )
-            fhdr['e_ident.EI_MAG']        = ( '0x'+''.join('{:02x}'.format(b) for b in g), '\\x7fELF' )   # HACK: Need to add the extra '\' when taken from chr()
-            fhdr['e_flags']               = ( obj.reader.header['e_flags'],     fmthextxt(obj.reader.header['e_flags']) )
-            fhdr['e_shoff']               = ( obj.reader.header['e_shoff'],     fmtcommabytes(obj.reader.header['e_shoff']) )
-            fhdr['e_phoff']               = ( obj.reader.header['e_phoff'],     fmtcommabytes(obj.reader.header['e_phoff']) )
-            fhdr['e_entry']               = ( obj.reader.header['e_entry'],     fmthextxt(obj.reader.header['e_entry']) )
-            fhdr['e_shentsize']           = ( obj.reader.header['e_shentsize'], fmtcommabytes(obj.reader.header['e_shentsize']) )
-            fhdr['e_phentsize']           = ( obj.reader.header['e_phentsize'], fmtcommabytes(obj.reader.header['e_phentsize']) )
-            fhdr['e_ehsize']              = ( obj.reader.header['e_ehsize'],    fmtcommabytes(obj.reader.header['e_ehsize']) )
-            fhdr['e_shstrndx']            = ( obj.reader.header['e_shstrndx'],  None )
-            fhdr['e_shnum']               = ( obj.reader.header['e_shnum'],     None )
-            fhdr['e_phnum']               = ( obj.reader.header['e_phnum'],     None )
-            fhdr['e_ident.EI_ABIVERSION'] = ( obj.reader.header['e_ident']['EI_ABIVERSION'],  None )
-            fhdr['e_ident.EI_VERSION']    = ( obj.reader.header['e_ident']['EI_VERSION'],     None )
+            fhdr['e_version']             = ( elftools.elf.enums.ENUM_E_VERSION[v],         v )
+            fhdr['e_machine']             = ( elftools.elf.enums.ENUM_E_MACHINE[m],         m )
+            fhdr['e_type']                = ( elftools.elf.enums.ENUM_E_TYPE[t],            t )
+            fhdr['e_ident.EI_CLASS']      = ( elftools.elf.enums.ENUM_EI_CLASS[c],          c )
+            fhdr['e_ident.EI_DATA']       = ( elftools.elf.enums.ENUM_EI_DATA[d],           d )
+            fhdr['e_ident.EI_OSABI']      = ( elftools.elf.enums.ENUM_EI_OSABI[a],          a )
+            fhdr['e_ident.EI_MAG']        = ( '0x'+''.join('{:02x}'.format(b) for b in g),  '\\x7fELF' )   # HACK: Need to add the extra '\' when taken from chr()
+            fhdr['e_flags']               = ( obj.reader.header['e_flags'],                 lambda: fmthextxt(obj.reader.header['e_flags']) )
+            fhdr['e_shoff']               = ( obj.reader.header['e_shoff'],                 lambda: fmtcommabytes(obj.reader.header['e_shoff']) )
+            fhdr['e_phoff']               = ( obj.reader.header['e_phoff'],                 lambda: fmtcommabytes(obj.reader.header['e_phoff']) )
+            fhdr['e_entry']               = ( obj.reader.header['e_entry'],                 lambda: fmthextxt(obj.reader.header['e_entry']) )
+            fhdr['e_shentsize']           = ( obj.reader.header['e_shentsize'],             lambda: fmtcommabytes(obj.reader.header['e_shentsize']) )
+            fhdr['e_phentsize']           = ( obj.reader.header['e_phentsize'],             lambda: fmtcommabytes(obj.reader.header['e_phentsize']) )
+            fhdr['e_ehsize']              = ( obj.reader.header['e_ehsize'],                lambda: fmtcommabytes(obj.reader.header['e_ehsize']) )
+            fhdr['e_shstrndx']            = ( obj.reader.header['e_shstrndx'],              None )
+            fhdr['e_shnum']               = ( obj.reader.header['e_shnum'],                 None )
+            fhdr['e_phnum']               = ( obj.reader.header['e_phnum'],                 None )
+            fhdr['e_ident.EI_ABIVERSION'] = ( obj.reader.header['e_ident']['EI_ABIVERSION'],None )
+            fhdr['e_ident.EI_VERSION']    = ( obj.reader.header['e_ident']['EI_VERSION'],   None )
 
         if pretty:
             print make_me_pretty(fhdr)
@@ -233,9 +272,12 @@ class Static(Analysis):
         |           |   16d8e806babc20750790091ef9db22a98648abb9256c8c10eee08289d1b4 ↲ |
         |           |   d5b00e0b                                                       |
         +-----------+------------------------------------------------------------------+
-
-
         """
+        # TODO: Maybe replace ↲ with \ since we're doing "ASCII Tables". Its alignment
+        #       seems to be slightly different between monospaced fonts. It aligns
+        #       fine in `ProFont for Powerline` in my terminal but, here, it appears
+        #       to throw off spacing with `Liberation Mono for Powerline`.
+
         obj      = self.obj
         pretty   = self.pretty if pretty is None else pretty
 
@@ -270,8 +312,8 @@ class Static(Analysis):
 
     def get_imports(self, bylib=True, pretty=None):
         """
-        Returns the angr-provided imports
-        
+        Returns the binaries imports, as understood by angr
+
         Sample dict (bylib=True):
         {'advapi32.dll': ['RegCreateKeyA',
           'QueryServiceStatus',
@@ -281,7 +323,7 @@ class Static(Analysis):
           'RegQueryValueExA',
           'CloseServiceHandle',
         <snip>
-        
+
         Sample table (bylib=True):
         +--------------+-----------------------------+
         | Library      | Import                      |
@@ -346,9 +388,8 @@ class Static(Analysis):
 
         return out
 
-    #TODO: VirusTotal Rescan API
-    #TODO: Make these return dicts or make them private
-    #TODO: Make pretty
+    # TODO: VirusTotal Rescan API (probably check that first in do_virus_total)
+    # TODO: Make pretty
     def submit_virus_total(self, apikey, pretty=None):
         """
         API Ref https://www.virustotal.com/en/documentation/public-api/
@@ -376,7 +417,7 @@ class Static(Analysis):
         json_response = response.json()
         return json_response
 
-    def do_virus_total(self, apikey, pretty=None):    #TODO: Pass pretty to results
+    def do_virus_total(self, apikey, pretty=None):
         obj      = self.obj
         pretty   = self.pretty if pretty is None else pretty
         request = submit_virus_total(apikey, obj)
@@ -434,16 +475,19 @@ class Static(Analysis):
 
         if pretty:
             header = [['Offset', 'Value']]
-            data = sorted([[fmthextxt(k,8),' ↲\n  '.join(wrap(v, self.data_col_wrap))] for k,v in out.items()])
+            data = sorted([[lambda: fmthextxt(k,8),' ↲\n  '.join(wrap(v, self.data_col_wrap))] for k,v in out.items()])
             header.extend(data)
             table = AsciiTable(header)
             print table.table
 
         return out
 
+    ################
+    # PE Specifics #
+    ################
 
-    # PE-specifics below
-    # TODO: Either submodules for ELF/PE or pe_/elf_ prefixes for funcs
+    # TODO: Only define these if the object is a PE and emit a warning
+
     def peid_signature_scan(self, db_file_path, ep_only=True, sec_start_only=False, get_all=False, pretty=None):
         """
         Exposes `pefile`'s implementation of PEiD signature scanning to identify packers
@@ -460,14 +504,14 @@ class Static(Analysis):
 
         Sample dict:
         {'peid_results': ['Armadillo v1.xx - v2.xx']}
-        
+
         """
         obj      = self.obj
         pretty   = self.pretty if pretty is None else pretty
 
-        # TODO: support for match_data
-        # TODO: pretty (include offsets for match_all)
-        
+        # TODO: Support for match_data
+        # TODO: Pretty (include offsets for match_all)
+
         if not hasattr(obj, '_pe'):
             return None
 
@@ -477,7 +521,7 @@ class Static(Analysis):
             matches = sigs.match_all(pe=obj._pe, ep_only=ep_only, section_start_only=sec_start_only)
         else:
             matches = sigs.match(obj._pe, ep_only)
-            
+
         return { 'peid_results': matches }
 
     # TODO: Need a test binary
@@ -491,69 +535,6 @@ class Static(Analysis):
     #        return None
     #
     #    return obj._pe.get_resources_strings()
-
-    # TODO get_resources returns info from the resources' sections
-    # TOD get_reource will get the data in that resource
-    def get_resources(self, pretty=None): 
-        obj      = self.obj
-        pretty   = self.pretty if pretty is None else pretty
-        
-        if not hasattr(obj, '_pe'):
-            return None
-        if not hasattr(obj._pe, 'DIRECTORY_ENTRY_RESOURCE'):
-            l.warn('No resources found')
-            return {}
-
-        out = {}
-        rrout = None
-        type_idx = None
-        id_idx = None
-        # Shamelessly ripped from pefile
-        for resource_type in obj._pe.DIRECTORY_ENTRY_RESOURCE.entries:
-            if hasattr(resource_type, 'directory'):
-                for resource_id in resource_type.directory.entries:
-                    type_idx = resource_type.id if resource_type.name is None else resource_type.name
-                    id_idx = resource_id.id if resource_id.name is None else resource_id.name
-                    resstrings = []
-                    if hasattr(resource_id, 'directory'):
-                        if hasattr(resource_id.directory, 'strings') and resource_id.directory.strings:
-                            for res_string in list(resource_id.directory.strings.values()):
-                                resstrings.append(res_string)
-                        else:
-                            for ent in resource_id.directory.entries:
-                                resdata = obj._pe.get_data(ent.data.struct.OffsetToData, ent.data.struct.Size)
-
-                                rr_out = {'data':        resdata,
-                                          'strings':     resstrings,
-                                          'data_md5':    hashlib.md5(resdata).hexdigest(),
-                                          'data_sha256': hashlib.sha256(resdata).hexdigest()
-                                          }
-                    out[type_idx] = { id_idx: rr_out }
-
-        #if pretty:
-        #    header = [[ 'Resource [par.ch.ch...]', 'Information' ]]
-             
-
-        return out
-
-#    def get_resource_data(self, pretty=None): # TODO: Needs to be done recursively, get name if no ID
-#        obj      = self.obj
-#        pretty   = self.pretty if pretty is None else pretty
-#        
-#        if not hasattr(obj, '_pe'):
-#            return None
-#        out = {}
-#        for res in obj._pe.DIRECTORY_ENTRY_RESOURCE.entries:
-#            for ent in res.directory.entries:
-#                for rr in ent.directory.entries:
-#                    resdata = obj._pe.get_data(rr.data.struct.OffsetToData, rr.data.struct.Size)
-#                    rr_out = {'data': resdata,
-#                              'md5': hashlib.md5(resdata).hexdigest(),
-#                              'sha256': hashlib.sha256(resdata).hexdigest()
-#                              }
-#                    out[ent.id] = { rr.id: rr_out }
-#        return out
-
 
     def get_optional_header(self, pretty=None):
         """
@@ -570,7 +551,7 @@ class Static(Analysis):
          'Magic': (267, 'IMAGE_NT_OPTIONAL_HDR32_MAGIC'),
 
         <snip>
-        
+
         Sample table:
         +-----------------------------+-------------------------------+
         | Field                       | Value                         |
@@ -591,44 +572,54 @@ class Static(Analysis):
         if not hasattr(obj, '_pe'):
             return None
 
+        def fmtdllflags(optheader):
+            line = fmthextxt(optheader.DllCharacteristics)
+            if not optheader.DllCharacteristics:
+                line += ' (N/A)'
+            else:
+                dll_flags = pefile.retrieve_flags(pefile.DLL_CHARACTERISTICS, 'IMAGE_DLLCHARACTERISTICS_')
+                for flag in sorted(dll_flags):
+                    if getattr(optheader, flag[0]):
+                        line += '\n  {} ({})'.format(flag[0], fmthextxt(flag[1]))
+            return line
+
         out = {}
-        out['Magic']                    = ( obj._pe.OPTIONAL_HEADER.Magic, pe_defines.optional_header.magic[obj._pe.OPTIONAL_HEADER.Magic] )
-        out['MajorLinkerVersion']       = ( obj._pe.OPTIONAL_HEADER.MajorLinkerVersion, None )
-        out['MinorLinkerVersion']       = ( obj._pe.OPTIONAL_HEADER.MinorLinkerVersion, None )
-        out['SizeOfCode']               = ( obj._pe.OPTIONAL_HEADER.SizeOfCode, fmtcommabytes(obj._pe.OPTIONAL_HEADER.SizeOfCode) )
-        out['SizeOfInitializedData']    = ( obj._pe.OPTIONAL_HEADER.SizeOfInitializedData, fmtcommabytes(obj._pe.OPTIONAL_HEADER.SizeOfInitializedData) )
-        out['SizeOfUninitializedData']  = ( obj._pe.OPTIONAL_HEADER.SizeOfUninitializedData, fmtcommabytes(obj._pe.OPTIONAL_HEADER.SizeOfInitializedData) )
-        out['AddressOfEntryPoint']      = ( obj._pe.OPTIONAL_HEADER.AddressOfEntryPoint, fmthextxt(obj._pe.OPTIONAL_HEADER.AddressOfEntryPoint) )
-        out['BaseOfCode']               = ( obj._pe.OPTIONAL_HEADER.BaseOfCode, fmthextxt(obj._pe.OPTIONAL_HEADER.BaseOfCode) )
-        out['BaseOfData']               = ( obj._pe.OPTIONAL_HEADER.BaseOfData, fmthextxt(obj._pe.OPTIONAL_HEADER.BaseOfData) )
-        out['SectionAlignment']         = ( obj._pe.OPTIONAL_HEADER.SectionAlignment, fmthextxt(obj._pe.OPTIONAL_HEADER.SectionAlignment) )
-        out['FileAlignment']            = ( obj._pe.OPTIONAL_HEADER.FileAlignment, fmthextxt(obj._pe.OPTIONAL_HEADER.FileAlignment) )
+        out['Magic']                    = ( obj._pe.OPTIONAL_HEADER.Magic,                      pe_defines.optional_header.magic[obj._pe.OPTIONAL_HEADER.Magic] )
+        out['MajorLinkerVersion']       = ( obj._pe.OPTIONAL_HEADER.MajorLinkerVersion,         None )
+        out['MinorLinkerVersion']       = ( obj._pe.OPTIONAL_HEADER.MinorLinkerVersion,         None )
+        out['SizeOfCode']               = ( obj._pe.OPTIONAL_HEADER.SizeOfCode,                 lambda: fmtcommabytes(obj._pe.OPTIONAL_HEADER.SizeOfCode) )
+        out['SizeOfInitializedData']    = ( obj._pe.OPTIONAL_HEADER.SizeOfInitializedData,      lambda: fmtcommabytes(obj._pe.OPTIONAL_HEADER.SizeOfInitializedData) )
+        out['SizeOfUninitializedData']  = ( obj._pe.OPTIONAL_HEADER.SizeOfUninitializedData,    lambda: fmtcommabytes(obj._pe.OPTIONAL_HEADER.SizeOfInitializedData) )
+        out['AddressOfEntryPoint']      = ( obj._pe.OPTIONAL_HEADER.AddressOfEntryPoint,        lambda: fmthextxt(obj._pe.OPTIONAL_HEADER.AddressOfEntryPoint) )
+        out['BaseOfCode']               = ( obj._pe.OPTIONAL_HEADER.BaseOfCode,                 lambda: fmthextxt(obj._pe.OPTIONAL_HEADER.BaseOfCode) )
+        out['BaseOfData']               = ( obj._pe.OPTIONAL_HEADER.BaseOfData,                 lambda: fmthextxt(obj._pe.OPTIONAL_HEADER.BaseOfData) )
+        out['SectionAlignment']         = ( obj._pe.OPTIONAL_HEADER.SectionAlignment,           lambda: fmthextxt(obj._pe.OPTIONAL_HEADER.SectionAlignment) )
+        out['FileAlignment']            = ( obj._pe.OPTIONAL_HEADER.FileAlignment,              lambda: fmthextxt(obj._pe.OPTIONAL_HEADER.FileAlignment) )
         out['MajorOperatingSystemVersion'] = ( obj._pe.OPTIONAL_HEADER.MajorOperatingSystemVersion, None )
         out['MinorOperatingSystemVersion'] = ( obj._pe.OPTIONAL_HEADER.MinorOperatingSystemVersion, None )
-        out['MajorImageVersion']        = ( obj._pe.OPTIONAL_HEADER.MajorImageVersion, None )
-        out['MinorImageVersion']        = ( obj._pe.OPTIONAL_HEADER.MinorImageVersion, None )
-        out['MajorSubsystemVersion']    = ( obj._pe.OPTIONAL_HEADER.MajorSubsystemVersion, None )
-        out['MinorSubsystemVersion']    = ( obj._pe.OPTIONAL_HEADER.MinorSubsystemVersion, None )
-        out['Reserved1']                = ( obj._pe.OPTIONAL_HEADER.Reserved1, None )
-        out['SizeOfImage']              = ( obj._pe.OPTIONAL_HEADER.SizeOfImage, fmtcommabytes(obj._pe.OPTIONAL_HEADER.SizeOfImage) )
-        out['SizeOfHeaders']            = ( obj._pe.OPTIONAL_HEADER.SizeOfHeaders, fmtcommabytes(obj._pe.OPTIONAL_HEADER.SizeOfHeaders) )
-        out['CheckSum']                 = ( obj._pe.OPTIONAL_HEADER.CheckSum, fmthextxt(obj._pe.OPTIONAL_HEADER.CheckSum) )
+        out['MajorImageVersion']        = ( obj._pe.OPTIONAL_HEADER.MajorImageVersion,          None )
+        out['MinorImageVersion']        = ( obj._pe.OPTIONAL_HEADER.MinorImageVersion,          None )
+        out['MajorSubsystemVersion']    = ( obj._pe.OPTIONAL_HEADER.MajorSubsystemVersion,      None )
+        out['MinorSubsystemVersion']    = ( obj._pe.OPTIONAL_HEADER.MinorSubsystemVersion,      None )
+        out['Reserved1']                = ( obj._pe.OPTIONAL_HEADER.Reserved1,                  None )
+        out['SizeOfImage']              = ( obj._pe.OPTIONAL_HEADER.SizeOfImage,                lambda: fmtcommabytes(obj._pe.OPTIONAL_HEADER.SizeOfImage) )
+        out['SizeOfHeaders']            = ( obj._pe.OPTIONAL_HEADER.SizeOfHeaders,              lambda: fmtcommabytes(obj._pe.OPTIONAL_HEADER.SizeOfHeaders) )
+        out['CheckSum']                 = ( obj._pe.OPTIONAL_HEADER.CheckSum,                   lambda: fmthextxt(obj._pe.OPTIONAL_HEADER.CheckSum) )
         out['Subsystem']                = [ i for i in pefile.subsystem_types if i[1] == obj._pe.OPTIONAL_HEADER.Subsystem ][0]
-        out['DllCharacteristics']       = (0, 'N/A') if obj._pe.OPTIONAL_HEADER.DllCharacteristics == 0 else \
-                                          [ i[0] for i in pefile.dll_characteristics if i[1] == obj._pe.OPTIONAL_HEADER.DllCharacteristics ]
-        out['SizeOfStackReserve']       = ( obj._pe.OPTIONAL_HEADER.SizeOfStackReserve, None )
-        out['SizeOfStackCommit']        = ( obj._pe.OPTIONAL_HEADER.SizeOfStackCommit, None )
-        out['SizeOfHeapReserve']        = ( obj._pe.OPTIONAL_HEADER.SizeOfHeapReserve, None )
-        out['SizeOfHeapCommit']         = ( obj._pe.OPTIONAL_HEADER.SizeOfHeapCommit, None )
-        out['LoaderFlags']              = ( obj._pe.OPTIONAL_HEADER.LoaderFlags, fmthextxt(obj._pe.OPTIONAL_HEADER.LoaderFlags) )
-        out['NumberOfRvaAndSizes']      = ( obj._pe.OPTIONAL_HEADER.NumberOfRvaAndSizes, None )
+
+        #dllchar = [ i[0] for i in pefile.dll_characteristics if i[1] == obj._pe.OPTIONAL_HEADER.DllCharacteristics ]
+        out['DllCharacteristics'] = ( obj._pe.OPTIONAL_HEADER.DllCharacteristics, lambda: fmtdllflags(obj._pe.OPTIONAL_HEADER) )
+
+        out['SizeOfStackReserve']       = ( obj._pe.OPTIONAL_HEADER.SizeOfStackReserve,         None )
+        out['SizeOfStackCommit']        = ( obj._pe.OPTIONAL_HEADER.SizeOfStackCommit,          None )
+        out['SizeOfHeapReserve']        = ( obj._pe.OPTIONAL_HEADER.SizeOfHeapReserve,          None )
+        out['SizeOfHeapCommit']         = ( obj._pe.OPTIONAL_HEADER.SizeOfHeapCommit,           None )
+        out['LoaderFlags']              = ( obj._pe.OPTIONAL_HEADER.LoaderFlags,                lambda: fmthextxt(obj._pe.OPTIONAL_HEADER.LoaderFlags) )
+        out['NumberOfRvaAndSizes']      = ( obj._pe.OPTIONAL_HEADER.NumberOfRvaAndSizes,        None )
 
         if pretty:
             print make_me_pretty(out)
         return out
-
-
-
 
 
 register_analysis(Static, 'Static')
