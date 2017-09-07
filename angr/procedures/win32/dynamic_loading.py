@@ -72,7 +72,7 @@ class GetProcAddress(angr.SimProcedure):
                     break
 
         if sym is None:
-            l.warning("GetProcAddress: object %s does not contain %s", obj.provides, name)
+            l.info("GetProcAddress: object %s does not contain %s", obj.provides, name)
             return 0
 
         sym = sym.resolve_forwarder()
