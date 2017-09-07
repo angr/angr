@@ -8,4 +8,4 @@ lib.add_all_from_dict(P['win_user32'])
 lib.set_default_cc('X86', SimCCStdcall)
 
 import archinfo
-lib.add('wsprintfA', P['win_user32']['wsprintfA'], cc=SimCCCdecl(archinfo.ArchX86()))
+lib.add('wsprintfA', P['libc']['sprintf'], cc=SimCCCdecl(archinfo.ArchX86()))
