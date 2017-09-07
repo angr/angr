@@ -8,13 +8,13 @@ import pyvex
 
 from . import register_analysis
 from .analysis import Analysis
+from .code_location import CodeLocation
 from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 from ..calling_conventions import SimRegArg, SimStackArg
 from ..engines.light import SimEngineLightVEX, SimEngineLightAIL, SpOffset, RegisterOffset
 from ..engines.vex.irop import operations as vex_operations
 from ..errors import SimEngineError
 from ..keyed_region import KeyedRegion
-from .code_location import CodeLocation
 
 l = logging.getLogger('angr.analyses.reaching_definitions')
 
@@ -777,7 +777,7 @@ def get_engine(base_engine):
                         else:
                             head = ((1 << e1) - 1) << (size - e1)
                         res.update(head | (e0 >> e1))
-                    except TypeError as e:
+                    except (ValueError, TypeError) as e:
                         l.warning(e)
                         res.update(None)
             res = res.compact()
@@ -1028,10 +1028,13 @@ def get_engine(base_engine):
             ip = self.arch.ip_offset
             ip_defs = self.state.register_definitions.get_objects_by_offset(ip)
             if len(ip_defs) != 1:
-                raise ValueError('Invalid definitions for IP')
+                l.error('Invalid definitions for IP.')
+                return None
+
             ip_addr = next(iter(ip_defs)).data
             if not isinstance(ip_addr, (int, long)):
-                raise ValueError('Invalid type %s for IP' % type(ip_addr).__name__)
+                l.error('Invalid type %s for IP.' % type(ip_addr).__name__)
+                return None
 
             is_internal = False
             ext_func_name = None
@@ -1063,6 +1066,7 @@ def get_engine(base_engine):
                     l.warning('Please implement the local function handler with your own logic.')
             else:
                 l.warning('Could not find function name for external function at address %#x.', ip_addr)
+            return None
 
     return SimEngineRD
 
