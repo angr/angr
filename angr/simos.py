@@ -737,6 +737,8 @@ class SimWindows(SimOS):
         super(SimWindows, self).__init__(project, name='Win32', **kwargs)
 
         self._exception_handler = None
+        self.fmode_ptr = None
+        self.commode_ptr = None
 
     def configure_project(self):
         super(SimWindows, self).configure_project()
@@ -748,6 +750,16 @@ class SimWindows(SimOS):
 
         self._exception_handler = self.project.loader.extern_object.allocate()
         self.project.hook(self._exception_handler, P['ntdll']['KiUserExceptionDispatcher'](library_name='ntdll.dll'))
+
+        self.fmode_ptr = self._find_or_make('_fmode')
+        self.commode_ptr = self._find_or_make('_commode')
+
+    def _find_or_make(self, name):
+        sym = self.project.loader.find_symbol(name)
+        if sym is None:
+            return self.project.loader.extern_object.get_pseudo_addr(name)
+        else:
+            return sym.rebased_addr
 
     # pylint: disable=arguments-differ
     def state_entry(self, args=None, env=None, argc=None, **kwargs):
