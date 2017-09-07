@@ -5,14 +5,17 @@ import pefile
 import peutils
 import elftools
 import ntpath   # More reliable if on Windows
-import os
+import os       # Get paths
+import codecs   # To decode resource names in PEs
 import time     # To parse time values in PE header
 import requests # For the VirusTotal lookups
 import hashlib  # To get hashes of the binary
+import re       # For string searching
 import sys
-import re
+
 from terminaltables import AsciiTable
 from textwrap import wrap
+
 
 l = logging.getLogger('angr.analyses.Static')
 
@@ -90,11 +93,33 @@ class pe_defines:
     '''
     Provides any enum value strings not defined in `pefile`
     '''
-    # REF: (IMAGE_OPTIONAL_HEADER structure) https://msdn.microsoft.com/en-us/library/windows/desktop/ms680339(v=vs.85).aspx
     class optional_header:
+        # REF: (IMAGE_OPTIONAL_HEADER structure) https://msdn.microsoft.com/en-us/library/windows/desktop/ms680339(v=vs.85).aspx
         magic = { 0x10b: 'IMAGE_NT_OPTIONAL_HDR32_MAGIC',
                   0x20b: 'IMAGE_NT_OPTIONAL_HDR64_MAGIC',
                   0x107: 'IMAGE_ROM_OPTIONAL_HDR_MAGIC' }
+
+    rtypes = {    1: 'RT_CURSOR',
+                  2: 'RT_BITMAP',
+                  3: 'RT_ICON',
+                  4: 'RT_MENU',
+                  5: 'RT_DIALOG',
+                  6: 'RT_STRING',
+                  7: 'RT_FONTDIR',
+                  8: 'RT_FONT',
+                  9: 'RT_ACCELERATOR',
+                 10: 'RT_RCDATA',
+                 11: 'RT_MESSAGETABLE',
+                 12: 'RT_GROUP_CURSOR',
+                 14: 'RT_GROUP_ICON',
+                 16: 'RT_VERSION',
+                 17: 'RT_DLGINCLUDE',
+                 19: 'RT_PLUGPLAY',
+                 20: 'RT_VXD',
+                 21: 'RT_ANICURSOR',
+                 22: 'RT_ANIICON',
+                 23: 'RT_HTML',
+                 24: 'RT_MANIFEST' }
 
     # TODO: Provide OS lookup https://msdn.microsoft.com/en-us/library/windows/desktop/ms724833(v=vs.85).aspx
         #winver = {  }
@@ -621,5 +646,207 @@ class Static(Analysis):
             print make_me_pretty(out)
         return out
 
+
+    # TODO: Dump resources to files
+    # TODO: Pull in pefile's __warnings for debug messages
+    # TODO: Add more 'meta' columns to top-level dict or EntriesByType formatter (resource_id info: langs, res sizes, etc; total dir size)
+    # TODO: ? Add get_resource_info (possibly move 'meta' info from above here)
+    # TODO: Pretty-print individual resources
+    def get_resources(self, pretty=None):
+        """
+        Parses all resources in a PE. The pretty-print does not (currently) include
+        information on the individual resources.
+
+        Sample dict:
+        {
+        'Characteristics': (0, '0 (unused)'),
+        'EntriesByType': ({
+            9232: {'EntriesByNameId':
+                (
+                    {
+                        9320: {
+                        'Data': ('''\x7fELF\x02\x01\x01 <snip>''', 'First 20 bytes: 7f:45:4c:46:02:01:01:00:00:00:00:00:00:00:00:00:01:00:3e:00'),
+                        'DataLen': (2504, None),
+                        'EntriesByLang': ({1033: ('lang', '''LangId: 0x0409\nLang: LANG_ENGLISH (0x09)\nSublang: SUBLANG_ENGLISH_US (0x1)''')}, None),
+                        'OffsetToData': (2147484096, '<function __main__.<lambda>>' ),
+                        'ResId': (129, None),
+                        }
+                    },
+                    None
+                ),
+                'OffsetToData': (2147483736, '<function __main__.<lambda>>'),
+                'ResNameType': (2147485176, u'BINARY')},
+            9240: {'EntriesByNameId':
+                (
+                    {
+                    9344: {
+                        'Data': ('''\x89PNG\r <snip>''', 'First 20 bytes: 89:50:4e:47:0d:0a:1a:0a:00:00:00:0d:49:48:44:52:00:00:01:00'
+                                 ),
+                        'DataLen': (4442, None),
+                        'EntriesByLang': ({1033: ('lang',
+                                          '''LangId: 0x0409\nLang: LANG_ENGLISH (0x09)\nSublang: SUBLANG_ENGLISH_US (0x1)''')}, None),
+                        'OffsetToData': (2147484120, '<function __main__.<lambda>>'),
+                        'ResId': (1, None),
+                            },
+        <snip>
+
+        Sample table:
+        +----------------------+------------------------------+
+        | Field                | Value                        |
+        +----------------------+------------------------------+
+        | Characteristics      | 0 (unused)                   |
+        | EntriesByType        | Contains:                    |
+        |                      |   BINARY (x1)                |
+        |                      |   RT_DIALOG (x1)             |
+        |                      |   RT_ICON (x18)              |
+        |                      |   RT_MANIFEST (x1)           |
+        |                      |   RT_STRING (x1)             |
+        |                      |   RT_MENU (x1)               |
+        |                      |   RT_ACCELERATOR (x1)        |
+        |                      |   RT_VERSION (x1)            |
+        |                      |   RT_GROUP_ICON (x2)         |
+        |                      |                              |
+        | MajorVersion         | 0                            |
+        | MinorVersion         | 0                            |
+        | NumberOfIdEntries    | 8                            |
+        | NumberOfNamedEntries | 1                            |
+        | TimeDateStamp        | Thu Jan  1 00:00:00 1970 UTC |
+        +----------------------+------------------------------+
+        """
+        obj      = self.obj
+        pretty   = self.pretty if pretty is None else pretty
+
+        ######################################################################
+        # These "Internal Formatters" are passed as lambdas to make_me_pretty
+        # in order to format the data appropriately.
+        ######################################################################
+
+        res_types_count = {}
+        def fmtenttypes(rawval):
+            """
+            Formats the top-level ['EntriesByType'] element since it's a dict
+            and we don't want to dump tables full of subtables on the user.
+            Through res_types_count, it simply tracks how many of each resource
+            type is encountered.
+
+            Sample string:
+            '''
+            Contains:
+              BINARY (x1)
+              RT_DIALOG (x1)
+              RT_ICON (x18)
+              RT_MANIFEST (x1)
+              RT_STRING (x1)
+              RT_MENU (x1)
+              RT_ACCELERATOR (x1)
+              RT_VERSION (x1)
+              RT_GROUP_ICON (x2)
+            '''
+            """
+            line = 'Contains:\n'
+            for k,v in rawval.items():
+                line += '  {} (x{:d})\n'.format(k,v)
+            return line
+
+        def fmtdatapreview(data):
+            """
+            Resources can be of arbitrary length so we pass in a maximum of the
+            first 20 bytes of a resource from the ['Data'] element and format it,
+            allowing the user to verify the resource's file type by at least seeing
+            the signature/magic number.
+
+            Sample string:
+            'First 20 bytes: 3c:3f:78:6d:6c:20:76:65:72:73:69:6f:6e:3d:27:31:2e:30:27:20'
+            """
+            line = 'First {:d} bytes: {}'
+            dstr = fmthexbytestr(data)
+            bytelen = (len(dstr) + 1) / 3 # Last byte doesn't have ':'. Pretend it does and every 1 byte is '%d%d:'
+            return line.format(bytelen, dstr)
+
+
+
+        resdir = obj._pe.DIRECTORY_ENTRY_RESOURCE
+
+        der = {}
+        c = resdir.struct.Characteristics
+        der['Characteristics']      = ( c, c if c else '0 (unused)' )
+        der['TimeDateStamp']        = ( resdir.struct.TimeDateStamp, lambda: fmttime(resdir.struct.TimeDateStamp) )
+        der['MajorVersion']         = ( resdir.struct.MajorVersion, None )
+        der['MinorVersion']         = ( resdir.struct.MinorVersion, None )
+        der['NumberOfNamedEntries'] = ( resdir.struct.NumberOfNamedEntries, None )
+        der['NumberOfIdEntries']    = ( resdir.struct.NumberOfIdEntries, None )
+        der['EntriesByType']        = ( {}, lambda: fmtenttypes(res_types_count) )
+
+
+        # We dig through what `pefile` has already parsed here but sometimes
+        # have to do some work to get at the original, raw data/value or do
+        # some additional work to get a pretty value.
+
+        # When the site is up, this is a more digestible reference than the
+        # one from MS: http://www.csn.ul.ie/~caolan/publink/winresdump/winresdump/doc/pefile2.html
+        for resource_type in resdir.entries:                                # Type Directory
+            if hasattr(resource_type, 'directory'):
+                rtoff       = resource_type.struct.get_file_offset()
+                drtype      = der['EntriesByType'][0][rtoff] = {}
+                typeval     = resource_type.struct.Name
+                prettytype  = resource_type.name.decode('utf-8', 'backslashreplace') if resource_type.name is not None else pe_defines.rtypes.get(typeval, None)
+
+                #drtype['ResType']  = ( t, rtypes.get(t, None) )
+                #drtype['ResName']  = ( resource_type.struct.Name, n.decode('utf-8', 'backslashreplace') if n is not None else None )
+                drtype['ResNameType']       = ( typeval, prettytype )
+                drtype['OffsetToData']      = ( resource_type.struct.OffsetToData, lambda: fmthextxt(resource_type.struct.OffsetToData) )
+                drtype['EntriesByNameId']   = ( {}, None )
+
+                res_types_count[prettytype] = 0
+
+                for resource_id in resource_type.directory.entries:         # Name/Id Directory
+                    res_types_count[prettytype] += 1
+                    ridoff  = resource_id.struct.get_file_offset()
+                    drid    = drtype['EntriesByNameId'][0][ridoff] = {}
+                    drid['ResId']           = ( resource_id.struct.Id, None )
+                    drid['OffsetToData']    = ( resource_id.struct.OffsetToData, lambda: fmthextxt(resource_id.struct.OffsetToData) )
+                    drid['EntriesByLang']   = ( {}, None )
+                    if hasattr(resource_id, 'directory'):
+                        for lang in resource_id.directory.entries:          # Lang Directory
+                                if hasattr(lang, 'data'):
+                                    #REF: https://msdn.microsoft.com/en-us/library/windows/desktop/dd373908(v=vs.85).aspx
+                                    langid = (lang.data.sublang << 10) | lang.data.lang
+                                    langenum = pefile.LANG.get(lang.data.lang, '*unknown*')
+                                    sublangenum = pefile.get_sublang_name_for_lang(lang.data.lang, lang.data.sublang)
+                                    #if langenum == '*unknown*' or sublangenum  == '*unknown*':
+                                    #    l.warn('Unknown resource language ID: ', langid)
+
+                                    prettylang = '''LangId: {:#06x}\n  Lang: {} ({:#04x})\n  Sublang: {} ({:#02x})'''.format(langid,
+                                                                                                                         langenum,
+                                                                                                                         lang.data.lang,
+                                                                                                                         sublangenum,
+                                                                                                                         lang.data.sublang)
+                                    drid['EntriesByLang'][0][langid] = ( 'lang', prettylang )
+
+                                    dlen = lang.data.struct.Size
+                                    data = obj._pe.get_data(lang.data.struct.OffsetToData, dlen)
+                                    #datapreview = fmthexbytestr(data[:20])
+                                    #datapreviewbytelen = (len(datapreview) + 1) / 3 # Last byte doesn't have ':'. Pretend it does and every 1 byte is '%d%d:'
+                                    #print 'Got %s\n--strlen: %d\n--bytelen: %d' % (datapreview, len(datapreview), datapreviewbytelen)
+                                    #drid['Data'] = ( data, 'First %d bytes: %s' % (datapreviewbytelen, datapreview) )
+                                    drid['Data'] = ( data, lambda: fmtdatapreview(data[:20]) )
+                                    drid['DataLen'] = ( dlen, None )
+
+                        if hasattr(resource_id.directory, 'strings') and resource_id.directory.strings:
+                            strs    = {}
+                            pstrs   = ''
+                            for off,s in resource_id.directory.strings.items():
+                                strs[off] = s
+                                pstrs += (s + '\n')
+                            #print 'Got strings:---\n%s\n---' % pstrs
+                            drid['Strings'] = ( strs, pstrs )
+            else:
+                #l.warn(
+                print 'No subdirectories found'
+
+        if pretty:
+            print make_me_pretty(der)
+
+        return der
 
 register_analysis(Static, 'Static')
