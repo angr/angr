@@ -12,6 +12,7 @@ from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeG
 from ..calling_conventions import SimRegArg, SimStackArg
 from ..engines.light import SimEngineLightVEX, SimEngineLightAIL, SpOffset, RegisterOffset
 from ..engines.vex.irop import operations as vex_operations
+from ..errors import SimEngineError
 from ..keyed_region import KeyedRegion
 from .code_location import CodeLocation
 
@@ -514,7 +515,11 @@ def get_engine(base_engine):
         def process(self, state, *args, **kwargs):
             # we are using a completely different state. Therefore, we directly call our _process() method before
             # SimEngine becomes flexible enough.
-            self._process(state, None, block=kwargs.pop('block', None))
+            try:
+                self._process(state, None, block=kwargs.pop('block', None))
+            except SimEngineError as e:
+                if kwargs.pop('fail_fast', False) is True:
+                    raise e
             return self.state
 
         #
@@ -1204,7 +1209,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
             engine = self._engine_vex
 
         state = state.copy()
-        state = engine.process(state, block=block)
+        state = engine.process(state, block=block, fail_fast=self._fail_fast)
 
         # clear the tmp store
         # state.tmp_uses.clear()

@@ -5,9 +5,10 @@ from collections import defaultdict
 import ailment
 
 from .. import Analysis
-from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 from ..code_location import CodeLocation
+from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 from ...engines.light import SpOffset, SimEngineLightVEX, SimEngineLightAIL
+from ...errors import SimEngineError
 from ...keyed_region import KeyedRegion
 from ...sim_variable import SimStackVariable, SimRegisterVariable
 
@@ -61,6 +62,15 @@ def get_engine(base_engine):
             if self.state is None:
                 return None
             return self.state.function.addr
+
+        def process(self, state, *args, **kwargs):
+            # we are using a completely different state. Therefore, we directly call our _process() method before
+            # SimEngine becomes flexible enough.
+            try:
+                self._process(state, None, block=kwargs.pop('block', None))
+            except SimEngineError as e:
+                if kwargs.pop('fail_fast', False) is True:
+                    raise e
 
         def _process(self, state, successors,
                      block=None, func_addr=None):
@@ -599,7 +609,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         l.debug('Processing block %#x.', block.addr)
 
         processor = self._ail_engine if isinstance(block, ailment.Block) else self._vex_engine
-        processor.process(state, block=block)
+        processor.process(state, block=block, fail_fast=self._fail_fast)
 
     def _make_phi_node(self, block_addr, *variables):
 
