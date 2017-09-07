@@ -739,6 +739,8 @@ class SimWindows(SimOS):
         self._exception_handler = None
         self.fmode_ptr = None
         self.commode_ptr = None
+        self.acmdln_ptr = None
+        self.wcmdln_ptr = None
 
     def configure_project(self):
         super(SimWindows, self).configure_project()
@@ -753,6 +755,8 @@ class SimWindows(SimOS):
 
         self.fmode_ptr = self._find_or_make('_fmode')
         self.commode_ptr = self._find_or_make('_commode')
+        self.acmdln_ptr = self._find_or_make('_acmdln')
+        self.wcmdln_ptr = self._find_or_make('_wcmdln')
 
     def _find_or_make(self, name):
         sym = self.project.loader.find_symbol(name)
@@ -779,9 +783,44 @@ class SimWindows(SimOS):
         table.append_args(args)
         table.append_env(env)
 
+        # calculate full command line, since this is windows and that's how everything works
+        cmdline = claripy.BVV(0, 0)
+        for arg in args:
+            if cmdline.length != 0:
+                cmdline = cmdline.concat(claripy.BVV(' '))
+
+            if type(arg) is str:
+                if '"' in arg or '\0' in arg:
+                    raise AngrSimOSError("Can't handle windows args with quotes or nulls in them")
+                arg = claripy.BVV(arg)
+            elif isinstance(arg, claripy.BV):
+                for byte in arg.chop(8):
+                    state.solver.add(byte != claripy.BVV('"'))
+                    state.solver.add(byte != claripy.BVV(0, 8))
+            else:
+                raise TypeError("Argument must be str or bitvector")
+
+            cmdline = cmdline.concat(claripy.BVV('"'), arg, claripy.BVV('"'))
+        cmdline = cmdline.concat(claripy.BVV(0, 8))
+        wcmdline = claripy.Concat(*(x.concat(0, 8) for x in cmdline.chop(8)))
+
+        if not state.satisfiable():
+            raise AngrSimOSError("Can't handle windows args with quotes or nulls in them")
+
         # Dump the table onto the stack, calculate pointers to args, env
-        state.memory.store(state.regs.sp - 16, claripy.BVV(0, 8*16))
-        argv = table.dump(state, state.regs.sp - 16)
+        stack_ptr = state.regs.sp
+        stack_ptr -= 16
+        state.memory.store(stack_ptr, claripy.BVV(0, 8*16))
+
+        stack_ptr -= cmdline.length / 8
+        state.memory.store(stack_ptr, cmdline)
+        state.mem[self.acmdln_ptr].long = stack_ptr
+
+        stack_ptr -= wcmdline.length / 8
+        state.memory.store(stack_ptr, wcmdline)
+        state.mem[self.wcmdln_ptr].long = stack_ptr
+
+        argv = table.dump(state, stack_ptr)
         envp = argv + ((len(args) + 1) * state.arch.bytes)
 
         # Put argc on stack and fix the stack pointer
