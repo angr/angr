@@ -19,7 +19,7 @@ class LabelsPlugin(KnowledgeBasePlugin):
 
     _default_ns_name = ''
 
-    def __init__(self, kb):
+    def __init__(self):
         super(KnowledgeBasePlugin, self).__init__()
 
         self._namespaces = {}
@@ -27,7 +27,7 @@ class LabelsPlugin(KnowledgeBasePlugin):
         self.add_namespace(self._default_ns_name)
 
     def copy(self):
-        o = LabelsPlugin(None)
+        o = LabelsPlugin()
         o._namespaces = {k: v.copy() for k, v in self._namespaces.iteritems()}
         o._default_ns = self._default_ns
         return o

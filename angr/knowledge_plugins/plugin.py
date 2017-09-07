@@ -3,6 +3,9 @@ default_plugins = {}
 
 class KnowledgeBasePlugin(object):
 
+    def __init__(self):
+        self.kb = None
+
     def copy(self):
         raise NotImplementedError
 
