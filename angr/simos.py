@@ -750,8 +750,8 @@ class SimWindows(SimOS):
         self._weak_hook_symbol('LoadLibraryA', L['kernel32.dll'].get('LoadLibraryA', self.arch))
         self._weak_hook_symbol('LoadLibraryExW', L['kernel32.dll'].get('LoadLibraryExW', self.arch))
 
-        self._exception_handler = self.project.loader.extern_object.allocate()
-        self.project.hook(self._exception_handler, P['ntdll']['KiUserExceptionDispatcher'](library_name='ntdll.dll'))
+        self._exception_handler = self._find_or_make('KiUserExceptionDispatcher')
+        self.project.hook(self._exception_handler, L['ntdll.dll'].get('KiUserExceptionDispatcher', self.arch), replace=True)
 
         self.fmode_ptr = self._find_or_make('_fmode')
         self.commode_ptr = self._find_or_make('_commode')
