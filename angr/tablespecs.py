@@ -1,20 +1,5 @@
 import claripy
 
-class StringSpec(object):
-    def __new__(cls, string=None, sym_length=None, concat=None, name=None, nonnull=False):
-        print 'StringSpec is deprecated! Please use raw claripy ASTs or else face my wrath.'
-        if nonnull:
-            print 'Additional deprecation warning: nonnull completely doesn\'t work in our hacked up support shint for StringSpec. Please just fix your code. Please.'
-
-        if string is not None:
-            return StringTableSpec.string_to_ast(string)
-        if sym_length is not None:
-            if name is None:
-                name = 'stringspec_sym_%d' % sym_length
-            return claripy.BVS(name, sym_length * 8)
-        if concat is not None:
-            return claripy.Concat(*concat)
-
 class StringTableSpec(object):
     @staticmethod
     def string_to_ast(string):
