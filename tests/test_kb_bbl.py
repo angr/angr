@@ -15,15 +15,14 @@ def test_trim():
     p = angr.Project(location + "/cgc/stuff", auto_load_libs=False)
     cfg = p.analyses.CFGFast()
 
-    with dbg.traced():
-        basic_blocks = p.kb.basic_blocks
-        for node in cfg.nodes():
-            if node.size > 0:
-                # ...we should be able to clean up the CFGNode here in order to save memory
-                basic_blocks.add_block(node.addr, node.size, None)
-                if node.addr == 0x80480dc:
-                    this_block = basic_blocks.get_block(0x80480d3)
-                    nose.tools.assert_equal(this_block.size, 9)
+    basic_blocks = p.kb.basic_blocks
+    for node in cfg.nodes():
+        if node.size > 0:
+            # ...we should be able to clean up the CFGNode here in order to save memory
+            basic_blocks.add_block(node.addr, node.size, None)
+            if node.addr == 0x80480dc:
+                this_block = basic_blocks.get_block(0x80480d3)
+                nose.tools.assert_equal(this_block.size, 9)
 
 
 def test_handle():
@@ -37,35 +36,33 @@ def test_handle():
     p = angr.Project(location + "/cgc/stuff", auto_load_libs=False)
     cfg = p.analyses.CFGFast()
 
-    with dbg.traced():
-        basic_blocks = p.kb.basic_blocks
-        for node in cfg.nodes():
-            if node.size > 0:
-                # ...we should be able to clean up the CFGNode here in order to save memory
-                basic_blocks.add_block(node.addr, node.size, None,
-                                       overlap_mode='handle', overlap_handler=_ovarlap_handler,
-                                       node_addr=node.addr)
-                if node.addr == 0x80480dc:
-                    this_block = basic_blocks.get_block(0x80480d3)
-                    nose.tools.assert_equal(this_block.size, 9)
+    basic_blocks = p.kb.basic_blocks
+    for node in cfg.nodes():
+        if node.size > 0:
+            # ...we should be able to clean up the CFGNode here in order to save memory
+            basic_blocks.add_block(node.addr, node.size, None,
+                                   overlap_mode='handle', overlap_handler=_ovarlap_handler,
+                                   node_addr=node.addr)
+            if node.addr == 0x80480dc:
+                this_block = basic_blocks.get_block(0x80480d3)
+                nose.tools.assert_equal(this_block.size, 9)
 
 
 def test_raise():
     p = angr.Project(location + "/cgc/stuff", auto_load_libs=False)
     cfg = p.analyses.CFGFast()
 
-    with dbg.traced():
-        basic_blocks = p.kb.basic_blocks
-        for node in cfg.nodes():
-            if node.size > 0:
-                # ...we should be able to clean up the CFGNode here in order to save memory
-                if node.addr == 0x80480dc:
-                    nose.tools.assert_raises(angr.knowledge_plugins.basic_blocks.OverlappedBlocks,
-                                             basic_blocks.add_block, node.addr, node.size,
-                                             None, overlap_mode='raise')
-                    l.info("OverlappedBlocks has been caught!")
-                else:
-                    basic_blocks.add_block(node.addr, node.size, None)
+    basic_blocks = p.kb.basic_blocks
+    for node in cfg.nodes():
+        if node.size > 0:
+            # ...we should be able to clean up the CFGNode here in order to save memory
+            if node.addr == 0x80480dc:
+                nose.tools.assert_raises(angr.knowledge_plugins.basic_blocks.OverlappedBlocks,
+                                         basic_blocks.add_block, node.addr, node.size,
+                                         None, overlap_mode='raise')
+                l.info("OverlappedBlocks has been caught!")
+            else:
+                basic_blocks.add_block(node.addr, node.size, None)
 
 
 if __name__ == '__main__':
