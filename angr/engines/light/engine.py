@@ -7,13 +7,13 @@ from ..engine import SimEngine
 from ..vex.irop import operations as vex_operations
 from ...analyses.code_location import CodeLocation
 
-l = logging.getLogger("angr.engines.light.engine")
 
 
 class SimEngineLight(SimEngine):
     def __init__(self, engine_type='vex'):
         super(SimEngineLight, self).__init__()
 
+        self.l = logging.getLogger(self.__module__ + "." + self.__class__.__name__)
         self.engine_type = engine_type
 
         # local variables
@@ -90,7 +90,7 @@ class SimEngineLightVEX(SimEngineLight):
         if hasattr(self, handler):
             getattr(self, handler)(stmt)
         else:
-            l.error('Unsupported statement type %s.', type(stmt).__name__)
+            self.l.error('Unsupported statement type %s.', type(stmt).__name__)
 
     # synchronize with function _handle_WrTmpData()
     def _handle_WrTmp(self, stmt):
@@ -122,7 +122,7 @@ class SimEngineLightVEX(SimEngineLight):
         if hasattr(self, handler):
             return getattr(self, handler)(expr)
         else:
-            l.error('Unsupported expression type %s.', type(expr).__name__)
+            self.l.error('Unsupported expression type %s.', type(expr).__name__)
         return None
 
     def _handle_RdTmp(self, expr):
@@ -145,7 +145,7 @@ class SimEngineLightVEX(SimEngineLight):
         elif expr.op.startswith('Iop_Not1'):
             return self._handle_Not1(expr)
         else:
-            l.error('Unsupported Unop %s.', expr.op)
+            self.l.error('Unsupported Unop %s.', expr.op)
 
         return None
 
@@ -180,12 +180,12 @@ class SimEngineLightVEX(SimEngineLight):
         elif expr.op.startswith('Const'):
             return self._handle_Const(expr)
         else:
-            l.error('Unsupported Binop %s.', expr.op)
+            self.l.error('Unsupported Binop %s.', expr.op)
 
         return None
 
     def _handle_CCall(self, expr):
-        l.error('Unsupported expression type CCall with callee %s.' % str(expr.cee))
+        self.l.error('Unsupported expression type CCall with callee %s.' % str(expr.cee))
         return None
 
     #
@@ -193,7 +193,7 @@ class SimEngineLightVEX(SimEngineLight):
     #
 
     def _handle_Conversion(self, expr):
-        l.error('Unsupported Unop Conversion.')
+        self.l.error('Unsupported Unop Conversion.')
         return None
 
     def _handle_Not1(self, expr):
@@ -203,7 +203,7 @@ class SimEngineLightVEX(SimEngineLight):
             return None
 
         if not isinstance(expr_0, (int, long)):
-            l.warning('Comparison of multiple values / different types: \'%s\'.', type(expr_0).__name__)
+            self.l.warning('Comparison of multiple values / different types: \'%s\'.', type(expr_0).__name__)
 
         return expr_0 != 1
 
@@ -223,7 +223,7 @@ class SimEngineLightVEX(SimEngineLight):
         try:
             return expr_0 & expr_1
         except TypeError as e:
-            l.warning(e)
+            self.l.warning(e)
             return None
 
     def _handle_Or(self, expr):
@@ -238,7 +238,7 @@ class SimEngineLightVEX(SimEngineLight):
         try:
             return expr_0 | expr_1
         except TypeError as e:
-            l.warning(e)
+            self.l.warning(e)
             return None
 
     def _handle_Add(self, expr):
@@ -258,7 +258,7 @@ class SimEngineLightVEX(SimEngineLight):
             else:
                 return expr_0 + expr_1
         except TypeError as e:
-            l.warning(e)
+            self.l.warning(e)
             return None
 
     def _handle_Sub(self, expr):
@@ -278,7 +278,7 @@ class SimEngineLightVEX(SimEngineLight):
             else:
                 return expr_0 - expr_1
         except TypeError as e:
-            l.warning(e)
+            self.l.warning(e)
             return None
 
     def _handle_Xor(self, expr):
@@ -313,7 +313,7 @@ class SimEngineLightVEX(SimEngineLight):
             else:
                 return expr_0 << expr_1
         except TypeError as e:
-            l.warning(e)
+            self.l.warning(e)
             return None
 
     def _handle_Shr(self, expr):
@@ -328,11 +328,11 @@ class SimEngineLightVEX(SimEngineLight):
         try:
             return expr_0 >> expr_1
         except TypeError as e:
-            l.warning(e)
+            self.l.warning(e)
             return None
 
     def _handle_Sar(self, expr):
-        l.error('Unsupported Binop Sar.')
+        self.l.error('Unsupported Binop Sar.')
         return None
 
     def _handle_CmpEQ(self, expr):
@@ -367,7 +367,7 @@ class SimEngineLightVEX(SimEngineLight):
             return None
 
         if not isinstance(expr_0, (int, long)) or not isinstance(expr_1, (int, long)):
-            l.warning('Comparison of multiple values / different types: \'%s\' and \'%s\'.', type(expr_0).__name__,
+            self.l.warning('Comparison of multiple values / different types: \'%s\' and \'%s\'.', type(expr_0).__name__,
                       type(expr_1).__name__)
 
         return expr_0 < expr_1
@@ -393,7 +393,7 @@ class SimEngineLightVEX(SimEngineLight):
         return expr.con.value
 
     def _handle_function(self):
-        l.warning('Function handler not implemented.')
+        self.l.warning('Function handler not implemented.')
 
 
 class SimEngineLightAIL(SimEngineLight):
@@ -425,7 +425,7 @@ class SimEngineLightAIL(SimEngineLight):
         handler = "_ail_handle_%s" % type(expr).__name__
         if hasattr(self, handler):
             return getattr(self, handler)(expr)
-        l.warning('Unsupported expression type %s.', type(expr).__name__)
+        self.l.warning('Unsupported expression type %s.', type(expr).__name__)
         return None
 
     #
@@ -444,7 +444,7 @@ class SimEngineLightAIL(SimEngineLight):
         if hasattr(self, handler):
             getattr(self, handler)(stmt)
         else:
-            l.warning('Unsupported statement type %s.', type(stmt).__name__)
+            self.l.warning('Unsupported statement type %s.', type(stmt).__name__)
 
     def _ail_handle_Jump(self, stmt):
         raise NotImplementedError('Please implement the Jump handler with your own logic.')
@@ -475,7 +475,7 @@ class SimEngineLightAIL(SimEngineLight):
         try:
             handler = getattr(self, handler_name)
         except AttributeError:
-            l.warning('Unsupported UnaryOp %s.', expr.op)
+            self.l.warning('Unsupported UnaryOp %s.', expr.op)
             return None
 
         return handler(expr)
@@ -485,7 +485,7 @@ class SimEngineLightAIL(SimEngineLight):
         try:
             handler = getattr(self, handler_name)
         except AttributeError:
-            l.warning('Unsupported BinaryOp %s.', expr.op)
+            self.l.warning('Unsupported BinaryOp %s.', expr.op)
             return None
 
         return handler(expr)
