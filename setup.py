@@ -116,7 +116,8 @@ setup(
         'claripy>=7.0.0.0rc1',
         'cle>=7.0.0.0rc1',
         'pyvex>=7.0.0.0rc1',
-        'pkg_resources'
+        'pkg_resources',
+        'pygit'
     ],
     setup_requires=['unicorn', 'pyvex'],
     cmdclass=cmdclass,
