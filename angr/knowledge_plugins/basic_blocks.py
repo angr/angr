@@ -4,7 +4,6 @@ from ..errors import AngrError
 from .plugin import KnowledgeBasePlugin
 
 import logging
-
 l = logging.getLogger("angr.knowledge.basic_blocks")
 
 
