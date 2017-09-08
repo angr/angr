@@ -14,13 +14,14 @@ class LoadLibraryA(angr.SimProcedure):
             lib += '.dll'
         loaded = self.project.loader.dynamic_load(lib)
         if loaded is None:
+            l.debug("LoadLibrary: Could not load %s", lib)
             return 0
 
         # Add simprocedures
         for obj in loaded:
             self.register(obj)
 
-        l.debug("Loaded %s", lib)
+        l.debug("LoadLibrary: Loaded %s", lib)
         return self.project.loader.find_object(lib).mapped_base
 
     def register(self, obj): # can be overridden for instrumentation
@@ -84,7 +85,7 @@ class GetProcAddress(angr.SimProcedure):
         full_name = '%s.%s' % (obj.provides, name)
         self.procs.add(full_name)
 
-        l.debug("Imported %s (%#x) from %s", name, sym.rebased_addr, obj.provides)
+        l.debug("GetProcAddress: Imported %s (%#x) from %s", name, sym.rebased_addr, obj.provides)
         return sym.rebased_addr
 
     KEY = 'dynamically_loaded_procedures'
