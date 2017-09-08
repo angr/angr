@@ -3,9 +3,9 @@ import logging
 
 import networkx
 
-from . import Analysis, register_analysis
-from ..codenode import BlockNode
-from .calling_convention import CallingConventionAnalysis
+from .. import Analysis, register_analysis
+from ...codenode import BlockNode
+from ..calling_convention import CallingConventionAnalysis
 
 import ailment
 import ailment.analyses
