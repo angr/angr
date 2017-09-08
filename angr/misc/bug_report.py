@@ -42,6 +42,8 @@ def print_versions():
         except ImportError:
             print("Python could not find " + m)
             continue
+        except Exception, e:
+            print("An error occured importing %s: %s" % (m, e.message))
         print("Python found it in %s" % (python_filename))
         try:
             pip_version = pkg_resources.get_distribution(m)
