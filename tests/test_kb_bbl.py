@@ -3,8 +3,6 @@ import functools
 import nose
 import angr
 import networkx
-import easydbg
-dbg = easydbg.use_debugger('pydevd')
 
 import logging
 l = logging.getLogger('angr.tests.test_kb_bbl')
