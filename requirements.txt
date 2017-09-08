@@ -14,3 +14,4 @@ progressbar
 pyvex
 rpyc
 unicorn
+pygit
