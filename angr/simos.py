@@ -58,17 +58,9 @@ class SimOS(object):
     A class describing OS/arch-level configuration.
     """
 
-    def __init__(self, project, name=None, disable_externs=False):
-        """
-        Constructor for a SimOS.
-        :param project:
-        :param name:
-        :param disable_externs: Disables support for externs.  You may want this if you're in a small memory space and
-        just don't have any externs anyway (e.g., microcontrollers)
-        """
+    def __init__(self, project, name=None):
         self.arch = project.arch
         self.project = project
-        self.disable_externs = disable_externs
         self.name = name
         self.return_deadend = None
 
@@ -76,9 +68,8 @@ class SimOS(object):
         """
         Configure the project to set up global settings (like SimProcedures).
         """
-        if not self.disable_externs:
-            self.return_deadend = self.project.loader.extern_object.allocate()
-            self.project.hook(self.return_deadend, P['stubs']['CallReturn']())
+        self.return_deadend = self.project.loader.extern_object.allocate()
+        self.project.hook(self.return_deadend, P['stubs']['CallReturn']())
 
         def irelative_resolver(resolver_addr):
             # autohooking runs before this does, might have provided this already
