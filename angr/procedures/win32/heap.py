@@ -20,3 +20,7 @@ class HeapAlloc(angr.SimProcedure):
         addr = self.state.libc.heap_location
         self.state.libc.heap_location += size
         return addr
+
+class GlobalAlloc(HeapAlloc):
+    def run(self, Flags, Size):
+        return super(GlobalAlloc, self).run(1, Flags, Size)

@@ -8,6 +8,7 @@ lib.add_all_from_dict(P['win32'])
 lib.set_default_cc('X86', SimCCStdcall)
 
 lib.add_alias('EncodePointer', 'DecodePointer')
+lib.add_alias('GlobalAlloc', 'LocalAlloc')
 
 lib.add('lstrcatA', P['libc']['strcat'])
 lib.add('lstrcmpA', P['libc']['strcmp'])
