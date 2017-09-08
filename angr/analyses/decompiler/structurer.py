@@ -6,8 +6,8 @@ import networkx
 import claripy
 import ailment
 
-from ..block import Block, BlockNode
-from . import Analysis, register_analysis
+from ...block import Block, BlockNode
+from .. import Analysis, register_analysis
 from .region_identifier import RegionIdentifier, MultiNode, GraphRegion
 
 l = logging.getLogger('angr.analyses.structurer')

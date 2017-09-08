@@ -1,7 +1,7 @@
 
 from ailment import Block
 
-from . import Analysis, register_analysis
+from .. import Analysis, register_analysis
 from .region_identifier import MultiNode
 from .structurer import SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode
 

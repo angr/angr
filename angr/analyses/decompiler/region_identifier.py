@@ -3,8 +3,8 @@ import logging
 
 import networkx
 
-from . import Analysis, register_analysis
-from ..misc.graph import dfs_back_edges
+from .. import Analysis, register_analysis
+from ...misc.graph import dfs_back_edges
 
 l = logging.getLogger('angr.analyses.region_identifier')
 

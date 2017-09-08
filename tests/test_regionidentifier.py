@@ -4,7 +4,7 @@ import os
 import nose.tools
 
 import angr
-
+import angr.analyses.decompiler
 
 def test_smoketest():
 
