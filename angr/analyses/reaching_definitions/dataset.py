@@ -18,9 +18,7 @@ class DataSet(object):
     undefined = Undefined()
 
     def __init__(self, data, bits):
-        assert type(data) is set
-        assert len(data) >= 1
-        self.data = data
+        self.data = data if type(data) is set else { data }
         self._bits = bits
         self._mask = (1 << bits) - 1
 
