@@ -3,8 +3,8 @@ from .plugin import KnowledgeBasePlugin
 
 class Comments(KnowledgeBasePlugin, dict):
 
-    def __init__(self):
-        super(Comments, self).__init__()
+    def __init__(self, kb=None):
+        super(Comments, self).__init__(kb)
 
     def copy(self):
         o = Comments()

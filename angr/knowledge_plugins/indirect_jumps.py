@@ -3,8 +3,8 @@ from .plugin import KnowledgeBasePlugin
 
 class IndirectJumps(KnowledgeBasePlugin, dict):
 
-    def __init__(self):
-        super(IndirectJumps, self).__init__()
+    def __init__(self, kb=None):
+        super(IndirectJumps, self).__init__(kb)
         self.resolved = set()
         self.unresolved = set()
 

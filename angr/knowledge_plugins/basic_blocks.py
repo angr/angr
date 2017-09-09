@@ -12,8 +12,8 @@ class BasicBlocksPlugin(KnowledgeBasePlugin):
     Storage for information about the boundaries of basic blocks. Access as kb.basic_blocks.
     """
 
-    def __init__(self):
-        super(KnowledgeBasePlugin, self).__init__()
+    def __init__(self, kb=None):
+        super(BasicBlocksPlugin, self).__init__(kb)
         self._blocks = BlockMapping()
 
     def __setitem__(self, key, value):

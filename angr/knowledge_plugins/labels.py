@@ -19,8 +19,8 @@ class LabelsPlugin(KnowledgeBasePlugin):
 
     _default_ns_name = ''
 
-    def __init__(self):
-        super(KnowledgeBasePlugin, self).__init__()
+    def __init__(self, kb=None):
+        super(LabelsPlugin, self).__init__(kb)
 
         self._namespaces = {}
         self._default_ns = self._default_ns_name

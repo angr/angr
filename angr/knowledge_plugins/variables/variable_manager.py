@@ -288,8 +288,8 @@ class VariableManager(KnowledgeBasePlugin):
     """
     Manage variables.
     """
-    def __init__(self):
-        super(VariableManager, self).__init__()
+    def __init__(self, kb=None):
+        super(VariableManager, self).__init__(kb)
         self.global_manager = VariableManagerInternal(self)
         self.function_managers = { }
 

@@ -60,16 +60,13 @@ class KnowledgeBase(object):
 
     def get_plugin(self, name):
         if name not in self._plugins:
-            p = default_plugins[name]()
-            p.kb = self
-            self.register_plugin(name, p)
-            return p
+            plugin_cls = default_plugins[name]
+            plugin = plugin_cls(kb=self)
+            self.register_plugin(name, plugin)
         return self._plugins[name]
 
-    def register_plugin(self, name, plugin, set_kb=True):
+    def register_plugin(self, name, plugin):
         self._plugins[name] = plugin
-        if set_kb:
-            plugin.kb = self
         return plugin
 
     def release_plugin(self, name):

@@ -20,8 +20,8 @@ class TransitionsPlugin(KnowledgeBasePlugin):
         - fakeret       -> Ijk_FakeRet
     """
 
-    def __init__(self):
-        super(TransitionsPlugin, self).__init__()
+    def __init__(self, kb=None):
+        super(TransitionsPlugin, self).__init__(kb)
         self._graph = nx.MultiDiGraph()
 
     def add_transition(self, from_addr, to_addr, jumpkind, ins_addr=None, stmt_idx=None, outside=None):

@@ -52,8 +52,8 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
     This is a function boundaries management tool. It takes in intermediate
     results during CFG generation, and manages a function map of the binary.
     """
-    def __init__(self, kb):
-        super(FunctionManager, self).__init__()
+    def __init__(self, kb=None):
+        super(FunctionManager, self).__init__(kb)
         self._kb = kb
         self._function_map = FunctionDict(self)
         self.callgraph = networkx.MultiDiGraph()
