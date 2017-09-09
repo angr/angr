@@ -309,7 +309,7 @@ class SimUserland(SimOS):
         This procedure will have .syscall_number, .display_name, and .addr set.
 
         :param state:               The state to get the syscall number from
-        :param allow_unsupported    Whether to return a "dummy" sycall instead of raising an unsupported exception
+        :param allow_unsupported:   Whether to return a "dummy" sycall instead of raising an unsupported exception
         """
         if state.os_name in SYSCALL_CC[state.arch.name]:
             cc = SYSCALL_CC[state.arch.name][state.os_name](state.arch)
