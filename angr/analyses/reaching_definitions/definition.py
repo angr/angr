@@ -5,10 +5,14 @@ from .dataset import DataSet
 
 class Definition(object):
     def __init__(self, atom, codeloc, data):
-        assert type(data) is DataSet
+
         self.atom = atom
         self.codeloc = codeloc
         self.data = data
+
+        # convert everything into a DataSet
+        if not isinstance(self.data, DataSet):
+            self.data = DataSet(self.data, self.data.bits)
 
     def __eq__(self, other):
         return self.atom == other.atom and self.codeloc == other.codeloc and self.data == other.data
