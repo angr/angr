@@ -128,7 +128,7 @@ class ReachingDefinitions(object):
     def downsize(self):
         self.analysis = None
 
-    def kill_definitions(self, atom, code_loc, data):
+    def kill_definitions(self, atom, code_loc, data=None):
         """
         Overwrite existing definitions w.r.t 'atom' with a dummy definition instance.
 
@@ -137,6 +137,9 @@ class ReachingDefinitions(object):
         :param object data:
         :return: None
         """
+
+        if data is None:
+            data = DataSet(DataSet.undefined, 8)
 
         self.kill_and_add_definition(atom, code_loc, data)
 
