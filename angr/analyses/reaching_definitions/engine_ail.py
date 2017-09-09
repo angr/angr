@@ -61,13 +61,16 @@ class SimEngineRDAIL(SimEngineLightAIL):
         src = self._expr(stmt.src)
         dst = stmt.dst
 
+        if src is None:
+            src = DataSet(DataSet.undefined, dst.bits)
+
         if type(dst) is ailment.Tmp:
-            self.state.kill_and_add_definition(Tmp(dst.tmp_idx), self._codeloc(), data=src)
+            self.state.kill_and_add_definition(Tmp(dst.tmp_idx), self._codeloc(), src)
             self.tmps[dst.tmp_idx] = src
 
         elif type(dst) is ailment.Register:
             reg = Register(dst.reg_offset, dst.bits / 8)
-            self.state.kill_and_add_definition(reg, self._codeloc(), data=src)
+            self.state.kill_and_add_definition(reg, self._codeloc(), src)
 
         else:
             l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
@@ -86,7 +89,7 @@ class SimEngineRDAIL(SimEngineLightAIL):
         false_target = self._expr(stmt.false_target)
 
         ip = Register(self.arch.ip_offset, self.arch.bits / 8)
-        self.state.kill_definitions(ip, self._codeloc())
+        self.state.kill_definitions(ip, self._codeloc(), )
 
         # kill all cc_ops
         # TODO: make it architecture agnostic
@@ -161,7 +164,6 @@ class SimEngineRDAIL(SimEngineLightAIL):
                     l.warning('Data in register <%s> is undefined at %#x.',
                               self.arch.register_names[reg_offset], self.ins_addr
                               )
-            data = data.compact()
             return data
         except KeyError:
             return RegisterOffset(bits, reg_offset, 0)
