@@ -216,6 +216,11 @@ class SimOS(object):
 
         return state
 
+    def state_tracer(self, stdin_content=None, flag_content=None, **kwargs):
+        e_msg = "State configuration for tracer depends heavily on the platform. "
+        e_msg += "Please implement it in SimOS's subclass."
+        raise NotImplementedError(e_msg)
+
     def prepare_call_state(self, calling_state, initial_state=None,
                            preserve_registers=(), preserve_memory=()):
         """
@@ -585,6 +590,9 @@ class SimLinux(SimUserland):
         kwargs['addr'] = self._loader_addr
         return super(SimLinux, self).state_full_init(**kwargs)
 
+    def state_tracer(self, stdin_content=None, flag_content=None, **kwargs):
+        pass
+
     def prepare_function_symbol(self, symbol_name, basic_addr=None):
         """
         Prepare the address space with the data necessary to perform relocations pointing to the given symbol.
@@ -728,6 +736,9 @@ class SimCGC(SimUserland):
             state.regs.cs = 0
 
         return state
+
+    def state_tracer(self, stdin_content=None, flag_content=None, **kwargs):
+        pass
 
 class SimWindows(SimOS):
     """
@@ -967,6 +978,9 @@ class SimWindows(SimOS):
             link_list(init_order, 16)
 
         return state
+
+    def state_tracer(self, stdin_content=None, flag_content=None, **kwargs):
+        raise TracerEnvironmentError("Tracer currently only supports CGC and Unix.") 
 
     def handle_exception(self, successors, engine, exc_type, exc_value, exc_traceback):
         # don't bother handling non-vex exceptions

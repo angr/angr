@@ -71,6 +71,12 @@ def test_crash_addr_detection():
 
     nose.tools.assert_true(crash_state.se.symbolic(crash_state.regs.ip))
 
+def test_fauxware():
+    t = tracer.Tracer(os.path.join(bin_location, "tests/x86_64/fauxware"), "A"*500)
+#   t = tracer.Tracer(os.path.join(bin_location, "tests/x86_64/fauxware"), "A")
+    state, _ = t.run()
+    print state, state.se.constraints
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))

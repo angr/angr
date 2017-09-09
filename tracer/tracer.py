@@ -328,7 +328,10 @@ class Tracer(object):
             if self.trim_history and not self.crash_mode:
                 current.history.trim()
 
-            self.simgr.step(size=bbl_max_bytes)
+           #import ipdb; ipdb.set_trace()
+            self.simgr = self.simgr.step(size=bbl_max_bytes)
+           #self.simgr.step(size=bbl_max_bytes)
+           #print self.bb_cnt, self.simgr.active, hex(self.trace[self.bb_cnt])
 
             if self.crash_type == EXEC_STACK:
                 self.simgr.stash(from_stash='active', to_stash='crashed')
@@ -998,7 +1001,8 @@ class Tracer(object):
 
         self.remove_options |= so.simplification | {so.EFFICIENT_STATE_MERGING}
         self.add_options |= options
-        entry_state = project.factory.full_init_state(
+        entry_state = project.factory.entry_state(
+#       entry_state = project.factory.full_init_state(
                 fs=fs,
                 concrete_fs=True,
                 chroot=self.chroot,
