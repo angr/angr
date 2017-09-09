@@ -4,7 +4,7 @@ bintrees
 cachetools
 capstone
 claripy>=7.7.9.8
-cle>=7.7.9.8
+cle>=7.7.9.8.post1
 cooldict
 dpkt-fix
 futures

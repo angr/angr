@@ -94,7 +94,7 @@ if 'bdist_wheel' in sys.argv and '--plat-name' not in sys.argv:
 
 setup(
     name='angr',
-    version='7.7.9.8',
+    version='7.7.9.8.post1',
     description='The next-generation binary analysis/exploitation/rewriting/craziness framework!',
     url='https://github.com/angr/angr',
     packages=packages,
@@ -114,7 +114,7 @@ setup(
         'unicorn',
         'archinfo>=7.7.9.8',
         'claripy>=7.7.9.8',
-        'cle>=7.7.9.8',
+        'cle>=7.7.9.8.post1',
         'pyvex>=7.7.9.8',
         'pygit',
     ],
