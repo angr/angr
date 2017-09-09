@@ -1,3 +1,4 @@
+from binascii import hexlify
 from rangedict import RangeDict, RangeItem
 
 from ..errors import AngrError
@@ -52,7 +53,7 @@ class BasicBlocksPlugin(KnowledgeBasePlugin):
     #   ...
     #
 
-    def add_block(self, addr, size, irsb, overlap_mode='trim', overlap_handler=None, **handler_kwargs):
+    def add_block(self, addr, insn_bytes, overlap_mode='trim', overlap_handler=None, **handler_kwargs):
         """Add a new block to the block map.
         
         In case a new block has intersected with any existing one, handle the intersction in a way
@@ -67,18 +68,17 @@ class BasicBlocksPlugin(KnowledgeBasePlugin):
             - If `overlap_mode` is set to 'raise', raise an `OverlappedBlock` exception.
         
         :param addr:            The address of the new block.
-        :param size:            Th size of the new block.
-        :param irsb:            The IRSB that corresponds to the new block.
+        :param insn_bytes:      The instruction bytes of the new block.
         :param overlap_mode:    This specifies how to handle the intersections.  
         :param overlap_handler: Use this handler function in case the `overlap_mode` is set to `handle`.
         :param handler_kwargs:  Pass this keyword arguments to `overlap_handler` function.
         :return: 
         """
-        if size == 0:
-            raise ValueError("Do not know how to handle an empty %r (%#x, %d)" % (irsb, addr, size))
+        if not insn_bytes:
+            raise ValueError("Do not know how to handle an empty block @ %#x" % addr)
 
         try:
-            self._blocks[addr:addr + size] = irsb
+            self._blocks[addr:addr + len(insn_bytes)] = insn_bytes
 
         except OverlappedBlocks as overlapped:
             this_block, other_block = \
@@ -91,7 +91,7 @@ class BasicBlocksPlugin(KnowledgeBasePlugin):
 
             elif overlap_mode == 'trim':
                 this_block.second_chance = True
-                self._blocks[addr:addr + size] = irsb
+                self._blocks[addr:addr + len(insn_bytes)] = insn_bytes
 
             elif overlap_mode == 'raise':
                 raise
@@ -124,29 +124,6 @@ class BasicBlocksPlugin(KnowledgeBasePlugin):
         """
         return self._blocks.islice(start, stop)
 
-    #
-    #   ...
-    #
-
-    def get_irsb(self, addr):
-        """Get the IRSB that corresponds to a block at given address.
-
-        :param addr: 
-        :return: 
-        """
-        block = self.get_block(addr)
-        return block.value if block else None
-
-    def iter_irsb(self, start=None, stop=None):
-        """Iterate over IRSBs that correspond to a blocks in the specified range of addresses.
-
-        :param start: 
-        :param stop: 
-        :return: 
-        """
-        for block in self.iter_blocks(start, stop):
-            yield block.value
-
 
 class BlockMapping(RangeDict):
 
@@ -155,14 +132,17 @@ class BlockMapping(RangeDict):
             raise OverlappedBlocks(this_item, left_item)
         else:
             this_item.second_chance = False
-            return super(BlockMapping, self)._trim_left(this_item, left_item)
+            this_item.value = this_item.value[left_item.end - this_item.start:]
+            this_item.start = left_item.end
+            return True
 
     def _trim_right(self, this_item, right_item):
         if this_item.end > right_item.start and not this_item.second_chance:
             raise OverlappedBlocks(this_item, right_item)
         else:
             this_item.second_chance = False
-            return super(BlockMapping, self)._trim_right(this_item, right_item)
+            this_item.end = right_item.start
+            this_item.value = this_item.value[:this_item.size]
 
     def _should_merge(self, this_item, other_item):
         return False
@@ -177,15 +157,19 @@ class BlockItem(RangeItem):
         super(BlockItem, self).__init__(*args, **kwargs)
         self.second_chance = False
 
-    def __repr__(self):
-        return '<BlockItem(%#x, %#x, %r)>' % (self.start, self.end, self.value)
-
     @property
     def addr(self):
         return self.start
 
+    @property
+    def insn_bytes(self):
+        return self.value
+
+    def __repr__(self):
+        return '<BlockItem(%#x, %#x, %r)>' % (self.start, self.end, hexlify(self.value))
+
     def copy(self):
-        raise RuntimeError("This should not happen unless there is a bug in BasicBlockPlugins.")
+        return BlockItem(self.start, self.end, self.value)
 
 
 class OverlappedBlocks(AngrError):
