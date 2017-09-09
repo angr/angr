@@ -118,6 +118,7 @@ class SimulationManager(ana.Storable):
     def copy(self, stashes=None):
         stashes = stashes if stashes is not None else self._copy_stashes(immutable=True)
         out = SimulationManager(self._project, stashes=stashes, hierarchy=self._hierarchy, immutable=self._immutable, resilience=self._resilience, save_unconstrained=self.save_unconstrained, save_unsat=self.save_unsat, errored=self.errored)
+        out._hooks_all = list(self._hooks_all)
         out._hooks_step = list(self._hooks_step)
         out._hooks_step_state = list(self._hooks_step_state)
         out._hooks_filter = list(self._hooks_filter)
