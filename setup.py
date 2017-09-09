@@ -112,11 +112,11 @@ setup(
         'rpyc',
         'cffi>=1.7.0',
         'unicorn',
-        'archinfo>=7.7.9.8'
-        'claripy>=7.7.9.8'
-        'cle>=7.7.9.8'
-        'pyvex>=7.7.9.8'
-        'pygit'
+        'archinfo>=7.7.9.8',
+        'claripy>=7.7.9.8',
+        'cle>=7.7.9.8',
+        'pyvex>=7.7.9.8',
+        'pygit',
     ],
     setup_requires=['unicorn', 'pyvex'],
     cmdclass=cmdclass,
