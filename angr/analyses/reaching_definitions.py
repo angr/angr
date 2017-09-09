@@ -110,7 +110,8 @@ class Parameter(Atom):
 
 
 class Definition(object):
-    def __init__(self, atom, codeloc, data=None):
+    def __init__(self, atom, codeloc, data):
+        assert type(data) is DataSet
         self.atom = atom
         self.codeloc = codeloc
         self.data = data
@@ -190,6 +191,62 @@ class Uses(object):
         self._current_uses.merge(other._current_uses)
 
 
+class Undefined(object):
+    def __init__(self):
+        pass
+
+    def __add__(self, other):
+        return self
+
+    def __radd__(self, other):
+        return self
+
+    def __sub__(self, other):
+        return self
+
+    def __rsub__(self, other):
+        return self
+
+    def __lshift__(self, other):
+        return self
+
+    def __rlshift__(self, other):
+        return self
+
+    def __rshift__(self, other):
+        return self
+
+    def __rrshift__(self, other):
+        return self
+
+    def __and__(self, other):
+        return self
+
+    def __rand__(self, other):
+        return self
+
+    def __xor__(self, other):
+        return self
+
+    def __rxor__(self, other):
+        return self
+
+    def __or__(self, other):
+        return self
+
+    def __ror__(self, other):
+        return self
+
+    def __neg__(self):
+        return self
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+        else:
+            return False
+
+
 class DataSet(object):
     """
     This class represents a set of data.
@@ -198,8 +255,11 @@ class DataSet(object):
     data must always include a set.
     """
 
+    undefined = Undefined()
+
     def __init__(self, data, bits):
         assert type(data) is set
+        assert len(data) >= 1
         self.data = data
         self._bits = bits
         self._mask = (1 << bits) - 1
@@ -215,25 +275,24 @@ class DataSet(object):
     def update(self, data):
         if type(data) is DataSet:
             if self.bits != data.bits:
-                ValueError('Cannot operate on DataSets with different size.')
+                l.warning('DataSet: update with different sizes.')
             self.data.update(data.data)
         else:
             self.data.add(data)
 
-    def compact(self):
-        if len(self.data) == 0:
-            return None
-        elif len(self.data) == 1:
-            return next(iter(self.data))
-        else:
-            return self
+    def get_first_element(self):
+        assert len(self.data) >= 1
+        return next(iter(self.data))
+
+    def __len__(self):
+        return len(self.data)
 
     def _un_op(self, op):
         res = set()
 
         for s in self:
-            if s is None:
-                res.add(None)
+            if s is DataSet.undefined:
+                res.add(DataSet.undefined)
             else:
                 try:
                     tmp = op(s)
@@ -242,23 +301,22 @@ class DataSet(object):
                     res.add(tmp)
                 except TypeError as e:
                     l.warning(e)
-                    res.add(None)
+                    res.add(DataSet.undefined)
 
-        return DataSet(res, self._bits).compact()
+        return DataSet(res, self._bits)
 
     def _bin_op(self, other, op):
+        assert type(other) is DataSet
+
         res = set()
 
-        if type(other) is not DataSet:
-            other = {other}
-        else:
-            if self._bits != other.bits:
-                ValueError('Cannot operate on DataSets with different size.')
+        if self._bits != other.bits:
+            l.warning('DataSet: binary operation with different sizes.')
 
         for o in other:
             for s in self:
-                if o is None or s is None:
-                    res.add(None)
+                if o is DataSet.undefined or s is DataSet.undefined:
+                    res.add(DataSet.undefined)
                 else:
                     try:
                         tmp = op(s, o)
@@ -267,41 +325,29 @@ class DataSet(object):
                         res.add(tmp)
                     except TypeError as e:
                         l.warning(e)
-                        res.add(None)
+                        res.add(DataSet.undefined)
 
-        return DataSet(res, self._bits).compact()
+        return DataSet(res, self._bits)
 
     def __add__(self, other):
-        return self._bin_op(other, operator.add)
-
-    def __radd__(self, other):
         return self._bin_op(other, operator.add)
 
     def __sub__(self, other):
         return self._bin_op(other, operator.sub)
 
-    def __rsub__(self, other):
-        tmp = self._bin_op(other, operator.sub)
+    def __lshift__(self, other):
+        return self._bin_op(other, operator.lshift)
 
-        if tmp is None:
-            return None
-        else:
-            try:
-                return -tmp
-            except TypeError as e:
-                l.warning(e)
-                return None
+    def __rshift__(self, other):
+        return self._bin_op(other, operator.rshift)
 
     def __and__(self, other):
         return self._bin_op(other, operator.and_)
 
-    def __rand__(self, other):
-        return self._bin_op(other, operator.and_)
+    def __xor__(self, other):
+        return self._bin_op(other, operator.xor)
 
     def __or__(self, other):
-        return self._bin_op(other, operator.or_)
-
-    def __ror__(self, other):
         return self._bin_op(other, operator.or_)
 
     def __neg__(self):
@@ -352,7 +398,7 @@ class ReachingDefinitions(object):
     def _init_func(self, cc, func_addr):
         # initialize stack pointer
         sp = Register(self.arch.sp_offset, self.arch.bytes)
-        sp_def = Definition(sp, None, self.arch.initial_sp)
+        sp_def = Definition(sp, None, DataSet({self.arch.initial_sp}, self.arch.bits))
         self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
 
         if cc is not None:
@@ -362,13 +408,13 @@ class ReachingDefinitions(object):
                     # FIXME: implement reg_offset handling in SimRegArg
                     reg_offset = self.arch.registers[arg.reg_name][0]
                     reg = Register(reg_offset, self.arch.bytes)
-                    reg_def = Definition(reg, None, Parameter(reg))
+                    reg_def = Definition(reg, None, DataSet({Parameter(reg)}, self.arch.bits))
                     self.register_definitions.set_object(reg.reg_offset, reg_def, reg.size)
                 # initialize stack parameters
                 elif type(arg) is SimStackArg:
                     ml = MemoryLocation(self.arch.initial_sp + arg.stack_offset, self.arch.bytes)
                     sp_offset = SpOffset(arg.size * 8, arg.stack_offset)
-                    ml_def = Definition(ml, None, Parameter(sp_offset))
+                    ml_def = Definition(ml, None, DataSet({Parameter(sp_offset)}, self.arch.bits))
                     self.memory_definitions.set_object(ml.addr, ml_def, ml.size)
                 else:
                     raise TypeError('Unsupported parameter type %s.' % type(arg).__name__)
@@ -379,12 +425,12 @@ class ReachingDefinitions(object):
             if rtoc_value:
                 offset, size = self.arch.registers['rtoc']
                 rtoc = Register(offset, size)
-                rtoc_def = Definition(rtoc, None, rtoc_value)
+                rtoc_def = Definition(rtoc, None, DataSet({rtoc_value}, self.arch.bits))
                 self.register_definitions.set_object(rtoc.reg_offset, rtoc_def, rtoc.size)
         elif self.arch.name.lower().find('mips64') > -1:
             offset, size = self.arch.registers['t9']
             t9 = Register(offset, size)
-            t9_def = Definition(t9, None, func_addr)
+            t9_def = Definition(t9, None, DataSet({func_addr}, self.arch.bits))
             self.register_definitions.set_object(t9.reg_offset, t9_def, t9.size)
 
     def copy(self):
@@ -424,7 +470,7 @@ class ReachingDefinitions(object):
     def downsize(self):
         self.analysis = None
 
-    def kill_definitions(self, atom, code_loc, data=None):
+    def kill_definitions(self, atom, code_loc, data):
         """
         Overwrite existing definitions w.r.t 'atom' with a dummy definition instance.
 
@@ -434,9 +480,9 @@ class ReachingDefinitions(object):
         :return: None
         """
 
-        self.kill_and_add_definition(atom, code_loc, data=data)
+        self.kill_and_add_definition(atom, code_loc, data)
 
-    def kill_and_add_definition(self, atom, code_loc, data=None):
+    def kill_and_add_definition(self, atom, code_loc, data):
         if type(atom) is Register:
             self._kill_and_add_register_definition(atom, code_loc, data)
         elif type(atom) is MemoryLocation:
@@ -550,7 +596,7 @@ def get_engine(base_engine):
             reg = Register(reg_offset, size)
             data = self._expr(stmt.data)
 
-            if (type(data) is DataSet and None in data) or (data is None):
+            if DataSet.undefined in data:
                 l.info('Data to write into register <%s> with offset %d undefined, ins_addr = %#x.',
                        self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
 
@@ -563,20 +609,17 @@ def get_engine(base_engine):
             size = stmt.data.result_size(self.tyenv) / 8
             data = self._expr(stmt.data)
 
-            if type(addr) is not DataSet:
-                addr = {addr}
-
             for a in addr:
-                if a is not None:
-                    if (type(data) is DataSet and None in data) or (data is None):
+                if a is DataSet.undefined:
+                    l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
+                else:
+                    if DataSet.undefined in data:
                         l.info('Data to write at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
 
                     memloc = MemoryLocation(a, size)
                     # different addresses are not killed by a subsequent iteration, because kill only removes entries
                     # with same index and same size
                     self.state.kill_and_add_definition(memloc, self._codeloc(), data)
-                else:
-                    l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
 
         def _handle_StoreG(self, stmt):
             guard = self._expr(stmt.guard)
@@ -585,6 +628,7 @@ def get_engine(base_engine):
             elif guard is False:
                 pass
             else:
+                # FIXME: implement both
                 l.info('Could not resolve guard %s for StoreG.', str(guard))
 
         # CAUTION: experimental
@@ -604,11 +648,10 @@ def get_engine(base_engine):
                 if stmt.cvt.find('Ident') < 0:
                     l.warning('Unsupported conversion %s in LoadG.', stmt.cvt)
                 load_expr = pyvex.expr.Load(stmt.end, stmt.cvt_types[1], stmt.addr)
-                data = DataSet(set(), load_expr.result_size(self.tyenv))
-                data.update(self._expr(load_expr))
-                data.update(self._expr(stmt.alt))
-                data = data.compact()
-                self._handle_WrTmpData(stmt.dst, data)
+                data = set()
+                data.update(self._expr(load_expr).data)
+                data.update(self._expr(stmt.alt).data)
+                self._handle_WrTmpData(stmt.dst, DataSet(data, load_expr.result_size(self.tyenv)))
 
         def _handle_Exit(self, stmt):
             pass
@@ -623,6 +666,13 @@ def get_engine(base_engine):
         # VEX expression handlers
         #
 
+        def _handle_RdTmp(self, expr):
+            tmp = expr.tmp
+
+            if tmp in self.tmps:
+                return self.tmps[tmp]
+            return DataSet({DataSet.undefined}, expr.result_size(self.tyenv))
+
         # e.g. t0 = GET:I64(rsp), rsp might be defined multiple times
         def _handle_Get(self, expr):
 
@@ -630,39 +680,34 @@ def get_engine(base_engine):
             size = expr.result_size(self.tyenv)
 
             # FIXME: size, overlapping
-            data = DataSet(set(), expr.result_size(self.tyenv))
+            data = set()
             current_defs = self.state.register_definitions.get_objects_by_offset(reg_offset)
             for current_def in current_defs:
-                if current_def.data is not None:
-                    # current_def.data can be a primitive type or a DataSet
-                    data.update(current_def.data)
-                else:
-                    l.info('Data in register <%s> with offset %d undefined, ins_addr = %#x.',
-                           self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
-            data = data.compact()
+                data.update(current_def.data)
+            if len(data) == 0:
+                data.add(DataSet.undefined)
+            if DataSet.undefined in data:
+                l.info('Data in register <%s> with offset %d undefined, ins_addr = %#x.',
+                       self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
 
             self.state.add_use(Register(reg_offset, size), self._codeloc())
 
-            return data
+            return DataSet(data, expr.result_size(self.tyenv))
 
         # e.g. t27 = LDle:I64(t9), t9 might include multiple values
         def _handle_Load(self, expr):
             addr = self._expr(expr.addr)
             size = expr.result_size(self.tyenv) / 8
 
-            if type(addr) is not DataSet:
-                addr = {addr}
-
-            data = DataSet(set(), expr.result_size(self.tyenv))
+            data = set()
             for a in addr:
-                if a is not None:
+                if a is not DataSet.undefined:
                     current_defs = self.state.memory_definitions.get_objects_by_offset(a)
                     if current_defs:
                         for current_def in current_defs:
-                            if current_def.data is not None:
-                                data.update(current_def.data)
-                            else:
-                                l.info('Memory at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
+                            data.update(current_def.data)
+                        if DataSet.undefined in data:
+                            l.info('Memory at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
                     else:
                         mem = self.state.loader.memory.read_bytes(a, size)
                         if mem:
@@ -678,16 +723,17 @@ def get_engine(base_engine):
 
                             if size in [4, 8] and size == len(mem):
                                 mem_str = ''.join(mem)
-                                data.update(struct.unpack(fmt, mem_str)[0])
+                                data.add(struct.unpack(fmt, mem_str)[0])
 
                     # FIXME: _add_memory_use() iterates over the same loop
                     self.state.add_use(MemoryLocation(a, size), self._codeloc())
                 else:
                     l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
 
-            data = data.compact()
+            if len(data) == 0:
+                data.add(DataSet.undefined)
 
-            return data
+            return DataSet(data, expr.result_size(self.tyenv))
 
         # CAUTION: experimental
         def _handle_ITE(self, expr):
@@ -699,27 +745,27 @@ def get_engine(base_engine):
                 return self._expr(expr.iffalse)
             else:
                 l.info('Could not resolve condition %s for ITE.', str(cond))
-                res = DataSet(set(), expr.result_size(self.tyenv))
-                res.update(self._expr(expr.iftrue))
-                res.update(self._expr(expr.iffalse))
-                return res.compact()
+                data = set()
+                data.update(self._expr(expr.iftrue).data)
+                data.update(self._expr(expr.iffalse).data)
+                return DataSet(data, expr.result_size(self.tyenv))
 
         #
         # Unary operation handlers
         #
 
+        def _handle_Const(self, expr):
+            return DataSet({expr.con.value}, expr.result_size(self.tyenv))
+
         def _handle_Conversion(self, expr):
             simop = vex_operations[expr.op]
             arg_0 = self._expr(expr.args[0])
 
-            if type(arg_0) is not DataSet:
-                arg_0 = {arg_0}
-
             bits = int(simop.op_attrs['to_size'])
-            res = DataSet(set(), bits)
+            data = set()
             # convert operand if possible otherwise keep it unchanged
             for a in arg_0:
-                if a is None:
+                if a is DataSet.undefined:
                     pass
                 elif isinstance(a, (int, long)):
                     mask = 2 ** bits - 1
@@ -733,23 +779,21 @@ def get_engine(base_engine):
                         l.warning('Unsupported type Parameter->%s for conversion.', type(a.value).__name__)
                 else:
                     l.warning('Unsupported type %s for conversion.', type(a).__name__)
-                res.update(a)
+                data.add(a)
 
-            res = res.compact()
-
-            return res
+            return DataSet(data, expr.result_size(self.tyenv))
 
         def _handle_Not1(self, expr):
             arg0 = expr.args[0]
             expr_0 = self._expr(arg0)
-            if expr_0 is None:
-                return None
 
-            if isinstance(expr_0, (int, long)):
-                return expr_0 != 1
-            else:
-                l.warning('Comparison of multiple values / different types: \'%s\'.', type(expr_0).__name__)
-                return DataSet({True, False}, expr.result_size(self.tyenv))
+            if len(expr_0) == 1:
+                e0 = expr_0.get_first_element()
+                if isinstance(e0, (int, long)):
+                    return e0 != 1
+
+            l.warning('Comparison of multiple values / different types.')
+            return DataSet({True, False}, expr.result_size(self.tyenv))
 
         #
         # Binary operation handlers
@@ -758,101 +802,88 @@ def get_engine(base_engine):
         def _handle_Sar(self, expr):
             arg0, arg1 = expr.args
             expr_0 = self._expr(arg0)
-            if expr_0 is None:
-                return None
             expr_1 = self._expr(arg1)
-            if expr_1 is None:
-                return None
-
-            if type(expr_0) is not DataSet:
-                expr_0 = {expr_0}
 
             size = expr.result_size(self.tyenv)
-            res = DataSet(set(), size)
+            data = set()
             for e0 in expr_0:
-                for e1 in expr_0:
+                for e1 in expr_1:
                     try:
                         if e0 >> (size - 1) == 0:
                             head = 0
                         else:
                             head = ((1 << e1) - 1) << (size - e1)
-                        res.update(head | (e0 >> e1))
+                        data.add(head | (e0 >> e1))
                     except (ValueError, TypeError) as e:
                         l.warning(e)
-                        res.update(None)
-            res = res.compact()
+                        data.add(DataSet.undefined)
 
-            return res
+            return DataSet(data, expr.result_size(self.tyenv))
 
         def _handle_CmpEQ(self, expr):
             arg0, arg1 = expr.args
             expr_0 = self._expr(arg0)
-            if expr_0 is None:
-                return None
             expr_1 = self._expr(arg1)
-            if expr_1 is None:
-                return None
 
-            if isinstance(expr_0, (int, long)) and isinstance(expr_1, (int, long)):
-                return expr_0 == expr_1
-            else:
-                l.warning('Comparison of multiple values / different types: \'%s\' and \'%s\'.', type(expr_0).__name__,
-                          type(expr_1).__name__)
-                return DataSet({True, False}, expr.result_size(self.tyenv))
+            if len(expr_0) == 1 and len(expr_1) == 1:
+                e0 = expr_0.get_first_element()
+                e1 = expr_1.get_first_element()
+                if isinstance(e0, (int, long)) and isinstance(e1, (int, long)):
+                    return e0 == e1
+
+            l.warning('Comparison of multiple values / different types.')
+            return DataSet({True, False}, expr.result_size(self.tyenv))
 
         def _handle_CmpNE(self, expr):
             arg0, arg1 = expr.args
             expr_0 = self._expr(arg0)
-            if expr_0 is None:
-                return None
             expr_1 = self._expr(arg1)
-            if expr_1 is None:
-                return None
 
-            if isinstance(expr_0, (int, long)) and isinstance(expr_1, (int, long)):
-                return expr_0 != expr_1
-            else:
-                l.warning('Comparison of multiple values / different types: \'%s\' and \'%s\'.', type(expr_0).__name__,
-                          type(expr_1).__name__)
-                return DataSet({True, False}, expr.result_size(self.tyenv))
+            if len(expr_0) == 1 and len(expr_1) == 1:
+                e0 = expr_0.get_first_element()
+                e1 = expr_1.get_first_element()
+                if isinstance(e0, (int, long)) and isinstance(e1, (int, long)):
+                    return e0 != e1
+
+            l.warning('Comparison of multiple values / different types.')
+            return DataSet({True, False}, expr.result_size(self.tyenv))
 
         def _handle_CmpLT(self, expr):
             arg0, arg1 = expr.args
             expr_0 = self._expr(arg0)
-            if expr_0 is None:
-                return None
             expr_1 = self._expr(arg1)
-            if expr_1 is None:
-                return None
 
-            if isinstance(expr_0, (int, long)) and isinstance(expr_1, (int, long)):
-                return expr_0 < expr_1
-            else:
-                l.warning('Comparison of multiple values / different types: \'%s\' and \'%s\'.', type(expr_0).__name__,
-                          type(expr_1).__name__)
-                return DataSet({True, False}, expr.result_size(self.tyenv))
+            if len(expr_0) == 1 and len(expr_1) == 1:
+                e0 = expr_0.get_first_element()
+                e1 = expr_1.get_first_element()
+                if isinstance(e0, (int, long)) and isinstance(e1, (int, long)):
+                    return e0 < e1
+
+            l.warning('Comparison of multiple values / different types.')
+            return DataSet({True, False}, expr.result_size(self.tyenv))
 
         # ppc only
         def _handle_CmpORD(self, expr):
             arg0, arg1 = expr.args
             expr_0 = self._expr(arg0)
-            if expr_0 is None:
-                return None
             expr_1 = self._expr(arg1)
-            if expr_1 is None:
-                return None
 
-            if isinstance(expr_0, (int, long)) and isinstance(expr_1, (int, long)):
-                if expr_0 < expr_1:
-                    return 0x08
-                elif expr_0 > expr_1:
-                    return 0x04
-                else:
-                    return 0x02
-            else:
-                l.warning('Comparison of multiple values / different types: \'%s\' and \'%s\'.', type(expr_0).__name__,
-                          type(expr_1).__name__)
-                return DataSet({True, False}, expr.result_size(self.tyenv))
+            if len(expr_0) == 1 and len(expr_1) == 1:
+                e0 = expr_0.get_first_element()
+                e1 = expr_1.get_first_element()
+                if isinstance(e0, (int, long)) and isinstance(e1, (int, long)):
+                    if e0 < e1:
+                        return DataSet({0x08}, expr.result_size(self.tyenv))
+                    elif e0 > e1:
+                        return DataSet({0x04}, expr.result_size(self.tyenv))
+                    else:
+                        return DataSet({0x02}, expr.result_size(self.tyenv))
+
+            l.warning('Comparison of multiple values / different types.')
+            return DataSet({True, False}, expr.result_size(self.tyenv))
+
+        def _handle_CCall(self, expr):
+            return DataSet({DataSet.undefined}, expr.result_size(self.tyenv))
 
         #
         # AIL statement handlers
@@ -1025,13 +1056,17 @@ def get_engine(base_engine):
                 l.warning('The analysis reached its maximum recursion depth.')
                 return None
 
-            ip = self.arch.ip_offset
-            ip_defs = self.state.register_definitions.get_objects_by_offset(ip)
-            if len(ip_defs) != 1:
-                l.error('Invalid definitions for IP.')
+            defs_ip = self.state.register_definitions.get_objects_by_offset(self.arch.ip_offset)
+            if len(defs_ip) != 1:
+                l.error('Invalid definition(s) for IP.')
                 return None
 
-            ip_addr = next(iter(ip_defs)).data
+            ip_data = next(iter(defs_ip)).data
+            if len(ip_data) != 1:
+                l.error('Invalid number of values for IP.')
+                return None
+
+            ip_addr = ip_data.get_first_element()
             if not isinstance(ip_addr, (int, long)):
                 l.error('Invalid type %s for IP.' % type(ip_addr).__name__)
                 return None
