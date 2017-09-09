@@ -131,22 +131,30 @@ class CallingConventionAnalysis(Analysis):
 
         arch = self.project.arch
 
-        if arch.name == 'X86':
-            return (variable.reg < 40  # cc_op
-                    or 160 <= variable.reg < 288)
+        if arch.name == 'AARCH64':
+            return 16 <= variable.reg < 80  # x0-x7
 
         elif arch.name == 'AMD64':
-            return (variable.reg < 144  # cc_op
-                    or 224 <= variable.reg < 768)
+            return (24 <= variable.reg < 40 or  # rcx, rdx
+                    64 <= variable.reg < 104 or  # rsi, rdi, r8, r9, r10
+                    224 <= variable.reg < 480)  # xmm0-xmm7
 
-        elif arch.name == 'ARMHF' or arch.name == 'ARMEL':
-            return (8 <= variable.reg <= 20)  # r0-r3
+        elif arch.name == 'ARMEL' or arch.name == 'ARMHF':
+            return 8 <= variable.reg < 24  # r0-r3
 
         elif arch.name == 'MIPS32':
-            return (24 <= variable.reg <= 36)  # a0-a3
+            return 24 <= variable.reg < 40  # a0-a3
 
+        elif arch.name == 'PPC32':
+            return 28 <= variable.reg < 60  # r3-r10
 
-        return True
+        elif arch.name == 'X86':
+            return (8 <= variable.reg < 24 or  # eax, ebx, ecx, edx
+                    160 <= variable.reg < 288)  # xmm0-xmm7
+
+        else:
+            l.critical('Unsupported architecture %s.', arch.name)
+            return True
 
 
 register_analysis(CallingConventionAnalysis, "CallingConvention")
