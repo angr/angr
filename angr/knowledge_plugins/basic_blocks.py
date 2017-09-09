@@ -53,7 +53,7 @@ class BasicBlocksPlugin(KnowledgeBasePlugin):
     #   ...
     #
 
-    def add_block(self, addr, insn_bytes, overlap_mode='trim', overlap_handler=None, **handler_kwargs):
+    def add_block(self, addr, insn_bytes, thumb=False, overlap_mode='trim', overlap_handler=None, **handler_kwargs):
         """Add a new block to the block map.
         
         In case a new block has intersected with any existing one, handle the intersction in a way
@@ -78,7 +78,7 @@ class BasicBlocksPlugin(KnowledgeBasePlugin):
             raise ValueError("Do not know how to handle an empty block @ %#x" % addr)
 
         try:
-            self._blocks[addr:addr + len(insn_bytes)] = insn_bytes
+            self._blocks[addr:addr + len(insn_bytes)] = insn_bytes, thumb
 
         except OverlappedBlocks as overlapped:
             this_block, other_block = \
@@ -91,7 +91,7 @@ class BasicBlocksPlugin(KnowledgeBasePlugin):
 
             elif overlap_mode == 'trim':
                 this_block.second_chance = True
-                self._blocks[addr:addr + len(insn_bytes)] = insn_bytes
+                self._blocks[addr:addr + len(insn_bytes)] = insn_bytes, thumb
 
             elif overlap_mode == 'raise':
                 raise
@@ -132,7 +132,8 @@ class BlockMapping(RangeDict):
             raise OverlappedBlocks(this_item, left_item)
         else:
             this_item.second_chance = False
-            this_item.value = this_item.value[left_item.end - this_item.start:]
+            insn_bytes, thumb = this_item.value
+            this_item.value = this_item.value[left_item.end - this_item.start:], thumb
             this_item.start = left_item.end
             return True
 
@@ -142,7 +143,8 @@ class BlockMapping(RangeDict):
         else:
             this_item.second_chance = False
             this_item.end = right_item.start
-            this_item.value = this_item.value[:this_item.size]
+            insn_bytes, thumb = this_item.value
+            this_item.value = this_item.value[:this_item.size], thumb
 
     def _should_merge(self, this_item, other_item):
         return False
@@ -163,10 +165,17 @@ class BlockItem(RangeItem):
 
     @property
     def insn_bytes(self):
-        return self.value
+        return self.value[0]
+
+    @property
+    def thumb(self):
+        return self.value[1]
 
     def __repr__(self):
-        return '<BlockItem(%#x, %#x, %r)>' % (self.start, self.end, hexlify(self.value))
+        if self.thumb:
+            return '<BlockItem(%#x, %#x, %r, THUMB)>' % (self.start, self.end, hexlify(self.value))
+        else:
+            return '<BlockItem(%#x, %#x, %r)>' % (self.start, self.end, hexlify(self.value))
 
     def copy(self):
         return BlockItem(self.start, self.end, self.value)
