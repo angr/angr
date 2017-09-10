@@ -16,7 +16,7 @@ class GetModuleHandleA(angr.SimProcedure):
         else:
             obj = self.project.loader.find_object(module_name)
             if obj is None:
-                l.warning('GetModuleHandle: No loaded object named "%s"', module_name)
+                l.info('GetModuleHandle: No loaded object named "%s"', module_name)
                 return 0
         return obj.mapped_base
 

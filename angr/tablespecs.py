@@ -1,20 +1,5 @@
 import claripy
 
-class StringSpec(object):
-    def __new__(cls, string=None, sym_length=None, concat=None, name=None, nonnull=False):
-        print 'StringSpec is deprecated! Please use raw claripy ASTs or else face my wrath.'
-        if nonnull:
-            print 'Additional deprecation warning: nonnull completely doesn\'t work in our hacked up support shint for StringSpec. Please just fix your code. Please.'
-
-        if string is not None:
-            return StringTableSpec.string_to_ast(string)
-        if sym_length is not None:
-            if name is None:
-                name = 'stringspec_sym_%d' % sym_length
-            return claripy.BVS(name, sym_length * 8)
-        if concat is not None:
-            return claripy.Concat(*concat)
-
 class StringTableSpec(object):
     @staticmethod
     def string_to_ast(string):
@@ -23,6 +8,36 @@ class StringTableSpec(object):
     def __init__(self):
         self._contents = []
         self._str_len = 0
+
+    def append_args(self, args, add_null=True):
+        for arg in args:
+            self.add_string(arg)
+        if add_null:
+            self.add_null()
+
+    def append_env(self, env, add_null=True):
+        for k, v in env.iteritems():
+            if type(k) is str:  # pylint: disable=unidiomatic-typecheck
+                k = claripy.BVV(k)
+            elif type(k) is unicode:  # pylint: disable=unidiomatic-typecheck
+                k = claripy.BVV(k.encode('utf-8'))
+            elif isinstance(k, claripy.ast.Bits):
+                pass
+            else:
+                raise TypeError("Key in env must be either string or bitvector")
+
+            if type(v) is str:  # pylint: disable=unidiomatic-typecheck
+                v = claripy.BVV(v)
+            elif type(v) is unicode:  # pylint: disable=unidiomatic-typecheck
+                v = claripy.BVV(v.encode('utf-8'))
+            elif isinstance(v, claripy.ast.Bits):
+                pass
+            else:
+                raise TypeError("Value in env must be either string or bitvector")
+
+            self.add_string(k.concat(claripy.BVV('='), v))
+        if add_null:
+            self.add_null()
 
     def add_string(self, string):
         if isinstance(string, str):

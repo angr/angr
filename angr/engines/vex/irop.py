@@ -206,7 +206,6 @@ class SimIROp(object):
             conversions[(self._from_type, self._from_signed, self._to_type, self._to_signed)].append(self)
 
         if len({self._vector_type, self._from_type, self._to_type} & {'F', 'D'}) != 0:
-            # print self.op_attrs
             self._float = True
 
             if len({self._vector_type, self._from_type, self._to_type} & {'D'}) != 0:
@@ -883,30 +882,44 @@ class SimIROp(object):
 #
 # Op Handler
 #
-#from . import old_irop
+
 def translate(state, op, s_args):
     if op in operations:
+        return translate_inner(state, operations[op], s_args)
+    elif options.EXTENDED_IROP_SUPPORT in state.options:
         try:
-            irop = operations[op]
-            if irop._float and not options.SUPPORT_FLOATING_POINT in state.options:
-                raise UnsupportedIROpError("floating point support disabled")
-            return irop.calculate( *s_args)
-        except ZeroDivisionError:
-            if state.mode == 'static' and len(s_args) == 2 and state.se.is_true(s_args[1] == 0):
-                # Monkeypatch the dividend to another value instead of 0
-                s_args[1] = state.se.BVV(1, s_args[1].size())
-                return operations[op].calculate( *s_args)
-            else:
-                raise
+            l.info("Using our imagination for op " + op)
+            attrs = op_attrs(op)
+            if attrs is None:
+                raise SimOperationError
+            irop = SimIROp(op, **attrs)
         except SimOperationError:
-            l.warning("IROp error (for operation %s)", op, exc_info=True)
-            if options.BYPASS_ERRORED_IROP in state.options:
-                return state.se.Unconstrained("irop_error", operations[op]._output_size_bits)
-            else:
-                raise
+            l.info("...failed to make op")
+        else:
+            operations[op] = irop
+            return translate_inner(state, irop, s_args)
 
     l.error("Unsupported operation: %s", op)
     raise UnsupportedIROpError("Unsupported operation: %s" % op)
+
+def translate_inner(state, irop, s_args):
+    try:
+        if irop._float and not options.SUPPORT_FLOATING_POINT in state.options:
+            raise UnsupportedIROpError("floating point support disabled")
+        return irop.calculate(*s_args)
+    except SimZeroDivisionException:
+        if state.mode == 'static' and len(s_args) == 2 and state.se.is_true(s_args[1] == 0):
+            # Monkeypatch the dividend to another value instead of 0
+            s_args[1] = state.se.BVV(1, s_args[1].size())
+            return irop.calculate(*s_args)
+        else:
+            raise
+    except SimOperationError:
+        l.warning("IROp error (for operation %s)", irop.name, exc_info=True)
+        if options.BYPASS_ERRORED_IROP in state.options:
+            return state.se.Unconstrained("irop_error", irop._output_size_bits)
+        else:
+            raise
 
 from . import size_bits
 from ...errors import UnsupportedIROpError, SimOperationError, SimValueError, SimZeroDivisionException

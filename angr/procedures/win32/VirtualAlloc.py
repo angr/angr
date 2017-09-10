@@ -37,6 +37,7 @@ def deconvert_prot(prot):
 # https://msdn.microsoft.com/en-us/library/windows/desktop/aa366890(v=vs.85).aspx
 class VirtualAlloc(angr.SimProcedure):
     def run(self, lpAddress, dwSize, flAllocationType, flProtect):
+        l.debug("VirtualAlloc(%s, %s, %s, %s)", lpAddress, dwSize, flAllocationType, flProtect)
         addrs = self.state.se.eval_upto(lpAddress, 2)
         if len(addrs) != 1:
             raise angr.errors.SimValueError("VirtualAlloc can't handle symbolic lpAddress")
@@ -66,6 +67,7 @@ class VirtualAlloc(angr.SimProcedure):
 
         if flags & 0x00002000 or addr == 0: # MEM_RESERVE
             if addr == 0:
+                l.debug("...searching for address")
                 while True:
                     addr = self.allocate_memory(size)
                     try:
@@ -73,11 +75,13 @@ class VirtualAlloc(angr.SimProcedure):
                     except angr.errors.SimMemoryError:
                         continue
                     else:
+                        l.debug("...found %#x", addr)
                         break
             else:
                 try:
                     self.state.memory.map_region(addr, size, angr_prot, init_zero=True)
                 except angr.errors.SimMemoryError:
+                    l.debug("...failed, bad address")
                     return 0
 
         if flags & 0x00001000: # MEM_COMMIT
@@ -85,6 +89,7 @@ class VirtualAlloc(angr.SimProcedure):
             try:
                 self.state.memory.permissions(addr)
             except angr.errors.SimMemoryError:
+                l.debug("...not reserved")
                 return 0
 
         # if we got all the way to the end, nothing failed! success!

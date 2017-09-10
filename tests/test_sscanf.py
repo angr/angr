@@ -27,12 +27,14 @@ def run_sscanf(threads):
         "base -8 worked\n", "base -10 worked\n", "Nope u\n",
         "No switch\n",
     }
-    pg.explore(find=0x400939, num_find=len(expected_outputs))
-    nose.tools.assert_equal(len(pg.found), len(expected_outputs))
+    pg.run()
+    nose.tools.assert_equal(len(pg.deadended), len(expected_outputs))
+    nose.tools.assert_equal(len(pg.active), 0)
+    nose.tools.assert_equal(len(pg.errored), 0)
 
     # check the outputs
     pipe = subprocess.PIPE
-    for f in pg.found:
+    for f in pg.deadended:
         test_input = f.posix.dumps(0)
         test_output = f.posix.dumps(1)
         expected_outputs.remove(test_output)

@@ -3,6 +3,7 @@ import os
 import types
 import weakref
 from collections import defaultdict
+import StringIO
 
 import archinfo
 import cle
@@ -58,6 +59,26 @@ def fake_project_unpickler(name):
         raise AngrError("Project %s has not been opened." % name)
     return projects[name]
 fake_project_unpickler.__safe_for_unpickling__ = True
+
+
+def load_shellcode(shellcode, arch, start_offset=0, load_address=0):
+    """
+    Load a new project based on a string of raw bytecode.
+
+    :param shellcode:       The data to load
+    :param arch:            The name of the arch to use, or an archinfo class
+    :param start_offset:    The offset into the data to start analysis (default 0)
+    :param load_address:    The address to place the data in memory (default 0)
+    """
+    return Project(
+            StringIO.StringIO(shellcode),
+            main_opts={
+                'backend': 'blob',
+                'custom_arch': arch,
+                'custom_entry_point': start_offset,
+                'custom_base_addr': load_address,
+            }
+        )
 
 
 class Project(object):
@@ -560,6 +581,9 @@ class Project(object):
         self.__dict__.update(s)
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
+
+    def __repr__(self):
+        return '<Project %s>' % (self.filename if self.filename is not None else 'loaded from stream')
 
 
 from .errors import AngrError

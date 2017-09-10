@@ -800,7 +800,7 @@ class Unicorn(SimStatePlugin):
             ret_on_segv = True if best_effort_read else False
             items = self.state.memory.mem.load_objects(start, length, ret_on_segv=ret_on_segv)
         except SimSegfaultError:
-            raise
+            raise SegfaultError
 
         if access == unicorn.UC_MEM_FETCH_UNMAPPED and len(items) == 0:
             # we can not initialize an empty page then execute on it

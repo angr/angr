@@ -1132,35 +1132,39 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # TODO: should save them all, which, unfortunately, requires some redesigning :-(
             cfg_node.input_state = sim_successors.initial_state
 
-        if sim_successors is None or should_skip:
-            # We cannot retrieve the block, or we should skip the analysis of this node
+        # See if this job cancels another FakeRet
+        # This should be done regardless of whether this job should be skipped or not, otherwise edges will go missing
+        # in the CFG or function transiton graphs.
+        if job.jumpkind == 'Ijk_Ret' and block_id in self._pending_jobs:
+            # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
+            # in the graph.
 
-            # But we create the edge anyway. If the sim_successors does not exist, it will be an edge from the previous node to
-            # a PathTerminator
-            self._graph_add_edge(src_block_id, block_id, jumpkind=job.jumpkind, stmt_idx=src_exit_stmt_idx,
+            pending_job = self._pending_jobs.pop(block_id)  # type: PendingJob
+            self._deregister_analysis_job(pending_job.caller_func_addr, pending_job)
+            self._graph_add_edge(pending_job.src_block_id, block_id,
+                                 jumpkind='Ijk_FakeRet',
+                                 stmt_idx=pending_job.src_exit_stmt_idx,
                                  ins_addr=src_ins_addr
                                  )
-            self._update_function_transition_graph(src_block_id, block_id, jumpkind=job.jumpkind,
-                                                   ins_addr=src_ins_addr, stmt_idx=src_exit_stmt_idx)
+            self._update_function_transition_graph(pending_job.src_block_id, block_id,
+                                                   jumpkind='Ijk_FakeRet',
+                                                   ins_addr=src_ins_addr, stmt_idx=pending_job.src_exit_stmt_idx,
+                                                   confirmed=True
+                                                   )
 
-            # If this job cancels another FakeRet job, we should also create the FakeRet edge
-
-            # This is the real return exit
-            # Check if this retn is inside our pending_exits set
-            if job.jumpkind == 'Ijk_Ret' and block_id in self._pending_jobs:
-                # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
-                # in the graph.
-
-                pending_job = self._pending_jobs.pop(block_id)
-                self._deregister_analysis_job(pending_job.caller_func_addr, pending_job)
-                self._graph_add_edge(pending_job.src_block_id, block_id, jumpkind='Ijk_FakeRet',
-                                     stmt_idx=pending_job.src_exit_stmt_idx,
-                                     ins_addr=pending_job.src_exit_ins_addr
-                                     )
-                self._update_function_transition_graph(pending_job.src_block_id, block_id, jumpkind='Ijk_FakeRet',
-                                                       ins_addr=pending_job.src_exit_ins_addr,
-                                                       stmt_idx=pending_job.src_exit_stmt_idx
-                                                       )
+        if sim_successors is None or should_skip:
+            # We cannot retrieve the block, or we should skip the analysis of this node
+            # But we create the edge anyway. If the sim_successors does not exist, it will be an edge from the previous
+            # node to a PathTerminator
+            self._graph_add_edge(src_block_id, block_id,
+                                 jumpkind=job.jumpkind,
+                                 stmt_idx=src_exit_stmt_idx,
+                                 ins_addr=src_ins_addr
+                                 )
+            self._update_function_transition_graph(src_block_id, block_id,
+                                                   jumpkind=job.jumpkind,
+                                                   ins_addr=src_ins_addr,
+                                                   stmt_idx=src_exit_stmt_idx)
 
             # We are good. Raise the exception and leave
             raise AngrSkipJobNotice()
@@ -1185,21 +1189,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             for src_key, dst_key, data in self._pending_edges[block_id]:
                 self._graph_add_edge(src_key, dst_key, **data)
             del self._pending_edges[block_id]
-
-        # See if this job cancels another FakeRet
-        if job.jumpkind == 'Ijk_Ret' and block_id in self._pending_jobs:
-            # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
-            # in the graph.
-
-            pending_job = self._pending_jobs.pop(block_id)  # type: PendingJob
-            self._deregister_analysis_job(pending_job.caller_func_addr, pending_job)
-            self._graph_add_edge(pending_job.src_block_id, block_id, jumpkind='Ijk_FakeRet',
-                                 stmt_idx=pending_job.src_exit_stmt_idx, ins_addr=src_ins_addr
-                                 )
-            self._update_function_transition_graph(pending_job.src_block_id, block_id, jumpkind='Ijk_FakeRet',
-                                                   ins_addr=src_ins_addr, stmt_idx=pending_job.src_exit_stmt_idx,
-                                                   confirmed=True
-                                                   )
 
         block_info = self.project.arch.gather_info_from_state(sim_successors.initial_state)
         self._block_artifacts[addr] = block_info
@@ -2429,7 +2418,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                          add_options={
                                                                          o.DO_RET_EMULATION,
                                                                          o.CONSERVATIVE_READ_STRATEGY,
-                                                                     } | o.resilience_options
+                                                                     } | o.resilience
                                                          )
                 # Avoid concretization of any symbolic read address that is over a certain limit
                 # TODO: test case is needed for this option

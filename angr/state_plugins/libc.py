@@ -192,7 +192,7 @@ class SimStateLibc(SimStatePlugin):
         self.max_variable_size = 128
         self.max_str_len = 128
         self.max_buffer_size = 48
-        self.max_strtol_len = 10
+        self.max_strtol_len = 11 # len(str(2**31)) + 1
         self.max_memcpy_size = 4096
 
         # strtok
