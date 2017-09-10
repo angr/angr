@@ -1015,7 +1015,6 @@ class Tracer(object):
 
         pg = project.factory.simgr(
                 entry_state,
-                immutable=True,
                 save_unsat=True,
                 hierarchy=False,
                 save_unconstrained=self.crash_mode)
