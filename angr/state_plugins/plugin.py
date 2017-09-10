@@ -33,7 +33,8 @@ class SimStatePlugin(object):
 
     def merge(self, others, merge_conditions, common_ancestor=None): #pylint:disable=unused-argument
         """
-        Should merge the state plugin with the provided others.
+        Should merge the state plugin with the provided others. This will be called by ``state.merge()`` after copying
+        the target state, so this should mutate the current instance to merge with the others.
 
         :param others: the other state plugin
         :param merge_conditions: a symbolic condition for each of the plugins
@@ -45,7 +46,9 @@ class SimStatePlugin(object):
 
     def widen(self, others): #pylint:disable=unused-argument
         """
-        The widening operation for plugins.
+        The widening operation for plugins. Widening is a special kind of merging that produces a more general state
+        from several more specific states. It is used only during intensive static analysis. The same behavior
+        regarding copying and mutation from ``merge`` should be followed.
 
         :param others: the other state plugin
 
