@@ -1,12 +1,12 @@
-"""Representing the artifacts of a project."""
-
 from .errors import KnowledgeBaseNoPlugin
 
 
 class KnowledgeBase(object):
     """Represents a "model" of knowledge about an artifact.
 
-    Contains things like a CFG, data references, etc.
+    The knowledge base should contain as absolutely little redundant data
+    as possible - effectively the most fundemental artifacts that we can
+    use to efficiently reconstruct anything the user would want to know about.
     """
     _default_plugins = {}
 
