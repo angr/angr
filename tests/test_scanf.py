@@ -42,8 +42,10 @@ class Checker(object):
         if self._dummy:
             return True
 
-        stdin_input = path.posix.files[0].content.load(1, 10) # skip the first char used in switch
+        stdin_input = path.posix.files[0].content.load(1, 11) # skip the first char used in switch
         some_strings = path.se.eval_upto(stdin_input, 1000, cast_to=str)
+
+        check_passes = False
 
         for s in some_strings:
 
@@ -52,10 +54,11 @@ class Checker(object):
 
             component = self._extract_integer(s)
 
-            if not self._check_func(component):
-                return False
+            if self._check_func(component):
+                check_passes = True
+                break
 
-        return True
+        return check_passes
 
 def run_scanf(threads):
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/scanf_test")
