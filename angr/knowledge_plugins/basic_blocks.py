@@ -53,7 +53,7 @@ class BasicBlocksPlugin(KnowledgeBasePlugin):
     #   ...
     #
 
-    def add_block(self, addr, insn_bytes, thumb=False, overlap_mode='trim', overlap_handler=None, **handler_kwargs):
+    def add_block(self, addr, size, thumb=False, overlap_mode='trim', overlap_handler=None, **handler_kwargs):
         """Add a new block to the block map.
         
         In case a new block has intersected with any existing one, handle the intersction in a way
@@ -68,17 +68,18 @@ class BasicBlocksPlugin(KnowledgeBasePlugin):
             - If `overlap_mode` is set to 'raise', raise an `OverlappedBlock` exception.
         
         :param addr:            The address of the new block.
-        :param insn_bytes:      The instruction bytes of the new block.
+        :param size:            The size of the new block.
+        :param thumb:           True, if this block contains THUMB code.
         :param overlap_mode:    This specifies how to handle the intersections.  
         :param overlap_handler: Use this handler function in case the `overlap_mode` is set to `handle`.
         :param handler_kwargs:  Pass this keyword arguments to `overlap_handler` function.
         :return: 
         """
-        if not insn_bytes:
+        if size == 0:
             raise ValueError("Do not know how to handle an empty block @ %#x" % addr)
 
         try:
-            self._blocks[addr:addr + len(insn_bytes)] = insn_bytes, thumb
+            self._blocks[addr:addr + size] = thumb
 
         except OverlappedBlocks as overlapped:
             this_block, other_block = \
@@ -91,7 +92,7 @@ class BasicBlocksPlugin(KnowledgeBasePlugin):
 
             elif overlap_mode == 'trim':
                 this_block.second_chance = True
-                self._blocks[addr:addr + len(insn_bytes)] = insn_bytes, thumb
+                self._blocks[addr:addr + size] = thumb
 
             elif overlap_mode == 'raise':
                 raise
@@ -132,53 +133,38 @@ class BlockMapping(RangeDict):
             raise OverlappedBlocks(this_item, left_item)
         else:
             this_item.second_chance = False
-            insn_bytes, thumb = this_item.value
-            this_item.value = this_item.value[left_item.end - this_item.start:], thumb
-            this_item.start = left_item.end
-            return True
+            return super(BlockMapping, self)._trim_left(this_item, left_item)
 
     def _trim_right(self, this_item, right_item):
         if this_item.end > right_item.start and not this_item.second_chance:
             raise OverlappedBlocks(this_item, right_item)
         else:
             this_item.second_chance = False
-            this_item.end = right_item.start
-            insn_bytes, thumb = this_item.value
-            this_item.value = this_item.value[:this_item.size], thumb
+            return super(BlockMapping, self)._trim_right(this_item, right_item)
 
     def _should_merge(self, this_item, other_item):
         return False
 
     def _make_item(self, start, end, value):
-        return BlockItem(start, end, value)
+        return BasicBlock(start, end, value)
 
 
-class BlockItem(RangeItem):
+class BasicBlock(RangeItem):
 
     def __init__(self, *args, **kwargs):
-        super(BlockItem, self).__init__(*args, **kwargs)
+        super(BasicBlock, self).__init__(*args, **kwargs)
         self.second_chance = False
 
     @property
-    def addr(self):
-        return self.start
-
-    @property
-    def insn_bytes(self):
-        return self.value[0]
-
-    @property
     def thumb(self):
-        return self.value[1]
+        return self.value
 
     def __repr__(self):
-        if self.thumb:
-            return '<BlockItem(%#x, %#x, %r, THUMB)>' % (self.start, self.end, hexlify(self.value))
-        else:
-            return '<BlockItem(%#x, %#x, %r)>' % (self.start, self.end, hexlify(self.value))
+        return '<BasicBlock(%#x-%#x, %d bytes%s)>' % \
+               (self.start, self.end, self.size, ', THUMB' if self.thumb else '')
 
     def copy(self):
-        return BlockItem(self.start, self.end, self.value)
+        return BasicBlock(self.start, self.end, self.value)
 
 
 class OverlappedBlocks(AngrError):
