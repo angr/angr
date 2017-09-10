@@ -312,5 +312,3 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
         for func_addr, func in self._function_map.iteritems():
             filename = "%s%#08x.png" % (prefix, func_addr)
             func.dbg_draw(filename)
-
-KnowledgeBasePlugin.register_default('functions', FunctionManager)

@@ -12,6 +12,3 @@ class IndirectJumps(KnowledgeBasePlugin, dict):
         o = IndirectJumps()
         o.resolved.update(self.resolved)
         o.unresolved.update(self.unresolved)
-
-
-KnowledgeBasePlugin.register_default('indirect_jumps', IndirectJumps)

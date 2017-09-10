@@ -1,6 +1,6 @@
 """Representing the artifacts of a project."""
 
-from .knowledge_plugins.plugin import default_plugins
+from .errors import KnowledgeBaseNoPlugin
 
 
 class KnowledgeBase(object):
@@ -8,6 +8,8 @@ class KnowledgeBase(object):
 
     Contains things like a CFG, data references, etc.
     """
+    _default_plugins = {}
+
     def __init__(self, project, obj):
         self._project = project
         self.obj = obj
@@ -46,10 +48,7 @@ class KnowledgeBase(object):
         return plugin_name in self._plugins
 
     def __getattr__(self, v):
-        try:
-            return self.get_plugin(v)
-        except KeyError:
-            raise AttributeError(v)
+        return self.get_plugin(v)
 
     #
     # Plugins
@@ -59,11 +58,15 @@ class KnowledgeBase(object):
         return name in self._plugins
 
     def get_plugin(self, name):
-        if name not in self._plugins:
-            plugin_cls = default_plugins[name]
-            plugin = plugin_cls(kb=self)
-            self.register_plugin(name, plugin)
-        return self._plugins[name]
+        if name in self._plugins:
+            return self._plugins[name]
+
+        elif name in self._default_plugins:
+            plugin_cls = self._default_plugins[name]
+            return self.register_plugin(name, plugin_cls(kb=self))
+
+        else:
+            raise KnowledgeBaseNoPlugin("No such plugin: %s" % name)
 
     def register_plugin(self, name, plugin):
         self._plugins[name] = plugin
@@ -72,3 +75,19 @@ class KnowledgeBase(object):
     def release_plugin(self, name):
         if name in self._plugins:
             del self._plugins[name]
+
+    @classmethod
+    def register_default(cls, name, plugin_cls):
+        if name in cls._default_plugins:
+            raise Exception("%s is already set as the default for %s" % (cls._default_plugins[name], name))
+        cls._default_plugins[name] = plugin_cls
+
+
+import knowledge_plugins
+KnowledgeBase.register_default('basic_blocks', knowledge_plugins.BasicBlocksPlugin)
+KnowledgeBase.register_default('comments', knowledge_plugins.Comments)
+KnowledgeBase.register_default('data', knowledge_plugins.Data)
+KnowledgeBase.register_default('indirect_jumps', knowledge_plugins.IndirectJumps)
+KnowledgeBase.register_default('labels', knowledge_plugins.LabelsPlugin)
+KnowledgeBase.register_default('functions', knowledge_plugins.FunctionManager)
+KnowledgeBase.register_default('variables', knowledge_plugins.VariableManager)

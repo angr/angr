@@ -186,6 +186,3 @@ class OverlappedBlocks(AngrError):
     def __init__(self, this_block, other_block):
         self.this_block = this_block
         self.other_block = other_block
-
-
-KnowledgeBasePlugin.register_default('basic_blocks', BasicBlocksPlugin)

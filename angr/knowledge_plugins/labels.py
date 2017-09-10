@@ -342,5 +342,3 @@ class LabelsNamespace(object):
         self._name_usage_cnt[name] += 1
         return new_name
 
-
-KnowledgeBasePlugin.register_default('labels', LabelsPlugin)

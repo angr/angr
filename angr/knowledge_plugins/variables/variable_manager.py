@@ -346,6 +346,3 @@ class VariableManager(KnowledgeBasePlugin):
 
     def copy(self):
         raise NotImplementedError
-
-
-KnowledgeBasePlugin.register_default('variables', VariableManager)

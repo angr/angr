@@ -366,3 +366,11 @@ SimSegfaultError = SimSegfaultException
 
 class SimZeroDivisionException(SimException, SimOperationError):
     pass
+
+
+#
+#   Knowledge Base errors
+#
+
+class KnowledgeBaseNoPlugin(AngrError):
+    pass
