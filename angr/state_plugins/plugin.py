@@ -38,16 +38,20 @@ class SimStatePlugin(object):
         :param others: the other state plugin
         :param merge_conditions: a symbolic condition for each of the plugins
         :param common_ancestor: a common ancestor of this plugin and the others being merged
-        :returns: a merged plugin
-        :rtype: SimStatePlugin
+        :returns: True if the state plugins are actually merged.
+        :rtype: bool
         """
         raise Exception("merge() not implement for %s", self.__class__.__name__)
 
     def widen(self, others): #pylint:disable=unused-argument
         """
         The widening operation for plugins.
-        """
 
+        :param others: the other state plugin
+
+        :returns: True if the state plugin is actually widened.
+        :rtype: bool
+        """
         raise Exception('widen() not implemented for %s', self.__class__.__name__)
 
     @staticmethod
