@@ -1,17 +1,23 @@
+import logging
+
 from .plugin import SimStatePlugin
+
+from ..misc.tracer.tracerpov import TracerPoV
+
+l = logging.getLogger("angr.state_plugins.preconstrainer.SimStatePreconstrainer")
 
 class SimStatePreconstrainer(SimStatePlugin):
     """
     This state plugin handles preconstraints for tracer (or maybe for something else as well).
     """
 
-    def __init__(self, preconstrain_input=True, preconstrain_flag=True, input_content=None, magic_content=None):
+    def __init__(self, input_content, magic_content=None, preconstrain_input=True, preconstrain_flag=True):
         SimStatePlugin.__init__(self)
 
-        self._preconstrain_input = preconstrain_input
-        self._preconstrain_flag = preconstrain_flag
         self._input_content = input_content
         self._magic_content = magic_content
+        self._preconstrain_input = preconstrain_input
+        self._preconstrain_flag = preconstrain_flag
         # map of variable string names to preconstraints, for re-applying
         # constraints
         self._variable_map = {}
@@ -28,10 +34,11 @@ class SimStatePreconstrainer(SimStatePlugin):
         return False
 
     def copy(self):
-        c = SimStatePreconstrainer(preconstrain_input=self._preconstrain_input,
-                                   preconstrain_flag=self._preconstrain_flag,
-                                   input_content=self._input_content,
-                                   magic_content=self._magic_content)
+        c = SimStatePreconstrainer(input_content=self._input_content,
+                                   magic_content=self._magic_content,
+                                   preconstrain_input=self._preconstrain_input,
+                                   preconstrain_flag=self._preconstrain_flag)
+                                   
         c._variable_map = dict(self._variable_map)
         c.preconstraints = list(self.preconstraints)
         c._constrained_addrs = list(self._constrained_addrs)
@@ -57,7 +64,7 @@ class SimStatePreconstrainer(SimStatePlugin):
             return
 
         if self._input_content is None:
-            l.warning("Trying to preconstrain state without any input content. Nothing will happen")
+            l.warning("Trying to preconstrain state without any input content.  Nothing will happen.")
             return
 
         repair_entry_state_opts = False
@@ -70,10 +77,13 @@ class SimStatePreconstrainer(SimStatePlugin):
             for b in self._input_content:
                 _preconstrain(b, stdin.read_from(1))
 
-        else:  # a PoV, need to navigate the dialogue
+        elif type(self._input_content) == TracerPoV:  # a PoV, need to navigate the dialogue
             for write in self._input_content.writes:
                 for b in write:
                     _preconstrain(b, stdin.read_from(1))
+        else:
+            l.error("Preconstrainer currently only supports a string or a TracerPoV as input content.")
+            return
 
         stdin.seek(0)
 
@@ -100,7 +110,7 @@ class SimStatePreconstrainer(SimStatePlugin):
             return
 
         for b in range(0x1000):
-            self._preconstrain(self._magic_content[b], self.cgc.flag_bytes[b])
+            self._preconstrain(self._magic_content[b], self.state.cgc.flag_bytes[b])
 
     def remove_preconstraints(self, to_composite_solver=True, simplify=True):
         if not (self._preconstrain_input or self._preconstrain_flag):
@@ -197,3 +207,5 @@ class SimStatePreconstrainer(SimStatePlugin):
         variables = [v for v in variables if v.startswith("file_/dev/stdin")]
         indices = map(lambda y: int(y.split("_")[3], 16), variables)
         return sorted(indices)
+
+SimStatePlugin.register_default('preconstrainer', SimStatePreconstrainer)

@@ -20,13 +20,16 @@ from .errors import (
     SimUnsupportedError,
     SimSegfaultException,
     SimZeroDivisionException,
+    TracerEnvironmentError
 )
 from .tablespecs import StringTableSpec
 from .sim_state import SimState
-from .state_plugins import SimStateSystem, SimActionData
+from .state_plugins import SimStateSystem, SimActionData, SimStatePreconstrainer
 from .calling_conventions import DEFAULT_CC, SYSCALL_CC
 from .procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
 from . import sim_options as o
+from .misc.tracer.tracerpov import TracerPoV
+from .storage.file import SimFile
 
 l = logging.getLogger("angr.simos")
 
@@ -590,8 +593,46 @@ class SimLinux(SimUserland):
         kwargs['addr'] = self._loader_addr
         return super(SimLinux, self).state_full_init(**kwargs)
 
-    def state_tracer(self, stdin_content=None, flag_content=None, **kwargs):
-        pass
+    def state_tracer(self, input_content=None, magic_content=None, **kwargs):
+        if input_content is None:
+            return self.state_entry(**kwargs)
+
+        l.info("Tracer has been heavily tested only for CGC. If you find it buggy for Linux binaries, we are sorry!"
+
+        if type(input_content) == str:
+            fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=len(input_content))}
+        else:
+            raise TracerEnvironmentError("Input for tracer should be a string (for Linux binaries).")
+
+        kwargs['fs'] = kwargs.get('fs', fs)
+
+        options = kwargs.get('add_options', set())
+        options.add(o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
+        options.add(o.BYPASS_UNSUPPORTED_SYSCALL)
+        options.add(o.REPLACEMENT_SOLVER)
+        options.add(o.UNICORN)
+        options.add(o.UNICORN_HANDLE_TRANSMIT_SYSCALL)
+
+        kwargs['add_options'] = options
+
+        kwargs['remove_options'] = {o.EFFICIENT_STATE_MERGING} | o.simplification | kwargs.get('remove_options', set())
+        
+        kwargs['concrete_fs'] = kwargs.get('concrete_fs', True)
+
+        state = self.full_init_state(**kwargs)
+
+        # Create the preconstrainer plugin
+        state.register_plugin('preconstrainer',
+                              SimStatePreconstrainer(input_content=input_content))
+
+        # Preconstrain
+        state.preconstrainer.preconstrain_state()
+
+        # Increase size of libc limits
+        state.libc.buf_symbolic_bytes = 1024
+        state.libc.max_str_len = 1024
+
+        return state
 
     def prepare_function_symbol(self, symbol_name, basic_addr=None):
         """
@@ -737,8 +778,73 @@ class SimCGC(SimUserland):
 
         return state
 
-    def state_tracer(self, stdin_content=None, flag_content=None, **kwargs):
-        pass
+    def state_tracer(self, input_content=None, magic_content=None, **kwargs):
+        if input_content is None:
+            return self.state_entry(**kwargs)
+
+        if type(input_content) == str:
+            fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=len(input_content))}
+        elif type(input_content) == TracerPoV:
+            fs = input_content.stdin
+        else:
+            raise TracerEnvironmentError("Input for tracer should be either a string or a TracerPoV for CGC binaries.")
+
+        kwargs['fs'] = kwargs.get('fs', fs)
+
+        options = kwargs.get('add_options', set())
+        options.add(o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
+        options.add(o.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
+        options.add(o.REPLACEMENT_SOLVER)
+        options.add(o.UNICORN_THRESHOLD_CONCRETIZATION)
+
+        # try to enable unicorn, continue if it doesn't exist
+        try:
+            options.add(o.UNICORN)
+            options.add(o.UNICORN_SYM_REGS_SUPPORT)
+            options.add(o.UNICORN_HANDLE_TRANSMIT_SYSCALL)
+            l.debug("unicorn tracing enabled")
+        except AttributeError:
+            pass
+
+        kwargs['add_options'] = options
+
+        kwargs['remove_options'] = {o.LAZY_SOLVES, o.SUPPORT_FLOATING_POINT, o.EFFICIENT_STATE_MERGING}
+                                 | o.simplification
+                                 | kwargs.get('remove_options', set())
+        
+        state = self.state_entry(**kwargs)
+
+        csr = state.unicorn.cooldown_symbolic_registers
+        state.unicorn.concretization_threshold_registers = 25000 / csr
+        state.unicorn.concretization_threshold_memory = 25000 / csr
+
+        if type(input_content) == str:
+            state.cgc.input_size = len(input_content)
+
+        self._set_simproc_limits(state)
+
+        state.cgc.flag_bytes = [claripy.BVS("cgc-flag-byte-%d" % i, 8) for i in xrange(0x1000)]
+
+        # Create the preconstrainer plugin
+        state.register_plugin('preconstrainer',
+                              SimStatePreconstrainer(input_content=input_content,
+                                                     magic_content=magic_content))
+
+        # Preconstrain
+        state.preconstrainer.preconstrain_state()
+        state.preconstrainer.preconstrain_flag_page()
+
+        state.memory.store(0x4347c000, claripy.Concat(*state.cgc.flag_bytes))
+
+        return state
+
+    @staticmethod
+    def _set_simproc_limits(state):
+        state.libc.max_str_len = 1000000
+        state.libc.max_strtol_len = 10
+        state.libc.max_memcpy_size = 0x100000
+        state.libc.max_symbolic_bytes = 100
+        state.libc.max_buffer_size = 0x100000
 
 class SimWindows(SimOS):
     """
