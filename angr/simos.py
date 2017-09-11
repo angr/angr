@@ -597,7 +597,7 @@ class SimLinux(SimUserland):
         if input_content is None:
             return self.state_entry(**kwargs)
 
-        l.info("Tracer has been heavily tested only for CGC. If you find it buggy for Linux binaries, we are sorry!"
+        l.info("Tracer has been heavily tested only for CGC. If you find it buggy for Linux binaries, we are sorry!")
 
         if type(input_content) == str:
             fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=len(input_content))}
@@ -808,9 +808,8 @@ class SimCGC(SimUserland):
 
         kwargs['add_options'] = options
 
-        kwargs['remove_options'] = {o.LAZY_SOLVES, o.SUPPORT_FLOATING_POINT, o.EFFICIENT_STATE_MERGING}
-                                 | o.simplification
-                                 | kwargs.get('remove_options', set())
+        kwargs['remove_options'] = kwargs.get('remove_options', set()) | o.simplification
+        kwargs['remove_options'] |= {o.LAZY_SOLVES, o.SUPPORT_FLOATING_POINT, o.EFFICIENT_STATE_MERGING}
         
         state = self.state_entry(**kwargs)
 

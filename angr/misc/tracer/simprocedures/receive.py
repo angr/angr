@@ -1,6 +1,6 @@
 import logging
 
-from ....procedures.cgc.receive import receive
+from angr.procedures.cgc.receive import receive
 
 l = logging.getLogger("angr.misc.tracer.simprocedures.fixed_in_receive")
 

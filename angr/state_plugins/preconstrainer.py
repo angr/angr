@@ -1,10 +1,10 @@
 import logging
+import angr
 
 from .plugin import SimStatePlugin
+from .. import sim_options as o
 
-from ..misc.tracer.tracerpov import TracerPoV
-
-l = logging.getLogger("angr.state_plugins.preconstrainer.SimStatePreconstrainer")
+l = logging.getLogger("angr.state_plugins.preconstrainer")
 
 class SimStatePreconstrainer(SimStatePlugin):
     """
@@ -47,13 +47,13 @@ class SimStatePreconstrainer(SimStatePlugin):
         return c
 
     def _preconstrain(self, b, v):
-        b_bvv = self.se.BVV(b)
+        b_bvv = self.state.se.BVV(b)
         c = (v == b_bvv)
         # add the constraint for reconstraining later
         self._variable_map[list(v.variables)[0]] = c
         self.preconstraints.append(c)
-        if o.REPLACEMENT_SOLVER in self.options:
-            self.se._solver.add_replacement(v, b_bvv, invalidate_cache=False)
+        if o.REPLACEMENT_SOLVER in self.state.options:
+            self.state.se._solver.add_replacement(v, b_bvv, invalidate_cache=False)
 
     def preconstrain_state(self):
         """
@@ -67,20 +67,21 @@ class SimStatePreconstrainer(SimStatePlugin):
             l.warning("Trying to preconstrain state without any input content.  Nothing will happen.")
             return
 
+        l.debug("Preconstrain input is %r", self._input_content)
         repair_entry_state_opts = False
         if o.TRACK_ACTION_HISTORY in self.state.options:
             repair_entry_state_opts = True
             self.state.options -= {o.TRACK_ACTION_HISTORY}
 
-        stdin = self.posix.get_file(0)
+        stdin = self.state.posix.get_file(0)
         if type(self._input_content) == str: # not a PoV, just raw input
             for b in self._input_content:
-                _preconstrain(b, stdin.read_from(1))
+                self._preconstrain(b, stdin.read_from(1))
 
-        elif type(self._input_content) == TracerPoV:  # a PoV, need to navigate the dialogue
+        elif type(self._input_content) == angr.misc.tracer.TracerPoV:  # a PoV, need to navigate the dialogue
             for write in self._input_content.writes:
                 for b in write:
-                    _preconstrain(b, stdin.read_from(1))
+                    self._preconstrain(b, stdin.read_from(1))
         else:
             l.error("Preconstrainer currently only supports a string or a TracerPoV as input content.")
             return

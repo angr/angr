@@ -1,6 +1,6 @@
 import logging
 
-from ....procedures.cgc.transmit import transmit
+from angr.procedures.cgc.transmit import transmit
 
 l = logging.getLogger("angr.misc.tracer.simprocedures.fixed_out_transmit")
 

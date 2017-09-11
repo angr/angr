@@ -362,7 +362,8 @@ class AngrObjectFactory(object):
             return state
         return self.entry_state(**kwargs)
 
-from .errors import AngrExitError, AngrError, AngrUnsupportedSyscallError
+from .storage.file import SimFile, SimDialogue
+from .errors import AngrExitError, AngrError, AngrUnsupportedSyscallError, TracerEnvironmentError
 from .manager import SimulationManager
 from .codenode import HookNode
 from .block import Block

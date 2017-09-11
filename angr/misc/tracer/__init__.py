@@ -1,12 +1,16 @@
-from ... import SIM_LIBRARIES
-from ...errors import TracerEnvironmentError
-from ...project import Project
+import logging
 
 from .runner import Runner
 from .qemu_runner import QEMURunner
 from .tracerpov import TracerPoV
 from .tinycore import TinyCore
 from .simprocedures import *
+
+from ... import SIM_LIBRARIES
+from ...errors import TracerEnvironmentError
+from ...project import Project
+
+l = logging.getLogger("angr.misc.tracer")
 
 def make_tracer_project(binary, simprocedures=None, hooks=None, exclude_sim_procedures_list=None, **kwargs):
     """
