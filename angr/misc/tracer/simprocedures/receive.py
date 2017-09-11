@@ -1,8 +1,8 @@
 import logging
 
-from .receive import receive
+from ....procedures.cgc.receive import receive
 
-l = logging.getLogger("angr.procedures.fixed_in_receive")
+l = logging.getLogger("angr.misc.tracer.simprocedures.fixed_in_receive")
 
 def cache_pass(_):
     l.warning("cache_hook never set")
@@ -17,7 +17,6 @@ class FixedInReceive(receive):
     """
 
     def run(self, fd, buf, count, rx_bytes):
-
         if self.state.se.eval(self.state.posix.files[0].pos) == 0:
             if cache_hook is not None:
                 cache_hook(self.state)

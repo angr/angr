@@ -1,8 +1,8 @@
 import logging
 
-from .transmit import transmit
+from ....procedures.cgc.transmit import transmit
 
-l = logging.getLogger("angr.procedures.fixed_out_transmit")
+l = logging.getLogger("angr.misc.tracer.simprocedures.fixed_out_transmit")
 
 class FixedOutTransmit(transmit):
     # pylint:disable=arguments-differ
@@ -11,7 +11,6 @@ class FixedOutTransmit(transmit):
     """
 
     def run(self, fd, buf, count, tx_bytes):
-
         if len(self.state.se.eval_upto(fd, 2)) < 2:
             if self.state.se.eval(fd) == 0:
                 l.debug("fixed transmit's call fd")
