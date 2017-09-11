@@ -84,7 +84,7 @@ class BasicBlocksPlugin(KnowledgeBasePlugin):
                 overlapped.this_block, overlapped.other_block
 
             if overlap_mode == 'handle':
-                if this_block.addr != addr:
+                if this_block.start != addr:
                     this_block, other_block = other_block, this_block
                 overlap_handler(this_block, other_block, **handler_kwargs)
 
