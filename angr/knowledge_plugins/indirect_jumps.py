@@ -1,10 +1,10 @@
 from collections import Mapping
 
-from .plugin import KnowledgeBasePlugin
+from .artifact import KnowledgeArtifact
 from ..errors import AngrError
 
 
-class IndirectJumpsPlugin(KnowledgeBasePlugin, Mapping):
+class IndirectJumpsPlugin(KnowledgeArtifact, Mapping):
     """
     Storage for information about indirect jumps in the program. Access with kb.indirect_jumps.
 
@@ -19,6 +19,7 @@ class IndirectJumpsPlugin(KnowledgeBasePlugin, Mapping):
                                 along with jumpkinds, instruction addresses and statement indexes.
     :ivar _complete_jumps:      A set of complete jumps, i.e. jumps with exhaustive targets list.
     """
+    _provides = 'indirect_jumps'
 
     def __init__(self, kb=None):
         super(IndirectJumpsPlugin, self).__init__(kb)
@@ -67,6 +68,8 @@ class IndirectJumpsPlugin(KnowledgeBasePlugin, Mapping):
                             % (from_addr, to_addr, specs))
 
         targets[to_addr] = specs
+
+        self._notify_observers('register_jump', from_addr=from_addr, to_addr=to_addr, specs=specs)
 
     def make_complete(self, from_addr):
         if from_addr not in self._jumps:

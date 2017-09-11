@@ -80,10 +80,14 @@ class KnowledgeBase(object):
 
 
 import knowledge_plugins
+
+# Knowledge Artifacts
 KnowledgeBase.register_default('basic_blocks', knowledge_plugins.BasicBlocksPlugin)
-KnowledgeBase.register_default('comments', knowledge_plugins.Comments)
-KnowledgeBase.register_default('data', knowledge_plugins.Data)
 KnowledgeBase.register_default('indirect_jumps', knowledge_plugins.IndirectJumpsPlugin)
 KnowledgeBase.register_default('labels', knowledge_plugins.LabelsPlugin)
 KnowledgeBase.register_default('functions', knowledge_plugins.FunctionManager)
 KnowledgeBase.register_default('variables', knowledge_plugins.VariableManager)
+
+# Knowledge Views
+KnowledgeBase.register_default('blocks', knowledge_plugins.BlockView)
+KnowledgeBase.register_default('transitions', knowledge_plugins.TransitionsView)

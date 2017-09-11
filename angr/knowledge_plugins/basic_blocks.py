@@ -1,15 +1,16 @@
 from ..misc.rangedict import RangeDict, RangeItem
 from ..errors import AngrError
-from .plugin import KnowledgeBasePlugin
+from .artifact import KnowledgeArtifact
 
 import logging
 l = logging.getLogger("angr.knowledge.basic_blocks")
 
 
-class BasicBlocksPlugin(KnowledgeBasePlugin):
+class BasicBlocksPlugin(KnowledgeArtifact):
     """
     Storage for information about the boundaries of basic blocks. Access as kb.basic_blocks.
     """
+    _provides = 'basic_blocks'
 
     def __init__(self, kb=None):
         super(BasicBlocksPlugin, self).__init__(kb)
@@ -97,6 +98,8 @@ class BasicBlocksPlugin(KnowledgeBasePlugin):
 
             else:
                 raise ValueError('Unknown overlapped blocks handling mode', overlap_mode)
+
+        self._notify_observers('add_block', addr=addr, size=size, thumb=thumb)
 
     def get_block(self, addr):
         """Get block that occupies the given address.

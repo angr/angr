@@ -1,13 +1,13 @@
 from collections import Counter
 
-from .plugin import KnowledgeBasePlugin
+from .artifact import KnowledgeArtifact
 from ..misc.ux import deprecated
 
 import logging
 l = logging.getLogger("angr.knowledge.labels")
 
 
-class LabelsPlugin(KnowledgeBasePlugin):
+class LabelsPlugin(KnowledgeArtifact):
     """Storage for program labels. Access with kb.labels.    
     
     A label "name" is a label named "name", duh. Labels can be grouped into the seperate namespaces.
@@ -16,6 +16,7 @@ class LabelsPlugin(KnowledgeBasePlugin):
     
     The default namespace is set to empty string.
     """
+    _provides = 'labels'
 
     _default_ns_name = ''
 
@@ -122,7 +123,7 @@ class LabelsPlugin(KnowledgeBasePlugin):
         """
         if name in self._namespaces:
             raise ValueError("Namespace %r already exists" % name)
-        self._namespaces[name] = LabelsNamespace(name)
+        self._namespaces[name] = LabelsNamespace(name, self)
 
     def make_alias(self, name, alias):
         if name not in self._namespaces:
@@ -151,8 +152,9 @@ class LabelsNamespace(object):
     :type _addr_to_names:   dict of lists
     """
 
-    def __init__(self, name):
+    def __init__(self, name, plugin):
         self._name = name  # here for better repr only
+        self._plugin = plugin  # to enable notifications
         self._name_to_addr = {}
         self._addr_to_names = {}
         self._name_usage_cnt = Counter()
@@ -228,6 +230,8 @@ class LabelsNamespace(object):
         else:
             names_list.append(name)
 
+        self._plugin._notify_observers('set_label', addr=addr, name=name)
+
         return name
 
     def iter_labels(self):
@@ -272,6 +276,8 @@ class LabelsNamespace(object):
         if not self._addr_to_names[addr]:
             del self._addr_to_names[addr]
 
+        self._plugin._notify_observers('del_name', name=name)
+
     def has_name(self, name):
         """Check whether the given name is present within the namespace.
         
@@ -312,6 +318,8 @@ class LabelsNamespace(object):
 
         names_list = self._addr_to_names.pop(addr)
         map(self._name_to_addr.pop, names_list)
+
+        self._plugin._notify_observers('del_addr', addr=addr)
 
     def has_addr(self, addr):
         """Check whether the given address has any name assigned to it.
