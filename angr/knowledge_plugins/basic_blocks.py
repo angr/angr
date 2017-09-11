@@ -1,6 +1,4 @@
-from binascii import hexlify
-from rangedict import RangeDict, RangeItem
-
+from ..misc.rangedict import RangeDict, RangeItem
 from ..errors import AngrError
 from .plugin import KnowledgeBasePlugin
 
