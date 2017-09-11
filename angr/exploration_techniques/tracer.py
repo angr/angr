@@ -9,7 +9,6 @@ from .. import SIM_LIBRARIES, BP_AFTER, BP_BEFORE
 
 from ..calling_conventions import SYSCALL_CC
 from ..errors import AngrTracerError, TracerEnvironmentError
-from ..misc.cachemanager import LocalCacheManager
 from ..misc.tracer.tracerpov import TracerPoV
 from ..misc.tracer.simprocedures import receive
 
@@ -54,58 +53,29 @@ class Tracer(ExplorationTechnique):
             raise ValueError("Must have keep_predecessors >= 1")
         self._predecessors = [None] * keep_predecessors
 
-        for h in self._hooks:
-            l.debug("Hooking %#x -> %s", h, self._hooks[h].display_name)
-
         self._crash_type = None
         self._crash_state = None
 
-        cm = LocalCacheManager(dump_cache=dump_cache) if GlobalCacheManager is None else GlobalCacheManager
-        # cache managers need the tracer to be set for them
-        self._cache_manager = cm
-        self._cache_manager.set_tracer(self)
+       #cm = LocalCacheManager(dump_cache=dump_cache) if GlobalCacheManager is None else GlobalCacheManager
+       ## cache managers need the tracer to be set for them
+       #self._cache_manager = cm
+       #self._cache_manager.set_tracer(self)
 
-        # set by a cache manager
-        self._loaded_from_cache = False
+       ## set by a cache manager
+       #self._loaded_from_cache = False
 
-        if remove_options is None:
-            self._remove_options = set()
-        else:
-            self._remove_options = remove_options
-
-        # set up cache hook
-        receive.cache_hook = self._cache_manager.cacher
-
-        # CGC flag data
-        self._cgc_flag_bytes = [claripy.BVS("cgc-flag-byte-%d" % i, 8) for i in xrange(0x1000)]
-
-        self._preconstraints = []
-
-        # map of variable string names to preconstraints, for re-applying
-        # constraints
-        self._variable_map = {}
+       ## set up cache hook
+       #receive.cache_hook = self._cache_manager.cacher
 
         # initialize the basic block counter to 0
-        self.bb_cnt = 0
-
-        # keep track of the last basic block we hit
-        if keep_predecessors < 1:
-            raise ValueError("Must have keep_predecessors >= 1")
-        self._predecessors = [None] * keep_predecessors
+        self._bb_cnt = 0
 
         # whether we should follow the qemu trace
-        self._no_follow = False
-
-        # this will be set by _prepare_paths
-        self._unicorn_enabled = False
+        self._no_follow = self._trace is None
 
         # initilize the syscall statistics if the flag is on
-        self._dump_syscall = dump_syscall
         if self._dump_syscall:
             self._syscall = []
-
-        # this is used to track constrained addresses
-        self._address_concretization = []
 
         self.results = None
 
@@ -126,10 +96,6 @@ class Tracer(ExplorationTechnique):
                 simgr = simgr.explore(find=self.project.entry)
                 simgr = simgr.drop(stash="unsat")
                 simgr = simgr.unstash(from_stash="found",to_stash="active")
-
-        # if we're in crash mode we want the authentic system calls
-        if not self.r.crash_mode:
-            self._set_cgc_simprocedures()
 
         s.inspect.b('state_step', when=BP_AFTER, action=self._check_stack)
 
@@ -339,36 +305,7 @@ class Tracer(ExplorationTechnique):
 
         return simgr
 
-            for option in self.add_options:
-                state.options.add(option)
-
-            for option in self.remove_options:
-                state.options.discard(option)
-
-            entry_state = state
-
-        if not self.r.pov:
-            entry_state.cgc.input_size = self._input_max_size
-
-        if len(self._hooks):
-            self._set_simproc_limits(entry_state)
-
-        # preconstrain flag page
-        self._preconstrain_flag_page(entry_state, self.cgc_flag_bytes)
-        entry_state.memory.store(0x4347c000, claripy.Concat(*self.cgc_flag_bytes))
-
-        if self._dump_syscall:
-            entry_state.inspect.b('syscall', when=angr.BP_BEFORE, action=self.syscall)
-        entry_state.inspect.b('state_step', when=angr.BP_AFTER, action=self.check_stack)
-
-        simgr._make_stashes_dict(active=[entry_state])
-        simgr.save_unsat = True
-        simgr.save_unconstrained = self.crash_mode
-
-        simgr.use_technique(Oppologist())
-        l.info("Oppologist enabled")
-
-    def syscall(self, state):
+    def _syscall(self, state):
         syscall_addr = state.se.eval(state.ip)
         # 0xa000008 is terminate, which we exclude from syscall statistics.
         if syscall_addr != 0xa000008:
@@ -379,7 +316,7 @@ class Tracer(ExplorationTechnique):
                 d['arg_%d_symbolic' % i] = args[i].ast.symbolic
             self._syscall.append(d)
 
-    def check_stack(self, state):
+    def _check_stack(self, state):
         if state.memory.load(state.ip, state.ip.length).symbolic:
             l.debug("executing input-related code")
             self._crash_type = EXEC_STACK
@@ -498,77 +435,3 @@ class Tracer(ExplorationTechnique):
         variables = [v for v in variables if v.startswith("file_/dev/stdin")]
         indices = map(lambda y: int(y.split("_")[3], 16), variables)
         return sorted(indices)
-
-    def _linux_prepare_state(self):
-        """
-        Prepare the initial state for Linux binaries.
-        """
-        for symbol in self._exclude_sim_procedures_list:
-            self.project.unhook_symbol(symbol)
-
-        if not self.crash_mode:
-            self._set_linux_simprocedures()
-
-        self._set_hooks()
-
-        # fix stdin to the size of the input being traced
-        fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=self._input_max_size)}
-
-        options = set()
-        options.add(so.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
-        options.add(so.BYPASS_UNSUPPORTED_SYSCALL)
-        options.add(so.REPLACEMENT_SOLVER)
-        options.add(so.UNICORN)
-        options.add(so.UNICORN_HANDLE_TRANSMIT_SYSCALL)
-        if self.crash_mode:
-            options.add(so.TRACK_ACTION_HISTORY)
-
-        self.remove_options |= so.simplification | {so.EFFICIENT_STATE_MERGING}
-        self.add_options |= options
-        entry_state = self.project.factory.full_init_state(fs=fs,
-                                                           concrete_fs=True,
-                                                           chroot=self.chroot,
-                                                           add_options=self.add_options,
-                                                           remove_options=self.remove_options,
-                                                           args=self.r.argv)
-
-        self._preconstrain_state(entry_state)
-
-        # increase size of libc limits
-        entry_state.libc.buf_symbolic_bytes = 1024
-        entry_state.libc.max_str_len = 1024
-
-        simgr._make_stashes_dict(active=[entry_state])
-        simgr._immutable = True
-        simgr.save_unsat = True
-        simgr.save_unconstrained = self.crash_mode
-
-        # Step forward until we catch up with QEMU
-        if simgr.active[0].addr != self.r.trace[0]:
-            simgr = simgr.explore(find=self.project.entry)
-            simgr = simgr.drop(stash="unsat")
-            simgr = simgr.unstash(from_stash="found",to_stash="active")
-
-        # don't step here, because unlike CGC we aren't going to be starting
-        # anywhere but the entry point
-
-    def _set_cgc_simprocedures(self):
-        for symbol in self._simprocedures:
-            angr.SIM_LIBRARIES['cgcabi'].add(symbol, self._simprocedures[symbol])
-
-    def _set_linux_simprocedures(self, project):
-        for symbol in self._simprocedures:
-            project.hook_symbol(symbol, self._simprocedures[symbol])
-
-    @staticmethod
-    def _set_simproc_limits(state):
-        state.libc.max_str_len = 1000000
-        state.libc.max_strtol_len = 10
-        state.libc.max_memcpy_size = 0x100000
-        state.libc.max_symbolic_bytes = 100
-        state.libc.max_buffer_size = 0x100000
-
-    def _set_hooks(self, project):
-        for addr, proc in self._hooks.items():
-            project.hook(addr, proc)
-

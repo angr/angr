@@ -129,6 +129,11 @@ class AngrTracerError(AngrExplorationTechniqueError):
     def __str__(self):
         return "<OtiegnqwvkTracerError %s>" % self.message
 
+#
+# Tracer
+#
+class TracerEnvironmentError(AngrError):
+    pass
 
 #
 # Simulation errors
