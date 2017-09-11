@@ -15,17 +15,13 @@ class KnowledgeBase(object):
         self.obj = obj
         self._plugins = {}
 
+        # Temporary measure for the testing purposes only
+        self.unresolved_indirect_jumps = set()
+        self.resolved_indirect_jumps = set()
+
     @property
     def callgraph(self):
         return self.functions.callgraph
-
-    @property
-    def unresolved_indirect_jumps(self):
-        return self.indirect_jumps.unresolved
-
-    @property
-    def resolved_indirect_jumps(self):
-        return self.indirect_jumps.resolved
 
     def __setstate__(self, state):
         self._project = state['project']
@@ -87,7 +83,7 @@ import knowledge_plugins
 KnowledgeBase.register_default('basic_blocks', knowledge_plugins.BasicBlocksPlugin)
 KnowledgeBase.register_default('comments', knowledge_plugins.Comments)
 KnowledgeBase.register_default('data', knowledge_plugins.Data)
-KnowledgeBase.register_default('indirect_jumps', knowledge_plugins.IndirectJumps)
+KnowledgeBase.register_default('indirect_jumps', knowledge_plugins.IndirectJumpsPlugin)
 KnowledgeBase.register_default('labels', knowledge_plugins.LabelsPlugin)
 KnowledgeBase.register_default('functions', knowledge_plugins.FunctionManager)
 KnowledgeBase.register_default('variables', knowledge_plugins.VariableManager)
