@@ -135,7 +135,7 @@ class SimEngineRDVEX(SimEngineLightVEX):
 
         if tmp in self.tmps:
             return self.tmps[tmp]
-        return DataSet({DataSet.undefined}, expr.result_size(self.tyenv))
+        return DataSet(DataSet.undefined, expr.result_size(self.tyenv))
 
     # e.g. t0 = GET:I64(rsp), rsp might be defined multiple times
     def _handle_Get(self, expr):
@@ -219,7 +219,7 @@ class SimEngineRDVEX(SimEngineLightVEX):
     #
 
     def _handle_Const(self, expr):
-        return DataSet({expr.con.value}, expr.result_size(self.tyenv))
+        return DataSet(expr.con.value, expr.result_size(self.tyenv))
 
     def _handle_Conversion(self, expr):
         simop = vex_operations[expr.op]
@@ -337,17 +337,17 @@ class SimEngineRDVEX(SimEngineLightVEX):
             e1 = expr_1.get_first_element()
             if isinstance(e0, (int, long)) and isinstance(e1, (int, long)):
                 if e0 < e1:
-                    return DataSet({0x08}, expr.result_size(self.tyenv))
+                    return DataSet(0x08, expr.result_size(self.tyenv))
                 elif e0 > e1:
-                    return DataSet({0x04}, expr.result_size(self.tyenv))
+                    return DataSet(0x04, expr.result_size(self.tyenv))
                 else:
-                    return DataSet({0x02}, expr.result_size(self.tyenv))
+                    return DataSet(0x02, expr.result_size(self.tyenv))
 
         l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     def _handle_CCall(self, expr):
-        return DataSet({DataSet.undefined}, expr.result_size(self.tyenv))
+        return DataSet(DataSet.undefined, expr.result_size(self.tyenv))
 
     #
     # User defined high level statement handlers
