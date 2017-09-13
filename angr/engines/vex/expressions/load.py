@@ -1,5 +1,4 @@
 from .base import SimIRExpr, _nonset
-from .. import size_bytes, size_bits
 from .... import sim_options as o
 from ....state_plugins.sim_action import SimActionData
 from ....state_plugins.sim_action_object import SimActionObject
@@ -8,7 +7,7 @@ from ....errors import SimUninitializedAccessError
 class SimIRExpr_Load(SimIRExpr):
     def _execute(self):
         # size of the load
-        size = size_bytes(self._expr.type)
+        size = self.size_bytes(self._expr.type)
         self.type = self._expr.type
 
         # get the address expression and track stuff

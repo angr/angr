@@ -1,21 +1,9 @@
 from claripy.fp import FSORT_FLOAT, FSORT_DOUBLE
-
-def size_bits(t):
-    """Returns size, in BITS, of a type."""
-    for n, s in (('256', 256), ('128', 128), ('64', 64), ('32', 32), ('16', 16), ('8', 8), ('1', 1)):
-        if n in t:
-            return s
-    raise SimExpressionError("Unable to determine length of %s." % t)
-
-def size_bytes(t):
-    """Returns size, in BYTES, of a type."""
-    s = size_bits(t)
-    if s == 1:
-        raise SimExpressionError("size_bytes() is seeing a bit!")
-    return s/8
+from pyvex import get_type_size
+from pyvex.const import get_type_size
 
 def translate_irconst(state, c):
-    size = size_bits(c.type)
+    size = get_type_size(c.type)
     if isinstance(c.value, (int, long)):
         return state.se.BVV(c.value, size)
     elif isinstance(c.value, float):

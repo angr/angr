@@ -1,5 +1,4 @@
 from .base import SimIRExpr
-from .. import size_bits
 from .... import sim_options as o
 from .. import ccall
 from ....errors import SimCCallError, UnsupportedCCallError
@@ -12,7 +11,7 @@ class SimIRExpr_CCall(SimIRExpr):
         exprs = self._translate_exprs(self._expr.args)
 
         if o.DO_CCALLS not in self.state.options:
-            self.expr = self.state.se.Unconstrained("ccall_ret", size_bits(self._expr.ret_type))
+            self.expr = self.state.se.Unconstrained("ccall_ret", self.size_bits(self._expr.ret_type))
             return
 
         if hasattr(ccall, self._expr.callee.name):

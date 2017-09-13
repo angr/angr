@@ -12,6 +12,22 @@ class SimIRStmt(object):
         self.actions = []
         self._constraints = [ ]
 
+    def size_bits(self, ty=None):
+        if not ty:
+            if self.type is not None:
+                return get_type_size(self.type)
+            return len(self.expr)
+        else:
+            # Allow subclasses to define which parameter they consider their size
+            return get_type_size(ty)
+
+    def size_bytes(self, ty=None):
+        s = self.size_bits(ty)
+        if s % self.state.arch.byte_width != 0:
+            raise Exception("SimIRExpr.size_bytes() called for a non-byte size!")
+        return s/self.state.arch.byte_width
+
+
     def process(self):
         """
         Process the statement, applying its effects on the state.

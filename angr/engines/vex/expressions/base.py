@@ -3,7 +3,7 @@
 
 import logging
 l = logging.getLogger("angr.engines.vex.expressions.base")
-
+from pyvex.const import get_type_size, get_type_spec_size
 _nonset = frozenset()
 
 class SimIRExpr(object):
@@ -57,16 +57,20 @@ class SimIRExpr(object):
         if self.expr.size() != self.size_bits():
             raise SimExpressionError("Inconsistent expression size: should be %d but is %d" % (self.size_bits(), self.expr.size()))
 
-    def size_bits(self):
-        if self.type is not None:
-            return size_bits(self.type)
-        return len(self.expr)
+    def size_bits(self, ty=None):
+        if not ty:
+            if self.type is not None:
+                return get_type_size(self.type)
+            return len(self.expr)
+        else:
+            # Allow subclasses to define which parameter they consider their size
+            return get_type_size(ty)
 
-    def size_bytes(self):
-        s = self.size_bits()
-        if s % 8 != 0:
+    def size_bytes(self, ty=None):
+        s = self.size_bits(ty)
+        if s % self.state.arch.byte_width != 0:
             raise Exception("SimIRExpr.size_bytes() called for a non-byte size!")
-        return s/8
+        return s/self.state.arch.byte_width
 
     def _translate_expr(self, expr):
         """Translate a single IRExpr, honoring mode and options and so forth. Also updates state..."""
@@ -116,5 +120,4 @@ from ....errors import SimExpressionError
 from ....state_plugins.sim_action import SimActionData, SimActionOperation
 
 # VEX subpackage imports
-from .. import size_bits
 from . import translate_expr
