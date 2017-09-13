@@ -665,10 +665,16 @@ class DDG(Analysis):
         worklist = []
         worklist_set = set()
 
-        # initial nodes are those nodes in CFG that has no in-degrees
-        for n in self._cfg.graph.nodes_iter():
-            if self._cfg.graph.in_degree(n) == 0:
-                # Put it into the worklist
+        # Initialize the worklist
+        if self._start is None:
+            # initial nodes are those nodes in CFG that has no in-degrees
+            for n in self._cfg.graph.nodes_iter():
+                if self._cfg.graph.in_degree(n) == 0:
+                    # Put it into the worklist
+                    job = DDGJob(n, 0)
+                    self._worklist_append(job, worklist, worklist_set)
+        else:
+            for n in self._cfg.get_all_nodes(self._start):
                 job = DDGJob(n, 0)
                 self._worklist_append(job, worklist, worklist_set)
 
