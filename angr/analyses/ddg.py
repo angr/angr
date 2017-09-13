@@ -779,10 +779,10 @@ class DDG(Analysis):
         definitions. We scan through the action list of the new state to track the changes.
 
         :param state:           The input state at that program point.
-        :param live_defs:       A list of all live definitions prior to reaching this program point.
+        :param live_defs:       All live definitions prior to reaching this program point.
         :param list statements: A list of VEX statements.
         :returns:               A list of new live definitions.
-        :rtype:                 list
+        :rtype:                 LiveDefinitions
         """
 
         # Make a copy of live_defs
