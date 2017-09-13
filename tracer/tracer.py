@@ -328,10 +328,7 @@ class Tracer(object):
             if self.trim_history and not self.crash_mode:
                 current.history.trim()
 
-           #import ipdb; ipdb.set_trace()
-            self.simgr = self.simgr.step(size=bbl_max_bytes)
-           #self.simgr.step(size=bbl_max_bytes)
-           #print self.bb_cnt, self.simgr.active, hex(self.trace[self.bb_cnt])
+            self.simgr.step(size=bbl_max_bytes)
 
             if self.crash_type == EXEC_STACK:
                 self.simgr.stash(from_stash='active', to_stash='crashed')
@@ -491,6 +488,7 @@ class Tracer(object):
 
         # this is a concrete trace, there should only be ONE path
         all_paths = branches.active + branches.deadended
+
         if len(all_paths) != 1:
             raise TracerMisfollowError("program did not behave correctly, \
                     expected only one path")
@@ -1062,7 +1060,7 @@ class Tracer(object):
 
         # step to the end of the crashing basic block,
         # to capture its actions with those breakpoints
-        state.project.factory.successors(state)
+        state.step()
 
         # Add the constraints from concretized addrs back
         for var, concrete_vals in self._address_concretization:
@@ -1071,10 +1069,10 @@ class Tracer(object):
                 state.add_constraints(var == concrete_vals[0])
 
         # then we step again up to the crashing instruction
-        p_block = state.project.factory.block(state.addr, backup_state=state)
+        p_block = state.block()
         inst_cnt = len(p_block.instruction_addrs)
         insts = 0 if inst_cnt == 0 else inst_cnt - 1
-        succs = state.project.factory.successors(state, num_inst=insts).flat_successors
+        succs = state.step(num_inst=insts).flat_successors
         if len(succs) > 0:
             if len(succs) > 1:
                 succs = [s for s in succs if s.se.satisfiable()]
@@ -1092,6 +1090,6 @@ class Tracer(object):
         state.inspect.remove_breakpoint("address_concretization", bp2)
 
         l.debug("final step...")
-        succs = state.project.factory.successors(state)
+        succs = state.step()
         successors = succs.flat_successors + succs.unconstrained_successors
         return successors[0]

@@ -499,7 +499,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
             ]
 
         if len(set(o.arch.name for o in others)) != 1:
-            import ipdb; ipdb.set_trace()
             raise SimMergeError("Unable to merge due to different architectures.")
 
         all_plugins = set(self.plugins.keys()) | set.union(*(set(o.plugins.keys()) for o in others))

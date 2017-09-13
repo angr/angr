@@ -109,6 +109,7 @@ class ExplorationTechnique(object):
 #def register_surveyor(name, strat):
 #    registered_surveyors[name] = strat
 
+from .tracer import Tracer
 from .explorer import Explorer
 from .threading import Threading
 from .dfs import DFS

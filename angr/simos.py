@@ -619,7 +619,7 @@ class SimLinux(SimUserland):
         
         kwargs['concrete_fs'] = kwargs.get('concrete_fs', True)
 
-        state = self.full_init_state(**kwargs)
+        state = self.state_full_init(**kwargs)
 
         # Create the preconstrainer plugin
         state.register_plugin('preconstrainer',
