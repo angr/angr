@@ -685,6 +685,7 @@ class DDG(Analysis):
         while worklist:
             # Pop out a node
             ddg_job = worklist[0]
+            l.debug("Processing %s.", ddg_job)
             node, call_depth = ddg_job.cfg_node, ddg_job.call_depth
             worklist = worklist[ 1 : ]
             worklist_set.remove(node)
@@ -768,7 +769,7 @@ class DDG(Analysis):
                         live_defs_per_node[successing_node] = defs_for_next_node
 
                     for var, code_loc_set in suc_new_defs.iteritems():
-                        l.debug("Adding %d new definitions for variable %s.", len(code_loc_set), var)
+                        # l.debug("Adding %d new definitions for variable %s.", len(code_loc_set), var)
                         changed |= defs_for_next_node.add_defs(var, code_loc_set)
 
                 if changed:
