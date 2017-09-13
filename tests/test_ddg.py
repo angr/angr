@@ -24,7 +24,7 @@ def perform_one(binary_path):
     duration = end - start
     l.info("CFG generated in %f seconds.", duration)
 
-    ddg = proj.analyses.DDG(cfg)
+    ddg = proj.analyses.DDG(cfg, start=cfg.functions['main'].addr)
     # There should be at least 700 nodes
     nose.tools.assert_true(len(ddg.graph) >= 700)
 
@@ -67,8 +67,8 @@ def perform_one(binary_path):
         (memaddr_src, cl1, {'data': 14, 'type': 'tmp', 'subtype': ('mem_addr', )}), in_edges
     )
 
-def test_ddg_0():
-    binary_path = test_location + "/x86_64/datadep_test"
+def disabled_ddg_0():
+    binary_path = os.path.join(test_location, 'x86_64', 'datadep_test')
     perform_one(binary_path)
 
 def run_all():
