@@ -248,7 +248,6 @@ def pc_make_rdata(nbits, cf, pf, af, zf, sf, of, platform=None):
     return cf, pf, af, zf, sf, of
 
 def pc_make_rdata_if_necessary(nbits, cf, pf, af, zf, sf, of, platform=None):
-
     vec = [(data[platform]['CondBitOffsets']['G_CC_SHIFT_C'], cf),
            (data[platform]['CondBitOffsets']['G_CC_SHIFT_P'], pf),
            (data[platform]['CondBitOffsets']['G_CC_SHIFT_A'], af),
@@ -256,12 +255,7 @@ def pc_make_rdata_if_necessary(nbits, cf, pf, af, zf, sf, of, platform=None):
            (data[platform]['CondBitOffsets']['G_CC_SHIFT_S'], sf),
            (data[platform]['CondBitOffsets']['G_CC_SHIFT_O'], of)]
     vec.sort(reverse=True)
-    result = claripy.BVV(0, 0)
-    for offset, bit in vec:
-        current_position = 31 - result.length
-        result = result.concat(claripy.BVV(0, current_position - offset), bit)
-    result = result.concat(claripy.BVV(0, nbits - result.length))
-    return result
+    return _concat_flags(nbits, vec)
 
 def pc_actions_ADD(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
     data_mask, sign_mask = pc_preamble(state, nbits, platform=platform)
@@ -1227,6 +1221,8 @@ ARMG_CC_SHIFT_C = 29
 ARMG_CC_SHIFT_V = 28
 ARMG_CC_SHIFT_Q = 27
 
+ARMG_NBITS = 32
+
 def armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     concrete_op = flag_concretize(state, cc_op)
     flag = None
@@ -1359,7 +1355,11 @@ def armg_calculate_data_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     z, c2 = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     c, c3 = armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     v, c4 = armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-    return (n << ARMG_CC_SHIFT_N) | (z << ARMG_CC_SHIFT_Z) | (c << ARMG_CC_SHIFT_C) | (v << ARMG_CC_SHIFT_V), c1 + c2 + c3 + c4
+    vec = [(ARMG_CC_SHIFT_N, state.se.Extract(0, 0, n)),
+           (ARMG_CC_SHIFT_Z, state.se.Extract(0, 0, z)),
+           (ARMG_CC_SHIFT_C, state.se.Extract(0, 0, c)),
+           (ARMG_CC_SHIFT_V, state.se.Extract(0, 0, v))]
+    return _concat_flags(ARMG_NBITS, vec), c1 + c2 + c3 + c4
 
 def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
     cond = state.se.LShR(cond_n_op, 4)
@@ -1441,6 +1441,8 @@ ARM64CondGT = 12 #/* >s  (signed greater)          : Z=0 && N=V */
 ARM64CondLE = 13 #/* <=s (signed less or equal)    : Z=1 || N!=V */
 ARM64CondAL = 14 #/* always (unconditional)        : 1 */
 ARM64CondNV = 15 #/* always (unconditional)        : 1 */
+
+ARM64G_NBITS = 64
 
 def arm64g_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     concrete_op = flag_concretize(state, cc_op)
@@ -1588,7 +1590,11 @@ def arm64g_calculate_data_nzcv(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     z, c2 = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     c, c3 = arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
     v, c4 = arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
-    return (n << ARM64G_CC_SHIFT_N) | (z << ARM64G_CC_SHIFT_Z) | (c << ARM64G_CC_SHIFT_C) | (v << ARM64G_CC_SHIFT_V), c1 + c2 + c3 + c4
+    vec = [(ARM64G_CC_SHIFT_N, state.se.Extract(0, 0, n)),
+           (ARM64G_CC_SHIFT_Z, state.se.Extract(0, 0, z)),
+           (ARM64G_CC_SHIFT_C, state.se.Extract(0, 0, c)),
+           (ARM64G_CC_SHIFT_V, state.se.Extract(0, 0, v))]
+    return _concat_flags(ARM64G_NBITS, vec), c1 + c2 + c3 + c4
 
 def arm64g_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
     cond = state.se.LShR(cond_n_op, 4)
@@ -1641,8 +1647,33 @@ def _get_flags(state):
         return x86g_calculate_eflags_all(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
     elif state.arch.name == 'AMD64':
         return amd64g_calculate_rflags_all(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
+    elif state.arch.name in ('ARMEL', 'ARMHF', 'ARM'):
+        return armg_calculate_data_nzcv(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
+    elif state.arch.name == 'AARCH64':
+        return arm64g_calculate_data_nzcv(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
     else:
         l.warning("No such thing as a flags register for arch %s", state.arch.name)
+
+def _concat_flags(nbits, flags_vec):
+    """
+    Concatenate different flag BVs to a single BV. Currently used for ARM, X86
+    and AMD64.
+    :param nbits    : platform size in bits.
+    :param flags_vec: vector of flag BVs and their offset in the resulting BV.
+
+    :type nbits     : int
+    :type flags_vec : list
+
+    :return         : the resulting flag BV.
+    :rtype          : claripy.BVV
+    """
+
+    result = claripy.BVV(0, 0)
+    for offset, bit in flags_vec:
+        current_position = 31 - result.length
+        result = result.concat(claripy.BVV(0, current_position - offset), bit)
+    result = result.concat(claripy.BVV(0, nbits - result.length))
+    return result
 
 def _get_nbits(cc_str):
     nbits = None

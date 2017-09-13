@@ -621,6 +621,8 @@ class SimStruct(SimType):
         self._name = '<anon>' if name is None else name
         self.fields = fields
 
+        self._arch_memo = {}
+
     @property
     def name(self): # required bc it's a property in the original
         return self._name
@@ -643,13 +645,18 @@ class SimStruct(SimType):
             if concrete:
                 values[name] = v.concrete
             else:
-                values[name] = v
+                values[name] = v.resolved
 
         return SimStructValue(self, values=values)
 
     def _with_arch(self, arch):
-        out = SimStruct(OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.iteritems()), self.name, True)
+        if arch.name in self._arch_memo:
+            return self._arch_memo[arch.name]
+
+        out = SimStruct(None, self.name, True)
         out._arch = arch
+        self._arch_memo[arch.name] = out
+        out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.iteritems())
         return out
 
     def __repr__(self):
@@ -683,6 +690,14 @@ class SimStructValue(object):
     def __repr__(self):
         fields = ('.{} = {}'.format(name, self._values[name]) for name in self._struct.fields)
         return '{{\n  {}\n}}'.format(',\n  '.join(fields))
+
+    def __getattr__(self, k):
+        return self[k]
+
+    def __getitem__(self, k):
+        if type(k) in (int, long):
+            return self._values[self._struct.fields[k]]
+        return self._values[k]
 
 class SimUnion(SimType):
     """

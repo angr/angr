@@ -53,6 +53,7 @@ class STOP(object): # stop_t
     STOP_NOSTART        = 8
     STOP_SEGFAULT       = 9
     STOP_ZERO_DIV       = 10
+    STOP_NODECODE       = 11
 
     @staticmethod
     def name_stop(num):
@@ -228,6 +229,7 @@ def _load_native():
         _setup_prototype(h, 'set_transmit_sysno', None, state_t, ctypes.c_uint32, ctypes.c_uint64)
         _setup_prototype(h, 'process_transmit', ctypes.POINTER(TRANSMIT_RECORD), state_t, ctypes.c_uint32)
         _setup_prototype(h, 'set_tracking', None, state_t, ctypes.c_bool, ctypes.c_bool)
+        _setup_prototype(h, 'executed_pages', ctypes.c_uint64, state_t)
 
         l.info('native plugin is enabled')
 
@@ -798,7 +800,7 @@ class Unicorn(SimStatePlugin):
             ret_on_segv = True if best_effort_read else False
             items = self.state.memory.mem.load_objects(start, length, ret_on_segv=ret_on_segv)
         except SimSegfaultError:
-            raise
+            raise SegfaultError
 
         if access == unicorn.UC_MEM_FETCH_UNMAPPED and len(items) == 0:
             # we can not initialize an empty page then execute on it
@@ -1035,6 +1037,13 @@ class Unicorn(SimStatePlugin):
             self.state.scratch.stack_pointer_list = stack_pointers[:self.steps]
         # syscall counts
         self.state.history.recent_syscall_count = _UC_NATIVE.syscall_count(self._uc_state)
+        # executed page set
+        self.state.scratch.executed_pages_set = set()
+        while True:
+            page = _UC_NATIVE.executed_pages(self._uc_state)
+            if page == 2**64 - 1:
+                break
+            self.state.scratch.executed_pages_set.add(page)
 
     def destroy(self):
         #l.debug("Unhooking.")

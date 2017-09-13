@@ -6,13 +6,6 @@ BREAK_SIRSB_START = "BREAK_SIRSB_START"
 BREAK_SIRSB_END = "BREAK_SIRSB_END"
 BREAK_SIRSTMT_START = "BREAK_SIRSTMT_START"
 BREAK_SIRSTMT_END = "BREAK_SIRSTMT_END"
-VALIDATE_APPROXIMATIONS = "VALIDATE_APPROXIMATIONS"
-
-# This makes SimIRSBs do a fastpath analysis, only recovering direct jumps.
-SIMIRSB_FASTPATH = "SIMIRSB_FASTPATH"
-
-# This makes all exits report themselves as "reachable" (to get a more complete CFG)
-IGNORE_EXIT_GUARDS = "IGNORE_EXIT_GUARDS"
 
 # This option controls whether register puts are carried out by the analysis.
 # Without this, put statements are still analyzed, but the state is not updated.
@@ -69,9 +62,6 @@ TRUE_RET_EMULATION_GUARD = "TRUE_RET_EMULATION_GUARD"
 
 # This option causes the analysis to immediately concretize any symbol that it comes across
 CONCRETIZE = "CONCRETIZE"
-
-# This option causes the analysis to stop executing a basic block when the first taken exit is encountered.
-SINGLE_EXIT = "SINGLE_EXIT"
 
 # This option prevents angr from doing hundreds of constraint solves to resolve symbolic jump targets
 NO_SYMBOLIC_JUMP_RESOLUTION = "NO_SYMBOLIC_JUMP_RESOLUTION"
@@ -152,23 +142,16 @@ COW_STATES = "COW_STATES"
 # this replaces calls with an unconstraining of the return register
 CALLLESS = "CALLLESS"
 
-# these enables indepent constraint set optimizations. The first is a master toggle, and the second controls
+# these enables independent constraint set optimizations. The first is a master toggle, and the second controls
 # splitting constraint sets during simplification
 COMPOSITE_SOLVER = "COMPOSITE_SOLVER"
 ABSTRACT_SOLVER = "ABSTRACT_SOLVER"
-PARALLEL_SOLVES = "PARALLEL_SOLVES"
 
 # this stops SimRun for checking the satisfiability of successor states
 LAZY_SOLVES = "LAZY_SOLVES"
 
-# This controls whether state executes in native or python mode
-NATIVE_EXECUTION = "NATIVE_EXECUTION"
-
 # This makes angr downsize solvers wherever reasonable.
 DOWNSIZE_Z3 = "DOWNSIZE_Z3"
-
-# Concretize certain registers if they're unique
-CONCRETIZE_UNIQUE_REGS = "CONCRETIZE_UNIQUE_REGS"
 
 # initialize all registers to 0 when creating the state
 INITIALIZE_ZERO_REGISTERS = "INITIALIZE_ZERO_REGISTERS"
@@ -225,6 +208,7 @@ APPROXIMATE_GUARDS = "APPROXIMATE_GUARDS"
 APPROXIMATE_SATISFIABILITY = "APPROXIMATE_SATISFIABILITY" # does GUARDS and the rest of the constraints
 APPROXIMATE_MEMORY_SIZES = "APPROXIMAGE_MEMORY_SIZES"
 APPROXIMATE_MEMORY_INDICES = "APPROXIMAGE_MEMORY_INDICES"
+VALIDATE_APPROXIMATIONS = "VALIDATE_APPROXIMATIONS"
 
 # use an experimental replacement solver
 REPLACEMENT_SOLVER = "REPLACEMENT_SOLVER"
@@ -262,12 +246,17 @@ TRACK_SOLVER_VARIABLES = "TRACK_SOLVER_VARIABLES"
 # Efficient state merging requires potential state ancestors being kept in memory
 EFFICIENT_STATE_MERGING = "EFFICIENT_STATE_MERGING"
 
+# Return 0 instead of a symbolic byte for any unconstrained bytes in memory region
+ZERO_FILL_UNCONSTRAINED_MEMORY = 'ZERO_FILL_UNCONSTRAINED_MEMORY'
+
+# Attempt to support wacky ops not found in libvex
+EXTENDED_IROP_SUPPORT = 'EXTENDED_IROP_SUPPORT'
+
 #
 # CGC specific state options
 #
 
-# Return 0 instead of a symbolic byte for any unconstrained bytes in memory region
-CGC_ZERO_FILL_UNCONSTRAINED_MEMORY = 'CGC_ZERO_FILL_UNCONSTRAINED_MEMORY'
+CGC_ZERO_FILL_UNCONSTRAINED_MEMORY = ZERO_FILL_UNCONSTRAINED_MEMORY
 # Make sure the receive syscall always read as many bytes as the program wants
 CGC_NO_SYMBOLIC_RECEIVE_LENGTH = 'CGC_NO_SYMBOLIC_RECEIVE_LENGTH'
 BYPASS_VERITESTING_EXCEPTIONS = 'BYPASS_VERITESTING_EXCEPTIONS'
@@ -277,17 +266,19 @@ CGC_ENFORCE_FD = 'CGC_ENFORCE_FD'
 CGC_NON_BLOCKING_FDS = 'CGC_NON_BLOCKING_FDS'
 
 # useful sets of options
-resilience_options = { BYPASS_UNSUPPORTED_IROP, BYPASS_UNSUPPORTED_IREXPR, BYPASS_UNSUPPORTED_IRSTMT, BYPASS_UNSUPPORTED_IRDIRTY, BYPASS_UNSUPPORTED_IRCCALL, BYPASS_ERRORED_IRCCALL, BYPASS_UNSUPPORTED_SYSCALL, BYPASS_ERRORED_IROP, BYPASS_VERITESTING_EXCEPTIONS }
+resilience = { BYPASS_UNSUPPORTED_IROP, BYPASS_UNSUPPORTED_IREXPR, BYPASS_UNSUPPORTED_IRSTMT, BYPASS_UNSUPPORTED_IRDIRTY, BYPASS_UNSUPPORTED_IRCCALL, BYPASS_ERRORED_IRCCALL, BYPASS_UNSUPPORTED_SYSCALL, BYPASS_ERRORED_IROP, BYPASS_VERITESTING_EXCEPTIONS }
+resilience_options = resilience # alternate name?
 refs = { TRACK_REGISTER_ACTIONS, TRACK_MEMORY_ACTIONS, TRACK_TMP_ACTIONS, TRACK_JMP_ACTIONS, ACTION_DEPS, TRACK_CONSTRAINT_ACTIONS }
 approximation = { APPROXIMATE_SATISFIABILITY, APPROXIMATE_MEMORY_SIZES, APPROXIMATE_MEMORY_INDICES }
 symbolic = { DO_CCALLS, SYMBOLIC, TRACK_CONSTRAINTS, SYMBOLIC_INITIAL_VALUES, COMPOSITE_SOLVER }
 simplification = { SIMPLIFY_MEMORY_WRITES, SIMPLIFY_REGISTER_WRITES }
-common_options_without_simplification = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES, OPTIMIZE_IR, TRACK_MEMORY_MAPPING, SUPPORT_FLOATING_POINT }
-common_options = common_options_without_simplification | simplification
+common_options = { DO_GETS, DO_PUTS, DO_LOADS, DO_OPS, COW_STATES, DO_STORES, OPTIMIZE_IR, TRACK_MEMORY_MAPPING, SUPPORT_FLOATING_POINT, EXTENDED_IROP_SUPPORT } | simplification
 unicorn = { UNICORN, UNICORN_SYM_REGS_SUPPORT, INITIALIZE_ZERO_REGISTERS, UNICORN_HANDLE_TRANSMIT_SYSCALL, UNICORN_TRACK_BBL_ADDRS, UNICORN_TRACK_STACK_POINTERS }
 
-modes = { }
-modes['symbolic'] = common_options | symbolic | refs #| approximation | { VALIDATE_APPROXIMATIONS }
-modes['symbolic_approximating'] = common_options | symbolic | refs | approximation
-modes['static'] = common_options_without_simplification | { REGION_MAPPING, BEST_EFFORT_MEMORY_STORING, SYMBOLIC_INITIAL_VALUES, DO_CCALLS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, ABSTRACT_SOLVER, USE_SIMPLIFIED_CCALLS, REVERSE_MEMORY_NAME_MAP }
-modes['fastpath'] = ((modes['symbolic'] | { TRACK_OP_ACTIONS, BEST_EFFORT_MEMORY_STORING, AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, IGNORE_EXIT_GUARDS, SYMBOLIC_INITIAL_VALUES, DO_RET_EMULATION, NO_SYMBOLIC_JUMP_RESOLUTION, NO_SYMBOLIC_SYSCALL_RESOLUTION, FAST_REGISTERS } | resilience_options) - simplification - approximation) - { SYMBOLIC, DO_CCALLS } - refs
+modes = {
+    'symbolic': common_options | symbolic | { TRACK_CONSTRAINT_ACTIONS }, #| approximation | { VALIDATE_APPROXIMATIONS }
+    'symbolic_approximating': common_options | symbolic | approximation | { TRACK_CONSTRAINT_ACTIONS },
+    'static': (common_options - simplification) | { REGION_MAPPING, BEST_EFFORT_MEMORY_STORING, SYMBOLIC_INITIAL_VALUES, DO_CCALLS, DO_RET_EMULATION, TRUE_RET_EMULATION_GUARD, BLOCK_SCOPE_CONSTRAINTS, TRACK_CONSTRAINTS, ABSTRACT_MEMORY, ABSTRACT_SOLVER, USE_SIMPLIFIED_CCALLS, REVERSE_MEMORY_NAME_MAP },
+    'fastpath': (common_options - simplification ) | (symbolic - { SYMBOLIC, DO_CCALLS }) | resilience | { TRACK_OP_ACTIONS, BEST_EFFORT_MEMORY_STORING, AVOID_MULTIVALUED_READS, AVOID_MULTIVALUED_WRITES, SYMBOLIC_INITIAL_VALUES, DO_RET_EMULATION, NO_SYMBOLIC_JUMP_RESOLUTION, NO_SYMBOLIC_SYSCALL_RESOLUTION, FAST_REGISTERS },
+    'tracing': common_options | symbolic | resilience | (unicorn - { UNICORN_TRACK_STACK_POINTERS }) | { STRICT_PAGE_ACCESS, EXCEPTION_HANDLING, ZERO_FILL_UNCONSTRAINED_MEMORY, USE_SYSTEM_TIMES },
+}

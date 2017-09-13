@@ -29,3 +29,4 @@ EXPORTS
   simunicorn_set_transmit_sysno
   simunicorn_process_transmit
   simunicorn_set_tracking
+  simunicorn_executed_pages

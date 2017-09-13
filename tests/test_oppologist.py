@@ -21,7 +21,7 @@ def _ultra_oppologist(p, s):
 def test_fauxware_oppologist():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
     s = p.factory.full_init_state(
-        remove_options={ angr.options.LAZY_SOLVES }
+        remove_options={ angr.options.LAZY_SOLVES, angr.options.EXTENDED_IROP_SUPPORT }
     )
 
     pg = _ultra_oppologist(p, s)

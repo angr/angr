@@ -14,13 +14,14 @@ class LoadLibraryA(angr.SimProcedure):
             lib += '.dll'
         loaded = self.project.loader.dynamic_load(lib)
         if loaded is None:
+            l.debug("LoadLibrary: Could not load %s", lib)
             return 0
 
         # Add simprocedures
         for obj in loaded:
             self.register(obj)
 
-        l.debug("Loaded %s", lib)
+        l.debug("LoadLibrary: Loaded %s", lib)
         return self.project.loader.find_object(lib).mapped_base
 
     def register(self, obj): # can be overridden for instrumentation
@@ -41,12 +42,15 @@ class GetProcAddress(angr.SimProcedure):
             raise angr.errors.SimValueError("GetProcAddress called with symbolic library handle %s" % lib_handle)
         lib_handle = self.state.se.eval(lib_handle)
 
-        for obj in self.project.loader.all_pe_objects:
-            if obj.mapped_base == lib_handle:
-                break
+        if lib_handle == 0:
+            obj = self.project.loader.main_object
         else:
-            l.warning("GetProcAddress: invalid library handle %s", lib_handle)
-            return 0
+            for obj in self.project.loader.all_pe_objects:
+                if obj.mapped_base == lib_handle:
+                    break
+            else:
+                l.warning("GetProcAddress: invalid library handle %s", lib_handle)
+                return 0
 
         if claripy.is_true(name_addr < 0x10000):
             # this matches the bogus name specified in the loader...
@@ -69,14 +73,19 @@ class GetProcAddress(angr.SimProcedure):
                     break
 
         if sym is None:
-            l.warning("GetProcAddress: object %s does not contain %s", obj.provides, name)
+            l.info("GetProcAddress: object %s does not contain %s", obj.provides, name)
             return 0
-        else:
-            name = sym.name # fix ordinal names
-            full_name = '%s.%s' % (obj.provides, name)
-            self.procs.add(full_name)
 
-        l.debug("Imported %s (%#x) from %s", name, sym.rebased_addr, obj.provides)
+        sym = sym.resolve_forwarder()
+        if sym is None:
+            l.warning("GetProcAddress: forwarding failed for %s from %s", name, obj.provides)
+            return 0
+
+        name = sym.name # fix ordinal names
+        full_name = '%s.%s' % (obj.provides, name)
+        self.procs.add(full_name)
+
+        l.debug("GetProcAddress: Imported %s (%#x) from %s", name, sym.rebased_addr, obj.provides)
         return sym.rebased_addr
 
     KEY = 'dynamically_loaded_procedures'
