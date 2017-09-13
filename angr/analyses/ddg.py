@@ -749,23 +749,11 @@ class DDG(Analysis):
 
                 for successing_node in add_state_to_sucs:
 
-                    suc_new_defs = new_defs
                     if (state.history.jumpkind == 'Ijk_Call' or state.history.jumpkind.startswith('Ijk_Sys')) and \
                             (state.ip.symbolic or successing_node.addr != state.se.eval(state.ip)):
-
-                        # this might be the block after the call, and we are not tracing into the call
-                        # TODO: make definition killing architecture independent and calling convention independent
-                        filtered_defs = LiveDefinitions()
-                        for variable, locs in new_defs.iteritems():
-                            if isinstance(variable, SimRegisterVariable):
-                                if variable.reg in (self.project.arch.registers['eax'][0],
-                                                    self.project.arch.registers['ecx'][0],
-                                                    self.project.arch.registers['edx'][0]):
-                                    continue
-
-                            filtered_defs.add_defs(variable, locs)
-
-                        suc_new_defs = filtered_defs
+                        suc_new_defs = self._filter_defs_at_call_sites(new_defs)
+                    else:
+                        suc_new_defs = new_defs
 
                     if successing_node in live_defs_per_node:
                         defs_for_next_node = live_defs_per_node[successing_node]
@@ -1473,6 +1461,35 @@ class DDG(Analysis):
                 if not dst_target_func is src_target_func:
                     self._function_data_dependencies[dst_target_func].add_edge(src, dst, **data)
 
+    #
+    # Other private methods
+    #
+
+    def _filter_defs_at_call_sites(self, defs):
+        """
+        If we are not tracing into the function that are called in a real execution, we should properly filter the defs
+        to account for the behavior of the skipped function at this call site.
+
+        This function is a WIP. See TODOs inside.
+
+        :param defs:
+        :return:
+        """
+
+        # TODO: make definition killing architecture independent and calling convention independent
+        # TODO: use information from a calling convention analysis
+        filtered_defs = LiveDefinitions()
+        for variable, locs in defs.iteritems():
+            if isinstance(variable, SimRegisterVariable):
+                if self.project.arch.name == 'X86':
+                    if variable.reg in (self.project.arch.registers['eax'][0],
+                                        self.project.arch.registers['ecx'][0],
+                                        self.project.arch.registers['edx'][0]):
+                        continue
+
+            filtered_defs.add_defs(variable, locs)
+
+        return filtered_defs
 
     def find_definitions(self, variable, location=None, simplified_graph=True):
         """
