@@ -710,7 +710,7 @@ class DDG(Analysis):
                 matched = False
                 for state in final_states:
                     try:
-                        if state.se.any_int(state.ip) == suc.addr:
+                        if state.se.eval(state.ip) == suc.addr:
                             match_suc[suc.addr] = True
                             match_state[state].add(suc)
                             matched = True
