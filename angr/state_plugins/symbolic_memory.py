@@ -800,12 +800,14 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return stored_values
 
-    def _create_segment(self, addr, size, s_options, idx, segments):
+    @staticmethod
+    def _create_segment(addr, size, s_options, idx, segments):
         segment = dict(start=addr, size=size, options=s_options)
         segments.insert(idx, segment)
 
-    def _split_segment(self, addr, segments):
-        s_idx = self._get_segment_index(addr, segments)
+    @staticmethod
+    def _split_segment(addr, segments):
+        s_idx = SimSymbolicMemory._get_segment_index(addr, segments)
         segment = segments[s_idx]
         if segment['start'] == addr:
             return s_idx
@@ -814,33 +816,37 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         size_next = segment['size'] - size_prev
         assert size_prev != 0 and size_next != 0
         segments.pop(s_idx)
-        self._create_segment(segment['start'], size_prev, segment['options'], s_idx, segments)
-        self._create_segment(addr, size_next, [{"idx": opt["idx"] + size_prev} for opt in segment['options']], s_idx + 1, segments)
+        SimSymbolicMemory._create_segment(segment['start'], size_prev, segment['options'], s_idx, segments)
+        SimSymbolicMemory._create_segment(addr, size_next, [{"idx": opt["idx"] + size_prev}
+                                                            for opt in segment['options']], s_idx + 1, segments)
         return s_idx + 1
 
-    def _add_segments_overlap(self, idx, addr, segments):
+    @staticmethod
+    def _add_segments_overlap(idx, addr, segments):
         for i in range(idx, len(segments)):
             segment = segments[i]
             if addr < segment['start'] + segment['size']:
                 segments[i]["options"].append({"idx": segment['start'] - addr})
 
-    def _get_segment_index(self, addr, segments):
+    @staticmethod
+    def _get_segment_index(addr, segments):
         for i, segment in enumerate(segments):
             if segment['start'] <= addr and addr < segment['start'] + segment['size']:
                 return i
 
         return -1
 
-    def _get_segments(self, addrs, size):
+    @staticmethod
+    def _get_segments(addrs, size):
         segments = []
         highest = 0
         for addr in addrs:
             if addr < highest:
-                idx = self._split_segment(addr, segments)
-                self._create_segment(highest, addr + size - highest, [], len(segments), segments)
-                self._add_segments_overlap(idx, addr, segments)
+                idx = SimSymbolicMemory._split_segment(addr, segments)
+                SimSymbolicMemory._create_segment(highest, addr + size - highest, [], len(segments), segments)
+                SimSymbolicMemory._add_segments_overlap(idx, addr, segments)
             else:
-                self._create_segment(addr, size, [{'idx': 0}], len(segments), segments)
+                SimSymbolicMemory._create_segment(addr, size, [{'idx': 0}], len(segments), segments)
             highest = addr + size
         return segments
 
