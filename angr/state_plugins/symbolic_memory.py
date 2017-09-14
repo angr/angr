@@ -752,9 +752,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         try:
             original_value = self._read_from(address, size)
         except Exception as ex:
-            #print ex
             raise ex
-            return
+
         if endness == "Iend_LE" or (endness is None and self.endness == "Iend_LE"):
             original_value = original_value.reversed
         conditional_value = self.state.solver.If(condition, data, original_value)
