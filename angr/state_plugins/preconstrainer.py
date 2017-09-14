@@ -99,7 +99,7 @@ class SimStatePreconstrainer(SimStatePlugin):
 
         # add the preconstraints to the actual constraints on the state if we aren't replacing
         if o.REPLACEMENT_SOLVER not in self.state.options:
-            self.add_constraints(*self.preconstraints)
+            self.state.add_constraints(*self.preconstraints)
 
     def preconstrain_flag_page(self):
         """
