@@ -528,7 +528,7 @@ class CFGBase(Analysis):
         THUMB_BRANCH_INSTRUCTIONS = ('beq', 'bne', 'bcs', 'bhs', 'bcc', 'blo', 'bmi', 'bpl', 'bvs',
                                      'bvc', 'bhi', 'bls', 'bge', 'blt', 'bgt', 'ble', 'cbz', 'cbnz')
         for cs_insn in bb.capstone.insns:
-            if cs_insn.mnemonic in THUMB_BRANCH_INSTRUCTIONS:
+            if cs_insn.mnemonic.split('.')[0] in THUMB_BRANCH_INSTRUCTIONS:
                 can_produce_exits.add(cs_insn.address)
 
         successors_filtered = filter(lambda suc: get_ins_addr(suc) in can_produce_exits or
