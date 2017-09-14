@@ -675,7 +675,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if not self.state.solver.symbolic(req.size) and self.state.solver.eval(req.size) > req.data.length/8:
             raise SimMemoryError("Not enough data for requested storage size (size: {}, data: {})".format(req.size, req.data))
 
-        req.constraints += [self.state.solver.ULE(req.size, max_bytes)]
+        if self.state.solver.symbolic(req.size):
+            req.constraints += [self.state.solver.ULE(req.size, max_bytes)]
 
         condition = req.condition if req.condition is not None else claripy.BoolV(True)
 
