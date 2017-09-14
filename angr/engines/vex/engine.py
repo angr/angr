@@ -249,7 +249,6 @@ class SimEngineVEX(SimEngine):
                         reg_deps=next_expr.reg_deps(), tmp_deps=next_expr.tmp_deps()
                     )
                     state.history.add_action(SimActionExit(state, target_ao, exit_type=SimActionExit.DEFAULT))
-
                 successors.add_successor(state, next_expr.expr, state.scratch.guard, irsb.jumpkind,
                                          exit_stmt_idx='default', exit_ins_addr=state.scratch.ins_addr)
 
