@@ -21,6 +21,7 @@ from .state_plugins.inspect import BP_BEFORE, BP_AFTER, BP_BOTH, BP_IPDB, BP_IPY
 # other stuff
 
 from .state_plugins.inspect import BP
+from .state_plugins import SimStatePlugin
 
 from .project import *
 from .errors import *
@@ -34,13 +35,14 @@ from .analyses import Analysis, register_analysis
 from . import analyses
 from . import knowledge_plugins
 from . import exploration_techniques
+from .exploration_techniques import ExplorationTechnique
 from . import type_backend
 from . import sim_type as types
 from .state_hierarchy import StateHierarchy
 
 from .sim_state import SimState
-from .engines import SimEngineVEX
-from .calling_conventions import DEFAULT_CC, SYSCALL_CC, PointerWrapper
+from .engines import SimEngineVEX, SimEngine
+from .calling_conventions import DEFAULT_CC, SYSCALL_CC, PointerWrapper, SimCC
 
 # now that we have everything loaded, re-grab the list of loggers
 loggers.load_all_loggers()
