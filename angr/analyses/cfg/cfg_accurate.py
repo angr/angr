@@ -1405,7 +1405,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         extra_info = job.extra_info
         successor_status = job.successor_status
 
-        func = self.project.loader.find_symbol(job.addr)
+        func = self.project.loader.find_symbol(job.func_addr)
         obj = self.project.loader.find_object_containing(job.addr)
         function_name = func.name if func is not None else None
         module_name = obj.provides if obj is not None else None
