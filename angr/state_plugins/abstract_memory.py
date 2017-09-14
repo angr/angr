@@ -636,6 +636,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         :param addr: address to map the pages at
         :param length: length in bytes of region to map, will be rounded upwards to the page size
         :param permissions: AST of permissions to map, will be a bitvalue representing flags
+        :param init_zero: Initialize page with zeros
         """
         l.warning('map_region() is not yet supported by SimAbstractMmeory.')
         return

@@ -1166,6 +1166,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         :param addr: address to map the pages at
         :param length: length in bytes of region to map, will be rounded upwards to the page size
         :param permissions: AST of permissions to map, will be a bitvalue representing flags
+        :param init_zero: Initialize page with zeros
         """
         return self.mem.map_region(addr, length, permissions, init_zero=init_zero)
 
