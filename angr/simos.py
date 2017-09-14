@@ -597,7 +597,7 @@ class SimLinux(SimUserland):
         if input_content is None:
             return self.state_entry(**kwargs)
 
-        l.info("Tracer has been heavily tested only for CGC. If you find it buggy for Linux binaries, we are sorry!")
+        l.warning("Tracer has been heavily tested only for CGC. If you find it buggy for Linux binaries, we are sorry!")
 
         if type(input_content) == str:
             fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=len(input_content))}
