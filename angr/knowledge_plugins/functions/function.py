@@ -599,7 +599,6 @@ class Function(object):
             raise AngrValueError('_register_nodes(): the "is_local" parameter must be a bool')
 
         for node in nodes:
-            node.function = self
             self.transition_graph.add_node(node)
             node._graph = self.transition_graph
             if node.addr not in self or self._block_sizes[node.addr] == 0:

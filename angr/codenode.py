@@ -4,13 +4,12 @@ l = logging.getLogger("angr.codenode")
 
 class CodeNode(object):
 
-    __slots__ = ['addr', 'size', 'function', '_graph', 'thumb']
+    __slots__ = ['addr', 'size', '_graph', 'thumb']
 
     def __init__(self, addr, size, graph=None, thumb=False):
         self.addr = addr
         self.size = size
         self.thumb = thumb
-        self.function = None
         self._graph = graph
 
     def __len__(self):
