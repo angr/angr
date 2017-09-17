@@ -1018,15 +1018,20 @@ class DDG(Analysis):
 
             # get all definitions
             defs = self._def_lookup(variable)
-            # for each definition, create an edge on the graph
-            for definition_location, labels in defs.iteritems():
-                self._stmt_graph_add_edge(definition_location, code_location, **labels)
-                variables.append(ProgramVariable(variable, definition_location, arch=self.project.arch))
 
-            if not defs:
+            if defs:
+                # for each definition, create an edge on the graph
+                for definition_location, labels in defs.iteritems():
+                    self._stmt_graph_add_edge(definition_location, code_location, **labels)
+                    pv = ProgramVariable(variable, definition_location, arch=self.project.arch)
+                    variables.append(pv)
+                    self._make_edges(action, pv)
+            else:
                 # if no definition is found, then this is the first time this variable is accessed
                 # mark it as "initial"
-                variables.append(ProgramVariable(variable, code_location, initial=True, arch=self.project.arch))
+                pv = ProgramVariable(variable, code_location, initial=True, arch=self.project.arch)
+                variables.append(pv)
+                self._make_edges(action, pv)
                 # make sure to put it into the killing set
                 self._kill(variable, code_location)
 
