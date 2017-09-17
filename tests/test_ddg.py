@@ -19,14 +19,16 @@ def perform_one(binary_path):
                         use_sim_procedures=True,
                         default_analysis_mode='symbolic')
     start = time.time()
-    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=2, keep_state=True)
+    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=2, keep_state=True,
+                                    state_add_options=angr.sim_options.refs  # refs are necessary for DDG to work
+                                    )
     end = time.time()
     duration = end - start
     l.info("CFG generated in %f seconds.", duration)
 
     ddg = proj.analyses.DDG(cfg, start=cfg.functions['main'].addr)
-    # There should be at least 700 nodes
-    nose.tools.assert_true(len(ddg.graph) >= 700)
+    # There should be at least 400 nodes
+    nose.tools.assert_true(len(ddg.graph) >= 400)
 
     from angr.analyses.code_location import CodeLocation
 
@@ -50,7 +52,7 @@ def perform_one(binary_path):
     """
 
     cl1 = CodeLocation(0x400667, 3)
-    in_edges = ddg.graph.in_edges(cl1, data=True)
+    in_edges = ddg.graph.in_edges([cl1], data=True)
     # Where the memory address comes from
     memaddr_src = CodeLocation(0x400667, 2)
     # Where the data comes from
@@ -67,7 +69,7 @@ def perform_one(binary_path):
         (memaddr_src, cl1, {'data': 14, 'type': 'tmp', 'subtype': ('mem_addr', )}), in_edges
     )
 
-def disabled_ddg_0():
+def test_ddg_0():
     binary_path = os.path.join(test_location, 'x86_64', 'datadep_test')
     perform_one(binary_path)
 
