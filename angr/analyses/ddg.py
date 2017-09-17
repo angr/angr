@@ -69,7 +69,7 @@ class ProgramVariable(object):
 
     def __repr__(self):
         if self._arch is not None:
-            s = "{%s @ %s}" % (self.variable.pp(self._arch), self.location)
+            s = "{%s @ %s}" % (self.variable, self.location)
         else:
             s = "{%s @ %s}" % (self.variable, self.location)
         return s
@@ -77,7 +77,7 @@ class ProgramVariable(object):
     @property
     def short_repr(self):
         if self._arch is not None:
-            s = "{%s@%s}" % (self.variable.pp(self._arch), self.location.short_repr)
+            s = "{%s@%s}" % (self.variable, self.location.short_repr)
         else:
             s = "{%s@%s}" % (self.variable, self.location.short_repr)
         return s
