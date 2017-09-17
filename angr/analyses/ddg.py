@@ -488,6 +488,16 @@ class DDG(Analysis):
         self.view = DDGView(self._cfg, self, simplified=False)
         self.simple_view = DDGView(self._cfg, self, simplified=True)
 
+        # Local variables
+        self._live_defs = None
+        self._temp_variables = None
+        self._temp_register_symbols = None
+        self._temp_edges = None
+        self._temp_register_symbols = None
+        self._variables_per_statement = None
+        self._custom_data_per_statement = None
+        self._register_edges = None
+
         # Begin construction!
         self._construct()
 
@@ -917,7 +927,8 @@ class DDG(Analysis):
     # Action handling
     #
 
-    def _get_actual_addrs(self, action, state):
+    @staticmethod
+    def _get_actual_addrs(action, state):
         """
         For memory actions, get a list of addresses it operates on.
 
@@ -1007,7 +1018,7 @@ class DDG(Analysis):
                 if tmp in self._temp_variables:
                     self._data_graph_add_edge(self._temp_variables[tmp], prog_var, type='mem_data')
 
-    def _handle_mem_read(self, action, code_location, state, statement):
+    def _handle_mem_read(self, action, code_location, state, statement):  # pylint:disable=unused-argument
 
         addrs = self._get_actual_addrs(action, state)
 
@@ -1067,7 +1078,7 @@ class DDG(Analysis):
                     const = statement.data.con.value
                     self._ast_graph.add_edge(ProgramVariable(SimConstantVariable(const), location), pv)
 
-    def _handle_reg_read(self, action, location, state, statement):
+    def _handle_reg_read(self, action, location, state, statement):  # pylint:disable=unused-argument
 
         reg_offset = action.offset
         variable = SimRegisterVariable(reg_offset, action.data.ast.size() / 8)
@@ -1095,7 +1106,7 @@ class DDG(Analysis):
         elif reg_offset == self.project.arch.bp_offset:
             self._custom_data_per_statement = ('bp', 0)
 
-    def _handle_reg_write(self, action, location, state, statement):
+    def _handle_reg_write(self, action, location, state, statement):  # pylint:disable=unused-argument
 
         reg_offset = action.offset
         variable = SimRegisterVariable(reg_offset, action.data.ast.size() / 8)
@@ -1124,7 +1135,7 @@ class DDG(Analysis):
             if tmp in self._temp_variables:
                 self._data_graph_add_edge(self._temp_variables[tmp], pv)
 
-    def _handle_tmp_read(self, action, location, state, statement):
+    def _handle_tmp_read(self, action, location, state, statement):  # pylint:disable=unused-argument
 
         tmp = action.tmp
         tmp_var = self._temp_variables[tmp]
@@ -1141,7 +1152,7 @@ class DDG(Analysis):
 
         self._variables_per_statement.append(tmp_var)
 
-    def _handle_tmp_write(self, action, location, state, statement):
+    def _handle_tmp_write(self, action, location, state, statement):  # pylint:disable=unused-argument
 
         ast = None
 
@@ -1195,7 +1206,7 @@ class DDG(Analysis):
             const_pv = ProgramVariable(const_variable, location, arch=self.project.arch)
             self._data_graph_add_edge(const_pv, pv)
 
-    def _handle_exit(self, action, location, state, statement):
+    def _handle_exit(self, action, location, state, statement):  # pylint:disable=unused-argument
 
         # exits should only depend on tmps
         for tmp in action.tmp_deps:
@@ -1208,7 +1219,7 @@ class DDG(Analysis):
             edge_tuple = (prev_code_loc, location)
             self._temp_edges[tmp].append(edge_tuple)
 
-    def _handle_operation(self, action, location, state, statement):
+    def _handle_operation(self, action, location, state, statement):  # pylint:disable=unused-argument
 
         if action.op.endswith('Sub32') or action.op.endswith('Sub64'):
             # subtract
@@ -1240,7 +1251,7 @@ class DDG(Analysis):
                     offset += const_value
                     self._custom_data_per_statement = (sort, offset)
 
-    def _process_operation(self, action, location, state, statement):
+    def _process_operation(self, action, location, state, statement):  # pylint:disable=unused-argument
 
         if action.op.endswith('Sub32') or action.op.endswith('Sub64'):
             # subtract
