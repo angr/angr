@@ -1145,11 +1145,6 @@ class DDG(Analysis):
 
         ast = None
 
-        for a in action.subactions:
-            if a.type == 'operation':
-                ast = self._process_operation(a, location, state, statement)
-                break
-
         tmp = action.tmp
         pv = ProgramVariable(SimTemporaryVariable(tmp), location, arch=self.project.arch)
 
