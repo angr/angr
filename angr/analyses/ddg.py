@@ -986,10 +986,12 @@ class DDG(Analysis):
                 self._data_graph_add_edge(self._temp_variables[tmp], prog_var, type='mem_addr')
 
         if not action.data.reg_deps and not action.data.tmp_deps:
-            # constant assignment
+            # might be a constant assignment
             v = action.data.ast
-            const_var = ProgramVariable(SimConstantVariable(v._model_concrete.value), prog_var.location)
-            self._data_graph_add_edge(const_var, prog_var, type='mem_data')
+            if not v.symbolic:
+                const_var = SimConstantVariable(v._model_concrete.value)
+                const_progvar = ProgramVariable(const_var, prog_var.location)
+                self._data_graph_add_edge(const_progvar, prog_var, type='mem_data')
 
         else:
             for reg_offset in action.data.reg_deps:
