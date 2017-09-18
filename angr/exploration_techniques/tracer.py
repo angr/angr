@@ -132,7 +132,7 @@ class Tracer(ExplorationTechnique):
         return False
 
     def step(self, simgr, stash, **kwargs):
-        while len(simgr.active) == 1:
+        if len(simgr.active) == 1:
             current = simgr.active[0]
 
             if current.history.recent_block_count > 1:
@@ -254,54 +254,55 @@ class Tracer(ExplorationTechnique):
             # possibly we want to have different behaviour if we're in crash mode.
             return simgr
 
-        # if we get to this point there's more than one active path
-        # if we have to ditch the trace we use satisfiability
-        # or if a split occurs in a library routine
-        a_paths = simgr.active
+        if len(simgr.active) > 1:
+            # if we get to this point there's more than one active path
+            # if we have to ditch the trace we use satisfiability
+            # or if a split occurs in a library routine
+            a_paths = simgr.active
 
-        if self._no_follow or all(map(
-                lambda p: not self._address_in_binary(p.addr), a_paths
-                )):
-            simgr.prune(to_stash='missed')
-        else:
-            l.debug("bb %d / %d", self._bb_cnt, len(self._trace))
-            simgr.stash_not_addr(self._trace[self._bb_cnt], to_stash='missed')
-        if len(simgr.active) > 1: # rarely we get two active paths
-            simgr.prune(to_stash='missed')
+            if self._no_follow or all(map(
+                    lambda p: not self._address_in_binary(p.addr), a_paths
+                    )):
+                simgr.prune(to_stash='missed')
+            else:
+                l.debug("bb %d / %d", self._bb_cnt, len(self._trace))
+                simgr.stash_not_addr(self._trace[self._bb_cnt], to_stash='missed')
+            if len(simgr.active) > 1: # rarely we get two active paths
+                simgr.prune(to_stash='missed')
 
-        if len(simgr.active) > 1: # might still be two active
-            simgr.stash(to_stash='missed', filter_func=lambda x: x.jumpkind == "Ijk_EmWarn")
+            if len(simgr.active) > 1: # might still be two active
+                simgr.stash(to_stash='missed', filter_func=lambda x: x.jumpkind == "Ijk_EmWarn")
 
-        # make sure we only have one or zero active paths at this point
-        assert len(simgr.active) < 2
+            # make sure we only have one or zero active paths at this point
+            assert len(simgr.active) < 2
 
-        # something weird... maybe we hit a rep instruction?
-        # qemu and vex have slightly different behaviors...
-        if not simgr.active[0].se.satisfiable():
-            l.info("detected small discrepancy between qemu and angr, "
-                    "attempting to fix known cases")
+            # something weird... maybe we hit a rep instruction?
+            # qemu and vex have slightly different behaviors...
+            if not simgr.active[0].se.satisfiable():
+                l.info("detected small discrepancy between qemu and angr, "
+                        "attempting to fix known cases")
 
-            # Have we corrected it?
-            corrected = False
+                # Have we corrected it?
+                corrected = False
 
-            # did our missed branch try to go back to a rep?
-            target = simgr.missed[0].addr
-            if self.project.arch.name == 'X86' or self.project.arch.name == 'AMD64':
+                # did our missed branch try to go back to a rep?
+                target = simgr.missed[0].addr
+                if self.project.arch.name == 'X86' or self.project.arch.name == 'AMD64':
 
-                # does it looks like a rep? rep ret doesn't count!
-                if self.project.factory.block(target).bytes.startswith("\xf3") and \
-                   not self.project.factory.block(target).bytes.startswith("\xf3\xc3"):
+                    # does it looks like a rep? rep ret doesn't count!
+                    if self.project.factory.block(target).bytes.startswith("\xf3") and \
+                       not self.project.factory.block(target).bytes.startswith("\xf3\xc3"):
 
-                    l.info("rep discrepency detected, repairing...")
-                    # swap the stashes
-                    simgr.move('missed', 'chosen')
-                    simgr.move('active', 'missed')
-                    simgr.move('chosen', 'active')
+                        l.info("rep discrepency detected, repairing...")
+                        # swap the stashes
+                        simgr.move('missed', 'chosen')
+                        simgr.move('active', 'missed')
+                        simgr.move('chosen', 'active')
 
-                    corrected = True
+                        corrected = True
 
-            if not corrected:
-                l.warning("Unable to correct discrepancy between qemu and angr.")
+                if not corrected:
+                    l.warning("Unable to correct discrepancy between qemu and angr.")
 
         return simgr
 
