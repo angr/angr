@@ -125,6 +125,11 @@ class SimEngineVEX(SimEngine):
                     opt_level=opt_level)
 
             if irsb.size == 0:
+                if irsb.jumpkind == 'Ijk_NoDecode':
+                    raise SimIRSBError("IR decoding error at %#x. You can hook this instruction with "
+                                       "a python replacement using project.hook"
+                                       "(%#x, your_function, length=length_of_instruction)." % (addr, addr))
+
                 raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
             # check permissions, are we allowed to execute here? Do we care?
