@@ -630,7 +630,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         return False
 
-    def map_region(self, addr, length, permissions, init_zero=False):
+    def map_region(self, addr, length, permissions, init_zero=False): # pylint: disable=unused-argument
         """
         Map a number of pages at address `addr` with permissions `permissions`.
         :param addr: address to map the pages at
@@ -641,7 +641,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         l.warning('map_region() is not yet supported by SimAbstractMmeory.')
         return
 
-    def unmap_region(self, addr, length):
+    def unmap_region(self, addr, length): # pylint: disable=unused-argument
         """
         Unmap a number of pages at address `addr`
         :param addr: address to unmap the pages at
