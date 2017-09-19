@@ -10,7 +10,7 @@ from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
 from ...state_plugins.sim_action import SimActionExit, SimActionObject
 from ...errors import (SimError, SimIRSBError, SimSolverError, SimMemoryAddressError, SimReliftException,
                        UnsupportedDirtyError, SimTranslationError, SimEngineError, SimSegfaultError,
-                       SimMemoryError)
+                       SimMemoryError, SimIRSBNoDecodeError)
 from ..engine import SimEngine
 from .statements import translate_stmt
 from .expressions import translate_expr
@@ -126,9 +126,9 @@ class SimEngineVEX(SimEngine):
 
             if irsb.size == 0:
                 if irsb.jumpkind == 'Ijk_NoDecode':
-                    raise SimIRSBError("IR decoding error at %#x. You can hook this instruction with "
-                                       "a python replacement using project.hook"
-                                       "(%#x, your_function, length=length_of_instruction)." % (addr, addr))
+                    raise SimIRSBNoDecodeError("IR decoding error at %#x. You can hook this instruction with "
+                                               "a python replacement using project.hook"
+                                               "(%#x, your_function, length=length_of_instruction)." % (addr, addr))
 
                 raise SimIRSBError("Empty IRSB passed to SimIRSB.")
 
