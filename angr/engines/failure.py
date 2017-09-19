@@ -8,9 +8,8 @@ class SimEngineFailure(SimEngine): #pylint:disable=abstract-method
         super(SimEngineFailure, self).__init__()
         self.project = project
 
-    def _check(self, state, **kwargs):
+    def _check(self, state, *args, **kwargs):
 
-        addr = state.se.eval(state._ip)
         jumpkind = state.history.jumpkind
 
         if jumpkind in ('Ijk_EmFail', 'Ijk_MapFail') or jumpkind.startswith('Ijk_Sig'):
@@ -19,7 +18,7 @@ class SimEngineFailure(SimEngine): #pylint:disable=abstract-method
             return True
         return False
 
-    def process(self, state, **kwargs):
+    def process(self, state, *args, **kwargs):
 
         from ..procedures import SIM_PROCEDURES
 

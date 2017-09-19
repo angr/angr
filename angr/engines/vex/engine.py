@@ -125,7 +125,7 @@ class SimEngineVEX(SimEngine):
                     opt_level=opt_level)
 
             if irsb.size == 0:
-                if irsb.jumpkind == 'Ijk_NoDecode':
+                if irsb.jumpkind == 'Ijk_NoDecode' and not state.project.is_hooked(irsb.addr):
                     raise SimIRSBNoDecodeError("IR decoding error at %#x. You can hook this instruction with "
                                                "a python replacement using project.hook"
                                                "(%#x, your_function, length=length_of_instruction)." % (addr, addr))
