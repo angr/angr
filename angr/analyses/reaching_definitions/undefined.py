@@ -1,4 +1,3 @@
-
 class Undefined(object):
     def __init__(self):
         pass
@@ -50,3 +49,6 @@ class Undefined(object):
 
     def __eq__(self, other):
         return self is other
+
+    def __str__(self):
+        return 'Undefined'

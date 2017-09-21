@@ -1,4 +1,3 @@
-
 class Atom(object):
     def __init__(self):
         pass
@@ -34,6 +33,9 @@ class Register(Atom):
         self.reg_offset = reg_offset
         self.size = size
 
+    def __copy__(self):
+        return MemoryLocation(self.reg_offset, self.size)
+
     def __repr__(self):
         return "<Reg %d<%d>>" % (self.reg_offset, self.size)
 
@@ -54,6 +56,9 @@ class MemoryLocation(Atom):
 
         self.addr = addr
         self.size = size
+
+    def __copy__(self):
+        return MemoryLocation(self.addr, self.size)
 
     def __repr__(self):
         return "<Mem %#x<%d>>" % (self.addr, self.size)
@@ -79,5 +84,12 @@ class Parameter(Atom):
 
         self.value = value
 
+    def __copy__(self):
+        return Parameter(self.value)
+
     def __repr__(self):
         return "<Parameter %s>" % self.value
+
+    def __eq__(self, other):
+        return type(other) is Parameter and \
+               self.value == other.value
