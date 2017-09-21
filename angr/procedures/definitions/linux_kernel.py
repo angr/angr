@@ -43,6 +43,7 @@ lib.add_number_mapping_from_dict('X86', {
     6:   'close',
     13:  'time',
     45:  'brk',
+    90: 'old_mmap',
     122: 'uname',
     252: 'exit_group',
 })
