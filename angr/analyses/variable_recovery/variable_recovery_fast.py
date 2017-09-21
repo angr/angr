@@ -63,7 +63,7 @@ class ProcessorState(object):
 
     def __repr__(self):
         return "<ProcessorState %s%#x%s %s>" % (self.bp, self.sp_adjustment,
-            " adjusted" if self.sp_adjusted else "", bp_as_base)
+            " adjusted" if self.sp_adjusted else "", self.bp_as_base)
 
 def get_engine(base_engine):
     class SimEngineVR(base_engine):
