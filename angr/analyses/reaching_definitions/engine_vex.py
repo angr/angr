@@ -30,6 +30,8 @@ class SimEngineRDVEX(SimEngineLightVEX):
         except SimEngineError as e:
             if kwargs.pop('fail_fast', False) is True:
                 raise e
+            else:
+                l.error(e)
         return self.state
 
     #
@@ -87,9 +89,9 @@ class SimEngineRDVEX(SimEngineLightVEX):
 
     def _handle_StoreG(self, stmt):
         guard = self._expr(stmt.guard)
-        if guard is True:
+        if guard.data == {True}:
             self._handle_Store(stmt)
-        elif guard is False:
+        elif guard.data == {False}:
             pass
         else:
             # FIXME: implement both
@@ -98,14 +100,14 @@ class SimEngineRDVEX(SimEngineLightVEX):
     # CAUTION: experimental
     def _handle_LoadG(self, stmt):
         guard = self._expr(stmt.guard)
-        if guard is True:
+        if guard.data == {True}:
             # FIXME: full conversion support
             if stmt.cvt.find('Ident') < 0:
                 l.warning('Unsupported conversion %s in LoadG.', stmt.cvt)
             load_expr = pyvex.expr.Load(stmt.end, stmt.cvt_types[1], stmt.addr)
             wr_tmp_stmt = pyvex.stmt.WrTmp(stmt.dst, load_expr)
             self._handle_WrTmp(wr_tmp_stmt)
-        elif guard is False:
+        elif guard.data == {False}:
             wr_tmp_stmt = pyvex.stmt.WrTmp(stmt.dst, stmt.alt)
             self._handle_WrTmp(wr_tmp_stmt)
         else:
@@ -165,7 +167,7 @@ class SimEngineRDVEX(SimEngineLightVEX):
 
         data = set()
         for a in addr:
-            if a is not DataSet.undefined:
+            if isinstance(a, (int, long)):
                 current_defs = self.state.memory_definitions.get_objects_by_offset(a)
                 if current_defs:
                     for current_def in current_defs:
@@ -203,12 +205,13 @@ class SimEngineRDVEX(SimEngineLightVEX):
     def _handle_ITE(self, expr):
         cond = self._expr(expr.cond)
 
-        if cond is True:
+        if cond.data == {True}:
             return self._expr(expr.iftrue)
-        elif cond is False:
+        elif cond.data == {False}:
             return self._expr(expr.iffalse)
         else:
-            l.info('Could not resolve condition %s for ITE.', str(cond))
+            if cond.data != {True, False}:
+                l.info('Could not resolve condition %s for ITE.', str(cond))
             data = set()
             data.update(self._expr(expr.iftrue).data)
             data.update(self._expr(expr.iffalse).data)
@@ -254,7 +257,19 @@ class SimEngineRDVEX(SimEngineLightVEX):
         if len(expr_0) == 1:
             e0 = expr_0.get_first_element()
             if isinstance(e0, (int, long)):
-                return e0 != 1
+                return DataSet(e0 != 1, expr.result_size(self.tyenv))
+
+        l.warning('Comparison of multiple values / different types.')
+        return DataSet({True, False}, expr.result_size(self.tyenv))
+
+    def _handle_Not(self, expr):
+        arg0 = expr.args[0]
+        expr_0 = self._expr(arg0)
+
+        if len(expr_0) == 1:
+            e0 = expr_0.get_first_element()
+            if isinstance(e0, (int, long)):
+                return DataSet(e0 == 0, expr.result_size(self.tyenv))
 
         l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
@@ -293,7 +308,7 @@ class SimEngineRDVEX(SimEngineLightVEX):
             e0 = expr_0.get_first_element()
             e1 = expr_1.get_first_element()
             if isinstance(e0, (int, long)) and isinstance(e1, (int, long)):
-                return e0 == e1
+                return DataSet(e0 == e1, expr.result_size(self.tyenv))
 
         l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
@@ -307,7 +322,7 @@ class SimEngineRDVEX(SimEngineLightVEX):
             e0 = expr_0.get_first_element()
             e1 = expr_1.get_first_element()
             if isinstance(e0, (int, long)) and isinstance(e1, (int, long)):
-                return e0 != e1
+                return DataSet(e0 != e1, expr.result_size(self.tyenv))
 
         l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
@@ -321,7 +336,7 @@ class SimEngineRDVEX(SimEngineLightVEX):
             e0 = expr_0.get_first_element()
             e1 = expr_1.get_first_element()
             if isinstance(e0, (int, long)) and isinstance(e1, (int, long)):
-                return e0 < e1
+                return DataSet(e0 < e1, expr.result_size(self.tyenv))
 
         l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
