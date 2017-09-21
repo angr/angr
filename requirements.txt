@@ -9,7 +9,7 @@ cooldict
 dpkt-fix
 futures
 mulpyplexer
-networkx
+networkx=1.11
 progressbar
 pyvex>=7.7.9.14
 rpyc
