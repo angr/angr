@@ -3302,7 +3302,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if isinstance(val, tuple) and val[0] == 'load':
                 # the value comes from memory
                 memory_addr = val[1]
-                lr_on_stack_offset = memory_addr - last_sp
+                if isinstance(last_sp, (int, long)):
+                    lr_on_stack_offset = memory_addr - last_sp
+                else:
+                    lr_on_stack_offset = memory_addr - last_sp[1]
 
                 if lr_on_stack_offset == function.info['lr_on_stack_offset']:
                     # the jumpkind should be Ret instead of boring
