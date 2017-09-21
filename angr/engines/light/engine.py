@@ -147,8 +147,11 @@ class SimEngineLightVEX(SimEngineLight):
         simop = vex_operations[expr.op]
         if simop.op_attrs['conversion']:
             handler = '_handle_Conversion'
-        elif expr.op.startswith('Iop_Not1'):
+        # Notice order of "Not" comparisons
+        elif expr.op == 'Iop_Not1':
             handler = '_handle_Not1'
+        elif expr.op.startswith('Iop_Not'):
+            handler = '_handle_Not'
 
         if handler is not None and hasattr(self, handler):
             return getattr(self, handler)(expr)
