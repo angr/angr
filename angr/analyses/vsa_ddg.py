@@ -115,7 +115,7 @@ class VSA_DDG(Analysis):
 
         # The worklist holds individual VFGNodes that comes from the VFG
         # Initialize the worklist with all nodes in VFG
-        worklist = list(self._vfg.graph.nodes_iter())
+        worklist = list(self._vfg.graph.nodes())
         # Set up a set of worklist for fast inclusion test
         worklist_set = set(worklist)
 

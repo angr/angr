@@ -59,10 +59,10 @@ class AnnotatedCFG(object):
 
         Those nodes are connected by edges indicating the execution flow.
 
-        :param digraph: A networkx.DiGraph object
+        :param networkx.DiGraph digraph: A networkx.DiGraph object
         """
 
-        for n1 in digraph.nodes_iter():
+        for n1 in digraph.nodes():
             addr1, stmt_idx1 = n1
             self.add_statements_to_whitelist(addr1, (stmt_idx1,))
 

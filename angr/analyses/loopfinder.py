@@ -18,7 +18,7 @@ class Loop(object):
         self.has_calls = any(map(lambda loop: loop.has_calls, subloops))
 
         if not self.has_calls:
-            for _, _, data in self.graph.edges_iter(data=True):
+            for _, _, data in self.graph.edges(data=True):
                 if 'type' in data and data['type'] == 'fake_return':
                     # this is a function call.
                     self.has_calls = True
