@@ -2,6 +2,7 @@ import networkx
 
 from claripy.utils.orderedset import OrderedSet
 
+from ..misc.ux import deprecated
 # errors
 from ..errors import AngrForwardAnalysisError
 # notices
@@ -75,7 +76,7 @@ class GraphVisitor(object):
     # Public methods
     #
 
-    def nodes_iter(self):
+    def nodes(self):
         """
         Return an iterator of nodes following an optimal traversal order.
 
@@ -85,6 +86,13 @@ class GraphVisitor(object):
         sorted_nodes = self.sort_nodes()
 
         return iter(sorted_nodes)
+
+    @deprecated(replacement='nodes')
+    def nodes_iter(self):
+        """
+        (Deprecated) Return an iterator of nodes following an optimal traversal order. Will be removed in the future.
+        """
+        return self.nodes()
 
     # Traversal
 

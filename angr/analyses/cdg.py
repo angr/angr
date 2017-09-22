@@ -148,7 +148,7 @@ class CDG(Analysis):
         # Construct the reversed dominance frontier mapping
         rdf = self._df_construct(self._post_dom)
 
-        for y in self._cfg.graph.nodes_iter():
+        for y in self._cfg.graph.nodes():
             if y not in rdf:
                 continue
             for x in rdf[y]:
@@ -291,7 +291,7 @@ class CDG(Analysis):
 
         # Create the normalized_cfg without the annoying ContainerNodes
         self._normalized_cfg = networkx.DiGraph()
-        for src, dst in _normalized_cfg.edges_iter():
+        for src, dst in _normalized_cfg.edges():
             self._normalized_cfg.add_edge(src.obj, dst.obj)
 
     def _pd_post_process(self):

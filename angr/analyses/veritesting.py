@@ -581,14 +581,14 @@ class Veritesting(Analysis):
 
         # Remove all "FakeRet" edges
         fakeret_edges = [
-            (src, dst) for src, dst, data in graph.edges_iter(data=True)
+            (src, dst) for src, dst, data in graph.edges(data=True)
             if data['jumpkind'] in ('Ijk_FakeRet', 'Ijk_Exit')
         ]
         graph.remove_edges_from(fakeret_edges)
 
         # Remove all "FakeRet" edges from cyclic_graph as well
         fakeret_edges = [
-            (src, dst) for src, dst, data in reversed_cyclic_graph.edges_iter(data=True)
+            (src, dst) for src, dst, data in reversed_cyclic_graph.edges(data=True)
             if data['jumpkind'] in ('Ijk_FakeRet', 'Ijk_Exit')
         ]
         reversed_cyclic_graph.remove_edges_from(fakeret_edges)

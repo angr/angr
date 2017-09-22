@@ -75,7 +75,7 @@ class JumpTableResolver(IndirectJumpResolver):
         load_stmt_loc, load_stmt = None, None
         stmts_to_remove = [stmt_loc]
         while True:
-            preds = b.slice.predecessors(stmt_loc)
+            preds = list(b.slice.predecessors(stmt_loc))
             if len(preds) != 1:
                 return False, None
             block_addr, stmt_idx = stmt_loc = preds[0]

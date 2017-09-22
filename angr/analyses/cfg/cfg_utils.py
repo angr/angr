@@ -44,8 +44,8 @@ class CFGUtils(object):
 
         in_degree_to_nodes = defaultdict(set)
 
-        for node in graph.nodes_iter():
-            in_degree = graph.in_degree(node)
+        for node in graph.nodes():
+            in_degree = graph.in_degree[node]
             in_degree_to_nodes[in_degree].add(node)
             if in_degree > 1:
                 merge_points.add(node)
@@ -138,7 +138,7 @@ class CFGUtils(object):
         sccs = [ scc for scc in networkx.strongly_connected_components(graph) if len(scc) > 1 ]
 
         # collapse all strongly connected components
-        for src, dst in graph.edges_iter():
+        for src, dst in graph.edges():
             scc_index = CFGUtils._components_index_node(sccs, src)
             if scc_index is not None:
                 src = SCCPlaceholder(scc_index)
