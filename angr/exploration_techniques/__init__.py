@@ -1,4 +1,3 @@
-
 from ..errors import SimError
 
 class ExplorationTechnique(object):
@@ -109,6 +108,7 @@ class ExplorationTechnique(object):
 #def register_surveyor(name, strat):
 #    registered_surveyors[name] = strat
 
+from .crash_monitor import CrashMonitor
 from .tracer import Tracer
 from .explorer import Explorer
 from .threading import Threading
