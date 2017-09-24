@@ -2,7 +2,7 @@ ana
 archinfo>=7.7.9.14
 bintrees
 cachetools
-capstone
+capstone>=3.0.5.rc2
 claripy>=7.7.9.14
 cle>=7.7.9.21
 cooldict
