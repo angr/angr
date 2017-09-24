@@ -148,14 +148,6 @@ class Block(object):
 
         return self._vex
 
-    def capstone_custom(self, mode=None):
-        mode = [] if mode is None else mode if type(mode) in (tuple, list) else [mode]
-        m = 'thumb' if self.thumb else 'arm'
-        mode.append(m)
-        print mode
-
-        cs = self.arch.capstone_custom(mode)
-        
     @property
     def capstone(self):
         if self._capstone: return self._capstone
