@@ -8,6 +8,7 @@ from collections import defaultdict
 from archinfo import ArchARM, ArchMIPS32, ArchMIPS64, ArchX86, ArchAMD64, ArchPPC32, ArchPPC64, ArchAArch64
 from cle import MetaELF, BackedCGC
 from cle.address_translator import AT
+from tracer.tracerpov import TracerPoV
 from elftools.elf.descriptions import _DESCR_EI_OSABI
 
 import claripy
@@ -28,7 +29,6 @@ from .state_plugins import SimStateSystem, SimActionData, SimStatePreconstrainer
 from .calling_conventions import DEFAULT_CC, SYSCALL_CC
 from .procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
 from . import sim_options as o
-from .misc.tracer.tracerpov import TracerPoV
 from .storage.file import SimFile
 
 l = logging.getLogger("angr.simos")

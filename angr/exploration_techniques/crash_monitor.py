@@ -7,8 +7,7 @@ from . import ExplorationTechnique
 from .. import SIM_LIBRARIES, BP_AFTER, BP_BEFORE
 
 from ..calling_conventions import SYSCALL_CC
-from ..errors import AngrTracerError, TracerEnvironmentError
-from ..misc.tracer.tracerpov import TracerPoV
+from ..errors import AngrTracerError
 from ..misc.tracer.simprocedures import receive
 
 l = logging.getLogger("angr.exploration_techniques.crash_monitor")
