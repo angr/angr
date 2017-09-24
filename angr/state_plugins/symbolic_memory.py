@@ -444,7 +444,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         if events:
             self.state.history.add_event('uninitialized', memory_id=self.id, addr=addr, size=num_bytes)
-        default_mo = SimMemoryObject(b, addr)
+        default_mo = SimMemoryObject(b, addr, self.state.arch.byte_width)
         self.state.scratch.push_priv(True)
         self.mem.store_memory_object(default_mo, overwrite=False)
         self.state.scratch.pop_priv()
@@ -776,7 +776,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             size = len(sv)/8
             if self.category == 'mem':
                 self.state.scratch.dirty_addrs.update(range(a, a+size))
-            mo = SimMemoryObject(sv, a, length=size)
+            mo = SimMemoryObject(sv, a, self.state.arch.byte_width, length=size)
             self.mem.store_memory_object(mo)
 
         l.debug("... done")

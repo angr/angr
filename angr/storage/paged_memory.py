@@ -504,7 +504,7 @@ class SimPagedMemory(object):
                 write_size = self._page_size - write_start%self._page_size
 
                 snip = _ffi.buffer(backer)[snip_start:snip_start+write_size]
-                mo = SimMemoryObject(claripy.BVV(snip), write_start)
+                mo = SimMemoryObject(claripy.BVV(snip), write_start, self.state.arch.byte_width)
                 self._apply_object_to_page(n*self._page_size, mo, page=new_page)
 
                 new_page.permissions = claripy.BVV(flags, 3)
@@ -517,7 +517,7 @@ class SimPagedMemory(object):
                         backer = self._memory_backer[i]
                     else:
                         backer = claripy.BVV(self._memory_backer[i])
-                    mo = SimMemoryObject(backer, i)
+                    mo = SimMemoryObject(backer, i, self.state.arch.byte_width)
                     self._apply_object_to_page(n*self._page_size, mo, page=new_page)
                     initialized = True
         elif len(self._memory_backer) > self._page_size:
@@ -527,7 +527,7 @@ class SimPagedMemory(object):
                         backer = self._memory_backer[i]
                     else:
                         backer = claripy.BVV(self._memory_backer[i])
-                    mo = SimMemoryObject(backer, new_page_addr+i)
+                    mo = SimMemoryObject(backer, new_page_addr+i, self.state.arch.byte_width)
                     self._apply_object_to_page(n*self._page_size, mo, page=new_page)
                     initialized = True
                 except KeyError:
@@ -650,9 +650,9 @@ class SimPagedMemory(object):
                 differences.add(c)
             else:
                 if type(self[c]) is not SimMemoryObject:
-                    self[c] = SimMemoryObject(self.state.se.BVV(ord(self[c]), 8), c)
+                    self[c] = SimMemoryObject(self.state.se.BVV(ord(self[c]), self.state.arch.byte_width), c, self.state.arch.byte_width)
                 if type(other[c]) is not SimMemoryObject:
-                    other[c] = SimMemoryObject(self.state.se.BVV(ord(other[c]), 8), c)
+                    other[c] = SimMemoryObject(self.state.se.BVV(ord(other[c]), self.state.arch.byte_width), c, self.state.arch.byte_width)
                 if c in self and self[c] != other[c]:
                     # Try to see if the bytes are equal
                     self_byte = self[c].bytes_at(c, 1)
@@ -733,7 +733,7 @@ class SimPagedMemory(object):
         if old.object.size() != new_content.size():
             raise SimMemoryError("memory objects can only be replaced by the same length content")
 
-        new = SimMemoryObject(new_content, old.base)
+        new = SimMemoryObject(new_content, old.base, self.state.arch.byte_width)
         for p in self._containing_pages_mo(old):
             self._get_page(p/self._page_size, write=True).replace_mo(self.state, old, new)
 
@@ -1015,7 +1015,7 @@ class SimPagedMemory(object):
             if init_zero:
                 if self.state is not None:
                     self.state.scratch.push_priv(True)
-                mo = SimMemoryObject(claripy.BVV(0, self._page_size * 8), page_id*self._page_size)
+                mo = SimMemoryObject(claripy.BVV(0, self._page_size * self.state.arch.byte_width), page_id*self._page_size, self.state.arch.byte_width)
                 self._apply_object_to_page(page_id*self._page_size, mo, page=self._pages[page_id])
                 if self.state is not None:
                     self.state.scratch.pop_priv()
