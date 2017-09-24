@@ -101,7 +101,6 @@ class Tracer(ExplorationTechnique):
         return False
 
     def step(self, simgr, stash, **kwargs):
-        print 'T', simgr.stashes
         if len(simgr.active) == 1:
             current = simgr.active[0]
 

@@ -342,7 +342,6 @@ class SimulationManager(ana.Storable):
         # at which point it calls the next hook, and so on, until we fall through to the
         # basic stepping operation.
         if len(self._hooks_step) != 0:
-            import ipdb; ipdb.set_trace()
             hook = self._hooks_step.pop()
             pg = self.copy() if self._immutable else self
             pg._immutable = False       # this is a performance consideration

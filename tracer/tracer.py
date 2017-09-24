@@ -1060,7 +1060,6 @@ class Tracer(object):
 
         # step to the end of the crashing basic block,
         # to capture its actions with those breakpoints
-        import ipdb; ipdb.set_trace()
         state.step()
 
         # Add the constraints from concretized addrs back
