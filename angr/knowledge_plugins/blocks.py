@@ -8,17 +8,17 @@ class BlockView(KnowledgeBaseView):
     def __init__(self, kb):
         super(BlockView, self).__init__(kb)
 
-    def get_block(self, addr, **block_opts):
+    def get_block(self, addr, normalize=False, **block_opts):
         """
 
         :param addr:
         :return:
         """
-        basic_block = self._kb.basic_blocks.get_block(addr)
+        basic_block = self._kb.basic_blocks.get_block(addr, normalize)
         if basic_block is not None:
             return self._produce_block(basic_block, **block_opts)
 
-    def iter_blocks(self, start=None, end=None, **block_opts):
+    def iter_blocks(self, start=None, end=None, normalize=False, **block_opts):
         """
 
         :param start:
@@ -27,7 +27,7 @@ class BlockView(KnowledgeBaseView):
         :param traceflags:
         :return:
         """
-        for basic_block in self._kb.basic_blocks.iter_blocks(start, end):
+        for basic_block in self._kb.basic_blocks.iter_blocks(start, end, normalize):
             yield self._produce_block(basic_block, **block_opts)
 
     def _produce_block(self, basic_block, **block_opts):
@@ -38,6 +38,6 @@ class BlockView(KnowledgeBaseView):
         :param traceflags:
         :return:
         """
-        return self._kb._project.factory.block(basic_block.start,
+        return self._kb._project.factory.block(basic_block.addr,
                                                size=basic_block.size,
                                                **block_opts)
