@@ -57,28 +57,28 @@ class BasicBlocksPlugin(KnowledgeArtifact):
         
         In case a new block has intersected with any existing one, handle the intersction in a way
         specified by the `overlap_mode` parameter value:
-        
-            - If `overlap_mode` is set to 'trim', use the internal trimming mechanism that is provided by RangeDict. 
-            
+
+            - If `overlap_mode` is set to 'trim', use the internal trimming mechanism that is provided by RangeDict.
+
             - If `overlap_mode` is set 'handle', use the provided `overlap_handler` function to trim the blocks.
               The `overlap_handler` function should accept (this_block, other_block) arguments, where `this_block`
               is the newly added block, and `other_block` is the block which is to be overlapped.
-              
+
             - If `overlap_mode` is set to 'raise', raise an `OverlappedBlock` exception.
-        
+
         :param addr:            The address of the new block.
         :param size:            The size of the new block.
         :param thumb:           True, if this block contains THUMB code.
-        :param overlap_mode:    This specifies how to handle the intersections.  
+        :param overlap_mode:    This specifies how to handle the intersections.
         :param overlap_handler: Use this handler function in case the `overlap_mode` is set to `handle`.
         :param handler_kwargs:  Pass this keyword arguments to `overlap_handler` function.
-        :return: 
+        :return:
         """
         if size == 0:
             raise ValueError("Do not know how to handle an empty block @ %#x" % addr)
 
         try:
-            self._blocks[addr:addr + size] = thumb
+            self._blocks[addr:addr + size] = size, thumb
 
         except OverlappedBlocks as overlapped:
             this_block, other_block = \
@@ -90,8 +90,9 @@ class BasicBlocksPlugin(KnowledgeArtifact):
                 overlap_handler(this_block, other_block, **handler_kwargs)
 
             elif overlap_mode == 'trim':
-                this_block.second_chance = True
-                self._blocks[addr:addr + size] = thumb
+                self._blocks.second_chance.add(this_block)
+                self._blocks[addr:addr + size] = size, thumb
+                self._blocks.second_chance.remove(this_block)
 
             elif overlap_mode == 'raise':
                 raise
@@ -101,13 +102,16 @@ class BasicBlocksPlugin(KnowledgeArtifact):
 
         self._notify_observers('add_block', addr=addr, size=size, thumb=thumb)
 
-    def get_block(self, addr):
+    def get_block(self, addr, normalize=False):
         """Get block that occupies the given address.
         
-        :param addr: 
+        :param addr:
+        :param normalize:
         :return: 
         """
-        return self._blocks.peekitem(addr)
+        item = self._blocks.peekitem(addr)
+        if item is not None:
+            return self._item_to_block(item, normalize)
 
     def del_block(self, addr):
         """Delete block that occupies the given address.
@@ -117,55 +121,24 @@ class BasicBlocksPlugin(KnowledgeArtifact):
         """
         raise NotImplementedError
 
-    def iter_blocks(self, start=None, stop=None):
+    def iter_blocks(self, start=None, stop=None, normalize=False):
         """Iterate over blocks that occupy the specified range of addresses.
         
         :param start: 
-        :param stop: 
+        :param stop:
+        :param normalize:
         :return: 
         """
-        return self._blocks.islice(start, stop)
+        for item in self._blocks.islice(start, stop):
+            yield self._item_to_block(item, normalize)
 
+    #
+    #   ...
+    #
 
-class BlockMapping(RangeDict):
-
-    def _trim_left(self, this_item, left_item):
-        if this_item.start < left_item.end and not this_item.second_chance:
-            raise OverlappedBlocks(this_item, left_item)
-        else:
-            this_item.second_chance = False
-            return super(BlockMapping, self)._trim_left(this_item, left_item)
-
-    def _trim_right(self, this_item, right_item):
-        if this_item.end > right_item.start and not this_item.second_chance:
-            raise OverlappedBlocks(this_item, right_item)
-        else:
-            this_item.second_chance = False
-            return super(BlockMapping, self)._trim_right(this_item, right_item)
-
-    def _should_merge(self, this_item, other_item):
-        return False
-
-    def _make_item(self, start, end, value):
-        return BasicBlock(start, end, value)
-
-
-class BasicBlock(RangeItem):
-
-    def __init__(self, *args, **kwargs):
-        super(BasicBlock, self).__init__(*args, **kwargs)
-        self.second_chance = False
-
-    @property
-    def thumb(self):
-        return self.value
-
-    def __repr__(self):
-        return '<BasicBlock(%#x-%#x, %d bytes%s)>' % \
-               (self.start, self.end, self.size, ', THUMB' if self.thumb else '')
-
-    def copy(self):
-        return BasicBlock(self.start, self.end, self.value)
+    @staticmethod
+    def _item_to_block(item, normalize=False):
+        return BasicBlock(item.start, item.size if normalize else item.value[0], item.value[1])
 
 
 class OverlappedBlocks(AngrError):
@@ -173,3 +146,37 @@ class OverlappedBlocks(AngrError):
     def __init__(self, this_block, other_block):
         self.this_block = this_block
         self.other_block = other_block
+
+
+class BlockMapping(RangeDict):
+
+    def __init__(self):
+        super(BlockMapping, self).__init__()
+        self.second_chance = set()
+
+    def _trim_left(self, this_item, left_item):
+        if this_item.start < left_item.end and this_item not in self.second_chance:
+            raise OverlappedBlocks(this_item, left_item)
+        else:
+            return super(BlockMapping, self)._trim_left(this_item, left_item)
+
+    def _trim_right(self, this_item, right_item):
+        if this_item.end > right_item.start and this_item not in self.second_chance:
+            raise OverlappedBlocks(this_item, right_item)
+        else:
+            return super(BlockMapping, self)._trim_right(this_item, right_item)
+
+    def _should_merge(self, this_item, other_item):
+        return False
+
+
+class BasicBlock(object):
+
+    def __init__(self, addr, size, thumb):
+        self.addr = addr
+        self.size = size
+        self.thumb = thumb
+
+    def __repr__(self):
+        return '<BasicBlock(%#x-%#x, %d bytes%s)>' % \
+               (self.addr, self.addr + self.size, self.size, ', THUMB' if self.thumb else '')
