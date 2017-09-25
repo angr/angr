@@ -10,10 +10,10 @@ CC := gcc
 C++C := g++
 CFLAGS := -I ${UNICORN_INCLUDE_PATH} -I ${PYVEX_INCLUDE_PATH} \
 	-L ${UNICORN_LIB_PATH} -L ${PYVEX_LIB_PATH} \
-	`pkg-config --cflags glib-2.0` -O3 -fPIC -std=c++11
+	-O3 -fPIC -std=c++11
 
 OBJS := log.o
-LIBS := `pkg-config --libs glib-2.0` -lunicorn -lpyvex
+LIBS := -lunicorn -lpyvex
 
 all: ${LIB_ANGR_NATIVE}
 
