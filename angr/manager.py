@@ -58,7 +58,7 @@ class SimulationManager(ana.Storable):
 
     def __init__(self, project, active_states=None, stashes=None, hierarchy=None, veritesting=None,
                  veritesting_options=None, immutable=None, resilience=None, save_unconstrained=None,
-                 save_unsat=None, threads=None, errored=None):
+                 save_unsat=None, threads=None, errored=None, completion_mode=any):
         self._project = project
         self._hierarchy = StateHierarchy() if hierarchy is None else hierarchy
         self._immutable = False if immutable is None else immutable
@@ -84,7 +84,7 @@ class SimulationManager(ana.Storable):
 
         self.errored = [] if errored is None else list(errored)
         self.stashes = self._make_stashes_dict(active=active_states) if stashes is None else stashes
-        self.completion_mode = any
+        self.completion_mode = completion_mode
 
     #
     # Pickling
