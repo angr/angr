@@ -1,5 +1,5 @@
 import nose
-from angr import SimState, SimProcedures
+from angr import SimState, SIM_PROCEDURES
 
 FAKE_ADDR = 0x100000
 
@@ -28,9 +28,9 @@ def test_calling_conventions():
             s.registers.store(reg, val)
 
         if cc is not None:
-            manyargs = SimProcedures['testing']['manyargs'](cc=cc(s.arch)).execute(s)
+            manyargs = SIM_PROCEDURES['testing']['manyargs'](cc=cc(s.arch)).execute(s)
         else:
-            manyargs = SimProcedures['testing']['manyargs']().execute(s)
+            manyargs = SIM_PROCEDURES['testing']['manyargs']().execute(s)
 
         # Simulate a call
         if s.arch.call_pushes_ret:

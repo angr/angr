@@ -211,17 +211,17 @@ class BinaryOptimizer(Analysis):
             if not isinstance(n0.variable, SimConstantVariable):
                 continue
 
-            n1s = data_graph.successors(n0)
+            n1s = list(data_graph.successors(n0))
             if len(n1s) != 1:
                 continue
             n1 = n1s[0]
 
             if not isinstance(n1.variable, SimRegisterVariable):
                 continue
-            if len(data_graph.predecessors(n1)) != 1:
+            if len(list(data_graph.predecessors(n1))) != 1:
                 continue
 
-            n2s = data_graph.successors(n1)
+            n2s = list(data_graph.successors(n1))
             if len(n2s) != 1:
                 continue
             n2 = n2s[0]
@@ -292,7 +292,7 @@ class BinaryOptimizer(Analysis):
 
         for argument_variable in argument_variables:
             # is it copied to the stack?
-            successors0 = data_graph.successors(argument_variable)
+            successors0 = list(data_graph.successors(argument_variable))
 
             if not successors0:
                 continue

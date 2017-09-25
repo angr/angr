@@ -87,7 +87,7 @@ class StateHierarchy(object):
             self._graph.add_edge(prev_node, cur_node)
 
             self._leaves.discard(prev_node)
-            if len(self._graph.successors(prev_node)) == 1:
+            if len(list(self._graph.successors(prev_node))) == 1:
                 self._twigs.add(prev_node)
             else:
                 self._twigs.discard(prev_node)
@@ -112,10 +112,10 @@ class StateHierarchy(object):
 
         lineage = [ ]
 
-        predecessors = self._graph.predecessors(h)
+        predecessors = list(self._graph.predecessors(h))
         while len(predecessors):
             lineage.append(predecessors[0])
-            predecessors = self._graph.predecessors(predecessors[0])
+            predecessors = list(self._graph.predecessors(predecessors[0]))
 
         lineage.reverse()
         return lineage
@@ -165,8 +165,8 @@ class StateHierarchy(object):
                 bad = cur
 
     def _prune_subtree(self, h):
-        ph = self._graph.predecessors(h)
-        if len(ph) == 1 and len(self._graph.successors(ph[0])) == 1:
+        ph = list(self._graph.predecessors(h))
+        if len(ph) == 1 and len(list(self._graph.successors(ph[0]))) == 1:
             self._twigs.add(ph[0])
 
         all_children = list(networkx.algorithms.dfs_postorder_nodes(self._graph, h))

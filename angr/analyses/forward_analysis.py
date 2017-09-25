@@ -194,11 +194,11 @@ class FunctionGraphVisitor(GraphVisitor):
 
     def successors(self, node):
 
-        return self.function.graph.successors(node)
+        return list(self.function.graph.successors(node))
 
     def predecessors(self, node):
 
-        return self.function.graph.predecessors(node)
+        return list(self.function.graph.predecessors(node))
 
     def sort_nodes(self, nodes=None):
 
@@ -237,11 +237,11 @@ class CallGraphVisitor(GraphVisitor):
 
     def successors(self, node):
 
-        return self.callgraph.successors(node)
+        return list(self.callgraph.successors(node))
 
     def predecessors(self, node):
 
-        return self.callgraph.predecessors(node)
+        return list(self.callgraph.predecessors(node))
 
     def sort_nodes(self, nodes=None):
 

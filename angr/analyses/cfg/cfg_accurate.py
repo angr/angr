@@ -385,7 +385,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 dst_blocknode = back_edge[1]  # type: angr.knowledge.codenode.BlockNode
 
                 for src in self.get_all_nodes(src_blocknode.addr):
-                    for dst in graph.successors_iter(src):
+                    for dst in graph.successors(src):
                         if dst.addr != dst_blocknode.addr:
                             continue
 
@@ -2410,12 +2410,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             for _ in xrange(path_length):
                 new_queue = []
                 for n in queue:
-                    successors = temp_cfg.successors(n)
+                    successors = list(temp_cfg.successors(n))
                     for suc in successors:
                         jk = temp_cfg.get_edge_data(n, suc)['jumpkind']
                         if jk != 'Ijk_Ret':
                             # We don't want to trace into libraries
-                            predecessors = temp_cfg.predecessors(suc)
+                            predecessors = list(temp_cfg.predecessors(suc))
                             avoid |= set([p.addr for p in predecessors if p is not n])
                             new_queue.append(suc)
                 queue = new_queue
@@ -3214,7 +3214,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         nodes = self.get_all_nodes(function_address)
         for n in nodes:
-            predecessors = self.get_predecessors(n)
+            predecessors = list(self.get_predecessors(n))
             all_predecessors.extend(predecessors)
 
         return all_predecessors

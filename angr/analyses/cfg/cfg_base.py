@@ -212,7 +212,7 @@ class CFGBase(Analysis):
         if not excluding_fakeret and jumpkind is None:
             # fast path
             if cfgnode in self._graph:
-                return self._graph.predecessors(cfgnode)
+                return list(self._graph.predecessors(cfgnode))
             return [ ]
 
         predecessors = []
@@ -248,7 +248,7 @@ class CFGBase(Analysis):
         if not excluding_fakeret and jumpkind is None:
             # fast path
             if basic_block in self._graph:
-                return self._graph.successors(basic_block)
+                return list(self._graph.successors(basic_block))
             return [ ]
 
         successors = []
@@ -280,10 +280,10 @@ class CFGBase(Analysis):
         :rtype: list
         """
 
-        return networkx.dfs_predecessors(self._graph, cfgnode)
+        return list(networkx.dfs_predecessors(self._graph, cfgnode))
 
     def get_all_successors(self, basic_block):
-        return networkx.dfs_successors(self._graph, basic_block)
+        return list(networkx.dfs_successors(self._graph, basic_block))
 
     def get_node(self, block_id):
         """
@@ -542,8 +542,7 @@ class CFGBase(Analysis):
 
         successors_filtered = filter(lambda suc: get_ins_addr(suc) in can_produce_exits or
                                         get_exit_stmt_idx(suc) == 'default',
-                            successors
-                            )
+                                     successors)
 
         return successors_filtered
 

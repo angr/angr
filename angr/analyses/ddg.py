@@ -710,7 +710,7 @@ class DDG(Analysis):
                 live_defs = LiveDefinitions()
                 live_defs_per_node[node] = live_defs
 
-            successing_nodes = self._cfg.graph.successors(node)
+            successing_nodes = list(self._cfg.graph.successors(node))
 
             # try to assign every final state to a successor and vice versa
             match_suc = defaultdict(bool)
