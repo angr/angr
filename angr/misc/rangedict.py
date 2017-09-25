@@ -113,12 +113,13 @@ class RangeDict(object):
         return default
 
     def islice(self, start=None, end=None):
-        start = start if start is not None else 0
-        end = end if end is not None else self._list[-1].end
-        for item in self._list[self._search(start):]:
-            if item.start >= end:
-                break
-            yield item
+        if self._list:
+            start = start if start is not None else 0
+            end = end if end is not None else self._list[-1].end
+            for item in self._list[self._search(start):]:
+                if item.start >= end:
+                    break
+                yield item
 
     #
     #   ...
