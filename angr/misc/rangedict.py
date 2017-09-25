@@ -60,11 +60,14 @@ class RangeDict(object):
             self._trim_right(left_item, this_item)
 
         if right_item and right_item.start <= this_item.end:
-            # right_item = right_item.copy()
             self._merge_right(this_item, right_item)
             self._trim_left(right_item, this_item)
         else:
             right_item = None
+
+        if not left_item and not right_item:
+            self._list.insert(left_idx, this_item)
+            return
 
         picked_items = filter(None, (left_item, this_item, right_item))
         mid_part = deque((i for i in picked_items if i.size > 0))
