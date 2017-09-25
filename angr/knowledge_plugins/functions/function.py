@@ -981,7 +981,7 @@ class Function(object):
 
                 for p, _, data in original_predecessors:
                     if p not in other_nodes:
-                        graph.add_edge(p, new_node, data)
+                        graph.add_edge(p, new_node, **data)
 
                 # We should find the correct successor
                 new_successors = [i for i in all_nodes

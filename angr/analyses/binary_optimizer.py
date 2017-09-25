@@ -160,6 +160,22 @@ class BinaryOptimizer(Analysis):
 
         func_kb = KnowledgeBase(self.project, self.project.loader.main_object)
 
+        # switch to non-optimized IR, since optimized IR will optimize away register reads/writes
+        # for example,
+        # .text:08048285 add     eax, [ebp+var_8]
+        # .text:08048288 mov     [ebp+var_C], eax
+        # becomes
+        #    06 | ------ IMark(0x8048285, 3, 0) ------
+        #    07 | t25 = Add32(t24,0xfffffff8)
+        #    08 | t5 = LDle:I32(t25)
+        #    09 | t4 = Add32(t2,t5)
+        #    10 | PUT(eip) = 0x08048288
+        #    11 | ------ IMark(0x8048288, 3, 0) ------
+        #    12 | t27 = Add32(t24,0xfffffff4)
+        #    13 | STle(t27) = t4
+        #    14 | PUT(eip) = 0x0804828b
+        # there is no write to or read from eax
+
         cfg = self.project.analyses.CFGAccurate(kb=func_kb,
                                                 call_depth=1,
                                                 base_graph=function.graph,

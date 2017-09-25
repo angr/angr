@@ -272,7 +272,7 @@ class SimStateSystem(SimStatePlugin):
     def fstat(self, fd): #pylint:disable=unused-argument
         # sizes are AMD64-specific for now
         # TODO: import results from concrete FS, if using concrete FS
-        if fd.symbolic:
+        if self.state.solver.symbolic(fd):
             mode = self.state.se.BVS('st_mode', 32)
         else:
             fd = self.state.se.eval(fd)

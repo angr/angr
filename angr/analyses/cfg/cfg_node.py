@@ -205,4 +205,12 @@ class CFGNode(object):
             return HookNode(self.addr, self.size, self.simprocedure_name)
         return BlockNode(self.addr, self.size, thumb=self.thumb)
 
+    @property
+    def block(self):
+        if self.is_simprocedure or self.is_syscall:
+            return None
+        project = self._cfg.project  # everything in angr is connected with everything...
+        b = project.factory.block(self.addr, size=self.size, opt_level=self._cfg._iropt_level)
+        return b
+
 from ...codenode import BlockNode, HookNode

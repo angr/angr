@@ -95,3 +95,8 @@ class mmap(angr.SimProcedure):
         self.state.libc.mmap_base = new_base
 
         return addr
+
+class old_mmap(mmap):
+    def run(self, ptr):
+        addr, length, prot, flags, fd, offset = self.state.mem[ptr].dword.array(6).resolved
+        return super(old_mmap, self).run(addr, length, prot, flags, fd, offset)

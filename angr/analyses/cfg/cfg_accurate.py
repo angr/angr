@@ -137,7 +137,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                  address_whitelist=None,
                  base_graph=None,
                  iropt_level=None,
-                 max_steps=None
+                 max_steps=None,
+                 state_add_options=None,
+                 state_remove_options=None,
                  ):
         """
         All parameters are optional.
@@ -180,6 +182,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                     be used if `iropt_level` is None.
         :param int max_steps:                       The maximum number of basic blocks to recover forthe longest path
                                                     from each start before pausing the recovery procedure.
+        :param state_add_options:                   State options that will be added to the initial state.
+        :param state_remove_options:                State options that will be removed from the initial state.
         """
         ForwardAnalysis.__init__(self, order_jobs=True if base_graph is not None else False)
         CFGBase.__init__(self, 'accurate', context_sensitivity_level, normalize=normalize, iropt_level=iropt_level)
@@ -205,6 +209,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._enable_symbolic_back_traversal = enable_symbolic_back_traversal
         self._additional_edges = additional_edges if additional_edges else {}
         self._max_steps = max_steps
+        self._state_add_options = state_add_options if state_add_options is not None else set()
+        self._state_remove_options = state_remove_options if state_remove_options is not None else set()
 
         # more initialization
 
@@ -846,7 +852,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # SimState
                 state = item.copy()  # pylint: disable=no-member
                 ip = state.se.eval_one(state.ip)
-                state.set_mode('fastpath')
+                self._reset_state_mode(state, 'fastpath')
+
+            else:
+                raise AngrCFGError('Unsupported CFG start type: %s.' % str(type(item)))
 
             self._symbolic_function_initial_state[ip] = state
             path_wrapper = CFGJob(ip, state, self._context_sensitivity_level, None, None, call_stack=callstack)
@@ -903,13 +912,16 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         jumpkind = "Ijk_Boring" if jumpkind is None else jumpkind
 
         if self._initial_state is None:
-            state = self.project.factory.entry_state(addr=ip, mode="fastpath")
+            state = self.project.factory.blank_state(addr=ip, mode="fastpath",
+                                                     add_options=self._state_add_options,
+                                                     remove_options=self._state_remove_options,
+                                                     )
         else:
             # FIXME: self._initial_state is deprecated. This branch will be removed soon
             state = self._initial_state
             state.history.jumpkind = jumpkind
-            state.set_mode('fastpath')
-            state.ip = state.se.BVV(ip, self.project.arch.bits)
+            self._reset_state_mode(state, 'fastpath')
+            state._ip = state.se.BVV(ip, self.project.arch.bits)
 
         if jumpkind is not None:
             state.history.jumpkind = jumpkind
@@ -1657,8 +1669,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # We might have changed the mode for this basic block
         # before. Make sure it is still running in 'fastpath' mode
-        # new_exit.state = self.project._simos.prepare_call_state(new_exit.state, initial_state=saved_state)
-        new_state.set_mode('fastpath')
+        self._reset_state_mode(new_state, 'fastpath')
+
         pw = CFGJob(target_addr,
                     new_state,
                     self._context_sensitivity_level,
@@ -1680,7 +1692,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # away
             # st = self.project._simos.prepare_call_state(new_state, initial_state=saved_state)
             st = new_state
-            st.set_mode('fastpath')
+            self._reset_state_mode(st, 'fastpath')
 
             pw = None # clear the job
             pe = PendingJob(job.func_addr,
@@ -3250,5 +3262,18 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 if n not in self._quasi_topological_order:
                     self._quasi_topological_order[n] = ctr
                     ctr -= 1
+
+    def _reset_state_mode(self, state, mode):
+        """
+        Reset the state mode to the given mode, and apply the custom state options specified with this analysis.
+
+        :param state:    The state to work with.
+        :param str mode: The state mode.
+        :return:         None
+        """
+
+        state.set_mode(mode)
+        state.options |= self._state_add_options
+        state.options = state.options.difference(self._state_remove_options)
 
 register_analysis(CFGAccurate, 'CFGAccurate')
