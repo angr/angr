@@ -120,8 +120,8 @@ class TransitionsView(KnowledgeBaseView):
     #   ...
     #
 
-    def _basic_blocks_add_block(self, addr=None, **kwargs):
-        block = self._kb.blocks.get_block(addr)
+    def _basic_blocks_add_block(self, basic_block=None):
+        block = self._kb.blocks.get(basic_block.addr, size=basic_block.size, thumb=basic_block.thumb)
         self._add_transitions_from_block(block)
 
     def _indirect_jumps_register_jump(self, from_addr=None, to_addr=None, specs=None):

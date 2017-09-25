@@ -100,7 +100,8 @@ class BasicBlocksPlugin(KnowledgeArtifact):
             else:
                 raise ValueError('Unknown overlapped blocks handling mode', overlap_mode)
 
-        self._notify_observers('add_block', addr=addr, size=size, thumb=thumb)
+        block = self.get_block(addr)
+        self._notify_observers('add_block', block=block)
 
     def get_block(self, addr, normalize=False):
         """Get block that occupies the given address.
