@@ -113,8 +113,7 @@ class GetTickCount(angr.SimProcedure):
         if angr.options.USE_SYSTEM_TIMES in self.state.options:
             return int(time.clock() * 1000) + 12345
         else:
-            val = self.state.solver.BVS('GetTickCount_result', 64)
-            self.state.solver.add_constraints(val < 2**32)
+            val = self.state.solver.BVS('GetTickCount_result', 32)
             return val
 
 class GetTickCount64(angr.SimProcedure):
