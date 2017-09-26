@@ -1,5 +1,5 @@
 import claripy
-
+# TODO: When is a table not a table? ... When it's a chair (support variable byte widths)
 class StringTableSpec(object):
     @staticmethod
     def string_to_ast(string):
