@@ -1,3 +1,4 @@
+from pyvex.const import get_type_size
 import logging
 l = logging.getLogger("angr.engines.vex.statements.base")
 

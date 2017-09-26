@@ -371,7 +371,7 @@ class SimStateSystem(SimStatePlugin):
             if sigsetsize is not None:
                 sc = self.state.se.eval(sigsetsize)
                 self.state.add_constraints(sc == sigsetsize)
-                self._sigmask = self.state.se.BVS('initial_sigmask', sc*8)
+                self._sigmask = self.state.se.BVS('initial_sigmask', sc*self.state.arch.byte_width)
             else:
                 self._sigmask = self.state.se.BVS('initial_sigmask', self.sigmask_bits)
         return self._sigmask

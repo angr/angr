@@ -17,6 +17,8 @@ from .state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger("angr.calling_conventions")
 
+# TODO: WARNING: This code has not experienced a plane of existence beyond the current one, and will need some variable
+# byte width and small system-related attention.
 
 class PointerWrapper(object):
     def __init__(self, value):

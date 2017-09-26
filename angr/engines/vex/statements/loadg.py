@@ -18,9 +18,11 @@ class SimIRStmt_LoadG(SimIRStmt):
         if read_size == converted_size:
             converted_expr = read_expr
         elif "S" in self.stmt.cvt:
-            converted_expr = read_expr.sign_extend(converted_size*8 - read_size*8)
+            converted_expr = read_expr.sign_extend(converted_size*self.state.arch.byte_width -
+                                                   read_size*self.state.arch.byte_width)
         elif "U" in self.stmt.cvt:
-            converted_expr = read_expr.zero_extend(converted_size*8 - read_size*8)
+            converted_expr = read_expr.zero_extend(converted_size*self.state.arch.byte_width -
+                                                   read_size*self.state.arch.byte_width)
         else:
             raise SimStatementError("Unrecognized IRLoadGOp %s!", self.stmt.cvt)
 

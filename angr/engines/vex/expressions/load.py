@@ -21,7 +21,7 @@ class SimIRExpr_Load(SimIRExpr):
         if o.DO_LOADS not in self.state.options:
             self.expr = self.state.se.Unconstrained("load_expr_0x%x_%d" % (
                 self.state.scratch.ins_addr, self.state.scratch.stmt_idx
-            ), size*8)
+            ), size*self.state.arch.byte_width)
         else:
 
             # load from memory and fix endianness
