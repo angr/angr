@@ -81,9 +81,15 @@ class ARMSystemExplorer(ExplorationTechnique):
 
     def step(self, simgr, stash, **kwargs):
         simgr.step(stash=stash, **kwargs)
+       #if simgr.active and simgr.active[0].addr == 0x9695:
+       #    import ipdb; ipdb.set_trace()
+       #    print simgr.active[0].regs.r2
+       #    print simgr.active[0].regs.r3
+       #    print simgr.active[0].regs.r4
+       #    print simgr.active[0].regs.r5
 
         if simgr.errored:
-            print simgr.errored[0]
+            l.debug(simgr.errored[0])
             e = simgr.errored[0].error
             s = simgr.errored[0].state
 
@@ -95,9 +101,11 @@ class ARMSystemExplorer(ExplorationTechnique):
                 # give it a size, otherwise VEX will set the size to 0 and capstone
                 # will fail.
                 b = s.block(size=4).capstone
-                b.pp()
+                l.debug(str(b))
                 insn = b.insns[0]
                 getattr(self, '_hook_' + str(insn.mnemonic[:3]))(state=s, insn=insn)
+                if s.se.eval(s.regs.itstate):
+                    s.regs.itstate = s.se.LShR(s.regs.itstate, 8)
 
             simgr.errored.pop(0)
 
@@ -124,7 +132,17 @@ class ARMSystemExplorer(ExplorationTechnique):
         if not ARMSystemExplorer._condition_passed(state, insn):
             return
 
-        self._exception_entry(state, exception='SVCall', ret_addr=state._ip)
+        if state.se.eval(state.regs.itstate):
+            state.regs.itstate = state.se.LShR(state.regs.itstate, 8)
+
+        # The return address cannot be passed directly to the exception
+        # handler, since it may be off by 1 in Thumb mode (I blame this on
+        # libVEX...). Furthermore, this return address is used to compute the
+        # syscall number, so it has to be an word-aligned address.
+        #
+        # The odd address will be recomputed at exception return thanks to
+        # EPSR.T bit.
+        self._exception_entry(state, exception='SVCall', ret_addr=state._ip & ~1)
 
     def _hook_cps(self, state, insn):
         """
@@ -141,6 +159,19 @@ class ARMSystemExplorer(ExplorationTechnique):
 
         if not ARMSystemExplorer._condition_passed(state, insn):
             return
+
+        if self._current_mode_is_privileged(state):
+            if insn.mnemonic.endswith('e'): # Interrupt Enable
+                if 'i' in insn.op_str:
+                    state.regs.primask &= ~1
+                if 'f' in insn.op_str:
+                    state.regs.faultmask &= ~1
+            elif insn.mnemonic.endswith('d'): # Interrupt Disable
+                if 'i' in insn.op_str:
+                    state.regs.primask |= 1
+                if 'f' in insn.op_str:
+                    state.regs.faultmask |= 1
+
 
     def _hook_msr(self, state, insn):
         """
@@ -162,7 +193,7 @@ class ARMSystemExplorer(ExplorationTechnique):
         sysm, rn = [str(i).lower() for i in insn.op_str.split(', ')]
         privileged = self._current_mode_is_privileged(state)
 
-        print rn, state.regs.__getattr__(rn)
+        l.debug("%s = %s" % (rn, repr(state.regs.__getattr__(rn))))
 
         rn = state.regs.__getattr__(rn)
 
@@ -191,7 +222,7 @@ class ARMSystemExplorer(ExplorationTechnique):
                 val = (int(self._current_mode == 'Thread') << 1) | 1
                 state.regs.__setattr__(sysm, rn & val)
 
-        print sysm, state.regs.__getattr__(sysm)
+        l.debug("%s = %s" % (sysm, repr(state.regs.__getattr__(sysm))))
 
     def _hook_mrs(self, state, insn):
         """
@@ -243,8 +274,8 @@ class ARMSystemExplorer(ExplorationTechnique):
 
         state.regs.__setattr__(rd, val)
 
-        print rd, state.regs.__getattr__(rd)
-        print sysm, state.regs.__getattr__(sysm)
+        l.debug("%s = %s" % (rd, repr(state.regs.__getattr__(rd))))
+        l.debug("%s = %s" % (sysm, repr(state.regs.__getattr__(sysm))))
 
     #
     # Helper methods
@@ -343,7 +374,7 @@ class ARMSystemExplorer(ExplorationTechnique):
 
        #state.inspect.b('mem_write',
        #                when=BP_AFTER,
-       #                condition=lambda s: s.se.eval(s.inspect.mem_write_address) == 0x200000bc)
+       #                condition=lambda s: s.se.eval(s.inspect.mem_write_address) == 0x2000087c)
         # Program should start at reset service routine.
         tmp = state.memory.load(self._vector_table + 4, size=4, endness='Iend_LE')
         assert state.se.eval(state._ip) == state.se.eval(tmp)
@@ -352,22 +383,22 @@ class ARMSystemExplorer(ExplorationTechnique):
 
         # Exception number cleared (IPSR[8:0] = 0).
         # IT/ICI bits cleared (EPSR.IT[7:0] = 0).
-        state.regs.xpsr = 0
+        state.regs.xpsr = state.se.BVV(0, 32)
 
         # T (EPSR.T) bit set.
         state.regs.xpsr |= (1 << 24)
 
         # Priority mask cleared.
-        state.regs.primask = 0
+        state.regs.primask = state.se.BVV(0, 32)
 
         # Fault mask cleared.
-        state.regs.faultmask = 0
+        state.regs.faultmask = state.se.BVV(0, 32)
 
         # Base priority disabled.
-        state.regs.basepri = 0
+        state.regs.basepri = state.se.BVV(0, 32)
 
         # Current stack is Main, Thread is privileged.
-        state.regs.control = 0
+        state.regs.control = state.se.BVV(0, 32)
         state.regs.msp = state.regs.sp
 
         # Priorities
@@ -392,7 +423,6 @@ class ARMSystemExplorer(ExplorationTechnique):
 
         # People can define other memory-mapped registers.
         for k, v in self._mem_init.iteritems():
-            print hex(k), v
             state.memory.store(k, v, size=4, endness='Iend_LE')
 
     def _exception_entry(self, state, exception, ret_addr):
@@ -554,6 +584,8 @@ class ARMSystemExplorer(ExplorationTechnique):
         state.regs.lr  = state.memory.load(sp + 0x14, size=4, endness='Iend_LE')
         state._ip      = state.memory.load(sp + 0x18, size=4, endness='Iend_LE')
         xpsr           = state.memory.load(sp + 0x1C, size=4, endness='Iend_LE')
+
+        state._ip += ((xpsr & (1 << 24)) >> 24)
 
         ccr_stkalign = state.memory.load(memory_mapped_regs['CCR'], size=4, endness='Iend_LE')
         ccr_stkalign = (ccr_stkalign & (1 << 9)) >> 9
