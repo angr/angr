@@ -1201,7 +1201,7 @@ class CFGBase(Analysis):
                 # in, otherwise there will be an edge from A to A`, while A should totally be got rid of in the new
                 # graph.
                 if p not in other_nodes:
-                    graph.add_edge(p, new_node, data)
+                    graph.add_edge(p, new_node, **data)
 
             # We should find the correct successor
             new_successors = [i for i in [smallest_node] + other_nodes

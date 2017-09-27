@@ -351,7 +351,7 @@ class Function(object):
             if node is None:
                 # the node does not exist. maybe it's not a block node.
                 continue
-            missing = set(x.addr for x in self.graph.successors(node)) - analyzed
+            missing = set(x.addr for x in list(self.graph.successors(node))) - analyzed
             for succ_addr in missing:
                 l.info("Forcing jump to missing successor: %#x", succ_addr)
                 if succ_addr not in analyzed:

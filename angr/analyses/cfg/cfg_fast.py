@@ -2772,7 +2772,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if successor_node and successor_node.function_address == node.addr:
                     # if there is absolutely no predecessors to successor_node, we'd like to add it as a new function
                     # so that it will not be left behind
-                    if not list(self.graph.predecessors(successor_node):)
+                    if not list(self.graph.predecessors(successor_node)):
                         self._function_add_node(successor_node_addr, successor_node_addr)
 
         #if node.addr in self.kb.functions.callgraph:
