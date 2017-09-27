@@ -250,7 +250,7 @@ class Project(object):
             func = reloc.symbol
             if func is None:
                 continue
-            if not func.is_function:
+            if not func.is_function and func.type != cle.backends.symbol.Symbol.TYPE_NONE:
                 continue
             if not reloc.resolved:
                 l.debug("Ignoring unresolved import '%s' from %s ...?", func.name, reloc.owner_obj)

@@ -599,7 +599,6 @@ class Function(object):
             raise AngrValueError('_register_nodes(): the "is_local" parameter must be a bool')
 
         for node in nodes:
-            node.function = self
             self.transition_graph.add_node(node)
             node._graph = self.transition_graph
             if node.addr not in self or self._block_sizes[node.addr] == 0:
@@ -982,7 +981,7 @@ class Function(object):
 
                 for p, _, data in original_predecessors:
                     if p not in other_nodes:
-                        graph.add_edge(p, new_node, data)
+                        graph.add_edge(p, new_node, **data)
 
                 # We should find the correct successor
                 new_successors = [i for i in all_nodes

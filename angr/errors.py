@@ -278,6 +278,9 @@ class SimProcedureArgumentError(SimProcedureError):
 class SimFastPathError(SimEngineError):
     pass
 
+class SimIRSBNoDecodeError(SimIRSBError):
+    pass
+
 class UnsupportedSyscallError(SimProcedureError, SimUnsupportedError):
     pass
 

@@ -49,6 +49,8 @@ class SimulationManager(ana.Storable):
                             the state and some information about the error are placed in this list. You can adjust the
                             list of caught exceptions with the `resilience` parameter.
     :ivar stashes:          All the stashes on this instance, as a dictionary.
+    :ivar completion_mode:  A function describing how multiple exploration techniques with the ``complete`` hook set will
+                            interact. By default, the builtin function ``any``.
     """
 
     ALL = '_ALL'
@@ -56,7 +58,7 @@ class SimulationManager(ana.Storable):
 
     def __init__(self, project, active_states=None, stashes=None, hierarchy=None, veritesting=None,
                  veritesting_options=None, immutable=None, resilience=None, save_unconstrained=None,
-                 save_unsat=None, threads=None, errored=None):
+                 save_unsat=None, threads=None, errored=None, completion_mode=any):
         self._project = project
         self._hierarchy = StateHierarchy() if hierarchy is None else hierarchy
         self._immutable = False if immutable is None else immutable
@@ -82,6 +84,7 @@ class SimulationManager(ana.Storable):
 
         self.errored = [] if errored is None else list(errored)
         self.stashes = self._make_stashes_dict(active=active_states) if stashes is None else stashes
+        self.completion_mode = completion_mode
 
     #
     # Pickling
@@ -123,6 +126,7 @@ class SimulationManager(ana.Storable):
         out._hooks_step_state = list(self._hooks_step_state)
         out._hooks_filter = list(self._hooks_filter)
         out._hooks_complete = list(self._hooks_complete)
+        out.completion_mode = self.completion_mode
         return out
 
     def _make_stashes_dict(self,
@@ -933,7 +937,7 @@ class SimulationManager(ana.Storable):
         if len(self._hooks_complete) == 0 and n is None:
             l.warn("No completion state defined for SimulationManager; stepping until all states deadend")
 
-        until_func = lambda pg: any(h(pg) for h in self._hooks_complete)
+        until_func = lambda pg: self.completion_mode(h(pg) for h in self._hooks_complete)
         return self.step(n=n, step_func=step_func, until=until_func, stash=stash)
 
 

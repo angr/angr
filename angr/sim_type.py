@@ -383,7 +383,7 @@ class SimTypeFixedSizeArray(SimType):
 
     def store(self, state, addr, values):
         for i, val in enumerate(values):
-            self.elem_type.store(state, addr + i*self.elem_type.size, val)
+            self.elem_type.store(state, addr + i*(self.elem_type.size/8), val)
 
     @property
     def size(self):
@@ -470,7 +470,7 @@ class SimTypeString(SimTypeArray):
     def size(self):
         if self.length is None:
             return 4096         # :/
-        return self.length + 1
+        return (self.length + 1) * 8
 
     def _with_arch(self, arch):
         return self
@@ -515,7 +515,7 @@ class SimTypeWString(SimTypeArray):
     def size(self):
         if self.length is None:
             return 4096
-        return self.length * 2 + 2
+        return (self.length * 2 + 2) * 8
 
     def _with_arch(self, arch):
         return self
