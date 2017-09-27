@@ -87,7 +87,7 @@ class AngrObjectFactory(object):
         # fix up the descriptions... TODO do something better than this
         description = str(r)
         l.info("Ticked state: %s", description)
-        for succ in r.successors:
+        for succ in r.all_successors:
             succ.history.recent_description = description
 
         return r
