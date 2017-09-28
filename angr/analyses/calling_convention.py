@@ -101,7 +101,7 @@ class CallingConventionAnalysis(Analysis):
             if isinstance(variable, SimStackVariable):
                 # a stack variable. convert it to a stack argument.
                 # TODO: deal with the variable base
-                if variable.offset == 0:
+                if variable.offset <= 0:
                     # skip the return address on the stack
                     # TODO: make sure it was the return address
                     continue
