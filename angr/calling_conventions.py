@@ -17,6 +17,8 @@ from .state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger("angr.calling_conventions")
 
+# TODO: WARNING: This code has not experienced a plane of existence beyond the current one, and will need some variable
+# byte width and small system-related attention.
 
 class PointerWrapper(object):
     def __init__(self, value):
@@ -277,6 +279,8 @@ class SimCC(object):
     ARCH = None                     # The archinfo.Arch class that this CC must be used for, if relevant
     CALLEE_CLEANUP = False          # Whether the callee has to deallocate the stack space for the arguments
 
+    STACK_ALIGNMENT = 1             # the alignment requirement of the stack pointer at function start BEFORE call
+
     #
     # Here are several things you MAY want to override to change your cc's convention
     #
@@ -514,10 +518,11 @@ class SimCC(object):
             state.regs.sp = allocator.ptr
 
         if stack_base is None:
-            # I am... not sure why we add SP_DIFF. As far as I can tell, stack_space includes it already,
-            # since it's just the max of all the end-offsets of the stack arguments?
-            # TODO: try disabling it and seeing if anything breaks
-            state.regs.sp -= self.stack_space(arg_locs) + self.STACKARG_SP_DIFF
+            state.regs.sp -= self.stack_space(arg_locs)
+
+            # handle alignment
+            while claripy.is_true((state.regs.sp + self.STACKARG_SP_DIFF) % self.STACK_ALIGNMENT != 0):
+                state.regs.sp += 1
 
         for loc, val in zip(arg_locs, vals):
             loc.set_value(state, val, endness='Iend_BE', stack_base=stack_base)
@@ -842,6 +847,7 @@ class SimCCSystemVAMD64(SimCC):
     RETURN_VAL = SimRegArg('rax', 8)
     FP_RETURN_VAL = SimRegArg('xmm0', 32)
     ARCH = archinfo.ArchAMD64
+    STACK_ALIGNMENT = 16
 
     def __init__(self, arch, args=None, ret_val=None, sp_delta=None, func_ty=None):
         super(SimCCSystemVAMD64, self).__init__(arch, args, ret_val, sp_delta, func_ty)

@@ -73,8 +73,10 @@ class SimOS(object):
 
         def irelative_resolver(resolver_addr):
             # autohooking runs before this does, might have provided this already
+            # in that case, we want to advertise the _resolver_ address, since it is now
+            # providing the behavior of the actual function
             if self.project.is_hooked(resolver_addr):
-                return
+                return resolver_addr
 
             resolver = self.project.factory.callable(resolver_addr, concrete_only=True)
             try:
@@ -389,8 +391,6 @@ class SimLinux(SimUserland):
         self._vsyscall_addr = None
 
     def configure_project(self):
-        super(SimLinux, self).configure_project()
-
         self._loader_addr = self.project.loader.extern_object.allocate()
         self._loader_lock_addr = self.project.loader.extern_object.allocate()
         self._loader_unlock_addr = self.project.loader.extern_object.allocate()
@@ -420,6 +420,10 @@ class SimLinux(SimUserland):
             _rtld_global_ro = ld_obj.get_symbol('_rtld_global_ro')
             if _rtld_global_ro is not None:
                 pass
+
+        libc_obj = self.project.loader.find_object('libc.so.6')
+        if libc_obj:
+            self._weak_hook_symbol('_dl_vdso_vsym', L['libc.so.6'].get('_dl_vdso_vsym', self.arch), libc_obj)
 
         tls_obj = self.project.loader.tls_object
         if tls_obj is not None:
@@ -460,6 +464,8 @@ class SimLinux(SimUserland):
                         randaddr = self.project.loader.extern_object.allocate()
                         self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](**kwargs))
                         self.project.loader.memory.write_addr_at(gotaddr, randaddr)
+
+        super(SimLinux, self).configure_project()
 
     # pylint: disable=arguments-differ
     def state_blank(self, fs=None, concrete_fs=False, chroot=None, **kwargs):

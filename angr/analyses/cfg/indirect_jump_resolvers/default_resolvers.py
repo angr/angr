@@ -4,11 +4,13 @@ import cle
 from . import MipsElfFastResolver
 from . import X86ElfPicPltResolver
 from . import JumpTableResolver
+from . import X86PeIatResolver
 
 
 DEFAULT_RESOLVERS = {
     'X86': {
         cle.MetaELF: [ X86ElfPicPltResolver, ],
+        cle.PE: [ X86PeIatResolver, ],
     },
     'MIPS32': {
         cle.MetaELF: [ MipsElfFastResolver, ],

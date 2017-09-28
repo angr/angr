@@ -272,7 +272,7 @@ class SimStateSystem(SimStatePlugin):
     def fstat(self, fd): #pylint:disable=unused-argument
         # sizes are AMD64-specific for now
         # TODO: import results from concrete FS, if using concrete FS
-        if fd.symbolic:
+        if self.state.solver.symbolic(fd):
             mode = self.state.se.BVS('st_mode', 32)
         else:
             fd = self.state.se.eval(fd)
@@ -371,7 +371,7 @@ class SimStateSystem(SimStatePlugin):
             if sigsetsize is not None:
                 sc = self.state.se.eval(sigsetsize)
                 self.state.add_constraints(sc == sigsetsize)
-                self._sigmask = self.state.se.BVS('initial_sigmask', sc*8)
+                self._sigmask = self.state.se.BVS('initial_sigmask', sc*self.state.arch.byte_width)
             else:
                 self._sigmask = self.state.se.BVS('initial_sigmask', self.sigmask_bits)
         return self._sigmask

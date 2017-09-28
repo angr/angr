@@ -84,7 +84,7 @@ def run_nodecode(arch):
         p.loader.memory[corrupt_addrs[arch][0] + i] = c
     boned = p.factory.simgr().explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
     nose.tools.assert_true(len(boned.errored) >= 1)
-    nose.tools.assert_true(isinstance(boned.errored[0].error, angr.AngrExitError))
+    nose.tools.assert_true(isinstance(boned.errored[0].error, angr.SimIRSBNoDecodeError))
     nose.tools.assert_true(boned.errored[0].state.addr == corrupt_addrs[arch][0])
 
     # hook the instructions with the emulated stuff

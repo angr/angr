@@ -36,8 +36,8 @@ class CodeLocation(object):
                     self.block_addr,
                 )
             else:
-                s = "<%s%#x(%d)" % (
-                    ("%#x " % self.ins_addr) if self.ins_addr else "",
+                s = "<%s%#x[%d]" % (
+                    ("%#x id=" % self.ins_addr) if self.ins_addr else "",
                     self.block_addr,
                     self.stmt_idx,
                 )
@@ -50,6 +50,13 @@ class CodeLocation(object):
             s += ">"
 
             return s
+
+    @property
+    def short_repr(self):
+        if self.ins_addr is not None:
+            return "%#x" % self.ins_addr
+        else:
+            return repr(self)
 
     def __eq__(self, other):
         """
