@@ -189,7 +189,7 @@ class CFGBase(Analysis):
 
         raise NotImplementedError("I'm too lazy to implement it right now")
 
-    @deprecated
+    @deprecated(replacement='nodes()')
     def get_bbl_dict(self):
         return self._nodes
 
