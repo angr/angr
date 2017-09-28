@@ -2247,10 +2247,15 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         stmt_id = [i for i, s in enumerate(irsb.statements)
                    if isinstance(s, pyvex.IRStmt.WrTmp) and s.tmp == next_tmp][0]
 
-        cdg = self.project.analyses.CDG(cfg=self)
-        ddg = self.project.analyses.DDG(cfg=self, start=current_function_addr, call_depth=0)
+        cdg = self.project.analyses.CDG(cfg=self, fail_fast=self._fail_fast)
+        ddg = self.project.analyses.DDG(cfg=self, start=current_function_addr, call_depth=0, fail_fast=self._fail_fast)
 
-        bc = self.project.analyses.BackwardSlice(self, cdg, ddg, targets=[(cfgnode, stmt_id)], same_function=True)
+        bc = self.project.analyses.BackwardSlice(self,
+                                                 cdg,
+                                                 ddg,
+                                                 targets=[(cfgnode, stmt_id)],
+                                                 same_function=True,
+                                                 fail_fast=self._fail_fast)
         taint_graph = bc.taint_graph
         # Find the correct taint
         next_nodes = [cl for cl in taint_graph.nodes() if cl.block_addr == sim_successors.addr]
@@ -2933,7 +2938,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: None
         """
 
-        loop_finder = self.project.analyses.LoopFinder(kb=self.kb, normalize=False)
+        loop_finder = self.project.analyses.LoopFinder(kb=self.kb, normalize=False, fail_fast=self._fail_fast)
 
         if loop_callback is not None:
             graph_copy = networkx.DiGraph(self._graph)
