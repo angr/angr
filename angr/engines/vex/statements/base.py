@@ -1,4 +1,5 @@
 import logging
+from pyvex.const import get_type_size
 l = logging.getLogger("angr.engines.vex.statements.base")
 
 class SimIRStmt(object):
