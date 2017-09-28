@@ -44,3 +44,7 @@ class SpOffset(RegisterOffset):
         if type(other) in (int, long):
             return SpOffset(self._bits, self._to_signed(self.offset - other))
         raise TypeError()
+
+    def __eq__(self, other):
+        return type(other) is SpOffset and self._bits == other.bits and self.reg == other.reg and \
+               self.offset == other.offset and self.is_base is other.is_base
