@@ -1,25 +1,24 @@
-
-import struct
 import logging
+import struct
 
 import pyvex
 
-from ...engines.vex.irop import operations as vex_operations
-from ...engines.light import SimEngineLightVEX, SpOffset
-from ...errors import SimEngineError
 from .atoms import Register, MemoryLocation, Parameter
+from .constants import OP_BEFORE, OP_AFTER
 from .dataset import DataSet
 from .external_codeloc import ExternalCodeLocation
-from .constants import OP_BEFORE, OP_AFTER
+from ...engines.light import SimEngineLightVEX, SpOffset
+from ...engines.vex.irop import operations as vex_operations
+from ...errors import SimEngineError
 
 l = logging.getLogger('angr.analyses.reaching_definitions.engine_vex')
 
 
 class SimEngineRDVEX(SimEngineLightVEX):
-    def __init__(self, current_depth, maximum_depth, function_handler=None):
+    def __init__(self, current_local_call_depth, maximum_local_call_depth, function_handler=None):
         super(SimEngineRDVEX, self).__init__()
-        self._current_depth = current_depth
-        self._maximum_depth = maximum_depth
+        self._current_local_call_depth = current_local_call_depth
+        self._maximum_local_call_depth = maximum_local_call_depth
         self._function_handler = function_handler
 
     def process(self, state, *args, **kwargs):
@@ -69,6 +68,7 @@ class SimEngineRDVEX(SimEngineLightVEX):
         self.state.kill_and_add_definition(reg, self._codeloc(), data)
 
     # e.g. STle(t6) = t21, t6 and/or t21 might include multiple values
+    # sync with _handle_StoreG()
     def _handle_Store(self, stmt):
 
         addr = self._expr(stmt.addr)
@@ -87,6 +87,7 @@ class SimEngineRDVEX(SimEngineLightVEX):
                 # with same index and same size
                 self.state.kill_and_add_definition(memloc, self._codeloc(), data)
 
+    # sync with _handle_Store()
     def _handle_StoreG(self, stmt):
         guard = self._expr(stmt.guard)
         if guard.data == {True}:
@@ -94,10 +95,35 @@ class SimEngineRDVEX(SimEngineLightVEX):
         elif guard.data == {False}:
             pass
         else:
-            # FIXME: implement both
-            l.info('Could not resolve guard %s for StoreG.', str(guard))
+            # guard.data == {True, False}
+            addr = self._expr(stmt.addr)
+            size = stmt.data.result_size(self.tyenv) / 8
 
-    # CAUTION: experimental
+            # get current data
+            load_end = stmt.end
+            load_ty = self.tyenv.lookup(stmt.data.tmp)
+            load_addr = stmt.addr
+            load_expr = pyvex.IRExpr.Load(load_end, load_ty, load_addr)
+            data_old = self._handle_Load(load_expr)
+
+            # get new data
+            data_new = self._expr(stmt.data)
+
+            # merge old and new data
+            data_new.update(data_old)
+
+            for a in addr:
+                if a is DataSet.undefined:
+                    l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
+                else:
+                    if DataSet.undefined in data_new:
+                        l.info('Data to write at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
+
+                    memloc = MemoryLocation(a, size)
+                    # different addresses are not killed by a subsequent iteration, because kill only removes entries
+                    # with same index and same size
+                    self.state.kill_and_add_definition(memloc, self._codeloc(), data_new)
+
     def _handle_LoadG(self, stmt):
         guard = self._expr(stmt.guard)
         if guard.data == {True}:
@@ -161,6 +187,7 @@ class SimEngineRDVEX(SimEngineLightVEX):
         return DataSet(data, expr.result_size(self.tyenv))
 
     # e.g. t27 = LDle:I64(t9), t9 might include multiple values
+    # caution: Is also called from StoreG
     def _handle_Load(self, expr):
         addr = self._expr(expr.addr)
         size = expr.result_size(self.tyenv) / 8
@@ -369,7 +396,7 @@ class SimEngineRDVEX(SimEngineLightVEX):
     #
 
     def _handle_function(self):
-        if self._current_depth > self._maximum_depth:
+        if self._current_local_call_depth > self._maximum_local_call_depth:
             l.warning('The analysis reached its maximum recursion depth.')
             return None
 
@@ -399,23 +426,54 @@ class SimEngineRDVEX(SimEngineLightVEX):
             if symbol is not None:
                 ext_func_name = symbol.name
 
+        executed_rda = False
         if ext_func_name is not None:
             handler_name = 'handle_%s' % ext_func_name
             if hasattr(self._function_handler, handler_name):
-                getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                self.state = state
             else:
-                l.warning('Please implement the external function handler for %s() with your own logic.',
-                          ext_func_name)
+                l.warning('Please implement the external function handler for %s() with your own logic.', ext_func_name)
+                handler_name = 'handle_external_function_fallback'
+                if hasattr(self._function_handler, handler_name):
+                    executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                    self.state = state
         elif is_internal is True:
             handler_name = 'handle_local_function'
             if hasattr(self._function_handler, handler_name):
-                is_updated, state = getattr(self._function_handler, handler_name)(self.state, ip_addr,
-                                                                                  self._current_depth + 1,
-                                                                                  self._maximum_depth)
-                if is_updated is True:
-                    self.state = state
+                executed_rda, state = getattr(self._function_handler, handler_name)(self.state,
+                                                                                    ip_addr,
+                                                                                    self._current_local_call_depth + 1,
+                                                                                    self._maximum_local_call_depth,
+                                                                                    self._codeloc(),
+                                                                                    )
+                self.state = state
             else:
                 l.warning('Please implement the local function handler with your own logic.')
         else:
             l.warning('Could not find function name for external function at address %#x.', ip_addr)
+
+        # pop return address if necessary
+        if executed_rda is False and self.arch.call_pushes_ret is True:
+            defs_sp = self.state.register_definitions.get_objects_by_offset(self.arch.sp_offset)
+            if len(defs_sp) == 0:
+                raise ValueError('No definition for SP found')
+            elif len(defs_sp) == 1:
+                sp_data = next(iter(defs_sp)).data.data
+            else:  # len(defs_sp) > 1
+                sp_data = set()
+                for d in defs_sp:
+                    sp_data.update(d.data)
+
+            if len(sp_data) != 1:
+                raise ValueError('Invalid number of values for SP')
+
+            sp_addr = next(iter(sp_data))
+            if not isinstance(sp_addr, (int, long)):
+                raise TypeError('Invalid type %s for SP' % type(sp_addr).__name__)
+
+            atom = Register(self.arch.sp_offset, self.arch.bytes)
+            sp_addr -= self.arch.stack_change
+            self.state.kill_and_add_definition(atom, self._codeloc(), DataSet(sp_addr, self.arch.bits))
+
         return None
