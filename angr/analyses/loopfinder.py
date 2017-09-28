@@ -69,7 +69,7 @@ class LoopFinder(Analysis):
         :return:        A list of Loop objects, some of which may be inside others,
                         but all need to be documented.
         """
-        loop_body_nodes = subg.nodes()[:]
+        loop_body_nodes = list(subg.nodes())[:]
         entry_edges = []
         break_edges = []
         continue_edges = []
@@ -161,7 +161,7 @@ class LoopFinder(Analysis):
         outall = []
         for subg in networkx.strongly_connected_component_subgraphs(graph):
             if len(subg.nodes()) == 1:
-                if len(subg.successors(subg.nodes()[0])) == 0:
+                if len(list(subg.successors(list(subg.nodes())[0]))) == 0:
                     continue
             thisloop, allloops = self._parse_loop_graph(subg, graph)
             if thisloop is not None:
