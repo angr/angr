@@ -1,4 +1,3 @@
-
 from collections import defaultdict
 import logging
 
@@ -213,7 +212,8 @@ class ReachingDefinitions(object):
 
 class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
     def __init__(self, func=None, block=None, max_iterations=3, track_tmps=False, observation_points=None,
-                 init_state=None, init_func=False, cc=None, function_handler=None, current_depth=0, maximum_depth=1):
+                 init_state=None, init_func=False, cc=None, function_handler=None, current_local_call_depth=1,
+                 maximum_local_call_depth=5):
         """
 
         :param angr.knowledge.Function func:    The function to run reaching definition analysis on.
@@ -230,8 +230,8 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         :param SimCC cc:                        Calling convention of the function.
         :param list function_handler:           Handler for functions, naming scheme: handle_<func_name>|local_function(
                                                 <ReachingDefinitions>, <Codeloc>, <IP address>).
-        :param int current_depth:               Current recursion depth.
-        :param int maximum_depth:               Maximum recursion depth.
+        :param int current_local_call_depth:    Current local function recursion depth.
+        :param int maximum_local_call_depth:    Maximum local function recursion depth.
         """
 
         if func is not None:
@@ -255,8 +255,8 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         self._observation_points = observation_points
         self._init_state = init_state
         self._function_handler = function_handler
-        self._current_depth = current_depth
-        self._maximum_depth = maximum_depth
+        self._current_local_call_depth = current_local_call_depth
+        self._maximum_local_call_depth = maximum_local_call_depth
 
         if self._init_state is not None:
             self._init_state = self._init_state.copy()
@@ -284,10 +284,10 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
         self._node_iterations = defaultdict(int)
         self._states = {}
 
-        self._engine_vex = SimEngineRDVEX(self._current_depth, self._maximum_depth,
-                                                         self._function_handler)
-        self._engine_ail = SimEngineRDAIL(self._current_depth, self._maximum_depth,
-                                                         self._function_handler)
+        self._engine_vex = SimEngineRDVEX(self._current_local_call_depth, self._maximum_local_call_depth,
+                                          self._function_handler)
+        self._engine_ail = SimEngineRDAIL(self._current_local_call_depth, self._maximum_local_call_depth,
+                                          self._function_handler)
 
         self.observed_results = {}
 
