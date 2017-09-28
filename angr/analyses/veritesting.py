@@ -577,7 +577,7 @@ class Veritesting(Analysis):
         """
 
         graph = networkx.DiGraph(cfg.graph)
-        reversed_cyclic_graph = networkx.reverse(graph_with_loops, copy=False)
+        reversed_cyclic_graph = networkx.reverse(graph_with_loops)
 
         # Remove all "FakeRet" edges
         fakeret_edges = [
