@@ -23,8 +23,7 @@ def test_layout():
 
     for node in cfg.nodes():
         if node.size > 0:
-            addr = node.addr + random.randint(0, node.size - 1)  # wow
-            this_block = basic_blocks.get_block(addr, normalize=False)
+            this_block = basic_blocks.get_block(node.addr, normalize=False)
             nose.tools.assert_equal(this_block.addr, node.addr)
             nose.tools.assert_equal(this_block.size, node.size)
             nose.tools.assert_equal(this_block.thumb, node.thumb)
@@ -73,7 +72,7 @@ def test_raise():
     for node in cfg.nodes():
         if node.size > 0:
             if node.addr == 0x80480dc:
-                nose.tools.assert_raises(angr.knowledge_plugins.basic_blocks.OverlappedBlocks,
+                nose.tools.assert_raises(angr.knowledge_plugins.artifacts.basic_blocks.OverlappedBlocks,
                                          basic_blocks.add_block, node.addr, node.size, node.thumb,
                                          overlap_mode='raise')
                 l.info("OverlappedBlocks has been caught!")
