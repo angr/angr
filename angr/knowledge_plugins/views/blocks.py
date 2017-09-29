@@ -1,4 +1,4 @@
-from .view import KnowledgeBaseView
+from ..view import KnowledgeBaseView
 
 
 class BlockView(KnowledgeBaseView):

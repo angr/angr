@@ -1,7 +1,7 @@
 from collections import Counter
 
-from .artifact import KnowledgeArtifact
-from ..misc.ux import deprecated
+from ..artifact import KnowledgeArtifact
+from ...misc.ux import deprecated
 
 import logging
 l = logging.getLogger("angr.knowledge.labels")

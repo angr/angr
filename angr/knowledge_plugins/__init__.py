@@ -1,12 +1,15 @@
+# Base Classes
+from .plugin import KnowledgeBasePlugin
+from .view import KnowledgeBaseView
+from .artifact import KnowledgeArtifact
 
 # Knowledge Artifacts
 from .functions import FunctionManager, Function
 from .variables import VariableManager
-from .indirect_jumps import IndirectJumpsPlugin
-from .labels import LabelsPlugin
-from .basic_blocks import BasicBlocksPlugin
-from .plugin import KnowledgeBasePlugin
+from .artifacts.indirect_jumps import IndirectJumpsPlugin
+from .artifacts.labels import LabelsPlugin
+from .artifacts.basic_blocks import BasicBlocksPlugin
 
-# KnowledgeViews
-from .blocks import BlockView
-from .transitions import TransitionsView
+# Knowledge Views
+from .views.blocks import BlockView
+from .views.transitions import TransitionsView

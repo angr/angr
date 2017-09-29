@@ -1,7 +1,7 @@
 from collections import Mapping
 
-from .artifact import KnowledgeArtifact
-from ..errors import AngrError
+from ..artifact import KnowledgeArtifact
+from ...errors import AngrError
 
 
 class IndirectJumpsPlugin(KnowledgeArtifact, Mapping):

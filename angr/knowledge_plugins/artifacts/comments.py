@@ -1,4 +1,4 @@
-from .plugin import KnowledgeBasePlugin
+from ..plugin import KnowledgeBasePlugin
 
 
 class Comments(KnowledgeBasePlugin, dict):

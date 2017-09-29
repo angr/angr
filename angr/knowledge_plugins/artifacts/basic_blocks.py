@@ -1,6 +1,6 @@
-from ..misc.rangedict import RangeDict, RangeItem
-from ..errors import AngrError
-from .artifact import KnowledgeArtifact
+from ...misc.rangedict import RangeDict, RangeItem
+from ...errors import AngrError
+from ..artifact import KnowledgeArtifact
 
 import logging
 l = logging.getLogger("angr.knowledge.basic_blocks")

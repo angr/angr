@@ -1,7 +1,7 @@
 import networkx as nx
 
-from ..errors import AngrError
-from .view import KnowledgeBaseView
+from ...errors import AngrError
+from ..view import KnowledgeBaseView
 
 import logging
 l = logging.getLogger("angr.knowledge_views.transitions")
