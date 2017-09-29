@@ -205,7 +205,7 @@ class CFGUtils(object):
             # randomly pick one
             loop_head = next(iter(scc))
 
-        subgraph = graph.subgraph(scc)  # type: networkx.DiGraph
+        subgraph = graph.subgraph(scc).copy()  # type: networkx.DiGraph
         for src, _ in subgraph.in_edges(loop_head):
             subgraph.remove_edge(src, loop_head)
 

@@ -660,7 +660,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         new_nw = (dst, call_depth)
                         stack.append(new_nw)
 
-        subgraph = networkx.subgraph(self.graph, subgraph_nodes)
+       #subgraph = networkx.subgraph(self.graph, subgraph_nodes)
+        subgraph = self.graph.subgraph(subgraph_nodes).copy()
 
         # Make it a CFG instance
         subcfg = self.copy()
