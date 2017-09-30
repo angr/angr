@@ -219,10 +219,34 @@ class SimOS(object):
 
         return state
 
-    def state_tracer(self, stdin_content=None, flag_content=None, **kwargs):
-        e_msg = "State configuration for tracer depends heavily on the platform. "
-        e_msg += "Please implement it in SimOS's subclass."
-        raise NotImplementedError(e_msg)
+    def state_tracer(self, input_content=None, magic_content=None, **kwargs):
+        if type(input_content) == str:
+            fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=len(input_content))}
+        elif type(input_content) == TracerPoV:
+            fs = input_content.stdin
+        else:
+            raise TracerEnvironmentError("Input for tracer should be either a string or a TracerPoV for CGC binaries.")
+
+        kwargs['fs'] = kwargs.get('fs', fs)
+
+        kwargs['add_options'] |= {o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY,
+                                  o.REPLACEMENT_SOLVER,
+                                  o.UNICORN,
+                                  o.UNICORN_HANDLE_TRANSMIT_SYSCALL}
+
+        kwargs['remove_options'] |= {o.EFFICIENT_STATE_MERGING} | o.simplification
+
+        state = self.state_full_init(**kwargs)
+
+        # Create the preconstrainer plugin
+        state.register_plugin('preconstrainer',
+                              SimStatePreconstrainer(input_content=input_content,
+                                                     magic_content=magic_content))
+
+        # Preconstrain
+        state.preconstrainer.preconstrain_state()
+
+        return state
 
     def prepare_call_state(self, calling_state, initial_state=None,
                            preserve_registers=(), preserve_memory=()):
@@ -595,31 +619,22 @@ class SimLinux(SimUserland):
 
     def state_tracer(self, input_content=None, magic_content=None, **kwargs):
         if input_content is None:
-            return self.state_entry(**kwargs)
+            return self.state_full_init(**kwargs)
 
         l.warning("Tracer has been heavily tested only for CGC. If you find it buggy for Linux binaries, we are sorry!")
 
-        if type(input_content) == str:
-            fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=len(input_content))}
-        else:
-            raise TracerEnvironmentError("Input for tracer should be a string (for Linux binaries).")
-
-        kwargs['fs'] = kwargs.get('fs', fs)
-
         options = kwargs.get('add_options', set())
-        options.add(o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
         options.add(o.BYPASS_UNSUPPORTED_SYSCALL)
-        options.add(o.REPLACEMENT_SOLVER)
-        options.add(o.UNICORN)
-        options.add(o.UNICORN_HANDLE_TRANSMIT_SYSCALL)
 
         kwargs['add_options'] = options
 
-        kwargs['remove_options'] = {o.EFFICIENT_STATE_MERGING} | o.simplification | kwargs.get('remove_options', set())
+        kwargs['remove_options'] = kwargs.get('remove_options', set())
         
         kwargs['concrete_fs'] = kwargs.get('concrete_fs', True)
 
-        state = self.state_full_init(**kwargs)
+        state = super(SimLinux, self).state_tracer(input_content=input_content,
+                                                   magic_content=magic_content,
+                                                   **kwargs)
 
         # Create the preconstrainer plugin
         state.register_plugin('preconstrainer',
@@ -782,36 +797,24 @@ class SimCGC(SimUserland):
         if input_content is None:
             return self.state_entry(**kwargs)
 
-        if type(input_content) == str:
-            fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=len(input_content))}
-        elif type(input_content) == TracerPoV:
-            fs = input_content.stdin
-        else:
-            raise TracerEnvironmentError("Input for tracer should be either a string or a TracerPoV for CGC binaries.")
-
-        kwargs['fs'] = kwargs.get('fs', fs)
-
         options = kwargs.get('add_options', set())
-        options.add(o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
         options.add(o.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
-        options.add(o.REPLACEMENT_SOLVER)
         options.add(o.UNICORN_THRESHOLD_CONCRETIZATION)
 
         # try to enable unicorn, continue if it doesn't exist
         try:
-            options.add(o.UNICORN)
             options.add(o.UNICORN_SYM_REGS_SUPPORT)
-            options.add(o.UNICORN_HANDLE_TRANSMIT_SYSCALL)
             l.debug("unicorn tracing enabled")
         except AttributeError:
             pass
 
         kwargs['add_options'] = options
 
-        kwargs['remove_options'] = kwargs.get('remove_options', set()) | o.simplification
-        kwargs['remove_options'] |= {o.LAZY_SOLVES, o.SUPPORT_FLOATING_POINT, o.EFFICIENT_STATE_MERGING}
+        kwargs['remove_options'] = kwargs.get('remove_options', set()) | {o.LAZY_SOLVES, o.SUPPORT_FLOATING_POINT}
         
-        state = self.state_entry(**kwargs)
+        state = super(SimCGC, self).state_tracer(input_content=input_content,
+                                                 magic_content=magic_content,
+                                                 **kwargs)
 
         csr = state.unicorn.cooldown_symbolic_registers
         state.unicorn.concretization_threshold_registers = 25000 / csr
@@ -824,13 +827,6 @@ class SimCGC(SimUserland):
 
         state.cgc.flag_bytes = [claripy.BVS("cgc-flag-byte-%d" % i, 8) for i in xrange(0x1000)]
 
-        # Create the preconstrainer plugin
-        state.register_plugin('preconstrainer',
-                              SimStatePreconstrainer(input_content=input_content,
-                                                     magic_content=magic_content))
-
-        # Preconstrain
-        state.preconstrainer.preconstrain_state()
         state.preconstrainer.preconstrain_flag_page()
 
         state.memory.store(0x4347c000, claripy.Concat(*state.cgc.flag_bytes))
