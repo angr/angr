@@ -3,12 +3,11 @@ import claripy
 import logging
 
 from . import ExplorationTechnique
-from .oppologist import Oppologist
 
 from .. import SIM_LIBRARIES, BP_AFTER, BP_BEFORE
 
 from ..calling_conventions import SYSCALL_CC
-from ..errors import AngrTracerError
+from ..errors import AngrTracerError, SimMemoryError, SimEngineError
 from ..misc.tracer.simprocedures import receive
 
 l = logging.getLogger("angr.exploration_techniques.tracer")
@@ -73,9 +72,6 @@ class Tracer(ExplorationTechnique):
         if self.project.loader.main_object.os == 'cgc':
             if self._dump_syscall:
                 s.inspect.b('syscall', when=BP_BEFORE, action=self._syscall)
-
-            simgr.use_technique(Oppologist())
-            l.info("Oppologist enabled.")
 
         elif self.project.loader.main_object.os.startswith('UNIX'):
             # Step forward until we catch up with QEMU
@@ -190,7 +186,7 @@ class Tracer(ExplorationTechnique):
                     target_to_jumpkind = bl.vex.constant_jump_targets_and_jumpkinds
                     if target_to_jumpkind[self._trace[current.globals['bb_cnt']]] == "Ijk_Boring":
                         bbl_max_bytes = 800
-            except (angr.errors.SimMemoryError, angr.errors.SimEngineError):
+            except (SimMemoryError, SimEngineError):
                 bbl_max_bytes = 800
 
             # drop the missed stash before stepping, since driller needs missed paths later.

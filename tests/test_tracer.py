@@ -26,6 +26,7 @@ def test_recursion():
     c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
     simgr.use_technique(c)
     simgr.use_technique(t)
+    simgr.use_technique(angr.exploration_techniques.Oppologist())
 
     simgr.run()
 
@@ -43,6 +44,7 @@ def test_cache_stall():
     c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
     simgr.use_technique(c)
     simgr.use_technique(t)
+    simgr.use_technique(angr.exploration_techniques.Oppologist())
 
     rex.trace_additions.ZenPlugin.prep_tracer(t)
     simgr.run()
@@ -79,6 +81,7 @@ def test_manual_recursion():
     c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
     simgr.use_technique(c)
     simgr.use_technique(t)
+    simgr.use_technique(angr.exploration_techniques.Oppologist())
 
     simgr.run()
     print simgr.stashes, c._last_state, t._predecessors[0]
@@ -94,6 +97,7 @@ def test_cgc_se1_palindrome_raw():
     c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
     simgr.use_technique(c)
     simgr.use_technique(t)
+    simgr.use_technique(angr.exploration_techniques.Oppologist())
 
     simgr.run()
 
@@ -121,6 +125,7 @@ def test_cgc_se1_palindrome_raw():
     c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
     simgr.use_technique(c)
     simgr.use_technique(t)
+    simgr.use_technique(angr.exploration_techniques.Oppologist())
 
     simgr.run()
 
@@ -136,6 +141,7 @@ def test_symbolic_sized_receives():
     c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
     simgr.use_technique(c)
     simgr.use_technique(t)
+    simgr.use_technique(angr.exploration_techniques.Oppologist())
 
     simgr.run()
 
@@ -150,6 +156,7 @@ def test_symbolic_sized_receives():
     c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
     simgr.use_technique(c)
     simgr.use_technique(t)
+    simgr.use_technique(angr.exploration_techniques.Oppologist())
 
     simgr.run()
 
@@ -169,6 +176,7 @@ def test_allocation_base_continuity():
     c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
     simgr.use_technique(c)
     simgr.use_technique(t)
+    simgr.use_technique(angr.exploration_techniques.Oppologist())
 
     simgr.run()
 
@@ -184,6 +192,7 @@ def test_crash_addr_detection():
     c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
     simgr.use_technique(c)
     simgr.use_technique(t)
+    simgr.use_technique(angr.exploration_techniques.Oppologist())
 
     simgr.run()
 
@@ -200,6 +209,7 @@ def test_fauxware():
     c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
     simgr.use_technique(c)
     simgr.use_technique(t)
+    simgr.use_technique(angr.exploration_techniques.Oppologist())
 
     simgr.run()
 
