@@ -13,7 +13,6 @@ logging.getLogger("angr.exploration_techniques.crash_monitor").setLevel("DEBUG")
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries'))
 pov_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "povs"))
-test_data_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 def test_recursion():
     blob = "00aadd114000000000000000200000001d0000000005000000aadd2a1100001d0000000001e8030000aadd21118611b3b3b3b3b3e3b1b1b1adb1b1b1b1b1b1118611981d8611".decode('hex')
@@ -72,7 +71,8 @@ def test_cache_stall():
 
 def test_manual_recursion():
     b = os.path.join(bin_location, "tests/cgc", "CROMU_00071")
-    blob = open('crash2731').read()
+
+    blob = open(os.path.join(bin_location, 'tests_data/', 'crash2731')).read()
     r = tracer.qemu_runner.QEMURunner(binary=b, input=blob)
     p = angr.misc.tracer.make_tracer_project(binary=b)
     s = p.factory.tracer_state(input_content=blob, magic_content=r.magic)
@@ -221,7 +221,7 @@ def run_all():
     for f in sorted(all_functions.keys()):
         if hasattr(all_functions[f], '__call__'):
             print f
-            if f == 'test_cache_stall':
+            if f == 'test_cache_stall' or f == 'test_fauxware':
                 continue
             all_functions[f]()
 
