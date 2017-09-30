@@ -1,4 +1,3 @@
-import angr
 import claripy
 import logging
 
@@ -149,7 +148,7 @@ class CrashMonitor(ExplorationTechnique):
         """
 
         # only grab ones that match the constrained addrs
-        if angr.exploration_techniques.crash_monitor.CrashMonitor._add_constraints(state):
+        if CrashMonitor._add_constraints(state):
             addr = state.inspect.address_concretization_expr
             result = state.inspect.address_concretization_result
             if result is None:
@@ -165,12 +164,12 @@ class CrashMonitor(ExplorationTechnique):
 
         # for each constrained addrs check to see if the variables match,
         # if so keep the constraints
-        state.inspect.address_concretization_add_constraints = angr.exploration_techniques.crash_monitor.CrashMonitor._add_constraints(state)
+        state.inspect.address_concretization_add_constraints = CrashMonitor._add_constraints(state)
 
     @staticmethod
     def _add_constraints(state):
         variables = state.inspect.address_concretization_expr.variables
-        hit_indices = angr.exploration_techniques.crash_monitor.CrashMonitor._to_indices(variables)
+        hit_indices = CrashMonitor._to_indices(variables)
 
         for action in state.preconstrainer._constrained_addrs:
             var_indices = self._to_indices(action.addr.variables)
