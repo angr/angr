@@ -60,7 +60,7 @@ class Tracer(ExplorationTechnique):
 
         # initilize the syscall statistics if the flag is on
         if self._dump_syscall:
-            self._syscall = []
+            self._syscalls = []
 
     def setup(self, simgr):
         self.project = simgr._project
@@ -69,9 +69,8 @@ class Tracer(ExplorationTechnique):
         # initialize the basic block counter to 0
         s.globals['bb_cnt'] = 0
 
-        if self.project.loader.main_object.os == 'cgc':
-            if self._dump_syscall:
-                s.inspect.b('syscall', when=BP_BEFORE, action=self._syscall)
+        if self._dump_syscall:
+            s.inspect.b('syscall', when=BP_BEFORE, action=self._syscall)
 
         elif self.project.loader.main_object.os.startswith('UNIX'):
             # Step forward until we catch up with QEMU
@@ -258,14 +257,20 @@ class Tracer(ExplorationTechnique):
 
     def _syscall(self, state):
         syscall_addr = state.se.eval(state.ip)
+        args = None
+
         # 0xa000008 is terminate, which we exclude from syscall statistics.
-        if syscall_addr != 0xa000008:
-            args = angr.SYSCALL_CC['X86']['CGC'](self._p.arch).get_args(state, 4)
+        if self.project.loader.main_object.os == 'cgc' and syscall_addr != 0xa000008:
+            args = angr.SYSCALL_CC['X86']['CGC'](self.project.arch).get_args(state, 4)
+        else:
+            args = angr.SYSCALL_CC[self.project.arch.name]['Linux'](self.project.arch).get_arbs(state, 4)
+            
+        if args is not None:
             d = {'addr': syscall_addr}
             for i in xrange(4):
                 d['arg_%d' % i] = args[i]
                 d['arg_%d_symbolic' % i] = args[i].ast.symbolic
-            self._syscall.append(d)
+            self._syscalls.append(d)
 
     def _address_in_binary(self, addr):
         """
