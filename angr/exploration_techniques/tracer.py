@@ -285,7 +285,7 @@ class Tracer(ExplorationTechnique):
 
     def _addr_in_plt(self, addr):
         """
-        Check if an address is inside the ptt section
+        Check if an address is inside the plt section
         """
         plt = self.project.loader.main_object.sections_map['.plt']
         return addr >= plt.min_addr and addr <= plt.max_addr
