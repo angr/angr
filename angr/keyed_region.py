@@ -342,7 +342,7 @@ class KeyedRegion(object):
                     item.set_object(stored_object)
                 else:
                     self._add_object_or_make_phi(item, stored_object, make_phi_func=make_phi_func)
-                to_update[stored_object.start] = item
+                to_update[item.start] = item
 
         self._storage.update(to_update)
 
