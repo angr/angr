@@ -269,7 +269,7 @@ class Tracer(ExplorationTechnique):
             d = {'addr': syscall_addr}
             for i in xrange(4):
                 d['arg_%d' % i] = args[i]
-                d['arg_%d_symbolic' % i] = args[i].ast.symbolic
+                d['arg_%d_symbolic' % i] = args[i].symbolic
             self._syscalls.append(d)
 
     def _address_in_binary(self, addr):
