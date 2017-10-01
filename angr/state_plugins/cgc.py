@@ -34,6 +34,8 @@ class SimStateCGC(SimStatePlugin):
 
         self.sinkholes = set()
 
+        self.flag_bytes = None
+
     def peek_input(self):
         if len(self.input_strings) == 0: return None
         return self.input_strings[0]
