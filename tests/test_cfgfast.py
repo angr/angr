@@ -450,6 +450,22 @@ def test_block_instruction_addresses_armhf():
     for instr_addr in main_node.instruction_addrs:
         nose.tools.assert_true(instr_addr % 2 == 1)
 
+#
+# Blanket
+#
+
+def test_blanket_fauxware():
+
+    path = os.path.join(test_location, 'x86_64', 'fauxware')
+    proj = angr.Project(path, auto_load_libs=False)
+
+    cfg = proj.analyses.CFGFast()
+
+    cfb = proj.analyses.CFB(cfg=cfg)
+
+    print cfb.dbg_repr()
+
+
 def run_all():
 
     g = globals()
@@ -484,6 +500,9 @@ def run_all():
 
 
 def main():
+    test_blanket_fauxware()
+    return
+
     if len(sys.argv) > 1:
         g = globals().copy()
         for func_and_args in g['test_' + sys.argv[1]]():
