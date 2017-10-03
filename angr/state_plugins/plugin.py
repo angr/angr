@@ -29,7 +29,7 @@ class SimStatePlugin(object):
 
     # Should return a copy of the state plugin.
     def copy(self):
-        raise Exception("copy() not implement for %s", self.__class__.__name__)
+        raise Exception("copy() not implement for %s" % self.__class__.__name__)
 
     def merge(self, others, merge_conditions, common_ancestor=None): #pylint:disable=unused-argument
         """
@@ -42,7 +42,7 @@ class SimStatePlugin(object):
         :returns: True if the state plugins are actually merged.
         :rtype: bool
         """
-        raise Exception("merge() not implement for %s", self.__class__.__name__)
+        raise Exception("merge() not implement for %s" % self.__class__.__name__)
 
     def widen(self, others): #pylint:disable=unused-argument
         """

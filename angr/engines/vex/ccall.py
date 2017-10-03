@@ -1020,7 +1020,7 @@ def x86g_calculate_aad_aam(state, flags_and_AX, opcode):
         r_AL = ((r_AH * 10) + r_AL) & 0xff
         r_AH = state.se.BVV(0, 32)
     else:
-        raise SimCCallError("Unknown opcode %#x in AAD/AAM ccall", opcode)
+        raise SimCCallError("Unknown opcode %#x in AAD/AAM ccall" % opcode)
 
     r_O = state.se.BVV(0, 32)
     r_C = state.se.BVV(0, 32)
