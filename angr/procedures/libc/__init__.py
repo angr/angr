@@ -36,6 +36,9 @@ _IO_FILE = {
     },
 }
 
+_IO_FILE['ARMEL'] = _IO_FILE['ARM']
+_IO_FILE['ARMHF'] = _IO_FILE['ARM']
+
 
 def io_file_data_for_arch(arch):
     """
