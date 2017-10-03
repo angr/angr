@@ -2222,7 +2222,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     elif pointer_size == 4:
                         fmt += "I"
                     else:
-                        raise AngrCFGError("Pointer size of %d is not supported", pointer_size)
+                        raise AngrCFGError("Pointer size of %d is not supported" % pointer_size)
 
                     for j in xrange(0, data_size, pointer_size):
                         ptr_str = self._ffi.unpack(self._ffi.cast('char*', buf + j), pointer_size)
@@ -2302,7 +2302,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         elif pointer_size == 4:
             fmt += "I"
         else:
-            raise AngrCFGError("Pointer size of %d is not supported", pointer_size)
+            raise AngrCFGError("Pointer size of %d is not supported" % pointer_size)
 
         pointers_count = 0
 

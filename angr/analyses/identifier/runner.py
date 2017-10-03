@@ -219,7 +219,7 @@ class Runner(object):
                 curr_buf_loc += max(len(i), 0x1000)
             else:
                 if not isinstance(i, (int, long)):
-                    raise Exception("Expected int/long got %s", type(i))
+                    raise Exception("Expected int/long got %s" % type(i))
                 mapped_input.append(i)
 
         inttype = SimTypeInt(self.project.arch.bits, False)
@@ -242,7 +242,7 @@ class Runner(object):
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, (int, long)):
-                        raise Exception("Expected int/long got %s", type(i))
+                        raise Exception("Expected int/long got %s" % type(i))
                     mapped_input.append(i)
         else:
             for i, off in zip(test_data.input_args, custom_offs):
@@ -252,7 +252,7 @@ class Runner(object):
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, (int, long)):
-                        raise Exception("Expected int/long got %s", type(i))
+                        raise Exception("Expected int/long got %s" % type(i))
                     mapped_input.append(i)
 
         inttype = SimTypeInt(self.project.arch.bits, False)
@@ -339,7 +339,7 @@ class Runner(object):
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, (int, long)):
-                        raise Exception("Expected int/long got %s", type(i))
+                        raise Exception("Expected int/long got %s" % type(i))
                     mapped_input.append(i)
 
         else:
@@ -350,7 +350,7 @@ class Runner(object):
                     curr_buf_loc += max(len(i), 0x1000)
                 else:
                     if not isinstance(i, (int, long)):
-                        raise Exception("Expected int/long got %s", type(i))
+                        raise Exception("Expected int/long got %s" % type(i))
                     mapped_input.append(i)
 
         inttype = SimTypeInt(self.project.arch.bits, False)

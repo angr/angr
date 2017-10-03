@@ -42,5 +42,5 @@ def io_file_data_for_arch(arch):
     A wrapper to get the _IO_FILE data for an architecture
     """
     if arch.name not in _IO_FILE:
-        raise SimProcedureError("missing _IO_FILE offsets for arch: %s", arch.name)
+        raise SimProcedureError("missing _IO_FILE offsets for arch: %s" % arch.name)
     return _IO_FILE[arch.name]

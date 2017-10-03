@@ -63,7 +63,7 @@ class Blade(object):
         elif direction == 'forward':
             raise AngrBladeError('Forward slicing is not implemented yet')
         else:
-            raise AngrBladeError("Unknown slicing direction %s", direction)
+            raise AngrBladeError("Unknown slicing direction %s" % direction)
 
     #
     # Properties
