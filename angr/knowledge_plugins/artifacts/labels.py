@@ -16,12 +16,10 @@ class LabelsPlugin(KnowledgeArtifact):
     
     The default namespace is set to empty string.
     """
-    _provides = 'labels'
-
     _default_ns_name = ''
 
     def __init__(self, kb=None):
-        super(LabelsPlugin, self).__init__(kb)
+        super(LabelsPlugin, self).__init__(kb, 'labels')
 
         self._namespaces = {}
         self._default_ns = self._default_ns_name
@@ -230,7 +228,7 @@ class LabelsNamespace(object):
         else:
             names_list.append(name)
 
-        self._plugin._notify_observers('set_label', addr=addr, name=name)
+        self._plugin._update_observers('set_label', addr=addr, name=name)
 
         return name
 
@@ -276,7 +274,7 @@ class LabelsNamespace(object):
         if not self._addr_to_names[addr]:
             del self._addr_to_names[addr]
 
-        self._plugin._notify_observers('del_name', name=name)
+        self._plugin._update_observers('del_name', name=name)
 
     def has_name(self, name):
         """Check whether the given name is present within the namespace.
@@ -319,7 +317,7 @@ class LabelsNamespace(object):
         names_list = self._addr_to_names.pop(addr)
         map(self._name_to_addr.pop, names_list)
 
-        self._plugin._notify_observers('del_addr', addr=addr)
+        self._plugin._update_observers('del_addr', addr=addr)
 
     def has_addr(self, addr):
         """Check whether the given address has any name assigned to it.

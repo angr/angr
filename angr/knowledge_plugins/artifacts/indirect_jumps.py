@@ -19,10 +19,9 @@ class IndirectJumpsPlugin(KnowledgeArtifact, Mapping):
                                 along with jumpkinds, instruction addresses and statement indexes.
     :ivar _complete_jumps:      A set of complete jumps, i.e. jumps with exhaustive targets list.
     """
-    _provides = 'indirect_jumps'
 
     def __init__(self, kb=None):
-        super(IndirectJumpsPlugin, self).__init__(kb)
+        super(IndirectJumpsPlugin, self).__init__(kb, 'indirect_jumps')
         self._jumps = dict()
         self._complete_jumps = set()
 
@@ -69,7 +68,7 @@ class IndirectJumpsPlugin(KnowledgeArtifact, Mapping):
 
         targets[to_addr] = specs
 
-        self._notify_observers('register_jump', from_addr=from_addr, to_addr=to_addr, specs=specs)
+        self._update_observers('register_jump', from_addr=from_addr, to_addr=to_addr, specs=specs)
 
     def make_complete(self, from_addr):
         if from_addr not in self._jumps:

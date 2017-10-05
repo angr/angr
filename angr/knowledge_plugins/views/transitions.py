@@ -16,17 +16,17 @@ class TransitionsView(KnowledgeBaseView):
         - ret           -> Ijk_Ret
         - fakeret       -> Ijk_FakeRet
     """
-    _depends = 'basic_blocks', 'indirect_jumps'
 
     def __init__(self, kb):
         """
 
         :param kb:
         """
-        super(TransitionsView, self).__init__(kb)
-        self._graph = nx.MultiDiGraph()
+        super(TransitionsView, self).\
+            __init__(kb, provides='transitions',
+                     consumes=('basic_blocks', 'indirect_jumps'))
 
-        self._init_view()
+        self._graph = nx.MultiDiGraph()
 
     def reconstruct(self):
         """
@@ -120,11 +120,11 @@ class TransitionsView(KnowledgeBaseView):
     #   ...
     #
 
-    def _basic_blocks_add_block(self, basic_block=None):
+    def _observe_basic_blocks_add_block(self, basic_block=None):
         block = self._kb.blocks.get(basic_block.addr, size=basic_block.size, thumb=basic_block.thumb)
         self._add_transitions_from_block(block)
 
-    def _indirect_jumps_register_jump(self, from_addr=None, to_addr=None, specs=None):
+    def _observe_indirect_jumps_register_jump(self, from_addr=None, to_addr=None, specs=None):
         self._add_transitions_from_ijump(from_addr, to_addr, specs)
 
     #

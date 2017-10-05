@@ -1,8 +1,43 @@
+from abc import ABCMeta
+
 from .plugin import KnowledgeBasePlugin
-from ..misc.observer import Observer
 
 
-class KnowledgeBaseView(KnowledgeBasePlugin, Observer):
+class KnowledgeBaseViewMeta(ABCMeta):
+    """
+    This is an utilitary meta class which is made with a sole purpose
+    of deferring the call to reconstruct() method to the post-initializtion
+    stage, thus allowing the initialization of the instance variables
+    prior to reconstruction.
+
+    In practice, this results in
+
+    # with KnowledgeBaseViewMeta
+    class FooView(KnowledgeBaseView):
+        def __init__(kb, ...):
+            super(FooView, self).__init__(kb, ...)
+            self.bar = 0
+
+                        vs
+
+    # without KnowledgeBaseViewMeta
+    class FooView(KnowledgeBaseView):
+        def __init__(kb, ...):
+            self.bar = 0
+            super(FooView, self).__init__(kb, ...)
+
+    Optionally, this meta-class enables "reconstruction-on-demand" by accepting
+    a `reconstruct` keyword. Should be useful, eh?
+    """
+
+    def __call__(cls, *args, **kwargs):
+        view = type.__call__(cls, *args, **kwargs)
+        if kwargs.pop('reconstruct', True):
+            view.reconstruct()
+        return view
+
+
+class KnowledgeBaseView(KnowledgeBasePlugin):
     """
     This represents a view over the knowledge that is proveided by the knowledge base.
 
@@ -16,17 +51,12 @@ class KnowledgeBaseView(KnowledgeBasePlugin, Observer):
     a given name, thus adding a new label and a bb local group, or to interpret
     an angr.Block into a basic block.
 
-    The Observer mixin allows the view to be notified about all the recently
-    discovered bits of knowledge, thus enabling the production a more general
-    knowledge in runtime.
-
-    :var _depends:  a list of artifact names which this view depends on
-                    (see KnowledgeArtifact._provides).
+    The knowledge view could be a knowledge provider and consumer at the same time.
     """
-    _depends = []
+    __metaclass__ = KnowledgeBaseViewMeta
 
-    def __init__(self, kb):
-        super(KnowledgeBaseView, self).__init__(kb)
+    def __init__(self, kb, provides=None, consumes=None, **kwargs):
+        super(KnowledgeBaseView, self).__init__(kb, provides, consumes)
 
     def reconstruct(self):
         """Reconstruct a view from knowledge base, discarding all the cached
@@ -35,31 +65,3 @@ class KnowledgeBaseView(KnowledgeBasePlugin, Observer):
         :return:
         """
         pass
-
-    def _observe(self, observable, action, **kwargs):
-        """Handle the notification about `action` taken by `observable`.
-
-        :param observable:
-        :param action:
-        :param kwargs:
-        :return:
-        """
-        handler = '_%s_%s' % (observable, action)
-        if hasattr(self, handler):
-            handle = getattr(self, handler)
-            handle(**kwargs)
-
-    def _init_view(self):
-        """KnowledgeBaseView internal initialization routine.
-
-        This should be called by the subclass after it finishes its initializtion.
-
-        :return:
-        """
-        # First, process all the already present knowledge in the knowledge base.
-        self.reconstruct()
-
-        # Register this view as an observer of the knowledge artifacts, which
-        # names are present in the `observers` class property.
-        for plugin in map(self._kb.get_plugin, self._depends):
-            plugin.register(self)

@@ -10,10 +10,9 @@ class BasicBlocksPlugin(KnowledgeArtifact):
     """
     Storage for information about the boundaries of basic blocks. Access as kb.basic_blocks.
     """
-    _provides = 'basic_blocks'
 
     def __init__(self, kb=None):
-        super(BasicBlocksPlugin, self).__init__(kb)
+        super(BasicBlocksPlugin, self).__init__(kb, 'basic_blocks')
         self._blocks = BlockMapping()
 
     def __setitem__(self, key, value):
@@ -101,7 +100,7 @@ class BasicBlocksPlugin(KnowledgeArtifact):
                 raise ValueError('Unknown overlapped blocks handling mode', overlap_mode)
 
         block = self.get_block(addr)
-        self._notify_observers('add_block', block=block)
+        self._update_observers('add_block', block=block)
 
     def get_block(self, addr, normalize=False):
         """Get block that occupies the given address.
