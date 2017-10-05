@@ -154,6 +154,13 @@ class SimProcedure(object):
                     inst.arguments = arguments
 
             # run it
+            l.debug("Executing %s%s%s%s with %s, %s",
+                    inst.display_name,
+                    ' (syscall)' if inst.is_syscall else '',
+                    ' (inline)' if inst.use_state_arguments else '',
+                    ' (stub)' if inst.is_stub else '',
+                    sim_args,
+                    inst.kwargs)
             r = getattr(inst, inst.run_func)(*sim_args, **inst.kwargs)
 
         if inst.returns and (not inst.successors or len(inst.successors.successors) == 0):
