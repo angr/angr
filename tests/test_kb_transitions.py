@@ -38,7 +38,7 @@ def test_reconstruct():
             l.info("%s -> %s", src_node, dst_node)
             absent_transitions.append((src_node, dst_node, attrs))
 
-    nose.tools.assert_less_equal(len(absent_transitions), 3, str(abs))
+    nose.tools.assert_less_equal(len(absent_transitions), 3, str(absent_transitions))
     return
 
 
