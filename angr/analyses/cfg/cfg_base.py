@@ -851,7 +851,7 @@ class CFGBase(Analysis):
         elif pointer_size == 4:
             fmt += "I"
         else:
-            raise AngrCFGError("Pointer size of %d is not supported", pointer_size)
+            raise AngrCFGError("Pointer size of %d is not supported" % pointer_size)
 
         ptr_str = self._ffi.unpack(self._ffi.cast('char*', buf), pointer_size)
         ptr = struct.unpack(fmt, ptr_str)[0]  # type:int

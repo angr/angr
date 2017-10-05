@@ -361,7 +361,7 @@ class SimUserland(SimOS):
 
     def syscall_from_number(self, number, allow_unsupported=True):
         if not allow_unsupported and not self.syscall_library:
-            raise AngrUnsupportedSyscallError("%s does not have a library of syscalls implemented", self.name)
+            raise AngrUnsupportedSyscallError("%s does not have a library of syscalls implemented" % self.name)
 
         addr = number + self.kernel_base
 

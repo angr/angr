@@ -2799,7 +2799,7 @@ class Reassembler(Analysis):
                 elif size == 4:
                     fmt += "I"
                 else:
-                    raise BinaryError("Pointer size of %d is not supported", size)
+                    raise BinaryError("Pointer size of %d is not supported" % size)
 
                 return struct.unpack(fmt, data)[0]
 

@@ -522,7 +522,7 @@ class SimCC(object):
 
             # handle alignment
             while claripy.is_true((state.regs.sp + self.STACKARG_SP_DIFF) % self.STACK_ALIGNMENT != 0):
-                state.regs.sp += 1
+                state.regs.sp -= 1
 
         for loc, val in zip(arg_locs, vals):
             loc.set_value(state, val, endness='Iend_BE', stack_base=stack_base)

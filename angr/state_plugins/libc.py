@@ -203,7 +203,7 @@ class SimStateLibc(SimStatePlugin):
         # helpful stuff
         self.strdup_stack = [ ]
 
-        # as per Andrew:
+        # as per Audrey:
         # the idea is that there's two abi versions, and for one of them, the
         # address passed to libc_start_main isn't actually the address of the
         # function, but the address of a pointer to a struct containing the
