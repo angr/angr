@@ -95,6 +95,7 @@ inspect_attributes = {
     'address_concretization_expr',
     'address_concretization_result',
     'address_concretization_add_constraints',
+    'address_concretization_extra_constraints',
 
     # syscall
     'syscall_name',

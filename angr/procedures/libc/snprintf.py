@@ -15,7 +15,10 @@ class snprintf(FormatParser):
         # The format str is at index 2
         fmt_str = self._parse(2)
         out_str = fmt_str.replace(3, self.arg)
-        self.state.memory.store(dst_ptr, out_str)
+        try:
+            self.state.memory.store(dst_ptr, out_str)
+        except:
+            import ipdb; ipdb.set_trace()
 
         # place the terminating null byte
         self.state.memory.store(dst_ptr + (out_str.size() / 8), self.state.se.BVV(0, 8))

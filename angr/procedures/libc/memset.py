@@ -40,7 +40,6 @@ class memset(angr.SimProcedure):
 
     def run(self, dst_addr, char, num):
         char = char[7:0]
-
         self.argument_types = {0: self.ty_ptr(SimTypeTop()),
                        1: SimTypeInt(32, True), # ?
                        2: SimTypeLength(self.state.arch)}

@@ -345,7 +345,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     # Concretization strategies
     #
 
-    def _apply_concretization_strategies(self, addr, strategies, action):
+    def _apply_concretization_strategies(self, addr, strategies, action, extra_constraints=()):
         """
         Applies concretization strategies on the address until one of them succeeds.
         """
@@ -357,7 +357,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             self.state._inspect(
                 'address_concretization', BP_BEFORE, address_concretization_strategy=s,
                 address_concretization_action=action, address_concretization_memory=self,
-                address_concretization_expr=e, address_concretization_add_constraints=True
+                address_concretization_expr=e, address_concretization_add_constraints=True,
+                address_concretization_extra_constraints=extra_constraints,
             )
             s = self.state._inspect_getattr('address_concretization_strategy', s)
             e = self.state._inspect_getattr('address_concretization_expr', addr)
@@ -368,14 +369,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             # let's try to apply it!
             try:
-                a = s.concretize(self, e)
+                a = s.concretize(self, e, extra_constraints=extra_constraints)
             except SimUnsatError:
                 a = None
 
             # trigger the AFTER breakpoint and give it a chance to intervene
             self.state._inspect(
                 'address_concretization', BP_AFTER,
-                address_concretization_result=a
+                address_concretization_result=a,
+                address_concretization_extra_constraints=extra_constraints,
             )
             a = self.state._inspect_getattr('address_concretization_result', a)
 
@@ -388,7 +390,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             "Unable to concretize address for %s with the provided strategies." % action
         )
 
-    def concretize_write_addr(self, addr, strategies=None):
+    def concretize_write_addr(self, addr, strategies=None, extra_constraints=()):
         """
         Concretizes an address meant for writing.
 
@@ -403,7 +405,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             return [ self.state.se.eval(addr) ]
 
         strategies = self.write_strategies if strategies is None else strategies
-        return self._apply_concretization_strategies(addr, strategies, 'store')
+        return self._apply_concretization_strategies(addr, strategies, 'store', extra_constraints=extra_constraints)
 
     def concretize_read_addr(self, addr, strategies=None):
         """
@@ -661,19 +663,24 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if self.state.se.symbolic(req.addr) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
             return req
 
+        max_bytes = len(req.data) / 8
+
         if req.size is not None and self.state.se.symbolic(req.size) and options.CONCRETIZE_SYMBOLIC_WRITE_SIZES in self.state.options:
             new_size = self.state.se.eval(req.size)
             req.constraints.append(req.size == new_size)
             req.size = new_size
+        elif req.size is not None and self.state.se.symbolic(req.size):
+            # Create a constraint for the size of the store
+            req.constraints += [self.state.se.ULE(req.size, max_bytes)]
 
-        max_bytes = len(req.data)/8
+
 
         #
         # First, resolve the addresses
         #
 
         try:
-            req.actual_addresses = self.concretize_write_addr(req.addr)
+            req.actual_addresses = self.concretize_write_addr(req.addr, extra_constraints=req.constraints)
         except SimMemoryError:
             if options.CONSERVATIVE_WRITE_STRATEGY in self.state.options:
                 return req
@@ -700,7 +707,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             req.symbolic_sized_values = [ req.data ] * num_addresses
         elif self.state.se.symbolic(req.size):
             req.symbolic_sized_values = [ ]
-            req.constraints += [ self.state.se.ULE(req.size, max_bytes) ]
 
             for fv in req.fallback_values:
                 befores = fv.chop(bits=8)
