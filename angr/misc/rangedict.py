@@ -88,7 +88,11 @@ class RangeDict(object):
             if self._merge_right(self._list[left_split_idx - 1], self._list[right_split_idx]):
                 right_split_idx += 1
 
-        self._list[left_split_idx:right_split_idx] = mid_part
+        if left_split_idx == right_split_idx:
+            assert len(mid_part) == 1  # mid_part should always consist in case in this case
+            self._list.insert(left_split_idx, mid_part.pop())
+        else:
+            self._list[left_split_idx:right_split_idx] = mid_part
 
     def __len__(self):
         return len(self._list)

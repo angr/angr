@@ -4,6 +4,15 @@ from angr.misc.rangedict import RangeDict
 
 def test_items():
     rdict = RangeDict()
+    rdict[0:5] = 'a'
+    rdict[6:9] = 'b'
+    rdict[10:15] = 'c'
+    nose.tools.assert_equal(len(rdict), 3)
+    nose.tools.assert_equal(rdict[0:5], ['a'])
+    nose.tools.assert_equal(rdict[6:9], ['b'])
+    nose.tools.assert_equal(rdict[10:15], ['c'])
+
+    rdict = RangeDict()
     rdict[0:10] = 'a'
     rdict[5:15] = 'b'
     nose.tools.assert_equal(len(rdict), 2)
