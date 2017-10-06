@@ -56,8 +56,6 @@ class CrashMonitor(ExplorationTechnique):
             simgr.stashes = simgr._make_stashes_dict(**stashes)
             return True
 
-        all_paths = simgr.active + simgr.deadended
-
         return False
 
     def step(self, simgr, stash, **kwargs):
