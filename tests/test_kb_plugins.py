@@ -1,6 +1,7 @@
 import nose
 import angr
 import networkx
+import pickle
 
 import os
 location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
@@ -17,6 +18,8 @@ def test_kb_plugins():
     nose.tools.assert_is_instance(p.kb.resolved_indirect_jumps, set)
     nose.tools.assert_is_instance(p.kb.unresolved_indirect_jumps, set)
 
+    s = pickle.dumps(p.kb, protocol=pickle.HIGHEST_PROTOCOL)
+    pickle.loads(s)
 
 if __name__ == '__main__':
     test_kb_plugins()

@@ -93,9 +93,7 @@ class KnowledgeBasePlugin(Observer, Observable):
 
         # If the plugin is a knowledge provider, it should have means
         # to notify registered consumers about a obtaining new knowledge
-        if provides:
-            self._update_observers = \
-                functools.partial(self.__update_observers, provides)
+        self._provides = provides
 
         # If the plugin is a knowledge consumer, it should register
         # itself to a set of corresponding knowledge providers
@@ -121,7 +119,7 @@ class KnowledgeBasePlugin(Observer, Observable):
             handler = getattr(self, handler_name)
             handler(**kwargs)
 
-    def __update_observers(self, provides, event, **kwargs):
+    def _update_observers(self, event, **kwargs):
         """Notify consumers about a new knowledge that has been obtained.
 
         @TODO: An actual description.
@@ -131,4 +129,4 @@ class KnowledgeBasePlugin(Observer, Observable):
         :param kwargs:  Additional info
         :return:
         """
-        super(KnowledgeBasePlugin, self)._update_observers(provides, event, **kwargs)
+        super(KnowledgeBasePlugin, self)._update_observers(self._provides, event, **kwargs)
