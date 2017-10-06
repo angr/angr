@@ -45,54 +45,49 @@ class RangeDict(object):
             return
 
         this_item = self._make_item(start, end, value)
+        picked_items = deque([this_item])
 
         left_idx = self._search(this_item.start)
         right_idx = self._search(this_item.end)
 
-        left_item = self._item_at(this_item.start)
-        if left_item and left_idx == right_idx:
-            right_item = left_item.copy()
-        else:
-            right_item = self._item_at(this_item.end)
-
-        if left_item and left_item.end > this_item.start:
-            self._merge_left(this_item, left_item)
-            self._trim_right(left_item, this_item)
-
-        if right_item and right_item.start <= this_item.end:
-            # right_item = right_item.copy()
-            self._merge_right(this_item, right_item)
-            self._trim_left(right_item, this_item)
-        else:
-            right_item = None
-
-        picked_items = filter(None, (left_item, this_item, right_item))
-        mid_part = deque((i for i in picked_items if i.size > 0))
-
-        left_split_idx = max(left_idx, 0)
-        right_split_idx = min(right_idx + 1, len(self._list))
-
-        while left_split_idx > 0 and mid_part:
-            if self._merge_right(self._list[left_split_idx - 1], mid_part[0]):
-                mid_part.popleft()
+        orig_left_idx = left_idx
+        while 0 <= left_idx < len(self._list):
+            left_item = self._list[left_idx]
+            if this_item.start < left_item.start:
+                left_idx -= 1
                 continue
+            if self._adjoin_left(this_item, left_item):
+                if left_idx == right_idx:
+                    left_item = left_item.copy()
+                if self._should_merge(this_item, left_item):
+                    self._merge_left(this_item, left_item)
+                self._trim_right(left_item, this_item)
+                picked_items.appendleft(left_item)
+                left_idx -= 1
+                continue
+            elif left_idx < orig_left_idx:
+                picked_items.appendleft(left_item)
             break
 
-        while mid_part and right_split_idx < len(self._list):
-            if self._merge_left(self._list[right_split_idx], mid_part[-1]):
-                mid_part.pop()
+        orig_right_idx = right_idx
+        while 0 <= right_idx < len(self._list):
+            right_item = self._list[right_idx]
+            if this_item.end > right_item.end:
+                right_idx += 1
                 continue
+            if self._adjoin_right(this_item, right_item):
+                if self._should_merge(this_item, right_item):
+                    self._merge_right(this_item, right_item)
+                self._trim_left(right_item, this_item)
+                picked_items.append(right_item)
+                right_idx += 1
+                continue
+            elif right_idx > orig_right_idx:
+                picked_items.append(right_item)
             break
 
-        if not mid_part and left_split_idx > 0 and right_split_idx < len(self._list):
-            if self._merge_right(self._list[left_split_idx - 1], self._list[right_split_idx]):
-                right_split_idx += 1
-
-        if left_split_idx == right_split_idx:
-            assert len(mid_part) == 1  # mid_part should always consist in case in this case
-            self._list.insert(left_split_idx, mid_part.pop())
-        else:
-            self._list[left_split_idx:right_split_idx] = mid_part
+        left_idx, right_idx = max(left_idx, 0), min(right_idx, len(self._list))
+        self._list[left_idx:right_idx] = (i for i in picked_items if i.size > 0)
 
     def __len__(self):
         return len(self._list)
@@ -149,37 +144,26 @@ class RangeDict(object):
         if idx < len(self._list) and self._list[idx].occupies_pos(pos):
             return self._list[idx]
 
-    def _trim_left(self, this_item, left_item):
-        this_item.start = left_item.end
-        return True
+    def _adjoin_left(self, this_item, left_item):
+        return left_item.start <= this_item.start <= left_item.end
 
-    def _trim_right(self, this_item, right_item):
-        this_item.end = right_item.start
-        return True
-
-    def _merge_left(self, this_item, left_item):
-        if self._should_merge(this_item, left_item):
-            return self._try_merge_left(this_item, left_item)
-        return False
-
-    def _merge_right(self, this_item, right_item):
-        if self._should_merge(this_item, right_item):
-            return self._try_merge_right(this_item, right_item)
-        return False
+    def _adjoin_right(self, this_item, right_item):
+        return right_item.end >= this_item.end >= right_item.start
 
     def _should_merge(self, this_item, other_item):
         return this_item.value == other_item.value
 
-    def _try_merge_left(self, this_item, left_item):
-        if this_item.start <= left_item.end:
-            this_item.start = left_item.start
-            return True
-        return False
+    def _trim_left(self, this_item, left_item):
+        this_item.start = left_item.end
 
-    def _try_merge_right(self, this_item, right_item):
-        if this_item.end >= right_item.start:
-            this_item.end = right_item.end
-            return True
+    def _trim_right(self, this_item, right_item):
+        this_item.end = right_item.start
+
+    def _merge_left(self, this_item, left_item):
+        this_item.start = left_item.start
+
+    def _merge_right(self, this_item, right_item):
+        this_item.end = right_item.end
 
     def _make_item(self, start, end, value):
         return RangeItem(start, end, value)
