@@ -10,13 +10,6 @@ class tolower(angr.SimProcedure):
         self.argument_types = {0: SimTypeInt(self.state.arch, True)}
         self.return_type = SimTypeInt(self.state.arch, True)
 
-        if not self.state.solver.symbolic(c):
-            try:
-                ret_expr = ord(chr(self.state.solver.eval(c)).lower())
-            except ValueError:  # not in range(256)
-                ret_expr = c
-            return ret_expr
-        else:
-            return self.state.solver.If(
-                self.state.solver.And(c >= 65, c <= 90),  # A - Z
-                c + 32, c)
+        return self.state.solver.If(
+            self.state.solver.And(c >= 65, c <= 90),  # A - Z
+            c + 32, c)
