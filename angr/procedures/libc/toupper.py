@@ -12,7 +12,7 @@ class toupper(angr.SimProcedure):
 
         if not self.state.solver.symbolic(c):
             try:
-                ret_expr = chr(self.state.solver.eval(c)).upper()
+                ret_expr = ord(chr(self.state.solver.eval(c)).upper())
             except ValueError:  # not in range(256)
                 ret_expr = c
             return ret_expr
