@@ -211,14 +211,15 @@ class ReachingDefinitions(object):
 
 
 class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
-    def __init__(self, func=None, block=None, max_iterations=3, track_tmps=False, observation_points=None,
-                 init_state=None, init_func=False, cc=None, function_handler=None, current_local_call_depth=1,
-                 maximum_local_call_depth=5):
+    def __init__(self, func=None, block=None, func_graph=None, max_iterations=3, track_tmps=False,
+                 observation_points=None, init_state=None, init_func=False, cc=None, function_handler=None,
+                 current_local_call_depth=1, maximum_local_call_depth=5):
         """
 
         :param angr.knowledge.Function func:    The function to run reaching definition analysis on.
         :param block:                           A single block to run reaching definition analysis on. You cannot
                                                 specify both `func` and `block`.
+        :param func_graph:                      Alternative graph for function.graph.
         :param int max_iterations:              The maximum number of iterations before the analysis is terminated.
         :param bool track_tmps:                 Whether tmps are tracked or not.
         :param iterable observation_points:     A collection of tuples of (ins_addr, OP_TYPE) defining where reaching
@@ -238,7 +239,7 @@ class ReachingDefinitionAnalysis(ForwardAnalysis, Analysis):
             if block is not None:
                 raise ValueError('You cannot specify both "func" and "block".')
             # traversing a function
-            graph_visitor = FunctionGraphVisitor(func)
+            graph_visitor = FunctionGraphVisitor(func, func_graph)
         elif block is not None:
             # traversing a block
             graph_visitor = SingleNodeGraphVisitor(block)

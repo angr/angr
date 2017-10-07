@@ -176,15 +176,20 @@ class GraphVisitor(object):
 
 
 class FunctionGraphVisitor(GraphVisitor):
-    def __init__(self, function):
+    def __init__(self, func, graph=None):
         """
 
-        :param knowledge.Function function:
+        :param knowledge.Function func:
         """
 
         super(FunctionGraphVisitor, self).__init__()
 
-        self.function = function
+        self.function = func
+
+        if graph is None:
+            self.graph = self.function.graph
+        else:
+            self.graph = graph
 
         self.reset()
 
@@ -194,15 +199,15 @@ class FunctionGraphVisitor(GraphVisitor):
 
     def successors(self, node):
 
-        return list(self.function.graph.successors(node))
+        return list(self.graph.successors(node))
 
     def predecessors(self, node):
 
-        return list(self.function.graph.predecessors(node))
+        return list(self.graph.predecessors(node))
 
     def sort_nodes(self, nodes=None):
 
-        sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.function.graph)
+        sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.graph)
 
         if nodes is not None:
             sorted_nodes = [ n for n in sorted_nodes if n in set(nodes) ]
