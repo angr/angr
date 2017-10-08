@@ -7,6 +7,7 @@ from .atoms import Register, MemoryLocation, Parameter
 from .constants import OP_BEFORE, OP_AFTER
 from .dataset import DataSet
 from .external_codeloc import ExternalCodeLocation
+from .undefined import Undefined
 from ...engines.light import SimEngineLightVEX, SpOffset
 from ...engines.vex.irop import operations as vex_operations
 from ...errors import SimEngineError
@@ -61,7 +62,7 @@ class SimEngineRDVEX(SimEngineLightVEX):
         reg = Register(reg_offset, size)
         data = self._expr(stmt.data)
 
-        if DataSet.undefined in data:
+        if any(type(d) is Undefined for d in data):
             l.info('Data to write into register <%s> with offset %d undefined, ins_addr = %#x.',
                    self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
 
@@ -76,10 +77,10 @@ class SimEngineRDVEX(SimEngineLightVEX):
         data = self._expr(stmt.data)
 
         for a in addr:
-            if a is DataSet.undefined:
+            if type(a) is Undefined:
                 l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
             else:
-                if DataSet.undefined in data:
+                if any(type(d) is Undefined for d in data):
                     l.info('Data to write at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
 
                 memloc = MemoryLocation(a, size)
@@ -113,10 +114,10 @@ class SimEngineRDVEX(SimEngineLightVEX):
             data_new.update(data_old)
 
             for a in addr:
-                if a is DataSet.undefined:
+                if type(a) is Undefined:
                     l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
                 else:
-                    if DataSet.undefined in data_new:
+                    if any(type(d) is Undefined for d in data_new):
                         l.info('Data to write at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
 
                     memloc = MemoryLocation(a, size)
@@ -163,7 +164,7 @@ class SimEngineRDVEX(SimEngineLightVEX):
 
         if tmp in self.tmps:
             return self.tmps[tmp]
-        return DataSet(DataSet.undefined, expr.result_size(self.tyenv))
+        return DataSet(Undefined(), expr.result_size(self.tyenv))
 
     # e.g. t0 = GET:I64(rsp), rsp might be defined multiple times
     def _handle_Get(self, expr):
@@ -177,8 +178,8 @@ class SimEngineRDVEX(SimEngineLightVEX):
         for current_def in current_defs:
             data.update(current_def.data)
         if len(data) == 0:
-            data.add(DataSet.undefined)
-        if DataSet.undefined in data:
+            data.add(Undefined())
+        if any(type(d) is Undefined for d in data):
             l.info('Data in register <%s> with offset %d undefined, ins_addr = %#x.',
                    self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
 
@@ -199,7 +200,7 @@ class SimEngineRDVEX(SimEngineLightVEX):
                 if current_defs:
                     for current_def in current_defs:
                         data.update(current_def.data)
-                    if DataSet.undefined in data:
+                    if any(type(d) is Undefined for d in data):
                         l.info('Memory at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
                 else:
                     mem = self.state.loader.memory.read_bytes(a, size)
@@ -224,7 +225,7 @@ class SimEngineRDVEX(SimEngineLightVEX):
                 l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
 
         if len(data) == 0:
-            data.add(DataSet.undefined)
+            data.add(Undefined())
 
         return DataSet(data, expr.result_size(self.tyenv))
 
@@ -259,7 +260,7 @@ class SimEngineRDVEX(SimEngineLightVEX):
         data = set()
         # convert operand if possible otherwise keep it unchanged
         for a in arg_0:
-            if a is DataSet.undefined:
+            if type(a) is Undefined:
                 pass
             elif isinstance(a, (int, long)):
                 mask = 2 ** bits - 1
@@ -321,8 +322,8 @@ class SimEngineRDVEX(SimEngineLightVEX):
                         head = ((1 << e1) - 1) << (size - e1)
                     data.add(head | (e0 >> e1))
                 except (ValueError, TypeError) as e:
+                    data.add(Undefined())
                     l.warning(e)
-                    data.add(DataSet.undefined)
 
         return DataSet(data, expr.result_size(self.tyenv))
 
@@ -389,7 +390,7 @@ class SimEngineRDVEX(SimEngineLightVEX):
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     def _handle_CCall(self, expr):
-        return DataSet(DataSet.undefined, expr.result_size(self.tyenv))
+        return DataSet(Undefined(), expr.result_size(self.tyenv))
 
     #
     # User defined high level statement handlers

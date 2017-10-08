@@ -1,7 +1,7 @@
-
 import logging
 import operator
 
+from .constants import DEBUG
 from .undefined import Undefined
 
 l = logging.getLogger('angr.analyses.reaching_definitions.dataset')
@@ -14,13 +14,13 @@ class DataSet(object):
     Addition and subtraction are performed on the cartesian product of the operands. Duplicate results are removed.
     data must always include a set.
     """
-
-    undefined = Undefined()
+    maximum_size = 5
 
     def __init__(self, data, bits):
-        self.data = data if type(data) is set else { data }
+        self.data = data if type(data) is set else {data}
         self._bits = bits
         self._mask = (1 << bits) - 1
+        self._limit()
 
     @property
     def bits(self):
@@ -30,13 +30,27 @@ class DataSet(object):
     def mask(self):
         return self._mask
 
+    def _limit(self):
+        if DEBUG is True:
+            # Deterministic limit
+            if (len(self.data)) > DataSet.maximum_size:
+                data = list(self.data)
+                data.sort(key=repr)
+                self.data = set(data[:DataSet.maximum_size])
+                l.warning('Reached maximum size of DataSet, discarded %s.', str(data[DataSet.maximum_size:]))
+        else:
+            # Hash dependent implementation
+            while len(self.data) > DataSet.maximum_size:
+                l.warning('Reached maximum size of DataSet, discarded %s.', str(self.data.pop()))
+
     def update(self, data):
         if type(data) is DataSet:
             if self.bits != data.bits:
-                l.warning('DataSet: update with different sizes.')
+                l.warning('Update with different sizes.')
             self.data.update(data.data)
         else:
             self.data.add(data)
+        self._limit()
 
     def get_first_element(self):
         assert len(self.data) >= 1
@@ -49,8 +63,8 @@ class DataSet(object):
         res = set()
 
         for s in self:
-            if s is DataSet.undefined:
-                res.add(DataSet.undefined)
+            if type(s) is Undefined:
+                res.add(Undefined())
             else:
                 try:
                     tmp = op(s)
@@ -58,8 +72,8 @@ class DataSet(object):
                         tmp &= self._mask
                     res.add(tmp)
                 except TypeError as e:
+                    res.add(Undefined())
                     l.warning(e)
-                    res.add(DataSet.undefined)
 
         return DataSet(res, self._bits)
 
@@ -69,12 +83,12 @@ class DataSet(object):
         res = set()
 
         if self._bits != other.bits:
-            l.warning('DataSet: binary operation with different sizes.')
+            l.warning('Binary operation with different sizes.')
 
         for o in other:
             for s in self:
-                if o is DataSet.undefined or s is DataSet.undefined:
-                    res.add(DataSet.undefined)
+                if type(o) is Undefined or type(s) is Undefined:
+                    res.add(Undefined())
                 else:
                     try:
                         tmp = op(s, o)
@@ -82,8 +96,8 @@ class DataSet(object):
                             tmp &= self._mask
                         res.add(tmp)
                     except TypeError as e:
+                        res.add(Undefined())
                         l.warning(e)
-                        res.add(DataSet.undefined)
 
         return DataSet(res, self._bits)
 

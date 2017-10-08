@@ -1,24 +1,24 @@
-from collections import defaultdict
 import logging
+from collections import defaultdict
 
 import ailment
 import pyvex
 
-from ...calling_conventions import SimRegArg, SimStackArg
-from ...engines.light import SpOffset
-
-from ...keyed_region import KeyedRegion
+from .atoms import Register, MemoryLocation, Tmp, Parameter
+from .constants import OP_BEFORE, OP_AFTER
+from .dataset import DataSet
+from .definition import Definition
+from .engine_ail import SimEngineRDAIL
+from .engine_vex import SimEngineRDVEX
+from .undefined import Undefined
+from .uses import Uses
 from .. import register_analysis
 from ..analysis import Analysis
 from ..code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
-from .atoms import Register, MemoryLocation, Tmp, Parameter
-from .uses import Uses
-from .definition import Definition
-from .dataset import DataSet
-from .engine_ail import SimEngineRDAIL
-from .engine_vex import SimEngineRDVEX
-from .constants import OP_BEFORE, OP_AFTER
+from ...calling_conventions import SimRegArg, SimStackArg
+from ...engines.light import SpOffset
+from ...keyed_region import KeyedRegion
 
 l = logging.getLogger('angr.analyses.reaching_definitions')
 
@@ -138,7 +138,7 @@ class ReachingDefinitions(object):
         """
 
         if data is None:
-            data = DataSet(DataSet.undefined, 8)
+            data = DataSet(Undefined(), 8)
 
         self.kill_and_add_definition(atom, code_loc, data)
 
