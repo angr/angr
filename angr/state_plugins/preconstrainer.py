@@ -28,7 +28,7 @@ class SimStatePreconstrainer(SimStatePlugin):
         self._preconstrain_flag = preconstrain_flag
         # map of variable string names to preconstraints, for re-applying
         # constraints
-        self._variable_map = {}
+        self.variable_map = {}
         self.preconstraints = []
         self._constrained_addrs = [] if constrained_addrs is None else constrained_addrs
         self.address_concretization = []
@@ -48,7 +48,7 @@ class SimStatePreconstrainer(SimStatePlugin):
                                    preconstrain_flag=self._preconstrain_flag,
                                    constrained_addrs=self._constrained_addrs)
                                    
-        c._variable_map = dict(self._variable_map)
+        c.variable_map = dict(self.variable_map)
         c.preconstraints = list(self.preconstraints)
         c.address_concretization = list(self.address_concretization)
 
@@ -58,7 +58,7 @@ class SimStatePreconstrainer(SimStatePlugin):
         b_bvv = self.state.se.BVV(b)
         c = (v == b_bvv)
         # add the constraint for reconstraining later
-        self._variable_map[list(v.variables)[0]] = c
+        self.variable_map[list(v.variables)[0]] = c
         self.preconstraints.append(c)
         if o.REPLACEMENT_SOLVER in self.state.options:
             self.state.se._solver.add_replacement(v, b_bvv, invalidate_cache=False)
@@ -169,9 +169,9 @@ class SimStatePreconstrainer(SimStatePlugin):
             solver.timeout = 1000 * 10  # 10 seconds
             if not solver.satisfiable():
                 for var in solver.variables:
-                    if var in self._variable_map:
-                        self.state.add_constraints(self._variable_map[var])
+                    if var in self.variable_map:
+                        self.state.add_constraints(self.variable_map[var])
                     else:
-                        l.warning("var %s not found in self._variable_map", var)
+                        l.warning("var %s not found in self.variable_map", var)
 
 SimStatePlugin.register_default('preconstrainer', SimStatePreconstrainer)
