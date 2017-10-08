@@ -219,7 +219,11 @@ class SimOS(object):
 
         return state
 
-    def state_tracer(self, input_content=None, magic_content=None, **kwargs):
+    def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
+                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
+        if input_content is None:
+            return self.state_full_init(**kwargs)
+
         if type(input_content) == str:
             fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=len(input_content))}
         elif type(input_content) == TracerPoV:
@@ -241,7 +245,10 @@ class SimOS(object):
         # Create the preconstrainer plugin
         state.register_plugin('preconstrainer',
                               SimStatePreconstrainer(input_content=input_content,
-                                                     magic_content=magic_content))
+                                                     magic_content=magic_content,
+                                                     preconstrain_input=preconstrain_input,
+                                                     preconstrain_flag=preconstrain_flag,
+                                                     constrained_addrs=constrained_addrs))
 
         # Preconstrain
         state.preconstrainer.preconstrain_state()
@@ -617,10 +624,8 @@ class SimLinux(SimUserland):
         kwargs['addr'] = self._loader_addr
         return super(SimLinux, self).state_full_init(**kwargs)
 
-    def state_tracer(self, input_content=None, magic_content=None, **kwargs):
-        if input_content is None:
-            return self.state_full_init(**kwargs)
-
+    def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
+                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
         l.warning("Tracer has been heavily tested only for CGC. If you find it buggy for Linux binaries, we are sorry!")
 
         options = kwargs.get('add_options', set())
@@ -635,13 +640,6 @@ class SimLinux(SimUserland):
         state = super(SimLinux, self).state_tracer(input_content=input_content,
                                                    magic_content=magic_content,
                                                    **kwargs)
-
-        # Create the preconstrainer plugin
-        state.register_plugin('preconstrainer',
-                              SimStatePreconstrainer(input_content=input_content))
-
-        # Preconstrain
-        state.preconstrainer.preconstrain_state()
 
         # Increase size of libc limits
         state.libc.buf_symbolic_bytes = 1024
@@ -793,10 +791,8 @@ class SimCGC(SimUserland):
 
         return state
 
-    def state_tracer(self, input_content=None, magic_content=None, **kwargs):
-        if input_content is None:
-            return self.state_entry(**kwargs)
-
+    def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
+                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
         options = kwargs.get('add_options', set())
         options.add(o.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
         options.add(o.UNICORN_THRESHOLD_CONCRETIZATION)
@@ -1080,7 +1076,8 @@ class SimWindows(SimOS):
 
         return state
 
-    def state_tracer(self, stdin_content=None, flag_content=None, **kwargs):
+    def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
+                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
         raise TracerEnvironmentError("Tracer currently only supports CGC and Unix.") 
 
     def handle_exception(self, successors, engine, exc_type, exc_value, exc_traceback):

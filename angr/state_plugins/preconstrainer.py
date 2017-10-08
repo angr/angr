@@ -11,7 +11,7 @@ class SimStatePreconstrainer(SimStatePlugin):
     This state plugin handles preconstraints for tracer (or maybe for something else as well).
     """
 
-    def __init__(self, input_content, magic_content=None, preconstrain_input=True,
+    def __init__(self, input_content=None, magic_content=None, preconstrain_input=True,
                  preconstrain_flag=True, constrained_addrs=None):
         """
         :param input_content     : Concrete input to feed to binary.
@@ -26,8 +26,7 @@ class SimStatePreconstrainer(SimStatePlugin):
         self._magic_content = magic_content
         self._preconstrain_input = preconstrain_input
         self._preconstrain_flag = preconstrain_flag
-        # map of variable string names to preconstraints, for re-applying
-        # constraints
+        # map of variable string names to preconstraints, for re-applying constraints.
         self.variable_map = {}
         self.preconstraints = []
         self._constrained_addrs = [] if constrained_addrs is None else constrained_addrs
