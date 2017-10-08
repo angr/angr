@@ -112,16 +112,23 @@ class CrashMonitor(ExplorationTechnique):
                 state.add_constraints(var == concrete_vals[0])
 
         # then we step again up to the crashing instruction
-        p_block = state.block()
+        inst_addrs = state.block().instruction_addrs
+        inst_cnt = len(inst_addrs)
 
-        inst_cnt = len(p_block.instruction_addrs)
-        insts = 0 if inst_cnt == 0 else inst_cnt - 1
+        if inst_cnt == 0:
+            insts = 0
+        elif self._crash_addr in inst_addrs:
+            insts = inst_addrs.index(self._crash_addr)
+        else:
+            insts = inst_cnt - 1
+
         succs = state.step(num_inst=insts).flat_successors
 
         if len(succs) > 0:
             if len(succs) > 1:
                 succs = [s for s in succs if s.se.satisfiable()]
             state = succs[0]
+            self._last_state = state
 
         # remove the preconstraints
         l.debug("removing preconstraints")
