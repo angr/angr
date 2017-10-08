@@ -33,9 +33,6 @@ class Register(Atom):
         self.reg_offset = reg_offset
         self.size = size
 
-    def __copy__(self):
-        return MemoryLocation(self.reg_offset, self.size)
-
     def __repr__(self):
         return "<Reg %d<%d>>" % (self.reg_offset, self.size)
 
@@ -57,9 +54,6 @@ class MemoryLocation(Atom):
         self.addr = addr
         self.size = size
 
-    def __copy__(self):
-        return MemoryLocation(self.addr, self.size)
-
     def __repr__(self):
         return "<Mem %#x<%d>>" % (self.addr, self.size)
 
@@ -77,19 +71,22 @@ class MemoryLocation(Atom):
 
 
 class Parameter(Atom):
-    __slots__ = ['value']
+    __slots__ = ['value', 'type_', 'meta']
 
-    def __init__(self, value):
+    def __init__(self, value, type_=None, meta=None):
         super(Parameter, self).__init__()
 
         self.value = value
-
-    def __copy__(self):
-        return Parameter(self.value)
+        self.type_ = type_
+        self.meta = meta
 
     def __repr__(self):
-        return "<Parameter %s>" % self.value
+        type_ = ', type=%s' % self.type_ if self.type_ is not None else ''
+        meta = ', meta=%s' % self.meta if self.meta is not None else ''
+        return '<Param %s%s%s>' % (self.value, type_, meta)
 
     def __eq__(self, other):
         return type(other) is Parameter and \
-               self.value == other.value
+               self.value == other.value and \
+               self.type_ == other.type_ and \
+               self.meta == other.meta

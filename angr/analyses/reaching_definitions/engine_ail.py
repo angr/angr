@@ -1,14 +1,14 @@
-
 import logging
 
 import ailment
 
-from ...errors import SimEngineError
-from ...engines.light import SimEngineLightAIL, RegisterOffset, SpOffset
-from .external_codeloc import ExternalCodeLocation
 from .atoms import Register, Tmp, MemoryLocation
-from .dataset import DataSet
 from .constants import OP_BEFORE, OP_AFTER
+from .dataset import DataSet
+from .external_codeloc import ExternalCodeLocation
+from .undefined import Undefined
+from ...engines.light import SimEngineLightAIL, RegisterOffset, SpOffset
+from ...errors import SimEngineError
 
 l = logging.getLogger('angr.analyses.reaching_definitions.engine_ail')
 
@@ -62,7 +62,7 @@ class SimEngineRDAIL(SimEngineLightAIL):
         dst = stmt.dst
 
         if src is None:
-            src = DataSet(DataSet.undefined, dst.bits)
+            src = DataSet(Undefined(), dst.bits)
 
         if type(dst) is ailment.Tmp:
             self.state.kill_and_add_definition(Tmp(dst.tmp_idx), self._codeloc(), src)
