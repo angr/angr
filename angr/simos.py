@@ -639,6 +639,9 @@ class SimLinux(SimUserland):
 
         state = super(SimLinux, self).state_tracer(input_content=input_content,
                                                    magic_content=magic_content,
+                                                   preconstrain_input=preconstrain_input,
+                                                   preconstrain_flag=preconstrain_flag,
+                                                   constrained_addrs=constrained_addrs,
                                                    **kwargs)
 
         # Increase size of libc limits
@@ -810,6 +813,9 @@ class SimCGC(SimUserland):
         
         state = super(SimCGC, self).state_tracer(input_content=input_content,
                                                  magic_content=magic_content,
+                                                 preconstrain_input=preconstrain_input,
+                                                 preconstrain_flag=preconstrain_flag,
+                                                 constrained_addrs=constrained_addrs,
                                                  **kwargs)
 
         csr = state.unicorn.cooldown_symbolic_registers
