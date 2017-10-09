@@ -118,7 +118,7 @@ class CrashMonitor(ExplorationTechnique):
         if inst_cnt == 0:
             insts = 0
         elif self._crash_addr in inst_addrs:
-            insts = inst_addrs.index(self._crash_addr)
+            insts = inst_addrs.index(self._crash_addr) + 1
         else:
             insts = inst_cnt - 1
 
