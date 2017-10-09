@@ -33,7 +33,7 @@ class CrashMonitor(ExplorationTechnique):
         self._crash_mode = crash_mode
         self._crash_addr = crash_addr
 
-        self._last_state = None
+        self.last_state = None
         self._crash_type = None
         self._crash_state = None
 
@@ -60,11 +60,11 @@ class CrashMonitor(ExplorationTechnique):
 
     def step(self, simgr, stash, **kwargs):
         if len(simgr.active) == 1:
-            self._last_state = simgr.active[0]
+            self.last_state = simgr.active[0]
 
             # if we're not in crash mode we don't care about the history
             if self._trim_history and not self._crash_mode:
-                self._last_state.history.trim()
+                self.last_state.history.trim()
 
             simgr.step(**kwargs)
 
@@ -72,7 +72,7 @@ class CrashMonitor(ExplorationTechnique):
                 return simgr
 
             # check to see if we reached a deadend
-            if self._last_state.globals['bb_cnt'] >= len(self._trace) and self._crash_mode:
+            if self.last_state.globals['bb_cnt'] >= len(self._trace) and self._crash_mode:
                 simgr.step()
                 self._crash_type = QEMU_CRASH
                 return simgr
@@ -89,7 +89,7 @@ class CrashMonitor(ExplorationTechnique):
         # before we step through and collect the actions we have to set
         # up a special case for address concretization in the case of a
         # controlled read or write vulnerability.
-        state = self._last_state
+        state = self.last_state
 
         bp1 = state.inspect.b(
             'address_concretization',
@@ -128,7 +128,7 @@ class CrashMonitor(ExplorationTechnique):
             if len(succs) > 1:
                 succs = [s for s in succs if s.se.satisfiable()]
             state = succs[0]
-            self._last_state = state
+            self.last_state = state
 
         # remove the preconstraints
         l.debug("removing preconstraints")
