@@ -253,6 +253,8 @@ class SimOS(object):
         # Preconstrain
         state.preconstrainer.preconstrain_state()
 
+        state.cgc.flag_bytes = [claripy.BVS("cgc-flag-byte-%d" % i, 8) for i in xrange(0x1000)]
+
         return state
 
     def prepare_call_state(self, calling_state, initial_state=None,
@@ -826,8 +828,6 @@ class SimCGC(SimUserland):
             state.cgc.input_size = len(input_content)
 
         self._set_simproc_limits(state)
-
-        state.cgc.flag_bytes = [claripy.BVS("cgc-flag-byte-%d" % i, 8) for i in xrange(0x1000)]
 
         state.preconstrainer.preconstrain_flag_page()
 
