@@ -69,6 +69,7 @@ class SimStateCGC(SimStatePlugin):
         c.output_strings = list(self.output_strings)
         c.input_size = self.input_size
         c.sinkholes = set(self.sinkholes)
+        c.flag_bytes = self.flag_bytes
 
         return c
 
