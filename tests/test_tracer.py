@@ -22,7 +22,9 @@ def test_recursion():
     s = p.factory.tracer_state(input_content=blob)
     simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
     t = angr.exploration_techniques.Tracer(trace=r.trace)
-    c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
+    c = angr.exploration_techniques.CrashMonitor(trace=r.trace,
+                                                 crash_mode=r.crash_mode,
+                                                 crash_addr=r.crash_addr)
     simgr.use_technique(c)
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
@@ -40,7 +42,9 @@ def test_cache_stall():
     s = p.factory.tracer_state(input_content=blob)
     simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
     t = angr.exploration_techniques.Tracer(trace=r.trace)
-    c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
+    c = angr.exploration_techniques.CrashMonitor(trace=r.trace,
+                                                 crash_mode=r.crash_mode,
+                                                 crash_addr=r.crash_addr)
     simgr.use_technique(c)
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
@@ -78,7 +82,9 @@ def test_manual_recursion():
     s = p.factory.tracer_state(input_content=blob, magic_content=r.magic)
     simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
     t = angr.exploration_techniques.Tracer(trace=r.trace)
-    c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
+    c = angr.exploration_techniques.CrashMonitor(trace=r.trace,
+                                                 crash_mode=r.crash_mode,
+                                                 crash_addr=r.crash_addr)
     simgr.use_technique(c)
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
@@ -94,7 +100,9 @@ def test_cgc_se1_palindrome_raw():
     s = p.factory.tracer_state(input_content="racecar\n", magic_content=r.magic)
     simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
     t = angr.exploration_techniques.Tracer(trace=r.trace)
-    c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
+    c = angr.exploration_techniques.CrashMonitor(trace=r.trace,
+                                                 crash_mode=r.crash_mode,
+                                                 crash_addr=r.crash_addr)
     simgr.use_technique(c)
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
@@ -122,7 +130,9 @@ def test_cgc_se1_palindrome_raw():
     s = p.factory.tracer_state(input_content="A" * 129, magic_content=r.magic)
     simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
     t = angr.exploration_techniques.Tracer(trace=r.trace)
-    c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
+    c = angr.exploration_techniques.CrashMonitor(trace=r.trace,
+                                                 crash_mode=r.crash_mode,
+                                                 crash_addr=r.crash_addr)
     simgr.use_technique(c)
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
@@ -138,7 +148,9 @@ def test_symbolic_sized_receives():
     s = p.factory.tracer_state(input_content="hello", magic_content=r.magic)
     simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
     t = angr.exploration_techniques.Tracer(trace=r.trace)
-    c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
+    c = angr.exploration_techniques.CrashMonitor(trace=r.trace,
+                                                 crash_mode=r.crash_mode,
+                                                 crash_addr=r.crash_addr)
     simgr.use_technique(c)
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
@@ -153,7 +165,9 @@ def test_symbolic_sized_receives():
     s = p.factory.tracer_state(input_content="\x00" * 20)
     simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
     t = angr.exploration_techniques.Tracer(trace=r.trace)
-    c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
+    c = angr.exploration_techniques.CrashMonitor(trace=r.trace,
+                                                 crash_mode=r.crash_mode,
+                                                 crash_addr=r.crash_addr)
     simgr.use_technique(c)
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
@@ -173,7 +187,9 @@ def test_allocation_base_continuity():
     s = p.factory.tracer_state(input_content="", magic_content=r.magic)
     simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
     t = angr.exploration_techniques.Tracer(trace=r.trace)
-    c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
+    c = angr.exploration_techniques.CrashMonitor(trace=r.trace,
+                                                 crash_mode=r.crash_mode,
+                                                 crash_addr=r.crash_addr)
     simgr.use_technique(c)
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
@@ -189,7 +205,9 @@ def test_crash_addr_detection():
     s = p.factory.tracer_state(input_content="A" * 700, magic_content=r.magic)
     simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
     t = angr.exploration_techniques.Tracer(trace=r.trace)
-    c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
+    c = angr.exploration_techniques.CrashMonitor(trace=r.trace,
+                                                 crash_mode=r.crash_mode,
+                                                 crash_addr=r.crash_addr)
     simgr.use_technique(c)
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
@@ -206,7 +224,9 @@ def test_fauxware():
     s = p.factory.tracer_state(input_content="A", magic_content=r.magic)
     simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
     t = angr.exploration_techniques.Tracer(trace=r.trace)
-    c = angr.exploration_techniques.CrashMonitor(trace=r.trace, crash_mode=r.crash_mode)
+    c = angr.exploration_techniques.CrashMonitor(trace=r.trace,
+                                                 crash_mode=r.crash_mode,
+                                                 crash_addr=r.crash_addr)
     simgr.use_technique(c)
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
