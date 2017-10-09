@@ -42,7 +42,7 @@ class Tracer(ExplorationTechnique):
         # keep track of the last basic block we hit
         if keep_predecessors < 1:
             raise ValueError("Must have keep_predecessors >= 1")
-        self._predecessors = [None] * keep_predecessors
+        self.predecessors = [None] * keep_predecessors
 
        #cm = LocalCacheManager(dump_cache=dump_cache) if GlobalCacheManager is None else GlobalCacheManager
        ## cache managers need the tracer to be set for them
@@ -159,8 +159,8 @@ class Tracer(ExplorationTechnique):
                         raise AngrTracerError
 
             # maintain the predecessors list
-            self._predecessors.append(current)
-            self._predecessors.pop(0)
+            self.predecessors.append(current)
+            self.predecessors.pop(0)
 
             # Basic block's max size in angr is greater than the one in Qemu
             # We follow the one in Qemu
