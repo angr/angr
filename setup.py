@@ -124,3 +124,4 @@ setup(
     package_data={
         'angr': ['lib/*']
     }
+)
