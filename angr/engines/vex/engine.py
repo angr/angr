@@ -195,6 +195,8 @@ class SimEngineVEX(SimEngine):
                     skip_stmts = max(skip_stmts, i)
                     break
 
+        state.scratch.bbl_addr = irsb.addr
+
         for stmt_idx, stmt in enumerate(ss):
             if isinstance(stmt, pyvex.IRStmt.IMark):
                 insn_addrs.append(stmt.addr + stmt.delta)
