@@ -1680,6 +1680,14 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     call_stack=new_call_stack,
                     jumpkind=suc_jumpkind,
                     )
+        # Special case: If the binary has symbols and the target address is a function, but for some reason (e.g.,
+        # a tail-call optimization) the CallStack's function address is still the old function address, we will have to
+        # overwrite it here.
+        if not self._is_call_jumpkind(pw.jumpkind):
+            target_symbol = self.project.loader.find_symbol(target_addr)
+            if target_symbol and target_symbol.is_function:
+                # Force update the function address
+                pw.func_addr = target_addr
 
         # Generate new exits
         if suc_jumpkind == "Ijk_Ret":
@@ -1939,8 +1947,13 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             dest_obj = self.project.loader.find_object_containing(dst_node.addr)
 
             if src_obj is dest_obj:
+                # Jump/branch within the same object. Might be an outside jump.
+                to_outside = src_node.function_address != dst_node.function_address
+            else:
+                # Jump/branch between different objects. Must be an outside jump.
+                to_outside = True
 
-                # It's a normal transition
+            if not to_outside:
                 self.kb.functions._add_transition_to(
                     function_addr=src_node.function_address,
                     from_node=src_node.to_codenode(),
