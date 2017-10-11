@@ -100,6 +100,9 @@ class SimSyscallLibrary(SimLibrary):
     fallback_proc = stub_syscall
 
     def maximum_syscall_number(self, arch_name):
+        if arch_name not in self.syscall_number_mapping or \
+                not self.syscall_number_mapping[arch_name]:
+            return 0
         return max(self.syscall_number_mapping[arch_name])
 
     def add_number_mapping(self, arch_name, number, name):
