@@ -113,8 +113,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         # this is a global condition, applied to all added constraints, memory reads, etc
         self._global_condition = None
-        self.ip_constraints = []
-   
+        self.ip_constraints = [] 
         self.callstack.top.block_counter[self.scratch.bbl_addr] += 1
 
     def _ana_getstate(self):
@@ -786,7 +785,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         else:
             return conditions.__class__((self._adjust_condition(self.se.And(*conditions)),))
 
-    def detect_loops(self, n=None):
+    def detect_loops(self):
         mc1 = self.callstack.top.block_counter.most_common()
         mc2 = self.history.recent_stack_actions_counter.most_common()
         if len(mc1) == 0 and len(mc2) ==0 :
