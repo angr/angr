@@ -493,6 +493,9 @@ class SimMemory(SimStatePlugin):
         if type(size_e) in (int, long):
             size_e = self.state.se.BVV(size_e, self.state.arch.bits)
 
+        if size_e is None:
+            size_e = data_e.size() / 8
+
         if inspect is True:
             if self.category == 'reg':
                 self.state._inspect(
