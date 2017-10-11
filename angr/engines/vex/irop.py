@@ -19,24 +19,26 @@ import claripy
 # The more sane approach
 #
 
+
 def op_attrs(p):
-    m = re.match(r'^Iop_' \
-              r'(?P<generic_name>\D+?)??' \
-              r'(?P<from_type>I|F|D|V)??' \
-              r'(?P<from_signed>U|S)??' \
-              r'(?P<from_size>\d+)??' \
-              r'(?P<from_signed_back>U|S)??' \
-              # this screws up CmpLE: r'(?P<e_flag>E)??' \
-              r'('
-                r'(?P<from_side>HL|HI|L|LO)??' \
-                r'(?P<conversion>to|as)' \
-                r'(?P<to_type>Int|I|F|D|V)??' \
-                r'(?P<to_size>\d+)??' \
-                r'(?P<to_signed>U|S)??' \
-              r')??'
-              r'(?P<vector_info>\d+U?S?F?0?x\d+)??' \
-              r'(?P<rounding_mode>_R(Z|P|N|M))?$', \
-              p)
+    m = re.match(r'^Iop_'
+                 r'(?P<generic_name>\D+?)??'
+                 r'(?P<from_type>[IFDV])??'
+                 r'(?P<from_signed>[US])??'
+                 r'(?P<from_size>\d+)??'
+                 r'(?P<from_signed_back>[US])??'
+                 # this screws up CmpLE: r'(?P<e_flag>E)??' \
+                 r'('
+                 r'(?P<from_side>HL|HI|L|LO)??'
+                 r'(?P<conversion>to|as)'
+                 r'(?P<to_type>Int|I|F|D|V)??'
+                 r'(?P<to_size>\d+)??'
+                 r'(?P<to_signed>[US])??'
+                 r')??'
+                 r'(?P<vector_info>\d+U?S?F?0?x\d+)??'
+                 r'(?P<rounding_mode>_R([ZPNM]))?$',
+                 p
+                 )
 
     if not m:
         l.debug("Unmatched operation: %s", p)
@@ -55,13 +57,14 @@ def op_attrs(p):
         # fix up vector stuff
         vector_info = attrs.pop('vector_info', None)
         if vector_info:
-            vm = re.match(r'^(?P<vector_size>\d+)?' \
-                 r'(?P<vector_signed>U|S)?' \
-                 r'(?P<vector_type>F|D)?' \
-                 r'(?P<vector_zero>0)?' \
-     r'x' \
-                 r'(?P<vector_count>\d+)?$', \
-                 vector_info)
+            vm = re.match(r'^(?P<vector_size>\d+)?'
+                          r'(?P<vector_signed>[US])?'
+                          r'(?P<vector_type>[FD])?'
+                          r'(?P<vector_zero>0)?'
+                          r'x'
+                          r'(?P<vector_count>\d+)?$',
+                          vector_info
+                          )
             attrs.update(vm.groupdict())
 
         for k,v in attrs.items():
@@ -69,6 +72,7 @@ def op_attrs(p):
                 l.debug("... %s: %s", k, v)
 
         return attrs
+
 
 all_operations = pyvex.irop_enums_to_ints.keys()
 operations = { }
