@@ -113,7 +113,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         # this is a global condition, applied to all added constraints, memory reads, etc
         self._global_condition = None
-        self.ip_constraints = [] 
+        self.ip_constraints = [ 
         self.callstack.top.block_counter[self.scratch.bbl_addr] += 1
 
     def _ana_getstate(self):
