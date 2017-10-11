@@ -791,11 +791,14 @@ class SimState(ana.Storable): # pylint: disable=R0904
         mc2 = self.history.recent_stack_actions_counter.most_common()
         if len(mc1) == 0 and len(mc2) ==0 :
             return None
+        elif len(mc2) == 0 and len(mc1) >= 0:
+            return mc1[0][1]
+        elif len(mc2) >0  and len(mc1) ==0:
+            return mc2[0][1]
+        elif mc1[0][1]>mc2[0][1]:
+            return mc1[0][1]
         else:
-            if mc1[0][1]>mc2[0][1]:
-                return mc1[0][1]
-            else:
-                return mc2[0][1]
+            return mc2[0][1]
 
     #
     # Compatibility layer
