@@ -161,6 +161,12 @@ class CFGJobBase(object):
     def func_addr(self):
         return self._call_stack.current_function_address
 
+    @func_addr.setter
+    def func_addr(self, v):
+        # Make a copy because we might be sharing it with other CFGJobs
+        self._call_stack = self._call_stack.copy()
+        self._call_stack.current_function_address = v
+
     @property
     def current_stack_pointer(self):
         return self._call_stack.current_stack_pointer
