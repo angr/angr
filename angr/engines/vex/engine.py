@@ -195,6 +195,7 @@ class SimEngineVEX(SimEngine):
                     skip_stmts = max(skip_stmts, i)
                     break
 
+        # set the current basic block address that's being processed
         state.scratch.bbl_addr = irsb.addr
 
         for stmt_idx, stmt in enumerate(ss):
