@@ -1,3 +1,5 @@
+import weakref
+
 default_plugins = { }
 
 
@@ -13,18 +15,29 @@ class SimStatePlugin(object):
     STRONGREF_STATE = False
 
     def __init__(self):
-        self.state = None
+        self.state_weakref = None
+        self.state_strongref = None
 
     # Sets a new state (for example, if the state has been branched)
-    def set_state(self, state):
-        self.state = state
+    def set_state(self, state, force_strong_ref=False):
+        self.state_weakref = weakref.ref(state) if not state is None else None
+        self.state_strongref = state if self.STRONGREF_STATE or force_strong_ref else None
 
-    def set_strongref_state(self, state):
-        pass
+    @property
+    def state(self):
+        result = None if self.state_weakref is None else self.state_weakref()
+        #print "{}, {}".format(type(self.state_weakref), type(result))
+        return result
+        # return super(SimStatePlugin, self).__getattribute__('state_weakref')()
+
+    @state.setter
+    def state(self, state):
+        self.set_state(state)
 
     def __getstate__(self):
         d = dict(self.__dict__)
-        d['state'] = None
+        d['state_weakref'] = None
+        d['state_strongref'] = None
         return d
 
     # Should return a copy of the state plugin.

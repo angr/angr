@@ -123,7 +123,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def _ana_setstate(self, s):
         ana.Storable._ana_setstate(self, s)
         for p in self.plugins.values():
-            p.set_state(self._get_weakref() if not isinstance(p, SimAbstractMemory) else self)
+            p.set_state(self, force_strong_ref=isinstance(p, SimAbstractMemory))
             if p.STRONGREF_STATE:
                 p.set_strongref_state(self)
 
@@ -299,7 +299,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     def register_plugin(self, name, plugin):
         #l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
-        plugin.set_state(self._get_weakref() if not isinstance(plugin, SimAbstractMemory) else self)
+        plugin.set_state(self, force_strong_ref=isinstance(plugin, SimAbstractMemory))
         if plugin.STRONGREF_STATE:
             plugin.set_strongref_state(self)
         self.plugins[name] = plugin

@@ -144,8 +144,8 @@ class SimStateSystem(SimStatePlugin):
         if self.pcap is not None:
             self.get_file(fd).bind_file(self.pcap)
 
-    def set_state(self, state):
-        SimStatePlugin.set_state(self, state)
+    def set_state(self, state, **kwargs):
+        SimStatePlugin.set_state(self, state, **kwargs)
         l.debug("%s setting state to %s", self, state)
         for fd, f in self.files.iteritems():
             l.debug("... file %s with fd %s", f, fd)

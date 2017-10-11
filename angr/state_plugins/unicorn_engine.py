@@ -454,8 +454,8 @@ class Unicorn(SimStatePlugin):
         self.cache_key = hash(self)
         _unicorn_tls.uc = None
 
-    def set_state(self, state):
-        SimStatePlugin.set_state(self, state)
+    def set_state(self, state, **kwargs):
+        SimStatePlugin.set_state(self, state, **kwargs)
         if state.arch.name == "MIPS32":
             self._unicount = next(_unicounter)
 

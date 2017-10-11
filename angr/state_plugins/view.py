@@ -44,7 +44,7 @@ class SimRegNameView(SimStatePlugin):
         :return:      None
         """
 
-        if k == 'state' or k in dir(SimStatePlugin):
+        if k in ('state_weakref', 'state_strongref') or k in dir(SimStatePlugin):
             return object.__setattr__(self, k, v)
 
         if isinstance(k, str) and k.startswith('_'):
@@ -121,8 +121,8 @@ class SimMemView(SimStatePlugin):
         if state is not None:
             self.set_state(state)
 
-    def set_state(self, state):
-        super(SimMemView, self).set_state(state)
+    def set_state(self, state, **kwargs):
+        super(SimMemView, self).set_state(state, **kwargs)
 
         # Make sure self._addr is always an AST
         if isinstance(self._addr, (int, long)):
@@ -157,7 +157,6 @@ class SimMemView(SimStatePlugin):
         self.__getitem__(k).store(v)
 
     types = {}
-    state = None
 
     def __repr__(self):
         if self._addr is None:
@@ -180,7 +179,7 @@ class SimMemView(SimStatePlugin):
         return self._type._refine_dir() if self._type else [x for x in SimMemView.types if ' ' not in x]
 
     def __getattr__(self, k):
-        if k in ('concrete', 'deref', 'resolvable', 'resolved', 'state', 'array', 'store', '_addr', '_type') or k in dir(SimStatePlugin):
+        if k in ('concrete', 'deref', 'resolvable', 'resolved', 'state_weakref', 'state_strongref', 'array', 'store', '_addr', '_type') or k in dir(SimStatePlugin):
             return object.__getattribute__(self, k)
         if self._type and k in self._type._refine_dir():
             return self._type._refine(self, k)
@@ -189,7 +188,7 @@ class SimMemView(SimStatePlugin):
         raise AttributeError(k)
 
     def __setattr__(self, k, v):
-        if k in ('state', '_addr', '_type') or k in dir(SimStatePlugin):
+        if k in ('state_weakref', 'state_strongref', '_addr', '_type') or k in dir(SimStatePlugin):
             return object.__setattr__(self, k, v)
         self.__getattr__(k).store(v)
 

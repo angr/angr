@@ -58,8 +58,8 @@ class SimStateHistory(SimStatePlugin):
 
         self.strongref_state = None if clone is None else clone.strongref_state
 
-    def set_state(self, state):
-        super(SimStateHistory, self).set_state(state)
+    def set_state(self, state, **kwargs):
+        super(SimStateHistory, self).set_state(state, **kwargs)
 
         self.successor_ip = self.state._ip
 

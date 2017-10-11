@@ -331,13 +331,13 @@ class SimMemory(SimStatePlugin):
         else:
             raise SimMemoryError('Unknown SimMemory category for memory_id "%s"' % self.id)
 
-    def set_state(self, state):
+    def set_state(self, state, **kwargs):
         """
         Call the set_state method in SimStatePlugin class, and then perform the delayed initialization.
 
         :param state: The SimState instance
         """
-        SimStatePlugin.set_state(self, state)
+        SimStatePlugin.set_state(self, state, **kwargs)
 
         # Delayed initialization
         stack_region_map, generic_region_map = self._temp_stack_region_map, self._temp_generic_region_map

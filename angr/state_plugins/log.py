@@ -68,7 +68,7 @@ class SimStateLog(SimStatePlugin):
     def clear(self):
         s = self.state
         self.__init__()
-        self.state = s
+        self.set_state(s)
         #self.events = [ ]
         #self.temps.clear()
         #self.used_variables.clear()

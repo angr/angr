@@ -33,8 +33,8 @@ class SimFastMemory(SimMemory):
     #       mo = SimMemoryObject(claripy.BVV(snip), write_start)
     #       self._apply_object_to_page(n*self._page_size, mo, page=new_page)
 
-    def set_state(self, state):
-        super(SimFastMemory, self).set_state(state)
+    def set_state(self, state, **kwargs):
+        super(SimFastMemory, self).set_state(state, **kwargs)
 
         if self.width is None:
             self.width = self.state.arch.bytes

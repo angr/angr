@@ -88,9 +88,9 @@ class MemoryRegion(object):
     def addrs_for_name(self, name):
         return self.memory.addrs_for_name(name)
 
-    def set_state(self, state):
+    def set_state(self, state, **kwargs):
         self._state = state
-        self._memory.set_state(state)
+        self._memory.set_state(state, **kwargs)
 
     def copy(self):
         r = MemoryRegion(self._id, self.state,

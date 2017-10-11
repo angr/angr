@@ -15,7 +15,6 @@ class CallStack(SimStatePlugin):
     """
     def __init__(self, call_site_addr=0, func_addr=0, stack_ptr=0, ret_addr=0, jumpkind='Ijk_Call', next_frame=None):
         super(CallStack, self).__init__()
-        self.state = None
         self.call_site_addr = call_site_addr
         self.func_addr = func_addr
         self.stack_ptr = stack_ptr
@@ -57,8 +56,8 @@ class CallStack(SimStatePlugin):
         n.locals = dict(self.locals)
         return n
 
-    def set_state(self, state):
-        self.state = state
+    def set_state(self, state, **kwargs):
+        super(CallStack, self).set_state(state, **kwargs)
         # make the stack pointer as large as possible as soon as we know how large that actually is
         if self.stack_ptr == 0:
             self.stack_ptr = 2**(state.arch.bits) - 1

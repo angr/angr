@@ -226,8 +226,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return merged_bytes
 
-    def set_state(self, s):
-        SimMemory.set_state(self, s)
+    def set_state(self, s, **kwargs):
+        SimMemory.set_state(self, s, **kwargs)
         self.mem.state = s
 
         if self.state is not None:

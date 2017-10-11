@@ -11,7 +11,7 @@ class SimStateGlobals(SimStatePlugin):
         super(SimStateGlobals, self).__init__()
         self._backer = backer if backer is not None else {}
 
-    def set_state(self, state):
+    def set_state(self, state, **kwargs):
         pass
 
     def merge(self, others, merge_conditions, common_ancestor=None):
