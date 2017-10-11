@@ -441,7 +441,7 @@ class Unicorn(SimStatePlugin):
         return False
 
     def __getstate__(self):
-        d = dict(self.__dict__)
+        d = super(Unicorn, self).__getstate__()
         del d['_uc_state']
         del d['cache_key']
         del d['_unicount']

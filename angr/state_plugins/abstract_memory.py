@@ -296,7 +296,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
             return AddressWrapper(new_region_id, self._region_base(new_region_id), new_relative_address, False, None)
 
-    def set_state(self, state):
+    def set_state(self, state, **kwargs):
         """
         Overriding the SimStatePlugin.set_state() method
 
@@ -312,7 +312,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
                       )
             state.options.add(REGION_MAPPING)
 
-        SimMemory.set_state(self, state)
+        SimMemory.set_state(self, state, **kwargs)
 
         for _,v in self._regions.items():
             v.set_state(state)

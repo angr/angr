@@ -51,6 +51,21 @@ class SimState(ana.Storable): # pylint: disable=R0904
                  add_options=None, remove_options=None, special_memory_filler=None, os_name=None):
         self.project = project
         self.arch = arch if arch is not None else project.arch.copy() if project is not None else None
+        self.mode = mode
+        self.plugins = {}
+
+        # OS name
+        self.os_name = os_name
+
+        # This is used in static mode as we don't have any constraints there
+        self._satisfiable = True
+
+        self.uninitialized_access_handler = None
+        self._special_memory_filler = special_memory_filler
+
+        # this is a global condition, applied to all added constraints, memory reads, etc
+        self._global_condition = None
+        self.ip_constraints = []
 
         if type(self.arch) is str:
             self.arch = arch_from_id(self.arch)
@@ -68,10 +83,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
         if remove_options is not None:
             options -= remove_options
         self.options = options
-        self.mode = mode
 
         # plugins
-        self.plugins = { }
         if plugins is not None:
             for n,p in plugins.iteritems():
                 self.register_plugin(n, p)
@@ -98,22 +111,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
             else:
                 self.register_plugin('registers', SimSymbolicMemory(memory_id="reg", endness=self.arch.register_endness))
 
-        # OS name
-        self.os_name = os_name
-
-        # This is used in static mode as we don't have any constraints there
-        self._satisfiable = True
-
         # states are big, so let's give them UUIDs for ANA right away to avoid
         # extra pickling
         self.make_uuid()
 
-        self.uninitialized_access_handler = None
-        self._special_memory_filler = special_memory_filler
-
-        # this is a global condition, applied to all added constraints, memory reads, etc
-        self._global_condition = None
-        self.ip_constraints = []
 
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
@@ -134,12 +135,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         return self
 
     def __repr__(self):
-        try:
-            ip_str = "%#x" % self.addr
-        except (SimValueError, SimSolverModeError):
-            ip_str = repr(self.regs.ip)
-
-        return "<SimState @ %s>" % ip_str
+        return "<SimState @ %r>" % repr(self.regs.ip)
 
     #
     # Easier access to some properties
@@ -187,7 +183,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         :return: an int
         """
-
         return self.se.eval_one(self.regs._ip)
 
     #

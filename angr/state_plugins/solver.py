@@ -5,6 +5,8 @@ import functools
 import time
 import logging
 
+from claripy import UnsatError
+
 from .plugin import SimStatePlugin
 from .sim_action_object import ast_stripping_decorator, SimActionObject
 from ..misc.ux import deprecated
@@ -518,7 +520,12 @@ class SimSolver(SimStatePlugin):
         if concrete_val is not None:
             return [self._cast_to(e, concrete_val, cast_to)]
 
-        cast_vals = [self._cast_to(e, v, cast_to) for v in self._eval(e, n, **kwargs)]
+        try:
+            results = self._eval(e, n, **kwargs)
+        except UnsatError as ex:
+            raise SimUnsatError(ex)
+
+        cast_vals = [self._cast_to(e, v, cast_to) for v in results]
         if len(cast_vals) == 0:
             raise SimUnsatError('Not satisfiable: %s, expected up to %d solutions' % (e.shallow_repr(), n))
         return cast_vals

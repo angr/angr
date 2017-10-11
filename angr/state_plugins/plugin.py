@@ -25,9 +25,7 @@ class SimStatePlugin(object):
 
     @property
     def state(self):
-        result = None if self.state_weakref is None else self.state_weakref()
-        #print "{}, {}".format(type(self.state_weakref), type(result))
-        return result
+        return None if self.state_weakref is None else self.state_weakref()
         # return super(SimStatePlugin, self).__getattribute__('state_weakref')()
 
     @state.setter
@@ -36,8 +34,8 @@ class SimStatePlugin(object):
 
     def __getstate__(self):
         d = dict(self.__dict__)
-        d['state_weakref'] = None
-        d['state_strongref'] = None
+        del d['state_weakref']
+        del d['state_strongref']
         return d
 
     # Should return a copy of the state plugin.
