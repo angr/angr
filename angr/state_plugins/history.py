@@ -1,5 +1,6 @@
 import operator
 import logging
+import collections
 
 import claripy
 
@@ -43,6 +44,7 @@ class SimStateHistory(SimStatePlugin):
         self.recent_bbl_addrs = [ ] if clone is None else list(clone.recent_bbl_addrs)
         self.recent_ins_addrs = [ ] if clone is None else list(clone.recent_ins_addrs)
         self.recent_stack_actions = [ ] if clone is None else list(clone.recent_stack_actions)
+        self.recent_stack_actions_counter = collection.Counter()
         self.last_stmt_idx = None if clone is None else clone.last_stmt_idx
 
         # numbers of blocks, syscalls, and instructions that were executed in this step

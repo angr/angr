@@ -231,9 +231,9 @@ class CallStack(SimStatePlugin):
         cf.next = self
         if self.state is not None:
             self.state.register_plugin('callstack', cf)
-            self.state.history.recent_stack_actions.append(CallStackAction(
-                hash(cf), len(cf), 'push', callframe=cf.copy(False)
-            ))
+            newCallStackAction = CallStackAction(hash(cf), len(cf), 'push', callframe=cf.copy(False))
+            self.state.history.recent_stack_actions.append(newCallStackAction)
+            self.state.history.recent_stack_actions_counter[newCallStackAction] +=1
 
         return cf
 
