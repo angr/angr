@@ -659,7 +659,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         max_bytes = req.data.length/8
 
         if req.size is None:
-            req.size = claripy.BVV(max_bytes, req.data.length)
+            req.size = max_bytes
 
         if self.state.solver.symbolic(req.size):
             if options.AVOID_MULTIVALUED_WRITES in self.state.options:
@@ -678,7 +678,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if self.state.solver.symbolic(req.size):
             req.constraints += [self.state.solver.ULE(req.size, max_bytes)]
 
-        condition = req.condition if req.condition is not None else claripy.BoolV(True)
 
         #
         # First, resolve the addresses
@@ -703,13 +702,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         #
         # If we have only one address to write to we handle it as concrete, disregarding symbolic or not
         if not self.state.solver.symbolic(req.size) and len(req.actual_addresses) == 1:
-            store_list = self._store_fully_concrete(req.actual_addresses[0], req.size, req.data, req.endness, condition)
+            store_list = self._store_fully_concrete(req.actual_addresses[0], req.size, req.data, req.endness, req.condition)
         elif not self.state.solver.symbolic(req.addr):
-            store_list = self._store_symbolic_size(req.addr, req.size, req.data, req.endness, condition)
+            store_list = self._store_symbolic_size(req.addr, req.size, req.data, req.endness, req.condition)
         elif not self.state.solver.symbolic(req.size):
-            store_list = self._store_symbolic_addr(req.addr, req.actual_addresses, req.size, req.data, req.endness, condition)
+            store_list = self._store_symbolic_addr(req.addr, req.actual_addresses, req.size, req.data, req.endness, req.condition)
         else:
-            store_list = self._store_fully_symbolic(req.addr, req.actual_addresses, req.size, req.data, req.endness, condition)
+            store_list = self._store_fully_symbolic(req.addr, req.actual_addresses, req.size, req.data, req.endness, req.condition)
 
         #
         # store it!!!
@@ -749,14 +748,17 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if size < data.length/8:
             data = data[size*8-1:]
         address = self.state.solver.eval(address)
-        try:
-            original_value = self._read_from(address, size)
-        except Exception as ex:
-            raise ex
+        if condition is not None:
+            try:
+                original_value = self._read_from(address, size)
+            except Exception as ex:
+                raise ex
 
-        if endness == "Iend_LE" or (endness is None and self.endness == "Iend_LE"):
-            original_value = original_value.reversed
-        conditional_value = self.state.solver.If(condition, data, original_value)
+            if endness == "Iend_LE" or (endness is None and self.endness == "Iend_LE"):
+                original_value = original_value.reversed
+            conditional_value = self.state.solver.If(condition, data, original_value)
+        else:
+            conditional_value = data
 
         return [ dict(value=conditional_value, addr=address, size=size) ]
 
@@ -776,13 +778,16 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             for i, (a, b) in enumerate(zip(afters, befores))
         ])
 
-        conditional_value = self.state.solver.If(condition, stored_value, original_value)
+        conditional_value = self.state.solver.If(condition, stored_value, original_value) if condition is not None else stored_value
 
         return [ dict(value=conditional_value, addr=address, size=max_bytes) ]
 
     def _store_symbolic_addr(self, address,  addresses, size, data, endness, condition):
         size = self.state.solver.eval(size)
         segments = self._get_segments(addresses, size)
+
+        if condition is None:
+            condition = claripy.BoolV(True)
 
         original_values = [ self._read_from(segment['start'], segment['size']) for segment in segments ]
         if endness == "Iend_LE" or (endness is None and self.endness == "Iend_LE"):
@@ -854,6 +859,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         stored_values = [ ]
         byte_dict = defaultdict(list)
         max_bytes = data.length/8
+
+        if condition is None:
+            condition = claripy.BoolV(True)
 
         # chop data into byte-chunks
         original_values = [self._read_from(a, max_bytes) for a in addresses]
