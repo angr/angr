@@ -784,6 +784,17 @@ class SimState(ana.Storable): # pylint: disable=R0904
         else:
             return conditions.__class__((self._adjust_condition(self.se.And(*conditions)),))
 
+    def detect_loops(self, n=None):
+        mc = self.callstack.top.block_counter.most_common()
+        if len(mc) == 0:
+            return None
+        else:
+            return mc[0][1]
+
+
+
+
+
     #
     # Compatibility layer
     #
