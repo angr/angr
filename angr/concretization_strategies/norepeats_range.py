@@ -11,10 +11,12 @@ class SimConcretizationStrategyNorepeatsRange(SimConcretizationStrategy):
         self._repeat_min = min
         self._repeat_granularity = granularity
 
-    def _concretize(self, memory, addr):
+    def _concretize(self, memory, addr, extra_constraints=()):
+        if not extra_constraints:
+            extra_constraints = [ ]
         c = self._any(memory, addr, extra_constraints = [
             addr >= self._repeat_min, addr < self._repeat_min + self._repeat_granularity
-        ])
+        ] + extra_constraints)
         self._repeat_min = c + self._repeat_granularity
         return [ c ]
 
