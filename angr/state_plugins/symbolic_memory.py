@@ -701,11 +701,13 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         # Prepare memory objects
         #
         # If we have only one address to write to we handle it as concrete, disregarding symbolic or not
-        if not self.state.solver.symbolic(req.size) and len(req.actual_addresses) == 1:
+        is_size_symbolic = self.state.solver.symbolic(req.size)
+        is_addr_symbolic = self.state.solver.symbolic(req.addr)
+        if not is_size_symbolic and len(req.actual_addresses) == 1:
             store_list = self._store_fully_concrete(req.actual_addresses[0], req.size, req.data, req.endness, req.condition)
-        elif not self.state.solver.symbolic(req.addr):
+        elif not is_addr_symbolic:
             store_list = self._store_symbolic_size(req.addr, req.size, req.data, req.endness, req.condition)
-        elif not self.state.solver.symbolic(req.size):
+        elif not is_size_symbolic:
             store_list = self._store_symbolic_addr(req.addr, req.actual_addresses, req.size, req.data, req.endness, req.condition)
         else:
             store_list = self._store_fully_symbolic(req.addr, req.actual_addresses, req.size, req.data, req.endness, req.condition)
@@ -744,7 +746,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         self.mem.store_memory_object(mo)
 
     def _store_fully_concrete(self, address, size, data, endness, condition):
-        size = self.state.solver.eval(size)
+        if type(size) not in (int, long):
+            size = self.state.solver.eval(size)
         if size < data.length/8:
             data = data[size*8-1:]
         address = self.state.solver.eval(address)
