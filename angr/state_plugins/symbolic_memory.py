@@ -750,7 +750,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             size = self.state.solver.eval(size)
         if size < data.length/8:
             data = data[size*8-1:]
-        address = self.state.solver.eval(address)
         if condition is not None:
             try:
                 original_value = self._read_from(address, size)
