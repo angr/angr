@@ -8,7 +8,7 @@ import os
 location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 
-def test_proxy_tech():
+def test_tech_builder():
 
     class Foo:
 
@@ -40,7 +40,7 @@ def test_proxy_tech():
 
     foo = Foo()
     proxy_tech = \
-        angr.exploration_techniques.ProxyTechnique(
+        angr.exploration_techniques.TechniqueBuilder(
             setup=foo.setup, step_state=foo.step_state,
             step=foo.step, filter=foo.filter, complete=foo.complete,
         )
@@ -51,4 +51,4 @@ def test_proxy_tech():
 
 
 if __name__ == "__main__":
-    test_proxy_tech()
+    test_tech_builder()

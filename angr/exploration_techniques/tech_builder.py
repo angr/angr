@@ -1,9 +1,9 @@
 from . import ExplorationTechnique
 
 
-class ProxyTechnique(ExplorationTechnique):
+class TechniqueBuilder(ExplorationTechnique):
     """
-    This dummy technique could be used to hook a couple of simulation manager methods
+    This meta technique could be used to hook a couple of simulation manager methods
     without actually creating a new exploration technique, for example:
 
     class SomeComplexAnalysis(Analysis):
@@ -23,12 +23,12 @@ class ProxyTechnique(ExplorationTechnique):
     """
 
     def __init__(self, setup=None, step_state=None, step=None, filter=None, complete=None):
-        super(ProxyTechnique, self).__init__()
-        self.setup = _its_a_func(setup) or super(ProxyTechnique, self).setup
-        self.step_state = _its_a_func(step_state) or super(ProxyTechnique, self).step_state
-        self.step = _its_a_func(step) or super(ProxyTechnique, self).step
-        self.filter = _its_a_func(filter) or super(ProxyTechnique, self).filter
-        self.complete = _its_a_func(complete) or super(ProxyTechnique, self).complete
+        super(TechniqueBuilder, self).__init__()
+        self.setup = _its_a_func(setup) or super(TechniqueBuilder, self).setup
+        self.step_state = _its_a_func(step_state) or super(TechniqueBuilder, self).step_state
+        self.step = _its_a_func(step) or super(TechniqueBuilder, self).step
+        self.filter = _its_a_func(filter) or super(TechniqueBuilder, self).filter
+        self.complete = _its_a_func(complete) or super(TechniqueBuilder, self).complete
 
 
 def _its_a_func(func):

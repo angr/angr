@@ -118,5 +118,5 @@ from .veritesting import Veritesting
 from .oppologist import Oppologist
 from .director import Director, ExecuteAddressGoal, CallFunctionGoal
 from .spiller import Spiller
-from .proxy import ProxyTechnique
+from .tech_builder import TechniqueBuilder
 from ..errors import AngrError, AngrExplorationTechniqueError
