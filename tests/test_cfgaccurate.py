@@ -355,6 +355,31 @@ def test_armel_final_missing_block():
     nose.tools.assert_set_equal(set([ block.addr for block in blocks ]), { 0x8000, 0x8014, 0x8020 })
 
 
+def test_armel_incorrect_function_detection_caused_by_branch():
+
+    # GitHub issue #685
+    binary_path = os.path.join(test_location, "armel", "RTOSDemo.axf.issue_685")
+    b = angr.Project(binary_path, auto_load_libs=False)
+
+    cfg = b.analyses.CFGAccurate()
+
+    # The Main function should be identified as a single function
+    nose.tools.assert_in(0x80a1, cfg.functions)
+    main_func = cfg.functions[0x80a1]
+
+    # All blocks should be there
+    block_addrs = sorted([ b.addr for b in main_func.blocks ])
+    nose.tools.assert_equal(block_addrs, [0x80a1, 0x80b1, 0x80bb, 0x80cd, 0x80df, 0x80e3, 0x80ed])
+
+    # The ResetISR function should be identified as a single function, too
+    nose.tools.assert_in(0x8009, cfg.functions)
+    resetisr_func = cfg.functions[0x8009]
+
+    # All blocks should be there
+    block_addrs = sorted([ b.addr for b in resetisr_func.blocks ])
+    nose.tools.assert_equal(block_addrs, [0x8009, 0x8011, 0x801f, 0x8027])
+
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
@@ -367,7 +392,7 @@ if __name__ == "__main__":
     logging.getLogger("angr.state_plugins.abstract_memory").setLevel(logging.DEBUG)
     logging.getLogger("angr.surveyors.Explorer").setLevel(logging.DEBUG)
     # logging.getLogger("angr.state_plugins.symbolic_memory").setLevel(logging.DEBUG)
-    # logging.getLogger("angr.analyses.cfg_accurate").setLevel(logging.DEBUG)
+    # logging.getLogger("angr.analyses.cfg.cfg_accurate").setLevel(logging.DEBUG)
     # logging.getLogger("s_irsb").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend
     #logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
