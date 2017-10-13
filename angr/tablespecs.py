@@ -1,13 +1,14 @@
 import claripy
-# TODO: When is a table not a table? ... When it's a chair (support variable byte widths)
+
 class StringTableSpec(object):
     @staticmethod
     def string_to_ast(string):
             return claripy.Concat(*(claripy.BVV(ord(c), 8) for c in string))
 
-    def __init__(self):
+    def __init__(self, byte_width=8):
         self._contents = []
         self._str_len = 0
+        self._byte_width = byte_width
 
     def append_args(self, args, add_null=True):
         for arg in args:
@@ -44,8 +45,8 @@ class StringTableSpec(object):
             self._contents.append(('string', self.string_to_ast(string+'\0')))
             self._str_len += len(string) + 1
         elif isinstance(string, claripy.ast.Bits):
-            self._contents.append(('string', string.concat(claripy.BVV(0, 8))))
-            self._str_len += len(string) / 8 + 1
+            self._contents.append(('string', string.concat(claripy.BVV(0, self._byte_width))))
+            self._str_len += len(string) // self._byte_width + 1
         else:
             raise ValueError('String must be either string literal or claripy AST')
 
@@ -72,7 +73,7 @@ class StringTableSpec(object):
                 state.memory.store(ptr_i, str_i, endness=state.arch.memory_endness)
                 state.memory.store(str_i, item)
                 ptr_i += state.arch.bytes
-                str_i += len(item)/8
+                str_i += len(item)//self._byte_width
             else:
                 if isinstance(item, (int, long)):
                     item = state.se.BVV(item, state.arch.bits)
@@ -80,6 +81,6 @@ class StringTableSpec(object):
                 ptr_i += state.arch.bytes
 
         if zero_fill != 0:
-            state.memory.store(end_addr - zero_fill, state.se.BVV(0, 8*zero_fill))
+            state.memory.store(end_addr - zero_fill, state.se.BVV(0, self._byte_width*zero_fill))
 
         return start_addr
