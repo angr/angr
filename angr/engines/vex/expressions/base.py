@@ -70,7 +70,7 @@ class SimIRExpr(object):
         s = self.size_bits(ty)
         if s % self.state.arch.byte_width != 0:
             raise Exception("SimIRExpr.size_bytes() called for a non-byte size!")
-        return s/self.state.arch.byte_width
+        return s//self.state.arch.byte_width
 
     def _translate_expr(self, expr):
         """Translate a single IRExpr, honoring mode and options and so forth. Also updates state..."""

@@ -114,10 +114,10 @@ class MemoryRegion(object):
                                                                   stmt_id,
                                                                   self.id,
                                                                   region_offset=request.addr,
-                                                                  size=len(request.data) / self.state.arch.byte_width)
+                                                                  size=len(request.data) // self.state.arch.byte_width)
             return self.memory._store(request)
         else:
-            if self._alocs[aloc_id].update(request.addr, len(request.data) / self.state.arch.byte_width):
+            if self._alocs[aloc_id].update(request.addr, len(request.data) // self.state.arch.byte_width):
                 return self.memory._store(request)
             else:
                 #return self.memory._store_with_merge(request)

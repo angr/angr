@@ -37,10 +37,6 @@ class SimIRExpr_Load(SimIRExpr):
             r = SimActionData(self.state, self.state.memory.id, SimActionData.READ, addr=addr_ao, size=self.size_bits(self._expr.type), data=self.expr)
             self.actions.append(r)
 
-
-
-
-
     def reg_deps(self):
 
         # only return data dependencies

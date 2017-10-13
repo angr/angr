@@ -550,7 +550,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         constraints = [ ]
         remaining_symbolic = max_symbolic_bytes
-        seek_size = len(what)/self.state.arch.byte_width
+        seek_size = len(what)//self.state.arch.byte_width
         symbolic_what = self.state.se.symbolic(what)
         l.debug("Search for %d bytes in a max of %d...", seek_size, max_search)
 
@@ -668,7 +668,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             req.constraints.append(req.size == new_size)
             req.size = new_size
 
-        max_bytes = len(req.data)/self.state.arch.byte_width
+        max_bytes = len(req.data)//self.state.arch.byte_width
 
         #
         # First, resolve the addresses
@@ -777,7 +777,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         for a, sv in zip(req.actual_addresses, req.stored_values):
             # here, we ensure the uuids are generated for every expression written to memory
             sv.make_uuid()
-            size = len(sv)/self.state.arch.byte_width
+            size = len(sv)//self.state.arch.byte_width
             if self.category == 'mem':
                 self.state.scratch.dirty_addrs.update(range(a, a+size))
             mo = SimMemoryObject(sv, a, self.state.arch.byte_width, length=size)
@@ -820,7 +820,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         for addr in addrs:
             # First we load old values
-            old_val = self._read_from(addr, length / self.state.arch.byte_width)
+            old_val = self._read_from(addr, length // self.state.arch.byte_width)
             assert isinstance(old_val, claripy.Bits)
 
             # FIXME: This is a big hack

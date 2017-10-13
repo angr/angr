@@ -602,7 +602,7 @@ class SimMemory(SimStatePlugin):
 
         # if fallback is not provided by user, load it from memory
         # remember to specify the endianness!
-        fallback_e = self.load(addr, max_bits/self.state.arch.byte_width, add_constraints=add_constraints, endness=endness) \
+        fallback_e = self.load(addr, max_bits//self.state.arch.byte_width, add_constraints=add_constraints, endness=endness) \
             if fallback_e is None else fallback_e
 
         req = self._store_cases(addr_e, contents_e, conditions_e, fallback_e, endness=endness)
@@ -709,7 +709,7 @@ class SimMemory(SimStatePlugin):
                 size_e = size
 
         if size is None:
-            size = self.state.arch.bits / self.state.arch.byte_width
+            size = self.state.arch.bits // self.state.arch.byte_width
             size_e = size
 
         if inspect is True:

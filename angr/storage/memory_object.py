@@ -13,7 +13,7 @@ class SimMemoryObject(object):
         self._byte_width = byte_width
         self._base = base
         self._object = object
-        self._length = object.size()/self._byte_width if length is None else length
+        self._length = object.size()//self._byte_width if length is None else length
 
     def size(self):
         return self._length * self._byte_width
