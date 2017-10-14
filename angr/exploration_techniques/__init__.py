@@ -109,6 +109,7 @@ class ExplorationTechnique(object):
 #    registered_surveyors[name] = strat
 
 from .driller_core import DrillerCore
+from .loop_seer import LoopSeer
 from .crash_monitor import CrashMonitor
 from .tracer import Tracer
 from .explorer import Explorer
