@@ -1,6 +1,10 @@
-from collections import defaultdict
 import angr
 from . import ExplorationTechnique
+
+import logging
+from collections import defaultdict
+
+l = logging.getLogger("angr.exploration_techniques.loop_seer")
 
 class LoopSeer(ExplorationTechnique):
     """
@@ -29,18 +33,12 @@ class LoopSeer(ExplorationTechnique):
         self.discard_stash = discard_stash
 
         self.loops = {}
-        self.current_loop = []
 
         if type(loops) == angr.analyses.loopfinder.Loop:
             loops = [loops]
         
         if type(loops) in (list, tuple) and all(type(l) == angr.analyses.loopfinder.Loop for l in loops):
             for loop in loops:
-                print loop.entry
-                print 'entry', loop.entry_edges
-                print 'continue', loop.continue_edges
-                print 'break', loop.break_edges
-                print len(loop.subloops)
                 self.loops[loop.entry_edges[0][0].addr] = loop
 
         elif loops is not None:
@@ -49,6 +47,9 @@ class LoopSeer(ExplorationTechnique):
     def setup(self, simgr):
         if self.cfg is None:
             self.cfg = self.project.analyses.CFGAccurate(normalize=True)
+        elif not self.cfg.normalized:
+            l.warning("LoopSeer uses normalized CFG. Recomputing the CFG...") 
+            self.cfg = self.project.analyses.CFGFast(normalize=True)
 
         if type(self.functions) == str:
             func = [self.project.kb.functions.function(name=self.functions)]
@@ -83,11 +84,6 @@ class LoopSeer(ExplorationTechnique):
             loop_finder = self.project.analyses.LoopFinder(normalize=True, functions=func)
 
             for loop in loop_finder.loops:
-                print loop.entry
-                print 'entry', loop.entry_edges
-                print 'continue', loop.continue_edges
-                print 'break', loop.break_edges
-                print len(loop.subloops)
                 entry = loop.entry_edges[0][0]
                 self.loops[entry.addr] = loop
 
@@ -98,13 +94,13 @@ class LoopSeer(ExplorationTechnique):
 
         for state in simgr.stashes[stash]:
             # Processing a currently running loop
-            if self.current_loop:
-                loop = self.current_loop[-1][0]
+            if state.loop_data.current_loop:
+                loop = state.loop_data.current_loop[-1][0]
 
                 if state.addr == loop.entry.addr:
                     state.loop_data.trip_counts[state.addr][-1] += 1
 
-                elif state.addr in self.current_loop[-1][1]:
+                elif state.addr in state.loop_data.current_loop[-1][1]:
                     # This is for unoptimized while/for loops.
                     back_edge_src = loop.continue_edges[0][0].addr
                     back_edge_dst = loop.continue_edges[0][1].addr
@@ -112,7 +108,7 @@ class LoopSeer(ExplorationTechnique):
                     if back_edge_src != back_edge_dst and back_edge_dst in block.instruction_addrs:
                         state.loop_data.trip_counts[loop.entry.addr][-1] -= 1
 
-                    self.current_loop.pop()
+                    state.loop_data.current_loop.pop()
 
                 if self.bound is not None:
                     if self.bound_reached is not None:
@@ -121,6 +117,8 @@ class LoopSeer(ExplorationTechnique):
                         simgr.move(stash,
                                    self.discard_stash,
                                    lambda state: state.loop_data.trip_counts[loop.entry.addr][-1] >= self.bound)
+
+                l.debug("%s trip counts %s", state, state.loop_data.trip_counts)
 
             # Loop entry detected. This test is put here because in case of
             # nested loops, we want to handle the outer loop before proceeding
@@ -132,7 +130,7 @@ class LoopSeer(ExplorationTechnique):
                 exits = [e[1].addr for e in loop.break_edges]
 
                 state.loop_data.trip_counts[header].append(0)
-                self.current_loop.append((loop, exits))
+                state.loop_data.current_loop.append((loop, exits))
 
         return simgr
 
