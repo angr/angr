@@ -46,10 +46,11 @@ class LoopSeer(ExplorationTechnique):
 
     def setup(self, simgr):
         if self.cfg is None:
-            self.cfg = self.project.analyses.CFGAccurate(normalize=True)
+            self.cfg = self.project.analyses.CFGFast(normalize=True)
         elif not self.cfg.normalized:
             l.warning("LoopSeer uses normalized CFG. Recomputing the CFG...") 
-            self.cfg = self.project.analyses.CFGFast(normalize=True)
+            cfg.normalize()
+            self.cfg = cfg
 
         if type(self.functions) == str:
             func = [self.project.kb.functions.function(name=self.functions)]
