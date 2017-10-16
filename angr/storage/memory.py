@@ -262,10 +262,6 @@ class MemoryStoreRequest(object):
         self.actual_addresses = None
         self.constraints = [ ]
 
-        self.fallback_values = None
-        self.symbolic_sized_values = None
-        self.conditional_values = None
-        self.simplified_values = None
         self.stored_values = None
 
     def _adjust_condition(self, state):
@@ -489,6 +485,11 @@ class SimMemory(SimStatePlugin):
 
         # store everything as a BV
         data_e = self._convert_to_ast(data_e, size_e if isinstance(size_e, (int, long)) else None)
+
+        # zero extend if size is greater than len(data_e)
+        stored_size = size_e*8 if isinstance(size_e, (int, long)) else self.state.arch.bits
+        if size_e is not None and self.category == 'reg' and len(data_e) < stored_size:
+            data_e = data_e.zero_extend(stored_size - len(data_e))
 
         if type(size_e) in (int, long):
             size_e = self.state.se.BVV(size_e, self.state.arch.bits)

@@ -393,10 +393,6 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     def _store(self, req):
         address_wrappers = self.normalize_address(req.addr, is_write=True, convert_to_valueset=False)
         req.actual_addresses = [ ]
-        req.fallback_values = [ ]
-        req.symbolic_sized_values = [ ]
-        req.conditional_values = [ ]
-        req.simplified_values = [ ]
         req.stored_values = [ ]
 
         for aw in address_wrappers:
@@ -408,10 +404,6 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
                 req.actual_addresses.append(aw.to_valueset(self.state))
                 req.constraints.extend(r.constraints)
-                req.fallback_values.extend(r.fallback_values)
-                req.symbolic_sized_values.extend(r.symbolic_sized_values)
-                req.conditional_values.extend(r.conditional_values)
-                req.simplified_values.extend(r.simplified_values)
                 req.stored_values.extend(r.stored_values)
 
         # No constraints are generated...
@@ -570,7 +562,8 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
                     sizes.append(seg.size)
                     next_pos += seg.size
 
-            if len(sizes) == 0:
+
+            if not sizes:
                 return [ size ]
             return sizes
         else:
@@ -637,17 +630,18 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
 
         return False
 
-    def map_region(self, addr, length, permissions, init_zero=False):
+    def map_region(self, addr, length, permissions, init_zero=False): # pylint: disable=unused-argument
         """
         Map a number of pages at address `addr` with permissions `permissions`.
         :param addr: address to map the pages at
         :param length: length in bytes of region to map, will be rounded upwards to the page size
         :param permissions: AST of permissions to map, will be a bitvalue representing flags
+        :param init_zero: Initialize page with zeros
         """
         l.warning('map_region() is not yet supported by SimAbstractMmeory.')
         return
 
-    def unmap_region(self, addr, length):
+    def unmap_region(self, addr, length): # pylint: disable=unused-argument
         """
         Unmap a number of pages at address `addr`
         :param addr: address to unmap the pages at

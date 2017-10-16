@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from collections import defaultdict
 
 import logging
 import itertools
@@ -162,11 +163,11 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             mo_bases = set(mo.base for mo, _ in memory_objects)
             mo_lengths = set(mo.length for mo, _ in memory_objects)
 
-            if len(unconstrained_in) == 0 and len(mos - merged_objects) == 0:
+            if not unconstrained_in and not (mos - merged_objects):
                 continue
 
             # first, optimize the case where we are dealing with the same-sized memory objects
-            if len(mo_bases) == 1 and len(mo_lengths) == 1 and len(unconstrained_in) == 0:
+            if len(mo_bases) == 1 and len(mo_lengths) == 1 and not unconstrained_in:
                 our_mo = self.mem[b]
                 to_merge = [(mo.object, fv) for mo, fv in memory_objects]
 
@@ -457,18 +458,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         if len(items) == 1 and items[0][1].includes(addr) and items[0][1].includes(addr + num_bytes - 1):
             return items[0][1].bytes_at(addr, num_bytes)
 
-        missing_mo = None
-        def missing(missing_mo=missing_mo):
-            if missing_mo is None:
-                missing_mo = self._fill_missing(addr, num_bytes, inspect=inspect, events=events)
-            return missing_mo
-
         segments = [ ]
         last_missing = addr + num_bytes - 1
         for mo_addr,mo in reversed(items):
             if not mo.includes(last_missing):
                 # add missing bytes
-                segments.append(missing().bytes_at(mo.last_addr+1, last_missing - mo.last_addr))
+                start_addr = mo.last_addr + 1
+                end_addr = last_missing - mo.last_addr
+                fill_mo = self._fill_missing(start_addr, end_addr, inspect=inspect, events=events)
+                segments.append(fill_mo.bytes_at(start_addr, end_addr).reversed)
                 last_missing = mo.last_addr
 
             # add the normal segment
@@ -477,7 +475,10 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         # handle missing bytes at the beginning
         if last_missing != addr - 1:
-            segments.append(missing().bytes_at(addr, last_missing - addr + 1))
+            start_addr = addr
+            end_addr = last_missing - addr + 1
+            fill_mo = self._fill_missing(start_addr, end_addr, inspect=inspect, events=events)
+            segments.append(fill_mo.bytes_at(start_addr, end_addr))
 
         # reverse the segments to put them in the right order
         segments.reverse()
@@ -655,133 +656,239 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         l.debug("Doing a store...")
         req._adjust_condition(self.state)
 
-        if req.size is not None and self.state.se.symbolic(req.size) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
+        max_bytes = req.data.length/8
+
+        if req.size is None:
+            req.size = max_bytes
+
+        if self.state.solver.symbolic(req.size):
+            if options.AVOID_MULTIVALUED_WRITES in self.state.options:
+                return req
+            if options.CONCRETIZE_SYMBOLIC_WRITE_SIZES in self.state.options:
+                new_size = self.state.solver.eval(req.size)
+                req.constraints.append(req.size == new_size)
+                req.size = new_size
+
+        if self.state.solver.symbolic(req.addr) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
             return req
 
-        if self.state.se.symbolic(req.addr) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
-            return req
+        if not self.state.solver.symbolic(req.size) and self.state.solver.eval(req.size) > req.data.length/8:
+            raise SimMemoryError("Not enough data for requested storage size (size: {}, data: {})".format(req.size, req.data))
 
-        if req.size is not None and self.state.se.symbolic(req.size) and options.CONCRETIZE_SYMBOLIC_WRITE_SIZES in self.state.options:
-            new_size = self.state.se.eval(req.size)
-            req.constraints.append(req.size == new_size)
-            req.size = new_size
+        if self.state.solver.symbolic(req.size):
+            req.constraints += [self.state.solver.ULE(req.size, max_bytes)]
 
-        max_bytes = len(req.data)/8
 
         #
         # First, resolve the addresses
         #
 
         try:
-            req.actual_addresses = self.concretize_write_addr(req.addr)
+            req.actual_addresses = sorted(self.concretize_write_addr(req.addr))
         except SimMemoryError:
             if options.CONSERVATIVE_WRITE_STRATEGY in self.state.options:
                 return req
             else:
                 raise
-        num_addresses = len(req.actual_addresses)
-
-        #
-        # Next, get the fallback values:
-        #
-
-        if req.condition is not None or (req.size is not None and self.state.se.symbolic(req.size)) or num_addresses > 1:
-            req.fallback_values = [ self._read_from(a, max_bytes) for a in req.actual_addresses ]
-            if req.endness == "Iend_LE" or (req.endness is None and self.endness == "Iend_LE"):
-                req.fallback_values = [ fv.reversed for fv in req.fallback_values ]
-        else:
-            req.fallback_values = [ None ] * num_addresses
-
-        #
-        # Next, conditionally size it
-        #
-
-        if req.size is None:
-            req.symbolic_sized_values = [ req.data ] * num_addresses
-        elif self.state.se.symbolic(req.size):
-            req.symbolic_sized_values = [ ]
-            req.constraints += [ self.state.se.ULE(req.size, max_bytes) ]
-
-            for fv in req.fallback_values:
-                befores = fv.chop(bits=8)
-                afters = req.data.chop(bits=8)
-                sv = self.state.se.Concat(*[
-                    self.state.se.If(self.state.se.UGT(req.size, i), a, b)
-                    for i,(a,b) in enumerate(zip(afters,befores))
-                ])
-                req.symbolic_sized_values.append(sv)
-        else:
-            needed_bytes = self.state.se.eval(req.size)
-            if needed_bytes < max_bytes:
-                sv = req.data[max_bytes*8-1:(max_bytes-needed_bytes)*8]
-                req.symbolic_sized_values = [ sv ] * num_addresses
-                req.fallback_values = [
-                    (fv[max_bytes*8-1:(max_bytes-needed_bytes)*8] if fv is not None else None)
-                    for fv in req.fallback_values
-                ]
-            #elif needed_bytes > max_bytes:
-            #   raise SimMemoryError("invalid length passed to SimSymbolicMemory._store")
-            else:
-                req.symbolic_sized_values = [ req.data ] * num_addresses
-
-        #
-        # Next, apply the condition
-        #
-
-        req.conditional_values = [ ]
-        for a,fv,sv in zip(req.actual_addresses, req.fallback_values, req.symbolic_sized_values):
-            if req.condition is None and num_addresses == 1:
-                cv = sv
-            elif req.condition is not None and num_addresses == 1:
-                cv = self.state.se.If(req.condition, sv, fv)
-            elif req.condition is None and num_addresses != 1:
-                cv = self.state.se.If(req.addr == a, sv, fv)
-            elif req.condition is not None and num_addresses != 1:
-                cv = self.state.se.If(self.state.se.And(req.addr == a, req.condition), sv, fv)
-
-            req.conditional_values.append(cv)
 
         if type(req.addr) not in (int, long) and req.addr.symbolic:
-            conditional_constraint = self.state.se.Or(*[ req.addr == a for a in req.actual_addresses ])
+            conditional_constraint = self.state.solver.Or(*[ req.addr == a for a in req.actual_addresses ])
             if (conditional_constraint.symbolic or  # if the constraint is symbolic
                     conditional_constraint.is_false()):  # if it makes the state go unsat
                 req.constraints.append(conditional_constraint)
 
         #
-        # now simplify
+        # Prepare memory objects
         #
-
-        if (self.category == 'mem' and options.SIMPLIFY_MEMORY_WRITES in self.state.options) or \
-           (self.category == 'reg' and options.SIMPLIFY_REGISTER_WRITES in self.state.options):
-            req.simplified_values = [ self.state.se.simplify(cv) for cv in req.conditional_values ]
+        # If we have only one address to write to we handle it as concrete, disregarding symbolic or not
+        is_size_symbolic = self.state.solver.symbolic(req.size)
+        is_addr_symbolic = self.state.solver.symbolic(req.addr)
+        if not is_size_symbolic and len(req.actual_addresses) == 1:
+            store_list = self._store_fully_concrete(req.actual_addresses[0], req.size, req.data, req.endness, req.condition)
+        elif not is_addr_symbolic:
+            store_list = self._store_symbolic_size(req.addr, req.size, req.data, req.endness, req.condition)
+        elif not is_size_symbolic:
+            store_list = self._store_symbolic_addr(req.addr, req.actual_addresses, req.size, req.data, req.endness, req.condition)
         else:
-            req.simplified_values = list(req.conditional_values)
-
-        #
-        # fix endness
-        #
-
-        if req.endness == "Iend_LE" or (req.endness is None and self.endness == "Iend_LE"):
-            req.stored_values = [ sv.reversed for sv in req.simplified_values ]
-        else:
-            req.stored_values = list(req.simplified_values)
+            store_list = self._store_fully_symbolic(req.addr, req.actual_addresses, req.size, req.data, req.endness, req.condition)
 
         #
         # store it!!!
         #
+        req.stored_values = []
+        if (self.category == 'mem' and options.SIMPLIFY_MEMORY_WRITES in self.state.options) or \
+           (self.category == 'reg' and options.SIMPLIFY_REGISTER_WRITES in self.state.options):
+            for store_item in store_list:
+                store_item['value'] = self.state.solver.simplify(store_item['value'])
 
-        for a,sv in zip(req.actual_addresses, req.stored_values):
-            # here, we ensure the uuids are generated for every expression written to memory
-            sv.make_uuid()
-            size = len(sv)/8
-            if self.category == 'mem':
-                self.state.scratch.dirty_addrs.update(range(a, a+size))
-            mo = SimMemoryObject(sv, a, length=size)
-            self.mem.store_memory_object(mo)
+                if req.endness == "Iend_LE" or (req.endness is None and self.endness == "Iend_LE"):
+                    store_item['value'] = store_item['value'].reversed
+
+                req.stored_values.append(store_item['value'])
+                self._insert_memory_object(store_item['value'], store_item['addr'], store_item['size'])
+        else:
+            for store_item in store_list:
+                if req.endness == "Iend_LE" or (req.endness is None and self.endness == "Iend_LE"):
+                    store_item['value'] = store_item['value'].reversed
+
+                req.stored_values.append(store_item['value'])
+                self._insert_memory_object(store_item['value'], store_item['addr'], store_item['size'])
 
         l.debug("... done")
         req.completed = True
         return req
+
+    def _insert_memory_object(self, value, address, size):
+        value.make_uuid()
+        if self.category == 'mem':
+            self.state.scratch.dirty_addrs.update(range(address, address+size))
+        mo = SimMemoryObject(value, address, length=size)
+        self.mem.store_memory_object(mo)
+
+    def _store_fully_concrete(self, address, size, data, endness, condition):
+        if type(size) not in (int, long):
+            size = self.state.solver.eval(size)
+        if size < data.length/8:
+            data = data[size*8-1:]
+        if condition is not None:
+            try:
+                original_value = self._read_from(address, size)
+            except Exception as ex:
+                raise ex
+
+            if endness == "Iend_LE" or (endness is None and self.endness == "Iend_LE"):
+                original_value = original_value.reversed
+            conditional_value = self.state.solver.If(condition, data, original_value)
+        else:
+            conditional_value = data
+
+        return [ dict(value=conditional_value, addr=address, size=size) ]
+
+
+    def _store_symbolic_size(self, address, size, data, endness, condition):
+        address = self.state.solver.eval(address)
+        max_bytes = data.length/8
+        original_value =  self._read_from(address, max_bytes)
+        if endness == "Iend_LE" or (endness is None and self.endness == "Iend_LE"):
+            original_value = original_value.reversed
+
+
+        befores = original_value.chop(bits=8)
+        afters = data.chop(bits=8)
+        stored_value = self.state.se.Concat(*[
+            self.state.solver.If(self.state.solver.UGT(size, i), a, b)
+            for i, (a, b) in enumerate(zip(afters, befores))
+        ])
+
+        conditional_value = self.state.solver.If(condition, stored_value, original_value) if condition is not None else stored_value
+
+        return [ dict(value=conditional_value, addr=address, size=max_bytes) ]
+
+    def _store_symbolic_addr(self, address,  addresses, size, data, endness, condition):
+        size = self.state.solver.eval(size)
+        segments = self._get_segments(addresses, size)
+
+        if condition is None:
+            condition = claripy.BoolV(True)
+
+        original_values = [ self._read_from(segment['start'], segment['size']) for segment in segments ]
+        if endness == "Iend_LE" or (endness is None and self.endness == "Iend_LE"):
+            original_values = [ ov.reversed  for ov in original_values ]
+
+        stored_values = []
+        for segment, original_value  in zip(segments, original_values):
+            conditional_value = original_value
+
+            for opt in segment['options']:
+                data_slice = data[((opt['idx']+segment['size'])*8)-1:opt['idx']*8]
+                conditional_value = self.state.solver.If(self.state.solver.And(address == segment['start']-opt['idx'], condition), data_slice, conditional_value)
+
+            stored_values.append(dict(value=conditional_value, addr=segment['start'], size=segment['size']))
+
+        return stored_values
+
+    @staticmethod
+    def _create_segment(addr, size, s_options, idx, segments):
+        segment = dict(start=addr, size=size, options=s_options)
+        segments.insert(idx, segment)
+
+    @staticmethod
+    def _split_segment(addr, segments):
+        s_idx = SimSymbolicMemory._get_segment_index(addr, segments)
+        segment = segments[s_idx]
+        if segment['start'] == addr:
+            return s_idx
+        assert segment['start'] < addr < segment['start'] + segment['size']
+        size_prev = addr - segment['start']
+        size_next = segment['size'] - size_prev
+        assert size_prev != 0 and size_next != 0
+        segments.pop(s_idx)
+        SimSymbolicMemory._create_segment(segment['start'], size_prev, segment['options'], s_idx, segments)
+        SimSymbolicMemory._create_segment(addr, size_next, [{"idx": opt["idx"] + size_prev}
+                                                            for opt in segment['options']], s_idx + 1, segments)
+        return s_idx + 1
+
+    @staticmethod
+    def _add_segments_overlap(idx, addr, segments):
+        for i in range(idx, len(segments)):
+            segment = segments[i]
+            if addr < segment['start'] + segment['size']:
+                segments[i]["options"].append({"idx": segment['start'] - addr})
+
+    @staticmethod
+    def _get_segment_index(addr, segments):
+        for i, segment in enumerate(segments):
+            if segment['start'] <= addr and addr < segment['start'] + segment['size']:
+                return i
+
+        return -1
+
+    @staticmethod
+    def _get_segments(addrs, size):
+        segments = []
+        highest = 0
+        for addr in addrs:
+            if addr < highest:
+                idx = SimSymbolicMemory._split_segment(addr, segments)
+                SimSymbolicMemory._create_segment(highest, addr + size - highest, [], len(segments), segments)
+                SimSymbolicMemory._add_segments_overlap(idx, addr, segments)
+            else:
+                SimSymbolicMemory._create_segment(addr, size, [{'idx': 0}], len(segments), segments)
+            highest = addr + size
+        return segments
+
+    def _store_fully_symbolic(self, address, addresses, size, data, endness, condition):
+        stored_values = [ ]
+        byte_dict = defaultdict(list)
+        max_bytes = data.length/8
+
+        if condition is None:
+            condition = claripy.BoolV(True)
+
+        # chop data into byte-chunks
+        original_values = [self._read_from(a, max_bytes) for a in addresses]
+        if endness == "Iend_LE" or (endness is None and self.endness == "Iend_LE"):
+            original_values = [ ov.reversed  for ov in original_values ]
+        data_bytes = data.chop(bits=8)
+
+        for a, fv in zip(addresses, original_values):
+            original_bytes = fv.chop(8)
+            for index, (d_byte, o_byte) in enumerate(zip(data_bytes, original_bytes)):
+                # create a dict of all all possible values for a certain address
+                byte_dict[a+index].append((a, index, d_byte, o_byte))
+
+        for byte_addr in sorted(byte_dict.keys()):
+            write_list = byte_dict[byte_addr]
+            # If this assertion fails something is really wrong!
+            assert all(v[3] is write_list[0][3] for v in write_list)
+            conditional_value = write_list[0][3]
+            for a, index, d_byte, o_byte in write_list:
+                # create the ast for each byte
+                conditional_value = self.state.solver.If(self.state.se.And(address == a, size > index, condition), d_byte, conditional_value)
+
+            stored_values.append(dict(value=conditional_value, addr=byte_addr, size=1))
+
+        return stored_values
 
     def _store_with_merge(self, req):
         req._adjust_condition(self.state)
@@ -792,9 +899,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         endness = req.endness
 
         req.stored_values = [ ]
-        req.simplified_values = [ ]
-        req.symbolic_sized_values = [ ]
-        req.conditional_values = [ ]
 
         if options.ABSTRACT_MEMORY not in self.state.options:
             raise SimMemoryError('store_with_merge is not supported without abstract memory.')
@@ -858,7 +962,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         req.completed = True
 
         # TODO: revisit the following lines
-        req.fallback_values = [ ]
         req.constraints = [ ]
 
         return req
@@ -1073,6 +1176,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         :param addr: address to map the pages at
         :param length: length in bytes of region to map, will be rounded upwards to the page size
         :param permissions: AST of permissions to map, will be a bitvalue representing flags
+        :param init_zero: Initialize page with zeros
         """
         return self.mem.map_region(addr, length, permissions, init_zero=init_zero)
 

@@ -25,8 +25,8 @@ class __getmainargs(angr.SimProcedure):
             l.warn("got a symbolic argument... aborting")
             return -1
 
-        self.state.memory.store(argc_p, self.state.posix.argc, self.state.arch.bits, endness=self.state.arch.memory_endness)
-        self.state.memory.store(argv_ppp, self.state.posix.argv, self.state.arch.bits, endness=self.state.arch.memory_endness)
-        self.state.memory.store(env_ppp, self.state.posix.environ, self.state.arch.bits, endness=self.state.arch.memory_endness)
+        self.state.memory.store(argc_p, self.state.posix.argc, self.state.posix.argc.length/8, endness=self.state.arch.memory_endness)
+        self.state.memory.store(argv_ppp, self.state.posix.argv, self.state.posix.argv.length/8, endness=self.state.arch.memory_endness)
+        self.state.memory.store(env_ppp, self.state.posix.environ, self.state.posix.environ.length/8, endness=self.state.arch.memory_endness)
 
         return 0

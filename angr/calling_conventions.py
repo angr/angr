@@ -77,23 +77,25 @@ class SimRegArg(SimFunctionArgument):
         """
         This is a hack to deal with small values being stored at offsets into large registers unpredictably
         """
-        if size is None: size = self.size
         offset = state.arch.registers[self.reg_name][0]
         if size in self.alt_offsets:
-            return offset + self.alt_offsets[size], size
+            return offset + self.alt_offsets[size]
         elif size < self.size and state.arch.register_endness == 'Iend_BE':
-            return offset + (self.size - size), size
-        return offset, size
+            return offset + (self.size - size)
+        return offset
 
     def set_value(self, state, value, endness=None, size=None, **kwargs):   # pylint: disable=unused-argument
         self.check_value(value)
         if endness is None: endness = state.arch.register_endness
-        offset, size = self._fix_offset(state, size)
+        if isinstance(value, (int, long)): value = claripy.BVV(value, self.size*8)
+        if size is None: size = min(self.size, value.length / 8)
+        offset = self._fix_offset(state, size)
         state.registers.store(offset, value, endness=endness, size=size)
 
     def get_value(self, state, endness=None, size=None, **kwargs):          # pylint: disable=unused-argument
         if endness is None: endness = state.arch.register_endness
-        offset, size = self._fix_offset(state, size)
+        if size is None: size = self.size
+        offset = self._fix_offset(state, size)
         return state.registers.load(offset, endness=endness, size=size)
 
 
@@ -112,7 +114,8 @@ class SimStackArg(SimFunctionArgument):
         self.check_value(value)
         if endness is None: endness = state.arch.memory_endness
         if stack_base is None: stack_base = state.regs.sp
-        state.memory.store(stack_base + self.stack_offset, value, endness=endness, size=self.size)
+        if isinstance(value, (int, long)): value = claripy.BVV(value, self.size*8)
+        state.memory.store(stack_base + self.stack_offset, value, endness=endness, size=value.length/8)
 
     def get_value(self, state, endness=None, stack_base=None, size=None):           # pylint: disable=arguments-differ
         if endness is None: endness = state.arch.memory_endness
@@ -142,7 +145,7 @@ class SimComboArg(SimFunctionArgument):
             value = claripy.FPV(value, claripy.FSORT_FLOAT if self.size == 4 else claripy.FSORT_DOUBLE)
         cur = 0
         for loc in reversed(self.locations):
-            loc.set_value(state, value[cur*8 + loc.size*8 - 1:cur*8], endness, **kwargs)
+            loc.set_value(state, value[cur*8 + loc.size*8 - 1:cur*8], endness=endness, **kwargs)
             cur += loc.size
 
     def get_value(self, state, endness=None, **kwargs):
@@ -523,6 +526,8 @@ class SimCC(object):
                 state.regs.sp -= 1
 
         for loc, val in zip(arg_locs, vals):
+            if val.length > loc.size * 8:
+                raise ValueError("Can't fit value {} into location {}".format(repr(val), repr(loc)))
             loc.set_value(state, val, endness='Iend_BE', stack_base=stack_base)
         self.return_addr.set_value(state, ret_addr, stack_base=stack_base)
 
