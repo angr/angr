@@ -12,46 +12,70 @@ def test_various_loops():
 
     state = p.factory.entry_state()
     state.register_plugin('loop_data', angr.state_plugins.SimStateLoopData())
+
+    dummy = p.loader.main_object.get_symbol('dummy')
+    bvs = state.se.BVS(dummy.name, 8 * dummy.size)
+    state.memory.store(dummy.rebased_addr, bvs, endness='Iend_LE')
+
     simgr = p.factory.simgr(state)
 
     simgr.use_technique(angr.exploration_techniques.LoopSeer(cfg=cfg, functions=None, bound=None))
 
     simgr.run()
 
-    nose.tools.assert_equals(len(simgr.deadended[0].loop_data.trip_counts), 13)
+    nose.tools.assert_equals(len(simgr.deadended), 10)
+    nose.tools.assert_equals(len(simgr.deadended[0].loop_data.trip_counts), 14)
 
-    # for_loop
-    nose.tools.assert_equals(simgr.deadended[0].loop_data.trip_counts[0x400529][0], 9)
+    for i, d in enumerate(simgr.deadended):
+        f = p.kb.functions.function(name='symbolic_loop')
+        l = p.analyses.LoopFinder(functions=[f]).loops[0]
+        nose.tools.assert_equals(d.loop_data.trip_counts[l.entry.addr][0], i)
 
-    # while_loop
-    nose.tools.assert_equals(simgr.deadended[0].loop_data.trip_counts[0x400557][0], 9)
+        f = p.kb.functions.function(name='for_loop')
+        l = p.analyses.LoopFinder(functions=[f]).loops[0]
+        nose.tools.assert_equals(d.loop_data.trip_counts[l.entry.addr][0], 9)
 
-    # do_while_loop
-    nose.tools.assert_equals(simgr.deadended[0].loop_data.trip_counts[0x400572][0], 9)
+        f = p.kb.functions.function(name='while_loop')
+        l = p.analyses.LoopFinder(functions=[f]).loops[0]
+        nose.tools.assert_equals(d.loop_data.trip_counts[l.entry.addr][0], 9)
 
-    # nullify
-    nose.tools.assert_equals(len(simgr.deadended[0].loop_data.trip_counts[0x4004f7]), 7)
+        f = p.kb.functions.function(name='do_while_loop')
+        l = p.analyses.LoopFinder(functions=[f]).loops[0]
+        nose.tools.assert_equals(d.loop_data.trip_counts[l.entry.addr][0], 9)
 
-    # nested_for_loop
-    nose.tools.assert_equals(simgr.deadended[0].loop_data.trip_counts[0x4005df][0], 3)
-    nose.tools.assert_equals(len(simgr.deadended[0].loop_data.trip_counts[0x4005d5]), 3)
-    nose.tools.assert_true(all(s == 3 for s in simgr.deadended[0].loop_data.trip_counts[0x4005d5]))
+        f = p.kb.functions.function(name='nullify')
+        l = p.analyses.LoopFinder(functions=[f]).loops[0]
+        nose.tools.assert_equals(len(d.loop_data.trip_counts[l.entry.addr]), 8)
+        nose.tools.assert_equals(d.loop_data.trip_counts[l.entry.addr][0], 9)
 
-    # nested_while_loop
-    nose.tools.assert_equals(simgr.deadended[0].loop_data.trip_counts[0x400630][0], 3)
-    nose.tools.assert_equals(len(simgr.deadended[0].loop_data.trip_counts[0x400626]), 3)
-    nose.tools.assert_true(all(s == 3 for s in simgr.deadended[0].loop_data.trip_counts[0x400626]))
+        f = p.kb.functions.function(name='nested_for_loop')
+        ol = p.analyses.LoopFinder(functions=[f]).loops[0]
+        il = ol.subloops[0]
+        nose.tools.assert_equals(d.loop_data.trip_counts[ol.entry.addr][0], 3)
+        nose.tools.assert_equals(len(d.loop_data.trip_counts[il.entry.addr]), 3)
+        nose.tools.assert_true(all(s == 3 for s in d.loop_data.trip_counts[il.entry.addr]))
 
-    # nested_do_while_loop
-    nose.tools.assert_equals(simgr.deadended[0].loop_data.trip_counts[0x400644][0], 3)
-    nose.tools.assert_equals(len(simgr.deadended[0].loop_data.trip_counts[0x40064b]), 3)
-    nose.tools.assert_true(all(s == 3 for s in simgr.deadended[0].loop_data.trip_counts[0x40064b]))
+        f = p.kb.functions.function(name='nested_while_loop')
+        ol = p.analyses.LoopFinder(functions=[f]).loops[0]
+        il = ol.subloops[0]
+        nose.tools.assert_equals(d.loop_data.trip_counts[ol.entry.addr][0], 3)
+        nose.tools.assert_equals(len(d.loop_data.trip_counts[il.entry.addr]), 3)
+        nose.tools.assert_true(all(s == 3 for s in d.loop_data.trip_counts[il.entry.addr]))
 
-    # break_for_loop
-    nose.tools.assert_equals(simgr.deadended[0].loop_data.trip_counts[0x4006bd][0], 9)
+        f = p.kb.functions.function(name='nested_do_while_loop')
+        ol = p.analyses.LoopFinder(functions=[f]).loops[0]
+        il = ol.subloops[0]
+        nose.tools.assert_equals(d.loop_data.trip_counts[ol.entry.addr][0], 3)
+        nose.tools.assert_equals(len(d.loop_data.trip_counts[il.entry.addr]), 3)
+        nose.tools.assert_true(all(s == 3 for s in d.loop_data.trip_counts[il.entry.addr]))
 
-    # break_do_while_loop
-    nose.tools.assert_equals(simgr.deadended[0].loop_data.trip_counts[0x4006d1][0], 9)
+        f = p.kb.functions.function(name='break_for_loop')
+        l = p.analyses.LoopFinder(functions=[f]).loops[0]
+        nose.tools.assert_equals(d.loop_data.trip_counts[l.entry.addr][0], 9)
+
+        f = p.kb.functions.function(name='break_do_while_loop')
+        l = p.analyses.LoopFinder(functions=[f]).loops[0]
+        nose.tools.assert_equals(d.loop_data.trip_counts[l.entry.addr][0], 9)
 
 def test_loops():
     p = angr.Project(os.path.join(test_location, 'x86_64', 'test_loops'))
