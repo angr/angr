@@ -14,15 +14,15 @@ def test_FindAvoidConflict():
     proj = angr.Project(test_location+'/i386/ite_FindAvoidConflict-O3')
     initial_state = proj.factory.blank_state()
     path = proj.factory.path(initial_state)
-    pathgroup = proj.factory.path_group(path)
+    sm = proj.factory.simgr(path)
 
     targetAddr = 0x8048390
     avoidAddr = 0x804838B
 
-    while (len(pathgroup.active) > 0):
-        pathgroup.explore(find=targetAddr, avoid=avoidAddr)
+    while (len(sm.active) > 0):
+        sm.explore(find=targetAddr, avoid=avoidAddr)
 
-    for path in pathgroup.found:
+    for path in sm.found:
         for addr in path.addr_trace:
             try:
                 instAddrs = set(proj.factory.block(addr).instruction_addrs)
