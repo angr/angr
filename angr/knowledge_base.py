@@ -1,5 +1,8 @@
 from .errors import KnowledgeBaseNoPlugin
 
+import logging
+l = logging.getLogger(name=__name__)
+
 
 class KnowledgeBase(object):
     """Represents a "model" of knowledge about an artifact.
@@ -75,7 +78,7 @@ class KnowledgeBase(object):
     @classmethod
     def register_default(cls, name, plugin_cls):
         if name in cls._default_plugins:
-            raise Exception("%s is already set as the default for %s" % (cls._default_plugins[name], name))
+            l.warn("%s is already set as the default for %s" % (cls._default_plugins[name], name))
         cls._default_plugins[name] = plugin_cls
 
 
@@ -91,3 +94,4 @@ KnowledgeBase.register_default('variables', knowledge_plugins.VariableManager)
 # Knowledge Views
 KnowledgeBase.register_default('blocks', knowledge_plugins.BlockView)
 KnowledgeBase.register_default('transitions', knowledge_plugins.TransitionsView)
+
