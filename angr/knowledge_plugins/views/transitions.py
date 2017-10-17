@@ -46,6 +46,14 @@ class TransitionsView(KnowledgeBaseView):
     #   ...
     #
 
+    @property
+    def graph(self):
+        return self._graph
+
+    #
+    #   ...
+    #
+
     def get_transition(self, from_addr=None, to_addr=None, type=None, **attrs):
         """
 
