@@ -106,11 +106,13 @@ class SimStateSystem(SimStatePlugin):
 
         if new_brk.symbolic:
             l.warning("Program is requesting a symbolic brk! This cannot be emulated cleanly!")
-            self.brk = self.state.se.If(new_brk < self.brk, self.brk, new_brk)
+            #self.brk = self.state.se.If(new_brk < self.brk, self.brk, new_brk)
+            l.warning("Set brk size to max")
 
-        else:
+        #else:
             conc_start = self.state.se.eval(self.brk)
-            conc_end = self.state.se.eval(new_brk)
+            #conc_end = self.state.se.eval(new_brk)
+            conc_end = self.state.se.max(new_brk)
             # failure case: new brk is less than old brk
             if conc_end < conc_start:
                 pass
