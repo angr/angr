@@ -143,6 +143,11 @@ class TransitionsView(KnowledgeBaseView):
             jumpkind, insn_addr, stmt_idx = specs
             self._add_transition(from_addr, to_addr, jumpkind, insn_addr, stmt_idx)
 
+        # If the basic_block doesn't have no incoming, nor outgoing transitions registered yet,
+        # then we should at least denote that the basic_block.addr can be transitioned to.
+        if basic_block.addr not in self._graph:
+            self._graph.add_node(basic_block.addr)
+
     def _add_transitions_from_ijump(self, from_addr, to_addr, specs):
         """
 
