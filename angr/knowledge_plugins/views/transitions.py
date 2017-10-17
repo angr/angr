@@ -178,7 +178,7 @@ class TransitionsView(KnowledgeBaseView):
         :return:
         """
         if jumpkind == 'Ijk_Boring':
-            self._add_transition_to(
+            transition = self._add_transition_to(
                 from_addr=from_addr,
                 to_addr=to_addr,
                 ins_addr=ins_addr,
@@ -186,7 +186,7 @@ class TransitionsView(KnowledgeBaseView):
             )
 
         elif jumpkind == "Ijk_Call":
-            self._add_call_to(
+            transition = self._add_call_to(
                 from_addr=from_addr,
                 to_addr=to_addr,
                 ins_addr=ins_addr,
@@ -194,24 +194,30 @@ class TransitionsView(KnowledgeBaseView):
             )
 
         elif jumpkind == 'Ijk_Ret':
-            self._add_return_to(
+            transition = self._add_return_to(
                 from_addr=from_addr,
                 to_addr=to_addr,
             )
 
         elif jumpkind == 'Ijk_FakeRet':
-            self._add_fakeret_to(
+            transition = self._add_fakeret_to(
                 from_addr=from_addr,
                 to_addr=to_addr,
             )
 
         elif jumpkind.startswith('Ijk_Sys'):
-            self._add_call_to(
+            transition = self._add_call_to(
                 from_addr=from_addr,
                 to_addr=to_addr,
                 stmt_idx=stmt_idx,
                 ins_addr=ins_addr
             )
+
+        else:
+            l.warn("Do not know how to handle %s" % jumpkind)
+            return
+
+        self._update_observers('add_transition', transition=transition)
 
     def _add_transition_to(self, from_addr, to_addr, ins_addr=None, stmt_idx=None):
         """
@@ -224,8 +230,8 @@ class TransitionsView(KnowledgeBaseView):
         :param bool outside:    If this is a transition to another function, e.g. tail call optimization
         :return: None
         """
-        self._graph.add_edge(from_addr, to_addr, 'transition',
-                             ins_addr=ins_addr, stmt_idx=stmt_idx)
+        self._graph.add_edge(from_addr, to_addr, 'transition', ins_addr=ins_addr, stmt_idx=stmt_idx)
+        return Transition(from_addr, to_addr, 'transition', {'ins_addr': ins_addr, 'stmt_idx': stmt_idx})
 
     def _add_call_to(self, from_addr, to_addr, ins_addr=None, stmt_idx=None):
         """
@@ -237,8 +243,8 @@ class TransitionsView(KnowledgeBaseView):
         :param stmt_idx:        The index of the statement that produces this transition.
         :return: None
         """
-        self._graph.add_edge(from_addr, to_addr, 'call',
-                             ins_addr=ins_addr, stmt_idx=stmt_idx)
+        self._graph.add_edge(from_addr, to_addr, 'call', ins_addr=ins_addr, stmt_idx=stmt_idx)
+        return Transition(from_addr, to_addr, 'call', {'ins_addr': ins_addr, 'stmt_idx': stmt_idx})
 
     def _add_return_to(self, from_addr, to_addr):
         """
@@ -250,6 +256,7 @@ class TransitionsView(KnowledgeBaseView):
         :return: None
         """
         self._graph.add_edge(from_addr, to_addr, 'ret')
+        return Transition(from_addr, to_addr, 'ret', {})
 
     def _add_fakeret_to(self, from_addr, to_addr):
         """
@@ -261,6 +268,7 @@ class TransitionsView(KnowledgeBaseView):
         :return: None
         """
         self._graph.add_edge(from_addr, to_addr, 'fakeret')
+        return Transition(from_addr, to_addr, 'fakeret', {})
 
     def _iter_transitions_between(self, from_addr, to_addr, type=None, **attrs):
         """
