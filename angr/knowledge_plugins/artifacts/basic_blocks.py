@@ -180,3 +180,9 @@ class BasicBlock(object):
     def __repr__(self):
         return '<BasicBlock(%#x-%#x, %d bytes%s)>' % \
                (self.addr, self.addr + self.size, self.size, ', THUMB' if self.thumb else '')
+
+    def __eq__(self, other):
+        if isinstance(other, BasicBlock):
+            return self.addr == other.addr and \
+                   self.size == other.size and \
+                   self.thumb == other.thumb
