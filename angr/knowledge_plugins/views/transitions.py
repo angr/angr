@@ -358,3 +358,10 @@ class Transition(object):
         self.to_addr = to_addr
         self.type = type
         self.attrs = attrs
+
+    def __repr__(self):
+        return "<Transition(%#x, %#x, '%s', %r)>" % \
+               (self.from_addr, self.to_addr, self.type, self.attrs)
+
+    def to_nx_edge(self):
+        return self.from_addr, self.to_addr, self.type, self.attrs
