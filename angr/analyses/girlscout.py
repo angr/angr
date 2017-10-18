@@ -1,25 +1,24 @@
 import logging
-import string
 import math
-import re
 import os
 import pickle
-from datetime import datetime
+import re
+import string
 from collections import defaultdict
-
-import networkx
-import progressbar
+from datetime import datetime
 
 import cle
+import networkx
+import progressbar
 import pyvex
-from angr.errors import SimMemoryError, SimEngineError
-from .. import options as o
+from . import Analysis, register_analysis
 
-from .cfg.cfg_fast import SegmentList
-from ..errors import AngrError
-from ..analyses import Analysis, register_analysis
-from ..surveyors import Explorer, Slicecutor
+from .. import options as o
 from ..annocfg import AnnotatedCFG
+from ..errors import SimMemoryError, SimEngineError, AngrError, SimValueError, SimIRSBError, SimSolverModeError, \
+    SimError
+from ..state_plugins.sim_action import SimActionData
+from ..surveyors import Explorer, Slicecutor
 
 l = logging.getLogger("angr.analyses.girlscout")
 
@@ -36,9 +35,9 @@ class GirlScout(Analysis):
     """
 
     def __init__(self, binary=None, start=None, end=None, pickle_intermediate_results=False, perform_full_code_scan=False):
-        self._binary = binary if binary is not None else self.project.loader.main_bin
-        self._start = start if start is not None else (self._binary.min_addr)
-        self._end = end if end is not None else (self._binary.max_addr)
+        self._binary = binary if binary is not None else self.project.loader.main_object
+        self._start = start if start is not None else self._binary.min_addr
+        self._end = end if end is not None else self._binary.max_addr
         self._pickle_intermediate_results = pickle_intermediate_results
         self._perform_full_code_scan = perform_full_code_scan
 
@@ -46,16 +45,12 @@ class GirlScout(Analysis):
 
         # Valid memory regions
         self._valid_memory_regions = sorted(
-            [ (self._binary.min_addr+start, self._binary.min_addr+start+len(cbacker))
-                for start, cbacker in self.project.loader.memory.cbackers ],
+            [ (start, start+len(cbacker)) for start, cbacker in self.project.loader.memory.cbackers ],
             key=lambda x: x[0]
         )
         self._valid_memory_region_size = sum([ (end - start) for start, end in self._valid_memory_regions ])
-        l.debug("Valid regions: " + repr(self._valid_memory_regions))
-        l.debug("Size: %#08x" % self._valid_memory_region_size)
 
         # Size of each basic block
-
         self._block_size = { }
 
         self._next_addr = self._start - 1
@@ -80,6 +75,10 @@ class GirlScout(Analysis):
 
         # Start working!
         self._reconnoiter()
+
+    @property
+    def call_map(self):
+        return self.call_map
 
     def _get_next_addr_to_search(self, alignment=None):
         # TODO: Take care of those functions that are already generated
@@ -117,7 +116,7 @@ class GirlScout(Analysis):
 
     def _get_next_code_addr(self, initial_state):
         """
-        Besides calling _get_next_addr, we will check if data locates at that address seems to be code or not. If not,
+        Besides calling _get_next_addr, we will check if data locates at that address seems to be code or not. If not, 
         we'll move on to request for next valid address.
         """
         next_addr = self._get_next_addr_to_search()
@@ -152,7 +151,7 @@ class GirlScout(Analysis):
             if len(sz) > 0 and is_sz:
                 l.debug("Got a string of %d chars: [%s]", len(sz), sz)
                 # l.debug("Occpuy %x - %x", start_addr, start_addr + len(sz) + 1)
-                self._seg_list.occupy(start_addr, len(sz) + 1, 'code')
+                self._seg_list.occupy(start_addr, len(sz) + 1)
                 sz = ""
                 next_addr = self._get_next_addr_to_search()
                 if next_addr is None:
@@ -196,21 +195,21 @@ class GirlScout(Analysis):
             return []
 
     def _static_memory_slice(self, run):
-        if isinstance(run, angr.SimIRSB):
+        if isinstance(run, SimIRSB):
             for stmt in run.statements:
                 refs = stmt.actions
                 if len(refs) > 0:
                     real_ref = refs[-1]
-                    if type(real_ref) == angr.state_plugins.sim_action.SimActionData:
+                    if type(real_ref) == SimActionData:
                         if real_ref.action == 'write':
                             addr = real_ref.addr
                             if not run.initial_state.se.symbolic(addr):
-                                concrete_addr = run.initial_state.se.any_int(addr)
+                                concrete_addr = run.initial_state.se.eval(addr)
                                 self._write_addr_to_run[addr].append(run.addr)
                         elif real_ref.action == 'read':
                             addr = real_ref.addr
                             if not run.initial_state.se.symbolic(addr):
-                                concrete_addr = run.initial_state.se.any_int(addr)
+                                concrete_addr = run.initial_state.se.eval(addr)
                             self._read_addr_to_run[addr].append(run.addr)
 
     def _scan_code(self, traced_addresses, function_exits, initial_state, starting_address):
@@ -254,7 +253,7 @@ class GirlScout(Analysis):
             self._block_size[addr] = irsb.size
 
             # Occupy the block
-            self._seg_list.occupy(addr, irsb.size, 'code')
+            self._seg_list.occupy(addr, irsb.size)
         except (SimEngineError, SimMemoryError):
             return
 
@@ -303,7 +302,7 @@ class GirlScout(Analysis):
         # Get a basic block
         state.ip = addr
 
-        sgr = self.project.factory.simgr(state)
+        s_path = self.project.factory.path(state)
         try:
             s_run = s_path.next_run
         except SimIRSBError, ex:
@@ -313,16 +312,16 @@ class GirlScout(Analysis):
             # "No memory at xxx"
             l.debug(ex)
             return
-        except (simuvex.SimValueError, simuvex.SimSolverModeError), ex:
+        except (SimValueError, SimSolverModeError), ex:
             # Cannot concretize something when executing the SimRun
             l.debug(ex)
             return
-        except simuvex.SimError as ex:
+        except SimError as ex:
             # Catch all simuvex errors
             l.debug(ex)
             return
 
-        if type(s_run) is simuvex.SimIRSB:
+        if type(s_run) is SimIRSB:
             # Calculate its entropy to avoid jumping into uninitialized/all-zero space
             bytes = s_run.irsb._state[1]['bytes']
             size = s_run.irsb.size
@@ -334,17 +333,17 @@ class GirlScout(Analysis):
         # self._static_memory_slice(s_run)
 
         # Mark that part as occupied
-        if isinstance(s_run, simuvex.SimIRSB):
-            self._seg_list.occupy(addr, s_run.irsb.size, 'code')
+        if isinstance(s_run, SimIRSB):
+            self._seg_list.occupy(addr, s_run.irsb.size)
         successors = s_run.flat_successors + s_run.unsat_successors
         has_call_exit = False
         tmp_exit_set = set()
         for suc in successors:
-            if suc.scratch.jumpkind == "Ijk_Call":
+            if suc.history.jumpkind == "Ijk_Call":
                 has_call_exit = True
 
         for suc in successors:
-            jumpkind = suc.scratch.jumpkind
+            jumpkind = suc.history.jumpkind
 
             if has_call_exit and jumpkind == "Ijk_Ret":
                 jumpkind = "Ijk_FakeRet"
@@ -355,13 +354,13 @@ class GirlScout(Analysis):
             try:
                 # Try to concretize the target. If we can't, just move on
                 # to the next target
-                next_addr = suc.se.exactly_n_int(suc.ip, 1)[0]
-            except (simuvex.SimValueError, simuvex.SimSolverModeError) as ex:
+                next_addr = suc.se.eval_one(suc.ip)
+            except (SimValueError, SimSolverModeError) as ex:
                 # Undecidable jumps (might be a function return, or a conditional branch, etc.)
 
                 # We log it
-                self._indirect_jumps.add((suc.scratch.jumpkind, addr))
-                l.info("IRSB 0x%x has an indirect exit %s.", addr, suc.scratch.jumpkind)
+                self._indirect_jumps.add((suc.history.jumpkind, addr))
+                l.info("IRSB 0x%x has an indirect exit %s.", addr, suc.history.jumpkind)
 
                 continue
 
@@ -450,10 +449,10 @@ class GirlScout(Analysis):
         # TODO: Make sure self._start is aligned
 
         # Construct the binary blob first
-        # TODO: We shouldn't directly access the _memory of main_bin. An interface
+        # TODO: We shouldn't directly access the _memory of main_object. An interface
         # to that would be awesome.
 
-        strides = self.project.loader.main_bin.memory.stride_repr
+        strides = self.project.loader.main_object.memory.stride_repr
 
         for start_, end_, bytes in strides:
             for regex in regexes:
@@ -495,11 +494,11 @@ class GirlScout(Analysis):
 
                 try:
                     r = (path.next_run.successors + path.next_run.unsat_successors)[0]
-                    ip = r.se.exactly_n_int(r.ip, 1)[0]
+                    ip = r.se.eval_one(r.ip)
 
                     function_starts.add(ip)
                     continue
-                except simuvex.SimSolverModeError as ex:
+                except SimSolverModeError as ex:
                     pass
 
                 # Not resolved
@@ -558,7 +557,7 @@ class GirlScout(Analysis):
                             se = r.next_run.successors[0].se
 
                             if not se.symbolic(target_ip):
-                                concrete_ip = se.exactly_n_int(target_ip, 1)[0]
+                                concrete_ip = se.eval_one(target_ip)
                                 function_starts.add(concrete_ip)
                                 l.info("Found a function address %x", concrete_ip)
 
@@ -573,7 +572,7 @@ class GirlScout(Analysis):
         :returns:
         """
 
-        pseudo_base_addr = self.project.loader.main_bin.get_min_addr()
+        pseudo_base_addr = self.project.loader.main_object.min_addr
 
         base_addr_ctr = { }
 
@@ -628,7 +627,7 @@ class GirlScout(Analysis):
         initial_state = self.project.factory.blank_state(mode="fastpath")
         initial_options = initial_state.options - { o.TRACK_CONSTRAINTS } - o.refs
         initial_options |= { o.SUPER_FASTPATH }
-        # initial_options.remove(simuvex.o.COW_STATES)
+        # initial_options.remove(o.COW_STATES)
         initial_state.options = initial_options
         # Sadly, not all calls to functions are explicitly made by call
         # instruction - they could be a jmp or b, or something else. So we
@@ -670,11 +669,10 @@ class GirlScout(Analysis):
             # TODO: Slowpath mode...
             while True:
                 next_addr = self._get_next_code_addr(initial_state)
+                percentage = self._seg_list.occupied_size * 100.0 / (self._valid_memory_region_size)
+                l.info("Analyzing %xh, progress %0.04f%%", next_addr, percentage)
                 if next_addr is None:
                     break
-
-                percentage = self._seg_list.occupied_size * 100.0 / (self._valid_memory_region_size)
-                l.debug("Analyzing %xh, progress %0.04f%%", next_addr, percentage)
 
                 self.call_map.add_node(next_addr)
 
@@ -712,9 +710,9 @@ class GirlScout(Analysis):
         self.call_map = networkx.DiGraph()
         self.cfg = networkx.DiGraph()
         initial_state = self.project.factory.blank_state(mode="fastpath")
-        initial_options = initial_state.options - {simuvex.o.TRACK_CONSTRAINTS} - simuvex.o.refs
-        initial_options |= {simuvex.o.SUPER_FASTPATH}
-        # initial_options.remove(simuvex.o.COW_STATES)
+        initial_options = initial_state.options - {o.TRACK_CONSTRAINTS} - o.refs
+        initial_options |= {o.SUPER_FASTPATH}
+        # initial_options.remove(o.COW_STATES)
         initial_state.options = initial_options
         # Sadly, not all calls to functions are explicitly made by call
         # instruction - they could be a jmp or b, or something else. So we
