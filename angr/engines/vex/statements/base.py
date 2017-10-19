@@ -17,7 +17,7 @@ class SimIRStmt(object):
         if not ty:
             if self.type is not None:
                 return get_type_size(self.type)
-            return len(self.expr)
+            return len(self.stmt)
         else:
             # Allow subclasses to define which parameter they consider their size
             return get_type_size(ty)

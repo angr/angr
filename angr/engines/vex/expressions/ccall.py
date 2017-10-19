@@ -25,7 +25,7 @@ class SimIRExpr_CCall(SimIRExpr):
                 if o.BYPASS_ERRORED_IRCCALL not in self.state.options:
                     raise
                 self.state.history.add_event('resilience', resilience_type='ccall', callee=self._expr.callee.name, message='ccall raised SimCCallError')
-                self.expr = self.state.se.Unconstrained("errored_%s" % self._expr.callee.name, size_bits(self._expr.ret_type))
+                self.expr = self.state.se.Unconstrained("errored_%s" % self._expr.callee.name, self.size_bits(self._expr.ret_type))
         else:
             l.error("Unsupported CCall %s", self._expr.callee.name)
             if o.BYPASS_UNSUPPORTED_IRCCALL in self.state.options:

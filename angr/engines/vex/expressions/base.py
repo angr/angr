@@ -3,7 +3,7 @@
 
 import logging
 l = logging.getLogger("angr.engines.vex.expressions.base")
-from pyvex.const import get_type_size, get_type_spec_size
+from pyvex.const import get_type_size
 _nonset = frozenset()
 
 class SimIRExpr(object):
