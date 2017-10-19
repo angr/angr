@@ -8,12 +8,8 @@ from .. import SIM_LIBRARIES, BP_AFTER, BP_BEFORE
 
 from ..calling_conventions import SYSCALL_CC
 from ..errors import AngrTracerError, SimMemoryError, SimEngineError
-from ..misc.tracer.simprocedures import receive
 
 l = logging.getLogger("angr.exploration_techniques.tracer")
-
-# global writable attribute used for specifying cache procedures
-#GlobalCacheManager = None
 
 class Tracer(ExplorationTechnique):
     """
@@ -43,17 +39,6 @@ class Tracer(ExplorationTechnique):
         if keep_predecessors < 1:
             raise ValueError("Must have keep_predecessors >= 1")
         self.predecessors = [None] * keep_predecessors
-
-       #cm = LocalCacheManager(dump_cache=dump_cache) if GlobalCacheManager is None else GlobalCacheManager
-       ## cache managers need the tracer to be set for them
-       #self._cache_manager = cm
-       #self._cache_manager.set_tracer(self)
-
-       ## set by a cache manager
-       #self._loaded_from_cache = False
-
-       ## set up cache hook
-       #receive.cache_hook = self._cache_manager.cacher
 
         # whether we should follow the trace
         self._no_follow = self._trace is None
@@ -289,4 +274,3 @@ class Tracer(ExplorationTechnique):
         """
         plt = self.project.loader.main_object.sections_map['.plt']
         return addr >= plt.min_addr and addr <= plt.max_addr
-
