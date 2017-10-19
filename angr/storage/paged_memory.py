@@ -374,6 +374,7 @@ class SimPagedMemory(object):
         new_hash_mapping = self._hash_mapping.branch() if options.REVERSE_MEMORY_HASH_MAP in self.state.options else self._hash_mapping
 
         new_pages = dict(self._pages)
+        self._cowed = set()
         m = SimPagedMemory(memory_backer=self._memory_backer,
                            permissions_backer=self._permissions_backer,
                            pages=new_pages,
