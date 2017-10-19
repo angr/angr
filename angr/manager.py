@@ -58,7 +58,7 @@ class SimulationManager(ana.Storable):
 
     def __init__(self, project, active_states=None, stashes=None, hierarchy=None, veritesting=None,
                  veritesting_options=None, immutable=None, resilience=None, save_unconstrained=None,
-                 save_unsat=None, threads=None, errored=None, completion_mode=any):
+                 save_unsat=None, threads=None, errored=None, completion_mode=any, copy_states=False):
         self._project = project
         self._hierarchy = StateHierarchy() if hierarchy is None else hierarchy
         self._immutable = False if immutable is None else immutable
@@ -67,6 +67,7 @@ class SimulationManager(ana.Storable):
         # public options
         self.save_unconstrained = False if save_unconstrained is None else save_unconstrained
         self.save_unsat = False if save_unsat is None else save_unsat
+        self.copy_states = copy_states
 
         # techniques
         self._hooks_step = []
@@ -127,6 +128,7 @@ class SimulationManager(ana.Storable):
         out._hooks_filter = list(self._hooks_filter)
         out._hooks_complete = list(self._hooks_complete)
         out.completion_mode = self.completion_mode
+        out.copy_states = self.copy_states
         return out
 
     def _make_stashes_dict(self,
@@ -153,19 +155,24 @@ class SimulationManager(ana.Storable):
         Returns a copy of the stashes (if immutable) or the stashes themselves (if not immutable). Used to abstract away
         immutability.
         """
+
+        new_stashes = defaultdict()
+        for s, v in self.stashes.iteritems():
+            new_stashes[s] = self._copy_states(v)
+
         if self._immutable if immutable is None else immutable:
-            result = self._make_stashes_dict(**{k: list(v) for k, v in self.stashes.items()})
+            result = self._make_stashes_dict(**{k: list(v) for k, v in new_stashes.items()})
         else:
-            result = defaultdict(list, self.stashes)
+            result = defaultdict(list, new_stashes)
 
         return result
 
     def _copy_states(self, states):
         """
-        Returns a copy of a list of states (if immutable) or the states themselves (if not immutable). Used to abstract
-        away immutability.
+        Returns a copy of a list of states (if immutable or copy state option is set) or the states themselves (if not
+        immutable). Used to abstract away immutability.
         """
-        if self._immutable:
+        if self._immutable or self.copy_states:
             return [ p.copy() for p in states ]
         else:
             return states
