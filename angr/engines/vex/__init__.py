@@ -1,5 +1,4 @@
 from claripy.fp import FSORT_FLOAT, FSORT_DOUBLE
-from pyvex import get_type_size
 from pyvex.const import get_type_size
 
 def translate_irconst(state, c):

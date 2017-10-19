@@ -1,4 +1,3 @@
-from pyvex.const import get_type_size
 import logging
 from pyvex.const import get_type_size
 l = logging.getLogger("angr.engines.vex.statements.base")
@@ -9,7 +8,7 @@ class SimIRStmt(object):
     def __init__(self, stmt, state):
         self.stmt = stmt
         self.state = state
-
+        self.type = None
         # references by the statement
         self.actions = []
         self._constraints = [ ]
