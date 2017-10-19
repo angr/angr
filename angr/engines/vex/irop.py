@@ -299,6 +299,8 @@ class SimIROp(object):
                 self._calculate = self._op_float_mapped
             elif not self._float and self._vector_count is not None:
                 self._calculate = self._op_vector_mapped
+            elif self._float and self._vector_count is not None:
+                self._calculate = self._op_vector_float_mapped
             else:
                 self._calculate = self._op_mapped
 
@@ -418,11 +420,12 @@ class SimIROp(object):
             l.warning("symbolic rounding mode found, using default")
             return claripy.fp.RM.default()
 
+    NO_RM = { 'Neg', 'Abs' }
+
     def _op_float_mapped(self, args):
-        NO_RM = { 'Neg', 'Abs' }
         op = getattr(claripy, 'fp' + self._generic_name)
 
-        if self._generic_name in NO_RM:
+        if self._generic_name in self.NO_RM:
             return op(*args)
 
         rm = self._translate_rm(args[0])
@@ -432,6 +435,16 @@ class SimIROp(object):
         chopped_args = ([claripy.Extract((i + 1) * self._vector_size - 1, i * self._vector_size, a) for a in args]
                         for i in reversed(xrange(self._vector_count)))
         return claripy.Concat(*(self._op_mapped(ca) for ca in chopped_args))
+
+    def _op_vector_float_mapped(self, args):
+        rm_part = [] if self._generic_name in self.NO_RM else [args[0]]
+        chopped_args = (
+                [
+                    claripy.Extract((i + 1) * self._vector_size - 1, i * self._vector_size, a).raw_to_fp()
+                    for a in (args if self._generic_name in self.NO_RM else args[1:])
+                ] for i in reversed(xrange(self._vector_count))
+            )
+        return claripy.Concat(*(self._op_float_mapped(rm_part + ca).raw_to_bv() for ca in chopped_args))
 
     def _op_float_op_just_low(self, args):
         chopped = [arg[(self._vector_size - 1):0].raw_to_fp() for arg in args]
