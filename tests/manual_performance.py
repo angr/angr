@@ -5,7 +5,7 @@ import argparse
 import sys
 import time
 import os
-import numpy
+import math
 import random
 import resource
 import multiprocessing
@@ -29,16 +29,23 @@ class Timer(object):
         self.end = time.time()
         self.msecs = (self.end - self.start) * 1000
 
+def mean(r):
+    return 0. if not r else float(sum(r)) / len(r)
+
+def std(r):
+    average = mean(r)
+    return math.sqrt(float(sum(pow(x - average, 2) for x in r)) / len(r))
+
 
 def print_results(tests):
     table_runs = []
     table_mems = []
     for name, test in tests.items():
         runs = test['runs']
-        table_runs.append([name, str(min(runs)), str(max(runs)), str(numpy.mean(runs)), str(numpy.std(runs))])
+        table_runs.append([name, str(min(runs)), str(max(runs)), str(mean(runs)), str(std(runs))])
     for name, test in tests.items():
         mems = test['mems']
-        table_mems.append([name, str(min(mems)), str(max(mems)), str(numpy.mean(mems)), str(numpy.std(mems))])
+        table_mems.append([name, str(min(mems)), str(max(mems)), str(mean(mems)), str(std(mems))])
     header = ['name', 'min', 'max', 'avg', 'std']
 
     print('Timing (in milliseconds)')
