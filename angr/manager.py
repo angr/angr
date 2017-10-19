@@ -58,7 +58,7 @@ class SimulationManager(ana.Storable):
 
     def __init__(self, project, active_states=None, stashes=None, hierarchy=None, veritesting=None,
                  veritesting_options=None, immutable=None, resilience=None, save_unconstrained=None,
-                 save_unsat=None, threads=None, errored=None, completion_mode=any, copy_states=False):
+                 save_unsat=None, threads=None, errored=None, completion_mode=any):
         self._project = project
         self._hierarchy = StateHierarchy() if hierarchy is None else hierarchy
         self._immutable = False if immutable is None else immutable
@@ -67,7 +67,6 @@ class SimulationManager(ana.Storable):
         # public options
         self.save_unconstrained = False if save_unconstrained is None else save_unconstrained
         self.save_unsat = False if save_unsat is None else save_unsat
-        self.copy_states = copy_states
 
         # techniques
         self._hooks_step = []
@@ -119,8 +118,8 @@ class SimulationManager(ana.Storable):
     # Util functions
     #
 
-    def copy(self, stashes=None):
-        stashes = stashes if stashes is not None else self._copy_stashes(immutable=True)
+    def copy(self, stashes=None, copy_states=False):
+        stashes = stashes if stashes is not None else self._copy_stashes(immutable=True, copy_states=copy_states)
         out = SimulationManager(self._project, stashes=stashes, hierarchy=self._hierarchy, immutable=self._immutable, resilience=self._resilience, save_unconstrained=self.save_unconstrained, save_unsat=self.save_unsat, errored=self.errored)
         out._hooks_all = list(self._hooks_all)
         out._hooks_step = list(self._hooks_step)
@@ -128,7 +127,6 @@ class SimulationManager(ana.Storable):
         out._hooks_filter = list(self._hooks_filter)
         out._hooks_complete = list(self._hooks_complete)
         out.completion_mode = self.completion_mode
-        out.copy_states = self.copy_states
         return out
 
     def _make_stashes_dict(self,
@@ -150,7 +148,7 @@ class SimulationManager(ana.Storable):
         result = defaultdict(list, always_present, **kwargs)
         return result
 
-    def _copy_stashes(self, immutable=None):
+    def _copy_stashes(self, immutable=None, copy_states=False):
         """
         Returns a copy of the stashes (if immutable) or the stashes themselves (if not immutable). Used to abstract away
         immutability.
@@ -158,7 +156,7 @@ class SimulationManager(ana.Storable):
 
         new_stashes = defaultdict()
         for s, v in self.stashes.iteritems():
-            new_stashes[s] = self._copy_states(v)
+            new_stashes[s] = self._copy_states(v, make_copy=copy_states)
 
         if self._immutable if immutable is None else immutable:
             result = self._make_stashes_dict(**{k: list(v) for k, v in new_stashes.items()})
@@ -167,12 +165,12 @@ class SimulationManager(ana.Storable):
 
         return result
 
-    def _copy_states(self, states):
+    def _copy_states(self, states, make_copy=False):
         """
         Returns a copy of a list of states (if immutable or copy state option is set) or the states themselves (if not
         immutable). Used to abstract away immutability.
         """
-        if self._immutable or self.copy_states:
+        if self._immutable or make_copy:
             return [ p.copy() for p in states ]
         else:
             return states
