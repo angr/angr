@@ -28,6 +28,7 @@ class CrashMonitor(ExplorationTechnique):
         :param crash_addr  : If the input caused a crash, what address did it crash at?
         """
 
+        super(CrashMonitor, self).__init__()
         self._trace = trace
         self._trim_history = trim_history
         self._crash_mode = crash_mode

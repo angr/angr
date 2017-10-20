@@ -31,6 +31,7 @@ class Tracer(ExplorationTechnique):
                                   Default 1, must be greater than 0.
         """
 
+        super(Tracer, self).__init__()
         self._trace = trace
         self._resiliency = resiliency
         self._dump_syscall = dump_syscall
