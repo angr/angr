@@ -112,7 +112,7 @@ class SimulationManager(ana.Storable):
         self._hooks_complete = []
         self._hooks_all = []
         for hook in hooks:
-            s._apply_hooks(hook)
+            self._apply_hooks(hook)
 
     #
     # Util functions
