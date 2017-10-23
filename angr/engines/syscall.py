@@ -4,7 +4,7 @@ l = logging.getLogger("angr.engines.syscall")
 
 from .engine import SimEngine
 
-class SimEngineSyscall(SimEngine): #pylint:disable=abstract-method
+class SimEngineSyscall(SimEngine): #pylint:disable=abstract-method,arguments-differ
     def __init__(self, project):
         super(SimEngineSyscall, self).__init__()
         self.project = project
@@ -25,7 +25,7 @@ class SimEngineSyscall(SimEngine): #pylint:disable=abstract-method
                 except KeyError:
                     try:
                         l.warning("No syscall calling convention available for %s/%s", state.arch.name, state.os_name)
-                        cc = SYSCALL_CC[state.arch.name]['default']
+                        cc = angr.SYSCALL_CC[state.arch.name]['default']
                     except KeyError:
                         cc = None # some default will get picked down the line...
 
