@@ -478,6 +478,17 @@ class SimSolver(SimStatePlugin):
         :raise ValueError: If cast_to is a currently unsupported cast target.
         :return: The value of `solution` cast to type `cast_to`
         """
+        if cast_to is None:
+            return solution
+
+        if type(solution) is bool:
+            if cast_to is str:
+                return '{}'.format(solution)
+            elif cast_to is int:
+                return int(solution)
+        elif type(solution) is float:
+            solution = _concrete_value(claripy.FPV(solution, claripy.fp.FSort.from_size(len(e))).raw_to_bv())
+
         if cast_to is str:
             if len(e) == 0:
                 return ""
@@ -488,7 +499,7 @@ class SimSolver(SimStatePlugin):
 
         return solution
 
-    def eval_upto(self, e, n, cast_to=int, **kwargs):
+    def eval_upto(self, e, n, cast_to=None, **kwargs):
         """
         Evaluate an expression, using the solver if necessary. Returns primitives as specified by the `cast_to`
         parameter. Only certain primitives are supported, check the implementation of `_cast_to` to see which ones.
