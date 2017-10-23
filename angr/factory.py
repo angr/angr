@@ -81,13 +81,12 @@ class AngrObjectFactory(object):
         if r is None or not r.processed:
             raise AngrExitError("All engines failed to execute!")
 
-        # Peek and fix the IP for syscalls
-        if r.successors and r.successors[0].history.jumpkind.startswith('Ijk_Sys'):
-            self._fix_syscall_ip(r.successors[0])
         # fix up the descriptions... TODO do something better than this
         description = str(r)
         l.info("Ticked state: %s", description)
         for succ in r.all_successors:
+            succ.history.recent_description = description
+        for succ in r.flat_successors:
             succ.history.recent_description = description
 
         return r
@@ -322,23 +321,6 @@ class AngrObjectFactory(object):
     # Private methods
     #
 
-    def _fix_syscall_ip(self, state):
-        """
-        Resolve syscall information from the state, get the IP address of the syscall SimProcedure, and set the IP of
-        the state accordingly. Don't do anything if the resolution fails.
-
-        :param SimState state: the program state.
-        :return: None
-        """
-
-        try:
-            bypass = o.BYPASS_UNSUPPORTED_SYSCALL in state.options
-            stub = self._project._simos.syscall(state, allow_unsupported=bypass)
-            if stub: # can be None if simos is not a subclass of SimUserspace
-                state.ip = stub.addr # fix the IP
-        except AngrUnsupportedSyscallError:
-            pass # the syscall is not supported. don't do anything
-
     @deprecate('sim_run()', 'successors()')
     def sim_run(self, *args, **kwargs):
         return self.successors(*args, **kwargs)
@@ -362,8 +344,7 @@ class AngrObjectFactory(object):
             return state
         return self.entry_state(**kwargs)
 
-from .errors import AngrExitError, AngrError, AngrUnsupportedSyscallError
+from .errors import AngrExitError, AngrError
 from .manager import SimulationManager
 from .codenode import HookNode
 from .block import Block
-from . import sim_options as o

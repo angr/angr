@@ -52,9 +52,6 @@ class AngrCallableMultistateError(AngrCallableError):
 class AngrSyscallError(AngrError):
     pass
 
-class AngrUnsupportedSyscallError(AngrSyscallError):
-    pass
-
 class AngrSimOSError(AngrError):
     pass
 
@@ -281,8 +278,10 @@ class SimFastPathError(SimEngineError):
 class SimIRSBNoDecodeError(SimIRSBError):
     pass
 
-class UnsupportedSyscallError(SimProcedureError, SimUnsupportedError):
+class AngrUnsupportedSyscallError(AngrSyscallError, SimProcedureError, SimUnsupportedError):
     pass
+
+UnsupportedSyscallError = AngrUnsupportedSyscallError
 
 class SimReliftException(SimEngineError):
     def __init__(self, state):

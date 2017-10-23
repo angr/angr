@@ -18,14 +18,14 @@ class SimEngineSyscall(SimEngine): #pylint:disable=abstract-method,arguments-dif
 
         if sys_procedure is None:
             if angr.sim_options.BYPASS_UNSUPPORTED_SYSCALL not in state.options:
-                raise AngrUnsupportedSyscallError("Trying to perform a syscall on an emulated system which is not currently cofigured to support syscalls. To resolve this, make sure that your SimOS is a subclass of SimUserspace.")
+                raise AngrUnsupportedSyscallError("Trying to perform a syscall on an emulated system which is not currently cofigured to support syscalls. To resolve this, make sure that your SimOS is a subclass of SimUserspace, or set the BYPASS_UNSUPPORTED_SYSCALL state option.")
             else:
                 try:
-                    cc = angr.SYSCALL_CC[state.arch.name][state.os_name]
+                    cc = angr.SYSCALL_CC[state.arch.name][state.os_name](state.arch)
                 except KeyError:
                     try:
                         l.warning("No syscall calling convention available for %s/%s", state.arch.name, state.os_name)
-                        cc = angr.SYSCALL_CC[state.arch.name]['default']
+                        cc = angr.SYSCALL_CC[state.arch.name]['default'](state.arch)
                     except KeyError:
                         cc = None # some default will get picked down the line...
 
