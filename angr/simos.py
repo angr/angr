@@ -317,6 +317,7 @@ class SimUserland(SimOS):
             cc = SYSCALL_CC[state.arch.name][state.os_name](state.arch)
         else:
             # Use the default syscall calling convention - it may bring problems
+            l.warning("No syscall calling convention available for %s/%s", state.arch.name, state.os_name)
             cc = SYSCALL_CC[state.arch.name]['default'](state.arch)
 
         sym_num = cc.syscall_num(state)
