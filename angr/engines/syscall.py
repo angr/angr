@@ -2,6 +2,8 @@ import logging
 l = logging.getLogger("angr.engines.syscall")
 
 from .engine import SimEngine
+from ..errors import AngrSyscallError
+
 class SimEngineSyscall(SimEngine): #pylint:disable=abstract-method
     def __init__(self, project):
         super(SimEngineSyscall, self).__init__()
@@ -13,6 +15,10 @@ class SimEngineSyscall(SimEngine): #pylint:disable=abstract-method
     def process(self, state, **kwargs):
         l.debug("Invoking system call handler")
         sys_procedure = self.project._simos.syscall(state)
+
+        if sys_procedure is None:
+            raise AngrSyscallError("Trying to perform a syscall on an emulated system which is not currently cofigured to support syscalls. To resolve this, make sure that your SimOS is a subclass of SimUserspace.")
+
         addr = state.se.eval(state._ip)
         return self.project.factory.procedure_engine.process(state, sys_procedure, force_addr=addr)
 
