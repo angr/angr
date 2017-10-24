@@ -10,6 +10,7 @@ import pyvex
 from claripy.utils.orderedset import OrderedSet
 from cle import ELF, PE, Blob, TLSObject, ExternObject, KernelObject
 
+from ...misc.ux import deprecated
 from ... import SIM_PROCEDURES
 from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError,\
     AngrUnsupportedSyscallError, SimError
@@ -188,7 +189,7 @@ class CFGBase(Analysis):
 
         raise NotImplementedError("I'm too lazy to implement it right now")
 
-    # TODO: Mark as deprecated
+    @deprecated
     def get_bbl_dict(self):
         return self._nodes
 
@@ -215,7 +216,7 @@ class CFGBase(Analysis):
             return [ ]
 
         predecessors = []
-        for pred, _, data in self._graph.in_edges_iter([cfgnode], data=True):
+        for pred, _, data in self._graph.in_edges([cfgnode], data=True):
             jk = data['jumpkind']
             if jumpkind is not None:
                 if jk == jumpkind:
@@ -251,7 +252,7 @@ class CFGBase(Analysis):
             return [ ]
 
         successors = []
-        for _, suc, data in self._graph.out_edges_iter([basic_block], data=True):
+        for _, suc, data in self._graph.out_edges([basic_block], data=True):
             jk = data['jumpkind']
             if jumpkind is not None:
                 if jumpkind == jk:
@@ -265,7 +266,7 @@ class CFGBase(Analysis):
 
     def get_successors_and_jumpkind(self, basic_block, excluding_fakeret=True):
         successors = []
-        for _, suc, data in self._graph.out_edges_iter([basic_block], data=True):
+        for _, suc, data in self._graph.out_edges([basic_block], data=True):
             if not excluding_fakeret or data['jumpkind'] != 'Ijk_FakeRet':
                 successors.append((suc, data['jumpkind']))
         return successors
@@ -295,9 +296,6 @@ class CFGBase(Analysis):
         if block_id in self._nodes:
             return self._nodes[block_id]
         return None
-
-    def nodes(self):
-        return self._graph.nodes()
 
     def get_any_node(self, addr, is_syscall=None, anyaddr=False):
         """
@@ -335,7 +333,7 @@ class CFGBase(Analysis):
         #              'speed the node lookup.')
         #    self._node_lookup_index_warned = True
 
-        for n in self.graph.nodes_iter():
+        for n in self.graph.nodes():
             cond = n.looping_times == 0
             if anyaddr and n.size is not None:
                 cond = cond and (addr >= n.addr and addr < n.addr + n.size)
@@ -377,7 +375,7 @@ class CFGBase(Analysis):
         """
         results = [ ]
 
-        for cfg_node in self._graph.nodes_iter():
+        for cfg_node in self._graph.nodes():
             if cfg_node.addr == addr or (anyaddr and cfg_node.addr <= addr < (cfg_node.addr + cfg_node.size)):
                 if is_syscall and cfg_node.is_syscall:
                     results.append(cfg_node)
@@ -388,7 +386,7 @@ class CFGBase(Analysis):
 
         return results
 
-    def nodes_iter(self):
+    def nodes(self):
         """
         An iterator of all nodes in the graph.
 
@@ -396,7 +394,18 @@ class CFGBase(Analysis):
         :rtype: iterator
         """
 
-        return self._graph.nodes_iter()
+        return self._graph.nodes()
+
+    @deprecated(replacement='nodes')
+    def nodes_iter(self):
+        """
+        (Decrepated) An iterator of all nodes in the graph. Will be removed in the future.
+
+        :return: The iterator.
+        :rtype: iterator
+        """
+
+        return self.nodes()
 
     def get_all_irsbs(self, addr):  # pylint:disable=unused-argument
         """
@@ -1160,8 +1169,8 @@ class CFGBase(Analysis):
                     smallest_nodes[key] = new_node
 
             # Modify the CFG
-            original_predecessors = list(graph.in_edges_iter([n], data=True))
-            original_successors = list(graph.out_edges_iter([n], data=True))
+            original_predecessors = list(graph.in_edges([n], data=True))
+            original_successors = list(graph.out_edges([n], data=True))
 
             if smallest_node not in graph:
                 continue
@@ -1338,7 +1347,7 @@ class CFGBase(Analysis):
         function_nodes = set()
 
         # Find nodes for beginnings of all functions
-        for _, dst, data in self.graph.edges_iter(data=True):
+        for _, dst, data in self.graph.edges(data=True):
             jumpkind = data.get('jumpkind', "")
             if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
                 function_nodes.add(dst)
@@ -1354,7 +1363,7 @@ class CFGBase(Analysis):
                                                                blockaddr_to_function
                                                                )
 
-        for n in self.graph.nodes_iter():
+        for n in self.graph.nodes():
             if n.addr in tmp_functions or n.addr in removed_functions:
                 function_nodes.add(n)
 

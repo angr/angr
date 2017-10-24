@@ -139,7 +139,7 @@ class BinaryOptimizer(Analysis):
     def optimize(self):
         for f in self.kb.functions.itervalues():  # type: angr.knowledge.Function
             # if there are unresolved targets in this function, we do not try to optimize it
-            if any([ n.sim_procedure is SIM_PROCEDURES['stubs']['UnresolvableTarget'] for n in f.graph.nodes_iter()
+            if any([ n.sim_procedure is SIM_PROCEDURES['stubs']['UnresolvableTarget'] for n in f.graph.nodes()
                      if isinstance(n, HookNode) ]):
                 continue
 
@@ -207,7 +207,7 @@ class BinaryOptimizer(Analysis):
 
         # find all edge sequences that looks like const->reg->memory
 
-        for n0 in data_graph.nodes_iter():
+        for n0 in data_graph.nodes():
             if not isinstance(n0.variable, SimConstantVariable):
                 continue
 
@@ -254,7 +254,7 @@ class BinaryOptimizer(Analysis):
         stack_ptrs = [ ]
         sp_offset = self.project.arch.registers['esp'][0]
         bp_offset = self.project.arch.registers['ebp'][0]
-        for n in data_graph.nodes_iter():
+        for n in data_graph.nodes():
             if isinstance(n.variable, SimRegisterVariable) and n.variable.reg in (sp_offset, bp_offset):
                 stack_ptrs.append(n)
 
@@ -275,7 +275,7 @@ class BinaryOptimizer(Analysis):
 
         argument_variables = [ ]
 
-        for n in data_graph.nodes_iter():
+        for n in data_graph.nodes():
             if isinstance(n.variable, SimStackVariable) and n.variable.base == 'bp' and n.variable.offset >= 0:
                 argument_variables.append(n)
 
@@ -424,13 +424,13 @@ class BinaryOptimizer(Analysis):
         esp_offset = self.project.arch.registers['esp'][0]
         ebp_offset = self.project.arch.registers['ebp'][0]
         esp_variables = [ ]
-        for n in data_graph.nodes_iter():
+        for n in data_graph.nodes():
             if isinstance(n.variable, SimRegisterVariable) and n.variable.reg == esp_offset:
                 esp_variables.append(n)
 
         # find out all call instructions
         call_insns = set()
-        for src, dst, data in function.transition_graph.edges_iter(data=True):
+        for src, dst, data in function.transition_graph.edges(data=True):
             if 'type' in data and data['type'] == 'call':
                 src_block = function._get_block(src.addr)
                 call_insns.add(src_block.instruction_addrs[-1])
@@ -459,7 +459,7 @@ class BinaryOptimizer(Analysis):
         # make sure we never gets the address of those stack variables into any register
         # say, lea edx, [ebp-0x4] is forbidden
         # check all edges in data graph
-        for src, dst, data in data_graph.edges_iter(data=True):
+        for src, dst, data in data_graph.edges(data=True):
             if isinstance(dst.variable, SimRegisterVariable) and \
                     dst.variable.reg != ebp_offset and \
                     dst.variable.reg < 40:
@@ -474,7 +474,7 @@ class BinaryOptimizer(Analysis):
                     return
 
         # we definitely don't want to mess with fp or sse operations
-        for node in data_graph.nodes_iter():
+        for node in data_graph.nodes():
             if isinstance(node.variable, SimRegisterVariable) and \
                     72 <= node.variable.reg < 288:  # offset(mm0) <= node.variable.reg < offset(cs)
                 l.debug('Found a float-point/SSE register access at %#x. Function %s cannot be optimized.',
@@ -489,7 +489,7 @@ class BinaryOptimizer(Analysis):
         # do we have free registers?
 
         used_general_registers = set()
-        for n in data_graph.nodes_iter():
+        for n in data_graph.nodes():
             if isinstance(n.variable, SimRegisterVariable):
                 if n.variable.reg < 40:  # this is a hardcoded limit - we only care about general registers
                     used_general_registers.add(n.variable.reg)
@@ -511,7 +511,7 @@ class BinaryOptimizer(Analysis):
 
         # find local stack variables of size 4
         stack_variables = set()
-        for n in data_graph.nodes_iter():
+        for n in data_graph.nodes():
             if isinstance(n.variable, SimStackVariable) and \
                     n.variable.base == 'bp' and \
                     n.variable.size == 4 and \
@@ -623,7 +623,7 @@ class BinaryOptimizer(Analysis):
         """
 
         register_pvs = set()
-        for node in data_graph.nodes_iter():
+        for node in data_graph.nodes():
             if isinstance(node.variable, SimRegisterVariable) and \
                     node.variable.reg is not None and \
                     node.variable.reg < 40:

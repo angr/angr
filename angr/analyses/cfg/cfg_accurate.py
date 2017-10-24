@@ -459,7 +459,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 loop_backedges.append(loop_backedge)
 
             # Create a common end node for all nodes whose out_degree is 0
-            end_nodes = [n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0]
+            end_nodes = [n for n in graph_copy.nodes() if graph_copy.out_degree[n] == 0]
             new_end_node = "end_node"
 
             if not end_nodes:
@@ -470,7 +470,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     graph_copy.remove_edge(first_cycle[0], first_cycle[0])
                 else:
                     graph_copy.remove_edge(first_cycle[0], first_cycle[1])
-                end_nodes = [n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0]
+                end_nodes = [n for n in graph_copy.nodes() if graph_copy.out_degree[n] == 0]
 
             for en in end_nodes:
                 graph_copy.add_edge(en, new_end_node)
@@ -560,7 +560,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         :return: None
         """
-        fakeret_edges = [ (src, dst) for src, dst, data in self.graph.edges_iter(data=True)
+        fakeret_edges = [ (src, dst) for src, dst, data in self.graph.edges(data=True)
                          if data['jumpkind'] == 'Ijk_FakeRet' ]
         self.graph.remove_edges_from(fakeret_edges)
 
@@ -603,7 +603,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         while queue:
             node = queue.pop()
-            for _, dst, data in self.graph.out_edges_iter([node], data=True):
+            for _, dst, data in self.graph.out_edges([node], data=True):
                 if dst not in graph and dst.addr in addr_set:
                     graph.add_edge(node, dst, **data)
                     queue.append(dst)
@@ -1262,7 +1262,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # if base graph is used, add successors implied from the graph
         if self._base_graph:
             basegraph_successor_addrs = set()
-            for src_, dst_ in self._base_graph.edges_iter():
+            for src_, dst_ in self._base_graph.edges():
                 if src_.addr == addr:
                     basegraph_successor_addrs.add(dst_.addr)
             successor_addrs = set([s.se.eval(s.ip) for s in successors])
@@ -1624,7 +1624,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # see if this edge is in the base graph
         if self._base_graph is not None:
             # TODO: make it more efficient. the current implementation is half-assed and extremely slow
-            for src_, dst_ in self._base_graph.edges_iter():
+            for src_, dst_ in self._base_graph.edges():
                 if src_.addr == addr and dst_.addr == target_addr:
                     break
             else:
@@ -2619,7 +2619,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # respect the basic block size from base graph
         block_size = None
         if self._base_graph is not None:
-            for n in self._base_graph.nodes_iter():
+            for n in self._base_graph.nodes():
                 if n.addr == addr:
                     block_size = n.size
                     break
