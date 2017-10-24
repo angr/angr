@@ -89,7 +89,7 @@ def perform_single(binary_path, cfg_path=None):
     cfg = proj.analyses.CFGAccurate(context_sensitivity_level=1, fail_fast=True)
     end = time.time()
     duration = end - start
-    bbl_dict = cfg.get_bbl_dict()
+    bbl_dict = cfg.nodes()
 
     l.info("CFG generated in %f seconds.", duration)
     l.info("Contains %d members in BBL dict.", len(bbl_dict))
