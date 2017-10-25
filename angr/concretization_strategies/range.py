@@ -9,7 +9,7 @@ class SimConcretizationStrategyRange(SimConcretizationStrategy):
         super(SimConcretizationStrategyRange, self).__init__(**kwargs)
         self._limit = limit
 
-    def _concretize(self, memory, addr):
+    def _concretize(self, memory, addr, extra_constraints=()):
         mn,mx = self._range(memory, addr)
         if mx - mn <= self._limit:
-            return self._eval(memory, addr, self._limit)
+            return self._eval(memory, addr, self._limit, extra_constraints=extra_constraints)
