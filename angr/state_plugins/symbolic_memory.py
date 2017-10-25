@@ -981,8 +981,8 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             # CGC binaries zero-fill the memory for any allocated region
             # Reference: (https://github.com/CyberGrandChallenge/libcgc/blob/master/allocate.md)
             return self.state.se.BVV(0, bits)
-        elif options.SPECIAL_MEMORY_FILL in self.state.options:
-            return self.state._special_memory_filler(name, bits)
+        elif options.SPECIAL_MEMORY_FILL in self.state.options and self.state._special_memory_filler is not None:
+            return self.state._special_memory_filler(name, bits, self.state)
         else:
             kwargs = { }
             if options.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
