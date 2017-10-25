@@ -197,6 +197,27 @@ class AngrObjectFactory(object):
         """
         return self._project._simos.state_call(addr, *args, **kwargs)
 
+    def tracer_state(self, input_content=None, magic_content=None, preconstrain_input=True,
+                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
+        """
+        Returns a new SimState object correctly configured for tracing.
+
+        :param input_content     : Concrete input to feed to binary.
+        :param magic_content     : CGC magic flag page.
+        :param preconstrain_input: Should the path be preconstrained to the provided input?
+        :param preconstrain_flag : Should the path have the CGC flag page preconstrained?
+        :param constrained_addrs : Addresses which have had constraints applied to them and should not be removed.
+        :param kwargs            : Any additional keyword arguments that will be passed to the SimState constructor.
+
+        :returns : The new SimState for tracing.
+        :rtype   : angr.sim_state.SimState
+        """
+        return self._project._simos.state_tracer(input_content=input_content,
+                                                 magic_content=magic_content,
+                                                 preconstrain_input=preconstrain_input,
+                                                 preconstrain_flag=preconstrain_flag,
+                                                 **kwargs)
+
     def simgr(self, thing=None, **kwargs):
         return self.simulation_manager(thing=thing, **kwargs)
 

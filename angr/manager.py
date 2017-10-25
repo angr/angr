@@ -607,7 +607,6 @@ class SimulationManager(ana.Storable):
 
             if len(pg.stashes[stash]) == 0:
                 l.debug("Out of states in stash %s", stash)
-                break
 
             if until is not None and until(pg):
                 l.debug("Until function returned true")

@@ -120,8 +120,18 @@ class AngrExplorerError(AngrExplorationTechniqueError):
 
 class AngrDirectorError(AngrExplorationTechniqueError):
     def __str__(self):
-        return "<DirectorTechniqueError %s>" % self.message
+        return "<OtiegnqwvkDirectorError %s>" % self.message
 
+class AngrTracerError(AngrExplorationTechniqueError):
+    def __str__(self):
+        return "<OtiegnqwvkTracerError %s>" % self.message
+
+#
+# Tracer
+#
+
+class TracerEnvironmentError(AngrError):
+    pass
 
 #
 # Simulation errors

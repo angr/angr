@@ -8,6 +8,7 @@ from collections import defaultdict
 from archinfo import ArchARM, ArchMIPS32, ArchMIPS64, ArchX86, ArchAMD64, ArchPPC32, ArchPPC64, ArchAArch64
 from cle import MetaELF, BackedCGC
 from cle.address_translator import AT
+from tracer.tracerpov import TracerPoV
 from elftools.elf.descriptions import _DESCR_EI_OSABI
 
 import claripy
@@ -20,13 +21,15 @@ from .errors import (
     SimUnsupportedError,
     SimSegfaultException,
     SimZeroDivisionException,
+    TracerEnvironmentError
 )
 from .tablespecs import StringTableSpec
 from .sim_state import SimState
-from .state_plugins import SimStateSystem, SimActionData
+from .state_plugins import SimStateSystem, SimActionData, SimStatePreconstrainer
 from .calling_conventions import DEFAULT_CC, SYSCALL_CC
 from .procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
 from . import sim_options as o
+from .storage.file import SimFile
 
 l = logging.getLogger("angr.simos")
 
@@ -215,6 +218,44 @@ class SimOS(object):
 
         if state.arch.name == 'PPC64' and toc is not None:
             state.regs.r2 = toc
+
+        return state
+
+    def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
+                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
+        if input_content is None:
+            return self.state_full_init(**kwargs)
+
+        if type(input_content) == str:
+            fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=len(input_content))}
+        elif type(input_content) == TracerPoV:
+            fs = input_content.stdin
+        else:
+            raise TracerEnvironmentError("Input for tracer should be either a string or a TracerPoV for CGC binaries.")
+
+        kwargs['fs'] = kwargs.get('fs', fs)
+
+        kwargs['add_options'] |= {o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY,
+                                  o.REPLACEMENT_SOLVER,
+                                  o.UNICORN,
+                                  o.UNICORN_HANDLE_TRANSMIT_SYSCALL}
+
+        kwargs['remove_options'] |= {o.EFFICIENT_STATE_MERGING} | o.simplification
+
+        state = self.state_full_init(**kwargs)
+
+        # Create the preconstrainer plugin
+        state.register_plugin('preconstrainer',
+                              SimStatePreconstrainer(input_content=input_content,
+                                                     magic_content=magic_content,
+                                                     preconstrain_input=preconstrain_input,
+                                                     preconstrain_flag=preconstrain_flag,
+                                                     constrained_addrs=constrained_addrs))
+
+        # Preconstrain
+        state.preconstrainer.preconstrain_state()
+
+        state.cgc.flag_bytes = [claripy.BVS("cgc-flag-byte-%d" % i, 8) for i in xrange(0x1000)]
 
         return state
 
@@ -592,6 +633,32 @@ class SimLinux(SimUserland):
         kwargs['addr'] = self._loader_addr
         return super(SimLinux, self).state_full_init(**kwargs)
 
+    def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
+                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
+        l.warning("Tracer has been heavily tested only for CGC. If you find it buggy for Linux binaries, we are sorry!")
+
+        options = kwargs.get('add_options', set())
+        options.add(o.BYPASS_UNSUPPORTED_SYSCALL)
+
+        kwargs['add_options'] = options
+
+        kwargs['remove_options'] = kwargs.get('remove_options', set())
+        
+        kwargs['concrete_fs'] = kwargs.get('concrete_fs', True)
+
+        state = super(SimLinux, self).state_tracer(input_content=input_content,
+                                                   magic_content=magic_content,
+                                                   preconstrain_input=preconstrain_input,
+                                                   preconstrain_flag=preconstrain_flag,
+                                                   constrained_addrs=constrained_addrs,
+                                                   **kwargs)
+
+        # Increase size of libc limits
+        state.libc.buf_symbolic_bytes = 1024
+        state.libc.max_str_len = 1024
+
+        return state
+
     def prepare_function_symbol(self, symbol_name, basic_addr=None):
         """
         Prepare the address space with the data necessary to perform relocations pointing to the given symbol.
@@ -735,6 +802,53 @@ class SimCGC(SimUserland):
             state.regs.cs = 0
 
         return state
+
+    def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
+                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
+        options = kwargs.get('add_options', set())
+        options.add(o.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
+        options.add(o.UNICORN_THRESHOLD_CONCRETIZATION)
+
+        # try to enable unicorn, continue if it doesn't exist
+        try:
+            options.add(o.UNICORN_SYM_REGS_SUPPORT)
+            l.debug("unicorn tracing enabled")
+        except AttributeError:
+            pass
+
+        kwargs['add_options'] = options
+
+        kwargs['remove_options'] = kwargs.get('remove_options', set()) | {o.LAZY_SOLVES, o.SUPPORT_FLOATING_POINT}
+        
+        state = super(SimCGC, self).state_tracer(input_content=input_content,
+                                                 magic_content=magic_content,
+                                                 preconstrain_input=preconstrain_input,
+                                                 preconstrain_flag=preconstrain_flag,
+                                                 constrained_addrs=constrained_addrs,
+                                                 **kwargs)
+
+        csr = state.unicorn.cooldown_symbolic_registers
+        state.unicorn.concretization_threshold_registers = 25000 / csr
+        state.unicorn.concretization_threshold_memory = 25000 / csr
+
+        if type(input_content) == str:
+            state.cgc.input_size = len(input_content)
+
+        self._set_simproc_limits(state)
+
+        state.preconstrainer.preconstrain_flag_page()
+
+        state.memory.store(0x4347c000, claripy.Concat(*state.cgc.flag_bytes))
+
+        return state
+
+    @staticmethod
+    def _set_simproc_limits(state):
+        state.libc.max_str_len = 1000000
+        state.libc.max_strtol_len = 10
+        state.libc.max_memcpy_size = 0x100000
+        state.libc.max_symbolic_bytes = 100
+        state.libc.max_buffer_size = 0x100000
 
 class SimWindows(SimOS):
     """
@@ -974,6 +1088,10 @@ class SimWindows(SimOS):
             link_list(init_order, 16)
 
         return state
+
+    def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
+                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
+        raise TracerEnvironmentError("Tracer currently only supports CGC and Unix.") 
 
     def handle_exception(self, successors, engine, exc_type, exc_value, exc_traceback):
         # don't bother handling non-vex exceptions

@@ -19,3 +19,4 @@ from .sim_action_object import *
 from .sim_event import *
 from .callstack import *
 from .globals import *
+from .preconstrainer import *

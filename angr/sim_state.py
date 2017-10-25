@@ -268,6 +268,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def unicorn(self):
         return self.get_plugin('unicorn')
 
+    @property
+    def preconstrainer(self):
+        return self.get_plugin('preconstrainer')
+
     def _inspect(self, *args, **kwargs):
         if self.has_plugin('inspector'):
             self.inspect.action(*args, **kwargs)
@@ -495,7 +499,6 @@ class SimState(ana.Storable): # pylint: disable=R0904
             ]
 
         if len(set(o.arch.name for o in others)) != 1:
-            import ipdb; ipdb.set_trace()
             raise SimMergeError("Unable to merge due to different architectures.")
 
         all_plugins = set(self.plugins.keys()) | set.union(*(set(o.plugins.keys()) for o in others))
