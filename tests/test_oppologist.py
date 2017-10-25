@@ -56,5 +56,4 @@ def run_all():
 
 
 if __name__ == '__main__':
-    import sys
     run_all()
