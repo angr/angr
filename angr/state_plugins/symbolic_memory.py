@@ -346,7 +346,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     # Concretization strategies
     #
 
-    def _apply_concretization_strategies(self, addr, strategies, action, extra_constaints=()):
+    def _apply_concretization_strategies(self, addr, strategies, action, extra_constraints=()):
         """
         Applies concretization strategies on the address until one of them succeeds.
         """
@@ -369,7 +369,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
             # let's try to apply it!
             try:
-                a = s.concretize(self, e, extra_constaints=extra_constaints)
+                a = s.concretize(self, e, extra_constraints=extra_constraints)
             except SimUnsatError:
                 a = None
 
@@ -389,7 +389,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             "Unable to concretize address for %s with the provided strategies." % action
         )
 
-    def concretize_write_addr(self, addr, strategies=None, extra_constaints=()):
+    def concretize_write_addr(self, addr, strategies=None, extra_constraints=()):
         """
         Concretizes an address meant for writing.
 
@@ -404,7 +404,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             return [ self.state.se.eval(addr) ]
 
         strategies = self.write_strategies if strategies is None else strategies
-        return self._apply_concretization_strategies(addr, strategies, 'store', extra_constaints=extra_constaints)
+        return self._apply_concretization_strategies(addr, strategies, 'store', extra_constraints=extra_constraints)
 
     def concretize_read_addr(self, addr, strategies=None, extra_constraints=()):
         """
