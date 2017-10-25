@@ -431,7 +431,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     #
 
     def _fill_missing(self, addr, num_bytes, inspect=True, events=True):
-        name = "%s_%x" % (self.id, addr)
+        name = "__missing_%s_%x" % (self.id, addr)
         all_missing = [
             self.get_unconstrained_bytes(name, min(self.mem._page_size, num_bytes)*self.state.arch.byte_width, source=i, inspect=inspect,
                                          events=events)
