@@ -1634,7 +1634,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Fix target_addr for syscalls
         if suc_jumpkind.startswith("Ijk_Sys"):
-            target_addr = self.project._simos.syscall(new_state).addr
+            target_addr = self.project._sim_environment.syscall(new_state).addr
 
         self._pre_handle_successor_state(job.extra_info, suc_jumpkind, target_addr)
 
@@ -1698,7 +1698,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # This is the default "fake" retn that generated at each
             # call. Save them first, but don't process them right
             # away
-            # st = self.project._simos.prepare_call_state(new_state, initial_state=saved_state)
+            # st = self.project._sim_environment.prepare_call_state(new_state, initial_state=saved_state)
             st = new_state
             self._reset_state_mode(st, 'fastpath')
 
@@ -2514,7 +2514,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         symbolic_initial_state = self.project.factory.entry_state(mode='symbolic')
         if fastpath_state is not None:
-            symbolic_initial_state = self.project._simos.prepare_call_state(fastpath_state,
+            symbolic_initial_state = self.project._sim_environment.prepare_call_state(fastpath_state,
                                                                             initial_state=symbolic_initial_state)
 
         # Find number of instructions of start block
@@ -2586,7 +2586,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                         # target = const
                         # tpl = (None, None, target)
-                        # st = self.project._simos.prepare_call_state(self.project.initial_state(mode='fastpath'),
+                        # st = self.project._sim_environment.prepare_call_state(self.project.initial_state(mode='fastpath'),
                         #                                           initial_state=saved_state)
                         # st = self.project.initial_state(mode='fastpath')
                         # exits[tpl] = (st, None, None)
@@ -2631,8 +2631,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 if self.project.is_hooked(addr):
                     old_proc = self.project._sim_procedures[addr]
                     is_continuation = old_proc.is_continuation
-                elif self.project._simos.is_syscall_addr(addr):
-                    old_proc = self.project._simos.syscall_from_addr(addr)
+                elif self.project._sim_environment.is_syscall_addr(addr):
+                    old_proc = self.project._sim_environment.syscall_from_addr(addr)
                     is_continuation = False  # syscalls don't support continuation
                 else:
                     old_proc = None

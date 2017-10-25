@@ -66,8 +66,8 @@ class Function(object):
             if project.is_hooked(addr):
                 hooker = project.hooked_by(addr)
                 name = hooker.display_name
-            elif project._simos.is_syscall_addr(addr):
-                syscall_inst = project._simos.syscall_from_addr(addr)
+            elif project._sim_environment.is_syscall_addr(addr):
+                syscall_inst = project._sim_environment.syscall_from_addr(addr)
                 name = syscall_inst.display_name
 
         # try to get the name from the symbols

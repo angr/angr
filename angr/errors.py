@@ -52,7 +52,7 @@ class AngrCallableMultistateError(AngrCallableError):
 class AngrSyscallError(AngrError):
     pass
 
-class AngrSimOSError(AngrError):
+class AngrSimEnvironmentError(AngrError):
     pass
 
 # Congruency check failure

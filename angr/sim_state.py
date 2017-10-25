@@ -58,8 +58,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         # the options
         if options is None:
             if mode is None:
-                l.warning("SimState defaulting to symbolic mode.")
-                mode = "symbolic"
+                mode = 'symbolic' if project is None else self.project._default_analysis_mode
             options = o.modes[mode]
 
         options = set(options)

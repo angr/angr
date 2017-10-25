@@ -16,7 +16,7 @@ class LinuxLoader(angr.SimProcedure):
 
     def run_initializer(self):
         if len(self.initializers) == 0:
-            self.project._simos.set_entry_register_values(self.state)
+            self.project._sim_environment.set_entry_register_values(self.state)
             self.jump(self.project.entry)
         else:
             addr = self.initializers[0]

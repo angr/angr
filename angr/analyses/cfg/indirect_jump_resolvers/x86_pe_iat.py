@@ -10,7 +10,7 @@ class X86PeIatResolver(IndirectJumpResolver):
         super(X86PeIatResolver, self).__init__(project, timeless=True)
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
-        if not isinstance(self.project._simos, angr.simos.SimWindows):
+        if not isinstance(self.project._sim_environment, angr.environments.SimWindows):
             return False
         if jumpkind != "Ijk_Call":
             return False

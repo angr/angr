@@ -55,7 +55,7 @@ class SimEngine(object):
         except SimException:
             if o.EXCEPTION_HANDLING not in old_state.options:
                 raise
-            old_state.project._simos.handle_exception(successors, self, *sys.exc_info())
+            old_state.project._sim_environment.handle_exception(successors, self, *sys.exc_info())
 
         new_state._inspect('engine_process', when=BP_AFTER, sim_successors=successors)
         successors = new_state._inspect_getattr('sim_successors', successors)

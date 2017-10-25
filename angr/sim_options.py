@@ -234,7 +234,7 @@ STRICT_PAGE_ACCESS = "STRICT_PAGE_ACCESS"
 # Raise a SimSegfaultError when executing nonexecutable memory
 ENABLE_NX = "ENABLE_NX"
 
-# Ask the SimOS to handle segfaults
+# Ask the SimEnvironment to handle segfaults
 EXCEPTION_HANDLING = "EXCEPTION_HANDLING"
 
 # Use system timestamps in simprocedures instead of returning symbolic values

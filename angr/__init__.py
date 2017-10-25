@@ -29,7 +29,7 @@ from .errors import *
 #from .surveyor import *
 #from .service import *
 from .blade import Blade
-from .simos import SimOS
+from .sim_environment import SimEnvironment
 from .manager import SimulationManager
 from .analyses import Analysis, register_analysis
 from . import analyses

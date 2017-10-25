@@ -33,7 +33,7 @@ class Callable(object):
         self._toc = toc
         self._caller = None
         self._cc = cc if cc is not None else DEFAULT_CC[project.arch.name](project.arch)
-        self._deadend_addr = project._simos.return_deadend
+        self._deadend_addr = project._sim_environment.return_deadend
 
         self.result_path_group = None
         self.result_state = None

@@ -433,7 +433,7 @@ class Path(object):
                             block_size = None  # will not be used either
                             jumpkind = 'Ijk_Boring'
 
-                    elif self._project._simos.is_syscall_addr(bbl_addr):
+                    elif self._project._sim_environment.is_syscall_addr(bbl_addr):
                         # it's a syscall
                         block_size = None
                         jumpkind = 'Ijk_Ret'

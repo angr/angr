@@ -2,8 +2,8 @@ import angr
 
 class GetCommandLineA(angr.SimProcedure):
     def run(self):
-        return self.project._simos.acmdln_ptr
+        return self.project._sim_environment.acmdln_ptr
 
 class GetCommandLineW(angr.SimProcedure):
     def run(self):
-        return self.project._simos.wcmdln_ptr
+        return self.project._sim_environment.wcmdln_ptr

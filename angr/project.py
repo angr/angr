@@ -99,7 +99,7 @@ class Project(object):
                                         it with a simprocedure.
     :param exclude_sim_procedures_list: A list of functions to *not* wrap with simprocedures.
     :param arch:                        The target architecture (auto-detected otherwise).
-    :param simos:                       a SimOS class to use for this project.
+    :param sim_environment:             a SimEnvironment class to use for this project.
     :param bool translation_cache:      If True, cache translated basic blocks rather than re-translating them.
     :param support_selfmodifying_code:  Whether we aggressively support self-modifying code. When enabled, emulation
                                         will try to read code from the current state instead of the original memory,
@@ -126,7 +126,7 @@ class Project(object):
                  use_sim_procedures=True,
                  exclude_sim_procedures_func=None,
                  exclude_sim_procedures_list=(),
-                 arch=None, simos=None,
+                 arch=None, sim_environment=None,
                  load_options=None,
                  translation_cache=True,
                  support_selfmodifying_code=False,
@@ -213,11 +213,15 @@ class Project(object):
         if self.filename is not None:
             projects[self.filename] = self
 
-        # Step 4: determine the guest OS
-        if isinstance(simos, type) and issubclass(simos, SimOS):
-            self._simos = simos(self) #pylint:disable=invalid-name
-        elif simos is None:
-            self._simos = os_mapping[self.loader.main_object.os](self)
+        # Step 4: determine the SimEnvironment (while keeping backwards-compability)
+        if kwargs.get('simos', None) is not None:
+            l.warning("Project received deprecated \'simos\' argument. Use SimEnvironment instead")
+            sim_environment = kwargs['simos']
+        if isinstance(sim_environment, type) and issubclass(sim_environment, SimEnvironment):
+            self._sim_environment = SimEnvironment(self) #pylint:disable=invalid-name
+        elif sim_environment is None:
+            # Default to SimUserland when no environment is defined
+            self._sim_environment = os_mapping[self.loader.main_object.os](self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
 
@@ -226,7 +230,7 @@ class Project(object):
             self._register_object(obj)
 
         # Step 6: Run OS-specific configuration
-        self._simos.configure_project()
+        self._sim_environment.configure_project()
 
     def _register_object(self, obj):
         """
@@ -466,7 +470,7 @@ class Project(object):
             basic_addr = symbol_name
             symbol_name = None
 
-        hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=basic_addr)
+        hook_addr, _ = self._sim_environment.prepare_function_symbol(symbol_name, basic_addr=basic_addr)
 
         self.hook(hook_addr, obj, kwargs=kwargs, replace=replace)
         return hook_addr
@@ -490,7 +494,7 @@ class Project(object):
         if sym is None:
             l.warning("Could not find symbol %s", symbol_name)
             return False
-        hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
+        hook_addr, _ = self._sim_environment.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
         return self.is_hooked(hook_addr)
 
     def unhook_symbol(self, symbol_name):
@@ -507,7 +511,7 @@ class Project(object):
             l.warning("Not unhooking extern symbol %s", symbol_name)
             return False
 
-        hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
+        hook_addr, _ = self._sim_environment.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
         self.unhook(hook_addr)
 
     #
@@ -588,7 +592,8 @@ class Project(object):
 
 from .errors import AngrError
 from .factory import AngrObjectFactory
-from .simos import SimOS, os_mapping
+from .sim_environment import SimEnvironment
+from .environments.userland import os_mapping
 from .analyses.analysis import Analyses
 from .surveyors import Surveyors
 from .knowledge_base import KnowledgeBase

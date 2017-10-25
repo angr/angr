@@ -14,11 +14,11 @@ class SimEngineSyscall(SimEngine): #pylint:disable=abstract-method,arguments-dif
 
     def process(self, state, **kwargs):
         l.debug("Invoking system call handler")
-        sys_procedure = self.project._simos.syscall(state)
+        sys_procedure = self.project._sim_environment.syscall(state)
 
         if sys_procedure is None:
             if angr.sim_options.BYPASS_UNSUPPORTED_SYSCALL not in state.options:
-                raise AngrUnsupportedSyscallError("Trying to perform a syscall on an emulated system which is not currently cofigured to support syscalls. To resolve this, make sure that your SimOS is a subclass of SimUserspace, or set the BYPASS_UNSUPPORTED_SYSCALL state option.")
+                raise AngrUnsupportedSyscallError("Trying to perform a syscall on an emulated system which is not currently cofigured to support syscalls. To resolve this, make sure that your SimEnvironment is a subclass of SimUserland, or set the BYPASS_UNSUPPORTED_SYSCALL state option.")
             else:
                 try:
                     cc = angr.SYSCALL_CC[state.arch.name][state.os_name](state.arch)

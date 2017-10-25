@@ -260,8 +260,8 @@ class SimSuccessors(object):
                         self.flat_successors.append(split_state)
                 else:
                     # We cannot resolve the syscall number
-                    # However, we still put it to the flat_successors list, and angr.SimOS.handle_syscall will pick it
-                    # up, and create a "unknown syscall" stub for it.
+                    # However, we still put it to the flat_successors list,
+                    # and angr.SimEnvironment.handle_syscall will pick it up, and create a "unknown syscall" stub for it
                     self._fix_syscall_ip(state)
                     self.flat_successors.append(state)
             except AngrUnsupportedSyscallError:
@@ -346,8 +346,8 @@ class SimSuccessors(object):
 
         try:
             bypass = o.BYPASS_UNSUPPORTED_SYSCALL in state.options
-            stub = state.project._simos.syscall(state, allow_unsupported=bypass)
-            if stub: # can be None if simos is not a subclass of SimUserspace
+            stub = state.project._sim_environment.syscall(state, allow_unsupported=bypass)
+            if stub: # can be None if sim_environment is not a subclass of SimUserland
                 state.ip = stub.addr # fix the IP
         except AngrUnsupportedSyscallError:
             pass # the syscall is not supported. don't do anything
