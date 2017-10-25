@@ -389,10 +389,10 @@ class SimMemory(SimStatePlugin):
         """
         if type(data_e) is str:
             # Convert the string into a BVV, *regardless of endness*
-            bits = len(data_e) * 8
+            bits = len(data_e) * self.state.arch.byte_width
             data_e = self.state.se.BVV(data_e, bits)
         elif type(data_e) in (int, long):
-            data_e = self.state.se.BVV(data_e, size_e*8 if size_e is not None
+            data_e = self.state.se.BVV(data_e, size_e*self.state.arch.byte_width if size_e is not None
                                        else self.state.arch.bits)
         else:
             data_e = data_e.raw_to_bv()
@@ -548,7 +548,7 @@ class SimMemory(SimStatePlugin):
 
         if not disable_actions:
             if request.completed and o.AUTO_REFS in self.state.options and action is None and not self._abstract_backer:
-                ref_size = size * 8 if size is not None else data_e.size()
+                ref_size = size * self.state.arch.byte_width if size is not None else data_e.size()
                 region_type = self.category
                 if region_type == 'file':
                     # Special handling for files to keep compatibility
@@ -605,7 +605,7 @@ class SimMemory(SimStatePlugin):
 
         # if fallback is not provided by user, load it from memory
         # remember to specify the endianness!
-        fallback_e = self.load(addr, max_bits/8, add_constraints=add_constraints, endness=endness) \
+        fallback_e = self.load(addr, max_bits//self.state.arch.byte_width, add_constraints=add_constraints, endness=endness) \
             if fallback_e is None else fallback_e
 
         req = self._store_cases(addr_e, contents_e, conditions_e, fallback_e, endness=endness)
@@ -712,7 +712,7 @@ class SimMemory(SimStatePlugin):
                 size_e = size
 
         if size is None:
-            size = self.state.arch.bits / 8
+            size = self.state.arch.bits // self.state.arch.byte_width
             size_e = size
 
         if inspect is True:
@@ -778,7 +778,7 @@ class SimMemory(SimStatePlugin):
                 r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
             if o.AUTO_REFS in self.state.options and action is None:
-                ref_size = size * 8 if size is not None else r.size()
+                ref_size = size * self.state.arch.byte_width if size is not None else r.size()
                 region_type = self.category
                 if region_type == 'file':
                     # Special handling for files to keep compatibility
@@ -834,7 +834,7 @@ class SimMemory(SimStatePlugin):
 
         if isinstance(what, str):
             # Convert it to a BVV
-            what = claripy.BVV(what, len(what) * 8)
+            what = claripy.BVV(what, len(what) * self.state.arch.byte_width)
 
         r,c,m = self._find(addr, what, max_search=max_search, max_symbolic_bytes=max_symbolic_bytes, default=default,
                            step=step)

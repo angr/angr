@@ -349,6 +349,7 @@ class SimVariableSet(collections.MutableSet):
         # representing register offsets..
         # There shouldn't be any problem apart from GetI/PutI instructions. We simply ignore them for now.
         # TODO: Take care of register offsets that are not aligned to (arch.bits/8)
+        # TODO: arch.bits/what? That number has no power here anymore.
         self.register_variable_offsets = set()
 
         # memory_variables holds SimMemoryVariable objects

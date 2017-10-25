@@ -17,6 +17,8 @@ from .state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger("angr.calling_conventions")
 
+# TODO: This file contains explicit and implicit byte size assumptions all over. A good attempt to fix them was made.
+# If your architecture hails from the astral plane, and you're reading this, start fixing here.
 
 class PointerWrapper(object):
     def __init__(self, value):
@@ -31,13 +33,13 @@ class AllocHelper(object):
 
     def dump(self, val, state, endness='Iend_BE'):
         if self.grow_like_stack:
-            self.ptr -= val.length / 8
+            self.ptr -= val.length // state.arch.byte_width
             state.memory.store(self.ptr, val, endness=endness)
             return self.ptr.reversed if self.reverse_result else self.ptr
         else:
             state.memory.store(self.ptr, val, endness=endness)
             out = self.ptr
-            self.ptr += val.length / 8
+            self.ptr += val.length // state.arch.byte_width
             return out.reversed if self.reverse_result else out
 
 
@@ -135,17 +137,18 @@ class SimComboArg(SimFunctionArgument):
         return type(other) is SimComboArg and all(a == b for a, b in zip(self.locations, other.locations))
 
     def set_value(self, state, value, endness=None, **kwargs):
+        # TODO: This code needs to be reworked for variable byte with and the Third Endness
         self.check_value(value)
         if endness is None: endness = state.arch.memory_endness
         if isinstance(value, (int, long)):
-            value = claripy.BVV(value, self.size*8)
+            value = claripy.BVV(value, self.size*state.arch.byte_width)
         elif isinstance(value, float):
             if self.size not in (4, 8):
                 raise ValueError("What do I do with a float %d bytes long" % self.size)
             value = claripy.FPV(value, claripy.FSORT_FLOAT if self.size == 4 else claripy.FSORT_DOUBLE)
         cur = 0
         for loc in reversed(self.locations):
-            loc.set_value(state, value[cur*8 + loc.size*8 - 1:cur*8], endness=endness, **kwargs)
+            loc.set_value(state, value[cur*state.arch.byte_width + loc.size*state.arch.byte_width - 1:cur*state.arch.byte_width], endness=endness, **kwargs)
             cur += loc.size
 
     def get_value(self, state, endness=None, **kwargs):
@@ -504,7 +507,7 @@ class SimCC(object):
         for i, (arg, val) in enumerate(zip(args, vals)):
             if self.is_fp_value(arg) or \
                     (self.func_ty is not None and isinstance(self.func_ty.args[i], SimTypeFloat)):
-                arg_locs[i] = arg_session.next_arg(is_fp=True, size=val.length/8)
+                arg_locs[i] = arg_session.next_arg(is_fp=True, size=val.length // state.arch.byte_width)
                 continue
             if val.length > state.arch.bits or (self.func_ty is None and isinstance(arg, (str, unicode, list, tuple))):
                 vals[i] = allocator.dump(val, state)
@@ -513,7 +516,7 @@ class SimCC(object):
                     vals[i] = val.concat(claripy.BVV(0, state.arch.bits - val.length))
                 else:
                     vals[i] = claripy.BVV(0, state.arch.bits - val.length).concat(val)
-            arg_locs[i] = arg_session.next_arg(is_fp=False, size=vals[i].length/8)
+            arg_locs[i] = arg_session.next_arg(is_fp=False, size=vals[i].length // state.arch.byte_width)
 
         if alloc_base is None:
             state.regs.sp = allocator.ptr
@@ -584,7 +587,7 @@ class SimCC(object):
         if loc is None:
             raise NotImplementedError("This SimCC doesn't know how to get this value - should be implemented")
 
-        val = loc.get_value(state, stack_base=stack_base, size=None if ty is None else ty.size/8)
+        val = loc.get_value(state, stack_base=stack_base, size=None if ty is None else ty.size//state.arch.byte_width)
         if self.is_fp_arg(loc) or self.is_fp_value(val) or isinstance(ty, SimTypeFloat):
             val = val.raw_to_fp()
         return val
@@ -774,6 +777,7 @@ class SimLyingRegArg(SimRegArg):
     A register that LIES about the types it holds
     """
     def __init__(self, name):
+        # TODO: This looks byte-related.  Make sure to use Arch.byte_width
         super(SimLyingRegArg, self).__init__(name, 8)
 
     def get_value(self, state, size=None, endness=None, **kwargs):
