@@ -2368,7 +2368,7 @@ class Reassembler(Analysis):
                            ".text"
                            )
 
-            if section in ('.got', '.plt', 'init', 'fini'):
+            if section in ('.got', '.plt', 'init', 'fini', '.plt.got'):
                 continue
 
             procedure = Procedure(self, f, section=section)
