@@ -105,22 +105,22 @@ def perform_single(binary_path, cfg_path=None):
     else:
         l.warning("No standard CFG specified.")
 
-def break_cfg_0():
+def disabled_cfg_0():
     binary_path = test_location + "/x86_64/cfg_0"
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
 
-def break_cfg_1():
+def disabled_cfg_1():
     binary_path = test_location + "/x86_64/cfg_1"
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
 
-def break_cfg_2():
+def disabled_cfg_2():
     binary_path = test_location + "/armel/test_division"
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
 
-def break_cfg_3():
+def disabled_cfg_3():
     binary_path = test_location + "/mips/test_arrays"
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
