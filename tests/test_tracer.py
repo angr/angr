@@ -4,6 +4,7 @@ import angr
 import rex.trace_additions
 import gc
 import tracer
+from nose.plugins.attrib import attr
 
 import logging
 logging.getLogger("angr.state_plugins.preconstrainer").setLevel("DEBUG")
@@ -31,8 +32,9 @@ def test_recursion():
 
     simgr.run()
 
-    print simgr.stashes, c._last_state, t._predecessors[0]
+    print simgr.stashes, c.last_state, t._predecessors[0]
 
+@attr(speed='slow')
 def test_cache_stall():
     # test a valid palindrome
     b = os.path.join(bin_location, "tests/cgc/CROMU_00071")
@@ -96,7 +98,7 @@ def test_manual_recursion():
     simgr.use_technique(angr.exploration_techniques.Oppologist())
 
     simgr.run()
-    print simgr.stashes, c._last_state, t._predecessors[0]
+    print simgr.stashes, c.last_state, t._predecessors[0]
 
 def test_cgc_se1_palindrome_raw():
     b = os.path.join(bin_location, "tests/cgc/sc1_0b32aa01_01")
