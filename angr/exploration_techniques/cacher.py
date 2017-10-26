@@ -42,22 +42,18 @@ class Cacher(ExplorationTechnique):
         if os.path.exists(self._cache_file):
             l.warning("Loading from cache file %s...", self._cache_file)
 
-            with open(self._cache_file) as f:
-                self._load_func(simgr)
-            os.remove(self._cache_file)
+            self._load_func(simgr)
 
     def step(self, simgr, stash, **kwargs):
-        simgr.step(stash=stash, **kwargs)
-        for s in simgr.stashes[stash]:
-            if self._dump_cond(s):
-                self._dump_func(simgr, stash)
-                break
-        return simgr
-        
+        if any(self._dump_cond(s) for s in simgr.stashes[stash]):
+            self._dump_func(simgr, stash)
+        return simgr.step(stash=stash, **kwargs)
+
     def _load_stash(self, simgr):
         with open(self._cache_file) as f:
             stash = pickle.load(f)
         simgr.active = stash
+        os.remove(self._cache_file)
 
     def _dump_stash(self, simgr, stash):
         if self._dump_cache:
