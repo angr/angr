@@ -8,7 +8,6 @@ from collections import defaultdict
 from archinfo import ArchARM, ArchMIPS32, ArchMIPS64, ArchX86, ArchAMD64, ArchPPC32, ArchPPC64, ArchAArch64
 from cle import MetaELF, BackedCGC
 from cle.address_translator import AT
-from tracer.tracerpov import TracerPoV
 from elftools.elf.descriptions import _DESCR_EI_OSABI
 
 import claripy
@@ -223,6 +222,8 @@ class SimOS(object):
 
     def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
                      preconstrain_flag=True, constrained_addrs=None, **kwargs):
+        from tracer.tracerpov import TracerPoV
+
         if input_content is None:
             return self.state_full_init(**kwargs)
 
