@@ -3,10 +3,7 @@ import logging
 
 from . import ExplorationTechnique
 
-from .. import SIM_LIBRARIES, BP_AFTER, BP_BEFORE
-
-from ..calling_conventions import SYSCALL_CC
-from ..misc.tracer.simprocedures import receive
+from .. import BP_AFTER, BP_BEFORE
 
 l = logging.getLogger("angr.exploration_techniques.crash_monitor")
 
