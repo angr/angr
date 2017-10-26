@@ -28,7 +28,7 @@ from .state_plugins import SimStateSystem, SimActionData, SimStatePreconstrainer
 from .calling_conventions import DEFAULT_CC, SYSCALL_CC
 from .procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
 from . import sim_options as o
-from .storage.file import SimFile
+from .storage.file import SimFile, SimDialogue
 
 l = logging.getLogger("angr.simos")
 
@@ -222,16 +222,13 @@ class SimOS(object):
 
     def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
                      preconstrain_flag=True, constrained_addrs=None, **kwargs):
-        from tracer.tracerpov import TracerPoV
 
         if input_content is None:
             return self.state_full_init(**kwargs)
 
         if type(input_content) == str:
             fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=len(input_content))}
-        elif type(input_content) == TracerPoV:
-            fs = input_content.stdin
-        else:
+        elif type(input_content) != SimDialogue:
             raise TracerEnvironmentError("Input for tracer should be either a string or a TracerPoV for CGC binaries.")
 
         kwargs['fs'] = kwargs.get('fs', fs)
