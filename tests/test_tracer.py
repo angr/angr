@@ -81,6 +81,7 @@ def test_cache_stall():
     nose.tools.assert_not_equal(crash_path, None)
     nose.tools.assert_not_equal(crash_state, None)
 
+@attr(speed='slow')
 def test_manual_recursion():
     b = os.path.join(bin_location, "tests/cgc", "CROMU_00071")
 
