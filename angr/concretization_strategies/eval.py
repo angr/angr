@@ -12,6 +12,6 @@ class SimConcretizationStrategyEval(SimConcretizationStrategy):
         super(SimConcretizationStrategyEval, self).__init__(**kwargs)
         self._limit = limit
 
-    def _concretize(self, memory, addr):
-        addrs = self._eval(memory, addr, self._limit)
+    def _concretize(self, memory, addr, extra_constraints=()):
+        addrs = self._eval(memory, addr, self._limit, extra_constraints=extra_constraints)
         return addrs

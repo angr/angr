@@ -12,11 +12,12 @@ class SimConcretizationStrategyNorepeats(SimConcretizationStrategy):
         self._repeat_constraints = [ ] if repeat_constraints is None else repeat_constraints
         self._repeat_expr = repeat_expr
 
-    def _concretize(self, memory, addr):
-        c = self._any(
-            memory, addr,
-            extra_constraints = self._repeat_constraints + [ addr == self._repeat_expr ]
-        )
+    def _concretize(self, memory, addr, extra_constraints=()):
+        if extra_constraints:
+            constraints = self._repeat_constraints + [ addr == self._repeat_expr ] + extra_constraints
+        else:
+            constraints = self._repeat_constraints + [ addr == self._repeat_expr ]
+        c = self._any( memory, addr, extra_constraints=constraints )
         self._repeat_constraints.append(self._repeat_expr != c)
         return [ c ]
 

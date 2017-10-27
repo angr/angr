@@ -13,7 +13,7 @@ class SimConcretizationStrategyControlledData(SimConcretizationStrategy):
         self._limit = limit
         self._fixed_addrs = fixed_addrs
 
-    def _concretize(self, memory, addr):
+    def _concretize(self, memory, addr, extra_constraints=()):
         # Get all symbolic variables in memory
         symbolic_vars = filter(lambda key: not key.startswith("reg_") and not key.startswith("mem_"), memory.state.memory.mem._name_mapping.keys())
         controlled_addrs = sorted([_addr for s_var in symbolic_vars for _addr in memory.addrs_for_name(s_var)])
@@ -40,7 +40,11 @@ class SimConcretizationStrategyControlledData(SimConcretizationStrategy):
 
         # try to get solutions for controlled memory
         ored_constraints = memory.state.se.Or(*constraints)
-        solutions = self._eval(memory, addr, self._limit, extra_constraints=(ored_constraints,))
+        if extra_constraints:
+            final_constraints = [ ored_constraints ] + extra_constraints
+        else:
+            final_constraints = [ ored_constraints ]
+        solutions = self._eval(memory, addr, self._limit, extra_constraints=final_constraints)
         if not solutions:
             solutions = None
         return solutions
