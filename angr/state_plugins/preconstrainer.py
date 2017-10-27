@@ -83,7 +83,7 @@ class SimStatePreconstrainer(SimStatePlugin):
             for b in self._input_content:
                 self._preconstrain(b, stdin.read_from(1))
 
-        elif type(self._input_content) != SimDialogue:  # a PoV, need to navigate the dialogue
+        elif type(self._input_content) == SimDialogue:  # a PoV, need to navigate the dialogue
             for write in self._input_content.writes:
                 for b in write:
                     self._preconstrain(b, stdin.read_from(1))
