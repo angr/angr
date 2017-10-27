@@ -1,5 +1,4 @@
 import os
-import hashlib
 import logging
 import pickle
 
@@ -36,43 +35,45 @@ class Cacher(ExplorationTechnique):
 
         if self._cache_file is None:
             binary = self.project.filename
-            binhash = hashlib.md5(open(binary).read()).hexdigest()
-            self._cache_file = os.path.join("/tmp", "%s-%s.tcache" % (os.path.basename(binary), binhash))
+            self._cache_file = os.path.join("/tmp", "%s.cache" % os.path.basename(binary))
 
         if os.path.exists(self._cache_file):
-            l.warning("Loading from cache file %s...", self._cache_file)
+            l.warning("Loading from %s...", self._cache_file)
 
-            self._load_func(simgr)
+            with open(self._cache_file) as f:
+                self._load_func(f, simgr)
+            os.remove(self._cache_file)
 
     def step(self, simgr, stash, **kwargs):
-        if any(self._dump_cond(s) for s in simgr.stashes[stash]):
-            self._dump_func(simgr, stash)
-        return simgr.step(stash=stash, **kwargs)
-
-    def _load_stash(self, simgr):
-        with open(self._cache_file) as f:
-            stash = pickle.load(f)
-        simgr.active = stash
-        os.remove(self._cache_file)
-
-    def _dump_stash(self, simgr, stash):
-        if self._dump_cache:
+        if any(self._dump_cond(s) for s in simgr.stashes[stash]) and self._dump_cache:
             l.warning("Caching to %s...", self._cache_file)
-            f = open(self._cache_file, 'wb')
 
+            f = open(self._cache_file, 'wb')
             try:
-                # Do not pickle project
-                for s in simgr.stashes[stash]:
-                    s.project = None
-                    s.history.trim()
-                try:
-                    pickle.dump(simgr.stashes[stash], f, pickle.HIGHEST_PROTOCOL)
-                except RuntimeError as e: # maximum recursion depth can be reached here
-                    l.error("Unable to cache, '%s' during pickling", e.message)
-                finally:
-                    for s in simgr.stashes[stash]:
-                        s.project = self.project
+                self._dump_func(f, simgr, stash)
             finally:
                 if f:
                     f.close()
+
             self._dump_cache = False
+
+        return simgr.step(stash=stash, **kwargs)
+
+    @staticmethod
+    def _load_stash(f, simgr):
+        stash = pickle.load(f)
+        simgr.active = stash
+
+    @staticmethod
+    def _dump_stash(f, simgr, stash):
+        # Do not pickle project
+        for s in simgr.stashes[stash]:
+            s.project = None
+            s.history.trim()
+        try:
+            pickle.dump(simgr.stashes[stash], f, pickle.HIGHEST_PROTOCOL)
+        except RuntimeError as e: # maximum recursion depth can be reached here
+            l.error("Unable to cache, '%s' during pickling", e.message)
+        finally:
+            for s in simgr.stashes[stash]:
+                s.project = simgr._project
