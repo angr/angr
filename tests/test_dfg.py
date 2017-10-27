@@ -20,12 +20,12 @@ def perform_one(binary_path):
                         load_options={'auto_load_libs': False},
                         )
     start = time.time()
-    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=2)
+    cfg = proj.analyses.CFGAccurate(context_sensitivity_level=2, fail_fast=True)
     end = time.time()
     duration = end - start
     l.info("CFG generated in %f seconds.", duration)
 
-    dfg = proj.analyses.DFG(cfg=cfg)
+    dfg = proj.analyses.DFG(cfg=cfg, fail_fast=True)
     nose.tools.assert_true(len(dfg.dfgs) <= len(cfg.nodes()))
     for addr, d in dfg.dfgs.items():
         nose.tools.assert_true(cfg.get_any_node(addr) is not None)
