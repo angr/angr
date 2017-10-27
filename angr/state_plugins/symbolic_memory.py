@@ -666,7 +666,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
                 return req
             if options.CONCRETIZE_SYMBOLIC_WRITE_SIZES in self.state.options:
                 new_size = self.state.solver.eval(req.size)
-                req.constraints.append(req.size == new_size)
+                self.state.add_constraints(req.size == new_size)
                 req.size = new_size
 
         if self.state.solver.symbolic(req.addr) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
@@ -676,7 +676,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             raise SimMemoryError("Not enough data for requested storage size (size: {}, data: {})".format(req.size, req.data))
 
         if self.state.solver.symbolic(req.size):
-            req.constraints += [self.state.solver.ULE(req.size, max_bytes)]
+            self.state.add_constraints(self.state.solver.ULE(req.size, max_bytes))
 
 
         #
