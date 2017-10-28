@@ -2,13 +2,14 @@ import logging
 from collections import defaultdict
 
 import networkx
-from . import Analysis, register_analysis
 
 from .. import SIM_PROCEDURES
 from .. import options as o
 from ..knowledge_base import KnowledgeBase
 from ..errors import AngrError, AngrCFGError
 from ..manager import SimulationManager
+from ..misc.graph import shallow_reverse
+from . import Analysis, register_analysis
 
 l = logging.getLogger("angr.analyses.veritesting")
 
@@ -577,7 +578,7 @@ class Veritesting(Analysis):
         """
 
         graph = networkx.DiGraph(cfg.graph)
-        reversed_cyclic_graph = networkx.reverse(graph_with_loops)
+        reversed_cyclic_graph = shallow_reverse(graph_with_loops)
 
         # Remove all "FakeRet" edges
         fakeret_edges = [
