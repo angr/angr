@@ -3371,7 +3371,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     nodecode = True
 
                 if (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode') and \
-                        self.project.arch.name in ('ARMHF', 'ARMEL'):
+                        self.project.arch.name in ('ARMHF', 'ARMEL') and \
+                        self._arch_options.switch_mode_on_nodecode:
                     # maybe the current mode is wrong?
                     nodecode = False
                     if addr % 2 == 0:

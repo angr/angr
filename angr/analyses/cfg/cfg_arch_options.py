@@ -15,12 +15,19 @@ class CFGArchOptions(object):
     :ivar dict _options: Values of all CFG options that are specific to the current architecture.
     """
 
+    # option name: (option value type, default option value)
+
     OPTIONS = {
         'ARMEL': {
-            'ret_jumpkind_heuristics': (bool, True),  # option name: (option value type, default option value)
+            # Whether to perform some simple heuristics to detect returns that are incorrectly labeled as boring
+            # branches by VEX
+            'ret_jumpkind_heuristics': (bool, True),
+            # Whether to switch between ARM mode and THUMB mode when VEX fails to decode a block
+            'switch_mode_on_nodecode': (bool, False),
         },
         'ARMHF': {
             'ret_jumpkind_heuristics': (bool, True),
+            'switch_mode_on_nodecode': (bool, False),
         },
     }
 
