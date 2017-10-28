@@ -619,6 +619,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  base_state=None,
                  exclude_sparse_regions=True,
                  skip_specific_regions=True,
+                 heuristic_plt_resolving=None,
                  start=None,  # deprecated
                  end=None,  # deprecated
                  **extra_arch_options
@@ -728,6 +729,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._use_function_prologues = function_prologues
         self._resolve_indirect_jumps = resolve_indirect_jumps
         self._force_complete_scan = force_complete_scan
+
+        if heuristic_plt_resolving is None:
+            # If unspecified, we only enable heuristic PLT resolving when there is at least one binary loaded with the
+            # ELF backend
+            self._heuristic_plt_resolving = len(self.project.loader.all_elf_objects) > 0
+        else:
+            self._heuristic_plt_resolving = heuristic_plt_resolving
 
         self._start_at_entry = start_at_entry
         self._extra_function_starts = function_starts
@@ -1765,7 +1773,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 else:
                     resolved_as_plt = False
 
-                    if irsb:
+                    if irsb and self._heuristic_plt_resolving:
                         # Test it on the initial state. Does it jump to a valid location?
                         # It will be resolved only if this is a .plt entry
                         resolved_as_plt = self._resolve_plt(addr, irsb, ij)
