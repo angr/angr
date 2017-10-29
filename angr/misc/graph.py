@@ -15,8 +15,8 @@ def shallow_reverse(g):
 
     new_g = networkx.DiGraph()
 
-    new_g.add_nodes_from(g.nodes)
+    new_g.add_nodes_from(g.nodes())
     for src, dst, data in g.edges(data=True):
-        new_g.add_edge(src, dst, **data)
+        new_g.add_edge(dst, src, **data)
 
     return new_g
