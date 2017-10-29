@@ -912,7 +912,7 @@ class SimWindows(SimOS):
                 if '"' in arg or '\0' in arg:
                     raise AngrSimOSError("Can't handle windows args with quotes or nulls in them")
                 arg = claripy.BVV(arg)
-            elif isinstance(arg, claripy.BV):
+            elif isinstance(arg, claripy.ast.BV):
                 for byte in arg.chop(8):
                     state.solver.add(byte != claripy.BVV('"'))
                     state.solver.add(byte != claripy.BVV(0, 8))
