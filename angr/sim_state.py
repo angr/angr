@@ -4,7 +4,7 @@ import functools
 import itertools
 import contextlib
 import weakref
-
+import collections
 import logging
 l = logging.getLogger("angr.sim_state")
 
@@ -435,6 +435,20 @@ class SimState(ana.Storable): # pylint: disable=R0904
         :return: A SimSuccessors object categorizing the results of the step.
         """
         return self.project.factory.successors(self, **kwargs)
+
+    def detect_loops(self, n=None):
+        mc1 = self.callstack.top.block_counter.most_common()
+        mc2 = collections.Counter([l for l in self.history.descriptions]).most_common()
+        if len(mc1) == 0 and len(mc2) ==0 :
+            return None
+        elif len(mc2) == 0 and len(mc1) > 0:
+            return mc1[0][1]
+        elif len(mc2) >0  and len(mc1) ==0:
+            return mc2[0][1]
+        elif mc1[0][1]>mc2[0][1]:
+            return mc1[0][1]
+        else:
+            return mc2[0][1]
 
     def block(self, *args, **kwargs):
         """
