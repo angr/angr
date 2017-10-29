@@ -8,9 +8,8 @@ def test_looplimiter():
     p = angr.Project(os.path.join(location, "x86_64/test_loops"))
     pg = p.factory.simgr()
     tech = angr.exploration_techniques.LoopLimiter(count = 5)
-    pg.use_technique(tech) 
+    pg.use_technique(tech)
     pg.explore()
     nose.tools.assert_equal(len(pg.stashes['spinning']), 1)
-
 if __name__ == '__main__':
     test_looplimiter()
