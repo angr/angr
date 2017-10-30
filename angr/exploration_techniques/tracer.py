@@ -1,11 +1,18 @@
+import angr
+import claripy
+
+import os
+import pickle
+import hashlib
 import logging
 
-from . import ExplorationTechnique
+from . import ExplorationTechnique, Cacher
 
 from .. import BP_BEFORE
 
 from ..calling_conventions import SYSCALL_CC
 from ..errors import AngrTracerError, SimMemoryError, SimEngineError
+from ..storage.file import SimFile
 
 l = logging.getLogger("angr.exploration_techniques.tracer")
 
@@ -20,10 +27,11 @@ class Tracer(ExplorationTechnique):
     state can be found with CrashMonitor exploration technique.
     """
 
-    def __init__(self, trace=None, resiliency=True, dump_syscall=False, keep_predecessors=1):
+    def __init__(self, trace=None, resiliency=True, dump_cache=True, dump_syscall=False, keep_predecessors=1):
         """
         :param trace            : The basic block trace.
         :param resiliency       : Should we continue to step forward even if qemu and angr disagree?
+        :param dump_cache       : True if we want to dump data to cache.
         :param dump_syscall     : True if we want to dump the syscall information.
         :param keep_predecessors: Number of states before the final state we should preserve.
                                   Default 1, must be greater than 0.
@@ -46,6 +54,9 @@ class Tracer(ExplorationTechnique):
         if self._dump_syscall:
             self._syscalls = []
 
+        self._dump_cache = dump_cache
+        self._cacher = None
+
     def setup(self, simgr):
         self.project = simgr._project
         s = simgr.active[0]
@@ -62,6 +73,22 @@ class Tracer(ExplorationTechnique):
                 simgr = simgr.explore(find=self.project.entry)
                 simgr = simgr.drop(stash="unsat")
                 simgr = simgr.unstash(from_stash="found",to_stash="active")
+
+        if self._dump_cache and self.project.loader.main_object.os == 'cgc':
+            binary = self.project.filename
+            binhash = hashlib.md5(open(binary).read()).hexdigest()
+            cache_file = os.path.join("/tmp", "%s-%s.tcache" % (os.path.basename(binary), binhash))
+            self._cacher = Cacher(when=self._tracer_cache_cond,
+                                  cache_file=cache_file,
+                                  dump_func=self._tracer_dump,
+                                  load_func=self._tracer_load)
+
+            simgr.use_technique(self._cacher)
+
+            # If we're restoring from a cache, we preconstrain. If we're not restoring from a cache,
+            # the cacher will preconstrain.
+            if os.path.exists(cache_file):
+                simgr.one_active.preconstrainer.preconstrain_state()
 
     def complete(self, simgr):
         all_paths = simgr.active + simgr.deadended
@@ -137,7 +164,7 @@ class Tracer(ExplorationTechnique):
                             self._trace[current.globals['bb_cnt']],
                             current.addr)
 
-                    l.error("inputs was %r", current.preconstrainer._input_content)
+                    l.error("inputs was %r", current.preconstrainer.input_content)
                     if self._resiliency:
                         l.error("TracerMisfollowError encountered")
                         l.warning("entering no follow mode")
@@ -276,3 +303,57 @@ class Tracer(ExplorationTechnique):
         """
         plt = self.project.loader.main_object.sections_map['.plt']
         return addr >= plt.min_addr and addr <= plt.max_addr
+
+    @staticmethod
+    def _tracer_cache_cond(state):
+        if  state.history.jumpkind.startswith('Ijk_Sys'):
+            sys_procedure = state.project._simos.syscall(state)
+            if sys_procedure.display_name == 'receive' and state.se.eval(state.posix.files[0].pos) == 0:
+                return True
+        return False
+
+    @staticmethod
+    def _tracer_load(f, simgr):
+        preconstrainer = simgr.one_active.preconstrainer
+
+        if type(preconstrainer.input_content) == str:
+            fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=len(preconstrainer.input_content))}
+        else:
+            fs = preconstrainer.input_content.stdin
+
+        bb_cnt, state, claripy.ast.base.var_counter = pickle.load(f)
+
+        # Setting up the cached state
+        state.project = simgr._project
+
+        # Hookup the new files
+        for name in fs:
+            fs[name].set_state(state)
+            for fd in state.posix.files:
+                if state.posix.files[fd].name == name:
+                    state.posix.files[fd] = fs[name]
+                    break
+
+        state.register_plugin('preconstrainer', preconstrainer)
+        state.history.recent_block_count = 0
+        state.globals['bb_cnt'] = bb_cnt
+
+        # Setting the cached state to the simgr
+        simgr.stashes['active'] = [state]
+
+    @staticmethod
+    def _tracer_dump(f, simgr, stash):
+        # Do not pickle project
+        s = simgr.one_active
+        s.project = None
+        s.history.trim()
+
+        try:
+            pickle.dump((s.globals['bb_cnt'], s, claripy.ast.base.var_counter), f, pickle.HIGHEST_PROTOCOL)
+        except RuntimeError as e: # maximum recursion depth can be reached here
+            l.error("Unable to cache, '%s' during pickling", e.message)
+        finally:
+            s.project = simgr._project
+
+        # Add preconstraints to state
+        s.preconstrainer.preconstrain_state()
