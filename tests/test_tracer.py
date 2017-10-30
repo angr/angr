@@ -27,11 +27,8 @@ def test_recursion():
 
     simgr.run()
 
-    crash_path = t.predecessors[-1]
-    crash_state = simgr.one_crashed
-
-    nose.tools.assert_not_equal(crash_path, None)
-    nose.tools.assert_not_equal(crash_state, None)
+    nose.tools.assert_true('crashed' in simgr.stashes)
+    nose.tools.assert_true(simgr.crashed[0].se.symbolic(simgr.crashed[0].regs.ip))
 
 
 @slow_test
