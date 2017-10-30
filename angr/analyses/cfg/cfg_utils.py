@@ -45,7 +45,7 @@ class CFGUtils(object):
         in_degree_to_nodes = defaultdict(set)
 
         for node in graph.nodes():
-            in_degree = graph.in_degree[node]
+            in_degree = graph.in_degree(node)
             in_degree_to_nodes[in_degree].add(node)
             if in_degree > 1:
                 merge_points.add(node)

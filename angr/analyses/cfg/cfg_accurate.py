@@ -459,7 +459,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 loop_backedges.append(loop_backedge)
 
             # Create a common end node for all nodes whose out_degree is 0
-            end_nodes = [n for n in graph_copy.nodes() if graph_copy.out_degree[n] == 0]
+            end_nodes = [n for n in graph_copy.nodes() if graph_copy.out_degree(n) == 0]
             new_end_node = "end_node"
 
             if not end_nodes:
@@ -470,7 +470,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     graph_copy.remove_edge(first_cycle[0], first_cycle[0])
                 else:
                     graph_copy.remove_edge(first_cycle[0], first_cycle[1])
-                end_nodes = [n for n in graph_copy.nodes() if graph_copy.out_degree[n] == 0]
+                end_nodes = [n for n in graph_copy.nodes() if graph_copy.out_degree(n) == 0]
 
             for en in end_nodes:
                 graph_copy.add_edge(en, new_end_node)
