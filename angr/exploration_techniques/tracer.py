@@ -1,4 +1,3 @@
-import angr
 import claripy
 
 import os
@@ -278,7 +277,7 @@ class Tracer(ExplorationTechnique):
             args = SYSCALL_CC['X86']['CGC'](self.project.arch).get_args(state, 4)
         else:
             args = SYSCALL_CC[self.project.arch.name]['Linux'](self.project.arch).get_arbs(state, 4)
-
+            
         if args is not None:
             d = {'addr': syscall_addr}
             for i in xrange(4):
