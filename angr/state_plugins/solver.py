@@ -533,8 +533,6 @@ class SimSolver(SimStatePlugin):
     @ast_stripping_decorator
     @error_converter
     def satisfiable(self, extra_constraints=(), exact=None):
-       #if self.state.addr == 0x804a4df:
-       #    import ipdb; ipdb.set_trace()
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             er = self._solver.satisfiable(extra_constraints=self._adjust_constraint_list(extra_constraints))
             ar = self._solver.satisfiable(extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
