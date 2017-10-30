@@ -71,8 +71,6 @@ class SimStatePreconstrainer(SimStatePlugin):
             return
 
         l.debug("Preconstrain input is %r", self.input_content)
-
-        l.debug("Preconstrain input is %r", self.input_content)
         repair_entry_state_opts = False
         if o.TRACK_ACTION_HISTORY in self.state.options:
             repair_entry_state_opts = True
