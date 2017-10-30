@@ -42,7 +42,8 @@ class Cacher(ExplorationTechnique):
 
             with open(self._cache_file) as f:
                 self._load_func(f, simgr)
-            os.remove(self._cache_file)
+
+            self._dump_cache = False
 
     def step(self, simgr, stash, **kwargs):
         if any(self._dump_cond(s) for s in simgr.stashes[stash]) and self._dump_cache:
@@ -62,7 +63,9 @@ class Cacher(ExplorationTechnique):
     @staticmethod
     def _load_stash(f, simgr):
         stash = pickle.load(f)
-        simgr.active = stash
+        for s in stash:
+            s.project = simgr._project
+        simgr.stashes['active'] = [state]
 
     @staticmethod
     def _dump_stash(f, simgr, stash):
