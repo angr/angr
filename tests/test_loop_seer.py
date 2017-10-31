@@ -1,9 +1,11 @@
-import angr
-import nose.tools
 import os
 import sys
 
+import angr
+import nose.tools
+
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+
 
 def test_various_loops():
     p = angr.Project(os.path.join(test_location, 'x86_64', 'various_loops'))
@@ -77,6 +79,7 @@ def test_various_loops():
         l = p.analyses.LoopFinder(functions=[f]).loops[0]
         nose.tools.assert_equals(d.loop_data.trip_counts[l.entry.addr][0], 9)
 
+
 def test_loops():
     p = angr.Project(os.path.join(test_location, 'x86_64', 'test_loops'))
 
@@ -96,6 +99,7 @@ def test_loops():
     nose.tools.assert_equals(simgr.deadended[0].loop_data.trip_counts[0x400675][0], 10)
     nose.tools.assert_equals(simgr.deadended[0].loop_data.trip_counts[0x4006b2][0], 100)
 
+
 def test_arrays():
     p = angr.Project(os.path.join(test_location, 'x86_64', 'test_arrays'))
 
@@ -112,6 +116,7 @@ def test_arrays():
     nose.tools.assert_equals(len(simgr.deadended[0].loop_data.trip_counts), 2)
     nose.tools.assert_equals(simgr.deadended[0].loop_data.trip_counts[0x400636][0], 26)
     nose.tools.assert_equals(simgr.deadended[0].loop_data.trip_counts[0x4005fd][0], 26)
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
