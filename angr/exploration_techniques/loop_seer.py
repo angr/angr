@@ -40,7 +40,7 @@ class LoopSeer(ExplorationTechnique):
 
         if type(loops) is Loop:
             loops = [loops]
-        
+
         if type(loops) in (list, tuple) and all(type(l) is Loop for l in loops):
             for loop in loops:
                 self.loops[loop.entry_edges[0][0].addr] = loop
@@ -53,7 +53,7 @@ class LoopSeer(ExplorationTechnique):
             cfg_kb = KnowledgeBase(self.project, self.project.loader.main_object)
             self.cfg = self.project.analyses.CFGFast(kb=cfg_kb, normalize=True)
         elif not self.cfg.normalized:
-            l.warning("LoopSeer uses normalized CFG. Recomputing the CFG...") 
+            l.warning("LoopSeer uses normalized CFG. Recomputing the CFG...")
             cfg.normalize()
             self.cfg = cfg
 
