@@ -76,6 +76,7 @@ class LoopSeer(ExplorationTechnique):
 
                 else:
                     raise TypeError("What type of function is it?")
+
         elif self.functions is None:
             func = None
 
