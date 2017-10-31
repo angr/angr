@@ -49,17 +49,18 @@ class LoopSeer(ExplorationTechnique):
 
     def setup(self, simgr):
         if self.cfg is None:
-            self.cfg = self.project.analyses.CFGFast(normalize=True)
+            cfg_kb = KnowledgeBase(self.project, self.project.loader.main_object)
+            self.cfg = self.project.analyses.CFGFast(kb=cfg_kb, normalize=True)
         elif not self.cfg.normalized:
             l.warning("LoopSeer uses normalized CFG. Recomputing the CFG...") 
             cfg.normalize()
             self.cfg = cfg
 
         if type(self.functions) is str:
-            func = [self.project.kb.functions.function(name=self.functions)]
+            func = [self.cfg.kb.functions.function(name=self.functions)]
 
         elif type(self.functions) is int:
-            func = [self.project.kb.functions.function(addr=self.functions)]
+            func = [self.cfg.kb.functions.function(addr=self.functions)]
 
         elif type(self.functions) is Function:
             func = [functions]
@@ -68,10 +69,10 @@ class LoopSeer(ExplorationTechnique):
             func = []
             for f in self.functions:
                 if type(f) is str:
-                    func.append(self.project.kb.functions.function(name=f))
+                    func.append(self.cfg.kb.functions.function(name=f))
 
                 elif type(f) is int:
-                    func.append(self.project.kb.functions.function(addr=f))
+                    func.append(self.cfg.kb.functions.function(addr=f))
 
                 elif type(f) is Function:
                     func.append(f)
@@ -85,7 +86,7 @@ class LoopSeer(ExplorationTechnique):
             raise TypeError("What type of function is it?")
 
         if not self.loops or func is not None:
-            loop_finder = self.project.analyses.LoopFinder(normalize=True, functions=func)
+            loop_finder = self.project.analyses.LoopFinder(kb=self.cfg.kb, normalize=True, functions=func)
 
             for loop in loop_finder.loops:
                 entry = loop.entry_edges[0][0]
