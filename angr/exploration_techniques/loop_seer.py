@@ -2,6 +2,8 @@ import logging
 from collections import defaultdict
 
 from . import ExplorationTechnique
+from .analyses.loopfinder import Loop
+from .knowledge_plugins.functions import Function
 
 
 l = logging.getLogger("angr.exploration_techniques.loop_seer")
@@ -35,10 +37,10 @@ class LoopSeer(ExplorationTechnique):
 
         self.loops = {}
 
-        if type(loops) == oop:
+        if type(loops) == Loop:
             loops = [loops]
         
-        if type(loops) in (list, tuple) and all(type(l) == oop for l in loops):
+        if type(loops) in (list, tuple) and all(type(l) == Loop for l in loops):
             for loop in loops:
                 self.loops[loop.entry_edges[0][0].addr] = loop
 
@@ -76,7 +78,6 @@ class LoopSeer(ExplorationTechnique):
 
                 else:
                     raise TypeError("What type of function is it?")
-
         elif self.functions is None:
             func = None
 
