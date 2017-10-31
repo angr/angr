@@ -1,7 +1,6 @@
 import logging
 from collections import defaultdict
 
-import angr
 from . import ExplorationTechnique
 
 
@@ -36,10 +35,10 @@ class LoopSeer(ExplorationTechnique):
 
         self.loops = {}
 
-        if type(loops) == angr.analyses.loopfinder.Loop:
+        if type(loops) == oop:
             loops = [loops]
         
-        if type(loops) in (list, tuple) and all(type(l) == angr.analyses.loopfinder.Loop for l in loops):
+        if type(loops) in (list, tuple) and all(type(l) == oop for l in loops):
             for loop in loops:
                 self.loops[loop.entry_edges[0][0].addr] = loop
 
@@ -60,7 +59,7 @@ class LoopSeer(ExplorationTechnique):
         elif type(self.functions) == int:
             func = [self.project.kb.functions.function(addr=self.functions)]
 
-        elif type(self.functions) == angr.knowledge_plugins.functions.Function:
+        elif type(self.functions) == Function:
             func = [functions]
 
         elif type(self.functions) in (list, tuple):
@@ -72,7 +71,7 @@ class LoopSeer(ExplorationTechnique):
                 elif type(f) == int:
                     func.append(self.project.kb.functions.function(addr=f))
 
-                elif type(f) == angr.knowledge_plugins.functions.Function:
+                elif type(f) == Function:
                     func.append(f)
 
                 else:
