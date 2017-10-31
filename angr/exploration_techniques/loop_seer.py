@@ -54,8 +54,7 @@ class LoopSeer(ExplorationTechnique):
             self.cfg = self.project.analyses.CFGFast(kb=cfg_kb, normalize=True)
         elif not self.cfg.normalized:
             l.warning("LoopSeer uses normalized CFG. Recomputing the CFG...")
-            cfg.normalize()
-            self.cfg = cfg
+            self.cfg.normalize()
 
         if type(self.functions) is str:
             func = [self.cfg.kb.functions.function(name=self.functions)]
@@ -64,7 +63,7 @@ class LoopSeer(ExplorationTechnique):
             func = [self.cfg.kb.functions.function(addr=self.functions)]
 
         elif type(self.functions) is Function:
-            func = [functions]
+            func = [self.functions]
 
         elif type(self.functions) in (list, tuple):
             func = []
