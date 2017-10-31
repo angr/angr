@@ -1,9 +1,9 @@
 import logging
 import copy as c
-
 from collections import defaultdict
 
 from .plugin import SimStatePlugin
+
 
 l = logging.getLogger('angr.state_plugins.loop_data')
 
@@ -38,5 +38,6 @@ class SimStateLoopData(SimStatePlugin):
     def copy(self):
         return SimStateLoopData(trip_counts=c.deepcopy(self.trip_counts),
                                 current_loop=list(self.current_loop))
+
 
 SimStateLoopData.register_default("loop_data", SimStateLoopData)

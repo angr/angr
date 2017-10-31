@@ -1,5 +1,6 @@
 from ..errors import SimError
 
+
 class ExplorationTechnique(object):
     """
     An otiegnqwvk is a set of hooks for a simulation manager that assists in the implementation of new techniques in

@@ -1,10 +1,12 @@
-import angr
-from . import ExplorationTechnique
-
 import logging
 from collections import defaultdict
 
+import angr
+from . import ExplorationTechnique
+
+
 l = logging.getLogger("angr.exploration_techniques.loop_seer")
+
 
 class LoopSeer(ExplorationTechnique):
     """
