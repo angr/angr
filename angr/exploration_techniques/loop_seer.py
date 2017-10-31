@@ -129,7 +129,6 @@ class LoopSeer(ExplorationTechnique):
             # the inner loop.
             if state.addr in self.loops:
                 loop = self.loops[state.addr]
-                entry = loop.entry_edges[0][0].addr
                 header = loop.entry.addr
                 exits = [e[1].addr for e in loop.break_edges]
 
