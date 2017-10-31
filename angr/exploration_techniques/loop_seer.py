@@ -100,8 +100,9 @@ class LoopSeer(ExplorationTechnique):
             # Processing a currently running loop
             if state.loop_data.current_loop:
                 loop = state.loop_data.current_loop[-1][0]
+                header = loop.entry.addr
 
-                if state.addr == loop.entry.addr:
+                if state.addr == header:
                     state.loop_data.trip_counts[state.addr][-1] += 1
 
                 elif state.addr in state.loop_data.current_loop[-1][1]:
@@ -110,7 +111,7 @@ class LoopSeer(ExplorationTechnique):
                     back_edge_dst = loop.continue_edges[0][1].addr
                     block = self.project.factory.block(back_edge_src)
                     if back_edge_src != back_edge_dst and back_edge_dst in block.instruction_addrs:
-                        state.loop_data.trip_counts[loop.entry.addr][-1] -= 1
+                        state.loop_data.trip_counts[header][-1] -= 1
 
                     state.loop_data.current_loop.pop()
 
@@ -118,9 +119,9 @@ class LoopSeer(ExplorationTechnique):
                     if self.bound_reached is not None:
                         simgr = self.bound_reached(simgr)
                     else:
-                        simgr.move(stash,
-                                   self.discard_stash,
-                                   lambda state: state.loop_data.trip_counts[loop.entry.addr][-1] >= self.bound)
+                        if state.loop_data.trip_counts[header][-1] >= self.bound:
+                            simgr.stashes[stash].remove(state)
+                            simgr.stashes[self.discard_stash].append(state)
 
                 l.debug("%s trip counts %s", state, state.loop_data.trip_counts)
 
