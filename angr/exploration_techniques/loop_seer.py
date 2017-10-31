@@ -1,5 +1,4 @@
 import logging
-from collections import defaultdict
 
 from . import ExplorationTechnique
 from ..analyses.loopfinder import Loop
