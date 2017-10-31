@@ -37,10 +37,10 @@ class LoopSeer(ExplorationTechnique):
 
         self.loops = {}
 
-        if type(loops) == Loop:
+        if type(loops) is Loop:
             loops = [loops]
         
-        if type(loops) in (list, tuple) and all(type(l) == Loop for l in loops):
+        if type(loops) in (list, tuple) and all(type(l) is Loop for l in loops):
             for loop in loops:
                 self.loops[loop.entry_edges[0][0].addr] = loop
 
@@ -55,25 +55,25 @@ class LoopSeer(ExplorationTechnique):
             cfg.normalize()
             self.cfg = cfg
 
-        if type(self.functions) == str:
+        if type(self.functions) is str:
             func = [self.project.kb.functions.function(name=self.functions)]
 
-        elif type(self.functions) == int:
+        elif type(self.functions) is int:
             func = [self.project.kb.functions.function(addr=self.functions)]
 
-        elif type(self.functions) == Function:
+        elif type(self.functions) is Function:
             func = [functions]
 
         elif type(self.functions) in (list, tuple):
             func = []
             for f in self.functions:
-                if type(f) == str:
+                if type(f) is str:
                     func.append(self.project.kb.functions.function(name=f))
 
-                elif type(f) == int:
+                elif type(f) is int:
                     func.append(self.project.kb.functions.function(addr=f))
 
-                elif type(f) == Function:
+                elif type(f) is Function:
                     func.append(f)
 
                 else:
