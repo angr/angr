@@ -2,8 +2,9 @@ import logging
 from collections import defaultdict
 
 from . import ExplorationTechnique
-from .analyses.loopfinder import Loop
-from .knowledge_plugins.functions import Function
+from ..analyses.loopfinder import Loop
+from ..knowledge_base import KnowledgeBase
+from ..knowledge_plugins.functions import Function
 
 
 l = logging.getLogger("angr.exploration_techniques.loop_seer")

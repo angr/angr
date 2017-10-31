@@ -84,6 +84,7 @@ def test_loops():
     p = angr.Project(os.path.join(test_location, 'x86_64', 'test_loops'))
 
     cfg = p.analyses.CFGAccurate(normalize=True)
+   #cfg = None
 
     state = p.factory.entry_state()
     state.register_plugin('loop_data', angr.state_plugins.SimStateLoopData())
@@ -127,4 +128,5 @@ if __name__ == "__main__":
 
         for k, v in g.iteritems():
             if k.startswith("test_") and hasattr(v, '__call__'):
+                print k
                 v()
