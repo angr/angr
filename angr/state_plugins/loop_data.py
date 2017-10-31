@@ -1,5 +1,5 @@
 import logging
-import copy as c
+import copy
 from collections import defaultdict
 
 from .plugin import SimStatePlugin
@@ -36,7 +36,7 @@ class SimStateLoopData(SimStatePlugin):
         return False
 
     def copy(self):
-        return SimStateLoopData(trip_counts=c.deepcopy(self.trip_counts),
+        return SimStateLoopData(trip_counts=copy.deepcopy(self.trip_counts),
                                 current_loop=list(self.current_loop))
 
 
