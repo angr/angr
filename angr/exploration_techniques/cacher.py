@@ -2,7 +2,6 @@ import os
 import pickle
 import logging
 
-
 from . import ExplorationTechnique
 
 
@@ -68,7 +67,7 @@ class Cacher(ExplorationTechnique):
         stash = pickle.load(f)
         for s in stash:
             s.project = simgr._project
-        simgr.stashes['active'] = [state]
+        simgr.stashes['active'] = stash
 
     @staticmethod
     def _dump_stash(f, simgr, stash):
