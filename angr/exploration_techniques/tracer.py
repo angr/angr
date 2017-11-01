@@ -26,11 +26,11 @@ class Tracer(ExplorationTechnique):
     state can be found with CrashMonitor exploration technique.
     """
 
-    def __init__(self, trace=None, resiliency=True, dump_cache=True, dump_syscall=False, keep_predecessors=1):
+    def __init__(self, trace=None, resiliency=True, use_cache=True, dump_syscall=False, keep_predecessors=1):
         """
         :param trace            : The basic block trace.
         :param resiliency       : Should we continue to step forward even if qemu and angr disagree?
-        :param dump_cache       : True if we want to dump data to cache.
+        :param use_cache        : True if we want to use caching system.
         :param dump_syscall     : True if we want to dump the syscall information.
         :param keep_predecessors: Number of states before the final state we should preserve.
                                   Default 1, must be greater than 0.
@@ -53,8 +53,7 @@ class Tracer(ExplorationTechnique):
         if self._dump_syscall:
             self._syscalls = []
 
-        self._dump_cache = dump_cache
-        self._cacher = None
+        self._use_cache = use_cache
 
     def setup(self, simgr):
         self.project = simgr._project
@@ -73,21 +72,22 @@ class Tracer(ExplorationTechnique):
                 simgr = simgr.drop(stash="unsat")
                 simgr = simgr.unstash(from_stash="found",to_stash="active")
 
-        if self._dump_cache and self.project.loader.main_object.os == 'cgc':
+        if self._use_cache and self.project.loader.main_object.os == 'cgc':
             binary = self.project.filename
             binhash = hashlib.md5(open(binary).read()).hexdigest()
             cache_file = os.path.join("/tmp", "%s-%s.tcache" % (os.path.basename(binary), binhash))
-            self._cacher = Cacher(when=self._tracer_cache_cond,
-                                  cache_file=cache_file,
-                                  dump_func=self._tracer_dump,
-                                  load_func=self._tracer_load)
+            cacher = Cacher(when=self._tracer_cache_cond,
+                            cache_file=cache_file,
+                            dump_func=self._tracer_dump,
+                            load_func=self._tracer_load)
 
-            simgr.use_technique(self._cacher)
+            simgr.use_technique(cacher)
 
             # If we're restoring from a cache, we preconstrain. If we're not restoring from a cache,
             # the cacher will preconstrain.
             if os.path.exists(cache_file):
                 simgr.one_active.preconstrainer.preconstrain_state()
+                simgr.remove_tech(cacher)
 
     def complete(self, simgr):
         all_paths = simgr.active + simgr.deadended
