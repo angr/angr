@@ -628,7 +628,7 @@ class SimCGC(SimUserland):
         # Special stack base for CGC binaries to work with Shellphish CRS
         s.regs.sp = 0xbaaaaffc
 
-        # Map the special cgc memory
+        # Map the special cgc memory - TODO: CGC specific - will this break anything else?
         if o.ABSTRACT_MEMORY not in s.options:
             s.memory.mem._preapproved_stack = IRange(0xbaaab000 - 1024*1024*8, 0xbaaab000)
             s.memory.map_region(0x4347c000, 4096, 1)

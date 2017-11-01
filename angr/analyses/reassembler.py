@@ -1,4 +1,3 @@
-
 import logging
 import re
 import string
@@ -2323,7 +2322,6 @@ class Reassembler(Analysis):
 
         l.debug('Generating CFG...')
         cfg = self.project.analyses.CFG(normalize=True, resolve_indirect_jumps=True, collect_data_references=True,
-                                        extra_memory_regions=[(0x4347c000, 0x4347c000 + 0x1000)],
                                         data_type_guessing_handlers=[
                                             self._sequence_handler,
                                             self._cgc_extended_application_handler,
@@ -2332,6 +2330,9 @@ class Reassembler(Analysis):
                                         )
 
         self.cfg = cfg
+
+        #print("Project arch is {}".format(self.project.arch))
+        # TODO: project.arch doens't have the capstone_x86_syntax (plus other issues) for PPC
 
         old_capstone_syntax = self.project.arch.capstone_x86_syntax
         if old_capstone_syntax is None:
