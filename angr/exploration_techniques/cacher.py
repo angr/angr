@@ -16,7 +16,7 @@ class Cacher(ExplorationTechnique):
     def __init__(self, when=None, dump_cache=True, cache_file=None, dump_func=None, load_func=None):
         """
         :param dump_cache: Whether to dump data to cache.
-        :param cache_file: File to cache data.
+        :param cache_file: File name format string to cache data.
         :param when      : If provided, should be a function that takes a SimulationManager and returns
                            a Boolean, or the address of the state to be cached.
         :param dump_func : If provided, should be a function that defines how Cacher should cache the
@@ -45,8 +45,6 @@ class Cacher(ExplorationTechnique):
             with open(self._cache_file) as f:
                 self._load_func(f, simgr)
 
-            self._dump_cache = False
-
     def step(self, simgr, stash, **kwargs):
         if any(self._dump_cond(s) for s in simgr.stashes[stash]) and self._dump_cache:
             l.warning("Caching to %s...", self._cache_file)
@@ -58,7 +56,7 @@ class Cacher(ExplorationTechnique):
                 if f:
                     f.close()
 
-            self._dump_cache = False
+            simgr.remove_tech(self)
 
         return simgr.step(stash=stash, **kwargs)
 
