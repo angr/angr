@@ -119,6 +119,23 @@ def test_arrays():
     nose.tools.assert_equals(simgr.deadended[0].loop_data.trip_counts[0x4005fd][0], 26)
 
 
+def test_loop_limiter():
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'test_arrays'))
+
+    cfg = p.analyses.CFGAccurate(normalize=True)
+
+    state = p.factory.entry_state()
+    state.register_plugin('loop_data', angr.state_plugins.SimStateLoopData())
+    simgr = p.factory.simgr(state)
+
+    simgr.use_technique(angr.exploration_techniques.LoopSeer(cfg=cfg, functions='main', bound=5))
+
+    simgr.run()
+
+    nose.tools.assert_true('spinning' in simgr.stashes)
+    nose.tools.assert_equals(simgr.spinning[0].loop_data.trip_counts[0x4005fd][0], 5)
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         globals()['test_' + sys.argv[1]]()
