@@ -109,7 +109,7 @@ class LoopSeer(ExplorationTechnique):
                     # This is for unoptimized while/for loops.
                     #
                     # 0x10812: movs r3, #0          -> this block dominates the loop
-                    # 0x10814: str  r3, [r7, #20] 
+                    # 0x10814: str  r3, [r7, #20]
                     # 0x10816: b    0x10868
                     # 0x10818: movs r3, #0          -> the real loop body starts here
                     # ...
