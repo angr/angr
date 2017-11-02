@@ -15,7 +15,8 @@ class SimStateLoopData(SimStatePlugin):
 
     def __init__(self, trip_counts=None, current_loop=None):
         """
-        :param trip_counts: Dictionary that stores trip counts for each loop.
+        :param trip_counts : Dictionary that stores trip counts for each loop. Keys are address of loop headers.
+        :param current_loop: List of currently running loops. Each element is a tuple (loop object, list of loop exits).
         """
 
         SimStatePlugin.__init__(self)

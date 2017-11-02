@@ -107,6 +107,16 @@ class LoopSeer(ExplorationTechnique):
 
                 elif state.addr in state.loop_data.current_loop[-1][1]:
                     # This is for unoptimized while/for loops.
+                    #
+                    # 0x10812: movs r3, #0          -> this block dominates the loop
+                    # 0x10814: str  r3, [r7, #20] 
+                    # 0x10816: b    0x10868
+                    # 0x10818: movs r3, #0          -> the real loop body starts here
+                    # ...
+                    # 0x10868: ldr  r3, [r7, #20]   -> the loop header is executed the first time without executing the loop body
+                    # 0x1086a: cmp  r3, #3
+                    # 0x1086c: ble  0x10818
+
                     back_edge_src = loop.continue_edges[0][0].addr
                     back_edge_dst = loop.continue_edges[0][1].addr
                     block = self.project.factory.block(back_edge_src)
