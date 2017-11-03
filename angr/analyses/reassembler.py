@@ -948,7 +948,7 @@ class BasicBlock(object):
 
 
         # Grab each set of instruction+next instruction
-        for cur_insn, nxt_insn in zip(self.instructions[::2], self.instructions[1::2]):
+        for cur_insn, nxt_insn in zip(self.instructions[:], self.instructions[1:]):
             # cur_ins msut be loading a constant into a register, e.g. lis r1 100
             # nxt_ins msut be adding a constant to that register, e.g., addi _, r1, 500
             # Operands must operate on seperate halves of destination register (unchecked for now)
