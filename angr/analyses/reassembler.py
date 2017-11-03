@@ -63,6 +63,11 @@ CAPSTONE_OP_TYPE_MAP = {
         capstone.ppc.PPC_OP_IMM: OP_TYPE_IMM,
         capstone.ppc.PPC_OP_MEM: OP_TYPE_MEM,
     },
+    'PPC64': {
+        capstone.ppc.PPC_OP_REG: OP_TYPE_REG,
+        capstone.ppc.PPC_OP_IMM: OP_TYPE_IMM,
+        capstone.ppc.PPC_OP_MEM: OP_TYPE_MEM,
+    },
     'ARMEL': {
         capstone.arm.ARM_OP_REG: OP_TYPE_REG,
         capstone.arm.ARM_OP_IMM: OP_TYPE_IMM,
@@ -77,6 +82,8 @@ CAPSTONE_REG_MAP = {
     'AMD64': {
     },
     'PPC32': {
+    },
+    'PPC64': {
     },
     'ARMEL': {
     }
@@ -443,8 +450,11 @@ class Operand(object):
         self.type = None
 
         # Fixed size architectures in capstone don't have .size
+        print(self.binary.project.arch.name)
         if self.binary.project.arch.name in ['PPC32', 'ARMEL']:
             self.size = 32
+        elif self.binary.project.arch.name in ['PPC64']:
+            self.size = 64
         else:
             self.size = capstone_operand.size
 
@@ -630,7 +640,7 @@ class Operand(object):
             self.base = capstone_operand.mem.base
             self.disp = capstone_operand.mem.disp
 
-            if self.binary.project.arch.name in ['PPC32']: # fixed index/scale architecture capstone objects won't have these set
+            if self.binary.project.arch.name in ['PPC32', 'PPC64']: # fixed index/scale architecture capstone objects won't have these set
                 self.index = 0
                 self.scale = 1
             else:
@@ -1651,6 +1661,13 @@ class Data(object):
             self.addr = self.memory_data.address
             self.size = self.memory_data.size
             self.sort = self.memory_data.sort
+
+            if not self.size:
+                # Fixed size architectures in capstone don't have .size
+                if self.binary.project.arch.name in ['PPC32', 'ARMEL']:
+                    self.size = 32
+                else:
+                    raise RuntimeError("Size is undefined for {}".format(self.memory_data))
 
             # Symbolize the content
             if self.sort == 'pointer-array':
