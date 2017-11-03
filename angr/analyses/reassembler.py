@@ -63,6 +63,11 @@ CAPSTONE_OP_TYPE_MAP = {
         capstone.ppc.PPC_OP_IMM: OP_TYPE_IMM,
         capstone.ppc.PPC_OP_MEM: OP_TYPE_MEM,
     },
+    'ARMEL': {
+        capstone.arm.ARM_OP_REG: OP_TYPE_REG,
+        capstone.arm.ARM_OP_IMM: OP_TYPE_IMM,
+        capstone.arm.ARM_OP_MEM: OP_TYPE_MEM,
+    },
 }
 
 CAPSTONE_REG_MAP = {
@@ -72,6 +77,8 @@ CAPSTONE_REG_MAP = {
     'AMD64': {
     },
     'PPC32': {
+    },
+    'ARMEL': {
     }
 }
 
@@ -153,6 +160,10 @@ class Label(object):
 
         self.original_addr = original_addr
         self.base_addr = None
+        self.label_prefix = "@"
+        if self.binary.project.arch.name in ['ARMEL']: #arm functions are %funcname
+            self.label_prefix = "%"
+
 
     #
     # Overridden predefined methods
@@ -248,8 +259,9 @@ class FunctionLabel(Label):
 
     def __str__(self):
         return ("\t.globl {func_name}\n" +
-                "\t.type {func_name}, @function\n" +
+                "\t.type {func_name}, {label_prefix}function\n" +
                 "{func_name}:").format(
+            label_prefix=self.label_prefix,
             func_name=self.function_name
         )
 
@@ -270,8 +282,9 @@ class ObjectLabel(Label):
 
     def __str__(self):
         return ("\t.globl {symbol_name}\n" +
-                "\t.type {symbol_name}, @object\n" +
+                "\t.type {symbol_name}, {label_prefix}object\n" +
                 "{symbol_name}:").format(
+            label_prefix = self.label_prefix,
             symbol_name=self.symbol_name
         )
 
@@ -292,8 +305,9 @@ class NotypeLabel(Label):
 
     def __str__(self):
         return ("\t.globl {symbol_name}\n" +
-                "\t.type {symbol_name}, @notype\n" +
+                "\t.type {symbol_name}, {label_prefix}notype\n" +
                 "{symbol_name}:").format(
+            label_prefix = self.label_prefix,
             symbol_name=self.symbol_name
         )
 
@@ -341,8 +355,12 @@ class SymbolManager(object):
             # It's an extern symbol
             symbol = symbols_by_addr[addr]
             symbol_name = symbol.name
+
+            # Different architectures use different prefixes
             if '@' in symbol_name:
                 symbol_name = symbol_name[ : symbol_name.index('@') ]
+            if '%' in symbol_name:
+                symbol_name = symbol_name[ : symbol_name.index('%') ]
 
             # check the type...
             if symbol.type == cle.Symbol.TYPE_FUNCTION:
@@ -425,7 +443,7 @@ class Operand(object):
         self.type = None
 
         # Fixed size architectures in capstone don't have .size
-        if self.binary.project.arch.name in ['PPC32']:
+        if self.binary.project.arch.name in ['PPC32', 'ARMEL']:
             self.size = 32
         else:
             self.size = capstone_operand.size
@@ -803,7 +821,7 @@ class Instruction(object):
 
                     if self.capstone_operand_types[i] == capstone.CS_OP_IMM:
                         if mnemonic.startswith('j') or mnemonic.startswith('call') or mnemonic.startswith('loop') or \
-                            self.project.arch.name in ['PPC32']:
+                            self.project.arch.name in ['PPC32', 'ARMEL']:
                             pass
                         else:
                             # mark the size of the variable
