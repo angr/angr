@@ -11,6 +11,7 @@ import cle
 import networkx
 import pyvex
 from . import Analysis, register_analysis
+#import pdb
 
 from ..knowledge_base import KnowledgeBase
 from ..sim_variable import SimMemoryVariable, SimTemporaryVariable
@@ -57,6 +58,11 @@ CAPSTONE_OP_TYPE_MAP = {
         capstone.x86.X86_OP_IMM: OP_TYPE_IMM,
         capstone.x86.X86_OP_MEM: OP_TYPE_MEM,
     },
+    'PPC32': {
+        capstone.ppc.PPC_OP_REG: OP_TYPE_REG,
+        capstone.ppc.PPC_OP_IMM: OP_TYPE_IMM,
+        capstone.ppc.PPC_OP_MEM: OP_TYPE_MEM,
+    },
 }
 
 CAPSTONE_REG_MAP = {
@@ -64,6 +70,8 @@ CAPSTONE_REG_MAP = {
     'X86': {
     },
     'AMD64': {
+    },
+    'PPC32': {
     }
 }
 
@@ -90,6 +98,12 @@ def fill_reg_map():
             reg_name = attr[8:]
             reg_offset = getattr(capstone.x86, attr)
             CAPSTONE_REG_MAP['AMD64'][reg_offset] = reg_name.lower()
+
+    for attr in dir(capstone.ppc):
+        if attr.startswith('PPC_REG_'):
+            reg_name = attr[8:]
+            reg_offset = getattr(capstone.ppc, attr)
+            CAPSTONE_REG_MAP['PPC32'][reg_offset] = reg_name.lower()
 
 def split_operands(s):
 
@@ -409,7 +423,12 @@ class Operand(object):
         self.syntax = self.binary.syntax if syntax is None else syntax
 
         self.type = None
-        self.size = capstone_operand.size
+
+        # Fixed size architectures in capstone don't have .size
+        if self.binary.project.arch.name in ['PPC32']:
+            self.size = 32
+        else:
+            self.size = capstone_operand.size
 
         # IMM
         self.is_coderef = None
@@ -436,6 +455,13 @@ class Operand(object):
 
     def assembly(self):
         if self.type == OP_TYPE_IMM and self.label:
+
+            # Architectures like PPC can load reg@h or reg@l to indicate high or low bits of an address
+            # If the label_offset is a string, it should be used as a suffix on 'label@'
+            if type(self.label_offset) == str:
+                return "%s@%s" % (self.label.operand_str, self.label_offset)
+
+            # Otherwise, it will be an integer +/- of the label
             if self.label_offset > 0:
                 return "%s + %d" % (self.label.operand_str, self.label_offset)
             elif self.label_offset < 0:
@@ -560,6 +586,8 @@ class Operand(object):
         arch_name = self.project.arch.name
         self.type = CAPSTONE_OP_TYPE_MAP[arch_name][capstone_operand.type]
 
+        if self.binary.project.arch.name == 'PPC32':
+            self.binary.log_relocations = False # Not currently supported, not sure if it needs to be
         if self.type == OP_TYPE_IMM:
             # Check if this is a reference to code
             imm = capstone_operand.imm
@@ -582,9 +610,14 @@ class Operand(object):
         elif self.type == OP_TYPE_MEM:
 
             self.base = capstone_operand.mem.base
-            self.index = capstone_operand.mem.index
-            self.scale = capstone_operand.mem.scale
             self.disp = capstone_operand.mem.disp
+
+            if self.binary.project.arch.name in ['PPC32']: # fixed index/scale architecture capstone objects won't have these set
+                self.index = 0
+                self.scale = 1
+            else:
+                self.index = capstone_operand.mem.index
+                self.scale = capstone_operand.mem.scale
 
             if self.binary.project.arch.name == 'AMD64' and CAPSTONE_REG_MAP['AMD64'][self.base] == 'rip':
                 # rip-relative addressing
@@ -769,7 +802,8 @@ class Instruction(object):
                             all_operands[i] = op_asm
 
                     if self.capstone_operand_types[i] == capstone.CS_OP_IMM:
-                        if mnemonic.startswith('j') or mnemonic.startswith('call') or mnemonic.startswith('loop'):
+                        if mnemonic.startswith('j') or mnemonic.startswith('call') or mnemonic.startswith('loop') or \
+                            self.project.arch.name in ['PPC32']:
                             pass
                         else:
                             # mark the size of the variable
@@ -895,6 +929,59 @@ class BasicBlock(object):
             self.instructions.append(instruction)
 
         self.instructions = sorted(self.instructions, key=lambda x: x.addr)
+
+        if self.project.arch.name in ['PPC32']:
+            self._find_extra_pointers()
+
+    def _find_extra_pointers(self):
+        """
+        If we're moving an immediate into the high bits of a register, check if the low bits are set in the next instruction
+        and if so, compute the full-width value and check if it's a pointer.
+        If so, update both operands to be CODE/DATAREFS and use the label with @ha or @l
+
+        Only run for architectures where this logic makes sense - ppc32. Maybe it wouldn't hurt on x86 though.
+
+        This assumes that the two operations that are required to put a 32 bit value into a register would occur in the same basic block
+
+        :return:
+        """
+
+
+        # Grab each set of instruction+next instruction
+        for cur_insn, nxt_insn in zip(self.instructions[::2], self.instructions[1::2]):
+            # cur_ins msut be loading a constant into a register, e.g. lis r1 100
+            # nxt_ins msut be adding a constant to that register, e.g., addi _, r1, 500
+            # Operands must operate on seperate halves of destination register (unchecked for now)
+            if cur_insn.mnemonic not in ["lis"]: continue
+            if nxt_insn.mnemonic not in ["addi"]: continue
+            if not len(cur_insn.operands) == 2: continue
+            if not len(nxt_insn.operands) == 3: continue
+            if nxt_insn.operands[1].operand_str.strip() == cur_insn.operands[0].operand_str.strip():
+                # The operands that (when combined) point to full_addr
+                cur_op_imm = cur_insn.operands[1] # operands = [dst, constant_val]
+                nxt_op_imm = nxt_insn.operands[2] # operands = [dst, existingreg, constant_val]
+
+                cur_op_imm_val = int(cur_op_imm.operand_str, 16)
+                nxt_op_imm_val = int(nxt_op_imm.operand_str, 16)
+
+                if cur_insn.mnemonic == "lis" and nxt_insn.mnemonic == "addi":
+                    full_addr = (cur_op_imm_val<<16) + nxt_op_imm_val
+                else:
+                    raise RuntimeError("Unsupport multi-instruction pointer math: {} and {}".format(cur_insn.mnemonic, nxt_insn.mnemonic))
+
+
+                # Check if they form a valid code/data pointer
+                nxt_op_imm.is_coderef, nxt_op_imm.is_dataref, baseaddr = nxt_op_imm._imm_to_ptr(full_addr, nxt_op_imm.type, nxt_op_imm.mnemonic)
+
+                # If so, set the label offset's to be ha and l. TODO - may need logic for swapping order if that ever occurs
+                if nxt_op_imm.is_dataref or nxt_op_imm.is_dataref:
+                    cur_op_imm.label = cur_op_imm.binary.symbol_manager.new_label(addr=baseaddr)
+                    cur_op_imm.label_offset = "ha"
+                    nxt_op_imm.label = nxt_op_imm.binary.symbol_manager.new_label(addr=baseaddr)
+                    nxt_op_imm.label_offset = "l"
+
+                # Don't call register_instruction_reference since we aren't actually jumping/calling the address yet. Hopefully that already happens elsewhere
+
 
 class Procedure(object):
     """
@@ -1317,6 +1404,9 @@ class Data(object):
                 if self.name is not None:
                     s += "%s:\n" % self.name
                 for symbolized_label in self.content:
+                    if not symbolized_label:
+                        l.warning("Content is empty")
+                        continue
 
                     if self.addr is not None and (self.addr + i) in addr_to_labels:
                         for label in addr_to_labels[self.addr + i]:
@@ -1903,6 +1993,11 @@ class Reassembler(Analysis):
                     if (ptr + insn_addr + insn_size) == ref_addr:
                         addr += i
                         break
+
+                # TODO - for ppc32 - what's going on here? Do we just need movs or branches too?
+                # Doesnt' seem to matter for now, may need to implement later
+                #      bl funcname_10000750
+                #      48 00 04 49
             else:
                 l.warning('Cannot find the absolute address inside instruction at %#x. Use the default address.',
                           insn_addr
@@ -2239,6 +2334,10 @@ class Reassembler(Analysis):
             '__x86.get_pc_thunk.bx',
             '__libc_csu_init',
             '__libc_csu_fini',
+            '__do_global_ctors_aux',
+            'call_frame_dummy',
+            'call___do_global_dtors_aux',
+            'call___do_global_ctors_aux'
         }
 
         glibc_data_blacklist = {
@@ -2272,6 +2371,11 @@ class Reassembler(Analysis):
             'frame_dummy',
             '__do_global_dtors_aux',
         }
+
+        # TODO: temporary solution - we should get rid of the func that calls register_tm_clones but it's unnamed
+        # we can leave it there if we leave register_tm_clones as well
+        if self.project.arch.name in ['PPC32']:
+            glibc_functions_blacklist.remove('register_tm_clones')
 
         self.procedures = [p for p in self.procedures if p.name not in glibc_functions_blacklist and not p.is_plt]
 
@@ -2308,7 +2412,10 @@ class Reassembler(Analysis):
 
             # calculate alignments
             if section.vaddr % 0x20 == 0:
-                alignment = 0x20
+                if self.project.arch.name in ['PPC32']: # PPC32 can't have align 32, so align to 16
+                    alignment = 0x10
+                else:
+                    alignment = 0x20
             elif section.vaddr % 0x10 == 0:
                 alignment = 0x10
             elif section.vaddr % 0x8 == 0:
@@ -2332,17 +2439,20 @@ class Reassembler(Analysis):
         self.cfg = cfg
 
         #print("Project arch is {}".format(self.project.arch))
-        # TODO: project.arch doens't have the capstone_x86_syntax (plus other issues) for PPC
 
-        old_capstone_syntax = self.project.arch.capstone_x86_syntax
-        if old_capstone_syntax is None:
-            old_capstone_syntax = 'intel'
+        # project.arch doens't have the capstone_x86_syntax for PPC
+        has_x86_syntax = self.project.arch.name in ['X86', 'AMD64']
 
-        if self.syntax == 'at&t':
-            # switch capstone to AT&T style
-            self.project.arch.capstone_x86_syntax = "at&t"
-            # clear the block cache in lifter!
-            self.project.factory.default_engine.clear_cache()
+        if has_x86_syntax:
+            old_capstone_syntax = self.project.arch.capstone_x86_syntax
+            if old_capstone_syntax is None:
+                old_capstone_syntax = 'intel'
+
+            if self.syntax == 'at&t':
+                # switch capstone to AT&T style
+                self.project.arch.capstone_x86_syntax = "at&t"
+                # clear the block cache in lifter!
+                self.project.factory.default_engine.clear_cache()
 
         # initialize symbol manager
         self.symbol_manager = SymbolManager(self, cfg)
@@ -2387,6 +2497,7 @@ class Reassembler(Analysis):
             if memory_data.sort in ('code reference', ):
                 continue
 
+            # TODO: CGC specific
             if memory_data.sort == 'string':
                 # it might be the CGC package list
                 new_sort, new_size = self._cgc_package_list_identifier(memory_data.address, memory_data.size)
@@ -2438,7 +2549,7 @@ class Reassembler(Analysis):
         section_names_to_ignore = {'.init', '.fini', '.fini_array', '.jcr', '.dynamic', '.got', '.got.plt',
                                    '.eh_frame_hdr', '.eh_frame', '.rel.dyn', '.rel.plt', '.rela.dyn', '.rela.plt',
                                    '.dynstr', '.dynsym', '.interp', '.note.ABI-tag', '.note.gnu.build-id', '.gnu.hash',
-                                   '.gnu.version', '.gnu.version_r'
+                                   '.gnu.version', '.gnu.version_r', '.ctors', '.dtors',
                                    }
 
         # make sure there are always memory data entries pointing at the end of sections
@@ -2450,7 +2561,7 @@ class Reassembler(Analysis):
             for section in self.project.loader.main_object.sections:
 
                 if section.name in section_names_to_ignore:
-                    # skip all sections that are CGC specific
+                    # skip all sections that are CGC or GCC specific
                     continue
 
                 # make sure this section is inside a segment
@@ -2527,11 +2638,12 @@ class Reassembler(Analysis):
         for i in sorted(data_indices_to_remove, reverse=True):
             self.data = self.data[ : i] + self.data[i + 1 : ]
 
+        # TODO: CGC specific
         # CGC-specific data filtering
         self.data = [ d for d in self.data if d.section_name not in section_names_to_ignore ]
 
         # restore capstone X86 syntax at the end
-        if self.project.arch.capstone_x86_syntax != old_capstone_syntax:
+        if has_x86_syntax and self.project.arch.capstone_x86_syntax != old_capstone_syntax:
             self.project.arch.capstone_x86_syntax = old_capstone_syntax
             self.project.factory.default_engine.clear_cache()
 
