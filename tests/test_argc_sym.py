@@ -8,8 +8,8 @@ import os
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 
 def _verify_results(pg, sargc, length=400):
-    argcs = pg.mp_found.state.se.any_int(sargc)
-    strs = pg.mp_found.state.se.any_str(pg.mp_found.state.memory.load(pg.mp_found.state.regs.sp, length))
+    argcs = pg.mp_found.se.eval(sargc)
+    strs = pg.mp_found.se.eval(pg.mp_found.memory.load(pg.mp_found.regs.sp, length), cast_to=str)
 
     for a,s in zip(argcs.mp_items, strs.mp_items):
         assert a in (0,1,2)
@@ -20,8 +20,8 @@ def test_mips():
     r_addr = [0x400720, 0x40076c, 0x4007bc]
 
     sargc = claripy.BVS('argc', 32)
-    s = arger_mips.factory.path(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
-    pg = arger_mips.factory.path_group(s).explore(find=r_addr, num_find=100)
+    s = arger_mips.factory.entry_state(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
+    pg = arger_mips.factory.simgr(s).explore(find=r_addr, num_find=100)
     _verify_results(pg, sargc)
 
 def test_mipsel():
@@ -29,8 +29,8 @@ def test_mipsel():
     r_addr = [0x400720, 0x40076c, 0x4007bc]
 
     sargc = claripy.BVS('argc', 32)
-    s = arger_mipsel.factory.path(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
-    pg = arger_mipsel.factory.path_group(s).explore(find=r_addr, num_find=100)
+    s = arger_mipsel.factory.entry_state(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
+    pg = arger_mipsel.factory.simgr(s).explore(find=r_addr, num_find=100)
     _verify_results(pg, sargc)
 
 def test_i386():
@@ -38,8 +38,8 @@ def test_i386():
     r_addr = [0x08048411, 0x08048437, 0x08048460]
 
     sargc = claripy.BVS('argc', 32)
-    s = arger_i386.factory.path(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
-    pg = arger_i386.factory.path_group(s).explore(find=r_addr, num_find=100)
+    s = arger_i386.factory.entry_state(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
+    pg = arger_i386.factory.simgr(s).explore(find=r_addr, num_find=100)
     _verify_results(pg, sargc)
 
 def test_amd64():
@@ -47,8 +47,8 @@ def test_amd64():
     r_addr = [0x40051B, 0x400540, 0x400569]
 
     sargc = claripy.BVS('argc', 64)
-    s = arger_amd64.factory.path(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
-    pg = arger_amd64.factory.path_group(s).explore(find=r_addr, num_find=100)
+    s = arger_amd64.factory.entry_state(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
+    pg = arger_amd64.factory.simgr(s).explore(find=r_addr, num_find=100)
     _verify_results(pg, sargc, length=800)
 
 def test_arm():
@@ -56,8 +56,8 @@ def test_arm():
     r_addr = [0x00010444, 0x00010478, 0x000104B0]
 
     sargc = claripy.BVS('argc', 32)
-    s = arger_arm.factory.path(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
-    pg = arger_arm.factory.path_group(s).explore(find=r_addr, num_find=100)
+    s = arger_arm.factory.entry_state(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
+    pg = arger_arm.factory.simgr(s).explore(find=r_addr, num_find=100)
     _verify_results(pg, sargc)
 
 def test_ppc32():
@@ -65,8 +65,8 @@ def test_ppc32():
     r_addr = [0x1000043C, 0x10000474, 0x100004B0]
 
     sargc = claripy.BVS('argc', 32)
-    s = arger_ppc32.factory.path(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
-    pg = arger_ppc32.factory.path_group(s).explore(find=r_addr, num_find=100)
+    s = arger_ppc32.factory.entry_state(args = [claripy.BVS('arg_0', 40*8), claripy.BVS('arg_1', 40*8), claripy.BVS('arg_2', 40*8)], env ={"HOME": "/home/angr"}, argc=sargc)
+    pg = arger_ppc32.factory.simgr(s).explore(find=r_addr, num_find=100)
     _verify_results(pg, sargc)
 
 if __name__ == "__main__":

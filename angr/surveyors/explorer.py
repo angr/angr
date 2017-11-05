@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 
-from ..surveyor import Surveyor
-import simuvex
-
 import collections
 import networkx
 import logging
+
+from .. import SimProcedure
+from ..errors import SimMemoryError, SimEngineError
+
+from .surveyor import Surveyor
+
 l = logging.getLogger("angr.surveyors.explorer")
 
 class Explorer(Surveyor):
@@ -189,10 +192,10 @@ class Explorer(Surveyor):
         elif not isinstance(self._find, (tuple, set, list)) or len(self._find) == 0:
             l.warning("Explorer ignoring CFG because find is not a sequence of addresses.")
             return False
-        elif isinstance(self._cfg.get_any_irsb(p.addr), simuvex.SimProcedure):
+        elif isinstance(self._cfg.get_any_irsb(p.addr), SimProcedure):
             l.debug("Path %s is pointing to a SimProcedure. Counting as not lost.", p)
             return False
-        elif p.length > 0 and self._cfg.get_any_irsb(p.addr_trace[-1]) is None:
+        elif p.history.depth > 0 and self._cfg.get_any_irsb(p.history.bbl_addrs[-1]) is None:
             l.debug("not trimming, because %s is currently outside of the CFG", p)
             return False
         else:
@@ -213,14 +216,14 @@ class Explorer(Surveyor):
             self.lost.append(p)
             return False
 
-        if p.length < self._min_depth:
+        if p.history.depth < self._min_depth:
             l.debug("path %s has less than the minimum depth", p)
             return True
 
         if not self._project.is_hooked(p.addr):
             try:
                 imark_set = set(self._project.factory.block(p.addr).instruction_addrs)
-            except (AngrMemoryError, AngrTranslationError):
+            except (SimMemoryError, SimEngineError):
                 l.debug("Cutting path because there is no code at address 0x%x", p.addr)
                 self.errored.append(p)
                 return False
@@ -235,7 +238,7 @@ class Explorer(Surveyor):
             self.avoided.append(p)
             return False
         elif self._match(self._find, p, imark_set):
-            if not p.state.satisfiable():
+            if not p.satisfiable():
                 l.debug("Discarding 'found' path %s because it is unsat", p)
                 self.deadended.append(p)
                 return False
@@ -247,12 +250,13 @@ class Explorer(Surveyor):
             l.debug("Path %s is not on the restricted addresses!", p)
             self.deviating.append(p)
             return False
-        elif p.detect_loops(self._max_repeats) >= self._max_repeats:
-            # discard any paths that loop too much
-            l.debug("Path %s appears to be looping!", p)
-            self.looping.append(p)
-            return False
-        elif self._max_depth is not None and p.length > self._max_depth:
+        # TODO: something about this
+        #elif p.detect_loops(self._max_repeats) >= self._max_repeats:
+        #    # discard any paths that loop too much
+        #    l.debug("Path %s appears to be looping!", p)
+        #    self.looping.append(p)
+        #    return False
+        elif self._max_depth is not None and p.history.depth > self._max_depth:
             l.debug('Path %s exceeds the maximum depth(%d) allowed.', p, self._max_depth)
             return False
         else:
@@ -263,8 +267,6 @@ class Explorer(Surveyor):
         return "<Explorer with paths: %s, %d found, %d avoided, %d deviating, %d looping, %d lost>" % (
         Surveyor.__repr__(self), len(self.found), len(self.avoided), len(self.deviating), len(self.looping),
         len(self.lost))
-
-from ..errors import AngrMemoryError, AngrTranslationError
 
 from . import all_surveyors
 all_surveyors['Explorer'] = Explorer

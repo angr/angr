@@ -1,7 +1,7 @@
 import nose
 import angr
-import simuvex
 import subprocess
+import sys
 
 import logging
 l = logging.getLogger('angr.tests.strtol')
@@ -11,11 +11,14 @@ test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 
 def run_strtol(threads):
+    if not sys.platform.startswith('linux'):
+        raise nose.SkipTest()
+
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/strtol_test")
     b = angr.Project(test_bin)
 
-    initial_state = b.factory.entry_state(remove_options={simuvex.o.LAZY_SOLVES})
-    pg = b.factory.path_group(thing=initial_state, immutable=False, threads=threads)
+    initial_state = b.factory.entry_state(remove_options={angr.options.LAZY_SOLVES})
+    pg = b.factory.simgr(thing=initial_state, immutable=False, threads=threads)
 
     # find the end of main
     expected_outputs = {"base 8 worked\n", "base +8 worked\n", "0x worked\n", "+0x worked\n", "base +10 worked\n",
@@ -26,8 +29,8 @@ def run_strtol(threads):
     # check the outputs
     pipe = subprocess.PIPE
     for f in pg.found:
-        test_input = f.state.posix.dumps(0)
-        test_output = f.state.posix.dumps(1)
+        test_input = f.posix.dumps(0)
+        test_output = f.posix.dumps(1)
         expected_outputs.remove(test_output)
 
         # check the output works as expected

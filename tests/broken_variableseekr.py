@@ -4,7 +4,7 @@ import logging
 l = logging.getLogger("angr.tests")
 
 import nose
-import angr, simuvex
+import angr
 from angr import AngrError
 
 
@@ -37,15 +37,15 @@ def setup_amd64():
 
 def setup_ppc32():
     fauxware = projects['fauxwares']
-    fauxware['ppc32'] = angr.Project(test_location + "/blob/ppc/fauxware",  arch="PPC32")
+    fauxware['ppc32'] = angr.Project(test_location + "/blob/ppc/fauxware",    arch="PPC32")
 
 def setup_mipsel():
     fauxware = projects['fauxwares']
-    fauxware['mipsel'] = angr.Project(test_location + "/blob/mipsel/fauxware",  arch=simuvex.SimMIPS32(endness="Iend_LE"))
+    fauxware['mipsel'] = angr.Project(test_location + "/blob/mipsel/fauxware",    arch=angr.SimMIPS32(endness="Iend_LE"))
 
 def setup_arm():
     fauxware = projects['fauxwares']
-    fauxware['arm'] = angr.Project(test_location + "/blob/armel/fauxware",  arch=simuvex.SimARM(endness="Iend_LE"))
+    fauxware['arm'] = angr.Project(test_location + "/blob/armel/fauxware",    arch=angr.SimARM(endness="Iend_LE"))
 
 def setup_module():
     setup_x86()
@@ -181,8 +181,8 @@ if __name__ == "__main__":
 
     logging.getLogger('angr.cfg').setLevel(logging.DEBUG)
     logging.getLogger('angr.vfg').setLevel(logging.DEBUG)
-    logging.getLogger('simuvex.plugins.symbolic_memory').setLevel(logging.INFO)
-    #logging.getLogger('simuvex.plugins.abstract_memory').setLevel(logging.DEBUG)
+    logging.getLogger('angr.state_plugins.symbolic_memory').setLevel(logging.INFO)
+    #logging.getLogger('angr.state_plugins.abstract_memory').setLevel(logging.DEBUG)
     logging.getLogger('claripy.claripy').setLevel(logging.ERROR)
     l.setLevel(logging.DEBUG)
     setup_amd64()

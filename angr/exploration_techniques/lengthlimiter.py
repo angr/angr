@@ -10,8 +10,8 @@ class LengthLimiter(ExplorationTechnique):
         self._max_length = max_length
         self._drop = drop
 
-    def _filter(self, p):
-        return p.weighted_length > self._max_length
+    def _filter(self, s):
+        return s.history.block_count > self._max_length
 
     def step(self, pg, stash, **kwargs):
         pg = pg.step(stash=stash, **kwargs)

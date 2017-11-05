@@ -11,23 +11,26 @@ def test_mips():
 
     p = angr.Project(location + '/mips/test_loops')
     output = []
-    def hook1(_):
+
+    # hooking by a function decorator
+    @p.hook(INNER_LOOP)
+    def hook1(_):  # pylint:disable=unused-variable
         output.append(1)
 
     def hook2(state):
         output.append(2)
-        num = state.se.any_int(state.regs.a1)
+        num = state.se.eval(state.regs.a1)
         string = '%d ' % num
         state.posix.files[1].write(state.se.BVV(string), state.se.BVV(len(string), 32))
 
-    p.hook(INNER_LOOP, hook1)
+    # a manual hook
     p.hook(OUTER_LOOP, hook2, length=0x14)
 
-    s = p.surveyors.Explorer(start=p.factory.path(), find=[MAIN_END])
+    s = p.surveyors.Explorer(start=p.factory.entry_state(), find=[MAIN_END])
     s.run()
 
     nose.tools.assert_equal(len(s.found), 1)
-    nose.tools.assert_equal(s.found[0].state.posix.dumps(1), ''.join('%d ' % x for x in xrange(100)) + '\n')
+    nose.tools.assert_equal(s.found[0].posix.dumps(1), ''.join('%d ' % x for x in xrange(100)) + '\n')
     nose.tools.assert_equal(output, [1]*100 + [2]*100)
     # print 'Executed %d blocks' % len(s._f.trace)
 

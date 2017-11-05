@@ -24,7 +24,7 @@ def test_amd64():
     EXPECTED_CALLSITE_RETURNS = { 0x40073e, 0x400754, 0x40076a, 0x400774, 0x40078a, 0x4007a0, 0x4007b3, 0x4007c7,
                                   None }
 
-    fauxware_amd64.analyses.CFGAccurate()
+    cfg = fauxware_amd64.analyses.CFGAccurate()  # pylint:disable=unused-variable
     nose.tools.assert_equal(set([ k for k in fauxware_amd64.kb.functions.keys() if k < 0x500000 ]), EXPECTED_FUNCTIONS)
 
     main = fauxware_amd64.kb.functions.function(name='main')
@@ -48,15 +48,17 @@ def test_amd64():
     for src_node, dst_node, data in main_g_edges_:
         main_g_edges.append((src_node.addr, dst_node.addr, data))
 
-    nose.tools.assert_true((0x40071d, 0x400510, {'type': 'call'}) in main_g_edges)
+    nose.tools.assert_true((0x40071d, 0x400510, {'type': 'call', 'stmt_idx': 'default', 'ins_addr': 0x400739}) in
+                           main_g_edges
+                           )
     nose.tools.assert_true((0x40071d, 0x40073e, {'type': 'fake_return', 'confirmed': True, 'outside': False}) in
                            main_g_edges
                            )
-    nose.tools.assert_true((0x40073e, 0x400530, {'type': 'call'}) in main_g_edges)
+    nose.tools.assert_true((0x40073e, 0x400530, {'type': 'call', 'stmt_idx': 'default', 'ins_addr': 0x40074f}) in main_g_edges)
     nose.tools.assert_true((0x40073e, 0x400754, {'type': 'fake_return', 'confirmed': True, 'outside': False}) in main_g_edges)
 
     # rejected() does not return
-    nose.tools.assert_true((0x4007c9, 0x4006fd, {'type': 'call'}) in main_g_edges)
+    nose.tools.assert_true((0x4007c9, 0x4006fd, {'type': 'call', 'stmt_idx': 'default', 'ins_addr': 0x4007ce}) in main_g_edges)
     nose.tools.assert_true((0x4007c9, 0x4007d3, {'type': 'fake_return', 'outside': False}) in main_g_edges)
 
     # These tests fail for reasons of fastpath, probably

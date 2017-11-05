@@ -2,7 +2,7 @@ angr
 ====
 
 [![Latest Release](https://img.shields.io/pypi/v/angr.svg)](https://pypi.python.org/pypi/angr/)
-[![PyPI](https://img.shields.io/pypi/dm/angr.svg)](https://pypi.python.org/pypi/angr/)
+[![Build Status](https://travis-ci.org/angr/angr.svg?branch=master)](https://travis-ci.org/angr/angr)
 [![License](https://img.shields.io/github/license/angr/angr.svg)](https://github.com/angr/angr/blob/master/LICENSE)
 [![Gitbook](https://img.shields.io/badge/docs-gitbook-green.svg)](http://docs.angr.io)
 [![API Docs](https://img.shields.io/badge/docs-api-green.svg)](http://angr.io/api-doc)
@@ -23,6 +23,24 @@ angr is a suite of python libraries that let you load a binary and do a lot of c
 The most common angr operation is loading a binary: `p = angr.Project('/bin/bash')` If you do this in IPython, you can use tab-autocomplete to browse the [top-level-accessible methods](http://docs.angr.io/docs/toplevel.html) and their docstrings.
 
 The short version of "how to install angr" is `mkvirtualenv angr && pip install angr`.
+
+# Example
+
+angr does a lot of binary analysis stuff.
+To get you started, here's a simple example of using symbolic execution to get a flag in a CTF challenge.
+
+```python
+import angr
+
+project = angr.Project("angr-doc/examples/defcamp_r100/r100", auto_load_libs=False)
+
+@project.hook(0x400844)
+def print_flag(state):
+    print "FLAG SHOULD BE:", state.posix.dump_fd(0)
+    project.terminate_execution()
+
+project.execute()
+```
 
 # Quick Start
 

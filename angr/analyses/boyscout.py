@@ -1,10 +1,9 @@
-import re
 import logging
+import re
 from collections import defaultdict
 
+from . import Analysis, register_analysis
 from archinfo import all_arches
-
-from ..analysis import Analysis, register_analysis
 
 l = logging.getLogger("angr.analyses.boyscout")
 
@@ -27,7 +26,7 @@ class BoyScout(Analysis):
         """
 
         # Retrieve the binary string of main binary
-        strides = self.project.loader.main_bin.memory.stride_repr
+        strides = self.project.loader.main_object.memory.stride_repr
 
         votes = defaultdict(int)
 

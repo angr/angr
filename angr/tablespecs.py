@@ -1,36 +1,52 @@
 import claripy
 
-class StringSpec(object):
-    def __new__(cls, string=None, sym_length=None, concat=None, name=None, nonnull=False):
-        print 'StringSpec is deprecated! Please use raw claripy ASTs or else face my wrath.'
-        if nonnull:
-            print 'Additional deprecation warning: nonnull completely doesn\'t work in our hacked up support shint for StringSpec. Please just fix your code. Please.'
-
-        if string is not None:
-            return StringTableSpec.string_to_ast(string)
-        if sym_length is not None:
-            if name is None:
-                name = 'stringspec_sym_%d' % sym_length
-            return claripy.BVS(name, sym_length * 8)
-        if concat is not None:
-            return claripy.Concat(*concat)
-
 class StringTableSpec(object):
     @staticmethod
     def string_to_ast(string):
             return claripy.Concat(*(claripy.BVV(ord(c), 8) for c in string))
 
-    def __init__(self):
+    def __init__(self, byte_width=8):
         self._contents = []
         self._str_len = 0
+        self._byte_width = byte_width
+
+    def append_args(self, args, add_null=True):
+        for arg in args:
+            self.add_string(arg)
+        if add_null:
+            self.add_null()
+
+    def append_env(self, env, add_null=True):
+        for k, v in env.iteritems():
+            if type(k) is str:  # pylint: disable=unidiomatic-typecheck
+                k = claripy.BVV(k)
+            elif type(k) is unicode:  # pylint: disable=unidiomatic-typecheck
+                k = claripy.BVV(k.encode('utf-8'))
+            elif isinstance(k, claripy.ast.Bits):
+                pass
+            else:
+                raise TypeError("Key in env must be either string or bitvector")
+
+            if type(v) is str:  # pylint: disable=unidiomatic-typecheck
+                v = claripy.BVV(v)
+            elif type(v) is unicode:  # pylint: disable=unidiomatic-typecheck
+                v = claripy.BVV(v.encode('utf-8'))
+            elif isinstance(v, claripy.ast.Bits):
+                pass
+            else:
+                raise TypeError("Value in env must be either string or bitvector")
+
+            self.add_string(k.concat(claripy.BVV('='), v))
+        if add_null:
+            self.add_null()
 
     def add_string(self, string):
         if isinstance(string, str):
             self._contents.append(('string', self.string_to_ast(string+'\0')))
             self._str_len += len(string) + 1
         elif isinstance(string, claripy.ast.Bits):
-            self._contents.append(('string', string.concat(claripy.BVV(0, 8))))
-            self._str_len += len(string) / 8 + 1
+            self._contents.append(('string', string.concat(claripy.BVV(0, self._byte_width))))
+            self._str_len += len(string) // self._byte_width + 1
         else:
             raise ValueError('String must be either string literal or claripy AST')
 
@@ -46,7 +62,7 @@ class StringTableSpec(object):
         ptr_size = len(self._contents) * state.arch.bytes
         size = self._str_len + ptr_size
         start_addr = end_addr - size
-        zero_fill = state.se.any_int(start_addr % align)
+        zero_fill = state.se.eval(start_addr % align)
         start_addr -= zero_fill
         start_str = start_addr + ptr_size
 
@@ -57,7 +73,7 @@ class StringTableSpec(object):
                 state.memory.store(ptr_i, str_i, endness=state.arch.memory_endness)
                 state.memory.store(str_i, item)
                 ptr_i += state.arch.bytes
-                str_i += len(item)/8
+                str_i += len(item)//self._byte_width
             else:
                 if isinstance(item, (int, long)):
                     item = state.se.BVV(item, state.arch.bits)
@@ -65,6 +81,6 @@ class StringTableSpec(object):
                 ptr_i += state.arch.bytes
 
         if zero_fill != 0:
-            state.memory.store(end_addr - zero_fill, state.se.BVV(0, 8*zero_fill))
+            state.memory.store(end_addr - zero_fill, state.se.BVV(0, self._byte_width*zero_fill))
 
         return start_addr

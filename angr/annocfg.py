@@ -3,11 +3,9 @@ import logging
 
 import networkx
 
-import simuvex
-
 from .pathprioritizer import PathPrioritizer
 from .errors import AngrAnnotatedCFGError, AngrExitError
-from .analyses.cfg_node import CFGNode
+from .analyses.cfg.cfg_node import CFGNode
 
 l = logging.getLogger("angr.annocfg")
 
@@ -57,44 +55,41 @@ class AnnotatedCFG(object):
         Initialize this AnnotatedCFG object with a networkx.DiGraph consisting of the following
         form of nodes:
 
-        Tuples like (SimRun address, statement ID)
+        Tuples like (block address, statement ID)
 
         Those nodes are connected by edges indicating the execution flow.
 
-        :param digraph: A networkx.DiGraph object
+        :param networkx.DiGraph digraph: A networkx.DiGraph object
         """
 
-        for n1, n2 in digraph.edges():
+        for n1 in digraph.nodes():
             addr1, stmt_idx1 = n1
-            addr2, stmt_idx2 = n2
-
-            if addr1 != addr2:
-                # There is a control flow transition from SimRun `addr1` to SimRun `addr2`
-                self.add_exit_to_whitelist(addr1, addr2)
-
             self.add_statements_to_whitelist(addr1, (stmt_idx1,))
-            self.add_statements_to_whitelist(addr2, (stmt_idx2,))
+
+            successors = digraph[n1]
+            for n2 in successors:
+                addr2, stmt_idx2 = n2
+
+                if addr1 != addr2:
+                    # There is a control flow transition from block `addr1` to block `addr2`
+                    self.add_exit_to_whitelist(addr1, addr2)
+
+                self.add_statements_to_whitelist(addr2, (stmt_idx2,))
 
     def get_addr(self, run):
-        if isinstance(run, simuvex.SimIRSB):
-            return run.first_imark.addr
-        elif isinstance(run, simuvex.SimProcedure):
-            # pseudo_addr = self._project.get_pseudo_addr_for_sim_procedure(run)
-            pseudo_addr = run.addr
-            return pseudo_addr
-        elif isinstance(run, CFGNode):
+        if isinstance(run, CFGNode):
             return run.addr
         elif type(run) in (int, long):
             return run
         else:
             raise AngrAnnotatedCFGError("Unknown type '%s' of the 'run' argument" % type(run))
 
-    def add_simrun_to_whitelist(self, simrun):
-        addr = self.get_addr(simrun)
+    def add_block_to_whitelist(self, block):
+        addr = self.get_addr(block)
         self._run_statement_whitelist[addr] = True
 
-    def add_statements_to_whitelist(self, simrun, stmt_ids):
-        addr = self.get_addr(simrun)
+    def add_statements_to_whitelist(self, block, stmt_ids):
+        addr = self.get_addr(block)
         if type(stmt_ids) is bool:
             if type(self._run_statement_whitelist[addr]) is list and self._run_statement_whitelist[addr]:
                 raise Exception("WTF")
@@ -111,8 +106,8 @@ class AnnotatedCFG(object):
         addr_to = self.get_addr(run_to)
         self._exit_taken[addr_from].append(addr_to)
 
-    def set_last_statement(self, simrun_addr, stmt_id):
-        self._addr_to_last_stmt_id[simrun_addr] = stmt_id
+    def set_last_statement(self, block_addr, stmt_id):
+        self._addr_to_last_stmt_id[block_addr] = stmt_id
 
     def add_loop(self, loop_tuple):
         """
@@ -152,7 +147,7 @@ class AnnotatedCFG(object):
         """
         if addr in self._run_statement_whitelist:
             if self._run_statement_whitelist[addr] is True:
-                return None # This is the default value used in SimuVEX to say
+                return None # This is the default value used to say
                             # we execute all statements in this basic block. A
                             # little weird...
 
@@ -163,12 +158,21 @@ class AnnotatedCFG(object):
             return []
 
     def get_last_statement_index(self, addr):
+        if addr in self._exit_taken:
+            return None
         if addr in self._addr_to_last_stmt_id:
             return self._addr_to_last_stmt_id[addr]
+        elif addr in self._run_statement_whitelist:
+            return max(self._run_statement_whitelist[addr])
         return None
 
     def get_loops(self):
         return self._loops
+
+    def get_targets(self, source_addr):
+        if source_addr in self._exit_taken:
+            return self._exit_taken[source_addr]
+        return None
 
     #
     # Debugging helpers
@@ -177,11 +181,11 @@ class AnnotatedCFG(object):
     def dbg_repr(self):
         ret_str = ""
 
-        ret_str += "SimRuns:\n"
+        ret_str += "IRSBs:\n"
         for addr, run in self._addr_to_run.items():
             if addr is None:
                 continue
-            ret_str += "0x%08x => %s\n" % (addr, run)
+            ret_str += "%#x => %s\n" % (addr, run)
         l.debug("statements: ")
         for addr, stmts in self._run_statement_whitelist.items():
             if addr is None:

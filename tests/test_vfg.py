@@ -6,7 +6,6 @@ import logging
 import nose
 
 import angr
-import simuvex
 import claripy
 
 l = logging.getLogger("angr_tests")
@@ -34,7 +33,7 @@ def run_vfg_buffer_overflow(arch):
     start = time.time()
     function_start = vfg_buffer_overflow_addresses[arch]
     vfg = proj.analyses.VFG(cfg, function_start=function_start, context_sensitivity_level=2, interfunction_level=4,
-                            remove_options={ simuvex.s_options.OPTIMIZE_IR }
+                            remove_options={ angr.options.OPTIMIZE_IR }
                             )
     end = time.time()
     duration = end - start
@@ -46,13 +45,13 @@ def run_vfg_buffer_overflow(arch):
     states = vfg.final_states
     nose.tools.assert_equal(len(states), 2)
     stack_check_fail = proj._extern_obj.get_pseudo_addr('symbol hook: __stack_chk_fail')
-    nose.tools.assert_equal(set([ s.se.exactly_int(s.ip) for s in states ]),
+    nose.tools.assert_equal(set([ s.se.eval_one(s.ip) for s in states ]),
                             {
                                 stack_check_fail,
                                 0x4005b4
                             })
 
-    state = [ s for s in states if s.se.exactly_int(s.ip) == 0x4005b4 ][0]
+    state = [ s for s in states if s.se.eval_one(s.ip) == 0x4005b4 ][0]
     nose.tools.assert_true(claripy.backends.vsa.is_true(state.stack_read(12, 4) >= 0x28))
 
 def broken_vfg_buffer_overflow():
@@ -72,7 +71,9 @@ def run_vfg_0(arch):
 
     cfg = proj.analyses.CFG(normalize=True)
     main = cfg.functions.function(name='main')
-    vfg = proj.analyses.VFG(cfg, function_start=main.addr, context_sensitivity_level=1, interfunction_level=3)
+    vfg = proj.analyses.VFG(cfg, start=main.addr, context_sensitivity_level=1, interfunction_level=3,
+                            record_function_final_states=True, max_iterations=80,
+                            )
 
     function_final_states = vfg._function_final_states
     nose.tools.assert_in(main.addr, function_final_states)
@@ -129,7 +130,9 @@ def run_vfg_1(arch):
     )
 
     cfg = proj.analyses.CFGAccurate()
-    vfg = proj.analyses.VFG(cfg, function_start=0x40071d, context_sensitivity_level=10, interfunction_level=10)
+    vfg = proj.analyses.VFG(cfg, start=0x40071d, context_sensitivity_level=10, interfunction_level=10,
+                            record_function_final_states=True
+                            )
 
     all_block_addresses = set([ n.addr for n in vfg.graph.nodes() ])
     nose.tools.assert_true(vfg_1_addresses[arch].issubset(all_block_addresses))
@@ -143,13 +146,13 @@ def run_vfg_1(arch):
     nose.tools.assert_equal(len(authenticate_final_states), 1)
     authenticate_final_state = authenticate_final_states.values()[0]
     nose.tools.assert_is_not_none(authenticate_final_state)
-    nose.tools.assert_equal(authenticate_final_state.se.any_n_int(authenticate_final_state.regs.rax, 3), [0, 1])
+    nose.tools.assert_equal(authenticate_final_state.se.eval_upto(authenticate_final_state.regs.rax, 3), [0, 1])
 
     # optimal execution tests
     # - the basic block after returning from `authenticate` should only be executed once
     nose.tools.assert_equal(vfg._execution_counter[0x4007b3], 1)
-    # - the last basic block in `authenticate` should only be executed twice (on a non-normalized CFG)
-    nose.tools.assert_equal(vfg._execution_counter[0x4006eb], 2)
+    # - the last basic block in `authenticate` should only be executed once (on a non-normalized CFG)
+    nose.tools.assert_equal(vfg._execution_counter[0x4006eb], 1)
 
 def test_vfg_1():
     # Test the code coverage of VFG
@@ -157,10 +160,10 @@ def test_vfg_1():
         yield run_vfg_1, arch
 
 if __name__ == "__main__":
-    # logging.getLogger("simuvex.plugins.abstract_memory").setLevel(logging.DEBUG)
-    # logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
-    # logging.getLogger("simuvex.s_state").setLevel(logging.DEBUG)
-    # logging.getLogger("simuvex.plugins.symbolic_memory").setLevel(logging.DEBUG)
+    # logging.getLogger("angr.state_plugins.abstract_memory").setLevel(logging.DEBUG)
+    # logging.getLogger("angr.state_plugins.symbolic_memory").setLevel(logging.DEBUG)
+    # logging.getLogger("angr.sim_state").setLevel(logging.DEBUG)
+    # logging.getLogger("angr.state_plugins.symbolic_memory").setLevel(logging.DEBUG)
     # logging.getLogger("angr.analyses.cfg").setLevel(logging.DEBUG)
     logging.getLogger("angr.analyses.vfg").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend

@@ -1,6 +1,7 @@
 import nose
 import angr
 import subprocess
+import sys
 
 import logging
 l = logging.getLogger('angr.tests.test_signed_div')
@@ -10,12 +11,14 @@ test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 
 def run_signed_div():
-    test_bin = os.path.join(test_location, "../../binaries-private/tests/i386/test_signed_div")
+    if not sys.platform.startswith('linux'):
+        raise nose.SkipTest()   # this is not technically required, the run result could just be inlined
+    test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/test_signed_div")
     b = angr.Project(test_bin)
 
-    pg = b.factory.path_group()
+    pg = b.factory.simgr()
     pg.explore()
-    out_angr = pg.deadended[0].state.posix.dumps(1)
+    out_angr = pg.deadended[0].posix.dumps(1)
     proc = subprocess.Popen(test_bin, stdout=subprocess.PIPE)
     stdout_real, _ = proc.communicate()
 

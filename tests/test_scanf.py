@@ -1,13 +1,12 @@
 import nose
-
-import logging
-l = logging.getLogger('angr.tests.scanf')
-
 import os
 import string
-
 import angr
+import logging
 
+from nose.plugins.attrib import attr
+
+l = logging.getLogger('angr.tests.scanf')
 test_location = str(os.path.dirname(os.path.realpath(__file__)))
 
 class Checker(object):
@@ -43,8 +42,10 @@ class Checker(object):
         if self._dummy:
             return True
 
-        stdin_input = path.state.posix.files[0].content.load(1, 10) # skip the first char used in switch
-        some_strings = path.state.se.any_n_str(stdin_input, 1000)
+        stdin_input = path.posix.files[0].content.load(1, 11) # skip the first char used in switch
+        some_strings = path.se.eval_upto(stdin_input, 1000, cast_to=str)
+
+        check_passes = False
 
         for s in some_strings:
 
@@ -53,16 +54,17 @@ class Checker(object):
 
             component = self._extract_integer(s)
 
-            if not self._check_func(component):
-                return False
+            if self._check_func(component):
+                check_passes = True
+                break
 
-        return True
+        return check_passes
 
 def run_scanf(threads):
     test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/scanf_test")
     b = angr.Project(test_bin)
 
-    pg = b.factory.path_group(immutable=False, threads=threads)
+    pg = b.factory.simgr(immutable=False, threads=threads)
 
     # find the end of main
     expected_outputs = {
@@ -82,7 +84,7 @@ def run_scanf(threads):
     # check the outputs
     total_outputs = 0
     for path in pg.found:
-        test_output = path.state.posix.dumps(1)
+        test_output = path.posix.dumps(1)
         if test_output in expected_outputs:
             nose.tools.assert_true(expected_outputs[test_output].check(path),
                                    "Test case failed. Output is %s." % test_output)
@@ -92,6 +94,7 @@ def run_scanf(threads):
     # check that all of the outputs were seen
     nose.tools.assert_equal(total_outputs, len(expected_outputs))
 
+@attr(speed='slow')
 def test_scanf():
     yield run_scanf, None
     # yield run_scanf, 8

@@ -1,24 +1,26 @@
 from claripy import BVS
-from simuvex import SimFile
+from angr.storage import SimFile
 import pickle
+import shutil
 import nose
 import angr
 import ana
 import gc
+import os
 
 def load_pickles():
     # This is the working case
-    f = open("/tmp/pickletest_good", 'r')
+    f = open("pickletest_good", 'rb')
     print pickle.load(f)
     f.close()
 
     # This will not work
-    f = open("/tmp/pickletest_bad", 'r')
+    f = open("pickletest_bad", 'rb')
     print pickle.load(f)
     f.close()
 
 def make_pickles():
-    p = angr.Project("/bin/bash")
+    p = angr.Project(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests', 'i386', 'fauxware'))
 
     fs = {
         '/dev/stdin': SimFile('/dev/stdin', 0),
@@ -34,7 +36,7 @@ def make_pickles():
         mem_bvv[f] = mem
         # debug_wait()
 
-    f = open("/tmp/pickletest_good", "w")
+    f = open("pickletest_good", "wb")
     #fname = f.name
     pickle.dump(mem_bvv, f, -1)
     f.close()
@@ -46,30 +48,54 @@ def make_pickles():
         fs[f].write(mem, MEM_SIZE)
         fs[f].seek(0)
 
-    f = open("/tmp/pickletest_bad", "w")
+    f = open("pickletest_bad", "wb")
     #fname = f.name
     pickle.dump(mem_bvv, f, -1)
     f.close()
     #print "Test case generated run '%s <something>' to execute the test" % sys.argv[0]
 
+def setup():
+    pass
+
+def teardown():
+    try:
+        shutil.rmtree('pickletest')
+    except:
+        pass
+    try:
+        shutil.rmtree('pickletest2')
+    except:
+        pass
+    try:
+        os.remove('pickletest_good')
+    except:
+        pass
+    try:
+        os.remove('pickletest_bad')
+    except:
+        pass
+    ana.set_dl(ana.SimpleDataLayer())
+
+@nose.with_setup(setup, teardown)
 def test_pickling():
     # set up ANA and make the pickles
-    ana.set_dl(ana.DirDataLayer('/tmp/pickletest'))
+    ana.set_dl(ana.DirDataLayer('pickletest'))
     make_pickles()
 
     # make sure the pickles work in the same "session"
     load_pickles()
 
     # reset ANA, and load the pickles
-    ana.set_dl(ana.DirDataLayer('/tmp/pickletest'))
+    ana.set_dl(ana.DirDataLayer('pickletest'))
     gc.collect()
     load_pickles()
 
     # purposefully set the wrong directory to make sure this excepts out
-    ana.set_dl(ana.DirDataLayer('/tmp/pickletest2'))
+    ana.set_dl(ana.DirDataLayer('pickletest2'))
     gc.collect()
     #load_pickles()
     nose.tools.assert_raises(Exception, load_pickles)
+
 
 if __name__ == '__main__':
     test_pickling()

@@ -1,10 +1,10 @@
 import logging
-
-from ..analysis import Analysis, register_analysis
-from networkx import DiGraph
 from copy import copy
 
-l = logging.getLogger(name="angr.analyses.dfg")
+from . import Analysis, register_analysis
+from networkx import DiGraph
+
+l = logging.getLogger("angr.analyses.dfg")
 
 class DFG(Analysis):
     def __init__(self, cfg=None, annocfg=None):
@@ -157,7 +157,7 @@ class DFG(Analysis):
                         else:
                             dfg.add_edge(e, stmt_node)
 
-            for vtx in dfg.nodes():
+            for vtx in list(dfg.nodes()):
                 if dfg.degree(vtx) == 0:
                     dfg.remove_node(vtx)
 

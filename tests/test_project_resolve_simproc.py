@@ -14,13 +14,13 @@ def test_bina():
     p = angr.Project(bina, exclude_sim_procedures_list=['rand', 'sleep'], load_options={"auto_load_libs":True})
 
     # Make sure external functions are not replaced with a SimProcedure
-    sleep_jmpslot = p.loader.main_bin.jmprel['sleep']
-    rand_jmpslot = p.loader.main_bin.jmprel['rand']
-    read_jmpslot = p.loader.main_bin.jmprel['read']
+    sleep_jmpslot = p.loader.main_object.jmprel['sleep']
+    rand_jmpslot = p.loader.main_object.jmprel['rand']
+    read_jmpslot = p.loader.main_object.jmprel['read']
 
-    sleep_addr = p.loader.memory.read_addr_at(sleep_jmpslot.addr)
-    rand_addr = p.loader.memory.read_addr_at(rand_jmpslot.addr)
-    read_addr = p.loader.memory.read_addr_at(read_jmpslot.addr)
+    sleep_addr = p.loader.memory.read_addr_at(sleep_jmpslot.rebased_addr)
+    rand_addr = p.loader.memory.read_addr_at(rand_jmpslot.rebased_addr)
+    read_addr = p.loader.memory.read_addr_at(read_jmpslot.rebased_addr)
 
     libc_sleep_addr = p.loader.shared_objects['libc.so.6'].get_symbol('sleep').rebased_addr
     libc_rand_addr = p.loader.shared_objects['libc.so.6'].get_symbol('rand').rebased_addr
@@ -28,8 +28,8 @@ def test_bina():
     nose.tools.assert_equal(sleep_addr, libc_sleep_addr)
     nose.tools.assert_equal(rand_addr, libc_rand_addr)
     nose.tools.assert_true(p.is_hooked(read_addr))
-    nose.tools.assert_true("libc___so___6.read.read" in
-                           p._sim_procedures[read_addr].__str__())
+    nose.tools.assert_true("read" in
+                           str(p._sim_procedures[read_addr]))
 
 if __name__ == '__main__':
     test_bina()

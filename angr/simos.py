@@ -2,23 +2,41 @@
 Manage OS-level configuration.
 """
 
+import os
 import logging
-
+from collections import defaultdict
 from archinfo import ArchARM, ArchMIPS32, ArchMIPS64, ArchX86, ArchAMD64, ArchPPC32, ArchPPC64, ArchAArch64
-from simuvex import SimState, SimIRSB, SimStateSystem, SimActionData
-from simuvex import s_options as o, s_cc
-from simuvex import SimProcedures
-from simuvex.s_procedure import SimProcedure, SimProcedureContinuation
 from cle import MetaELF, BackedCGC
-import pyvex
+from cle.address_translator import AT
+from elftools.elf.descriptions import _DESCR_EI_OSABI
+
 import claripy
 
-from .errors import AngrSyscallError, AngrUnsupportedSyscallError, AngrCallableError, AngrSimOSError
+from .errors import (
+    AngrUnsupportedSyscallError,
+    AngrCallableError,
+    AngrCallableMultistateError,
+    AngrSimOSError,
+    SimUnsupportedError,
+    SimSegfaultException,
+    SimZeroDivisionException,
+    TracerEnvironmentError
+)
 from .tablespecs import StringTableSpec
+from .sim_state import SimState
+from .state_plugins import SimStateSystem, SimActionData, SimStatePreconstrainer
+from .calling_conventions import DEFAULT_CC, SYSCALL_CC
+from .procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
+from . import sim_options as o
+from .storage.file import SimFile, SimDialogue
 
 l = logging.getLogger("angr.simos")
 
+
 class IRange(object):
+    """
+    A simple range object for testing inclusion. Like xrange but works for huge numbers.
+    """
     __slots__ = ('start', 'end')
 
     def __init__(self, start, end):
@@ -37,142 +55,6 @@ class IRange(object):
         self.start, self.end = state
 
 
-class SyscallEntry(object):
-    """
-    Describes a syscall.
-
-    :ivar str name:         Name of the syscall.
-    :ivar int pseudo_addr:  The pseudo address assigned to this syscall.
-    :ivar simproc:          The SimProcedure class for handling this syscall.
-    :ivar bool supported:   True if this syscall is defined and has a SimProcedure implemented, False otherwise.
-    """
-    def __init__(self, name, pseudo_addr, simproc, supported=True):
-        """
-        Constructor.
-
-        :param str name:        Syscall name.
-        :param int pseudo_addr: The pseudo address assigned to this syscall.
-        :param simproc:         The SimProcedure for handling this syscall.
-        :param bool supported:  True if this syscall is defined and there is a SimProcedure implemented for it.
-        """
-
-        self.name = name
-        self.pseudo_addr = pseudo_addr
-        self.simproc = simproc
-        self.supported = supported
-
-    def __repr__(self):
-        s = "<Syscall %s @ %#x%s>" % (self.name, self.pseudo_addr, ", unsupported" if not self.supported else "")
-        return s
-
-
-class SyscallTable(object):
-    """
-    Represents a syscall table.
-
-    :ivar int max_syscall_number:       The maximum syscall number of all supported syscalls in the platform.
-    :ivar int unknown_syscall_number:   The syscall number of the "unknown" syscall used for unsupported syscalls.
-    """
-    def __init__(self, max_syscall_number=None):
-        """
-        Constructor.
-
-        :param int or None max_syscall_number: The maximum syscall number of all supported syscalls in the platform.
-        """
-        self.max_syscall_number = max_syscall_number
-
-        self.unknown_syscall_number = None
-
-        self._table = { }
-
-    def __setitem__(self, syscall_number, syscall):
-        """
-        Insert a syscall entry to the table.
-
-        :param int syscall_number:      Number of the syscall.
-        :param SyscallEntry syscall:    The syscall to insert.
-        :return: None
-        """
-
-        if syscall_number > self.max_syscall_number:
-            self.max_syscall_number = syscall_number
-
-        self._table[syscall_number] = syscall
-
-    def __getitem__(self, syscall_number):
-        """
-        Get a syscall entry from the table.
-
-        :param int syscall_number:  Number of the syscall.
-        :return:                    The syscall entry.
-        :rtype: SyscallEntry
-        """
-
-        if syscall_number in self._table:
-            return self._table[syscall_number]
-        raise KeyError('Syscall number %d not found in syscall table.' % syscall_number)
-
-    def __len__(self):
-        """
-        Get the number of all syscalls supported by this syscall table.
-
-        :return: The number of all syscalls supported.
-        :rtype: int
-        """
-
-        return len(self._table)
-
-    def __contains__(self, syscall_number):
-        """
-        Check if the sycall number is defined in this syscall table.
-
-        :param int syscall_number: The syscall number to check.
-        :return: True if the syscall is defined in this table, False otherwise.
-        :rtype: int
-        """
-
-        return syscall_number in self._table
-
-    @property
-    def max_syscall(self):
-        """
-        Get the maximum syscall number, or None if the syscall table is empty and `max_syscall_number` is not set..
-
-        :return: The syscall number.
-        :rtype: int or None
-        """
-
-        return self.max_syscall_number
-
-    @property
-    def unknown_syscall(self):
-        """
-        Get the "unknown" syscall entry.
-
-        :return: The syscall entry for unknown syscalls.
-        :rtype: SyscallEntry
-        """
-
-        if self.unknown_syscall_number is None:
-            raise AngrSyscallError('The unknown syscall number of this syscall table is not set.')
-
-        return self[self.unknown_syscall_number]
-
-    def supports(self, syscall_number):
-        """
-        Check if the syscall number is defined and supported.
-
-        :param int syscall_number: The number of syscall to check.
-        :return: True if the syscall number is defined and supported by angr, False otherwise
-        :rtype: bool
-        """
-
-        if syscall_number not in self._table:
-            return False
-
-        return self._table[syscall_number].supported
-
-
 class SimOS(object):
     """
     A class describing OS/arch-level configuration.
@@ -180,151 +62,49 @@ class SimOS(object):
 
     def __init__(self, project, name=None):
         self.arch = project.arch
-        self.proj = project
+        self.project = project
         self.name = name
-        self.continue_addr = None
         self.return_deadend = None
-        self.syscall_table = SyscallTable()
-
-    def _load_syscalls(self, syscall_table, syscall_lib):
-        """
-        Load a table of syscalls to self.proj._syscall_obj. Each syscall entry takes 8 bytes no matter what
-        architecture it is on.
-
-        :param dict syscall_table: Syscall table.
-        :param str syscall_lib: Name of the syscall library
-        :return: None
-        """
-
-        base_addr = self.proj._syscall_obj.rebase_addr
-
-        syscall_entry_count = 0 if not syscall_table else max(syscall_table.keys()) + 1
-        for syscall_number in xrange(syscall_entry_count):
-
-            syscall_addr = base_addr + syscall_number * 8
-
-            if syscall_number in syscall_table:
-                name, simproc_name = syscall_table[syscall_number]
-
-                if simproc_name in SimProcedures[syscall_lib]:
-                    simproc = SimProcedures[syscall_lib][simproc_name]
-                else:
-                    # no SimProcedure is implemented for this syscall
-                    simproc = SimProcedures["syscalls"]["stub"]
-
-                self.syscall_table[syscall_number] = SyscallEntry(name, syscall_addr, simproc)
-
-                # Write it to the SimProcedure dict
-                self.proj._sim_procedures[syscall_addr] = (simproc, { })
-
-            else:
-                # no syscall number available in the pre-defined syscall table
-                self.syscall_table[syscall_number] = SyscallEntry("_unsupported", syscall_addr,
-                                                                  SimProcedures["syscalls"]["stub"],
-                                                                  supported=False
-                                                                  )
-
-                # Write it to the SimProcedure dict
-                self.proj._sim_procedures[syscall_addr] = (SimProcedures["syscalls"]["stub"], { })
-
-        # Now here is the fallback syscall stub
-        unknown_syscall_addr = base_addr + (syscall_entry_count + 1) * 8
-        unknown_syscall_number = syscall_entry_count + 1
-        self.syscall_table.unknown_syscall_number = unknown_syscall_number
-        self.syscall_table[unknown_syscall_number] = SyscallEntry("_unknown", unknown_syscall_addr,
-                                                                   SimProcedures["syscalls"]["stub"],
-                                                                   supported=False
-                                                                   )
-
-        self.proj._sim_procedures[unknown_syscall_addr] = (SimProcedures["syscalls"]["stub"], { })
-
-    def syscall_info(self, state):
-        """
-        Get information about the syscall that is about to be called. Note that symbolic syscalls are not supported -
-        the syscall number *must* have only one solution.
-
-        :param simuvex.s_state.SimState state: the program state.
-        :return: A tuple of (cc, syscall_addr, syscall_name, syscall_class)
-        :rtype: tuple
-        """
-
-        if state.os_name in s_cc.SyscallCC[state.arch.name]:
-            cc = s_cc.SyscallCC[state.arch.name][state.os_name](state.arch)
-        else:
-            # Use the default syscall calling convention - it may bring problems
-            cc = s_cc.SyscallCC[state.arch.name]['default'](state.arch)
-
-        syscall_num = cc.syscall_num(state)
-
-        possible = state.se.any_n_int(syscall_num, 2)
-
-        if len(possible) > 1 and len(self.syscall_table) > 0:
-            # Symbolic syscalls are not supported - we will create a 'unknown syscall" stub for it
-            n = self.syscall_table.unknown_syscall_number
-        elif not possible:
-            # The state is not satisfiable
-            raise AngrUnsupportedSyscallError("The program state is not satisfiable")
-        else:
-            n = possible[0]
-
-        if not self.syscall_table.supports(n):
-            if o.BYPASS_UNSUPPORTED_SYSCALL in state.options:
-                state.log.add_event('resilience', resilience_type='syscall', syscall=n, message='unsupported syscall')
-
-                syscall = self.syscall_table.unknown_syscall if n not in self.syscall_table else self.syscall_table[n]
-
-            else:
-                l.error("Syscall %d is not found for arch %s", n, state.arch.name)
-                raise AngrUnsupportedSyscallError("Syscall %d is not found for arch %s" % (n, state.arch.name))
-        else:
-            syscall = self.syscall_table[n]
-
-        return cc, syscall.pseudo_addr, syscall.name, syscall.simproc
-
-    def handle_syscall(self, state):
-        """
-        Handle a state whose immediate preceding jumpkind is syscall by creating a new SimRun. Note that symbolic
-        syscalls are not supported - the syscall number *must* have only one solution.
-
-        :param simuvex.s_state.SimState state: the program state.
-        :return: a new SimRun instance.
-        :rtype: simuvex.s_procedure.SimProcedure
-        """
-
-        cc, syscall_addr, syscall_name, syscall_class = self.syscall_info(state)
-
-        # The ip_at_syscall register is misused to save the return address for this syscall
-        ret_to = state.regs.ip_at_syscall
-        state.ip = syscall_addr
-
-        syscall = syscall_class(state, addr=syscall_addr, ret_to=ret_to, convention=cc, syscall_name=syscall_name)
-
-        return syscall
 
     def configure_project(self):
         """
         Configure the project to set up global settings (like SimProcedures).
         """
-        self.continue_addr = self.proj._extern_obj.get_pseudo_addr('angr##simproc_continue')
-        self.proj.hook(self.continue_addr, SimProcedureContinuation)
-        self.return_deadend = self.proj._extern_obj.get_pseudo_addr('angr##return_deadend')
-        self.proj.hook(self.return_deadend, CallReturn)
+        self.return_deadend = self.project.loader.extern_object.allocate()
+        self.project.hook(self.return_deadend, P['stubs']['CallReturn']())
 
         def irelative_resolver(resolver_addr):
-            resolver = self.proj.factory.callable(resolver_addr, concrete_only=True)
+            # autohooking runs before this does, might have provided this already
+            # in that case, we want to advertise the _resolver_ address, since it is now
+            # providing the behavior of the actual function
+            if self.project.is_hooked(resolver_addr):
+                return resolver_addr
+
+            resolver = self.project.factory.callable(resolver_addr, concrete_only=True)
             try:
                 val = resolver()
+            except AngrCallableMultistateError:
+                l.error("Resolver at %#x failed to resolve! (multivalued)", resolver_addr)
+                return None
             except AngrCallableError:
                 l.error("Resolver at %#x failed to resolve!", resolver_addr)
                 return None
 
-            if not val.singlevalued:
-                l.error("Resolver at %#x failed to resolve! (multivalued)", resolver_addr)
-                return None
-
             return val._model_concrete.value
 
-        self.proj.loader.perform_irelative_relocs(irelative_resolver)
+        self.project.loader.perform_irelative_relocs(irelative_resolver)
+
+    def _weak_hook_symbol(self, name, hook, scope=None):
+        if scope is None:
+            sym = self.project.loader.find_symbol(name)
+        else:
+            sym = scope.get_symbol(name)
+
+        if sym is not None:
+            if self.project.is_hooked(sym.rebased_addr):
+                if not self.project.hooked_by(sym.rebased_addr).is_stub:
+                    return
+            self.project.hook(sym.rebased_addr, hook)
 
     def state_blank(self, addr=None, initial_prefix=None, stack_size=1024*1024*8, **kwargs):
         """
@@ -334,15 +114,18 @@ class SimOS(object):
 
         :param addr:            The execution start address.
         :param initial_prefix:
+        :param stack_size:      The number of bytes to allocate for stack space
         :return:                The initialized SimState.
-        :rtype:                 simuvex.SimState
+
+        Any additional arguments will be passed to the SimState constructor
         """
+        # TODO: move ALL of this into the SimState constructor
         if kwargs.get('mode', None) is None:
-            kwargs['mode'] = self.proj._default_analysis_mode
+            kwargs['mode'] = self.project._default_analysis_mode
         if kwargs.get('permissions_backer', None) is None:
             # just a dict of address ranges to permission bits
             permission_map = { }
-            for obj in self.proj.loader.all_objects:
+            for obj in self.project.loader.all_objects:
                 for seg in obj.segments:
                     perms = 0
                     # bit values based off of protection bit values from sys/mman.h
@@ -352,17 +135,15 @@ class SimOS(object):
                         perms |= 2 # PROT_WRITE
                     if seg.is_executable:
                         perms |= 4 # PROT_EXEC
-                    permission_map[(obj.rebase_addr + seg.min_addr, obj.rebase_addr + seg.max_addr)] = perms
-            permissions_backer = (self.proj.loader.main_bin.execstack, permission_map)
+                    permission_map[(seg.min_addr, seg.max_addr)] = perms
+            permissions_backer = (self.project.loader.main_object.execstack, permission_map)
             kwargs['permissions_backer'] = permissions_backer
         if kwargs.get('memory_backer', None) is None:
-            kwargs['memory_backer'] = self.proj.loader.memory
-        if kwargs.get('arch', None) is None:
-            kwargs['arch'] = self.proj.arch
+            kwargs['memory_backer'] = self.project.loader.memory
         if kwargs.get('os_name', None) is None:
             kwargs['os_name'] = self.name
 
-        state = SimState(**kwargs)
+        state = SimState(self.project, **kwargs)
 
         stack_end = state.arch.initial_sp
         if o.ABSTRACT_MEMORY not in state.options:
@@ -372,8 +153,8 @@ class SimOS(object):
             highest_reg_offset, reg_size = max(state.arch.registers.values())
             for i in range(0, highest_reg_offset + reg_size, state.arch.bytes):
                 state.registers.store(i, state.se.BVV(0, state.arch.bits))
-
-        state.regs.sp = stack_end
+        if state.arch.sp_offset is not None:
+            state.regs.sp = stack_end
 
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
@@ -401,15 +182,14 @@ class SimOS(object):
             else:
                 state.registers.store(reg, val)
 
-        if addr is None: addr = self.proj.entry
+        if addr is None: addr = self.project.entry
         state.regs.ip = addr
 
+        # set up the "root history" node
         state.scratch.ins_addr = addr
         state.scratch.bbl_addr = addr
         state.scratch.stmt_idx = 0
-        state.scratch.jumpkind = 'Ijk_Boring'
-
-        state.procedure_data.hook_addr = self.continue_addr
+        state.history.jumpkind = 'Ijk_Boring'
         return state
 
     def state_entry(self, **kwargs):
@@ -419,7 +199,7 @@ class SimOS(object):
         return self.state_entry(**kwargs)
 
     def state_call(self, addr, *args, **kwargs):
-        cc = kwargs.pop('cc', s_cc.DefaultCC[self.arch.name](self.proj.arch))
+        cc = kwargs.pop('cc', DEFAULT_CC[self.arch.name](self.project.arch))
         state = kwargs.pop('base_state', None)
         toc = kwargs.pop('toc', None)
 
@@ -437,6 +217,43 @@ class SimOS(object):
 
         if state.arch.name == 'PPC64' and toc is not None:
             state.regs.r2 = toc
+
+        return state
+
+    def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
+                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
+
+        if input_content is None:
+            return self.state_full_init(**kwargs)
+
+        if type(input_content) == str:
+            fs = {'/dev/stdin': SimFile("/dev/stdin", "r", size=len(input_content))}
+        elif type(input_content) != SimDialogue:
+            raise TracerEnvironmentError("Input for tracer should be either a string or a TracerPoV for CGC binaries.")
+
+        kwargs['fs'] = kwargs.get('fs', fs)
+
+        kwargs['add_options'] |= {o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY,
+                                  o.REPLACEMENT_SOLVER,
+                                  o.UNICORN,
+                                  o.UNICORN_HANDLE_TRANSMIT_SYSCALL}
+
+        kwargs['remove_options'] |= {o.EFFICIENT_STATE_MERGING} | o.simplification
+
+        state = self.state_full_init(**kwargs)
+
+        # Create the preconstrainer plugin
+        state.register_plugin('preconstrainer',
+                              SimStatePreconstrainer(input_content=input_content,
+                                                     magic_content=magic_content,
+                                                     preconstrain_input=preconstrain_input,
+                                                     preconstrain_flag=preconstrain_flag,
+                                                     constrained_addrs=constrained_addrs))
+
+        # Preconstrain
+        state.preconstrainer.preconstrain_state()
+
+        state.cgc.flag_bytes = [claripy.BVS("cgc-flag-byte-%d" % i, 8) for i in xrange(0x1000)]
 
         return state
 
@@ -469,189 +286,251 @@ class SimOS(object):
 
         return new_state
 
-    def prepare_function_symbol(self, symbol_name):
+    def prepare_function_symbol(self, symbol_name, basic_addr=None):
         """
         Prepare the address space with the data necessary to perform relocations pointing to the given symbol
-        """
-        return self.proj._extern_obj.get_pseudo_addr(symbol_name)
 
-class SimLinux(SimOS):
+        Returns a 2-tuple. The first item is the address of the function code, the second is the address of the
+        relocation target.
+        """
+        if basic_addr is None:
+            basic_addr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
+        return basic_addr, basic_addr
+
+    def handle_exception(self, successors, engine, exc_type, exc_value, exc_traceback):
+        """
+        Perform exception handling. This method will be called when, during execution, a SimException is thrown.
+        Currently, this can only indicate a segfault, but in the future it could indicate any unexpected exceptional
+        behavior that can't be handled by ordinary control flow.
+
+        The method may mutate the provided SimSuccessors object in any way it likes, or re-raise the exception.
+
+        :param successors:      The SimSuccessors object currently being executed on
+        :param engine:          The engine that was processing this step
+        :param exc_type:        The value of sys.exc_info()[0] from the error, the type of the exception that was raised
+        :param exc_value:       The value of sys.exc_info()[1] from the error, the actual exception object
+        :param exc_traceback:   The value of sys.exc_info()[2] from the error, the traceback from the exception
+        """
+        raise exc_type, exc_value, exc_traceback
+    # Dummy stuff to allow this API to be used freely
+
+    # pylint: disable=unused-argument, no-self-use
+    def syscall(self, state, allow_unsupported=True):
+        return None
+
+    def is_syscall_addr(self, addr):
+        return False
+
+    def syscall_from_addr(self, addr, allow_unsupported=True):
+        return None
+
+    def syscall_from_number(self, number, allow_unsupported=True):
+        return None
+
+
+class SimUserland(SimOS):
+    """
+    This is a base class for any SimOS that wants to support syscalls.
+
+    It uses the CLE kernel object to provide addresses for syscalls. Syscalls will be emulated as a jump to one of these
+    addresses, where a SimProcedure from the syscall library provided at construction time will be executed.
+    """
+    def __init__(self, project, syscall_library=None, **kwargs):
+        super(SimUserland, self).__init__(project, **kwargs)
+        self.syscall_library = syscall_library
+        self.kernel_base = None
+
+    def configure_project(self):
+        super(SimUserland, self).configure_project()
+        self.kernel_base = self.project.loader.kernel_object.mapped_base
+
+    def syscall(self, state, allow_unsupported=True):
+        """
+        Given a state, return the procedure corresponding to the current syscall.
+        This procedure will have .syscall_number, .display_name, and .addr set.
+
+        :param state:               The state to get the syscall number from
+        :param allow_unsupported:   Whether to return a "dummy" sycall instead of raising an unsupported exception
+        """
+        if state.os_name in SYSCALL_CC[state.arch.name]:
+            cc = SYSCALL_CC[state.arch.name][state.os_name](state.arch)
+        else:
+            # Use the default syscall calling convention - it may bring problems
+            l.warning("No syscall calling convention available for %s/%s", state.arch.name, state.os_name)
+            cc = SYSCALL_CC[state.arch.name]['default'](state.arch)
+
+        sym_num = cc.syscall_num(state)
+        possible = state.solver.eval_upto(sym_num, 2)
+
+        if len(possible) == 0:
+            raise AngrUnsupportedSyscallError("The program state is not satisfiable")
+        elif len(possible) == 1:
+            num = possible[0]
+        elif allow_unsupported:
+            num = self.syscall_library.maximum_syscall_number(self.arch.name) + 1 if self.syscall_library else 0
+        else:
+            raise AngrUnsupportedSyscallError("Got a symbolic syscall number")
+
+        proc = self.syscall_from_number(num, allow_unsupported=allow_unsupported)
+        proc.cc = cc
+        return proc
+
+    def is_syscall_addr(self, addr):
+        """
+        Return whether or not the given address corresponds to a syscall.
+        """
+        if self.kernel_base is None:
+            return False
+        addr -= self.kernel_base
+        return 0 <= addr < 0x4000 # TODO: make this number come from somewhere
+
+    def syscall_from_addr(self, addr, allow_unsupported=True):
+        """
+        Get a syscall SimProcedure from an address.
+
+        :param addr: The address to convert to a syscall SimProcedure
+        :param allow_unsupported: Whether to return a dummy procedure for an unsupported syscall instead of raising an
+                                  exception.
+        :return: The SimProcedure for the syscall, or None if the address is not a syscall address.
+        """
+        if not self.is_syscall_addr(addr):
+            return None
+
+        number = addr - self.kernel_base
+        return self.syscall_from_number(number, allow_unsupported=allow_unsupported)
+
+    def syscall_from_number(self, number, allow_unsupported=True):
+        if not allow_unsupported and not self.syscall_library:
+            raise AngrUnsupportedSyscallError("%s does not have a library of syscalls implemented" % self.name)
+
+        addr = number + self.kernel_base
+
+        if self.syscall_library is None:
+            proc = P['stubs']['syscall']()
+        elif not allow_unsupported and not self.syscall_library.has_implementation(number, self.arch):
+            raise AngrUnsupportedSyscallError("No implementation for syscall %d" % number)
+        else:
+            proc = self.syscall_library.get(number, self.arch)
+
+        proc.addr = addr
+        return proc
+
+
+class SimLinux(SimUserland):
     """
     OS-specific configuration for \\*nix-y OSes.
     """
 
-    SYSCALL_TABLE = {
-        'AMD64': {
-            0: ('read', 'read'),
-            1: ('write', 'write'),
-            2: ('open', 'open'),
-            3: ('close', 'close'),
-            4: ('stat', 'stat'),
-            5: ('fstat', 'fstat'),
-            6: ('stat', 'stat'),
-            9: ('mmap', 'mmap'),
-            11: ('munmap', 'munmap'),
-            12: ('brk', 'brk'),
-            13: ('sigaction', 'sigaction'),
-            14: ('sigprocmask', 'sigprocmask'),
-            39: ('getpid', 'getpid'),
-            60: ('exit', 'exit'),
-            158: ('arch_prctl','arch_prctl'),
-            186: ('gettid', 'gettid'),
-            231: ('exit_group', 'exit'),  # really exit_group, but close enough
-            234: ('tgkill', 'tgkill'),
-        },
-        'X86': {
-            1: ('exit', 'exit'),
-            3: ('read', 'read'),
-            4: ('write', 'write'),
-            5: ('open', 'open'),
-            6: ('close', 'close'),
-            45: ('brk', 'brk'),
-            252: ('exit_group', 'exit'),  # really exit_group, but close enough
-        },
-        'PPC32': {
-            1: ('exit', 'exit'),
-            3: ('read', 'read'),
-            4: ('write', 'write'),
-            5: ('open', 'open'),
-            6: ('close', 'close'),
-            45: ('brk', 'brk'),
-        },
-        'PPC64': {
-
-        },
-        'MIPS32': {
-            4001: ('exit', 'exit'),
-            4003: ('read', 'read'),
-            4004: ('write', 'write'),
-            4005: ('open', 'open'),
-            4006: ('close', 'close'),
-            4045: ('brk', 'brk'),
-        },
-        'MIPS64': {
-            5000: ('read', 'read'),
-            5001: ('write', 'write'),
-            5002: ('open', 'open'),
-            5003: ('close', 'close'),
-            5012: ('brk', 'brk'),
-            5058: ('exit', 'exit'),
-        },
-        'ARM': {
-
-        },
-        'ARMEL': {
-
-        },
-        'ARMHF': {
-
-        },
-        'AARCH64': {
-
-        }
-    }
-
-    def __init__(self, *args, **kwargs):
-        super(SimLinux, self).__init__(*args, name="Linux", **kwargs)
+    def __init__(self, project, **kwargs):
+        super(SimLinux, self).__init__(project, syscall_library=L['linux'], name="Linux", **kwargs)
 
         self._loader_addr = None
         self._loader_lock_addr = None
         self._loader_unlock_addr = None
+        self._error_catch_tsd_addr = None
         self._vsyscall_addr = None
 
     def configure_project(self):
-        super(SimLinux, self).configure_project()
+        self._loader_addr = self.project.loader.extern_object.allocate()
+        self._loader_lock_addr = self.project.loader.extern_object.allocate()
+        self._loader_unlock_addr = self.project.loader.extern_object.allocate()
+        self._error_catch_tsd_addr = self.project.loader.extern_object.allocate()
+        self._vsyscall_addr = self.project.loader.extern_object.allocate()
+        self.project.hook(self._loader_addr, P['linux_loader']['LinuxLoader']())
+        self.project.hook(self._loader_lock_addr, P['linux_loader']['_dl_rtld_lock_recursive']())
+        self.project.hook(self._loader_unlock_addr, P['linux_loader']['_dl_rtld_unlock_recursive']())
+        self.project.hook(self._error_catch_tsd_addr, P['linux_loader']['_dl_initial_error_catch_tsd'](static_addr=self.project.loader.extern_object.allocate()))
+        self.project.hook(self._vsyscall_addr, P['linux_kernel']['_vsyscall']())
 
-        self._loader_addr = self.proj._extern_obj.get_pseudo_addr('angr##loader')
-        self._loader_lock_addr = self.proj._extern_obj.get_pseudo_addr('angr##loader_lock')
-        self._loader_unlock_addr = self.proj._extern_obj.get_pseudo_addr('angr##loader_unlock')
-        self._vsyscall_addr = self.proj._extern_obj.get_pseudo_addr('angr##vsyscall')
-        self.proj.hook(self._loader_addr, LinuxLoader, kwargs={'project': self.proj})
-        self.proj.hook(self._loader_lock_addr, _dl_rtld_lock_recursive)
-        self.proj.hook(self._loader_unlock_addr, _dl_rtld_unlock_recursive)
-        self.proj.hook(self._vsyscall_addr, _vsyscall)
-
-        ld_obj = self.proj.loader.linux_loader_object
+        ld_obj = self.project.loader.linux_loader_object
         if ld_obj is not None:
-            tlsfunc = ld_obj.get_symbol('__tls_get_addr')
-            if tlsfunc is not None:
-                self.proj.hook(tlsfunc.rebased_addr, _tls_get_addr, kwargs={'ld': self.proj.loader})
-            tlsfunc2 = ld_obj.get_symbol('___tls_get_addr')
-            if tlsfunc2 is not None:
-                if self.proj.arch.name == 'X86':
-                    self.proj.hook(tlsfunc2.rebased_addr, _tls_get_addr_tunder_x86, kwargs={'ld': self.proj.loader})
-                else:
-                    l.error("Found an unknown ___tls_get_addr, please tell Andrew")
+            # there are some functions we MUST use the simprocedures for, regardless of what the user wants
+            self._weak_hook_symbol('__tls_get_addr', L['ld.so'].get('__tls_get_addr', self.arch), ld_obj)
+            self._weak_hook_symbol('___tls_get_addr', L['ld.so'].get('___tls_get_addr', self.arch), ld_obj)
 
+            # set up some static data in the loader object...
             _rtld_global = ld_obj.get_symbol('_rtld_global')
             if _rtld_global is not None:
-                if isinstance(self.proj.arch, ArchAMD64):
-                    self.proj.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
-                    self.proj.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0xF10, self._loader_unlock_addr)
+                if isinstance(self.project.arch, ArchAMD64):
+                    self.project.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
+                    self.project.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0xF10, self._loader_unlock_addr)
+                    self.project.loader.memory.write_addr_at(_rtld_global.rebased_addr + 0x990, self._error_catch_tsd_addr)
 
+            # TODO: what the hell is this
             _rtld_global_ro = ld_obj.get_symbol('_rtld_global_ro')
             if _rtld_global_ro is not None:
                 pass
 
-        tls_obj = self.proj.loader.tls_object
+        libc_obj = self.project.loader.find_object('libc.so.6')
+        if libc_obj:
+            self._weak_hook_symbol('_dl_vdso_vsym', L['libc.so.6'].get('_dl_vdso_vsym', self.arch), libc_obj)
+
+        tls_obj = self.project.loader.tls_object
         if tls_obj is not None:
-            if isinstance(self.proj.arch, ArchAMD64):
-                self.proj.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x28, 0x5f43414e4152595f)
-                self.proj.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
-            elif isinstance(self.proj.arch, ArchX86):
-                self.proj.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x10, self._vsyscall_addr)
-            elif isinstance(self.proj.arch, ArchARM):
-                self.proj.hook(0xffff0fe0, _kernel_user_helper_get_tls, kwargs={'ld': self.proj.loader})
+            if isinstance(self.project.arch, ArchAMD64):
+                self.project.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x28, 0x5f43414e4152595f)
+                self.project.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
+            elif isinstance(self.project.arch, ArchX86):
+                self.project.loader.memory.write_addr_at(tls_obj.thread_pointer + 0x10, self._vsyscall_addr)
+            elif isinstance(self.project.arch, ArchARM):
+                self.project.hook(0xffff0fe0, P['linux_kernel']['_kernel_user_helper_get_tls']())
 
 
         # Only set up ifunc resolution if we are using the ELF backend on AMD64
-        if isinstance(self.proj.loader.main_bin, MetaELF):
-            if isinstance(self.proj.arch, ArchAMD64):
-                for binary in self.proj.loader.all_objects:
+        if isinstance(self.project.loader.main_object, MetaELF):
+            if isinstance(self.project.arch, ArchAMD64):
+                for binary in self.project.loader.all_objects:
                     if not isinstance(binary, MetaELF):
                         continue
                     for reloc in binary.relocs:
                         if reloc.symbol is None or reloc.resolvedby is None:
                             continue
-                        if reloc.resolvedby.type != 'STT_GNU_IFUNC':
+                        try:
+                            if reloc.resolvedby.elftype != 'STT_GNU_IFUNC':
+                                continue
+                        except AttributeError:
                             continue
-                        gotaddr = reloc.addr + binary.rebase_addr
-                        gotvalue = self.proj.loader.memory.read_addr_at(gotaddr)
-                        if self.proj.is_hooked(gotvalue):
+                        gotaddr = reloc.rebased_addr
+                        gotvalue = self.project.loader.memory.read_addr_at(gotaddr)
+                        if self.project.is_hooked(gotvalue):
                             continue
                         # Replace it with a ifunc-resolve simprocedure!
                         kwargs = {
-                                'proj': self.proj,
                                 'funcaddr': gotvalue,
                                 'gotaddr': gotaddr,
                                 'funcname': reloc.symbol.name
                         }
-                        randaddr = self.proj._extern_obj.get_pseudo_addr('ifunc_' + reloc.symbol.name)
-                        self.proj.hook(randaddr, IFuncResolver, kwargs=kwargs)
-                        self.proj.loader.memory.write_addr_at(gotaddr, randaddr)
+                        # TODO: should this be replaced with hook_symbol?
+                        randaddr = self.project.loader.extern_object.allocate()
+                        self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](**kwargs))
+                        self.project.loader.memory.write_addr_at(gotaddr, randaddr)
 
-        self._load_syscalls(SimLinux.SYSCALL_TABLE[self.arch.name], "syscalls")
+        super(SimLinux, self).configure_project()
 
+    # pylint: disable=arguments-differ
     def state_blank(self, fs=None, concrete_fs=False, chroot=None, **kwargs):
-        state = super(SimLinux, self).state_blank(**kwargs) #pylint:disable=invalid-name
+        state = super(SimLinux, self).state_blank(**kwargs)
 
-        if self.proj.loader.tls_object is not None:
+        if self.project.loader.tls_object is not None:
             if isinstance(state.arch, ArchAMD64):
-                state.regs.fs = self.proj.loader.tls_object.user_thread_pointer
+                state.regs.fs = self.project.loader.tls_object.user_thread_pointer
             elif isinstance(state.arch, ArchX86):
-                state.regs.gs = self.proj.loader.tls_object.user_thread_pointer >> 16
+                state.regs.gs = self.project.loader.tls_object.user_thread_pointer >> 16
             elif isinstance(state.arch, (ArchMIPS32, ArchMIPS64)):
-                state.regs.ulr = self.proj.loader.tls_object.user_thread_pointer
+                state.regs.ulr = self.project.loader.tls_object.user_thread_pointer
             elif isinstance(state.arch, ArchPPC32):
-                state.regs.r2 = self.proj.loader.tls_object.user_thread_pointer
+                state.regs.r2 = self.project.loader.tls_object.user_thread_pointer
             elif isinstance(state.arch, ArchPPC64):
-                state.regs.r13 = self.proj.loader.tls_object.user_thread_pointer
+                state.regs.r13 = self.project.loader.tls_object.user_thread_pointer
             elif isinstance(state.arch, ArchAArch64):
-                state.regs.tpidr_el0 = self.proj.loader.tls_object.user_thread_pointer
+                state.regs.tpidr_el0 = self.project.loader.tls_object.user_thread_pointer
 
-        state.register_plugin('posix', SimStateSystem(fs=fs, concrete_fs=concrete_fs, chroot=chroot))
+        last_addr = self.project.loader.main_object.max_addr
+        brk = last_addr - last_addr % 0x1000 + 0x1000
 
-        if self.proj.loader.main_bin.is_ppc64_abiv1:
+        state.register_plugin('posix', SimStateSystem(fs=fs, concrete_fs=concrete_fs, chroot=chroot, brk=brk))
+
+        if self.project.loader.main_object.is_ppc64_abiv1:
             state.libc.ppc64_abiv = 'ppc64_1'
 
         return state
@@ -676,32 +555,10 @@ class SimLinux(SimOS):
         table = StringTableSpec()
 
         # Add args to string table
-        for arg in args:
-            table.add_string(arg)
-        table.add_null()
+        table.append_args(args)
 
         # Add environment to string table
-        for k, v in env.iteritems():
-            if type(k) is str:  # pylint: disable=unidiomatic-typecheck
-                k = claripy.BVV(k)
-            elif type(k) is unicode:  # pylint: disable=unidiomatic-typecheck
-                k = claripy.BVV(k.encode('utf-8'))
-            elif isinstance(k, claripy.ast.Bits):
-                pass
-            else:
-                raise TypeError("Key in env must be either string or bitvector")
-
-            if type(v) is str:  # pylint: disable=unidiomatic-typecheck
-                v = claripy.BVV(v)
-            elif type(v) is unicode:  # pylint: disable=unidiomatic-typecheck
-                v = claripy.BVV(v.encode('utf-8'))
-            elif isinstance(v, claripy.ast.Bits):
-                pass
-            else:
-                raise TypeError("Value in env must be either string or bitvector")
-
-            table.add_string(k.concat(claripy.BVV('='), v))
-        table.add_null()
+        table.append_env(env)
 
         # Prepare the auxiliary vector and add it to the end of the string table
         # TODO: Actually construct a real auxiliary vector
@@ -761,51 +618,75 @@ class SimLinux(SimOS):
                     # or NULL. We like NULL. It makes things easier.
                     state.registers.store(reg, 0)
                 elif val == 'toc':
-                    if self.proj.loader.main_bin.is_ppc64_abiv1:
-                        state.registers.store(reg, self.proj.loader.main_bin.ppc64_initial_rtoc)
+                    if self.project.loader.main_object.is_ppc64_abiv1:
+                        state.registers.store(reg, self.project.loader.main_object.ppc64_initial_rtoc)
                 elif val == 'thread_pointer':
-                    state.registers.store(reg, self.proj.loader.tls_object.user_thread_pointer)
+                    state.registers.store(reg, self.project.loader.tls_object.user_thread_pointer)
                 else:
                     l.warning('Unknown entry point register value indicator "%s"', val)
             else:
                 l.error('What the ass kind of default value is %s?', val)
 
     def state_full_init(self, **kwargs):
-        kwargs['addr'] = self.proj._extern_obj.get_pseudo_addr('angr##loader')
+        kwargs['addr'] = self._loader_addr
         return super(SimLinux, self).state_full_init(**kwargs)
 
-    def prepare_function_symbol(self, symbol_name):
+    def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
+                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
+        l.warning("Tracer has been heavily tested only for CGC. If you find it buggy for Linux binaries, we are sorry!")
+
+        options = kwargs.get('add_options', set())
+        options.add(o.BYPASS_UNSUPPORTED_SYSCALL)
+
+        kwargs['add_options'] = options
+
+        kwargs['remove_options'] = kwargs.get('remove_options', set())
+        
+        kwargs['concrete_fs'] = kwargs.get('concrete_fs', True)
+
+        state = super(SimLinux, self).state_tracer(input_content=input_content,
+                                                   magic_content=magic_content,
+                                                   preconstrain_input=preconstrain_input,
+                                                   preconstrain_flag=preconstrain_flag,
+                                                   constrained_addrs=constrained_addrs,
+                                                   **kwargs)
+
+        # Increase size of libc limits
+        state.libc.buf_symbolic_bytes = 1024
+        state.libc.max_str_len = 1024
+
+        return state
+
+    def prepare_function_symbol(self, symbol_name, basic_addr=None):
         """
         Prepare the address space with the data necessary to perform relocations pointing to the given symbol.
+
+        Returns a 2-tuple. The first item is the address of the function code, the second is the address of the
+        relocation target.
         """
-        if self.arch.name == 'PPC64':
-            pseudo_hookaddr = self.proj._extern_obj.get_pseudo_addr(symbol_name + '#func')
-            pseudo_toc = self.proj._extern_obj.get_pseudo_addr(symbol_name + '#func', size=0x18)
-            self.proj._extern_obj.memory.write_addr_at(pseudo_toc - self.proj._extern_obj.rebase_addr, pseudo_hookaddr)
-            return pseudo_hookaddr
+        if self.project.loader.main_object.is_ppc64_abiv1:
+            if basic_addr is not None:
+                pointer = self.project.loader.memory.read_addr_at(basic_addr)
+                return pointer, basic_addr
+
+            pseudo_hookaddr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
+            pseudo_toc = self.project.loader.extern_object.allocate(size=0x18)
+            self.project.loader.extern_object.memory.write_addr_at(AT.from_mva(pseudo_toc, self.project.loader.extern_object).to_rva(), pseudo_hookaddr)
+            return pseudo_hookaddr, pseudo_toc
         else:
-            return self.proj._extern_obj.get_pseudo_addr(symbol_name)
+            if basic_addr is None:
+                basic_addr = self.project.loader.extern_object.get_pseudo_addr(symbol_name)
+            return basic_addr, basic_addr
 
-class SimCGC(SimOS):
 
-    SYSCALL_TABLE = {
-        1: ('_terminate', '_terminate'),
-        2: ('transmit', 'transmit'),
-        3: ('receive', 'receive'),
-        4: ('fdwait', 'fdwait'),
-        5: ('allocate', 'allocate'),
-        6: ('deallocate', 'deallocate'),
-        7: ('random', 'random'),
-    }
+class SimCGC(SimUserland):
+    """
+    Environment configuration for the CGC DECREE platform
+    """
+    def __init__(self, project, **kwargs):
+        super(SimCGC, self).__init__(project, syscall_library=L['cgcabi'], name="CGC", **kwargs)
 
-    def __init__(self, *args, **kwargs):
-        super(SimCGC, self).__init__(*args, name="CGC", **kwargs)
-
-    def configure_project(self):
-        super(SimCGC, self).configure_project()
-
-        self._load_syscalls(SimCGC.SYSCALL_TABLE, "cgc")
-
+    # pylint: disable=arguments-differ
     def state_blank(self, fs=None, **kwargs):
         s = super(SimCGC, self).state_blank(**kwargs)  # pylint:disable=invalid-name
 
@@ -817,28 +698,25 @@ class SimCGC(SimOS):
             s.memory.mem._preapproved_stack = IRange(0xbaaab000 - 1024*1024*8, 0xbaaab000)
             s.memory.map_region(0x4347c000, 4096, 1)
 
-        # 'main' gets called with the magic page address as the first fast arg
-        s.regs.ecx = 0x4347c000
-
         s.register_plugin('posix', SimStateSystem(fs=fs))
 
         # Create the CGC plugin
         s.get_plugin('cgc')
 
         # set up the address for concrete transmits
-        s.unicorn.transmit_addr = self.syscall_table[2].pseudo_addr
+        s.unicorn.transmit_addr = self.syscall_from_number(2).addr
 
         return s
 
     def state_entry(self, **kwargs):
-        if isinstance(self.proj.loader.main_bin, BackedCGC):
-            kwargs['permissions_backer'] = (True, self.proj.loader.main_bin.permissions_map)
+        if isinstance(self.project.loader.main_object, BackedCGC):
+            kwargs['permissions_backer'] = (True, self.project.loader.main_object.permissions_map)
         kwargs['add_options'] = {o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY} | kwargs.get('add_options', set())
 
         state = super(SimCGC, self).state_entry(**kwargs)
 
-        if isinstance(self.proj.loader.main_bin, BackedCGC):
-            for reg, val in self.proj.loader.main_bin.initial_register_values():
+        if isinstance(self.project.loader.main_object, BackedCGC):
+            for reg, val in self.project.loader.main_object.initial_register_values():
                 if reg in state.arch.registers:
                     setattr(state.regs, reg, val)
                 elif reg == 'eflags':
@@ -860,10 +738,10 @@ class SimCGC(SimOS):
                     l.error("What is this register %s I have to translate?", reg)
 
             # Update allocation base
-            state.cgc.allocation_base = self.proj.loader.main_bin.current_allocation_base
+            state.cgc.allocation_base = self.project.loader.main_object.current_allocation_base
 
             # Do all the writes
-            writes_backer = self.proj.loader.main_bin.writes_backer
+            writes_backer = self.project.loader.main_object.writes_backer
             stdout = 1
             for size in writes_backer:
                 if size == 0:
@@ -871,7 +749,7 @@ class SimCGC(SimOS):
                 str_to_write = state.posix.files[1].content.load(state.posix.files[1].pos, size)
                 a = SimActionData(state, 'file_1_0', 'write', addr=claripy.BVV(state.posix.files[1].pos, state.arch.bits), data=str_to_write, size=size)
                 state.posix.write(stdout, str_to_write, size)
-                state.log.add_action(a)
+                state.history.add_action(a)
 
         else:
             # Set CGC-specific variables
@@ -923,107 +801,455 @@ class SimCGC(SimOS):
 
         return state
 
-#
-# Loader-related simprocedures
-#
+    def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
+                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
+        options = kwargs.get('add_options', set())
+        options.add(o.CGC_NO_SYMBOLIC_RECEIVE_LENGTH)
+        options.add(o.UNICORN_THRESHOLD_CONCRETIZATION)
 
-class IFuncResolver(SimProcedure):
-    NO_RET = True
-
-    # pylint: disable=arguments-differ,unused-argument
-    def run(self, proj=None, funcaddr=None, gotaddr=None, funcname=None):
-        resolve = proj.factory.callable(funcaddr, concrete_only=True)
+        # try to enable unicorn, continue if it doesn't exist
         try:
-            value = resolve()
-        except AngrCallableError:
-            l.critical("Ifunc \"%s\" failed to resolve!", funcname)
-            #import IPython; IPython.embed()
-            raise
-        self.state.memory.store(gotaddr, value, endness=self.state.arch.memory_endness)
-        self.add_successor(self.state, value, claripy.true, 'Ijk_Boring')
+            options.add(o.UNICORN_SYM_REGS_SUPPORT)
+            l.debug("unicorn tracing enabled")
+        except AttributeError:
+            pass
 
-    def __repr__(self):
-        return '<IFuncResolver %s>' % self.kwargs.get('funcname', None)
+        kwargs['add_options'] = options
 
-class LinuxLoader(SimProcedure):
-    NO_RET = True
+        kwargs['remove_options'] = kwargs.get('remove_options', set()) | {o.LAZY_SOLVES, o.SUPPORT_FLOATING_POINT}
+        
+        state = super(SimCGC, self).state_tracer(input_content=input_content,
+                                                 magic_content=magic_content,
+                                                 preconstrain_input=preconstrain_input,
+                                                 preconstrain_flag=preconstrain_flag,
+                                                 constrained_addrs=constrained_addrs,
+                                                 **kwargs)
 
-    # pylint: disable=unused-argument,arguments-differ,attribute-defined-outside-init
-    local_vars = ('initializers',)
-    def run(self, project=None):
-        self.initializers = project.loader.get_initializers()
-        self.run_initializer(project)
+        csr = state.unicorn.cooldown_symbolic_registers
+        state.unicorn.concretization_threshold_registers = 25000 / csr
+        state.unicorn.concretization_threshold_memory = 25000 / csr
 
-    def run_initializer(self, project=None):
-        if len(self.initializers) == 0:
-            project._simos.set_entry_register_values(self.state)
-            self.jump(project.entry)
+        if type(input_content) == str:
+            state.cgc.input_size = len(input_content)
+
+        self._set_simproc_limits(state)
+
+        state.preconstrainer.preconstrain_flag_page()
+
+        state.memory.store(0x4347c000, claripy.Concat(*state.cgc.flag_bytes))
+
+        return state
+
+    @staticmethod
+    def _set_simproc_limits(state):
+        state.libc.max_str_len = 1000000
+        state.libc.max_strtol_len = 10
+        state.libc.max_memcpy_size = 0x100000
+        state.libc.max_symbolic_bytes = 100
+        state.libc.max_buffer_size = 0x100000
+
+class SimWindows(SimOS):
+    """
+    Environemnt for the Windows Win32 subsystem. Does not support syscalls currently.
+    """
+    def __init__(self, project, **kwargs):
+        super(SimWindows, self).__init__(project, name='Win32', **kwargs)
+
+        self._exception_handler = None
+        self.fmode_ptr = None
+        self.commode_ptr = None
+        self.acmdln_ptr = None
+        self.wcmdln_ptr = None
+
+    def configure_project(self):
+        super(SimWindows, self).configure_project()
+
+        # here are some symbols which we MUST hook, regardless of what the user wants
+        self._weak_hook_symbol('GetProcAddress', L['kernel32.dll'].get('GetProcAddress', self.arch))
+        self._weak_hook_symbol('LoadLibraryA', L['kernel32.dll'].get('LoadLibraryA', self.arch))
+        self._weak_hook_symbol('LoadLibraryExW', L['kernel32.dll'].get('LoadLibraryExW', self.arch))
+
+        self._exception_handler = self._find_or_make('KiUserExceptionDispatcher')
+        self.project.hook(self._exception_handler, L['ntdll.dll'].get('KiUserExceptionDispatcher', self.arch), replace=True)
+
+        self.fmode_ptr = self._find_or_make('_fmode')
+        self.commode_ptr = self._find_or_make('_commode')
+        self.acmdln_ptr = self._find_or_make('_acmdln')
+        self.wcmdln_ptr = self._find_or_make('_wcmdln')
+
+    def _find_or_make(self, name):
+        sym = self.project.loader.find_symbol(name)
+        if sym is None:
+            return self.project.loader.extern_object.get_pseudo_addr(name)
         else:
-            addr = self.initializers.pop(0)
-            self.call(addr, (self.state.posix.argc, self.state.posix.argv, self.state.posix.environ), 'run_initializer')
+            return sym.rebased_addr
 
-class _tls_get_addr(SimProcedure):
     # pylint: disable=arguments-differ
-    def run(self, ptr, ld=None):
-        module_id = self.state.se.any_int(self.state.memory.load(ptr, self.state.arch.bytes, endness=self.state.arch.memory_endness))
-        offset = self.state.se.any_int(self.state.memory.load(ptr+self.state.arch.bytes, self.state.arch.bytes, endness=self.state.arch.memory_endness))
-        return claripy.BVV(ld.tls_object.get_addr(module_id, offset), self.state.arch.bits)
+    def state_entry(self, args=None, env=None, argc=None, **kwargs):
+        state = super(SimWindows, self).state_entry(**kwargs)
 
-class _tls_get_addr_tunder_x86(SimProcedure):
-    # pylint: disable=arguments-differ
-    def run(self, ld=None):
-        ptr = self.state.regs.eax
-        return self.inline_call(_tls_get_addr, ptr, ld=ld).ret_expr
+        if args is None: args = []
+        if env is None: env = {}
 
-class _dl_rtld_lock_recursive(SimProcedure):
-    # pylint: disable=arguments-differ, unused-argument
-    def run(self, lock):
-        # For future reference:
-        # ++((pthread_mutex_t *)(lock))->__data.__count;
-        return
+        # Prepare argc
+        if argc is None:
+            argc = claripy.BVV(len(args), state.arch.bits)
+        elif type(argc) in (int, long):  # pylint: disable=unidiomatic-typecheck
+            argc = claripy.BVV(argc, state.arch.bits)
 
-class _dl_rtld_unlock_recursive(SimProcedure):
-    def run(self):
-        return
+        # Make string table for args and env
+        table = StringTableSpec()
+        table.append_args(args)
+        table.append_env(env)
 
-class _vsyscall(SimProcedure):
-    NO_RET = True
+        # calculate full command line, since this is windows and that's how everything works
+        cmdline = claripy.BVV(0, 0)
+        for arg in args:
+            if cmdline.length != 0:
+                cmdline = cmdline.concat(claripy.BVV(' '))
 
-    # This is pretty much entirely copied from SimProcedure.ret
-    def run(self):
-        if self.cleanup:
-            self.state.options.discard(o.AST_DEPS)
-            self.state.options.discard(o.AUTO_REFS)
+            if type(arg) is str:
+                if '"' in arg or '\0' in arg:
+                    raise AngrSimOSError("Can't handle windows args with quotes or nulls in them")
+                arg = claripy.BVV(arg)
+            elif isinstance(arg, claripy.ast.BV):
+                for byte in arg.chop(8):
+                    state.solver.add(byte != claripy.BVV('"'))
+                    state.solver.add(byte != claripy.BVV(0, 8))
+            else:
+                raise TypeError("Argument must be str or bitvector")
 
-        ret_irsb = pyvex.IRSB(self.state.arch.ret_instruction, self.addr, self.state.arch)
-        ret_simirsb = SimIRSB(self.state, ret_irsb, inline=True, addr=self.addr)
-        if not ret_simirsb.flat_successors + ret_simirsb.unsat_successors:
-            ret_state = ret_simirsb.default_exit
+            cmdline = cmdline.concat(claripy.BVV('"'), arg, claripy.BVV('"'))
+        cmdline = cmdline.concat(claripy.BVV(0, 8))
+        wcmdline = claripy.Concat(*(x.concat(0, 8) for x in cmdline.chop(8)))
+
+        if not state.satisfiable():
+            raise AngrSimOSError("Can't handle windows args with quotes or nulls in them")
+
+        # Dump the table onto the stack, calculate pointers to args, env
+        stack_ptr = state.regs.sp
+        stack_ptr -= 16
+        state.memory.store(stack_ptr, claripy.BVV(0, 8*16))
+
+        stack_ptr -= cmdline.length / 8
+        state.memory.store(stack_ptr, cmdline)
+        state.mem[self.acmdln_ptr].long = stack_ptr
+
+        stack_ptr -= wcmdline.length / 8
+        state.memory.store(stack_ptr, wcmdline)
+        state.mem[self.wcmdln_ptr].long = stack_ptr
+
+        argv = table.dump(state, stack_ptr)
+        envp = argv + ((len(args) + 1) * state.arch.bytes)
+
+        # Put argc on stack and fix the stack pointer
+        newsp = argv - state.arch.bytes
+        state.memory.store(newsp, argc, endness=state.arch.memory_endness)
+        state.regs.sp = newsp
+
+        # store argc argv envp in the posix plugin
+        state.posix.argv = argv
+        state.posix.argc = argc
+        state.posix.environ = envp
+
+        state.regs.sp = state.regs.sp - 0x80    # give us some stack space to work with
+
+        # fake return address from entry point
+        return_addr = self.return_deadend
+        kernel32 = self.project.loader.shared_objects.get('kernel32.dll', None)
+        if kernel32:
+            # some programs will use the return address from start to find the kernel32 base
+            return_addr = kernel32.get_symbol('ExitProcess').rebased_addr
+
+        if state.arch.name == 'X86':
+            state.mem[state.regs.sp].dword = return_addr
+
+            # first argument appears to be PEB
+            tib_addr = state.regs.fs.concat(state.solver.BVV(0, 16))
+            peb_addr = state.mem[tib_addr + 0x30].dword.resolved
+            state.mem[state.regs.sp + 4].dword = peb_addr
+
+        return state
+
+    def state_blank(self, **kwargs):
+        if self.project.loader.main_object.supports_nx:
+            add_options = kwargs.get('add_options', set())
+            add_options.add(o.ENABLE_NX)
+            kwargs['add_options'] = add_options
+        state = super(SimWindows, self).state_blank(**kwargs)
+
+        # yikes!!!
+        fun_stuff_addr = state.libc.mmap_base
+        if fun_stuff_addr & 0xffff != 0:
+            fun_stuff_addr += 0x10000 - (fun_stuff_addr & 0xffff)
+        state.memory.map_region(fun_stuff_addr, 0x2000, claripy.BVV(3, 3))
+
+        TIB_addr = fun_stuff_addr
+        PEB_addr = fun_stuff_addr + 0x1000
+
+        if state.arch.name == 'X86':
+            LDR_addr = fun_stuff_addr + 0x2000
+
+            state.mem[TIB_addr + 0].dword = -1 # Initial SEH frame
+            state.mem[TIB_addr + 4].dword = state.regs.sp # stack base (high addr)
+            state.mem[TIB_addr + 8].dword = state.regs.sp - 0x100000 # stack limit (low addr)
+            state.mem[TIB_addr + 0x18].dword = TIB_addr # myself!
+            state.mem[TIB_addr + 0x24].dword = 0xbad76ead # thread id
+            if self.project.loader.tls_object is not None:
+                state.mem[TIB_addr + 0x2c].dword = self.project.loader.tls_object.user_thread_pointer # tls array pointer
+            state.mem[TIB_addr + 0x30].dword = PEB_addr # PEB addr, of course
+
+            state.regs.fs = TIB_addr >> 16
+
+            state.mem[PEB_addr + 0xc].dword = LDR_addr
+
+            # OKAY IT'S TIME TO SUFFER
+            # http://sandsprite.com/CodeStuff/Understanding_the_Peb_Loader_Data_List.html
+            THUNK_SIZE = 0x100
+            num_pe_objects = len(self.project.loader.all_pe_objects)
+            thunk_alloc_size = THUNK_SIZE * (num_pe_objects + 1)
+            string_alloc_size = sum(len(obj.binary)*2 + 2 for obj in self.project.loader.all_pe_objects)
+            total_alloc_size = thunk_alloc_size + string_alloc_size
+            if total_alloc_size & 0xfff != 0:
+                total_alloc_size += 0x1000 - (total_alloc_size & 0xfff)
+            state.memory.map_region(LDR_addr, total_alloc_size, claripy.BVV(3, 3))
+            state.libc.mmap_base = LDR_addr + total_alloc_size
+
+            string_area = LDR_addr + thunk_alloc_size
+            for i, obj in enumerate(self.project.loader.all_pe_objects):
+                # Create a LDR_MODULE, we'll handle the links later...
+                obj.module_id = i+1 # HACK HACK HACK HACK
+                addr = LDR_addr + (i+1) * THUNK_SIZE
+                state.mem[addr+0x18].dword = obj.mapped_base
+                state.mem[addr+0x1C].dword = obj.entry
+
+                # Allocate some space from the same region to store the paths
+                path = obj.binary # we're in trouble if this is None
+                string_size = len(path) * 2
+                tail_size = len(os.path.basename(path)) * 2
+                state.mem[addr+0x24].short = string_size
+                state.mem[addr+0x26].short = string_size
+                state.mem[addr+0x28].dword = string_area
+                state.mem[addr+0x2C].short = tail_size
+                state.mem[addr+0x2E].short = tail_size
+                state.mem[addr+0x30].dword = string_area + string_size - tail_size
+
+                for j, c in enumerate(path):
+                    # if this segfaults, increase the allocation size
+                    state.mem[string_area + j*2].short = ord(c)
+                state.mem[string_area + string_size].short = 0
+                string_area += string_size + 2
+
+            # handle the links. we construct a python list in the correct order for each, and then, uh,
+            mem_order = sorted(self.project.loader.all_pe_objects, key=lambda x: x.mapped_base)
+            init_order = []
+            partially_loaded = set()
+            def fuck_load(x):
+                if x.provides in partially_loaded:
+                    return
+                partially_loaded.add(x.provides)
+                for dep in x.deps:
+                    if dep in self.project.loader.shared_objects:
+                        depo = self.project.loader.shared_objects[dep]
+                        fuck_load(depo)
+                        if depo not in init_order:
+                            init_order.append(depo)
+
+            fuck_load(self.project.loader.main_object)
+            load_order = [self.project.loader.main_object] + init_order
+
+            def link(a, b):
+                state.mem[a].dword = b
+                state.mem[b+4].dword = a
+
+            # I have genuinely never felt so dead in my life as I feel writing this code
+            def link_list(mods, offset):
+                if mods:
+                    addr_a = LDR_addr + 12
+                    addr_b = LDR_addr + THUNK_SIZE * mods[0].module_id
+                    link(addr_a + offset, addr_b + offset)
+                    for mod_a, mod_b in zip(mods[:-1], mods[1:]):
+                        addr_a = LDR_addr + THUNK_SIZE * mod_a.module_id
+                        addr_b = LDR_addr + THUNK_SIZE * mod_b.module_id
+                        link(addr_a + offset, addr_b + offset)
+                    addr_a = LDR_addr + THUNK_SIZE * mods[-1].module_id
+                    addr_b = LDR_addr + 12
+                    link(addr_a + offset, addr_b + offset)
+                else:
+                    link(LDR_addr + 12, LDR_addr + 12)
+
+            l.debug("Load order: %s", load_order)
+            l.debug("In-memory order: %s", mem_order)
+            l.debug("Initialization order: %s", init_order)
+            link_list(load_order, 0)
+            link_list(mem_order, 8)
+            link_list(init_order, 16)
+
+        return state
+
+    def state_tracer(self, input_content=None, magic_content=None, preconstrain_input=True,
+                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
+        raise TracerEnvironmentError("Tracer currently only supports CGC and Unix.") 
+
+    def handle_exception(self, successors, engine, exc_type, exc_value, exc_traceback):
+        # don't bother handling non-vex exceptions
+        if engine is not self.project.factory.default_engine:
+            raise exc_type, exc_value, exc_traceback
+        # don't bother handling symbolic-address exceptions
+        if exc_type is SimSegfaultException:
+            if exc_value.original_addr is not None and exc_value.original_addr.symbolic:
+                raise exc_type, exc_value, exc_traceback
+
+        l.debug("Handling exception from block at %#x: %r", successors.addr, exc_value)
+
+        # If our state was just living out the rest of an unsatisfiable guard, discard it
+        # it's possible this is incomplete because of implicit constraints added by memory or ccalls...
+        if not successors.initial_state.satisfiable(extra_constraints=(exc_value.guard,)):
+            l.debug("... NOT handling unreachable exception")
+            successors.processed = True
+            return
+
+        # we'll need to wind up to the exception to get the correct state to resume from...
+        # exc will be a SimError, for sure
+        # executed_instruction_count is incremented when we see an imark BUT it starts at -1, so this is the correct val
+        num_inst = exc_value.executed_instruction_count
+        if num_inst >= 1:
+            # scary...
+            try:
+                r = self.project.factory.default_engine.process(successors.initial_state, num_inst=num_inst)
+                if len(r.flat_successors) != 1:
+                    if exc_value.guard.is_true():
+                        l.error("Got %d successors while re-executing %d instructions at %#x for unconditional exception windup", num_inst, successors.initial_state.addr)
+                        raise exc_type, exc_value, exc_traceback
+                    # Try to figure out which successor is ours...
+                    _, _, canon_guard = exc_value.guard.canonicalize()
+                    for possible_succ in r.flat_successors:
+                        _, _, possible_guard = possible_succ.recent_events[-1].constraint.canonicalize()
+                        if canon_guard is possible_guard:
+                            exc_state = possible_succ
+                            break
+                    else:
+                        l.error("None of the %d successors while re-executing %d instructions at %#x for conditional exception windup matched guard", num_inst, successors.initial_state.addr)
+                        raise exc_type, exc_value, exc_traceback
+
+                else:
+                    exc_state = r.flat_successors[0]
+            except:
+                # lol no
+                l.error("Got some weirdo error while re-executing %d instructions at %#x for exception windup", num_inst, successors.initial_state.addr)
+                raise exc_type, exc_value, exc_traceback
         else:
-            ret_state = (ret_simirsb.flat_successors + ret_simirsb.unsat_successors)[0]
+            # duplicate the history-cycle code here...
+            exc_state = successors.initial_state.copy()
+            exc_state.register_plugin('history', successors.initial_state.history.make_child())
+            exc_state.history.recent_bbl_addrs.append(successors.initial_state.addr)
 
-        if self.cleanup:
-            self.state.options.add(o.AST_DEPS)
-            self.state.options.add(o.AUTO_REFS)
+        l.debug("... wound up state to %#x", exc_state.addr)
 
-        self.add_successor(ret_state, ret_state.scratch.target, ret_state.scratch.guard, 'Ijk_Sys')
+        # first check that we actually have an exception handler
+        # we check is_true since if it's symbolic this is exploitable maybe?
+        tib_addr = exc_state.regs._fs.concat(exc_state.solver.BVV(0, 16))
+        if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == -1):
+            l.debug("... no handlers register")
+            exc_value.args = ('Unhandled exception: %r' % exc_value,)
+            raise exc_type, exc_value, exc_traceback
+        # catch nested exceptions here with magic value
+        if exc_state.solver.is_true(exc_state.mem[tib_addr].long.resolved == 0xBADFACE):
+            l.debug("... nested exception")
+            exc_value.args = ('Unhandled exception: %r' % exc_value,)
+            raise exc_type, exc_value, exc_traceback
 
-class _kernel_user_helper_get_tls(SimProcedure):
-    # pylint: disable=arguments-differ
-    def run(self, ld=None):
-        self.state.regs.r0 = ld.tls_object.user_thread_pointer
-        return
+        # serialize the thread context and set up the exception record...
+        self._dump_regs(exc_state, exc_state.regs._esp - 0x300)
+        exc_state.regs.esp -= 0x400
+        record = exc_state.regs._esp + 0x20
+        context = exc_state.regs._esp + 0x100
+        # https://msdn.microsoft.com/en-us/library/windows/desktop/aa363082(v=vs.85).aspx
+        exc_state.mem[record + 0x4].uint32_t = 0 # flags = continuable
+        exc_state.mem[record + 0x8].uint32_t = 0 # FUCK chained exceptions
+        exc_state.mem[record + 0xc].uint32_t = exc_state.regs._eip  # exceptionaddress
+        for i in xrange(16): # zero out the arg count and args array
+            exc_state.mem[record + 0x10 + 4*i].uint32_t = 0
+        # TOTAL SIZE: 0x50
 
-class CallReturn(SimProcedure):
-    NO_RET = True
+        # the rest of the parameters have to be set per-exception type
+        # https://msdn.microsoft.com/en-us/library/cc704588.aspx
+        if exc_type is SimSegfaultException:
+            exc_state.mem[record].uint32_t = 0xc0000005 # STATUS_ACCESS_VIOLATION
+            exc_state.mem[record + 0x10].uint32_t = 2
+            exc_state.mem[record + 0x14].uint32_t = 1 if exc_value.reason.startswith('write-') else 0
+            exc_state.mem[record + 0x18].uint32_t = exc_value.addr
+        elif exc_type is SimZeroDivisionException:
+            exc_state.mem[record].uint32_t = 0xC0000094 # STATUS_INTEGER_DIVIDE_BY_ZERO
+            exc_state.mem[record + 0x10].uint32_t = 0
 
-    def run(self):
-        l.info("A factory.call_state-created path returned!")
-        return
+        # set up parameters to userland dispatcher
+        exc_state.mem[exc_state.regs._esp].uint32_t = 0xBADC0DE # god help us if we return from this func
+        exc_state.mem[exc_state.regs._esp + 4].uint32_t = record
+        exc_state.mem[exc_state.regs._esp + 8].uint32_t = context
 
-os_mapping = {
-    'unix': SimLinux,
-    'unknown': SimOS,
-    'windows': SimOS,
-    'cgc': SimCGC,
-}
+        # let's go let's go!
+        # we want to use a true guard here. if it's not true, then it's already been added in windup.
+        successors.add_successor(exc_state, self._exception_handler, exc_state.solver.true, 'Ijk_Exception')
+        successors.processed = True
+
+    # these two methods load and store register state from a struct CONTEXT
+    # https://www.nirsoft.net/kernel_struct/vista/CONTEXT.html
+    @staticmethod
+    def _dump_regs(state, addr):
+        if state.arch.name != 'X86':
+            raise SimUnsupportedError("I don't know how to work with struct CONTEXT outside of i386")
+
+        # I decline to load and store the floating point/extended registers
+        state.mem[addr + 0].uint32_t = 0x07        # contextflags = control | integer | segments
+        # dr0 - dr7 are at 0x4-0x18
+        # fp state is at 0x1c: 8 ulongs plus a char[80] gives it size 0x70
+        state.mem[addr + 0x8c].uint32_t = state.regs.gs.concat(state.solver.BVV(0, 16))
+        state.mem[addr + 0x90].uint32_t = state.regs.fs.concat(state.solver.BVV(0, 16))
+        state.mem[addr + 0x94].uint32_t = 0  # es
+        state.mem[addr + 0x98].uint32_t = 0  # ds
+        state.mem[addr + 0x9c].uint32_t = state.regs.edi
+        state.mem[addr + 0xa0].uint32_t = state.regs.esi
+        state.mem[addr + 0xa4].uint32_t = state.regs.ebx
+        state.mem[addr + 0xa8].uint32_t = state.regs.edx
+        state.mem[addr + 0xac].uint32_t = state.regs.ecx
+        state.mem[addr + 0xb0].uint32_t = state.regs.eax
+        state.mem[addr + 0xb4].uint32_t = state.regs.ebp
+        state.mem[addr + 0xb8].uint32_t = state.regs.eip
+        state.mem[addr + 0xbc].uint32_t = 0  # cs
+        state.mem[addr + 0xc0].uint32_t = state.regs.eflags
+        state.mem[addr + 0xc4].uint32_t = state.regs.esp
+        state.mem[addr + 0xc8].uint32_t = 0  # ss
+        # and then 512 bytes of extended registers
+        # TOTAL SIZE: 0x2cc
+
+    @staticmethod
+    def _load_regs(state, addr):
+        if state.arch.name != 'X86':
+            raise SimUnsupportedError("I don't know how to work with struct CONTEXT outside of i386")
+
+        # TODO: check contextflags to see what parts to deserialize
+        state.regs.gs = state.mem[addr + 0x8c].uint32_t.resolved[31:16]
+        state.regs.fs = state.mem[addr + 0x90].uint32_t.resolved[31:16]
+
+        state.regs.edi = state.mem[addr + 0x9c].uint32_t.resolved
+        state.regs.esi = state.mem[addr + 0xa0].uint32_t.resolved
+        state.regs.ebx = state.mem[addr + 0xa4].uint32_t.resolved
+        state.regs.edx = state.mem[addr + 0xa8].uint32_t.resolved
+        state.regs.ecx = state.mem[addr + 0xac].uint32_t.resolved
+        state.regs.eax = state.mem[addr + 0xb0].uint32_t.resolved
+        state.regs.ebp = state.mem[addr + 0xb4].uint32_t.resolved
+        state.regs.eip = state.mem[addr + 0xb8].uint32_t.resolved
+        state.regs.eflags = state.mem[addr + 0xc0].uint32_t.resolved
+        state.regs.esp = state.mem[addr + 0xc4].uint32_t.resolved
+
+os_mapping = defaultdict(lambda: SimOS)
+
+
+def register_simos(name, cls):
+    os_mapping[name] = cls
+
+# Pulling in all EI_OSABI options supported by elftools
+for k, v in _DESCR_EI_OSABI.items(): register_simos(v, SimLinux)
+register_simos('windows', SimWindows)
+register_simos('cgc', SimCGC)

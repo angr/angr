@@ -1,0 +1,32 @@
+LIBRARY angr_native.dll
+
+EXPORTS
+  simunicorn_alloc
+  simunicorn_dealloc
+  simunicorn_hook
+  simunicorn_unhook
+  simunicorn_start
+  simunicorn_stop
+  simunicorn_sync
+  simunicorn_bbl_addrs
+  simunicorn_stack_pointers
+  simunicorn_bbl_addr_count
+  simunicorn_syscall_count
+  simunicorn_destroy
+  simunicorn_step
+  simunicorn_stop_reason
+  simunicorn_activate
+  simunicorn_set_stops
+  simunicorn_cache_page
+  simunicorn_uncache_page
+  simunicorn_enable_symbolic_reg_tracking
+  simunicorn_disable_symbolic_reg_tracking
+  simunicorn_symbolic_register_data
+  simunicorn_get_symbolic_registers
+  simunicorn_stopping_register
+  simunicorn_stopping_memory
+  simunicorn_is_interrupt_handled
+  simunicorn_set_transmit_sysno
+  simunicorn_process_transmit
+  simunicorn_set_tracking
+  simunicorn_executed_pages

@@ -1,17 +1,19 @@
-from ..errors import AngrMemoryError, AngrTranslationError
-from ..analysis import Analysis, register_analysis
 
-from collections import deque
 import logging
 import math
-import networkx
 import types
+from collections import deque
+
+import networkx
+from . import Analysis, register_analysis
+
+from ..errors import SimEngineError, SimMemoryError
 
 # todo include an explanation of the algorithm
 # todo include a method that detects any change other than constants
 # todo use function names / string references where available
 
-l = logging.getLogger(name="angr.analyses.bindiff")
+l = logging.getLogger("angr.analyses.bindiff")
 
 # basic block changes
 DIFF_TYPE = "type"
@@ -299,16 +301,15 @@ class NormalizedFunction(object):
             for node in self.graph.nodes():
                 try:
                     bl = self.project.factory.block(node.addr)
-                except AngrMemoryError:
+                except (SimMemoryError, SimEngineError):
                     continue
-                except AngrTranslationError:
-                    continue
+
                 # merge if it ends with a single call, and the successor has only one predecessor and succ is after
-                successors = self.graph.successors(node)
+                successors = list(self.graph.successors(node))
                 if bl.vex.jumpkind == "Ijk_Call" and len(successors) == 1 and \
-                        len(self.graph.predecessors(successors[0])) == 1 and successors[0].addr > node.addr:
+                        len(list(self.graph.predecessors(successors[0]))) == 1 and successors[0].addr > node.addr:
                     # add edges to the successors of its successor, and delete the original successors
-                    succ = self.graph.successors(node)[0]
+                    succ = list(self.graph.successors(node))[0]
                     for s in self.graph.successors(succ):
                         self.graph.add_edge(node, s)
                     self.graph.remove_node(succ)
@@ -448,16 +449,12 @@ class FunctionDiff(object):
 
         try:
             block_a = NormalizedBlock(block_a, self._function_a)
-        except AngrMemoryError:
-            block_a = None
-        except AngrTranslationError:
+        except (SimMemoryError, SimEngineError):
             block_a = None
 
         try:
             block_b = NormalizedBlock(block_b, self._function_b)
-        except AngrMemoryError:
-            block_b = None
-        except AngrTranslationError:
+        except (SimMemoryError, SimEngineError):
             block_b = None
 
         # if both were None then they are assumed to be the same, if only one was the same they are assumed to differ
@@ -507,16 +504,12 @@ class FunctionDiff(object):
 
         try:
             block_a = NormalizedBlock(block_a, self._function_a)
-        except AngrMemoryError:
-            block_a = None
-        except AngrTranslationError:
+        except (SimMemoryError, SimEngineError):
             block_a = None
 
         try:
             block_b = NormalizedBlock(block_b, self._function_b)
-        except AngrMemoryError:
-            block_b = None
-        except AngrTranslationError:
+        except (SimMemoryError, SimEngineError):
             block_b = None
 
         # if both were None then they are assumed to be the same, if only one was None they are assumed to differ
@@ -551,11 +544,11 @@ class FunctionDiff(object):
                 continue
             # if both are in the binary we'll assume it's okay, although we should really match globals
             # TODO use global matches
-            if self._project_a.loader.main_bin.contains_addr(c.value_a) and \
-                    self._project_b.loader.main_bin.contains_addr(c.value_b):
+            if self._project_a.loader.main_object.contains_addr(c.value_a) and \
+                    self._project_b.loader.main_object.contains_addr(c.value_b):
                 continue
             # if the difference is equal to the difference in block addr's or successor addr's we'll say it's also okay
-            if (c.value_b - c.value_a) in acceptable_differences:
+            if c.value_b - c.value_a in acceptable_differences:
                 continue
             # otherwise they probably are different
             return False
@@ -606,13 +599,6 @@ class FunctionDiff(object):
                                                            function.startpoint)
 
     @staticmethod
-    def _block_diff_constants(block_a, block_b):
-        diff_constants = []
-        for irsb_a, irsb_b in zip(block_a.blocks, block_b.blocks):
-            diff_constants += differing_constants(irsb_a, irsb_b)
-        return diff_constants
-
-    @staticmethod
     def _distances_from_function_exit(function):
         """
         :param function:    A normalized Function object.
@@ -623,7 +609,7 @@ class FunctionDiff(object):
         reverse_graph.add_node("start")
         found_exits = False
         for n in function.graph.nodes():
-            if len(function.graph.successors(n)) == 0:
+            if len(list(function.graph.successors(n))) == 0:
                 reverse_graph.add_edge("start", n)
                 found_exits = True
 
@@ -679,10 +665,10 @@ class FunctionDiff(object):
             l.debug("FunctionDiff: Processing (%#x, %#x)", block_a.addr, block_b.addr)
 
             # we could find new matches in the successors or predecessors of functions
-            block_a_succ = self._function_a.graph.successors(block_a)
-            block_b_succ = self._function_b.graph.successors(block_b)
-            block_a_pred = self._function_a.graph.predecessors(block_a)
-            block_b_pred = self._function_b.graph.predecessors(block_b)
+            block_a_succ = list(self._function_a.graph.successors(block_a))
+            block_b_succ = list(self._function_b.graph.successors(block_b))
+            block_a_pred = list(self._function_a.graph.predecessors(block_a))
+            block_b_pred = list(self._function_b.graph.predecessors(block_b))
 
             # propagate the difference in blocks as delta
             delta = tuple((i-j) for i, j in zip(self.attributes_b[block_b], self.attributes_a[block_a]))
@@ -742,9 +728,7 @@ class FunctionDiff(object):
             for s in sorted(succ - set(ordered_succ), key=lambda x:x.addr):
                 ordered_succ.append(s)
             return ordered_succ
-        except AngrMemoryError:
-            return sorted(succ, key=lambda x:x.addr)
-        except AngrTranslationError:
+        except (SimMemoryError, SimEngineError):
             return sorted(succ, key=lambda x:x.addr)
 
     def _get_block_matches(self, attributes_a, attributes_b, filter_set_a=None, filter_set_b=None, delta=(0, 0, 0),
@@ -839,10 +823,10 @@ class FunctionDiff(object):
 
         # get the difference between the data segments
         # this is hackish
-        if ".bss" in self._project_a.loader.main_bin.sections_map and \
-                ".bss" in self._project_b.loader.main_bin.sections_map:
-            bss_a = self._project_a.loader.main_bin.sections_map[".bss"].min_addr
-            bss_b = self._project_b.loader.main_bin.sections_map[".bss"].min_addr
+        if ".bss" in self._project_a.loader.main_object.sections_map and \
+                ".bss" in self._project_b.loader.main_object.sections_map:
+            bss_a = self._project_a.loader.main_object.sections_map[".bss"].min_addr
+            bss_b = self._project_b.loader.main_object.sections_map[".bss"].min_addr
             acceptable_differences.add(bss_b - bss_a)
             acceptable_differences.add((bss_b - block_b_base) - (bss_a - block_a_base))
 
@@ -1009,7 +993,7 @@ class BinDiff(Analysis):
                 number_of_basic_blocks = 0
                 number_of_edges = 0
             if function_addr in all_funcs:
-                number_of_subfunction_calls = len(cfg.kb.callgraph.successors(function_addr))
+                number_of_subfunction_calls = len(list(cfg.kb.callgraph.successors(function_addr)))
             else:
                 number_of_subfunction_calls = 0
             attributes[function_addr] = (number_of_basic_blocks, number_of_edges, number_of_subfunction_calls)
@@ -1044,20 +1028,20 @@ class BinDiff(Analysis):
 
     def _get_plt_matches(self):
         plt_matches = []
-        for name, addr in self.project.loader.main_bin.plt.items():
-            if name in self._p2.loader.main_bin.plt:
-                plt_matches.append((addr, self._p2.loader.main_bin.plt[name]))
+        for name, addr in self.project.loader.main_object.plt.items():
+            if name in self._p2.loader.main_object.plt:
+                plt_matches.append((addr, self._p2.loader.main_object.plt[name]))
 
         # in the case of sim procedures the actual sim procedure might be in the interfunction graph, not the plt entry
         func_to_addr_a = dict()
         func_to_addr_b = dict()
-        for (k, v) in self.project._sim_procedures.items():
-            if "resolves" in v[1]:
-                func_to_addr_a[v[1]['resolves']] = k
+        for (k, hook) in self.project._sim_procedures.items():
+            if "resolves" in hook.kwargs:
+                func_to_addr_a[hook.kwargs['resolves']] = k
 
-        for (k, v) in self._p2._sim_procedures.items():
-            if "resolves" in v[1]:
-                func_to_addr_b[v[1]['resolves']] = k
+        for (k, hook) in self._p2._sim_procedures.items():
+            if "resolves" in hook.kwargs:
+                func_to_addr_b[hook.kwargs['resolves']] = k
 
         for name, addr in func_to_addr_a.items():
             if name in func_to_addr_b:
@@ -1122,9 +1106,9 @@ class BinDiff(Analysis):
             l.debug("Processing (%#x, %#x)", func_a, func_b)
 
             # we could find new matches in the successors or predecessors of functions
-            if not self.project.loader.main_bin.contains_addr(func_a):
+            if not self.project.loader.main_object.contains_addr(func_a):
                 continue
-            if not self._p2.loader.main_bin.contains_addr(func_b):
+            if not self._p2.loader.main_object.contains_addr(func_b):
                 continue
 
             func_a_succ = self.cfg_a.kb.callgraph.successors(func_a) if func_a in callgraph_a_nodes else []
@@ -1171,7 +1155,7 @@ class BinDiff(Analysis):
         self.function_matches = set()
         for x,y in matched_a.items():
             # only keep if the pair is in the binary ranges
-            if self.project.loader.main_bin.contains_addr(x) and self._p2.loader.main_bin.contains_addr(y):
+            if self.project.loader.main_object.contains_addr(x) and self._p2.loader.main_object.contains_addr(y):
                 self.function_matches.add((x, y))
 
         # get the unmatched functions

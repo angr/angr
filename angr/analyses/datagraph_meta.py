@@ -3,7 +3,7 @@ import logging
 
 import simuvex
 
-l = logging.getLogger(name="angr.analyses.vsa_ddg")
+l = logging.getLogger("angr.analyses.datagraph_meta")
 
 class DataGraphMeta(object):
     def __init__(self):
@@ -13,7 +13,7 @@ class DataGraphMeta(object):
         """
         We expect a VSA state here.
         """
-        return self._p.factory.sim_run(in_state)
+        return self._p.factory.successors(in_state)
 
     def _vfg_node(self, addr):
         """
