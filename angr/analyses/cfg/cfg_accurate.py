@@ -332,6 +332,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         Forces graph to become acyclic, removes all loop back edges and edges between overlapped loop headers and their
         successors.
         """
+        # loop detection
+        # only detect loops after potential graph normalization
+        l.debug("Detecting loops...")
+        self._detect_loops()
+
         l.debug("Removing cycles...")
         l.debug("There are %d loop back edges.", len(self._loop_back_edges))
         l.debug("And there are %d overlapping loop headers.", len(self._overlapped_loop_headers))
@@ -1034,10 +1039,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._remove_non_return_edges()
 
         CFGBase._post_analysis(self)
-
-        # loop detection
-        # only detect loops after potential graph normalization
-        self._detect_loops()
 
     # Job handling
 
