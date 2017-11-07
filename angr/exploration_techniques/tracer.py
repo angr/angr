@@ -1,6 +1,5 @@
 import os
 import pickle
-import hashlib
 import logging
 
 import claripy
@@ -73,9 +72,7 @@ class Tracer(ExplorationTechnique):
                 simgr = simgr.unstash(from_stash="found",to_stash="active")
 
         if self._use_cache and self.project.loader.main_object.os == 'cgc':
-            binary = self.project.filename
-            binhash = hashlib.md5(open(binary).read()).hexdigest()
-            cache_file = os.path.join("/tmp", "%s-%s.tcache" % (os.path.basename(binary), binhash))
+            cache_file = os.path.join("/tmp", "%(name)s-%(binhash)s.tcache")
             cacher = Cacher(when=self._tracer_cache_cond,
                             cache_file=cache_file,
                             dump_func=self._tracer_dump,
