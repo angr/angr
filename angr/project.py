@@ -619,7 +619,7 @@ class Project(object):
                 container = pickle.dumps(self, pickle.HIGHEST_PROTOCOL)
             except RuntimeError as e: # maximum recursion depth can be reached here
                 l.error("Unable to store Project, '%s' during pickling", e.message)
-        
+
     @staticmethod
     def _load(container):
         l.info("Loading Project from %s...", container)
