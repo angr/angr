@@ -55,12 +55,6 @@ class Cacher(ExplorationTechnique):
             with open(self._cache_file) as f:
                 self._load_func(f, simgr)
 
-    def complete(self, simgr):
-        if not simgr.active:
-            return True
-
-        return False
-
     def step(self, simgr, stash, **kwargs):
         # We cache if any of the states in 'stash' satisfies the condition.
         for s in simgr.stashes[stash]:
@@ -93,8 +87,6 @@ class Cacher(ExplorationTechnique):
             s.project = None
             s.history.trim()
         try:
-            for k, v in simgr._project._sim_procedures.iteritems():
-                print hex(k), v
             pickle.dump(simgr.stashes[stash], f, pickle.HIGHEST_PROTOCOL)
         except RuntimeError as e: # maximum recursion depth can be reached here
             l.error("Unable to cache, '%s' during pickling", e.message)
