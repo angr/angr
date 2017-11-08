@@ -30,40 +30,40 @@ class Cacher(ExplorationTechnique):
         self._dump_cond = self._condition_to_lambda(when)
         self._dump_cache = dump_cache
         self._load_cache = load_cache
-        self._container = container
+        self.container = container
         self._dump_func = self._dump_stash if dump_func is None else dump_func
         self._load_func = self._load_stash if load_func is None else load_func
 
-        self._container_picklable = None
+        self.container_picklable = None
         try:
             import pickle
             pickle.loads(container)
-            self._container_picklable = True
+            self.container_picklable = True
         except:
-            self._container_picklable = False
+            self.container_picklable = False
 
     def setup(self, simgr):
         binary = simgr._project.filename
         binhash = hashlib.md5(open(binary).read()).hexdigest()
 
         # By default, we dump data to a file in under /tmp/.
-        if self._container is None:
-            self._container = os.path.join("/tmp", "%s-%s.cache" % (os.path.basename(binary), binhash))
+        if self.container is None:
+            self.container = os.path.join("/tmp", "%s-%s.cache" % (os.path.basename(binary), binhash))
 
         # Container is the file name.
-        elif isinstance(self._container, str) and not self._container_picklable:
+        elif isinstance(self.container, str) and not self.container_picklable:
             try:
-                self._container = self._container % {'name': os.path.basename(binary), 'binhash': binhash, 'addr': '%(addr)s'}
+                self.container = self.container % {'name': os.path.basename(binary), 'binhash': binhash, 'addr': '%(addr)s'}
             except KeyError:
                 l.error("Only the following cache keys are accepted: 'name', 'binhash' and 'addr'.")
                 raise
 
         if (self._load_cache
-           and isinstance(self._container, str)
-           and not self._container_picklable
-           and os.path.exists(self._container)):
-            l.warning("Uncaching from %s...", self._container)
-            self._load_func(self._container, simgr)
+           and isinstance(self.container, str)
+           and not self.container_picklable
+           and os.path.exists(self.container)):
+            l.warning("Uncaching from %s...", self.container)
+            self._load_func(self.container, simgr)
 
         self.project = simgr._project
 
@@ -71,15 +71,15 @@ class Cacher(ExplorationTechnique):
         # We cache if any of the states in 'stash' satisfies the condition.
         for s in simgr.stashes[stash]:
             if self._dump_cache and self._dump_cond(s):
-                if isinstance(self._container, str):
-                    self._container = self._container % {'addr': hex(s.addr)[:-1]}
+                if isinstance(self.container, str):
+                    self.container = self.container % {'addr': hex(s.addr)[:-1]}
 
-                if not self._container_picklable and os.path.exists(self._container):
+                if not self.container_picklable and os.path.exists(self.container):
                     continue
 
-                l.warning("Caching to %s...", self._container)
+                l.warning("Caching to %s...", self.container)
 
-                self._dump_func(self._container, simgr, stash)
+                self._dump_func(self.container, simgr, stash)
 
         return simgr.step(stash=stash, **kwargs)
 
