@@ -91,13 +91,14 @@ class Cacher(ExplorationTechnique):
         cached_project.surveyors = project.surveyors
         cached_project.store_function = project.store_function
         cached_project.load_function = project.load_function
-        cached_project.storage = None
 
         stash = cached_project.storage['cached_states']
         for s in stash:
             s.project = cached_project
 
         simgr.stashes['active'] = stash
+        cached_project.storage = None
+
         simgr._project = cached_project
 
     @staticmethod
