@@ -605,12 +605,12 @@ class SimulationManager(ana.Storable):
             if step_func is not None:
                 pg = step_func(pg)
 
-            if len(pg.stashes[stash]) == 0:
-                l.debug("Out of states in stash %s", stash)
-                break
-
             if until is not None and until(pg):
                 l.debug("Until function returned true")
+                break
+
+            if len(pg.stashes[stash]) == 0:
+                l.debug("Out of states in stash %s", stash)
                 break
 
         return pg
