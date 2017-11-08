@@ -84,7 +84,7 @@ class Tracer(ExplorationTechnique):
             # the cacher will preconstrain.
             # If we're restoring from a cache, we can safely remove the cacher
             # right after.
-            if os.path.exists(cache_file):
+            if os.path.exists(cacher.container):
                 simgr.one_active.preconstrainer.preconstrain_state()
                 simgr.remove_tech(cacher)
 
