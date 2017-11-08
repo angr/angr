@@ -628,7 +628,7 @@ class Project(object):
             # If container is a pickle string.
             try:
                 return pickle.loads(container)
-            except (pickle.UnpicklingError, KeyError):
+            except:
                 # Else it has to be a filename.
                 if os.path.exists(container):
                     with open(container, 'rb') as f:

@@ -74,7 +74,7 @@ class Tracer(ExplorationTechnique):
         if self._use_cache and self.project.loader.main_object.os == 'cgc':
             cache_file = os.path.join("/tmp", "%(name)s-%(binhash)s.tcache")
             cacher = Cacher(when=self._tracer_cache_cond,
-                            cache_file=cache_file,
+                            container=cache_file,
                             dump_func=self._tracer_dump,
                             load_func=self._tracer_load)
 
@@ -82,6 +82,8 @@ class Tracer(ExplorationTechnique):
 
             # If we're restoring from a cache, we preconstrain. If we're not restoring from a cache,
             # the cacher will preconstrain.
+            # If we're restoring from a cache, we can safely remove the cacher
+            # right after.
             if os.path.exists(cache_file):
                 simgr.one_active.preconstrainer.preconstrain_state()
                 simgr.remove_tech(cacher)
@@ -116,8 +118,7 @@ class Tracer(ExplorationTechnique):
                 # termination condition: we exhausted the dynamic trace log
                 if current.globals['bb_cnt'] >= len(self._trace):
                     return simgr
-
-                # now, we switch through several ways that the dynamic and symbolic traces can interact
+# now, we switch through several ways that the dynamic and symbolic traces can interact
 
                 # basic, convenient case: the two traces match
                 if current.addr == self._trace[current.globals['bb_cnt']]:
@@ -309,7 +310,7 @@ class Tracer(ExplorationTechnique):
         return False
 
     @staticmethod
-    def _tracer_load(f, simgr):
+    def _tracer_load(container, simgr):
         preconstrainer = simgr.one_active.preconstrainer
 
         if type(preconstrainer.input_content) == str:
@@ -317,10 +318,21 @@ class Tracer(ExplorationTechnique):
         else:
             fs = preconstrainer.input_content.stdin
 
-        bb_cnt, state, claripy.ast.base.var_counter = pickle.load(f)
+        project = simgr._project
+        cached_project = project.load_function(container)
+        cached_project.analyses = project.analyses
+        cached_project.surveyors = project.surveyors
+        cached_project.store_function = project.store_function
+        cached_project.load_function = project.load_function
+
+        state = cached_project.storage['cached_states'][0]
+        state.globals['bb_cnt'] = cached_project.storage['bb_cnt']
+        claripy.ast.base.var_counter = cached_project.storage['var_cnt']
+        cached_project.storage = None
 
         # Setting up the cached state
-        state.project = simgr._project
+        state.project = cached_project
+        simgr._project = cached_project
 
         # Hookup the new files
         for name in fs:
@@ -332,24 +344,24 @@ class Tracer(ExplorationTechnique):
 
         state.register_plugin('preconstrainer', preconstrainer)
         state.history.recent_block_count = 0
-        state.globals['bb_cnt'] = bb_cnt
 
         # Setting the cached state to the simgr
         simgr.stashes['active'] = [state]
 
     @staticmethod
-    def _tracer_dump(f, simgr, stash):
-        # Do not pickle project
+    def _tracer_dump(container, simgr, stash):
         s = simgr.one_active
+        project = s.project
         s.project = None
         s.history.trim()
 
-        try:
-            pickle.dump((s.globals['bb_cnt'], s, claripy.ast.base.var_counter), f, pickle.HIGHEST_PROTOCOL)
-        except RuntimeError as e: # maximum recursion depth can be reached here
-            l.error("Unable to cache, '%s' during pickling", e.message)
-        finally:
-            s.project = simgr._project
+        project.storage['cached_states'] = [s]
+        project.storage['bb_cnt'] = s.globals['bb_cnt']
+        project.storage['var_cnt'] = claripy.ast.base.var_counter
+
+        project.store_function(container)
+
+        s.project = project
 
         # Add preconstraints to state
         s.preconstrainer.preconstrain_state()
