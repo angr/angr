@@ -449,7 +449,16 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     # Returns a dict that is a copy of all the state's plugins
     def _copy_plugins(self):
-        return { n: p.copy() for n,p in self.plugins.iteritems() }
+        memo = {}
+        out = {}
+        for n, p in self.plugins.iteritems():
+            if id(p) in memo:
+                out[n] = memo[id(p)]
+            else:
+                out[n] = p.copy()
+                memo[id(p)] = out[n]
+
+        return out
 
     def copy(self):
         """
