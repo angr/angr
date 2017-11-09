@@ -33,7 +33,7 @@ class Cacher(ExplorationTechnique):
         self._dump_cond = self._condition_to_lambda(when)
         self._dump_cache = dump_cache
         self._load_cache = load_cache
-        self._lookup = self._lookup if lookup is None else lookup
+        self._cache_lookup = self._lookup if lookup is None else lookup
         self._dump_func = self._dump_stash if dump_func is None else dump_func
         self._load_func = self._load_stash if load_func is None else load_func
 
@@ -56,7 +56,7 @@ class Cacher(ExplorationTechnique):
                 l.error("Only the following cache keys are accepted: 'name', 'binhash' and 'addr'.")
                 raise
 
-        if self._load_cache and self._lookup():
+        if self._load_cache and self._cache_lookup():
             l.warning("Uncaching from %s...", self.container)
             self._load_func(self.container, simgr)
 
@@ -69,7 +69,7 @@ class Cacher(ExplorationTechnique):
                 if isinstance(self.container, str):
                     self.container = self.container % {'addr': hex(s.addr)[:-1]}
 
-                if self._lookup():
+                if self._cache_lookup():
                     continue
 
                 l.warning("Caching to %s...", self.container)
