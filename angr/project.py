@@ -4,6 +4,7 @@ import types
 import weakref
 import StringIO
 import pickle
+import string
 from collections import defaultdict
 
 import archinfo
@@ -606,14 +607,14 @@ class Project(object):
                 except RuntimeError as e: # maximum recursion depth can be reached here
                     l.error("Unable to store Project, '%s' during pickling", e.message)
 
-        # If container is an open file
+        # If container is an open file.
         elif isinstance(container, file):
             try:
                 pickle.dump(self, container, pickle.HIGHEST_PROTOCOL)
             except RuntimeError as e: # maximum recursion depth can be reached here
                 l.error("Unable to store Project, '%s' during pickling", e.message)
 
-        # If container is just a variable
+        # If container is just a variable.
         else:
             try:
                 container = pickle.dumps(self, pickle.HIGHEST_PROTOCOL)
@@ -622,19 +623,15 @@ class Project(object):
 
     @staticmethod
     def _load(container):
-        l.info("Loading Project from %s...", container)
-
         if isinstance(container, str):
+            # If container is a filename.
+            if all(c in string.printable for c in container) and os.path.exists(container):
+                with open(container, 'rb') as f:
+                    return pickle.load(f)
+
             # If container is a pickle string.
-            try:
+            else:
                 return pickle.loads(container)
-            except:
-                # Else it has to be a filename.
-                if os.path.exists(container):
-                    with open(container, 'rb') as f:
-                        return pickle.load(f)
-                else:
-                    return None
 
         # If container is an open file
         elif isinstance(container, file):

@@ -320,33 +320,35 @@ class Tracer(ExplorationTechnique):
 
         project = simgr._project
         cached_project = project.load_function(container)
-        cached_project.analyses = project.analyses
-        cached_project.surveyors = project.surveyors
-        cached_project.store_function = project.store_function
-        cached_project.load_function = project.load_function
 
-        state = cached_project.storage['cached_states'][0]
-        state.globals['bb_cnt'] = cached_project.storage['bb_cnt']
-        claripy.ast.base.var_counter = cached_project.storage['var_cnt']
-        cached_project.storage = None
+        if cached_project is not None:
+            cached_project.analyses = project.analyses
+            cached_project.surveyors = project.surveyors
+            cached_project.store_function = project.store_function
+            cached_project.load_function = project.load_function
 
-        # Setting up the cached state
-        state.project = cached_project
-        simgr._project = cached_project
+            state = cached_project.storage['cached_states'][0]
+            state.globals['bb_cnt'] = cached_project.storage['bb_cnt']
+            claripy.ast.base.var_counter = cached_project.storage['var_cnt']
+            cached_project.storage = None
 
-        # Hookup the new files
-        for name in fs:
-            fs[name].set_state(state)
-            for fd in state.posix.files:
-                if state.posix.files[fd].name == name:
-                    state.posix.files[fd] = fs[name]
-                    break
+            # Setting up the cached state
+            state.project = cached_project
+            simgr._project = cached_project
 
-        state.register_plugin('preconstrainer', preconstrainer)
-        state.history.recent_block_count = 0
+            # Hookup the new files
+            for name in fs:
+                fs[name].set_state(state)
+                for fd in state.posix.files:
+                    if state.posix.files[fd].name == name:
+                        state.posix.files[fd] = fs[name]
+                        break
 
-        # Setting the cached state to the simgr
-        simgr.stashes['active'] = [state]
+            state.register_plugin('preconstrainer', preconstrainer)
+            state.history.recent_block_count = 0
+
+            # Setting the cached state to the simgr
+            simgr.stashes['active'] = [state]
 
     @staticmethod
     def _tracer_dump(container, simgr, stash):
