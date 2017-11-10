@@ -2,7 +2,7 @@ import logging
 
 from . import ExplorationTechnique
 
-from .. import SIM_LIBRARIES, BP_BEFORE
+from .. import BP_BEFORE
 
 from ..calling_conventions import SYSCALL_CC
 from ..errors import AngrTracerError, SimMemoryError, SimEngineError
@@ -245,9 +245,9 @@ class Tracer(ExplorationTechnique):
 
         # 0xa000008 is terminate, which we exclude from syscall statistics.
         if self.project.loader.main_object.os == 'cgc' and syscall_addr != 0xa000008:
-            args = angr.SYSCALL_CC['X86']['CGC'](self.project.arch).get_args(state, 4)
+            args = SYSCALL_CC['X86']['CGC'](self.project.arch).get_args(state, 4)
         else:
-            args = angr.SYSCALL_CC[self.project.arch.name]['Linux'](self.project.arch).get_arbs(state, 4)
+            args = SYSCALL_CC[self.project.arch.name]['Linux'](self.project.arch).get_arbs(state, 4)
 
         if args is not None:
             d = {'addr': syscall_addr}
