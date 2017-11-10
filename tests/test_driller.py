@@ -38,7 +38,7 @@ def test_drilling_cgc():
 
     simgr.run()
 
-    nose.tools.assert_equal(len(d.generated), 7)
+    nose.tools.assert_equal(len(simgr.diverted), 7)
 
     # make sure driller produced a new input which hits the easter egg
     nose.tools.assert_true(any(filter(lambda x: x[1].startswith('^'), list(d.generated))))
@@ -71,6 +71,8 @@ def test_simproc_drilling():
     simgr.use_technique(d)
 
     simgr.run()
+
+    nose.tools.assert_equal(len(simgr.diverted), 2)
 
     # make sure driller produced a new input which satisfies the memcmp
     password = "the_secret_password_is_here_you_will_never_guess_it_especially_since_it_is_going_to_be_made_lower_case"

@@ -119,8 +119,8 @@ class Driller(ExplorationTechnique):
                         # accelerate AFL by finding a number of deeper inputs.
                         l.debug("Found a completely new transition, exploring to some extent.")
 
-                        self._writeout(prev_addr, state)
-                        self._symbolic_explorer_stub(state)
+                        self._writeout(simgr, prev_addr, state)
+                        self._symbolic_explorer_stub(simgr, state)
 
                     else:
                         l.debug("State at %#x is not satisfiable.", transition[1])
@@ -134,7 +134,7 @@ class Driller(ExplorationTechnique):
     # Private methods
     #
 
-    def _symbolic_explorer_stub(self, state):
+    def _symbolic_explorer_stub(self, simgr, state):
         # Create a new simgr and step it forward up to 1024 accumulated active
         # states or steps.
         steps = 0
@@ -156,12 +156,12 @@ class Driller(ExplorationTechnique):
         for dumpable in new_simgr.deadended:
             try:
                 if dumpable.satisfiable():
-                    self._writeout(dumpable.history.bbl_addrs[-1], dumpable)
+                    self._writeout(simgr, dumpable.history.bbl_addrs[-1], dumpable)
             except IndexError:
                 # If the state we're trying to dump wasn't actually satisfiable.
                 pass
 
-    def _writeout(self, prev_addr, state):
+    def _writeout(self, simgr, prev_addr, state):
         t_pos = state.posix.files[0].pos
         state.posix.files[0].seek(0)
 
@@ -184,6 +184,7 @@ class Driller(ExplorationTechnique):
         l.debug("[%s] dumping input for %#x -> %#x.", self.identifier, prev_addr, state.addr)
 
         self.generated.add((key, generated))
+        simgr.stashes['diverted'].append(state)
 
         # Publish it out in real-time so that inputs get there immediately.
         if self.redis:
