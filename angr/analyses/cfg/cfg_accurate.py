@@ -1,7 +1,7 @@
 import itertools
 import logging
 import sys
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 import claripy
 import networkx
@@ -258,7 +258,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # exits here to increase our code coverage. Of course the real retn from
         # that call always precedes those "fake" retns.
         # Tuple --> (Initial state, call_stack)
-        self._pending_jobs = { }
+        self._pending_jobs = OrderedDict()
 
         # Counting how many times a basic block is traced into
         self._traced_addrs = defaultdict(lambda: defaultdict(int))
@@ -946,8 +946,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: A CFGJob instance or None
         """
 
-        pending_job_key = self._pending_jobs.keys()[0]
-        pending_job = self._pending_jobs.pop(pending_job_key)  # type: PendingJob
+        pending_job_key, pending_job = self._pending_jobs.popitem()
         pending_job_state = pending_job.state
         pending_job_call_stack = pending_job.call_stack
         pending_job_src_block_id = pending_job.src_block_id
@@ -1148,20 +1147,26 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # See if this job cancels another FakeRet
         # This should be done regardless of whether this job should be skipped or not, otherwise edges will go missing
         # in the CFG or function transiton graphs.
-        if job.jumpkind == 'Ijk_Ret' and block_id in self._pending_jobs:
+        if job.jumpkind == 'Ijk_FakeRet' or \
+                (job.jumpkind == 'Ijk_Ret' and block_id in self._pending_jobs):
             # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
             # in the graph.
 
-            pending_job = self._pending_jobs.pop(block_id)  # type: PendingJob
-            self._deregister_analysis_job(pending_job.caller_func_addr, pending_job)
-            self._graph_add_edge(pending_job.src_block_id, block_id,
+            if block_id in self._pending_jobs:
+                the_job = self._pending_jobs.pop(block_id)  # type: PendingJob
+                self._deregister_analysis_job(the_job.caller_func_addr, the_job)
+            else:
+                the_job = job
+
+            self._graph_add_edge(the_job.src_block_id, block_id,
                                  jumpkind='Ijk_FakeRet',
-                                 stmt_idx=pending_job.src_exit_stmt_idx,
+                                 stmt_idx=the_job.src_exit_stmt_idx,
                                  ins_addr=src_ins_addr
                                  )
-            self._update_function_transition_graph(pending_job.src_block_id, block_id,
+            self._update_function_transition_graph(the_job.src_block_id, block_id,
                                                    jumpkind='Ijk_FakeRet',
-                                                   ins_addr=src_ins_addr, stmt_idx=pending_job.src_exit_stmt_idx,
+                                                   ins_addr=src_ins_addr,
+                                                   stmt_idx=the_job.src_exit_stmt_idx,
                                                    confirmed=True
                                                    )
 

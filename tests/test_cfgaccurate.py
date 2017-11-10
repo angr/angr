@@ -355,6 +355,38 @@ def test_armel_final_missing_block():
     nose.tools.assert_set_equal(set([ block.addr for block in blocks ]), { 0x8000, 0x8014, 0x8020 })
 
 
+def test_armel_final_missing_block_b():
+
+    # When _pending_jobs is not sorted, it is possible that we first process a pending job created earlier and then
+    # process another pending job created later. Ideally, we hope that jobs are always processed in a topological order,
+    # and the unsorted pending jobs break this assumption. In this test binary, at one point there can be two pending
+    # jobs, 0x10b05/0x10ac5(Ijk_FakeRet) and 0x10bbe(Ijk_FakeRet). If 0x10bbe is processed before 0x10b05, we do not
+    # know whether the function 0x10a29(aes) returns or not. As a result, the final block of the main function is not
+    # confirmed, and is not added to the function graph of function main.
+    #
+    # In fact, this also hints a different bug. We should always "confirm" that a function returns if its FakeRet job
+    # are processed for whatever reason.
+    #
+    # Fixing either bug will resolve the issue that the final block does not show up in the function graph of main. To
+    # stay on the safe side, both of them are fixed. Thanks @tyb0807 for reporting this issue and providing a test
+    # binary.
+
+    binary_path = os.path.join(test_location, 'armel', 'aes')
+    b = angr.Project(binary_path, auto_load_libs=False)
+
+    function = b.loader.main_object.get_symbol('main').rebased_addr
+    cfg = b.analyses.CFGAccurate(starts=[function],
+                                 context_sensitivity_level=0,
+                                 normalize=True,
+                                 fail_fast=True,
+                                 )
+
+    blocks = list(cfg.kb.functions['main'].blocks)
+
+    nose.tools.assert_equal(len(blocks), 2)
+    nose.tools.assert_set_equal(set(block.addr for block in blocks), { 0x10b79, 0x10bbf })
+
+
 def test_armel_incorrect_function_detection_caused_by_branch():
 
     # GitHub issue #685
