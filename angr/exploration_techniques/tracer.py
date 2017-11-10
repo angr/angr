@@ -14,7 +14,7 @@ class Tracer(ExplorationTechnique):
     An exploration technique that follows an angr path with a concrete input.
     The tracing result is the state after executing the last basic block of the
     given trace and can be found in 'traced' stash.
-    
+
     If the given concrete input makes the program crash, the last correct
     states that you might want are kept in the 'predecessors' list. The crashed
     state can be found with CrashMonitor exploration technique.
@@ -248,7 +248,7 @@ class Tracer(ExplorationTechnique):
             args = angr.SYSCALL_CC['X86']['CGC'](self.project.arch).get_args(state, 4)
         else:
             args = angr.SYSCALL_CC[self.project.arch.name]['Linux'](self.project.arch).get_arbs(state, 4)
-            
+
         if args is not None:
             d = {'addr': syscall_addr}
             for i in xrange(4):

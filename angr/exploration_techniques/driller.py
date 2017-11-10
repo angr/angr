@@ -23,7 +23,7 @@ class Driller(ExplorationTechnique):
     It has to be used with Tracer exploration technique. Results are put in
     'diverted' stash.
     """
-    
+
     def __init__(self, input, trace, fuzz_bitmap=None, tag=None, redis=None):
         """
         :param input      : Input string to feed to the binary.
@@ -247,4 +247,3 @@ class Driller(ExplorationTechnique):
         # Let's put conservative thresholds for now.
         state.unicorn.concretization_threshold_memory = 50000
         state.unicorn.concretization_threshold_registers = 50000
-
