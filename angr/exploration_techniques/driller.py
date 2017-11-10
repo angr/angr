@@ -1,13 +1,14 @@
 import os
 import time
 import signal
-import config
 import logging
 import hashlib
 import resource
 import cPickle as pickle
 from itertools import islice, izip
 
+
+from ..misc import config
 from . import ExplorationTechnique
 
 
@@ -27,7 +28,7 @@ class Driller(ExplorationTechnique):
         """
         :param input      : Input string to feed to the binary.
         :param trace      : The basic block trace.
-        :param fuzz_bitmap: AFL's bitmap of state transitions. Defaults to empty.
+        :param fuzz_bitmap: AFL's bitmap of state transitions. Defaults to saying every transition is worth satisfying.
         :param tag        : Tag of this Driller instance.
         :param redis      : Redis instance for coordinating multiple Driller instances.
         """
@@ -127,6 +128,8 @@ class Driller(ExplorationTechnique):
                 else:
                     l.debug("%#x -> %#x transition has already been encountered.", transition[0], transition[1])
 
+        return simgr
+
     #
     # Private methods
     #
@@ -139,7 +142,7 @@ class Driller(ExplorationTechnique):
 
         new_simgr = self.project.factory.simgr(state, immutable=False, hierarchy=False)
 
-        l.debug("[%s] started symbolic exploration at %x", self.identifier, time.ctime())
+        l.debug("[%s] started symbolic exploration at %s", self.identifier, time.ctime())
 
         while new_simgr.active and accumulated < 1024:
             new_simgr.step()
@@ -148,7 +151,7 @@ class Driller(ExplorationTechnique):
             # Dump all inputs.
             accumulated = steps * (len(new_simgr.active) + len(new_simgr.deadended))
 
-        l.debug("[%s] stopped symbolic exploration at %x", self.identifier, time.ctime())
+        l.debug("[%s] stopped symbolic exploration at %s", self.identifier, time.ctime())
 
         for dumpable in new_simgr.deadended:
             try:
@@ -175,7 +178,7 @@ class Driller(ExplorationTechnique):
         if self._in_catalogue(*key):
             return
         else:
-            self._encounters.add((prev_addr, path.addr))
+            self._encounters.add((prev_addr, state.addr))
             self._add_to_catalogue(*key)
 
         l.debug("[%s] dumping input for %#x -> %#x.", self.identifier, prev_addr, state.addr)
@@ -193,7 +196,7 @@ class Driller(ExplorationTechnique):
     def _in_catalogue(self, length, prev_addr, next_addr):
         # Check if a generated input has already been generated earlier during
         # the run or by another thread.
-        key = '%x%x%x\n' % (length, prev_addr, nex_addr)
+        key = '%x%x%x\n' % (length, prev_addr, next_addr)
 
         if self.redis:
             return self.redis.sismember(self.identifier + '-catalogue', key)
@@ -203,7 +206,7 @@ class Driller(ExplorationTechnique):
 
     def _add_to_catalogue(self, length, prev_addr, next_addr):
         if self.redis:
-            key = '%x%x%x\n' % (length, prev_addr, nex_addr)
+            key = '%x%x%x\n' % (length, prev_addr, next_addr)
             self.redis.sadd(self.identifier + '-catalogue', key)
 
     def _write_debug_info(self):
@@ -233,7 +236,7 @@ class Driller(ExplorationTechnique):
         return False
 
     @staticmethod
-    def _set_concretization(state):
+    def _set_concretizations(state):
         flag_vars = set()
         for b in state.cgc.flag_bytes:
             flag_vars.update(b.variables)
