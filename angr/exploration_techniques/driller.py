@@ -24,9 +24,9 @@ class Driller(ExplorationTechnique):
     'diverted' stash.
     """
 
-    def __init__(self, input, trace, fuzz_bitmap=None, tag=None, redis=None):
+    def __init__(self, input_str, trace, fuzz_bitmap=None, tag=None, redis=None):
         """
-        :param input      : Input string to feed to the binary.
+        :param input_str  : Input string to feed to the binary.
         :param trace      : The basic block trace.
         :param fuzz_bitmap: AFL's bitmap of state transitions. Defaults to saying every transition is worth satisfying.
         :param tag        : Tag of this Driller instance.
@@ -34,7 +34,7 @@ class Driller(ExplorationTechnique):
         """
 
         super(Driller, self).__init__()
-        self.input = input
+        self.input = input_str
         self.trace = trace
         self.fuzz_bitmap = fuzz_bitmap or "\xff" * 65535
         self.tag = tag
@@ -46,6 +46,10 @@ class Driller(ExplorationTechnique):
         # Set of all the generated inputs.
         self.generated = set()
 
+        self.identifier = None
+        self.completed = False
+        self._start_time = None
+
         # Set the memory limit specified in the config.
         if config.MEM_LIMIT is not None:
             resource.setrlimit(resource.RLIMIT_AS, (config.MEM_LIMIT, config.MEM_LIMIT))
@@ -53,7 +57,6 @@ class Driller(ExplorationTechnique):
     def setup(self, simgr):
         self.project = simgr._project
         self.identifier = os.path.basename(self.project.filename)
-        self.completed = False
 
         # Do not re-trace the same input.
         if self.redis and self.redis.sismember(self.identifier + '-traced', self.input):
