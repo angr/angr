@@ -23,7 +23,7 @@ def test_drilling_cgc():
     # Initialize the tracer.
     r = tracer.qemu_runner.QEMURunner(binary, input_str)
     p = angr.misc.tracer.make_tracer_project(binary)
-    s = p.factory.tracer_state(input_str_content=input_str, magic_content=r.magic)
+    s = p.factory.tracer_state(input_content=input_str, magic_content=r.magic)
 
     simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
 
@@ -40,7 +40,7 @@ def test_drilling_cgc():
 
     nose.tools.assert_equal(len(simgr.diverted), 7)
 
-    # make sure driller produced a new input_str which hits the easter egg
+    # make sure driller produced a new input which hits the easter egg
     nose.tools.assert_true(any(filter(lambda x: x[1].startswith('^'), list(d.generated))))
 
 
@@ -57,7 +57,7 @@ def test_simproc_drilling():
     # Initialize the tracer.
     r = tracer.qemu_runner.QEMURunner(binary, input_str)
     p = angr.misc.tracer.make_tracer_project(binary, hooks=simprocs)
-    s = p.factory.tracer_state(input_str_content=input_str, magic_content=r.magic)
+    s = p.factory.tracer_state(input_content=input_str, magic_content=r.magic)
 
     simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
 
@@ -74,7 +74,7 @@ def test_simproc_drilling():
 
     nose.tools.assert_equal(len(simgr.diverted), 2)
 
-    # make sure driller produced a new input_str which satisfies the memcmp
+    # make sure driller produced a new input which satisfies the memcmp
     password = "the_secret_password_is_here_you_will_never_guess_it_especially_since_it_is_going_to_be_made_lower_case"
     nose.tools.assert_true(any(filter(lambda x: x[1].startswith(password), list(d.generated))))
 
