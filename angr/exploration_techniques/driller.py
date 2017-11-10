@@ -44,7 +44,7 @@ class Driller(ExplorationTechnique):
         self._encounters = set()
 
         # Set of all the generated inputs.
-        self._generated = set()
+        self.generated = set()
 
         # Set the memory limit specified in the config.
         if config.MEM_LIMIT is not None:
@@ -183,7 +183,7 @@ class Driller(ExplorationTechnique):
 
         l.debug("[%s] dumping input for %#x -> %#x.", self.identifier, prev_addr, state.addr)
 
-        self._generated.add((key, generated))
+        self.generated.add((key, generated))
 
         # Publish it out in real-time so that inputs get there immediately.
         if self.redis:
