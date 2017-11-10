@@ -1,6 +1,5 @@
 import os
 import time
-import signal
 import logging
 import hashlib
 import resource
