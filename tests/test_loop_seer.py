@@ -8,9 +8,9 @@ test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '.
 
 
 def test_various_loops():
-    p = angr.Project(os.path.join(test_location, 'x86_64', 'various_loops'))
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'various_loops'), auto_load_libs=False)
 
-    cfg = p.analyses.CFGAccurate(normalize=True)
+    cfg = p.analyses.CFGFast(normalize=True)
 
     state = p.factory.entry_state()
     state.register_plugin('loop_data', angr.state_plugins.SimStateLoopData())
@@ -81,16 +81,13 @@ def test_various_loops():
 
 
 def test_loops():
-    p = angr.Project(os.path.join(test_location, 'x86_64', 'test_loops'))
-
-    cfg = p.analyses.CFGAccurate(normalize=True)
-   #cfg = None
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'test_loops'), auto_load_libs=False)
 
     state = p.factory.entry_state()
     state.register_plugin('loop_data', angr.state_plugins.SimStateLoopData())
     simgr = p.factory.simgr(state)
 
-    simgr.use_technique(angr.exploration_techniques.LoopSeer(cfg=cfg, functions='main', bound=None))
+    simgr.use_technique(angr.exploration_techniques.LoopSeer(functions='main', bound=None))
 
     simgr.run()
 
@@ -102,9 +99,9 @@ def test_loops():
 
 
 def test_arrays():
-    p = angr.Project(os.path.join(test_location, 'x86_64', 'test_arrays'))
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'test_arrays'), auto_load_libs=False)
 
-    cfg = p.analyses.CFGAccurate(normalize=True)
+    cfg = p.analyses.CFGFast(normalize=True)
 
     state = p.factory.entry_state()
     state.register_plugin('loop_data', angr.state_plugins.SimStateLoopData())
@@ -120,9 +117,9 @@ def test_arrays():
 
 
 def test_loop_limiter():
-    p = angr.Project(os.path.join(test_location, 'x86_64', 'test_arrays'))
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'test_arrays'), auto_load_libs=False)
 
-    cfg = p.analyses.CFGAccurate(normalize=True)
+    cfg = p.analyses.CFGFast(normalize=True)
 
     state = p.factory.entry_state()
     state.register_plugin('loop_data', angr.state_plugins.SimStateLoopData())
