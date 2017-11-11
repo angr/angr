@@ -100,6 +100,7 @@ class Cacher(ExplorationTechnique):
     def _load_stash(container, simgr):
         project = simgr._project
         cached_project = project.load_function(container)
+
         if cached_project is not None:
             cached_project.analyses = project.analyses
             cached_project.surveyors = project.surveyors

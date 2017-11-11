@@ -5,7 +5,7 @@ import logging
 import claripy
 
 from . import ExplorationTechnique, Cacher
-from .. import SIM_LIBRARIES, BP_BEFORE
+from .. import BP_BEFORE
 from ..calling_conventions import SYSCALL_CC
 from ..errors import AngrTracerError, SimMemoryError, SimEngineError
 from ..storage.file import SimFile
@@ -349,6 +349,9 @@ class Tracer(ExplorationTechnique):
 
             # Setting the cached state to the simgr
             simgr.stashes['active'] = [state]
+
+        else:
+            l.error("Something went wrong during Project unpickling for Tracer...")
 
     @staticmethod
     def _tracer_dump(container, simgr, stash):
