@@ -28,13 +28,13 @@ class DrillerCore(ExplorationTechnique):
         self.fuzz_bitmap = fuzz_bitmap or "\xff" * 65535
 
         # Set of encountered basic block transitions.
-        self._encounters = set()
+        self.encounters = set()
 
     def setup(self, simgr):
         self.project = simgr._project
 
         # Update encounters with known state transitions.
-        self._encounters.update(izip(self.trace, islice(self.trace, 1, None)))
+        self.encounters.update(izip(self.trace, islice(self.trace, 1, None)))
 
 
     def complete(self, simgr):
@@ -63,14 +63,14 @@ class DrillerCore(ExplorationTechnique):
 
                 l.debug("Found %#x -> %#x transition.", transition[0], transition[1])
 
-                if not hit and transition not in self._encounters and not self._has_false(state):
+                if not hit and transition not in self.encounters and not self._has_false(state):
                     state.preconstrainer.remove_preconstraints()
 
                     if state.satisfiable():
                         # A completely new state transition.
                         l.debug("Found a completely new transition, putting into 'diverted' stash.")
                         simgr.stashes['diverted'].append(state)
-                        self._encounters.add(transition)
+                        self.encounters.add(transition)
 
                     else:
                         l.debug("State at %#x is not satisfiable.", transition[1])
