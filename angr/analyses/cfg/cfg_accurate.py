@@ -334,8 +334,9 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
         # loop detection
         # only detect loops after potential graph normalization
-        l.debug("Detecting loops...")
-        self._detect_loops()
+        if not self._loop_back_edges:
+            l.debug("Detecting loops...")
+            self._detect_loops()
 
         l.debug("Removing cycles...")
         l.debug("There are %d loop back edges.", len(self._loop_back_edges))
