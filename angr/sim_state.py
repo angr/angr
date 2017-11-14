@@ -271,6 +271,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
     @property
     def preconstrainer(self):
         return self.get_plugin('preconstrainer')
+    
+    @property
+    def callstack(self):
+        return self.get_plugin('callstack')
 
     def _inspect(self, *args, **kwargs):
         if self.has_plugin('inspector'):
