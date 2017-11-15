@@ -11,7 +11,6 @@ import cle
 import networkx
 import pyvex
 from . import Analysis, register_analysis
-#import pdb
 
 from ..knowledge_base import KnowledgeBase
 from ..sim_variable import SimMemoryVariable, SimTemporaryVariable
@@ -640,7 +639,7 @@ class Operand(object):
             self.base = capstone_operand.mem.base
             self.disp = capstone_operand.mem.disp
 
-            if self.binary.project.arch.name in ['PPC32', 'PPC64']: # fixed index/scale architecture capstone objects won't have these set
+            if self.binary.project.arch.name in ['PPC32', 'PPC64', 'MIPS32']: # fixed index/scale architecture capstone objects won't have these set
                 self.index = 0
                 self.scale = 1
             else:
