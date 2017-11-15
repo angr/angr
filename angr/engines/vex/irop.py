@@ -19,24 +19,26 @@ import claripy
 # The more sane approach
 #
 
+
 def op_attrs(p):
-    m = re.match(r'^Iop_' \
-              r'(?P<generic_name>\D+?)??' \
-              r'(?P<from_type>I|F|D|V)??' \
-              r'(?P<from_signed>U|S)??' \
-              r'(?P<from_size>\d+)??' \
-              r'(?P<from_signed_back>U|S)??' \
-              # this screws up CmpLE: r'(?P<e_flag>E)??' \
-              r'('
-                r'(?P<from_side>HL|HI|L|LO)??' \
-                r'(?P<conversion>to|as)' \
-                r'(?P<to_type>Int|I|F|D|V)??' \
-                r'(?P<to_size>\d+)??' \
-                r'(?P<to_signed>U|S)??' \
-              r')??'
-              r'(?P<vector_info>\d+U?S?F?0?x\d+)??' \
-              r'(?P<rounding_mode>_R(Z|P|N|M))?$', \
-              p)
+    m = re.match(r'^Iop_'
+                 r'(?P<generic_name>\D+?)??'
+                 r'(?P<from_type>[IFDV])??'
+                 r'(?P<from_signed>[US])??'
+                 r'(?P<from_size>\d+)??'
+                 r'(?P<from_signed_back>[US])??'
+                 # this screws up CmpLE: r'(?P<e_flag>E)??' \
+                 r'('
+                 r'(?P<from_side>HL|HI|L|LO)??'
+                 r'(?P<conversion>to|as)'
+                 r'(?P<to_type>Int|I|F|D|V)??'
+                 r'(?P<to_size>\d+)??'
+                 r'(?P<to_signed>[US])??'
+                 r')??'
+                 r'(?P<vector_info>\d+U?S?F?0?x\d+)??'
+                 r'(?P<rounding_mode>_R([ZPNM]))?$',
+                 p
+                 )
 
     if not m:
         l.debug("Unmatched operation: %s", p)
@@ -55,13 +57,14 @@ def op_attrs(p):
         # fix up vector stuff
         vector_info = attrs.pop('vector_info', None)
         if vector_info:
-            vm = re.match(r'^(?P<vector_size>\d+)?' \
-                 r'(?P<vector_signed>U|S)?' \
-                 r'(?P<vector_type>F|D)?' \
-                 r'(?P<vector_zero>0)?' \
-     r'x' \
-                 r'(?P<vector_count>\d+)?$', \
-                 vector_info)
+            vm = re.match(r'^(?P<vector_size>\d+)?'
+                          r'(?P<vector_signed>[US])?'
+                          r'(?P<vector_type>[FD])?'
+                          r'(?P<vector_zero>0)?'
+                          r'x'
+                          r'(?P<vector_count>\d+)?$',
+                          vector_info
+                          )
             attrs.update(vm.groupdict())
 
         for k,v in attrs.items():
@@ -70,7 +73,8 @@ def op_attrs(p):
 
         return attrs
 
-all_operations = pyvex.enum_IROp_fromstr.keys()
+
+all_operations = pyvex.irop_enums_to_ints.keys()
 operations = { }
 classified = set()
 unclassified = set()
@@ -120,6 +124,7 @@ arithmetic_operation_map = {
     'Div': '__div__',
     'Neg': 'Neg',
     'Abs': 'Abs',
+    'Mod': '__mod__',
 }
 shift_operation_map = {
     'Shl': '__lshift__',
@@ -187,9 +192,9 @@ class SimIROp(object):
 
         # determine the output size
         #pylint:disable=no-member
-        self._output_type = pyvex.typeOfIROp(name)
+        self._output_type = pyvex.get_op_retty(name)
         #pylint:enable=no-member
-        self._output_size_bits = size_bits(self._output_type)
+        self._output_size_bits = pyvex.const.get_type_size(self._output_type)
         l.debug("... VEX says the output size should be %s", self._output_size_bits)
 
         size_check = self._to_size is None or (self._to_size*2 if self._generic_name == 'DivMod' else self._to_size) == self._output_size_bits
@@ -206,7 +211,6 @@ class SimIROp(object):
             conversions[(self._from_type, self._from_signed, self._to_type, self._to_signed)].append(self)
 
         if len({self._vector_type, self._from_type, self._to_type} & {'F', 'D'}) != 0:
-            # print self.op_attrs
             self._float = True
 
             if len({self._vector_type, self._from_type, self._to_type} & {'D'}) != 0:
@@ -296,6 +300,8 @@ class SimIROp(object):
                 self._calculate = self._op_float_mapped
             elif not self._float and self._vector_count is not None:
                 self._calculate = self._op_vector_mapped
+            elif self._float and self._vector_count is not None:
+                self._calculate = self._op_vector_float_mapped
             else:
                 self._calculate = self._op_mapped
 
@@ -346,15 +352,15 @@ class SimIROp(object):
             raise SimOperationError("IROp needs all args as claripy expressions")
 
         if not self._float:
-            args = tuple(arg.to_bv() for arg in args)
+            args = tuple(arg.raw_to_bv() for arg in args)
 
         try:
             return self.extend_size(self._calculate(args))
+        except (ZeroDivisionError, claripy.ClaripyZeroDivisionError):
+            raise SimZeroDivisionException("divide by zero!")
         except (TypeError, ValueError, SimValueError, claripy.ClaripyError):
             e_type, value, traceback = sys.exc_info()
             raise SimOperationError, ("%s._calculate() raised exception" % self.name, e_type, value), traceback
-        except ZeroDivisionError:
-            raise SimOperationError("divide by zero!")
 
     def extend_size(self, o):
         cur_size = o.size()
@@ -415,11 +421,12 @@ class SimIROp(object):
             l.warning("symbolic rounding mode found, using default")
             return claripy.fp.RM.default()
 
+    NO_RM = { 'Neg', 'Abs' }
+
     def _op_float_mapped(self, args):
-        NO_RM = { 'Neg', 'Abs' }
         op = getattr(claripy, 'fp' + self._generic_name)
 
-        if self._generic_name in NO_RM:
+        if self._generic_name in self.NO_RM:
             return op(*args)
 
         rm = self._translate_rm(args[0])
@@ -430,9 +437,19 @@ class SimIROp(object):
                         for i in reversed(xrange(self._vector_count)))
         return claripy.Concat(*(self._op_mapped(ca) for ca in chopped_args))
 
+    def _op_vector_float_mapped(self, args):
+        rm_part = [] if self._generic_name in self.NO_RM else [args[0]]
+        chopped_args = (
+                [
+                    claripy.Extract((i + 1) * self._vector_size - 1, i * self._vector_size, a).raw_to_fp()
+                    for a in (args if self._generic_name in self.NO_RM else args[1:])
+                ] for i in reversed(xrange(self._vector_count))
+            )
+        return claripy.Concat(*(self._op_float_mapped(rm_part + ca).raw_to_bv() for ca in chopped_args))
+
     def _op_float_op_just_low(self, args):
         chopped = [arg[(self._vector_size - 1):0].raw_to_fp() for arg in args]
-        result = getattr(claripy, 'fp' + self._generic_name)(claripy.fp.RM.default(), *chopped).to_bv()
+        result = getattr(claripy, 'fp' + self._generic_name)(claripy.fp.RM.default(), *chopped).raw_to_bv()
         return claripy.Concat(args[0][(args[0].length - 1):self._vector_size], result)
 
     def _op_concat(self, args):
@@ -711,14 +728,14 @@ class SimIROp(object):
         rm = self._translate_rm(args[0] if rm_exists else claripy.BVV(0, 32))
         arg = args[1 if rm_exists else 0]
 
-        return arg.signed_to_fp(rm, claripy.fp.FSort.from_size(self._output_size_bits))
+        return arg.val_to_fp(claripy.fp.FSort.from_size(self._output_size_bits), signed=True, rm=rm)
 
     def _op_fp_to_fp(self, args):
         rm_exists = self._from_size != 32 or self._to_size != 64
         rm = self._translate_rm(args[0] if rm_exists else claripy.BVV(0, 32))
         arg = args[1 if rm_exists else 0].raw_to_fp()
 
-        return arg.raw_to_fp().to_fp(rm, claripy.fp.FSort.from_size(self._output_size_bits))
+        return arg.raw_to_fp().to_fp(claripy.fp.FSort.from_size(self._output_size_bits), rm=rm)
 
     def _op_fp_to_int(self, args):
         rm = self._translate_rm(args[0])
@@ -739,7 +756,7 @@ class SimIROp(object):
 
     def _op_fgeneric_Reinterp(self, args):
         if self._to_type == 'I':
-            return args[0].to_bv()
+            return args[0].raw_to_bv()
         elif self._to_type == 'F':
             return args[0].raw_to_fp()
         else:
@@ -819,7 +836,7 @@ class SimIROp(object):
 
     #def _op_Iop_Yl2xF64(self, args):
     #   rm = self._translate_rm(args[0])
-    #   arg2_bv = args[2].to_bv()
+    #   arg2_bv = args[2].raw_to_bv()
     #   # IEEE754 double looks like this:
     #   # SEEEEEEEEEEEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
     #   # thus, we extract the exponent bits, re-bias them, then
@@ -828,7 +845,7 @@ class SimIROp(object):
     #   # = x - 1 for 1.0 <= x < 2.0 to account for the mantissa.
 
     #   # the bias for doubles is 1023
-    #   arg2_exp = (arg2_bv[62:52] - 1023).signed_to_fp(rm, claripy.fp.FSORT_DOUBLE)
+    #   arg2_exp = (arg2_bv[62:52] - 1023).val_to_fp(claripy.fp.FSORT_DOUBLE, signed=True, rm=rm)
     #   arg2_mantissa = claripy.Concat(claripy.BVV(int('001111111111', 2), 12), arg2_bv[51:0]).raw_to_fp()
     #   # this is the hacky approximation:
     #   log2_arg2_mantissa = claripy.fpSub(rm, arg2_mantissa, claripy.FPV(1.0, claripy.fp.FSORT_DOUBLE))
@@ -883,33 +900,46 @@ class SimIROp(object):
 #
 # Op Handler
 #
-#from . import old_irop
+
 def translate(state, op, s_args):
     if op in operations:
+        return translate_inner(state, operations[op], s_args)
+    elif options.EXTENDED_IROP_SUPPORT in state.options:
         try:
-            irop = operations[op]
-            if irop._float and not options.SUPPORT_FLOATING_POINT in state.options:
-                raise UnsupportedIROpError("floating point support disabled")
-            return irop.calculate( *s_args)
-        except ZeroDivisionError:
-            if state.mode == 'static' and len(s_args) == 2 and state.se.is_true(s_args[1] == 0):
-                # Monkeypatch the dividend to another value instead of 0
-                s_args[1] = state.se.BVV(1, s_args[1].size())
-                return operations[op].calculate( *s_args)
-            else:
-                raise
+            l.info("Using our imagination for op " + op)
+            attrs = op_attrs(op)
+            if attrs is None:
+                raise SimOperationError
+            irop = SimIROp(op, **attrs)
         except SimOperationError:
-            l.warning("IROp error (for operation %s)", op, exc_info=True)
-            if options.BYPASS_ERRORED_IROP in state.options:
-                return state.se.Unconstrained("irop_error", operations[op]._output_size_bits)
-            else:
-                raise
+            l.info("...failed to make op")
+        else:
+            operations[op] = irop
+            return translate_inner(state, irop, s_args)
 
     l.error("Unsupported operation: %s", op)
     raise UnsupportedIROpError("Unsupported operation: %s" % op)
 
-from . import size_bits
-from ...errors import UnsupportedIROpError, SimOperationError, SimValueError
+def translate_inner(state, irop, s_args):
+    try:
+        if irop._float and not options.SUPPORT_FLOATING_POINT in state.options:
+            raise UnsupportedIROpError("floating point support disabled")
+        return irop.calculate(*s_args)
+    except SimZeroDivisionException:
+        if state.mode == 'static' and len(s_args) == 2 and state.se.is_true(s_args[1] == 0):
+            # Monkeypatch the dividend to another value instead of 0
+            s_args[1] = state.se.BVV(1, s_args[1].size())
+            return irop.calculate(*s_args)
+        else:
+            raise
+    except SimOperationError:
+        l.warning("IROp error (for operation %s)", irop.name, exc_info=True)
+        if options.BYPASS_ERRORED_IROP in state.options:
+            return state.se.Unconstrained("irop_error", irop._output_size_bits)
+        else:
+            raise
+
+from ...errors import UnsupportedIROpError, SimOperationError, SimValueError, SimZeroDivisionException
 from ... import sim_options as options
 
 make_operations()

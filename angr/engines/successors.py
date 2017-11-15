@@ -74,6 +74,12 @@ class SimSuccessors(object):
         return not self.all_successors and not self.flat_successors and not self.unsat_successors and \
                not self.unconstrained_successors
 
+    def __getitem__(self, k):
+        return self.flat_successors[k]
+
+    def __iter__(self):
+        return iter(self.flat_successors)
+
     def add_successor(self, state, target, guard, jumpkind, add_guard=True, exit_stmt_idx=None, exit_ins_addr=None,
                       source=None):
         """
@@ -110,6 +116,7 @@ class SimSuccessors(object):
         self._preprocess_successor(state, add_guard=add_guard)
         self._categorize_successor(state)
         state._inspect('exit', BP_AFTER, exit_target=target, exit_guard=guard, exit_jumpkind=jumpkind)
+        state.inspect.downsize()
 
     #
     # Successor management
@@ -145,11 +152,16 @@ class SimSuccessors(object):
         if self.initial_state.arch.sp_offset is not None:
             self._manage_callstack(state)
 
+        if len(self.successors) != 0:
+            # This is a fork!
+            state._inspect('fork', BP_AFTER)
+
         # clean up the state
         state.options.discard(o.AST_DEPS)
         state.options.discard(o.AUTO_REFS)
 
-    def _manage_callstack(self, state):
+    @staticmethod
+    def _manage_callstack(state):
         # condition for call = Ijk_Call
         # condition for ret = stack pointer drops below call point
         if state.history.jumpkind == 'Ijk_Call':
@@ -161,7 +173,7 @@ class SimSuccessors(object):
             if state.arch.call_pushes_ret:
                 ret_addr = state.mem[state.regs._sp].long.concrete
             else:
-                ret_addr = state.se.any_int(state.regs._lr)
+                ret_addr = state.se.eval(state.regs._lr)
             try:
                 state_addr = state.addr
             except SimValueError:
@@ -169,7 +181,7 @@ class SimSuccessors(object):
             new_frame = CallStack(
                     call_site_addr=state.history.recent_bbl_addrs[-1],
                     func_addr=state_addr,
-                    stack_ptr=state.se.any_int(state.regs._sp),
+                    stack_ptr=state.se.eval(state.regs._sp),
                     ret_addr=ret_addr,
                     jumpkind='Ijk_Call')
             state.callstack.push(new_frame)
@@ -242,14 +254,17 @@ class SimSuccessors(object):
                     for n in concrete_syscall_nums:
                         split_state = state.copy()
                         split_state.add_constraints(symbolic_syscall_num == n)
+                        split_state.inspect.downsize()
+                        self._fix_syscall_ip(split_state)
 
                         self.flat_successors.append(split_state)
                 else:
                     # We cannot resolve the syscall number
                     # However, we still put it to the flat_successors list, and angr.SimOS.handle_syscall will pick it
                     # up, and create a "unknown syscall" stub for it.
+                    self._fix_syscall_ip(state)
                     self.flat_successors.append(state)
-            except UnsupportedSyscallError:
+            except AngrUnsupportedSyscallError:
                 self.unsat_successors.append(state)
 
         else:
@@ -261,12 +276,12 @@ class SimSuccessors(object):
                     if len(addrs) > 256:
                         # It is not a library
                         l.debug("It is not a Library")
-                        addrs = state.se.any_n_int(target, 257)
+                        addrs = state.se.eval_upto(target, 257)
                         if len(addrs) == 1:
                             state.add_constraints(target == addrs[0])
                         l.debug("addrs :%s", addrs)
                 else:
-                    addrs = state.se.any_n_int(target, 257)
+                    addrs = state.se.eval_upto(target, 257)
 
                 if len(addrs) > 256:
                     l.warning(
@@ -282,6 +297,7 @@ class SimSuccessors(object):
                         else:
                             split_state.add_constraints(target == a, action=True)
                             split_state.regs.ip = a
+                        split_state.inspect.downsize()
                         self.flat_successors.append(split_state)
                     self.successors.append(state)
             except SimSolverModeError:
@@ -305,10 +321,10 @@ class SimSuccessors(object):
             l.debug("Not resolving symbolic syscall number")
             return syscall_num, None
         maximum = state.posix.maximum_symbolic_syscalls
-        possible = state.se.any_n_int(syscall_num, maximum + 1)
+        possible = state.se.eval_upto(syscall_num, maximum + 1)
 
         if len(possible) == 0:
-            raise UnsupportedSyscallError("Unsatisfiable state attempting to do a syscall")
+            raise AngrUnsupportedSyscallError("Unsatisfiable state attempting to do a syscall")
 
         if len(possible) > maximum:
             l.warning("Too many possible syscalls. Concretizing to 1.")
@@ -317,6 +333,24 @@ class SimSuccessors(object):
         l.debug("Possible syscall values: %s", possible)
 
         return syscall_num, possible
+
+    @staticmethod
+    def _fix_syscall_ip(state):
+        """
+        Resolve syscall information from the state, get the IP address of the syscall SimProcedure, and set the IP of
+        the state accordingly. Don't do anything if the resolution fails.
+
+        :param SimState state: the program state.
+        :return: None
+        """
+
+        try:
+            bypass = o.BYPASS_UNSUPPORTED_SYSCALL in state.options
+            stub = state.project._simos.syscall(state, allow_unsupported=bypass)
+            if stub: # can be None if simos is not a subclass of SimUserspace
+                state.ip = stub.addr # fix the IP
+        except AngrUnsupportedSyscallError:
+            pass # the syscall is not supported. don't do anything
 
     def _finalize(self):
         """
@@ -336,7 +370,7 @@ class SimSuccessors(object):
 
 
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
-from ..errors import SimSolverModeError, UnsupportedSyscallError, SimValueError
+from ..errors import SimSolverModeError, AngrUnsupportedSyscallError, SimValueError
 from ..calling_conventions import SYSCALL_CC
 from ..state_plugins.sim_action_object import _raw_ast
 from ..state_plugins.callstack import CallStack

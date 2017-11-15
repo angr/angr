@@ -38,9 +38,6 @@ class SimEngineProcedure(SimEngine):
 
     def _process(self, state, successors, procedure, ret_to=None):
         successors.sort = 'SimProcedure'
-        successors.description = 'SimProcedure ' + procedure.display_name
-        if procedure.is_syscall:
-            successors.description += ' (syscall)'
 
         # fill in artifacts
         successors.artifacts['is_syscall'] = procedure.is_syscall
@@ -56,7 +53,8 @@ class SimEngineProcedure(SimEngine):
         state._inspect('simprocedure',
                        BP_BEFORE,
                        simprocedure_name=procedure.display_name,
-                       simprocedure_addr=successors.addr
+                       simprocedure_addr=successors.addr,
+                       simprocedure=procedure
                        )
         if procedure.is_syscall:
             state._inspect('syscall', BP_BEFORE, syscall_name=procedure.display_name)
@@ -79,9 +77,15 @@ class SimEngineProcedure(SimEngine):
         state._inspect('simprocedure',
                        BP_AFTER,
                        simprocedure_name=procedure.display_name,
-                       simprocedure_addr=successors.addr
+                       simprocedure_addr=successors.addr,
+                       simprocedure=inst
                        )
 
+        successors.description = 'SimProcedure ' + procedure.display_name
+        if procedure.is_syscall:
+            successors.description += ' (syscall)'
+        if procedure.is_stub:
+            successors.description += ' (stub)'
         successors.processed = True
 
 from .. import sim_options as o

@@ -1,5 +1,4 @@
 from .base import SimIRExpr, _nonset
-from .. import size_bytes, size_bits
 from .... import sim_options as o
 from ....state_plugins.sim_action import SimActionData
 from ....state_plugins.sim_action_object import SimActionObject
@@ -8,7 +7,7 @@ from ....errors import SimUninitializedAccessError
 class SimIRExpr_Load(SimIRExpr):
     def _execute(self):
         # size of the load
-        size = size_bytes(self._expr.type)
+        size = self.size_bytes(self._expr.type)
         self.type = self._expr.type
 
         # get the address expression and track stuff
@@ -22,7 +21,7 @@ class SimIRExpr_Load(SimIRExpr):
         if o.DO_LOADS not in self.state.options:
             self.expr = self.state.se.Unconstrained("load_expr_0x%x_%d" % (
                 self.state.scratch.ins_addr, self.state.scratch.stmt_idx
-            ), size*8)
+            ), size*self.state.arch.byte_width)
         else:
 
             # load from memory and fix endianness
@@ -35,7 +34,7 @@ class SimIRExpr_Load(SimIRExpr):
         self._post_process()
         if o.TRACK_MEMORY_ACTIONS in self.state.options:
             addr_ao = SimActionObject(addr.expr, reg_deps=addr.reg_deps(), tmp_deps=addr.tmp_deps())
-            r = SimActionData(self.state, self.state.memory.id, SimActionData.READ, addr=addr_ao, size=size_bits(self._expr.type), data=self.expr)
+            r = SimActionData(self.state, self.state.memory.id, SimActionData.READ, addr=addr_ao, size=self.size_bits(self._expr.type), data=self.expr)
             self.actions.append(r)
 
     def reg_deps(self):

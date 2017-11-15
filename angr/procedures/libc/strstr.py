@@ -59,7 +59,7 @@ class strstr(angr.SimProcedure):
             r = self.state.se.ite_cases(cases, 0)
             c = [ self.state.se.Or(*[c for c,_ in cases]) ]
         else:
-            needle_length = self.state.se.any_int(needle_strlen.ret_expr)
+            needle_length = self.state.se.eval(needle_strlen.ret_expr)
             needle_str = self.state.memory.load(needle_addr, needle_length)
 
             r, c, i = self.state.memory.find(haystack_addr, needle_str, haystack_strlen.max_null_index, max_symbolic_bytes=self.state.libc.max_symbolic_strstr, default=0)

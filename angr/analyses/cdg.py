@@ -63,7 +63,7 @@ class CDG(Analysis):
         :param start:           The starting point to begin constructing the control dependence graph
         :param no_construct:    Skip the construction step. Only used in unit-testing.
         """
-        self._binary = self.project.loader.main_bin
+        self._binary = self.project.loader.main_object
         self._start = start if start is not None else self.project.entry
         self._cfg = cfg
 
@@ -107,7 +107,7 @@ class CDG(Analysis):
         Return a list of nodes that are control dependent on the given node in the control dependence graph
         """
         if run in self._graph.nodes():
-            return self._graph.successors(run)
+            return list(self._graph.successors(run))
         else:
             return []
 
@@ -116,7 +116,7 @@ class CDG(Analysis):
         Return a list of nodes on whom the specific node is control dependent in the control dependence graph
         """
         if run in self._graph.nodes():
-            return self._graph.predecessors(run)
+            return list(self._graph.predecessors(run))
         else:
             return []
 
@@ -148,7 +148,7 @@ class CDG(Analysis):
         # Construct the reversed dominance frontier mapping
         rdf = self._df_construct(self._post_dom)
 
-        for y in self._cfg.graph.nodes_iter():
+        for y in self._cfg.graph.nodes():
             if y not in rdf:
                 continue
             for x in rdf[y]:
@@ -204,7 +204,7 @@ class CDG(Analysis):
             DF[x] = set()
 
             # local set
-            for y in self._normalized_cfg.successors_iter(x):
+            for y in self._normalized_cfg.successors(x):
                 if x not in postdom.predecessors(y):
                     DF[x].add(y)
 
@@ -218,7 +218,7 @@ class CDG(Analysis):
                 if z not in DF:
                     continue
                 for y in DF[z]:
-                    if x not in postdom.predecessors(y):
+                    if x not in list(postdom.predecessors(y)):
                         DF[x].add(y)
 
         return DF
@@ -291,7 +291,7 @@ class CDG(Analysis):
 
         # Create the normalized_cfg without the annoying ContainerNodes
         self._normalized_cfg = networkx.DiGraph()
-        for src, dst in _normalized_cfg.edges_iter():
+        for src, dst in _normalized_cfg.edges():
             self._normalized_cfg.add_edge(src.obj, dst.obj)
 
     def _pd_post_process(self):
@@ -306,7 +306,7 @@ class CDG(Analysis):
 
             if type(b1) is TemporaryNode:
                 # This is for testing
-                successors = self._acyclic_cfg.graph.successors(b1)
+                successors = list(self._acyclic_cfg.graph.successors(b1))
             else:
                 # Real CFGNode!
                 successors = self._acyclic_cfg.get_successors(b1)
@@ -337,7 +337,7 @@ class CDG(Analysis):
 
             if type(node) is TemporaryNode:
                 # This is for testing
-                successors = self._acyclic_cfg.graph.successors(node)
+                successors = list(self._acyclic_cfg.graph.successors(node))
             else:
                 # Real CFGNode!
                 successors = self._acyclic_cfg.get_successors(node)

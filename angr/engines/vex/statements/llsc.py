@@ -1,4 +1,4 @@
-from pyvex import type_sizes
+from pyvex import get_type_size
 from . import SimIRStmt
 
 import logging
@@ -14,7 +14,7 @@ class SimIRStmt_LLSC(SimIRStmt):
 
         if self.stmt.storedata is None:
             # it's a load-linked
-            load_size = type_sizes[self.state.scratch.tyenv.lookup(self.stmt.result)]/8
+            load_size = get_type_size(self.state.scratch.tyenv.lookup(self.stmt.result))//self.state.arch.byte_width
             data = self.state.memory.load(addr.expr, load_size, endness=self.stmt.endness)
             self.state.scratch.store_tmp(self.stmt.result, data, addr.reg_deps(), addr.tmp_deps())
         else:

@@ -19,7 +19,7 @@ def test_mips():
 
     def hook2(state):
         output.append(2)
-        num = state.se.any_int(state.regs.a1)
+        num = state.se.eval(state.regs.a1)
         string = '%d ' % num
         state.posix.files[1].write(state.se.BVV(string), state.se.BVV(len(string), 32))
 

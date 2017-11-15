@@ -115,7 +115,7 @@ class VSA_DDG(Analysis):
 
         # The worklist holds individual VFGNodes that comes from the VFG
         # Initialize the worklist with all nodes in VFG
-        worklist = list(self._vfg.graph.nodes_iter())
+        worklist = list(self._vfg.graph.nodes())
         # Set up a set of worklist for fast inclusion test
         worklist_set = set(worklist)
 
@@ -147,7 +147,7 @@ class VSA_DDG(Analysis):
 
                 # TODO: Match the jumpkind
                 # TODO: Support cases where IP is undecidable
-                corresponding_successors = [ n for n in successing_nodes if n.addr == state.se.any_int(state.ip) ]
+                corresponding_successors = [ n for n in successing_nodes if n.addr == state.se.eval(state.ip) ]
                 if not corresponding_successors:
                     continue
                 successing_node = corresponding_successors[0]

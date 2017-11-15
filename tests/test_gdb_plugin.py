@@ -7,7 +7,7 @@ l = logging.getLogger("angr_tests")
 
 this_file = str(os.path.dirname(os.path.realpath(__file__)))
 test_location = os.path.join(this_file, '../../binaries/tests')
-data_location = os.path.join(this_file, "../../binaries/test_data/test_gdb_plugin")
+data_location = os.path.join(this_file, "../../binaries/tests_data/test_gdb_plugin")
 
 def test_gdb():
     p = angr.Project(os.path.join(test_location, "x86_64/test_gdb_plugin"))
@@ -17,12 +17,12 @@ def test_gdb():
     st.gdb.set_heap(os.path.join(data_location, "heap"), heap_base = 0x601000)
     st.gdb.set_regs(os.path.join(data_location, "regs"))
 
-    nose.tools.assert_equal(st.se.any_int(st.regs.rip), 0x4005b4)
+    nose.tools.assert_equal(st.se.eval(st.regs.rip), 0x4005b4)
 
     # Read the byte in memory at $sp + 8
-    loc = st.se.any_int(st.regs.rsp) + 8
+    loc = st.se.eval(st.regs.rsp) + 8
     val = st.memory.load(loc, 8, endness=st.arch.memory_endness)
-    nose.tools.assert_equal(st.se.any_int(val), 0x00601010)
+    nose.tools.assert_equal(st.se.eval(val), 0x00601010)
 
 if __name__ == "__main__":
     test_gdb()

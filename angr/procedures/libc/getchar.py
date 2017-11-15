@@ -7,10 +7,10 @@ from angr.sim_type import SimTypeInt
 
 
 class getchar(angr.SimProcedure):
-
+    # pylint: disable=arguments-differ
     def run(self):
         self.return_type = SimTypeInt(32, True)
-        data = self.inline_call(
-                # TODO: use a less private getc
-            angr.SIM_PROCEDURES['glibc']['_IO_getc'], 0).ret_expr  # stdin
+        fgetc = angr.SIM_PROCEDURES['libc']['fgetc']
+        stdin = self.state.posix.get_file(0)
+        data = self.inline_call(fgetc, 0, simfile=stdin).ret_expr
         return data

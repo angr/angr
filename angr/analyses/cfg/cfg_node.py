@@ -50,7 +50,9 @@ class CFGNode(object):
                  instruction_addrs=None,
                  depth=None,
                  callstack_key=None,
-                 creation_failure_info=None):
+                 creation_failure_info=None,
+                 thumb=False,
+                 byte_string=None):
         """
         Note: simprocedure_name is not used to recreate the SimProcedure object. It's only there for better
         __repr__.
@@ -70,6 +72,8 @@ class CFGNode(object):
         self.function_address = function_address
         self.block_id = block_id
         self.depth = depth
+        self.thumb = thumb
+        self.byte_string = byte_string
 
         self.creation_failure_info = None
         if creation_failure_info is not None:
@@ -78,11 +82,19 @@ class CFGNode(object):
         self._callstack_key = self.callstack.stack_suffix(self._cfg.context_sensitivity_level) \
             if self.callstack is not None else callstack_key
 
-        self.name = simprocedure_name or cfg.project.loader.find_symbol_name(addr)
+        self.name = simprocedure_name
+        if self.name is None:
+            sym = cfg.project.loader.find_symbol(addr)
+            if sym is not None:
+                self.name = sym.name
         if self.name is None and isinstance(cfg.project.arch, archinfo.ArchARM) and addr & 1:
-            self.name = cfg.project.loader.find_symbol_name(addr - 1)
+            sym = cfg.project.loader.find_symbol(addr - 1)
+            if sym is not None:
+                self.name = sym.name
         if function_address and self.name is None:
-            self.name = cfg.project.loader.find_symbol_name(function_address)
+            sym = cfg.project.loader.find_symbol(function_address)
+            if sym is not None:
+                self.name = sym.name
             if self.name is not None:
                 offset = addr - function_address
                 self.name = "%s%+#x" % (self.name, offset)
@@ -97,7 +109,7 @@ class CFGNode(object):
         if not instruction_addrs and not self.is_simprocedure:
             # We have to collect instruction addresses by ourselves
             if irsb is not None:
-                self.instruction_addrs = [ s.addr for s in irsb.statements if type(s) is pyvex.IRStmt.IMark ]  # pylint:disable=unidiomatic-typecheck
+                self.instruction_addrs = [ s.addr + s.delta for s in irsb.statements if type(s) is pyvex.IRStmt.IMark ]  # pylint:disable=unidiomatic-typecheck
 
         self.final_states = [ ] if final_states is None else final_states
         self.irsb = irsb
@@ -191,6 +203,14 @@ class CFGNode(object):
     def to_codenode(self):
         if self.is_simprocedure:
             return HookNode(self.addr, self.size, self.simprocedure_name)
-        return BlockNode(self.addr, self.size)
+        return BlockNode(self.addr, self.size, thumb=self.thumb)
 
-from ...knowledge.codenode import BlockNode, HookNode
+    @property
+    def block(self):
+        if self.is_simprocedure or self.is_syscall:
+            return None
+        project = self._cfg.project  # everything in angr is connected with everything...
+        b = project.factory.block(self.addr, size=self.size, opt_level=self._cfg._iropt_level)
+        return b
+
+from ...codenode import BlockNode, HookNode

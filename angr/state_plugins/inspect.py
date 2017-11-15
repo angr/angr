@@ -17,11 +17,13 @@ event_types = {
     'irsb',
     'constraints',
     'exit',
+    'fork',
     'symbolic_variable',
     'call',
     'return',
     'simprocedure',
     'syscall',
+    'state_step',
     'cfg_handle_job',
     'vfg_handle_successor',
     'vfg_widen_state',
@@ -100,6 +102,7 @@ inspect_attributes = {
     # simprocedure
     'simprocedure_name',
     'simprocedure_addr',
+    'simprocedure',
 
     # engine_process
     'sim_engine',

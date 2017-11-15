@@ -45,13 +45,13 @@ def run_vfg_buffer_overflow(arch):
     states = vfg.final_states
     nose.tools.assert_equal(len(states), 2)
     stack_check_fail = proj._extern_obj.get_pseudo_addr('symbol hook: __stack_chk_fail')
-    nose.tools.assert_equal(set([ s.se.exactly_int(s.ip) for s in states ]),
+    nose.tools.assert_equal(set([ s.se.eval_one(s.ip) for s in states ]),
                             {
                                 stack_check_fail,
                                 0x4005b4
                             })
 
-    state = [ s for s in states if s.se.exactly_int(s.ip) == 0x4005b4 ][0]
+    state = [ s for s in states if s.se.eval_one(s.ip) == 0x4005b4 ][0]
     nose.tools.assert_true(claripy.backends.vsa.is_true(state.stack_read(12, 4) >= 0x28))
 
 def broken_vfg_buffer_overflow():
@@ -146,7 +146,7 @@ def run_vfg_1(arch):
     nose.tools.assert_equal(len(authenticate_final_states), 1)
     authenticate_final_state = authenticate_final_states.values()[0]
     nose.tools.assert_is_not_none(authenticate_final_state)
-    nose.tools.assert_equal(authenticate_final_state.se.any_n_int(authenticate_final_state.regs.rax, 3), [0, 1])
+    nose.tools.assert_equal(authenticate_final_state.se.eval_upto(authenticate_final_state.regs.rax, 3), [0, 1])
 
     # optimal execution tests
     # - the basic block after returning from `authenticate` should only be executed once

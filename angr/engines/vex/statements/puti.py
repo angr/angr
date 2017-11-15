@@ -1,5 +1,4 @@
 from . import SimIRStmt
-from .. import size_bytes
 from .... import sim_options as o
 from ....state_plugins.sim_action_object import SimActionObject
 from ....state_plugins.sim_action import SimActionData
@@ -10,11 +9,11 @@ class SimIRStmt_PutI(SimIRStmt):
 
         # value to put
         data = self._translate_expr(self.stmt.data)
-        expr = data.expr.to_bv()
+        expr = data.expr.raw_to_bv()
 
         # reg array data
         self.ix = self._translate_expr(self.stmt.ix)
-        self.array_size = size_bytes(self.stmt.descr.elemTy)
+        self.array_size = self.size_bytes(self.stmt.descr.elemTy)
         self.array_base = self.stmt.descr.base
         self.array_index = (self.ix.expr + self.stmt.bias) % self.stmt.descr.nElems
         self.offset = self.array_base + self.array_index*self.array_size

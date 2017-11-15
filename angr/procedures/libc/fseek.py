@@ -13,11 +13,11 @@ class fseek(angr.SimProcedure):
         # TODO: Support symbolic file_ptr, offset, and whence
 
         # Make sure whence can only be one of the three values: SEEK_SET(0), SEEK_CUR(1), and SEEK_END(2)
-        if self.state.se.symbolic(whence) and len(self.state.se.any_n_int(whence, 2)) > 1:
+        if self.state.se.symbolic(whence) and len(self.state.se.eval_upto(whence, 2)) > 1:
             raise angr.SimProcedureError('multi-valued "whence" is not supported in fseek.')
         else:
             # Get all possible values
-            all_whence = self.state.se.any_n_int(whence, 2)
+            all_whence = self.state.se.eval_upto(whence, 2)
             if not all_whence:
                 raise angr.SimProcedureError('"whence" has no satisfiable value.')
 

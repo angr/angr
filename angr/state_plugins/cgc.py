@@ -34,6 +34,8 @@ class SimStateCGC(SimStatePlugin):
 
         self.sinkholes = set()
 
+        self.flag_bytes = None
+
     def peek_input(self):
         if len(self.input_strings) == 0: return None
         return self.input_strings[0]
@@ -67,6 +69,7 @@ class SimStateCGC(SimStatePlugin):
         c.output_strings = list(self.output_strings)
         c.input_size = self.input_size
         c.sinkholes = set(self.sinkholes)
+        c.flag_bytes = self.flag_bytes
 
         return c
 
@@ -80,13 +83,13 @@ class SimStateCGC(SimStatePlugin):
         concrete_allocation_base = (
             self.allocation_base
             if type(self.allocation_base) in (int, long) else
-            self.state.se.any_int(self.allocation_base)
+            self.state.se.eval(self.allocation_base)
         )
 
         concrete_new_allocation_base = (
             new_allocation_base
             if type(new_allocation_base) in (int, long) else
-            self.state.se.any_int(new_allocation_base)
+            self.state.se.eval(new_allocation_base)
         )
 
         if concrete_allocation_base != concrete_new_allocation_base:

@@ -36,11 +36,11 @@ class fdopen(angr.SimProcedure):
 
         m_strlen = self.inline_call(strlen, m_addr)
         m_expr = self.state.memory.load(m_addr, m_strlen.max_null_index, endness='Iend_BE')
-        mode = self.state.se.any_str(m_expr)
+        mode = self.state.se.eval(m_expr, cast_to=str)
 
         # TODO: handle append and other mode subtleties
 
-        fd = self.state.se.any_int(fd_int)
+        fd = self.state.se.eval(fd_int)
         if fd not in self.state.posix.files:
             # if file descriptor not found return NULL
             return 0

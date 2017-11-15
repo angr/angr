@@ -19,13 +19,13 @@ class calloc(angr.SimProcedure):
             # TODO: find a better way
             nmemb = self.state.se.max_int(sim_nmemb)
         else:
-            nmemb = self.state.se.any_int(sim_nmemb)
+            nmemb = self.state.se.eval(sim_nmemb)
 
         if self.state.se.symbolic(sim_size):
             # TODO: find a better way
             size = self.state.se.max_int(sim_size)
         else:
-            size = self.state.se.any_int(sim_size)
+            size = self.state.se.eval(sim_size)
 
         final_size = size * nmemb
         if final_size > plugin.max_variable_size:

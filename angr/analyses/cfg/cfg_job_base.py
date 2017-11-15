@@ -135,7 +135,7 @@ class CFGJobBase(object):
 
             # If the sp_expr cannot be concretized, the stack pointer cannot be traced anymore.
             try:
-                sp = se.exactly_n_int(sp_expr, 1)[0]
+                sp = se.eval_one(sp_expr)
             except (SimValueError, SimSolverModeError):
                 l.warning("Stack pointer cannot be concretized. CallStack cannot track the stack pointer changes.")
 
@@ -160,6 +160,12 @@ class CFGJobBase(object):
     @property
     def func_addr(self):
         return self._call_stack.current_function_address
+
+    @func_addr.setter
+    def func_addr(self, v):
+        # Make a copy because we might be sharing it with other CFGJobs
+        self._call_stack = self._call_stack.copy()
+        self._call_stack.current_function_address = v
 
     @property
     def current_stack_pointer(self):

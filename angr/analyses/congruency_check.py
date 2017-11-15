@@ -2,7 +2,6 @@ import logging
 
 import claripy
 
-from .. import engines
 from . import Analysis, register_analysis
 
 l = logging.getLogger("angr.analyses.congruency_check")
@@ -80,14 +79,16 @@ class CongruencyCheck(Analysis):
             l.debug("... synced")
             return simgr
         elif simgr.left[0].history.block_count < simgr.right[0].history.block_count:
-            l.debug("... right is ahead; stepping left up to %s times", max_steps)
+            l.debug("... right is ahead; stepping left %s times",
+                    simgr.right[0].history.block_count - simgr.left[0].history.block_count)
             npg = simgr.step(
                 stash='left',
                 until=lambda lpg: lpg.left[0].history.block_count >= simgr.right[0].history.block_count,
                 n=max_steps
             )
         elif simgr.right[0].history.block_count < simgr.left[0].history.block_count:
-            l.debug("... left is ahead; stepping right up to %s times", max_steps)
+            l.debug("... left is ahead; stepping right %s times",
+                    simgr.left[0].history.block_count - simgr.right[0].history.block_count)
             npg = simgr.step(
                 stash='right',
                 until=lambda lpg: lpg.right[0].history.block_count >= simgr.left[0].history.block_count,
@@ -131,7 +132,7 @@ class CongruencyCheck(Analysis):
 
                     new_unicorn = npg.found[0]
                     delta = new_unicorn.history.block_count - normal_path.history.block_count
-                    normal_path.extra_length += delta
+                    normal_path.history.recent_block_count += delta
                     new_normal = normal_path
                 elif unicorn_path.arch.name == "MIPS32":
                     # unicorn gets ahead here, because VEX falls behind for unknown reasons
@@ -154,7 +155,7 @@ class CongruencyCheck(Analysis):
 
                     new_normal = npg.found[0]
                     delta = new_normal.history.block_count - unicorn_path.history.block_count
-                    unicorn_path.extra_length += delta
+                    unicorn_path.history.recent_block_count += delta
                     new_unicorn = unicorn_path
                 else:
                     l.debug("Dunno!")
@@ -220,7 +221,7 @@ class CongruencyCheck(Analysis):
 
             # do a step
             l.debug(
-                "Stepping right path with weighted length %d/%s",
+                "Stepping right path with weighted length %d/%d",
                 self.simgr.right[0].history.block_count,
                 depth
             )
@@ -322,9 +323,13 @@ class CongruencyCheck(Analysis):
                     return False
 
         # make sure the flags are the same
-        if sl.arch.name in ("AMD64", "X86", "ARM", "AARCH64"):
-            n_flags = engines.vex.ccall._get_flags(sr)[0].canonicalize(var_map=n_map, counter=n_counter)[-1]
-            u_flags = engines.vex.ccall._get_flags(sl)[0].canonicalize(var_map=u_map, counter=u_counter)[-1]
+        if sl.arch.name in ("AMD64", "X86", "ARM", "ARMEL", "ARMHF", "AARCH64"):
+            if sl.arch.name in ('AMD64', 'X86'):
+                n_flags = sr.regs.eflags.canonicalize(var_map=n_map, counter=n_counter)[-1]
+                u_flags = sl.regs.eflags.canonicalize(var_map=u_map, counter=u_counter)[-1]
+            else:
+                n_flags = sr.regs.flags.canonicalize(var_map=n_map, counter=n_counter)[-1]
+                u_flags = sl.regs.flags.canonicalize(var_map=u_map, counter=u_counter)[-1]
             if n_flags is not u_flags and sl.se.simplify(n_flags) is not sr.se.simplify(u_flags):
                 self._report_incongruency("Different flags!")
                 return False

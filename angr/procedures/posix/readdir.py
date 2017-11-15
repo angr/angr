@@ -21,10 +21,16 @@ class readdir(angr.SimProcedure):
         malloc = angr.SIM_PROCEDURES['libc']['malloc']
         pointer = self.inline_call(malloc, 19 + 256).ret_expr
         self._store_amd64(pointer)
-        return self.state.se.If(self.condition, pointer, self.state.se.BVV(0, len(pointer)))
+        return self.state.se.If(self.condition, pointer, self.state.se.BVV(0, self.state.arch.bits))
 
     def instrument(self):
-        pass # override me!
+        """
+        Override this function to instrument the SimProcedure.
+
+        The two useful variables you can override are self.struct, a named tuple of all the struct
+        fields, and self.condition, the condition for whether the function succeeds.
+        """
+        pass
 
     def _build_amd64(self):
         self.struct = Dirent(self.state.se.BVV(0, 64), # d_ino

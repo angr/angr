@@ -40,7 +40,7 @@ class memcmp(angr.SimProcedure):
         else:
             definite_answer = self.state.se.BVV(0, self.state.arch.bits)
 
-        if not self.state.se.symbolic(definite_answer) and self.state.se.any_int(definite_answer) != 0:
+        if not self.state.se.symbolic(definite_answer) and self.state.se.eval(definite_answer) != 0:
             return definite_answer
 
         if conditional_size > 0:
@@ -55,7 +55,7 @@ class memcmp(angr.SimProcedure):
                 conditional_rets[byte+1] = self.state.se.ite_cases(cases, 0)
                 self.state.add_constraints(self.state.se.Or(*[c for c,_ in cases]))
 
-            ret_expr = self.state.se.ite_dict(n - definite_size, conditional_rets, 2)
+            ret_expr = self.state.solver.If(definite_answer == 0, self.state.se.ite_dict(n - definite_size, conditional_rets, 2), definite_answer)
             self.state.add_constraints(self.state.se.Or(*[n-definite_size == c for c in conditional_rets.keys()]))
             return ret_expr
         else:

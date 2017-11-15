@@ -52,7 +52,7 @@ class memset(angr.SimProcedure):
             write_bytes = self.state.se.Concat(*([ char ] * max_size))
             self.state.memory.store(dst_addr, write_bytes, size=num)
         else:
-            max_size = self.state.se.any_int(num)
+            max_size = self.state.se.eval(num)
             if max_size == 0:
                 return dst_addr
 

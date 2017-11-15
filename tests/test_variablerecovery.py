@@ -6,7 +6,7 @@ import nose
 
 import angr
 from angr.sim_variable import SimStackVariable
-from angr.knowledge.variable_manager import VariableType
+from angr.knowledge_plugins.variables import VariableType
 
 
 l = logging.getLogger('test_variablerecovery')
@@ -64,7 +64,7 @@ def _compare_register_variable(variable, variable_info):  # pylint:disable=unuse
 def run_variable_recovery_analysis(project, func, groundtruth, is_fast):
 
     # Create a temporary KnowledgeBase instance
-    tmp_kb = angr.KnowledgeBase(project, project.loader.main_bin)
+    tmp_kb = angr.KnowledgeBase(project, project.loader.main_object)
 
     if is_fast:
         l.debug("Running VariableRecoveryFast on function %r.", func)

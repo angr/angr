@@ -35,9 +35,9 @@ class GirlScout(Analysis):
     """
 
     def __init__(self, binary=None, start=None, end=None, pickle_intermediate_results=False, perform_full_code_scan=False):
-        self._binary = binary if binary is not None else self.project.loader.main_bin
-        self._start = start if start is not None else self._binary.get_min_addr()
-        self._end = end if end is not None else self._binary.get_max_addr()
+        self._binary = binary if binary is not None else self.project.loader.main_object
+        self._start = start if start is not None else self._binary.min_addr
+        self._end = end if end is not None else self._binary.max_addr
         self._pickle_intermediate_results = pickle_intermediate_results
         self._perform_full_code_scan = perform_full_code_scan
 
@@ -204,12 +204,12 @@ class GirlScout(Analysis):
                         if real_ref.action == 'write':
                             addr = real_ref.addr
                             if not run.initial_state.se.symbolic(addr):
-                                concrete_addr = run.initial_state.se.any_int(addr)
+                                concrete_addr = run.initial_state.se.eval(addr)
                                 self._write_addr_to_run[addr].append(run.addr)
                         elif real_ref.action == 'read':
                             addr = real_ref.addr
                             if not run.initial_state.se.symbolic(addr):
-                                concrete_addr = run.initial_state.se.any_int(addr)
+                                concrete_addr = run.initial_state.se.eval(addr)
                             self._read_addr_to_run[addr].append(run.addr)
 
     def _scan_code(self, traced_addresses, function_exits, initial_state, starting_address):
@@ -354,7 +354,7 @@ class GirlScout(Analysis):
             try:
                 # Try to concretize the target. If we can't, just move on
                 # to the next target
-                next_addr = suc.se.exactly_n_int(suc.ip, 1)[0]
+                next_addr = suc.se.eval_one(suc.ip)
             except (SimValueError, SimSolverModeError) as ex:
                 # Undecidable jumps (might be a function return, or a conditional branch, etc.)
 
@@ -449,10 +449,10 @@ class GirlScout(Analysis):
         # TODO: Make sure self._start is aligned
 
         # Construct the binary blob first
-        # TODO: We shouldn't directly access the _memory of main_bin. An interface
+        # TODO: We shouldn't directly access the _memory of main_object. An interface
         # to that would be awesome.
 
-        strides = self.project.loader.main_bin.memory.stride_repr
+        strides = self.project.loader.main_object.memory.stride_repr
 
         for start_, end_, bytes in strides:
             for regex in regexes:
@@ -494,7 +494,7 @@ class GirlScout(Analysis):
 
                 try:
                     r = (path.next_run.successors + path.next_run.unsat_successors)[0]
-                    ip = r.se.exactly_n_int(r.ip, 1)[0]
+                    ip = r.se.eval_one(r.ip)
 
                     function_starts.add(ip)
                     continue
@@ -557,7 +557,7 @@ class GirlScout(Analysis):
                             se = r.next_run.successors[0].se
 
                             if not se.symbolic(target_ip):
-                                concrete_ip = se.exactly_n_int(target_ip, 1)[0]
+                                concrete_ip = se.eval_one(target_ip)
                                 function_starts.add(concrete_ip)
                                 l.info("Found a function address %x", concrete_ip)
 
@@ -572,7 +572,7 @@ class GirlScout(Analysis):
         :returns:
         """
 
-        pseudo_base_addr = self.project.loader.main_bin.get_min_addr()
+        pseudo_base_addr = self.project.loader.main_object.min_addr
 
         base_addr_ctr = { }
 

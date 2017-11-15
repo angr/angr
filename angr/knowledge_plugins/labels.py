@@ -1,4 +1,8 @@
-class Labels(object):
+from .plugin import KnowledgeBasePlugin
+
+
+class Labels(KnowledgeBasePlugin):
+
     def __init__(self, kb):
         self._kb = kb
         self._labels = {}
@@ -6,6 +10,8 @@ class Labels(object):
         for obj in kb._project.loader.all_objects:
             for k, v in obj.symbols_by_addr.iteritems():
                 if v.name:
+                    if v.is_import:
+                        continue
                     self._labels[v.rebased_addr] = v.name
                     self._reverse_labels[v.name] = v.rebased_addr
             try:
@@ -52,3 +58,11 @@ class Labels(object):
         To show all available labels, iterate over .labels or list(b.kb.labels)
         """
         return self._reverse_labels[name]
+
+    def copy(self):
+        o = Labels(self._kb)
+        o._labels = {k: v for k, v in self._labels.iteritems()}
+        o._reverse_labels = {k: v for k, v in self._reverse_labels.iteritems()}
+
+
+KnowledgeBasePlugin.register_default('labels', Labels)

@@ -34,13 +34,13 @@ class SimConcretizationStrategy(object):
         """
         Gets any solution of an address.
         """
-        return memory.state.se.any_int(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
+        return memory.state.se.eval(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
 
     def _eval(self, memory, addr, n, **kwargs):
         """
         Gets n solutions for an address.
         """
-        return memory.state.se.eval(addr, n, exact=kwargs.pop('exact', self._exact), **kwargs)
+        return memory.state.se.eval_upto(addr, n, exact=kwargs.pop('exact', self._exact), **kwargs)
 
     def _range(self, memory, addr, **kwargs):
         """
@@ -77,6 +77,8 @@ class SimConcretizationStrategy(object):
         pass
 
 from .any import SimConcretizationStrategyAny
+from .controlled_data import SimConcretizationStrategyControlledData
+from .eval import SimConcretizationStrategyEval
 from .max import SimConcretizationStrategyMax
 from .nonzero import SimConcretizationStrategyNonzero
 from .nonzero_range import SimConcretizationStrategyNonzeroRange

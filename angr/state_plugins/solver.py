@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 
-from .plugin import SimStatePlugin
-from .sim_action_object import ast_stripping_decorator, SimActionObject
-
 import sys
 import functools
+import time
 import logging
+
+from .plugin import SimStatePlugin
+from .sim_action_object import ast_stripping_decorator, SimActionObject
+from ..misc.ux import deprecated
+
 l = logging.getLogger("angr.state_plugins.solver")
 
 #pylint:disable=unidiomatic-typecheck
@@ -16,7 +19,6 @@ l = logging.getLogger("angr.state_plugins.solver")
 
 _timing_enabled = False
 
-import time
 lt = logging.getLogger("angr.state_plugins.solver_timing")
 def timed_function(f):
     if _timing_enabled:
@@ -218,7 +220,7 @@ class SimSolver(SimStatePlugin):
     #
     # Get unconstrained stuff
     #
-    def Unconstrained(self, name, bits, uninitialized=True, **kwargs):
+    def Unconstrained(self, name, bits, uninitialized=True, inspect=True, events=True, **kwargs):
         if o.SYMBOLIC_INITIAL_VALUES in self.state.options:
             # Return a symbolic value
             if o.ABSTRACT_MEMORY in self.state.options:
@@ -227,16 +229,16 @@ class SimSolver(SimStatePlugin):
             else:
                 l.debug("Creating new unconstrained BV named %s", name)
                 if o.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
-                    r = self.BVS(name, bits, uninitialized=uninitialized, **kwargs)
+                    r = self.BVS(name, bits, uninitialized=uninitialized, inspect=inspect, events=events, **kwargs)
                 else:
-                    r = self.BVS(name, bits, uninitialized=uninitialized, **kwargs)
+                    r = self.BVS(name, bits, uninitialized=uninitialized, inspect=inspect, events=events, **kwargs)
 
             return r
         else:
             # Return a default value, aka. 0
             return claripy.BVV(0, bits)
 
-    def BVS(self, name, size, min=None, max=None, stride=None, uninitialized=False, explicit_name=None, **kwargs): #pylint:disable=redefined-builtin
+    def BVS(self, name, size, min=None, max=None, stride=None, uninitialized=False, explicit_name=None, inspect=True, events=True, **kwargs): #pylint:disable=redefined-builtin
         """
         Creates a bit-vector symbol (i.e., a variable). Other keyword parameters are passed directly on to the
         constructor of claripy.ast.BV.
@@ -253,9 +255,13 @@ class SimSolver(SimStatePlugin):
         :return:                A BV object representing this symbol.
         """
 
+
+
         r = claripy.BVS(name, size, min=min, max=max, stride=stride, uninitialized=uninitialized, explicit_name=explicit_name, **kwargs)
-        self.state._inspect('symbolic_variable', BP_AFTER, symbolic_name=next(iter(r.variables)), symbolic_size=size, symbolic_expr=r)
-        self.state.history.add_event('unconstrained', name=iter(r.variables).next(), bits=size, **kwargs)
+        if inspect:
+            self.state._inspect('symbolic_variable', BP_AFTER, symbolic_name=next(iter(r.variables)), symbolic_size=size, symbolic_expr=r)
+        if events:
+            self.state.history.add_event('unconstrained', name=iter(r.variables).next(), bits=size, **kwargs)
         if o.TRACK_SOLVER_VARIABLES in self.state.options:
             self.all_variables = list(self.all_variables)
             self.all_variables.append(r)
@@ -349,7 +355,7 @@ class SimSolver(SimStatePlugin):
     @timed_function
     @ast_stripping_decorator
     @error_converter
-    def eval(self, e, n, extra_constraints=(), exact=None):
+    def _eval(self, e, n, extra_constraints=(), exact=None):
         """
         Evaluate an expression, using the solver if necessary. Returns primitives.
 
@@ -442,6 +448,8 @@ class SimSolver(SimStatePlugin):
     @ast_stripping_decorator
     @error_converter
     def satisfiable(self, extra_constraints=(), exact=None):
+       #if self.state.addr == 0x804a4df:
+       #    import ipdb; ipdb.set_trace()
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
             er = self._solver.satisfiable(extra_constraints=self._adjust_constraint_list(extra_constraints))
             ar = self._solver.satisfiable(extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
@@ -461,81 +469,179 @@ class SimSolver(SimStatePlugin):
     # And some convenience stuff
     #
 
-    @concrete_path_scalar
-    def any_int(self, e, **kwargs):
+    @staticmethod
+    def _cast_to(e, solution, cast_to):
         """
-        Evaluate an expression, using the solver if necessary. Returns an integer.
+        Casts a solution for the given expression to type `cast_to`.
+
+        :param e: The expression `value` is a solution for
+        :param value: The solution to be cast
+        :param cast_to: The type `value` should be cast to. Must be one of the currently supported types (str|int)
+        :raise ValueError: If cast_to is a currently unsupported cast target.
+        :return: The value of `solution` cast to type `cast_to`
+        """
+        if cast_to is None:
+            return solution
+
+        if type(solution) is bool:
+            if cast_to is str:
+                return '{}'.format(solution)
+            elif cast_to is int:
+                return int(solution)
+        elif type(solution) is float:
+            solution = _concrete_value(claripy.FPV(solution, claripy.fp.FSort.from_size(len(e))).raw_to_bv())
+
+        if cast_to is str:
+            if len(e) == 0:
+                return ""
+            return '{:x}'.format(solution).zfill(len(e)/4).decode('hex')
+
+        if cast_to is not int:
+            raise ValueError("cast_to parameter {!r} is not a valid cast target, currently supported are only int and str!".format(cast_to))
+
+        return solution
+
+    def eval_upto(self, e, n, cast_to=None, **kwargs):
+        """
+        Evaluate an expression, using the solver if necessary. Returns primitives as specified by the `cast_to`
+        parameter. Only certain primitives are supported, check the implementation of `_cast_to` to see which ones.
 
         :param e: the expression
+        :param n: the number of desired solutions
         :param extra_constraints: extra constraints to apply to the solver
         :param exact: if False, returns approximate solutions
-        :return: a single integer solution, in the form of a Python primitive
-        :rtype: int
+        :param cast_to: A type to cast the resulting values to
+        :return: a tuple of the solutions, in the form of Python primitives
+        :rtype: tuple
         """
-        ans = self.eval(e, 1, **kwargs)
-        if len(ans) > 0: return ans[0]
-        else: raise SimUnsatError("Not satisfiable: %s" % e.shallow_repr())
+        concrete_val = _concrete_value(e)
+        if concrete_val is not None:
+            return [self._cast_to(e, concrete_val, cast_to)]
 
-    def any_str(self, e, **kwargs):
+        cast_vals = [self._cast_to(e, v, cast_to) for v in self._eval(e, n, **kwargs)]
+        if len(cast_vals) == 0:
+            raise SimUnsatError('Not satisfiable: %s, expected up to %d solutions' % (e.shallow_repr(), n))
+        return cast_vals
+
+    def eval(self, e, **kwargs):
         """
-        Evaluate an expression, using the solver if necessary. Returns a string.
+        Evaluate an expression to get any possible solution. The desired output types can be specified using the
+        `cast_to` parameter. `extra_constraints` can be used to specify additional constraints the returned values
+        must satisfy.
 
-        :param e: the expression
-        :param extra_constraints: extra constraints to apply to the solver
-        :param exact: if False, returns approximate solutions
-        :return: a single string solution, in the form of a Python primitive
-        :rtype: string
+        :param e: the expression to get a solution for
+        :param kwargs: Any additional kwargs will be passed down to `eval_upto`
+        :raise SimUnsatError: if no solution could be found satisfying the given constraints
+        :return:
         """
-        ans = self.any_n_str(e, 1, **kwargs)
-        if len(ans) > 0: return ans[0]
-        else: raise SimUnsatError("Not satisfiable: %s" % e.shallow_repr())
+        # eval_upto already throws the UnsatError, no reason for us to worry about it
+        return self.eval_upto(e, 1, **kwargs)[0]
 
-    def any_n_str_iter(self, e, n, **kwargs):
-        if len(e) == 0:
-            yield ""
-            return
+    def eval_one(self, e, **kwargs):
+        """
+        Evaluate an expression to get the only possible solution. Errors if either no or more than one solution is
+        returned. A kwarg parameter `default` can be specified to be returned instead of failure!
 
-        for s in self.eval(e, n, **kwargs):
-            yield ("%x" % s).zfill(len(e)/4).decode('hex')
+        :param e: the expression to get a solution for
+        :param default: A value can be passed as a kwarg here. It will be returned in case of failure.
+        :param kwargs: Any additional kwargs will be passed down to `eval_upto`
+        :raise SimUnsatError: if no solution could be found satisfying the given constraints
+        :raise SimValueError: if more than one solution was found to satisfy the given constraints
+        :return: The value for `e`
+        """
+        try:
+            return self.eval_exact(e, 1, **{k: v for (k, v) in kwargs.iteritems() if k != 'default'})[0]
+        except (SimUnsatError, SimValueError):
+            if 'default' in kwargs:
+                return kwargs.pop('default')
+            raise
 
-    def any_n_str(self, e, n, **kwargs):
-        return list(self.any_n_str_iter(e, n, **kwargs))
+    def eval_atmost(self, e, n, **kwargs):
+        """
+        Evaluate an expression to get at most `n` possible solutions. Errors if either none or more than `n` solutions
+        are returned.
+
+        :param e: the expression to get a solution for
+        :param n: the inclusive upper limit on the number of solutions
+        :param kwargs: Any additional kwargs will be passed down to `eval_upto`
+        :raise SimUnsatError: if no solution could be found satisfying the given constraints
+        :raise SimValueError: if more than `n` solutions were found to satisfy the given constraints
+        :return: The solutions for `e`
+        """
+        r = self.eval_upto(e, n+1, **kwargs)
+        if len(r) > n:
+            raise SimValueError("Concretized %d values (must be at most %d) in eval_atmost" % (len(r), n))
+        return r
+
+    def eval_atleast(self, e, n, **kwargs):
+        """
+        Evaluate an expression to get at least `n` possible solutions. Errors if less than `n` solutions were found.
+
+        :param e: the expression to get a solution for
+        :param n: the inclusive lower limit on the number of solutions
+        :param kwargs: Any additional kwargs will be passed down to `eval_upto`
+        :raise SimUnsatError: if no solution could be found satisfying the given constraints
+        :raise SimValueError: if less than `n` solutions were found to satisfy the given constraints
+        :return: The solutions for `e`
+        """
+        r = self.eval_upto(e, n, **kwargs)
+        if len(r) != n:
+            raise SimValueError("Concretized %d values (must be at least %d) in eval_atleast" % (len(r), n))
+        return r
+
+    def eval_exact(self, e, n, **kwargs):
+        """
+        Evaluate an expression to get exactly the `n` possible solutions. Errors if any number of solutions other
+        than `n` was found to exist.
+
+        :param e: the expression to get a solution for
+        :param n: the inclusive lower limit on the number of solutions
+        :param kwargs: Any additional kwargs will be passed down to `eval_upto`
+        :raise SimUnsatError: if no solution could be found satisfying the given constraints
+        :raise SimValueError: if any number of solutions other than `n` were found to satisfy the given constraints
+        :return: The solutions for `e`
+        """
+        r = self.eval_upto(e, n + 1, **kwargs)
+        if len(r) != n:
+            raise SimValueError("Concretized %d values (must be exactly %d) in eval_exact" % (len(r), n))
+        return r
 
     min_int = min
     max_int = max
 
-    def any_n_int(self, e, n, **kwargs):
-        try:
-            return list(self.eval(e, n, **kwargs))
-        except SimUnsatError:
-            return [ ]
+    #
+    # Backward-compatibility layer
+    #
 
-    def exactly_n(self, e, n, **kwargs):
-        r = self.any_n_int(e, n, **kwargs)
-        if len(r) != n:
-            raise SimValueError("concretized %d values (%d required) in exactly_n" % (len(r), n))
-        return r
+    @deprecated(replacement='eval()')
+    def any_int(self, expr, **kwargs):
+        return self.eval(expr, **kwargs)
 
-    def exactly_n_int(self, e, n, **kwargs):
-        r = self.any_n_int(e, n, **kwargs)
-        if len(r) != n:
-            raise SimValueError("concretized %d values (%d required) in exactly_n" % (len(r), n))
-        return r
+    @deprecated(replacement='eval_upto(expr, n)')
+    def any_n_int(self, expr, n, **kwargs):
+        return self.eval_upto(expr, n, **kwargs)
 
-    def exactly_int(self, e, default=None, **kwargs):
-        try:
-            r = self.any_n_int(e, 1, **kwargs)
-        except (SimValueError, SimSolverModeError):
-            if default is not None:
-                return default
-            raise
+    @deprecated(replacement='eval(expr, cast_to=str)')
+    def any_str(self, expr, **kwargs):
+        kwargs.pop('cast_to', None)
+        return self.eval(expr, cast_to=str, **kwargs)
 
-        if len(r) != 1:
-            if default is None:
-                raise SimValueError("concretized %d values (%d required) in exactly_int", len(r), 1)
-            else:
-                return default
-        return r[0]
+    @deprecated(replacement='eval_upto(expr, n, cast_to=str)')
+    def any_n_str(self, expr, n, **kwargs):
+        kwargs.pop('cast_to', None)
+        return self.eval_upto(expr, n, cast_to=str, **kwargs)
+
+    @deprecated(replacement='eval_one()')
+    def exactly_int(self, expr, **kwargs):
+        return self.eval_one(expr, **kwargs)
+
+    @deprecated(replacement='eval_exact(expr, n)')
+    def exactly_n_int(self, expr, n, **kwargs):
+        return self.eval_exact(expr, n, **kwargs)
+
+    #
+    # Other methods
+    #
 
     @timed_function
     @ast_stripping_decorator
@@ -547,7 +653,7 @@ class SimSolver(SimStatePlugin):
         if o.SYMBOLIC not in self.state.options and self.symbolic(e):
             return False
 
-        r = self.any_n_int(e, 2, **kwargs)
+        r = self.eval_upto(e, 2, **kwargs)
         if len(r) == 1:
             self.add(e == r[0])
             return True

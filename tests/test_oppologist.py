@@ -21,7 +21,7 @@ def _ultra_oppologist(p, s):
 def test_fauxware_oppologist():
     p = angr.Project(os.path.join(test_location, 'binaries/tests/i386/fauxware'))
     s = p.factory.full_init_state(
-        remove_options={ angr.options.LAZY_SOLVES }
+        remove_options={ angr.options.LAZY_SOLVES, angr.options.EXTENDED_IROP_SUPPORT }
     )
 
     pg = _ultra_oppologist(p, s)
@@ -46,7 +46,14 @@ def test_cromu_70():
     pg.explore()
     assert pg.one_deadended.history.block_count > 1500
 
+def run_all():
+    functions = globals()
+    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
+    for f in sorted(all_functions.keys()):
+        if hasattr(all_functions[f], '__call__'):
+            print f
+            all_functions[f]()
+
 
 if __name__ == '__main__':
-    import sys
-    globals()['test_' + sys.argv[1]]()
+    run_all()

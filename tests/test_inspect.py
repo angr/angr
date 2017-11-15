@@ -111,7 +111,7 @@ def test_inspect_exit():
     def handle_exit_before(state):
         counts.exit_before += 1
         exit_target = state.inspect.exit_target
-        nose.tools.assert_equal(state.se.any_int(exit_target), 0x3f8)
+        nose.tools.assert_equal(state.se.eval(exit_target), 0x3f8)
         # change exit target
         state.inspect.exit_target = 0x41414141
         nose.tools.assert_equal(state.inspect.exit_jumpkind, "Ijk_Boring")
@@ -131,7 +131,7 @@ def test_inspect_exit():
     succ = SimEngineVEX().process(s, irsb).flat_successors
 
     # check
-    nose.tools.assert_equal( succ[0].se.any_int(succ[0].ip), 0x41414141)
+    nose.tools.assert_equal( succ[0].se.eval(succ[0].ip), 0x41414141)
     nose.tools.assert_equal(counts.exit_before, 1)
     nose.tools.assert_equal(counts.exit_after, 1)
 
@@ -185,8 +185,8 @@ def test_inspect_concretization():
     s = SimState(arch='AMD64')
     s.inspect.b('address_concretization', BP_BEFORE, action=change_symbolic_target)
     s.memory.store(x, 'A')
-    assert list(s.se.eval(x, 10)) == [ 0x1000 ]
-    assert list(s.se.eval(s.memory.load(0x1000, 1), 10)) == [ 0x41 ]
+    assert list(s.se.eval_upto(x, 10)) == [ 0x1000 ]
+    assert list(s.se.eval_upto(s.memory.load(0x1000, 1), 10)) == [ 0x41 ]
 
     #
     # This tests disabling constraint adding through siminspect -- the write still happens
@@ -198,7 +198,7 @@ def test_inspect_concretization():
     s = SimState(arch='AMD64')
     s.inspect.b('address_concretization', BP_BEFORE, action=dont_add_constraints)
     s.memory.store(x, 'A')
-    assert len(s.se.eval(x, 10)) == 10
+    assert len(s.se.eval_upto(x, 10)) == 10
 
     #
     # This tests raising an exception if symbolic concretization fails (i.e., if the address
@@ -229,7 +229,7 @@ def test_inspect_concretization():
     s.add_constraints(y == 10)
     s.inspect.b('address_concretization', BP_AFTER, action=abort_unconstrained)
     s.memory.store(y, 'A')
-    assert list(s.se.eval(s.memory.load(y, 1), 10)) == [ 0x41 ]
+    assert list(s.se.eval_upto(s.memory.load(y, 1), 10)) == [ 0x41 ]
 
     try:
         s.memory.store(x, 'A')
@@ -271,7 +271,7 @@ def test_inspect_engine_process():
     def check_state(state):
         nose.tools.assert_in(hex(state.inspect.sim_successors.addr), ('0x40068eL', '0x4006dbL'))
 
-    state = p.factory.entry_state(addr=p.loader.main_bin.get_symbol('main').addr)
+    state = p.factory.entry_state(addr=p.loader.find_symbol('main').rebased_addr)
     pg = p.factory.simgr(state)
     state.inspect.b('engine_process',
                     when=BP_BEFORE,
@@ -283,7 +283,7 @@ def test_inspect_engine_process():
                     condition=first_symbolic_fork)
     pg.step(until=lambda lpg: len(lpg.active) == 0)
 
-    state = p.factory.entry_state(addr=p.loader.main_bin.get_symbol('main').addr)
+    state = p.factory.entry_state(addr=p.loader.find_symbol('main').rebased_addr)
     pg = p.factory.simgr(state)
     state.inspect.b('engine_process',
                     when=BP_BEFORE,

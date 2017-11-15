@@ -13,11 +13,11 @@ b = angr.Project(os.path.join(
 start = time.time()
 #s = b.factory.blank_state(add_options={"COMPOSITE_SOLVER"})
 s = b.factory.blank_state(add_options={"COMPOSITE_SOLVER"}, remove_options={"LAZY_SOLVES"})
-pg = b.factory.path_group(s)
-angr.path_group.l.setLevel("DEBUG")
-pg.step(300)
+sm = b.factory.simgr(s)
+angr.manager.l.setLevel("DEBUG")
+sm.step(300)
 end = time.time()
 print "MB:", resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024
 print "time:", end-start
-#assert len(pg.active) == 1538
-#assert len(pg.deadended) == 27
+#assert len(sm.active) == 1538
+#assert len(sm.deadended) == 27

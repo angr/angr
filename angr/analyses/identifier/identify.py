@@ -42,7 +42,7 @@ class Identifier(Analysis):
         from angrop import rop_utils
 
         # self.project = project
-        if not isinstance(self.project.loader.main_bin, CGC):
+        if not isinstance(self.project.loader.main_object, CGC):
             l.critical("The identifier currently works only on CGC binaries. Results may be completely unexpected.")
 
         if cfg is not None:
@@ -88,7 +88,7 @@ class Identifier(Analysis):
 
             # skip if no predecessors
             try:
-                if require_predecessors and len(self._cfg.functions.callgraph.predecessors(f.addr)) == 0:
+                if require_predecessors and len(list(self._cfg.functions.callgraph.predecessors(f.addr))) == 0:
                     continue
             except NetworkXError:
                 if require_predecessors:
@@ -98,10 +98,12 @@ class Identifier(Analysis):
             try:
                 func_info = self.find_stack_vars_x86(f)
                 self.func_info[f] = func_info
-            except (SimEngineError, SimMemoryError) as ex:
-                l.debug("angr translation error: %s", ex.message)
+            except (SimEngineError, SimMemoryError) as e:
+                l.debug("angr translation error: %s", e.message)
             except IdentifierException as e:
-                l.debug("Identifier Exception: %s", e.message)
+                l.debug("Identifier error: %s", e.message)
+            except SimError as e:
+                l.debug("Simulation error: %s", e.message)
 
     def _too_large(self):
         if len(self._cfg.functions) > 400:
@@ -225,7 +227,7 @@ class Identifier(Analysis):
         l.debug("num args %d", len(func_info.stack_args))
 
         try:
-            calls_other_funcs = len(self._cfg.functions.callgraph.successors(function.addr)) > 0
+            calls_other_funcs = len(list(self._cfg.functions.callgraph.successors(function.addr))) > 0
         except NetworkXError:
             calls_other_funcs = False
 
@@ -313,36 +315,40 @@ class Identifier(Analysis):
             s.regs.bp = s.regs.sp + func_info.bp_sp_diff
         s.regs.ip = addr_trace[0]
         addr_trace = addr_trace[1:]
+        simgr = self.project.factory.simulation_manager(s, save_unconstrained=True)
         while len(addr_trace) > 0:
-            succ = self.project.factory.successors(s)
+            simgr.stashes['unconstrained'] = []
+            simgr.step()
             stepped = False
-            for ss in succ.flat_successors:
+            for ss in simgr.active:
                 # todo could write symbolic data to pointers passed to functions
                 if ss.history.jumpkind == "Ijk_Call":
                     ss.regs.eax = ss.se.BVS("unconstrained_ret_%#x" % ss.addr, ss.arch.bits)
                     ss.regs.ip = ss.stack_pop()
                     ss.history.jumpkind = "Ijk_Ret"
                 if ss.addr == addr_trace[0]:
-                    s = ss
+                    simgr.stashes['active'] = [ss]
                     stepped = True
+                    break
             if not stepped:
-                if len(succ.unconstrained_successors) > 0:
-                    s = succ.unconstrained_successors[0]
+                if len(simgr.unconstrained) > 0:
+                    s = simgr.unconstrained[0]
                     if s.history.jumpkind == "Ijk_Call":
-                        s.regs.eax = s.se.BVS("unconstrained_ret_%#x" % s.addr, s.arch.bits)
+                        s.regs.eax = s.se.BVS("unconstrained_ret", s.arch.bits)
                         s.regs.ip = s.stack_pop()
                         s.history.jumpkind = "Ijk_Ret"
                     s.regs.ip = addr_trace[0]
+                    simgr.stashes['active'] = [s]
                     stepped = True
             if not stepped:
                 raise IdentifierException("could not get call args")
             addr_trace = addr_trace[1:]
 
         # step one last time to the call
-        succ = self.project.factory.successors(s)
-        if len(succ.flat_successors) == 0:
+        simgr.step()
+        if len(simgr.active) == 0:
             IdentifierException("Didn't succeed call")
-        return succ.flat_successors[0]
+        return simgr.active[0]
 
     def get_call_args(self, func, callsite):
         if isinstance(func, (int, long)):
@@ -364,9 +370,9 @@ class Identifier(Analysis):
         # we need to step back as far as possible
         start = calling_func.get_node(callsite)
         addr_trace = []
-        while len(calling_func.transition_graph.predecessors(start)) == 1:
+        while len(list(calling_func.transition_graph.predecessors(start))) == 1:
             # stop at a call, could continue farther if no stack addr passed etc
-            prev_block = calling_func.transition_graph.predecessors(start)[0]
+            prev_block = list(calling_func.transition_graph.predecessors(start))[0]
             addr_trace = [start.addr] + addr_trace
             start = prev_block
 
@@ -390,7 +396,7 @@ class Identifier(Analysis):
         args_as_stack_vars = []
         for a in args:
             if not a.symbolic:
-                sp_off = succ_state.se.any_int(a-succ_state.regs.sp-arch_bytes)
+                sp_off = succ_state.se.eval(a-succ_state.regs.sp-arch_bytes)
                 if calling_func_info.bp_based:
                     bp_off = sp_off - calling_func_info.bp_sp_diff
                 else:
@@ -484,7 +490,7 @@ class Identifier(Analysis):
         succ = succs.all_successors[0]
 
         if succ.history.jumpkind == "Ijk_Call":
-            goal_sp = succ.se.any_int(succ.regs.sp + self.project.arch.bytes)
+            goal_sp = succ.se.eval(succ.regs.sp + self.project.arch.bytes)
             # could be that this is wrong since we could be pushing args...
             # so let's do a hacky check for pushes after a sub
             bl = self.project.factory.block(func.startpoint.addr)
@@ -492,21 +498,21 @@ class Identifier(Analysis):
             for i, insn in enumerate(bl.capstone.insns):
                 if str(insn.mnemonic) == "sub" and str(insn.op_str).startswith("esp"):
                     succ = self.project.factory.successors(initial_state, num_inst=i+1).all_successors[0]
-                    goal_sp = succ.se.any_int(succ.regs.sp)
+                    goal_sp = succ.se.eval(succ.regs.sp)
 
         elif succ.history.jumpkind == "Ijk_Ret":
             # here we need to know the min sp val
-            min_sp = initial_state.se.any_int(initial_state.regs.sp)
+            min_sp = initial_state.se.eval(initial_state.regs.sp)
             for i in xrange(self.project.factory.block(func.startpoint.addr).instructions):
                 succ = self.project.factory.successors(initial_state, num_inst=i).all_successors[0]
-                test_sp = succ.se.any_int(succ.regs.sp)
+                test_sp = succ.se.eval(succ.regs.sp)
                 if test_sp < min_sp:
                     min_sp = test_sp
                 elif test_sp > min_sp:
                     break
             goal_sp = min_sp
         else:
-            goal_sp = succ.se.any_int(succ.regs.sp)
+            goal_sp = succ.se.eval(succ.regs.sp)
 
         # find the end of the preamble
         num_preamble_inst = None
@@ -516,7 +522,7 @@ class Identifier(Analysis):
                 succ = initial_state
             if i != 0:
                 succ = self.project.factory.successors(initial_state, num_inst=i).all_successors[0]
-            test_sp = succ.se.any_int(succ.regs.sp)
+            test_sp = succ.se.eval(succ.regs.sp)
             if test_sp == goal_sp:
                 num_preamble_inst = i
                 break
@@ -532,17 +538,17 @@ class Identifier(Analysis):
             succ = self.project.factory.successors(initial_state, num_inst=num_preamble_inst).all_successors[0]
 
         min_sp = goal_sp
-        initial_sp = initial_state.se.any_int(initial_state.regs.sp)
+        initial_sp = initial_state.se.eval(initial_state.regs.sp)
         frame_size = initial_sp - min_sp - self.project.arch.bytes
         if num_preamble_inst is None or succ is None:
             raise IdentifierException("preamble checks failed for %#x" % func.startpoint.addr)
 
-        bp_based = bool(len(succ.se.any_n_int((initial_state.regs.sp - succ.regs.bp), 2)) == 1)
+        bp_based = bool(len(succ.se.eval_upto((initial_state.regs.sp - succ.regs.bp), 2)) == 1)
 
         preamble_sp_change = succ.regs.sp - initial_state.regs.sp
         if preamble_sp_change.symbolic:
             raise IdentifierException("preamble sp change")
-        preamble_sp_change = initial_state.se.any_int(preamble_sp_change)
+        preamble_sp_change = initial_state.se.eval(preamble_sp_change)
 
         main_state = self._make_regs_symbolic(succ, self._reg_list, self.project)
         if bp_based:
@@ -551,7 +557,7 @@ class Identifier(Analysis):
         pushed_regs = []
         for a in succ.history.recent_actions:
             if a.type == "mem" and a.action == "write":
-                addr = succ.se.any_int(a.addr.ast)
+                addr = succ.se.eval(a.addr.ast)
                 if min_sp <= addr <= initial_sp:
                     if hash(a.data.ast) in reg_dict:
                         pushed_regs.append(reg_dict[hash(a.data.ast)])
@@ -572,17 +578,24 @@ class Identifier(Analysis):
             addr = block.addr
             if addr in preamble_addrs:
                 addr = end_preamble
-            if self.project.factory.block(addr).vex.jumpkind == "Ijk_Ret":
-                main_state.ip = addr
-                for a in self.project.factory.successors(main_state).all_successors[0].history.recent_actions:
-                    if a.type == "reg" and a.action == "write":
-                        if self.get_reg_name(self.project.arch, a.offset) == self._sp_reg:
+            irsb = self.project.factory.block(addr).vex
+            if irsb.jumpkind == "Ijk_Ret":
+                cur_addr = None
+                found_end = False
+                for stmt in irsb.statements:
+                    if stmt.tag == 'Ist_Imark':
+                        cur_addr = stmt.addr
+                        if found_end:
+                            all_end_addrs.add(cur_addr)
+                    elif not found_end and stmt.tag == 'Ist_Put':
+                        if stmt.offset == self.project.arch.sp_offset:
+                            found_end = True
                             ends.add(a.ins_addr)
-                            all_end_addrs.update(set(self.project.factory.block(a.ins_addr).instruction_addrs))
+                            all_end_addrs.add(cur_addr)
 
         bp_sp_diff = None
         if bp_based:
-            bp_sp_diff = main_state.se.any_int(main_state.regs.bp - main_state.regs.sp)
+            bp_sp_diff = main_state.se.eval(main_state.regs.bp - main_state.regs.sp)
 
         all_addrs = set()
         for bl_addr in func.block_addrs:
@@ -608,7 +621,10 @@ class Identifier(Analysis):
             if self._no_sp_or_bp(bl):
                 continue
             main_state.ip = addr
-            succ = self.project.factory.successors(main_state, num_inst=1).all_successors[0]
+            try:
+                succ = self.project.factory.successors(main_state, num_inst=1).all_successors[0]
+            except SimError:
+                continue
 
             written_regs = set()
             # we can get stack variables via memory actions
@@ -639,7 +655,7 @@ class Identifier(Analysis):
                     is_buffer = True
                 else:
                     is_buffer = False
-                sp_off = succ.se.any_int(simplified)
+                sp_off = succ.se.eval(simplified)
                 if sp_off > 2 ** (self.project.arch.bits - 1):
                     sp_off = 2 ** self.project.arch.bits - sp_off
 
@@ -661,7 +677,7 @@ class Identifier(Analysis):
                     is_buffer = True
                 else:
                     is_buffer = False
-                bp_off = succ.se.any_int(simplified)
+                bp_off = succ.se.eval(simplified)
                 if bp_off > 2 ** (self.project.arch.bits - 1):
                     bp_off = -(2 ** self.project.arch.bits - bp_off)
                 stack_var_accesses[bp_off].add((addr, action))
@@ -724,7 +740,7 @@ class Identifier(Analysis):
             return True
         if len(diff.variables) > 1 or any("ebp" in v for v in diff.variables):
             return False
-        if len(succ.se.any_n_int((state.regs.sp - succ.regs.bp), 2)) == 1:
+        if len(succ.se.eval_upto((state.regs.sp - succ.regs.bp), 2)) == 1:
             return True
         return False
 

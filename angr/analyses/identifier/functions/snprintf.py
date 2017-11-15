@@ -63,7 +63,7 @@ class snprintf(Func):
                 if g.op == "__ne__" or g.op == "__eq__":
                     for a in g.args:
                         if not a.symbolic:
-                            interesting_chars.add(s.se.any_int(a))
+                            interesting_chars.add(s.se.eval(a))
 
         interesting_chars = set(chr(a) for a in interesting_chars if 0 < a < 0x80)
         alphanum = set(string.ascii_letters + string.digits)

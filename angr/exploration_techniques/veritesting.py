@@ -1,5 +1,7 @@
 from . import ExplorationTechnique
 
+from ..sim_options import EFFICIENT_STATE_MERGING
+
 class Veritesting(ExplorationTechnique):
     """
     Enable veritesting. This technique, described in a paper[1] from CMU, attempts to address the problem of state
@@ -12,6 +14,10 @@ class Veritesting(ExplorationTechnique):
         self.options = options
 
     def step_state(self, state, **kwargs):
+
+        if EFFICIENT_STATE_MERGING not in state.options:
+            state.options.add(EFFICIENT_STATE_MERGING)
+
         vt = self.project.analyses.Veritesting(state, **self.options)
         if vt.result and vt.final_manager:
             simgr = vt.final_manager
@@ -22,6 +28,8 @@ class Veritesting(ExplorationTechnique):
                     'active': simgr.active,
                     'unconstrained': simgr.stashes.get('unconstrained', []),
                     'unsat': simgr.stashes.get('unsat', []),
+                    'pruned': simgr.stashes.get('pruned', []),
+                    'errored': simgr.stashes.get('errored', []),
                     }
 
         return None

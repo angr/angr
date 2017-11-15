@@ -176,10 +176,10 @@ class strtol(angr.SimProcedure):
 
         if self.state.se.symbolic(base):
             l.warning("Concretizing symbolic base in strtol")
-            base_concrete = self.state.se.any_int(base)
+            base_concrete = self.state.se.eval(base)
             self.state.add_constraints(base == base_concrete)
 
-        base = self.state.se.any_int(base)
+        base = self.state.se.eval(base)
 
         if base == 0:
             # in this case the base is 16 if it starts with 0x, 8 if it starts with 0, 10 otherwise

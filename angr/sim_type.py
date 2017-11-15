@@ -127,10 +127,13 @@ class SimTypeReg(SimType):
         return "reg{}_t".format(self.size)
 
     def extract(self, state, addr, concrete=False):
-        out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
+        # TODO: EDG says this looks dangerously closed-minded. Just in case...
+        assert self.size % state.arch.byte_width == 0
+
+        out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
         if not concrete:
             return out
-        return state.se.any_int(out)
+        return state.se.eval(out)
 
     def store(self, state, addr, value):
         store_endness = state.arch.memory_endness
@@ -169,10 +172,10 @@ class SimTypeNum(SimType):
         return "{}int{}_t".format('' if self.signed else 'u', self.size)
 
     def extract(self, state, addr, concrete=False):
-        out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
+        out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
         if not concrete:
             return out
-        n = state.se.any_int(out)
+        n = state.se.eval(out)
         if self.signed and n >= 1 << (self.size-1):
             n -= 1 << (self.size)
         return n
@@ -228,10 +231,10 @@ class SimTypeInt(SimTypeReg):
             raise ValueError("Arch %s doesn't have its %s type defined!" % (self._arch.name, self._base_name))
 
     def extract(self, state, addr, concrete=False):
-        out = state.memory.load(addr, self.size / 8, endness=state.arch.memory_endness)
+        out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
         if not concrete:
             return out
-        n = state.se.any_int(out)
+        n = state.se.eval(out)
         if self.signed and n >= 1 << (self.size-1):
             n -= 1 << (self.size)
         return n
@@ -252,30 +255,36 @@ class SimTypeLongLong(SimTypeInt):
 class SimTypeChar(SimTypeReg):
     """
     SimTypeChar is a type that specifies a character;
-    this could be represented by an 8-bit int, but this is meant to be interpreted as a character.
+    this could be represented by a byte, but this is meant to be interpreted as a character.
     """
 
     def __init__(self, label=None):
         """
         :param label: the type label.
         """
-        SimTypeReg.__init__(self, 8, label=label) # a char better be 8 bits (I'm looking at you, DCPU-16)
+        # FIXME: Now the size of a char is state-dependent.
+        SimTypeReg.__init__(self, 8, label=label)
         self.signed = False
 
     def __repr__(self):
         return 'char'
 
     def store(self, state, addr, value):
+        # FIXME: This is a hack.
+        self._size = state.arch.byte_width
         try:
             super(SimTypeChar, self).store(state, addr, value)
         except TypeError:
             if isinstance(value, str) and len(value) == 1:
-                value = state.se.BVV(ord(value), 8)
+                value = state.se.BVV(ord(value), state.arch.byte_width)
                 super(SimTypeChar, self).store(state, addr, value)
             else:
                 raise
 
     def extract(self, state, addr, concrete=False):
+        # FIXME: This is a hack.
+        self._size = state.arch.byte_width
+
         out = super(SimTypeChar, self).extract(state, addr, concrete)
         if concrete:
             return chr(out)
@@ -308,6 +317,7 @@ class SimTypeFd(SimTypeReg):
         :param label: the type label
         """
         # file descriptors are always 32 bits, right?
+        # TODO: That's so closed-minded!
         super(SimTypeFd, self).__init__(32, label=label)
 
     def __repr__(self):
@@ -366,14 +376,14 @@ class SimTypeFixedSizeArray(SimType):
     _can_refine_int = True
 
     def _refine(self, view, k):
-        return view._deeper(addr=view._addr + k * (self.elem_type.size/8), ty=self.elem_type)
+        return view._deeper(addr=view._addr + k * (self.elem_type.size//view.state.arch.byte_width), ty=self.elem_type)
 
     def extract(self, state, addr, concrete=False):
-        return [self.elem_type.extract(state, addr + i*(self.elem_type.size/8), concrete) for i in xrange(self.length)]
+        return [self.elem_type.extract(state, addr + i*(self.elem_type.size//state.arch.byte_width), concrete) for i in xrange(self.length)]
 
     def store(self, state, addr, values):
         for i, val in enumerate(values):
-            self.elem_type.store(state, addr + i*self.elem_type.size, val)
+            self.elem_type.store(state, addr + i*(self.elem_type.size/8), val)
 
     @property
     def size(self):
@@ -449,7 +459,7 @@ class SimTypeString(SimTypeArray):
         if not concrete:
             return out if out is not None else claripy.BVV(0, 0)
         else:
-            return state.se.any_str(out) if out is not None else ''
+            return state.se.eval(out, cast_to=str) if out is not None else ''
 
     _can_refine_int = True
 
@@ -460,11 +470,55 @@ class SimTypeString(SimTypeArray):
     def size(self):
         if self.length is None:
             return 4096         # :/
-        return self.length + 1
+        return (self.length + 1) * 8
 
     def _with_arch(self, arch):
         return self
 
+
+class SimTypeWString(SimTypeArray):
+    """
+    A wide-character null-terminated string, where each character is 2 bytes.
+    """
+
+    _fields = SimTypeArray._fields + ('length',)
+
+    def __init__(self, length=None, label=None):
+        super(SimTypeWString, self).__init__(SimTypeNum(16, False), label=label, length=length)
+
+    def __repr__(self):
+        return 'wstring_t'
+
+    def extract(self, state, addr, concrete=False):
+        if self.length is None:
+            out = None
+            last_byte = state.memory.load(addr, 2)
+            addr += 2
+            while not claripy.is_true(last_byte == 0):
+                out = last_byte if out is None else out.concat(last_byte)
+                last_byte = state.memory.load(addr, 2)
+                addr += 2
+        else:
+            out = state.memory.load(addr, self.length*2)
+        if out is None: out = claripy.BVV(0, 0)
+        if not concrete:
+            return out
+        else:
+            return u''.join(unichr(state.se.eval(x.reversed if state.arch.memory_endness == 'Iend_LE' else x)) for x in out.chop(16))
+
+    _can_refine_int = True
+
+    def _refine(self, view, k):
+        return view._deeper(addr=view._addr + k * 2, ty=SimTypeNum(16, False))
+
+    @property
+    def size(self):
+        if self.length is None:
+            return 4096
+        return (self.length * 2 + 2) * 8
+
+    def _with_arch(self, arch):
+        return self
 
 class SimTypeFunction(SimType):
     """
@@ -477,9 +531,9 @@ class SimTypeFunction(SimType):
 
     def __init__(self, args, returnty, label=None):
         """
-        :param label:   The type label
-        :param args:    A tuple of types representing the arguments to the function
-        :param returns: The return type of the function, or none for void
+        :param label:    The type label
+        :param args:     A tuple of types representing the arguments to the function
+        :param returnty: The return type of the function, or none for void
         """
         super(SimTypeFunction, self).__init__(label=label)
         self.args = args
@@ -541,7 +595,7 @@ class SimTypeFloat(SimTypeReg):
     def extract(self, state, addr, concrete=False):
         itype = claripy.fpToFP(super(SimTypeFloat, self).extract(state, addr, False), self.sort)
         if concrete:
-            return state.se.any_int(itype)
+            return state.se.eval(itype)
         return itype
 
     def store(self, state, addr, value):
@@ -577,6 +631,8 @@ class SimStruct(SimType):
         self._name = '<anon>' if name is None else name
         self.fields = fields
 
+        self._arch_memo = {}
+
     @property
     def name(self): # required bc it's a property in the original
         return self._name
@@ -587,7 +643,7 @@ class SimStruct(SimType):
         offset_so_far = 0
         for name, ty in self.fields.iteritems():
             offsets[name] = offset_so_far
-            offset_so_far += ty.size / 8
+            offset_so_far += ty.size // self._arch.byte_width
 
         return offsets
 
@@ -599,13 +655,18 @@ class SimStruct(SimType):
             if concrete:
                 values[name] = v.concrete
             else:
-                values[name] = v
+                values[name] = v.resolved
 
         return SimStructValue(self, values=values)
 
     def _with_arch(self, arch):
-        out = SimStruct(OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.iteritems()), self.name, True)
+        if arch.name in self._arch_memo:
+            return self._arch_memo[arch.name]
+
+        out = SimStruct(None, self.name, True)
         out._arch = arch
+        self._arch_memo[arch.name] = out
+        out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.iteritems())
         return out
 
     def __repr__(self):
@@ -639,6 +700,14 @@ class SimStructValue(object):
     def __repr__(self):
         fields = ('.{} = {}'.format(name, self._values[name]) for name in self._struct.fields)
         return '{{\n  {}\n}}'.format(',\n  '.join(fields))
+
+    def __getattr__(self, k):
+        return self[k]
+
+    def __getitem__(self, k):
+        if type(k) in (int, long):
+            return self._values[self._struct.fields[k]]
+        return self._values[k]
 
 class SimUnion(SimType):
     """
@@ -715,12 +784,14 @@ ALL_TYPES = {
     'uint64_t': SimTypeNum(64, False),
     'qword': SimTypeNum(64, False),
 
-    'ptrdiff_t': SimTypeLong(False),
+    'ptrdiff_t': SimTypeLong(True),
     'size_t': SimTypeLength(False),
     'ssize_t': SimTypeLength(True),
-    'uintptr_t' : SimTypeLong(False),
+    'ssize': SimTypeLength(False),
+    'uintptr_t': SimTypeLong(False),
 
     'string': SimTypeString(),
+    'wstring': SimTypeWString(),
 }
 
 ALL_TYPES.update(BASIC_TYPES)
@@ -735,11 +806,12 @@ def make_preamble():
             continue
 
         typ = ALL_TYPES[ty]
-        if isinstance(typ, (SimTypeFunction, SimTypeString)):
+        if isinstance(typ, (SimTypeFunction, SimTypeString, SimTypeWString)):
             continue
 
         if isinstance(typ, (SimTypeNum, SimTypeInt)) and str(typ) not in BASIC_TYPES:
             try:
+                # TODO: Investigate whether this needs to be re-imagined using byte_width
                 styp = {8: 'char', 16: 'short', 32: 'int', 64: 'long long'}[typ._size]
             except KeyError:
                 styp = 'long' # :(

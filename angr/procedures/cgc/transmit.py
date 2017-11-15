@@ -31,7 +31,7 @@ class transmit(angr.SimProcedure):
                     return 2
 
                 try:
-                    readable = self.state.se.any_int(self.state.memory.permissions(self.state.se.any_int(buf))) & 1 != 0
+                    readable = self.state.se.eval(self.state.memory.permissions(self.state.se.eval(buf))) & 1 != 0
                 except angr.SimMemoryError:
                     readable = False
                 if not readable:

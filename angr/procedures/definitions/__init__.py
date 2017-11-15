@@ -2,12 +2,14 @@ import copy
 import os
 import archinfo
 from collections import defaultdict
+import logging
 
 from ..stubs.ReturnUnconstrained import ReturnUnconstrained
 from ..stubs.syscall_stub import syscall as stub_syscall
 from ...calling_conventions import DEFAULT_CC
 from ...misc import autoimport
 
+l = logging.getLogger("angr.procedures.definitions")
 SIM_LIBRARIES = {}
 
 class SimLibrary(object):
@@ -56,7 +58,7 @@ class SimLibrary(object):
 
     def _apply_metadata(self, proc, arch):
         if proc.cc is None and arch.name in self.default_ccs:
-            proc.cc = self.default_ccs[arch.name]()
+            proc.cc = self.default_ccs[arch.name](arch)
         if proc.display_name in self.prototypes:
             if proc.cc is None:
                 proc.cc = self.fallback_cc[arch.name]()
@@ -76,7 +78,7 @@ class SimLibrary(object):
             return self.get_stub(name, arch)
 
     def get_stub(self, name, arch):
-        proc = self.fallback_proc(display_name=name)
+        proc = self.fallback_proc(display_name=name, is_stub=True)
         self._apply_metadata(proc, arch)
         return proc
 
@@ -98,6 +100,9 @@ class SimSyscallLibrary(SimLibrary):
     fallback_proc = stub_syscall
 
     def maximum_syscall_number(self, arch_name):
+        if arch_name not in self.syscall_number_mapping or \
+                not self.syscall_number_mapping[arch_name]:
+            return 0
         return max(self.syscall_number_mapping[arch_name])
 
     def add_number_mapping(self, arch_name, number, name):
@@ -118,13 +123,13 @@ class SimSyscallLibrary(SimLibrary):
         if number in mapping:
             return mapping[number], arch
         else:
-            return 'sys_%d (unsupported)' % number, arch
+            return 'sys_%d' % number, arch
 
     def _apply_numerical_metadata(self, proc, number, arch):
         proc.syscall_number = number
         for min_num, max_num, cc_cls in self.ranged_default_ccs[arch.name]:
             if min_num <= number <= max_num:
-                new_cc = cc_cls()
+                new_cc = cc_cls(arch)
                 old_cc = proc.cc
                 if old_cc is not None:
                     new_cc.func_ty = old_cc.func_ty
@@ -141,6 +146,7 @@ class SimSyscallLibrary(SimLibrary):
         name, arch = self._canonicalize(number, arch)
         proc = super(SimSyscallLibrary, self).get_stub(name, arch)
         self._apply_numerical_metadata(proc, number, arch)
+        l.warn("unsupported syscall: %s", number)
         return proc
 
     def has_metadata(self, number, arch):

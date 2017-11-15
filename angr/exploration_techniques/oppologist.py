@@ -1,6 +1,5 @@
 from collections import defaultdict
 
-import pyvex
 import claripy
 import functools
 
@@ -33,20 +32,14 @@ class Oppologist(ExplorationTechnique):
     def _oppologize(self, state, pn, **kwargs):
         l.debug("... pn: %s", pn)
 
-        irsb = self.project.factory.block(pn.addr).vex
-        addrs = [ s.addr for s in irsb.statements if isinstance(s, pyvex.IRStmt.IMark) ]
-        if len(addrs) > 1:
-            stops = [ addrs[1] ]
-        else:
-            stops = None
-
         pn.options.add(sim_options.UNICORN)
         pn.options.add(sim_options.UNICORN_AGGRESSIVE_CONCRETIZATION)
         pn.unicorn.max_steps = 1
         pn.unicorn.countdown_symbolic_registers = 0
         pn.unicorn.countdown_symbolic_memory = 0
         pn.unicorn.countdown_nonunicorn_blocks = 0
-        ss = self.project.factory.successors(pn, extra_stop_points=stops, throw=True, **kwargs)
+        pn.unicorn.countdown_stop_point = 0
+        ss = self.project.factory.successors(pn, throw=True, **kwargs)
 
         fixup = functools.partial(self._restore_state, state)
 

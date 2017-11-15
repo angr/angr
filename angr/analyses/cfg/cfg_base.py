@@ -5,16 +5,19 @@ from collections import defaultdict
 
 import cffi
 import networkx
-import pyvex
-from .. import Analysis
-from claripy.utils.orderedset import OrderedSet
-from cle import ELF, PE, Blob, TLSObj
 
-from .cfg_node import CFGNode
+import pyvex
+from claripy.utils.orderedset import OrderedSet
+from cle import ELF, PE, Blob, TLSObject, ExternObject, KernelObject
+
+from ...misc.ux import deprecated
 from ... import SIM_PROCEDURES
-from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError, AngrUnsupportedSyscallError
-from ...extern_obj import AngrExternObject
-from ...knowledge import HookNode, BlockNode, FunctionManager
+from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError,\
+    AngrUnsupportedSyscallError, SimError
+from ...codenode import HookNode, BlockNode
+from ...knowledge_plugins import FunctionManager, Function
+from .. import Analysis
+from .cfg_node import CFGNode
 
 l = logging.getLogger("angr.analyses.cfg.cfg_base")
 
@@ -49,7 +52,7 @@ class CFGBase(Analysis):
     """
     The base class for control flow graphs.
     """
-    def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None):
+    def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False, iropt_level=None, base_state=None):
         self.sort = sort
         self._context_sensitivity_level=context_sensitivity_level
 
@@ -57,9 +60,10 @@ class CFGBase(Analysis):
         if context_sensitivity_level < 0:
             raise ValueError("Unsupported context sensitivity level %d" % context_sensitivity_level)
 
-        self._binary = binary if binary is not None else self.project.loader.main_bin
+        self._binary = binary if binary is not None else self.project.loader.main_object
         self._force_segment = force_segment
         self._iropt_level = iropt_level
+        self._base_state = base_state
 
         # Initialization
         self._graph = None
@@ -92,12 +96,9 @@ class CFGBase(Analysis):
 
         # initialize an UnresolvableTarget SimProcedure
         # but we do not want to hook the same symbol multiple times
-        if not self.project.is_symbol_hooked('UnresolvableTarget'):
-            ut_addr = self.project.hook_symbol('UnresolvableTarget',
-                                               SIM_PROCEDURES['stubs']['UnresolvableTarget']
-                                               )
-        else:
-            ut_addr = self.project.hooked_symbol_addr('UnresolvableTarget')
+        ut_addr = self.project.loader.extern_object.get_pseudo_addr('UnresolvableTarget')
+        if not self.project.is_hooked(ut_addr):
+            self.project.hook(ut_addr, SIM_PROCEDURES['stubs']['UnresolvableTarget']())
         self._unresolvable_target_addr = ut_addr
 
         # partially and fully analyzed functions
@@ -135,7 +136,7 @@ class CFGBase(Analysis):
         A reference to the FunctionManager in the current knowledge base.
 
         :return: FunctionManager with all functions
-        :rtype: angr.knowledge.FunctionManager
+        :rtype: angr.knowledge_plugins.FunctionManager
         """
         return self.kb.functions
 
@@ -188,7 +189,7 @@ class CFGBase(Analysis):
 
         raise NotImplementedError("I'm too lazy to implement it right now")
 
-    # TODO: Mark as deprecated
+    @deprecated(replacement='nodes()')
     def get_bbl_dict(self):
         return self._nodes
 
@@ -211,11 +212,11 @@ class CFGBase(Analysis):
         if not excluding_fakeret and jumpkind is None:
             # fast path
             if cfgnode in self._graph:
-                return self._graph.predecessors(cfgnode)
+                return list(self._graph.predecessors(cfgnode))
             return [ ]
 
         predecessors = []
-        for pred, _, data in self._graph.in_edges_iter([cfgnode], data=True):
+        for pred, _, data in self._graph.in_edges([cfgnode], data=True):
             jk = data['jumpkind']
             if jumpkind is not None:
                 if jk == jumpkind:
@@ -231,7 +232,7 @@ class CFGBase(Analysis):
         """
         Get successors of a node in the control flow graph.
 
-        :param CFGNode cfgnode:             The node.
+        :param CFGNode basic_block:             The node.
         :param bool excluding_fakeret:      True if you want to exclude all successors that is connected to the node
                                             with a fakeret edge.
         :param str or None jumpkind:        Only return successors with the specified jumpkind. This argument will be
@@ -247,11 +248,11 @@ class CFGBase(Analysis):
         if not excluding_fakeret and jumpkind is None:
             # fast path
             if basic_block in self._graph:
-                return self._graph.successors(basic_block)
+                return list(self._graph.successors(basic_block))
             return [ ]
 
         successors = []
-        for _, suc, data in self._graph.out_edges_iter([basic_block], data=True):
+        for _, suc, data in self._graph.out_edges([basic_block], data=True):
             jk = data['jumpkind']
             if jumpkind is not None:
                 if jumpkind == jk:
@@ -265,7 +266,7 @@ class CFGBase(Analysis):
 
     def get_successors_and_jumpkind(self, basic_block, excluding_fakeret=True):
         successors = []
-        for _, suc, data in self._graph.out_edges_iter([basic_block], data=True):
+        for _, suc, data in self._graph.out_edges([basic_block], data=True):
             if not excluding_fakeret or data['jumpkind'] != 'Ijk_FakeRet':
                 successors.append((suc, data['jumpkind']))
         return successors
@@ -279,10 +280,10 @@ class CFGBase(Analysis):
         :rtype: list
         """
 
-        return networkx.dfs_predecessors(self._graph, cfgnode)
+        return list(networkx.dfs_predecessors(self._graph, cfgnode))
 
     def get_all_successors(self, basic_block):
-        return networkx.dfs_successors(self._graph, basic_block)
+        return list(networkx.dfs_successors(self._graph, basic_block))
 
     def get_node(self, block_id):
         """
@@ -295,9 +296,6 @@ class CFGBase(Analysis):
         if block_id in self._nodes:
             return self._nodes[block_id]
         return None
-
-    def nodes(self):
-        return self._graph.nodes()
 
     def get_any_node(self, addr, is_syscall=None, anyaddr=False):
         """
@@ -335,7 +333,7 @@ class CFGBase(Analysis):
         #              'speed the node lookup.')
         #    self._node_lookup_index_warned = True
 
-        for n in self.graph.nodes_iter():
+        for n in self.graph.nodes():
             cond = n.looping_times == 0
             if anyaddr and n.size is not None:
                 cond = cond and (addr >= n.addr and addr < n.addr + n.size)
@@ -377,7 +375,7 @@ class CFGBase(Analysis):
         """
         results = [ ]
 
-        for cfg_node in self._graph.nodes_iter():
+        for cfg_node in self._graph.nodes():
             if cfg_node.addr == addr or (anyaddr and cfg_node.addr <= addr < (cfg_node.addr + cfg_node.size)):
                 if is_syscall and cfg_node.is_syscall:
                     results.append(cfg_node)
@@ -388,7 +386,7 @@ class CFGBase(Analysis):
 
         return results
 
-    def nodes_iter(self):
+    def nodes(self):
         """
         An iterator of all nodes in the graph.
 
@@ -396,7 +394,18 @@ class CFGBase(Analysis):
         :rtype: iterator
         """
 
-        return self._graph.nodes_iter()
+        return self._graph.nodes()
+
+    @deprecated(replacement='nodes')
+    def nodes_iter(self):
+        """
+        (Decrepated) An iterator of all nodes in the graph. Will be removed in the future.
+
+        :return: The iterator.
+        :rtype: iterator
+        """
+
+        return self.nodes()
 
     def get_all_irsbs(self, addr):  # pylint:disable=unused-argument
         """
@@ -441,23 +450,41 @@ class CFGBase(Analysis):
         if edge in self._graph:
             self._graph.remove_edge(*edge)
 
-    def _to_snippet(self, cfg_node, jumpkind=None):
+    def _to_snippet(self, cfg_node=None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None):
         """
         Convert a CFGNode instance to a CodeNode object.
 
         :param angr.analyses.CFGNode cfg_node: The CFGNode instance.
+        :param int addr: Address of the node. Only used when `cfg_node` is None.
+        :param bool thumb: Whether this is in THUMB mode or not. Only used for ARM code and when `cfg_node` is None.
+        :param str or None jumpkind: Jumpkind of this node.
+        :param SimState or None base_state: The state where BlockNode should be created from.
         :return: A converted CodeNode instance.
         :rtype: CodeNode
         """
 
-        addr = cfg_node.addr
+        if cfg_node is not None:
+            addr = cfg_node.addr
+            size = cfg_node.size
+            thumb = cfg_node.thumb
+        else:
+            addr = addr
+            size = size
+            thumb = thumb
+
+        if addr is None:
+            raise ValueError('_to_snippet(): Either cfg_node or addr must be provided.')
 
         if self.project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
             hooker = self.project._sim_procedures[addr]
             size = hooker.kwargs.get('length', 0)
             return HookNode(addr, size, type(hooker))
 
-        return BlockNode(cfg_node.addr, cfg_node.size)  # pylint: disable=no-member
+        if cfg_node is not None:
+            return BlockNode(addr, size, thumb=thumb, bytestr=cfg_node.byte_string)  # pylint: disable=no-member
+        else:
+            return self.project.factory.snippet(addr, size=size, jumpkind=jumpkind, thumb=thumb,
+                                                backup_state=base_state)
 
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
@@ -469,7 +496,7 @@ class CFGBase(Analysis):
         :param int addr: Address of the basic block / SimIRSB.
         :param list successors: A list of successors.
         :param func get_ins_addr: A callable that returns the source instruction address for a successor.
-        :param func get_stmt_idx: A callable that returns the source statement ID for a successor.
+        :param func get_exit_stmt_idx: A callable that returns the source statement ID for a successor.
         :return: A new list of successors after filtering.
         :rtype: list
         """
@@ -480,7 +507,7 @@ class CFGBase(Analysis):
         it_counter = 0
         conc_temps = {}
         can_produce_exits = set()
-        bb = self.project.factory.block(addr, thumb=True, opt_level=0)
+        bb = self._lift(addr, thumb=True, opt_level=0)
 
         for stmt in bb.vex.statements:
             if stmt.tag == 'Ist_IMark':
@@ -510,15 +537,75 @@ class CFGBase(Analysis):
         THUMB_BRANCH_INSTRUCTIONS = ('beq', 'bne', 'bcs', 'bhs', 'bcc', 'blo', 'bmi', 'bpl', 'bvs',
                                      'bvc', 'bhi', 'bls', 'bge', 'blt', 'bgt', 'ble', 'cbz', 'cbnz')
         for cs_insn in bb.capstone.insns:
-            if cs_insn.mnemonic in THUMB_BRANCH_INSTRUCTIONS:
+            if cs_insn.mnemonic.split('.')[0] in THUMB_BRANCH_INSTRUCTIONS:
                 can_produce_exits.add(cs_insn.address)
 
         successors_filtered = filter(lambda suc: get_ins_addr(suc) in can_produce_exits or
                                         get_exit_stmt_idx(suc) == 'default',
-                            successors
-                            )
+                                     successors)
 
         return successors_filtered
+
+    def _is_region_extremely_sparse(self, start, end, base_state=None):
+        """
+        Check whether the given memory region is extremely sparse, i.e., all bytes are the same value.
+
+        :param int start: The beginning of the region.
+        :param int end:   The end of the region.
+        :param base_state: The base state (optional).
+        :return:           True if the region is extremely sparse, False otherwise.
+        :rtype:            bool
+        """
+
+        all_bytes = None
+
+        if base_state is not None:
+            all_bytes = base_state.memory.load(start, end - start + 1)
+            try:
+                n = base_state.se.eval(all_bytes)
+                all_bytes = hex(n)[2:].strip('L').decode("hex")
+            except SimError:
+                all_bytes = None
+
+        if all_bytes is None:
+            # load from the binary
+            all_bytes = self._fast_memory_load_bytes(start, end - start + 1)
+
+        if all_bytes is None:
+            return True
+
+        the_byte_value = None
+        for b in all_bytes:
+            if the_byte_value is None:
+                the_byte_value = b
+            else:
+                if the_byte_value != b:
+                    return False
+
+        return True
+
+    def _should_skip_region(self, region_start):
+        """
+        Some regions usually do not contain any executable code, but are still marked as executable. We should skip
+        those regions by default.
+
+        :param int region_start: Address of the beginning of the region.
+        :return:                 True/False
+        :rtype:                  bool
+        """
+
+
+        obj = self.project.loader.find_object_containing(region_start)
+        if obj is None:
+            return False
+        if isinstance(obj, PE):
+            section = obj.find_section_containing(region_start)
+            if section is None:
+                return False
+            if section.name in {'.textbss'}:
+                return True
+
+        return False
 
     def _executable_memory_regions(self, binary=None, force_segment=False):
         """
@@ -561,16 +648,16 @@ class CFGBase(Analysis):
 
             elif isinstance(b, Blob):
                 # a blob is entirely executable
-                tpl = (b.get_min_addr(), b.get_max_addr())
+                tpl = (b.min_addr, b.max_addr)
                 memory_regions.append(tpl)
 
-            elif isinstance(b, (AngrExternObject, TLSObj)):
+            elif isinstance(b, (ExternObject, KernelObject, TLSObject)):
                 pass
 
             else:
                 l.warning('Unsupported object format "%s". Treat it as an executable.', b.__class__.__name__)
 
-                tpl = (b.get_min_addr(), b.get_max_addr())
+                tpl = (b.min_addr, b.max_addr)
                 memory_regions.append(tpl)
 
         if not memory_regions:
@@ -604,13 +691,13 @@ class CFGBase(Analysis):
         :rtype: cle.Section
         """
 
-        obj = self.project.loader.addr_belongs_to_object(addr)
+        obj = self.project.loader.find_object_containing(addr)
 
         if obj is None:
             return None
 
-        if isinstance(obj, AngrExternObject):
-            # the address is from a section allocated by angr.
+        if isinstance(obj, (ExternObject, KernelObject, TLSObject)):
+            # the address is from a special CLE section
             return None
 
         return obj.find_section_containing(addr)
@@ -626,11 +713,11 @@ class CFGBase(Analysis):
         :rtype:             bool
         """
 
-        obj = self.project.loader.addr_belongs_to_object(addr_a)
+        obj = self.project.loader.find_object_containing(addr_a)
 
         if obj is None:
             # test if addr_b also does not belong to any object
-            obj_b = self.project.loader.addr_belongs_to_object(addr_b)
+            obj_b = self.project.loader.find_object_containing(addr_b)
             if obj_b is None:
                 return True
             return False
@@ -655,13 +742,13 @@ class CFGBase(Analysis):
         :rtype: cle.Section
         """
 
-        obj = self.project.loader.addr_belongs_to_object(addr)
+        obj = self.project.loader.find_object_containing(addr)
 
         if obj is None:
             return None
 
-        if isinstance(obj, AngrExternObject):
-            # the address is from a section allocated by angr.
+        if isinstance(obj, (ExternObject, KernelObject, TLSObject)):
+            # the address is from a special CLE section
             return None
 
         for section in obj.sections:
@@ -682,12 +769,12 @@ class CFGBase(Analysis):
         :rtype: cle.Segment
         """
 
-        obj = self.project.loader.addr_belongs_to_object(addr)
+        obj = self.project.loader.find_object_containing(addr)
 
         if obj is None:
             return None
 
-        if isinstance(obj, AngrExternObject):
+        if isinstance(obj, (ExternObject, KernelObject, TLSObject)):
             # the address is from a section allocated by angr.
             return None
 
@@ -721,17 +808,47 @@ class CFGBase(Analysis):
         except KeyError:
             return None
 
+    def _fast_memory_load_byte(self, addr):
+        """
+        Perform a fast memory loading of a byte.
+
+        :param int addr: Address to read from.
+        :return:         A char or None if the address does not exist.
+        :rtype:          str or None
+        """
+
+        return self._fast_memory_load_bytes(addr, 1)
+
+    def _fast_memory_load_bytes(self, addr, length):
+        """
+        Perform a fast memory loading of a byte.
+
+        :param int addr: Address to read from.
+        :param int length: Size of the string to load.
+        :return:         A string or None if the address does not exist.
+        :rtype:          str or None
+        """
+
+        buf = self._fast_memory_load(addr)
+        if buf is None:
+            return None
+
+        char_str = self._ffi.unpack(self._ffi.cast('char*', buf), length) # type: str
+        return char_str
+
     def _fast_memory_load_pointer(self, addr):
         """
         Perform a fast memory loading of a pointer.
 
         :param int addr: Address to read from.
-        :return:         A pointer.
+        :return:         A pointer or None if the address does not exist.
         :rtype:          int
         """
 
         pointer_size = self.project.arch.bits / 8
         buf = self._fast_memory_load(addr)
+        if buf is None:
+            return None
 
         if self.project.arch.memory_endness == 'Iend_LE':
             fmt = "<"
@@ -742,7 +859,7 @@ class CFGBase(Analysis):
         elif pointer_size == 4:
             fmt += "I"
         else:
-            raise AngrCFGError("Pointer size of %d is not supported", pointer_size)
+            raise AngrCFGError("Pointer size of %d is not supported" % pointer_size)
 
         ptr_str = self._ffi.unpack(self._ffi.cast('char*', buf), pointer_size)
         ptr = struct.unpack(fmt, ptr_str)[0]  # type:int
@@ -841,24 +958,46 @@ class CFGBase(Analysis):
 
             bail_out = False
 
-            # if this function has jump out sites, it returns as long as any of the target function returns
-            for jump_out_site in func.jumpout_sites:
+            # if this function has jump-out sites or ret-out sites, it returns as long as any of the target function
+            # returns
+            for goout_site, type_ in [ (site, 'jumpout') for site in func.jumpout_sites ] + \
+                    [ (site, 'retout') for site in func.retout_sites ]:
 
                 if func.returning:
                     # if there are multiple jump out sites and we have determined the "returning status" from one of
                     # the jump out sites, we can exit the loop early
-                    continue
-                jump_out_site_successors = jump_out_site.successors()
-                if not jump_out_site_successors:
+                    break
+
+                # determine where it jumps/returns to
+                goout_site_successors = goout_site.successors()
+                if not goout_site_successors:
                     # not sure where it jumps to. bail out
                     bail_out = True
                     continue
-                jump_out_target = jump_out_site_successors[0]
-                if not self.kb.functions.contains_addr(jump_out_target.addr):
+
+                # for retout sites, determine what function it calls
+                if type_ == 'retout':
+                    # see whether the function being called returns or not
+                    func_successors = [ succ for succ in goout_site_successors if isinstance(succ, Function) ]
+                    if func_successors and all(func_successor.returning in (None, False)
+                                               for func_successor in func_successors):
+                        # the returning of all possible function calls are undermined, or they do not return
+                        # ignore this site
+                        continue
+
+                if type_ == 'retout':
+                    goout_target = next((succ for succ in goout_site_successors if not isinstance(succ, Function)), None)
+                else:
+                    goout_target = next((succ for succ in goout_site_successors), None)
+                if goout_target is None:
+                    # there is no jumpout site, which is weird, but what can we do...
+                    continue
+                if not self.kb.functions.contains_addr(goout_target.addr):
                     # wait it does not jump to a function?
                     bail_out = True
                     continue
-                target_func = self.kb.functions[jump_out_target.addr]
+
+                target_func = self.kb.functions[goout_target.addr]
                 if target_func.returning is True:
                     func.returning = True
                     changes['functions_return'].append(func)
@@ -1029,8 +1168,8 @@ class CFGBase(Analysis):
                     smallest_nodes[key] = new_node
 
             # Modify the CFG
-            original_predecessors = list(graph.in_edges_iter([n], data=True))
-            original_successors = list(graph.out_edges_iter([n], data=True))
+            original_predecessors = list(graph.in_edges([n], data=True))
+            original_successors = list(graph.out_edges([n], data=True))
 
             if smallest_node not in graph:
                 continue
@@ -1062,7 +1201,7 @@ class CFGBase(Analysis):
                 # in, otherwise there will be an edge from A to A`, while A should totally be got rid of in the new
                 # graph.
                 if p not in other_nodes:
-                    graph.add_edge(p, new_node, data)
+                    graph.add_edge(p, new_node, **data)
 
             # We should find the correct successor
             new_successors = [i for i in [smallest_node] + other_nodes
@@ -1207,7 +1346,7 @@ class CFGBase(Analysis):
         function_nodes = set()
 
         # Find nodes for beginnings of all functions
-        for _, dst, data in self.graph.edges_iter(data=True):
+        for _, dst, data in self.graph.edges(data=True):
             jumpkind = data.get('jumpkind', "")
             if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
                 function_nodes.add(dst)
@@ -1223,7 +1362,7 @@ class CFGBase(Analysis):
                                                                blockaddr_to_function
                                                                )
 
-        for n in self.graph.nodes_iter():
+        for n in self.graph.nodes():
             if n.addr in tmp_functions or n.addr in removed_functions:
                 function_nodes.add(n)
 
@@ -1276,12 +1415,14 @@ class CFGBase(Analysis):
                                    tmp_functions
                                    )
 
-        # Remove all stubs after PLT entries
         to_remove = set()
-        for fn in self.kb.functions.values():
-            addr = fn.addr - (fn.addr % 16)
-            if addr != fn.addr and addr in self.kb.functions and self.kb.functions[addr].is_plt:
-                to_remove.add(fn.addr)
+
+        # Remove all stubs after PLT entries
+        if self.project.arch.name not in {'ARMEL', 'ARMHF'}:
+            for fn in self.kb.functions.values():
+                addr = fn.addr - (fn.addr % 16)
+                if addr != fn.addr and addr in self.kb.functions and self.kb.functions[addr].is_plt:
+                    to_remove.add(fn.addr)
 
         # remove empty functions
         for function in self.kb.functions.values():
@@ -1325,7 +1466,7 @@ class CFGBase(Analysis):
         In the example above, `process_irrational_functions` will remove function 0x400080, and merge it with function
         0x400010.
 
-        :param angr.knowledge.FunctionManager functions: all functions that angr recovers, including those ones that are
+        :param angr.knowledge_plugins.FunctionManager functions: all functions that angr recovers, including those ones that are
             misidentified as functions.
         :param dict blockaddr_to_function: A mapping between block addresses and Function instances.
         :return: a list of addresses of all removed functions
@@ -1461,7 +1602,7 @@ class CFGBase(Analysis):
 
         :param int addr: Address to convert
         :param dict blockaddr_to_function: A mapping between block addresses to Function instances.
-        :param angr.knowledge.FunctionManager known_functions: Recovered functions.
+        :param angr.knowledge_plugins.FunctionManager known_functions: Recovered functions.
         :return: a Function object
         :rtype: angr.knowledge.Function
         """
@@ -1498,7 +1639,7 @@ class CFGBase(Analysis):
         :param list starts: A collection of beginning nodes to start graph traversal.
         :param func callback: Callback function for each edge and node.
         :param dict blockaddr_to_function: A mapping between block addresses to Function instances.
-        :param angr.knowledge.FunctionManager known_functions: Already recovered functions.
+        :param angr.knowledge_plugins.FunctionManager known_functions: Already recovered functions.
         :param set traversed_cfg_nodes: A set of CFGNodes that are traversed before.
         :return: None
         """
@@ -1541,7 +1682,7 @@ class CFGBase(Analysis):
         :param CFGNode dst: Destination of the edge. For processing a single node, `dst` is None.
         :param dict data: Edge data in the CFG. 'jumpkind' should be there if it's not None.
         :param dict blockaddr_to_function: A mapping between block addresses to Function instances.
-        :param angr.knowledge.FunctionManager known_functions: Already recovered functions.
+        :param angr.knowledge_plugins.FunctionManager known_functions: Already recovered functions.
         :param list or None all_edges: All edges going out from src.
         :return: None
         """
@@ -1584,13 +1725,14 @@ class CFGBase(Analysis):
             dst_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
 
             n = self.get_any_node(src_addr)
-            if n is None: src_node = src_addr
-            else: src_node = self._to_snippet(n)
+            if n is None: src_snippet = self._to_snippet(addr=src_addr, base_state=self._base_state)
+            else: src_snippet = self._to_snippet(cfg_node=n)
 
             fakeret_node = None if not all_edges else self._one_fakeret_node(all_edges)
-            fakeret_addr = fakeret_node.addr if fakeret_node is not None else None
+            if fakeret_node is None: fakeret_snippet = None
+            else: fakeret_snippet = self._to_snippet(cfg_node=fakeret_node)
 
-            self.kb.functions._add_call_to(src_function.addr, src_node, dst_addr, fakeret_addr, syscall=is_syscall,
+            self.kb.functions._add_call_to(src_function.addr, src_snippet, dst_addr, fakeret_snippet, syscall=is_syscall,
                                            ins_addr=ins_addr, stmt_idx=stmt_idx)
 
             if dst_function.returning:
@@ -1604,10 +1746,10 @@ class CFGBase(Analysis):
                 to_outside = not blockaddr_to_function[returning_target] is src_function
 
                 n = self.get_any_node(returning_target)
-                if n is None: returning_node = returning_target
-                else: returning_node = self._to_snippet(n)
+                if n is None: returning_snippet = self._to_snippet(addr=returning_target, base_state=self._base_state)
+                else: returning_snippet = self._to_snippet(cfg_node=n)
 
-                self.kb.functions._add_fakeret_to(src_function.addr, src_node, returning_node, confirmed=True,
+                self.kb.functions._add_fakeret_to(src_function.addr, src_snippet, returning_snippet, confirmed=True,
                                                   to_outside=to_outside
                                                   )
 
@@ -1616,11 +1758,11 @@ class CFGBase(Analysis):
             # convert src_addr and dst_addr to CodeNodes
             n = self.get_any_node(src_addr)
             if n is None: src_node = src_addr
-            else: src_node = self._to_snippet(n)
+            else: src_node = self._to_snippet(cfg_node=n)
 
             n = self.get_any_node(dst_addr)
             if n is None: dst_node = dst_addr
-            else: dst_node = self._to_snippet(n)
+            else: dst_node = self._to_snippet(cfg_node=n)
 
             # pre-check: if source and destination do not belong to the same section, it must be jumping to another
             # function
@@ -1761,3 +1903,11 @@ class CFGBase(Analysis):
             if data.get('jumpkind', None) == 'Ijk_FakeRet':
                 return dst
         return None
+
+    def _lift(self, *args, **kwargs):
+        """
+        Lift a basic block of code. Will use the base state as a source of bytes if possible.
+        """
+        if 'backup_state' not in kwargs:
+            kwargs['backup_state'] = self._base_state
+        return self.project.factory.block(*args, **kwargs)

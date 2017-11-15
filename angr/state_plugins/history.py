@@ -5,6 +5,7 @@ import claripy
 
 from .plugin import SimStatePlugin
 from .. import sim_options
+from ..state_plugins.sim_action import SimActionObject
 
 l = logging.getLogger("angr.state_plugins.history")
 
@@ -28,7 +29,7 @@ class SimStateHistory(SimStatePlugin):
             clone.previous_block_count
 
         # a string description of this history
-        self.description = None if clone is None else clone.description
+        self.recent_description = None if clone is None else clone.recent_description
 
         # the control flow transfer information from this history onwards (to the current state)
         self.jump_target = None if clone is None else clone.jump_target
@@ -53,7 +54,14 @@ class SimStateHistory(SimStatePlugin):
         self._all_constraints = ()
         self._satisfiable = None
 
+        self.successor_ip = None if clone is None else clone.successor_ip
+
         self.strongref_state = None if clone is None else clone.strongref_state
+
+    def set_state(self, state):
+        super(SimStateHistory, self).set_state(state)
+
+        self.successor_ip = self.state._ip
 
     def __getstate__(self):
         # flatten ancestry, otherwise we hit recursion errors trying to get the entire history...
@@ -68,6 +76,7 @@ class SimStateHistory(SimStatePlugin):
         d = super(SimStateHistory, self).__getstate__()
         d['strongref_state'] = None
         d['ancestry'] = ancestry
+        d['successor_ip'] = self.successor_ip
         return d
 
     def __setstate__(self, d):
@@ -121,6 +130,108 @@ class SimStateHistory(SimStatePlugin):
         new_hist = self.copy()
         new_hist.parent = None
         self.state.register_plugin('history', new_hist)
+
+    def filter_actions(self, block_addr=None, block_stmt=None, insn_addr=None, read_from=None, write_to=None):
+        """
+        Filter self.actions based on some common parameters.
+
+        :param block_addr:  Only return actions generated in blocks starting at this address.
+        :param block_stmt:  Only return actions generated in the nth statement of each block.
+        :param insn_addr:   Only return actions generated in the assembly instruction at this address.
+        :param read_from:   Only return actions that perform a read from the specified location.
+        :param write_to:    Only return actions that perform a write to the specified location.
+
+        Notes:
+        If IR optimization is turned on, reads and writes may not occur in the instruction
+        they originally came from. Most commonly, If a register is read from twice in the same
+        block, the second read will not happen, instead reusing the temp the value is already
+        stored in.
+
+        Valid values for read_from and write_to are the string literals 'reg' or 'mem' (matching
+        any read or write to registers or memory, respectively), any string (representing a read
+        or write to the named register), and any integer (representing a read or write to the
+        memory at this address).
+        """
+        if read_from is not None:
+            if write_to is not None:
+                raise ValueError("Can't handle read_from and write_to at the same time!")
+            if read_from in ('reg', 'mem'):
+                read_type = read_from
+                read_offset = None
+            elif isinstance(read_from, str):
+                read_type = 'reg'
+                read_offset = self.state.project.arch.registers[read_from][0]
+            else:
+                read_type = 'mem'
+                read_offset = read_from
+        if write_to is not None:
+            if write_to in ('reg', 'mem'):
+                write_type = write_to
+                write_offset = None
+            elif isinstance(write_to, str):
+                write_type = 'reg'
+                write_offset = self.state.project.arch.registers[write_to][0]
+            else:
+                write_type = 'mem'
+                write_offset = write_to
+
+        """
+        def addr_of_stmt(bbl_addr, stmt_idx):
+            if stmt_idx is None:
+                return None
+            stmts = self.state.project.factory.block(bbl_addr).vex.statements
+            if stmt_idx >= len(stmts):
+                return None
+            for i in reversed(xrange(stmt_idx + 1)):
+                if stmts[i].tag == 'Ist_IMark':
+                    return stmts[i].addr + stmts[i].delta
+            return None
+        """
+
+        def action_reads(action):
+            if action.type != read_type:
+                return False
+            if action.action != 'read':
+                return False
+            if read_offset is None:
+                return True
+            addr = action.addr
+            if isinstance(addr, SimActionObject):
+                addr = addr.ast
+            if isinstance(addr, claripy.ast.Base):
+                if addr.symbolic:
+                    return False
+                addr = self.state.se.eval(addr)
+            if addr != read_offset:
+                return False
+            return True
+
+        def action_writes(action):
+            if action.type != write_type:
+                return False
+            if action.action != 'write':
+                return False
+            if write_offset is None:
+                return True
+            addr = action.addr
+            if isinstance(addr, SimActionObject):
+                addr = addr.ast
+            if isinstance(addr, claripy.ast.Base):
+                if addr.symbolic:
+                    return False
+                addr = self.state.se.eval(addr)
+            if addr != write_offset:
+                return False
+            return True
+
+        return [x for x in reversed(self.actions) if
+                    (block_addr is None or x.bbl_addr == block_addr) and
+                    (block_stmt is None or x.stmt_idx == block_stmt) and
+                    (read_from is None or action_reads(x)) and
+                    (write_to is None or action_writes(x)) and
+                    (insn_addr is None or (x.sim_procedure is None and x.ins_addr == insn_addr))
+                    #(insn_addr is None or (x.sim_procedure is None and addr_of_stmt(x.bbl_addr, x.stmt_idx) == insn_addr))
+            ]
 
     #def _record_state(self, state, strong_reference=True):
     #   else:
@@ -227,7 +338,7 @@ class SimStateHistory(SimStatePlugin):
         return LambdaAttrIter(self, operator.attrgetter('jump_target'))
     @property
     def descriptions(self):
-        return LambdaAttrIter(self, operator.attrgetter('description'))
+        return LambdaAttrIter(self, operator.attrgetter('recent_description'))
     @property
     def bbl_addrs(self):
         return LambdaIterIter(self, operator.attrgetter('recent_bbl_addrs'))
@@ -240,7 +351,7 @@ class SimStateHistory(SimStatePlugin):
         return self.descriptions
     @property
     def addr_trace(self):
-        print ".addr trace is deprecated: please use .bbl_addrs"
+        print ".addr_trace is deprecated: please use .bbl_addrs"
         return self.bbl_addrs
     @property
     def stack_actions(self):
