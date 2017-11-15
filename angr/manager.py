@@ -941,6 +941,7 @@ class SimulationManager(ana.Storable):
         if len(self._hooks_complete) == 0 and n is None:
             l.warn("No completion state defined for SimulationManager; stepping until all states deadend")
             until_func = None
+            n = 100000 if n is None else n
 
         else:
             until_func = lambda pg: self.completion_mode(h(pg) for h in self._hooks_complete)
