@@ -600,7 +600,7 @@ class SimulationManager(ana.Storable):
         pg.stashes[stash] = new_active
 
         i = 0
-        while n is not None and i < n:
+        while (n is not None and i < n) or until is not None:
             i += 1
             l.debug("Round %d: stepping %s", i, pg)
 
@@ -940,8 +940,11 @@ class SimulationManager(ana.Storable):
         """
         if len(self._hooks_complete) == 0 and n is None:
             l.warn("No completion state defined for SimulationManager; stepping until all states deadend")
+            until_func = None
 
-        until_func = lambda pg: self.completion_mode(h(pg) for h in self._hooks_complete)
+        else:
+            until_func = lambda pg: self.completion_mode(h(pg) for h in self._hooks_complete)
+
         return self.step(n=n, step_func=step_func, until=until_func, stash=stash)
 
 
