@@ -5,7 +5,7 @@ from itertools import islice, izip
 from . import ExplorationTechnique
 
 
-l = logging.getLogger("angr.exploration_techniques.driller")
+l = logging.getLogger("angr.exploration_techniques.driller_core")
 
 
 class DrillerCore(ExplorationTechnique):
