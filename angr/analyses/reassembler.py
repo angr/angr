@@ -53,6 +53,11 @@ CAPSTONE_OP_TYPE_MAP = {
         capstone.x86.X86_OP_IMM: OP_TYPE_IMM,
         capstone.x86.X86_OP_MEM: OP_TYPE_MEM,
     },
+    'MIPS32': {
+        capstone.mips.MIPS_OP_REG: OP_TYPE_REG,
+        capstone.mips.MIPS_OP_IMM: OP_TYPE_IMM,
+        capstone.mips.MIPS_OP_MEM: OP_TYPE_MEM,
+    },
     'AMD64': {
         capstone.x86.X86_OP_REG: OP_TYPE_REG,
         capstone.x86.X86_OP_IMM: OP_TYPE_IMM,
@@ -75,19 +80,11 @@ CAPSTONE_OP_TYPE_MAP = {
     },
 }
 
-CAPSTONE_REG_MAP = {
-    # will be filled up by fill_reg_map()
-    'X86': {
-    },
-    'AMD64': {
-    },
-    'PPC32': {
-    },
-    'PPC64': {
-    },
-    'ARMEL': {
-    }
-}
+
+# will be filled up by fill_reg_map()
+CAPSTONE_REG_MAP = {}
+for arch_name in CAPSTONE_OP_TYPE_MAP.keys():
+    CAPSTONE_REG_MAP[arch_name] = {}
 
 # Utils
 
@@ -450,13 +447,16 @@ class Operand(object):
         self.type = None
 
         # Fixed size architectures in capstone don't have .size
-        print(self.binary.project.arch.name)
-        if self.binary.project.arch.name in ['PPC32', 'ARMEL']:
-            self.size = 32
-        elif self.binary.project.arch.name in ['PPC64']:
-            self.size = 64
-        else:
+        if hasattr(capstone_operand, 'size'):
             self.size = capstone_operand.size
+        else:
+            if self.binary.project.arch.name in ['PPC32', 'ARMEL', 'MIPS32']:
+                self.size = 32
+            elif self.binary.project.arch.name in ['PPC64']:
+                self.size = 64
+            else:
+                # If you're adding a new architecture, be sure to also add to CAPSTONE_OP_TYPE_MAP and CAPSTONE_REG_MAP
+                raise RuntimeError("Architecture '{}' has unknown size operands".format(self.binary.project.arch.name))
 
         # IMM
         self.is_coderef = None
