@@ -6,7 +6,7 @@ import angr
 import tracer
 
 
-l = logging.getLogger("angr.exploration_techniques.driller").setLevel('DEBUG')
+l = logging.getLogger("angr.exploration_techniques.driller_core").setLevel('DEBUG')
 
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries'))
