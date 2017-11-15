@@ -626,12 +626,19 @@ class Operand(object):
                 self.label = self.binary.symbol_manager.new_label(addr=baseaddr)
                 self.label_offset = imm - baseaddr
 
-                if self.mnemonic.startswith('j') or self.mnemonic.startswith('loop'):
-                    sort = 'jump'
-                elif self.mnemonic.startswith('call'):
-                    sort = 'call'
-                else:
-                    sort = 'absolute'
+                sort = 'absolute'
+                if self.binary.project.arch.name == "ARMEL":
+                    if self.mnemonic.startswith("b"):
+                        sort = 'jump'
+                elif self.binary.project.arch.name == "X86":
+                    if self.mnemonic.startswith("j") or self.mnemonic.startswith('loop'):
+                        sort = 'jump'
+                    elif self.mnemonic.startswith("call"):
+                        sort = 'call'
+                if sort == 'absolute':
+                    l.info("Assuming {} on arch {} is an absolute reference\tcoderef={}, dataref={}".format(self.mnemonic,
+                        self.binary.project.arch.name, self.is_coderef, self.is_dataref))
+
                 self.binary.register_instruction_reference(self.insn_addr, imm, sort, self.insn_size)
 
         elif self.type == OP_TYPE_MEM:
@@ -2032,10 +2039,31 @@ class Reassembler(Analysis):
                 # Doesnt' seem to matter for now, may need to implement later
                 #      bl funcname_10000750
                 #      48 00 04 49
+
+                # ARM32
+                #A0 2C 08 E3                 MOV             R2, #0x8CA0
+                #dst
+
+                # TODO, check architecture before doing insane ARM stuff
+                # Arm immediates are weird
+                # MOV R5, #0x1234
+                # 34 52 01 e3
+                # 34 _2 _1 __ is immediate
+                # __ 5_ __ __ is target register
+                # __ __ __ e3 is mov
+
+                if insn_size - i >= 4:
+                    buff, _ = self.project.loader.memory.read_bytes_c(addr)
+                    data = self._ffi.unpack(self._ffi.cast('char*', buff), 4)
+                    ptr = ((ord(data[2])&0x0f)<<12)+((ord(data[1])&0x0f)<<8)+ord(data[0])
+                    if (ptr) == ref_addr:
+                        addr += i
+                        break
             else:
+                #import pdb
+                #pdb.set_trace()
                 l.warning('Cannot find the absolute address inside instruction at %#x. Use the default address.',
-                          insn_addr
-                          )
+                          insn_addr)
 
         else:
             raise BinaryError('Unsupported sort "%s" in register_instruction_reference().' % sort)
