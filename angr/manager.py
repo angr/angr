@@ -600,7 +600,7 @@ class SimulationManager(ana.Storable):
         pg.stashes[stash] = new_active
 
         i = 0
-        while n is not None and i < n:
+        while n is None or i < n:
             i += 1
             l.debug("Round %d: stepping %s", i, pg)
 
