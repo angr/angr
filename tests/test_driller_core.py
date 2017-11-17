@@ -22,7 +22,8 @@ def test_drilling_cgc():
 
     # Initialize the tracer.
     r = tracer.qemu_runner.QEMURunner(binary, input_str)
-    p = angr.misc.tracer.make_tracer_project(binary)
+    p = angr.Project(binary)
+    p._simos.syscall_library.procedures.update(angr.TRACER_CGC_SYSCALLS)
     s = p.factory.tracer_state(input_content=input_str, magic_content=r.magic)
 
     simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
@@ -48,12 +49,13 @@ def test_simproc_drilling():
 
     binary = os.path.join(bin_location, "tests/i386/driller_simproc")
     memcmp = angr.SIM_PROCEDURES['libc']['memcmp']()
-    simprocs = {0x8048200: memcmp}
     input_str = 'A' * 0x80
 
     # Initialize the tracer.
     r = tracer.qemu_runner.QEMURunner(binary, input_str)
-    p = angr.misc.tracer.make_tracer_project(binary, hooks=simprocs)
+    p = angr.Project(binary)
+    p.hook(0x8048200, memcmp)
+    p._simos.syscall_library.procedures.update(angr.TRACER_CGC_SYSCALLS)
     s = p.factory.tracer_state(input_content=input_str, magic_content=r.magic)
 
     simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)

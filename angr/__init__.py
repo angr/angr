@@ -11,6 +11,7 @@ del logging
 # this must happen first, prior to initializing analyses
 from .sim_procedure import SimProcedure
 from .procedures import SIM_PROCEDURES, SimProcedures, SIM_LIBRARIES
+from .procedures.tracer import TRACER_CGC_SYSCALLS
 
 from . import sim_options
 options = sim_options  # alias
