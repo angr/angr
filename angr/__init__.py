@@ -26,7 +26,6 @@ from .state_plugins import SimStatePlugin
 
 from .project import *
 from .errors import *
-from .misc.tracer import make_tracer_project
 #from . import surveyors
 #from .surveyor import *
 #from .service import *
