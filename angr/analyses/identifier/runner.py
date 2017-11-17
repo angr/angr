@@ -31,7 +31,7 @@ class Runner(object):
 
         # Lazy import
         try:
-            from angr.misc.tracer.simprocedures import FixedOutTransmit, FixedInReceive
+            from angr.procedures.tracer import FixedOutTransmit, FixedInReceive
             self.FixedOutTransmit = FixedOutTransmit
             self.FixedInReceive = FixedInReceive
         except ImportError:
