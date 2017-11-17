@@ -1,5 +1,4 @@
 import os
-import gc
 import sys
 import logging
 
@@ -279,7 +278,7 @@ def run_all():
         print '#' * (len(name) + 8)
         print '###', name, '###'
         print '#' * (len(name) + 8)
-    
+
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
     for f in sorted(all_functions.keys()):
