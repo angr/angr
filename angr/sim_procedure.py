@@ -163,7 +163,7 @@ class SimProcedure(object):
                     inst.kwargs)
             r = getattr(inst, inst.run_func)(*sim_args, **inst.kwargs)
 
-        if inst.returns and (not inst.successors or len(inst.successors.successors) == 0):
+        if inst.returns and inst.is_function:
             inst.ret(r)
 
         return inst
@@ -186,7 +186,7 @@ class SimProcedure(object):
     NO_RET = False          # set this to true if control flow will never return from this function
     ADDS_EXITS = False      # set this to true if you do any control flow other than returning
     IS_SYSCALL = False      # self-explanatory.
-    IS_FUNCTION = False     # set this to true if you use the self.call() control flow
+    IS_FUNCTION = True      # does this procedure simulate a function?
 
     local_vars = ()         # if you use self.call(), set this to a list of all the local variable
                             # names in your class. They will be restored on return.
@@ -322,8 +322,6 @@ class SimProcedure(object):
         :param cc:          Optional: use this calling convention for calling the new function.
                             Default is to use the current convention.
         """
-        if not self.is_function:
-            raise ValueError("%s called self.call() without IS_FUNCTION = True" % self)
         if cc is None:
             cc = self.cc
 

@@ -6,7 +6,6 @@ l = logging.getLogger('angr.procedures.linux_loader.sim_loader')
 
 class LinuxLoader(angr.SimProcedure):
     NO_RET = True
-    IS_FUNCTION = True
 
     # pylint: disable=unused-argument,arguments-differ,attribute-defined-outside-init
     local_vars = ('initializers',)
