@@ -1,5 +1,12 @@
 
+import logging
+
+from .. import SYSCALL_CC
+from ..errors import AngrUnsupportedSyscallError
+from ..procedures import SIM_PROCEDURES as P
 from .simos import SimOS
+
+_l = logging.getLogger('angr.oss.userland')
 
 
 class SimUserland(SimOS):
@@ -30,7 +37,7 @@ class SimUserland(SimOS):
             cc = SYSCALL_CC[state.arch.name][state.os_name](state.arch)
         else:
             # Use the default syscall calling convention - it may bring problems
-            l.warning("No syscall calling convention available for %s/%s", state.arch.name, state.os_name)
+            _l.warning("No syscall calling convention available for %s/%s", state.arch.name, state.os_name)
             cc = SYSCALL_CC[state.arch.name]['default'](state.arch)
 
         sym_num = cc.syscall_num(state)
@@ -56,7 +63,7 @@ class SimUserland(SimOS):
         if self.kernel_base is None:
             return False
         addr -= self.kernel_base
-        return 0 <= addr < 0x4000 # TODO: make this number come from somewhere
+        return 0 <= addr < 0x4000  # TODO: make this number come from somewhere
 
     def syscall_from_addr(self, addr, allow_unsupported=True):
         """

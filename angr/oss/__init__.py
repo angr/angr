@@ -7,6 +7,7 @@ from collections import defaultdict
 from elftools.elf.descriptions import _DESCR_EI_OSABI
 
 from .simos import SimOS
+from .userland import SimUserland
 from .linux import SimLinux
 from .cgc import SimCGC
 from .windows import SimWindows

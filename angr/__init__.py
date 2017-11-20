@@ -29,7 +29,6 @@ from .errors import *
 #from .surveyor import *
 #from .service import *
 from .blade import Blade
-from . import oss as simos  # compatibility
 from .oss.simos import SimOS
 from .manager import SimulationManager
 from .analyses import Analysis, register_analysis
