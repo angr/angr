@@ -1,7 +1,7 @@
 
 import logging
 
-from .. import SYSCALL_CC
+from ..calling_conventions import SYSCALL_CC
 from ..errors import AngrUnsupportedSyscallError
 from ..procedures import SIM_PROCEDURES as P
 from .simos import SimOS
