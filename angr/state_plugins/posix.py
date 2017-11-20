@@ -273,10 +273,10 @@ class SimStateSystem(SimStatePlugin):
         # sizes are AMD64-specific for now
         # TODO: import results from concrete FS, if using concrete FS
         if self.state.solver.symbolic(fd):
-            mode = self.state.se.BVS('st_mode', 32)
+            mode = self.state.se.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode'))
         else:
             fd = self.state.se.eval(fd)
-            mode = self.state.se.BVS('st_mode', 32) if not self.files[fd].name.startswith('/dev/') else self.state.se.BVV(0, 32)
+            mode = self.state.se.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode')) if not self.files[fd].name.startswith('/dev/') else self.state.se.BVV(0, 32)
             # return this weird bogus zero value to keep code paths in libc simple :\
 
         return Stat(self.state.se.BVV(0, 64), # st_dev
@@ -286,7 +286,7 @@ class SimStateSystem(SimStatePlugin):
                     self.state.se.BVV(0, 32), # st_uid (lol root)
                     self.state.se.BVV(0, 32), # st_gid
                     self.state.se.BVV(0, 64), # st_rdev
-                    self.state.se.BVS('st_size', 64), # st_size
+                    self.state.se.BVS('st_size', 64, key=('api', 'fstat', 'st_size')), # st_size
                     self.state.se.BVV(0, 64), # st_blksize
                     self.state.se.BVV(0, 64), # st_blocks
                     self.state.se.BVV(0, 64), # st_atime
@@ -371,9 +371,9 @@ class SimStateSystem(SimStatePlugin):
             if sigsetsize is not None:
                 sc = self.state.se.eval(sigsetsize)
                 self.state.add_constraints(sc == sigsetsize)
-                self._sigmask = self.state.se.BVS('initial_sigmask', sc*self.state.arch.byte_width)
+                self._sigmask = self.state.se.BVS('initial_sigmask', sc*self.state.arch.byte_width, key=('initial_sigmask',), eternal=True)
             else:
-                self._sigmask = self.state.se.BVS('initial_sigmask', self.sigmask_bits)
+                self._sigmask = self.state.se.BVS('initial_sigmask', self.sigmask_bits, key=('initial_sigmask',), eternal=True)
         return self._sigmask
 
     def sigprocmask(self, how, new_mask, sigsetsize, valid_ptr=True):

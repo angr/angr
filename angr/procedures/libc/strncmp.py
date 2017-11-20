@@ -24,7 +24,7 @@ class strncmp(angr.SimProcedure):
 
         match_constraints = [ ]
         variables = a_len.variables | b_len.variables | limit.variables
-        ret_expr = self.state.se.Unconstrained("strncmp_ret", self.state.arch.bits)
+        ret_expr = self.state.se.Unconstrained("strncmp_ret", self.state.arch.bits, key=('api', 'strncmp'))
 
         # determine the maximum number of bytes to compare
         concrete_run = False

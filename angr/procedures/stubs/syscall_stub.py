@@ -15,7 +15,7 @@ class syscall(angr.SimProcedure):
 
         self.successors.artifacts['resolves'] = resolves
 
-        return self.state.se.Unconstrained("syscall_stub", self.state.arch.bits)
+        return self.state.se.Unconstrained("syscall_stub", self.state.arch.bits, key=('syscall', '?', self.display_name))
 
     def __repr__(self):
         if 'resolves' in self.kwargs:
