@@ -331,6 +331,13 @@ class SimMemory(SimStatePlugin):
         else:
             raise SimMemoryError('Unknown SimMemory category for memory_id "%s"' % self.id)
 
+    @property
+    def variable_key_prefix(self):
+        s = self.category
+        if s == 'file':
+            return (s, self.id)
+        return (s,)
+
     def set_state(self, state):
         """
         Call the set_state method in SimStatePlugin class, and then perform the delayed initialization.
