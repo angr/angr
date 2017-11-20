@@ -1,9 +1,9 @@
+import StringIO
 import logging
 import os
 import types
 import weakref
 from collections import defaultdict
-import StringIO
 
 import archinfo
 import cle
@@ -588,7 +588,7 @@ class Project(object):
 
 from .errors import AngrError
 from .factory import AngrObjectFactory
-from .simos import SimOS, os_mapping
+from angr.oss import SimOS, os_mapping
 from .analyses.analysis import Analyses
 from .surveyors import Surveyors
 from .knowledge_base import KnowledgeBase
