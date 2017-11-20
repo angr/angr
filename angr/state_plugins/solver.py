@@ -178,11 +178,12 @@ class SimSolver(SimStatePlugin):
     """
     Symbolic solver.
     """
-    def __init__(self, solver=None, all_variables=None): #pylint:disable=redefined-outer-name
+    def __init__(self, solver=None, all_variables=None, tracked_variables=None): #pylint:disable=redefined-outer-name
         l.debug("Creating SimSolverClaripy.")
         SimStatePlugin.__init__(self)
         self._stored_solver = solver
-        self.all_variables = [ ] if all_variables is None else all_variables
+        self.all_variables = [] if all_variables is None else all_variables
+        self.tracked_variables = {} if tracked_variables is None else tracked_variables
 
     def reload_solver(self):
         """
@@ -238,7 +239,12 @@ class SimSolver(SimStatePlugin):
             # Return a default value, aka. 0
             return claripy.BVV(0, bits)
 
-    def BVS(self, name, size, min=None, max=None, stride=None, uninitialized=False, explicit_name=None, inspect=True, events=True, **kwargs): #pylint:disable=redefined-builtin
+    def BVS(self, name, size,
+            min=None, max=None, stride=None,
+            uninitialized=False,
+            explicit_name=None, key=None,
+            inspect=True, events=True,
+            **kwargs): #pylint:disable=redefined-builtin
         """
         Creates a bit-vector symbol (i.e., a variable). Other keyword parameters are passed directly on to the
         constructor of claripy.ast.BV.
@@ -250,14 +256,29 @@ class SimSolver(SimStatePlugin):
         :param stride:          The stride of the symbol.
         :param uninitialized:   Whether this value should be counted as an "uninitialized" value in the course of an
                                 analysis.
-        :param explicit_name:   If False, an identifier is appended to the name to ensure uniqueness.
+        :param explicit_name:   Set to True to prevent an identifier from appended to the name to ensure uniqueness.
+        :param key:             Set this to a tuple of increasingly specific identifiers (for example,
+                                ``('mem', 0xffbeff00)`` or ``('file', 4, 0x20)`` to cause it to be tracked, i.e.
+                                accessable through ``solver.tracked_variables`` and to retrieve the same symbol when
+                                multiple states with the same ancestry try to create the value.
+        :param inspect:         Set to False to avoid firing SimInspect breakpoints
+        :param events:          Set to False to avoid generating a SimEvent for the occasion
 
         :return:                A BV object representing this symbol.
         """
 
 
 
-        r = claripy.BVS(name, size, min=min, max=max, stride=stride, uninitialized=uninitialized, explicit_name=explicit_name, **kwargs)
+        # should this be locked for multithreading?
+        if key is not None and key in self.tracked_variables:
+            r = self.tracked_variables[key]
+            if min != r.args[1] or max != r.args[2] or stride != r.args[3] or uninitialized != r.args[4] or bool(explicit_name) ^ (r.args[0] == name):
+                l.warning("Variable %s being retrieved with differnt settings than it was tracked with", name)
+        else:
+            r = claripy.BVS(name, size, min=min, max=max, stride=stride, uninitialized=uninitialized, explicit_name=explicit_name, **kwargs)
+            if key is not None:
+                self.tracked_variables[key] = r
+
         if inspect:
             self.state._inspect('symbolic_variable', BP_AFTER, symbolic_name=next(iter(r.variables)), symbolic_size=size, symbolic_expr=r)
         if events:
@@ -290,7 +311,7 @@ class SimSolver(SimStatePlugin):
     #
 
     def copy(self):
-        return SimSolver(solver=self._solver.branch(), all_variables=self.all_variables)
+        return SimSolver(solver=self._solver.branch(), all_variables=self.all_variables, tracked_variables=self.tracked_variables)
 
     @error_converter
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=W0613
