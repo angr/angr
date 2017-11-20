@@ -588,7 +588,7 @@ class Project(object):
 
 from .errors import AngrError
 from .factory import AngrObjectFactory
-from angr.oss import SimOS, os_mapping
+from angr.simos import SimOS, os_mapping
 from .analyses.analysis import Analyses
 from .surveyors import Surveyors
 from .knowledge_base import KnowledgeBase

@@ -12,7 +12,7 @@ from ..procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
 from ..state_plugins import SimStateSystem
 from .userland import SimUserland
 
-_l = logging.getLogger('angr.oss.linux')
+_l = logging.getLogger('angr.simos.linux')
 
 
 class SimLinux(SimUserland):

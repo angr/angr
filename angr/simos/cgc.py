@@ -10,7 +10,7 @@ from ..state_plugins import SimStateSystem, SimActionData
 from .. import sim_options as o
 from .userland import SimUserland
 
-_l = logging.getLogger('angr.oss.cgc')
+_l = logging.getLogger('angr.simos.cgc')
 
 
 class SimCGC(SimUserland):

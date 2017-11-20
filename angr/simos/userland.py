@@ -6,7 +6,7 @@ from ..errors import AngrUnsupportedSyscallError
 from ..procedures import SIM_PROCEDURES as P
 from .simos import SimOS
 
-_l = logging.getLogger('angr.oss.userland')
+_l = logging.getLogger('angr.simos.userland')
 
 
 class SimUserland(SimOS):

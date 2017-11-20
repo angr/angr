@@ -19,7 +19,7 @@ from .. import sim_options as o
 from ..storage.file import SimFile, SimDialogue
 from ..misc import IRange
 
-_l = logging.getLogger("angr.oss.simos")
+_l = logging.getLogger("angr.simos.simos")
 
 
 class SimOS(object):
