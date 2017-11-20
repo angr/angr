@@ -1,12 +1,12 @@
 import logging
 
-from ..cgc.transmit import transmit
+from ..cgc.transmit import transmit as orig_transmit
 
 
-l = logging.getLogger("angr.procedures.tracer.fixed_out_transmit")
+l = logging.getLogger("angr.procedures.tracer.transmit")
 
 
-class FixedOutTransmit(transmit):
+class transmit(orig_transmit):
     # pylint:disable=arguments-differ
     """
     Transmit which fixes the output file descriptor to 1.
@@ -21,4 +21,4 @@ class FixedOutTransmit(transmit):
         if self.state.has_plugin("zen_plugin"):
             self.state.get_plugin("zen_plugin").analyze_transmit(self.state, buf)
 
-        return super(FixedOutTransmit, self).run(fd, buf, count, tx_bytes)
+        return super(transmit, self).run(fd, buf, count, tx_bytes)

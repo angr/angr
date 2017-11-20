@@ -1,9 +1,9 @@
 import logging
 
-from ..cgc.receive import receive
+from ..cgc.receive import receive as orig_receive
 
 
-l = logging.getLogger("angr.procedures.tracer.fixed_in_receive")
+l = logging.getLogger("angr.procedures.tracer.receive")
 
 
 def cache_pass(_):
@@ -14,7 +14,7 @@ def cache_pass(_):
 cache_hook = cache_pass
 
 
-class FixedInReceive(receive):
+class receive(orig_receive):
     # pylint:disable=arguments-differ
     """
     Receive which fixes the input to file descriptor to 0.
@@ -30,4 +30,4 @@ class FixedInReceive(receive):
                 l.debug("Fixed receive call's fd.")
                 fd = self.state.se.BVV(0, self.state.arch.bits)
 
-        return super(FixedInReceive, self).run(fd, buf, count, rx_bytes)
+        return super(receive, self).run(fd, buf, count, rx_bytes)

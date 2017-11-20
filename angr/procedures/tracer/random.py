@@ -2,7 +2,7 @@ import angr
 import claripy
 
 
-class FixedRandom(angr.SimProcedure):
+class random(angr.SimProcedure):
     #pylint:disable=arguments-differ
     IS_SYSCALL = True
 

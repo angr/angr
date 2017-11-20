@@ -337,7 +337,7 @@ class SimUserland(SimOS):
     """
     def __init__(self, project, syscall_library=None, **kwargs):
         super(SimUserland, self).__init__(project, **kwargs)
-        self.syscall_library = syscall_library
+        self.syscall_library = syscall_library.copy()
         self.kernel_base = None
 
     def configure_project(self):

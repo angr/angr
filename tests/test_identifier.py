@@ -8,11 +8,6 @@ import logging
 logging.getLogger("identifier").setLevel("DEBUG")
 
 def test_comparison_identification():
-    try:
-        import tracer
-    except ImportError:
-        raise nose.SkipTest()
-
     true_symbols = {0x804a3d0: 'strncmp', 0x804a0f0: 'strcmp', 0x8048e60: 'memcmp', 0x8049f40: 'strcasecmp'}
 
     p = angr.Project(os.path.join(bin_location, "tests", "i386", "identifiable"))
