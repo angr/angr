@@ -12,6 +12,7 @@ from ... import BP_BEFORE, BP_AFTER
 from ...storage.file import SimFile
 from ...errors import AngrCallableMultistateError, AngrCallableError, AngrError, SimError
 from .custom_callable import IdentifierCallable
+from ...procedures import SIM_LIBRARIES
 
 
 l = logging.getLogger("identifier.runner")
@@ -28,16 +29,8 @@ assert len(FLAG_DATA) == 0x1000
 
 class Runner(object):
     def __init__(self, project, cfg):
-
-        # Lazy import
-        try:
-            from angr.procedures.tracer import FixedOutTransmit, FixedInReceive
-            self.FixedOutTransmit = FixedOutTransmit
-            self.FixedInReceive = FixedInReceive
-        except ImportError:
-            l.critical('Cannot import CGC-specific SimProcedures from tracer. If you want to use identifier on CGC '
-                       'binaries, please make sure tracer is installed.')
-            raise
+        # this is kind of fucked up
+        project._simos.syscall_library.update(SIM_LIBRARIES['cgcabi_tracer'])
 
         self.project = project
         self.cfg = cfg
@@ -111,9 +104,6 @@ class Runner(object):
 
     def setup_state(self, function, test_data, initial_state=None, concrete_rand=False):
         # FIXME fdwait should do something concrete...
-        # FixedInReceive and FixedOutReceive always are applied
-        SIM_LIBRARIES['cgcabi'].add('transmit', self.FixedOutTransmit)
-        SIM_LIBRARIES['cgcabi'].add('receive', self.FixedInReceive)
 
         fs = {'/dev/stdin': SimFile(
             "/dev/stdin", "r",
