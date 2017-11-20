@@ -178,12 +178,13 @@ class SimSolver(SimStatePlugin):
     """
     Symbolic solver.
     """
-    def __init__(self, solver=None, all_variables=None, tracked_variables=None): #pylint:disable=redefined-outer-name
+    def __init__(self, solver=None, all_variables=None, temporal_tracked_variables=None, eternal_tracked_variables=None): #pylint:disable=redefined-outer-name
         l.debug("Creating SimSolverClaripy.")
         SimStatePlugin.__init__(self)
         self._stored_solver = solver
         self.all_variables = [] if all_variables is None else all_variables
-        self.tracked_variables = {} if tracked_variables is None else tracked_variables
+        self.temporal_tracked_variables = {} if temporal_tracked_variables is None else temporal_tracked_variables
+        self.eternal_tracked_variables = {} if eternal_tracked_variables is None else eternal_tracked_variables
 
     def reload_solver(self):
         """
@@ -212,7 +213,12 @@ class SimSolver(SimStatePlugin):
         >>> list(s.solver.get_variables())
         [(('mem', 0x1000), <BV64 mem_1000_4_64>), (('mem', 0x1008), <BV64 mem_1008_5_64>), (('file', 1, 0), <BV8 file_1_0_6_8>), (('file', 1, 1), <BV8 file_1_1_7_8>), (('file', 2, 0), <BV8 file_2_0_8_8>)]
         """
-        for k, v in self.tracked_variables.iteritems():
+        for k, v in self.eternal_tracked_variables.iteritems():
+            if len(k) >= len(keys) and all(x == y for x, y in zip(keys, k)):
+                yield k, v
+        for k, v in self.temporal_tracked_variables.iteritems():
+            if k[-1] is None:
+                continue
             if len(k) >= len(keys) and all(x == y for x, y in zip(keys, k)):
                 yield k, v
 
@@ -264,7 +270,7 @@ class SimSolver(SimStatePlugin):
     def BVS(self, name, size,
             min=None, max=None, stride=None,
             uninitialized=False,
-            explicit_name=None, key=None,
+            explicit_name=None, key=None, eternal=False,
             inspect=True, events=True,
             **kwargs): #pylint:disable=redefined-builtin
         """
@@ -281,8 +287,10 @@ class SimSolver(SimStatePlugin):
         :param explicit_name:   Set to True to prevent an identifier from appended to the name to ensure uniqueness.
         :param key:             Set this to a tuple of increasingly specific identifiers (for example,
                                 ``('mem', 0xffbeff00)`` or ``('file', 4, 0x20)`` to cause it to be tracked, i.e.
-                                accessable through ``solver.tracked_variables`` and to retrieve the same symbol when
-                                multiple states with the same ancestry try to create the value.
+                                accessable through ``solver.get_variables``.
+        :param eternal:         Set to True in conjunction with setting a key to cause all states with the same
+                                ancestry to retrieve the same symbol when trying to create the value. If False, a
+                                counter will be appended to the key.
         :param inspect:         Set to False to avoid firing SimInspect breakpoints
         :param events:          Set to False to avoid generating a SimEvent for the occasion
 
@@ -290,8 +298,8 @@ class SimSolver(SimStatePlugin):
         """
 
         # should this be locked for multithreading?
-        if key is not None and key in self.tracked_variables:
-            r = self.tracked_variables[key]
+        if key is not None and eternal and key in self.eternal_tracked_variables:
+            r = self.eternal_tracked_variables[key]
             if min != r.args[1] or max != r.args[2] or stride != r.args[3] or uninitialized != r.args[4] or bool(explicit_name) ^ (r.args[0] == name):
                 l.warning("Variable %s being retrieved with differnt settings than it was tracked with", name)
         else:
@@ -299,7 +307,15 @@ class SimSolver(SimStatePlugin):
             if key is not None:
                 if type(key) is not tuple:
                     raise TypeError("Variable tracking key must be a tuple")
-                self.tracked_variables[key] = r
+                if eternal:
+                    self.eternal_tracked_variables[key] = r
+                else:
+                    self.temporal_tracked_variables = dict(self.temporal_tracked_variables)
+                    ctrkey = key + (None,)
+                    ctrval = self.temporal_tracked_variables.get(ctrkey, 0) + 1
+                    self.temporal_tracked_variables[ctrkey] = ctrval
+                    tempkey = key + (ctrval,)
+                    self.temporal_tracked_variables[tempkey] = r
 
         if inspect:
             self.state._inspect('symbolic_variable', BP_AFTER, symbolic_name=next(iter(r.variables)), symbolic_size=size, symbolic_expr=r)
@@ -333,7 +349,7 @@ class SimSolver(SimStatePlugin):
     #
 
     def copy(self):
-        return SimSolver(solver=self._solver.branch(), all_variables=self.all_variables, tracked_variables=self.tracked_variables)
+        return SimSolver(solver=self._solver.branch(), all_variables=self.all_variables, temporal_tracked_variables=self.temporal_tracked_variables, eternal_tracked_variables=self.eternal_tracked_variables)
 
     @error_converter
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=W0613
