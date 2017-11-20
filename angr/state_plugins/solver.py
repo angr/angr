@@ -194,6 +194,28 @@ class SimSolver(SimStatePlugin):
         self._stored_solver = None
         self._solver.add(constraints)
 
+    def get_variables(self, *keys):
+        """
+        Iterate over all variables for which their tracking key is a prefix of the values provided.
+
+        Elements are a tuple, the first element is the full tracking key, the second is the symbol.
+
+        >>> list(s.solver.get_variables('mem'))
+        [(('mem', 0x1000), <BV64 mem_1000_4_64>), (('mem', 0x1008), <BV64 mem_1008_5_64>)]
+
+        >>> list(s.solver.get_variables('file'))
+        [(('file', 1, 0), <BV8 file_1_0_6_8>), (('file', 1, 1), <BV8 file_1_1_7_8>), (('file', 2, 0), <BV8 file_2_0_8_8>)]
+
+        >>> list(s.solver.get_variables('file', 2))
+        [(('file', 2, 0), <BV8 file_2_0_8_8>)]
+
+        >>> list(s.solver.get_variables())
+        [(('mem', 0x1000), <BV64 mem_1000_4_64>), (('mem', 0x1008), <BV64 mem_1008_5_64>), (('file', 1, 0), <BV8 file_1_0_6_8>), (('file', 1, 1), <BV8 file_1_1_7_8>), (('file', 2, 0), <BV8 file_2_0_8_8>)]
+        """
+        for k, v in self.tracked_variables.iteritems():
+            if len(k) >= len(keys) and all(x == y for x, y in zip(keys, k)):
+                yield k, v
+
     @property
     def _solver(self):
         if self._stored_solver is not None:
@@ -267,8 +289,6 @@ class SimSolver(SimStatePlugin):
         :return:                A BV object representing this symbol.
         """
 
-
-
         # should this be locked for multithreading?
         if key is not None and key in self.tracked_variables:
             r = self.tracked_variables[key]
@@ -277,6 +297,8 @@ class SimSolver(SimStatePlugin):
         else:
             r = claripy.BVS(name, size, min=min, max=max, stride=stride, uninitialized=uninitialized, explicit_name=explicit_name, **kwargs)
             if key is not None:
+                if type(key) is not tuple:
+                    raise TypeError("Variable tracking key must be a tuple")
                 self.tracked_variables[key] = r
 
         if inspect:
