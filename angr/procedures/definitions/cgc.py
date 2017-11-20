@@ -15,5 +15,5 @@ lib.add_number_mapping_from_dict('X86', {
 })
 
 lib_tracer = SimSyscallLibrary()
-lib.set_library_names('cgcabi_tracer')
-lib.add_all_from_dict(P['tracer'])
+lib_tracer.set_library_names('cgcabi_tracer')
+lib_tracer.add_all_from_dict(P['tracer'])
