@@ -23,6 +23,21 @@ class SimLibrary(object):
     fallback_cc = DEFAULT_CC
     fallback_proc = ReturnUnconstrained
 
+    def copy(self):
+        o = SimLibrary()
+        o.procedures = dict(self.procedures)
+        o.non_returning = set(self.non_returning)
+        o.prototypes = dict(self.prototypes)
+        o.default_ccs = dict(self.default_ccs)
+        o.names = list(self.names)
+        return o
+
+    def update(self, other):
+        self.procedures.update(other.procedures)
+        self.non_returning.update(other.non_returning)
+        self.prototypes.update(other.prototypes)
+        self.default_ccs.update(other.default_ccs)
+
     @property
     def name(self):
         return self.names[0] if self.names else '??????'
@@ -98,6 +113,22 @@ class SimSyscallLibrary(SimLibrary):
         self.ranged_default_ccs = defaultdict(list)
 
     fallback_proc = stub_syscall
+
+    def copy(self):
+        o = SimSyscallLibrary()
+        o.procedures = dict(self.procedures)
+        o.non_returning = set(self.non_returning)
+        o.prototypes = dict(self.prototypes)
+        o.default_ccs = dict(self.default_ccs)
+        o.names = list(self.names)
+        o.syscall_number_mapping = defaultdict(dict, self.syscall_number_mapping)
+        o.ranged_default_ccs = defaultdict(list, self.ranged_default_ccs)
+        return o
+
+    def update(self, other):
+        super(SimSyscallLibrary, self).update(other)
+        self.syscall_number_mapping.update(other.syscall_number_mapping)
+        self.ranged_default_ccs.update(other.ranged_default_ccs)
 
     def maximum_syscall_number(self, arch_name):
         if arch_name not in self.syscall_number_mapping or \
