@@ -103,7 +103,7 @@ class Tracer(ExplorationTechnique):
 
                 # handle library calls and simprocedures
                 elif self.project.is_hooked(current.addr)              \
-                  or self.project._simos.is_syscall_addr(current.addr) \
+                  or self.project.simos.is_syscall_addr(current.addr) \
                   or not self._address_in_binary(current.addr):
                     # If dynamic trace is in the PLT stub, update bb_cnt until it's out
                     while self._addr_in_plt(self._trace[current.globals['bb_cnt']]):

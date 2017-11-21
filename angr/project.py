@@ -9,6 +9,8 @@ import archinfo
 import cle
 from cle.address_translator import AT
 
+from .misc.ux import once, deprecated
+
 l = logging.getLogger("angr.project")
 
 # This holds the default execution engine for a given CLE loader backend.
@@ -215,9 +217,9 @@ class Project(object):
 
         # Step 4: determine the guest OS
         if isinstance(simos, type) and issubclass(simos, SimOS):
-            self._simos = simos(self) #pylint:disable=invalid-name
+            self.simos = simos(self) #pylint:disable=invalid-name
         elif simos is None:
-            self._simos = os_mapping[self.loader.main_object.os](self)
+            self.simos = os_mapping[self.loader.main_object.os](self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
 
@@ -226,7 +228,7 @@ class Project(object):
             self._register_object(obj)
 
         # Step 6: Run OS-specific configuration
-        self._simos.configure_project()
+        self.simos.configure_project()
 
     def _register_object(self, obj):
         """
@@ -466,7 +468,7 @@ class Project(object):
             basic_addr = symbol_name
             symbol_name = None
 
-        hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=basic_addr)
+        hook_addr, _ = self.simos.prepare_function_symbol(symbol_name, basic_addr=basic_addr)
 
         self.hook(hook_addr, obj, kwargs=kwargs, replace=replace)
         return hook_addr
@@ -490,7 +492,7 @@ class Project(object):
         if sym is None:
             l.warning("Could not find symbol %s", symbol_name)
             return False
-        hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
+        hook_addr, _ = self.simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
         return self.is_hooked(hook_addr)
 
     def unhook_symbol(self, symbol_name):
@@ -507,7 +509,7 @@ class Project(object):
             l.warning("Not unhooking extern symbol %s", symbol_name)
             return False
 
-        hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
+        hook_addr, _ = self.simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
         self.unhook(hook_addr)
 
     #
@@ -585,6 +587,15 @@ class Project(object):
     def __repr__(self):
         return '<Project %s>' % (self.filename if self.filename is not None else 'loaded from stream')
 
+    #
+    # Compatibility
+    #
+
+    @property
+    @deprecated(replacement='simos')
+    def _simos(self):
+        return self.simos
+
 
 from .errors import AngrError
 from .factory import AngrObjectFactory
@@ -593,5 +604,4 @@ from .analyses.analysis import Analyses
 from .surveyors import Surveyors
 from .knowledge_base import KnowledgeBase
 from .engines import SimEngineFailure, SimEngineSyscall, SimEngineProcedure, SimEngineVEX, SimEngineUnicorn, SimEngineHook
-from .misc.ux import once
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES

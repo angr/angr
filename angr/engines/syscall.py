@@ -14,7 +14,7 @@ class SimEngineSyscall(SimEngine): #pylint:disable=abstract-method,arguments-dif
 
     def process(self, state, **kwargs):
         l.debug("Invoking system call handler")
-        sys_procedure = self.project._simos.syscall(state)
+        sys_procedure = self.project.simos.syscall(state)
 
         if sys_procedure is None:
             if angr.sim_options.BYPASS_UNSUPPORTED_SYSCALL not in state.options:
