@@ -300,7 +300,7 @@ class SimSolver(SimStatePlugin):
         # should this be locked for multithreading?
         if key is not None and eternal and key in self.eternal_tracked_variables:
             r = self.eternal_tracked_variables[key]
-            if min != r.args[1] or max != r.args[2] or stride != r.args[3] or uninitialized != r.args[4] or bool(explicit_name) ^ (r.args[0] == name):
+            if size != r.length or min != r.args[1] or max != r.args[2] or stride != r.args[3] or uninitialized != r.args[4] or bool(explicit_name) ^ (r.args[0] == name):
                 l.warning("Variable %s being retrieved with differnt settings than it was tracked with", name)
         else:
             r = claripy.BVS(name, size, min=min, max=max, stride=stride, uninitialized=uninitialized, explicit_name=explicit_name, **kwargs)

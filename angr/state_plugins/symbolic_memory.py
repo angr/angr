@@ -433,8 +433,14 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def _fill_missing(self, addr, num_bytes, inspect=True, events=True):
         name = "%s_%x" % (self.id, addr)
         all_missing = [
-            self.get_unconstrained_bytes(name, min(self.mem._page_size, num_bytes)*self.state.arch.byte_width, source=i, inspect=inspect,
-                                         events=events, key=self.variable_key_prefix + (addr,), eternal=True)
+            self.get_unconstrained_bytes(
+                name,
+                min(self.mem._page_size, num_bytes)*self.state.arch.byte_width,
+                source=i,
+                inspect=inspect,
+                events=events,
+                key=self.variable_key_prefix + (addr,),
+                eternal=False) # :(
             for i in range(addr, addr+num_bytes, self.mem._page_size)
         ]
         if self.category == 'reg' and self.state.arch.register_endness == 'Iend_LE':
@@ -464,9 +470,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             if not mo.includes(last_missing):
                 # add missing bytes
                 start_addr = mo.last_addr + 1
-                end_addr = last_missing - mo.last_addr
-                fill_mo = self._fill_missing(start_addr, end_addr, inspect=inspect, events=events)
-                segments.append(fill_mo.bytes_at(start_addr, end_addr).reversed)
+                length = last_missing - mo.last_addr
+                fill_mo = self._fill_missing(start_addr, length, inspect=inspect, events=events)
+                segments.append(fill_mo.bytes_at(start_addr, length).reversed)
                 last_missing = mo.last_addr
 
             # add the normal segment
@@ -993,7 +999,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
     # Unconstrain a byte
     def unconstrain_byte(self, addr, inspect=True, events=True):
-        unconstrained_byte = self.get_unconstrained_bytes("%s_unconstrain_0x%x" % (self.id, addr), self.state.arch.byte_width, inspect=inspect,
+        unconstrained_byte = self.get_unconstrained_bytes("%s_unconstrain_%#x" % (self.id, addr), self.state.arch.byte_width, inspect=inspect,
                                                           events=events, key=('manual_unconstrain', addr))
         self.store(addr, unconstrained_byte)
 
