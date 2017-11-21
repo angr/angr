@@ -14,7 +14,7 @@ def test_recursion():
 
     p = angr.Project(fname)
     trace, magic, crash_mode, crash_addr = do_trace(p, 'tracer_recursion', blob)
-    p._simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
+    p.simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
     s = p.factory.tracer_state(input_content=blob, magic_content=magic)
     simgr = p.factory.simulation_manager(s, save_unsat=True, hierarchy=False, save_unconstrained=crash_mode)
     t = angr.exploration_techniques.Tracer(trace=trace)
@@ -42,7 +42,7 @@ def test_cache_stall():
 
     p = angr.Project(b)
     trace, magic, crash_mode, crash_addr = do_trace(p, 'tracer_cache_stall', blob)
-    p._simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
+    p.simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
     s = p.factory.tracer_state(input_content=blob, magic_content=magic)
     simgr = p.factory.simulation_manager(s, save_unsat=True, hierarchy=False, save_unconstrained=crash_mode)
 
@@ -90,7 +90,7 @@ def test_manual_recursion():
 
     p = angr.Project(b)
     trace, magic, crash_mode, crash_addr = do_trace(p, 'tracer_manual_recursion', blob)
-    p._simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
+    p.simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
     s = p.factory.tracer_state(input_content=blob, magic_content=magic)
     simgr = p.factory.simulation_manager(s, save_unsat=True, hierarchy=False, save_unconstrained=crash_mode)
 
@@ -115,7 +115,7 @@ def test_cgc_se1_palindrome_raw():
     # test a valid palindrome
 
     p = angr.Project(b)
-    p._simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
+    p.simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
 
     trace, magic, crash_mode, crash_addr = do_trace(p, 'tracer_cgc_se1_palindrome_raw_nocrash', 'racecar\n')
     s = p.factory.tracer_state(input_content="racecar\n", magic_content=magic)
@@ -165,7 +165,7 @@ def test_cgc_se1_palindrome_raw():
 def test_symbolic_sized_receives():
     b = os.path.join(bin_location, "tests/cgc/CROMU_00070")
     p = angr.Project(b)
-    p._simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
+    p.simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
     trace, magic, crash_mode, crash_addr = do_trace(p, 'tracer_symbolic_sized_receives', 'hello')
 
     s = p.factory.tracer_state(input_content="hello", magic_content=magic)
@@ -205,7 +205,7 @@ def test_allocation_base_continuity():
 
     b = os.path.join(bin_location, "tests/i386/cgc_allocations")
     p = angr.Project(b)
-    p._simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
+    p.simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
     trace, magic, crash_mode, crash_addr = do_trace(p, 'tracer_allocation_base_continuity', '')
 
     s = p.factory.tracer_state(input_content="", magic_content=magic)
@@ -226,7 +226,7 @@ def test_allocation_base_continuity():
 def test_crash_addr_detection():
     b = os.path.join(bin_location, "tests/i386/call_symbolic")
     p = angr.Project(b)
-    p._simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
+    p.simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
     trace, magic, crash_mode, crash_addr = do_trace(p, 'tracer_crash_addr_detection', 'A'*700)
 
     s = p.factory.tracer_state(input_content="A" * 700, magic_content=magic)

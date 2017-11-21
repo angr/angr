@@ -16,7 +16,7 @@ def test_cgc():
     p = angr.Project(binary)
     trace, magic, crash_mode, crash_addr = do_trace(p, 'driller_core_cgc', input_str)
 
-    p._simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
+    p.simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
     s = p.factory.tracer_state(input_content=input_str, magic_content=magic)
 
     simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=crash_mode)
@@ -44,7 +44,7 @@ def test_simprocs():
     trace, magic, crash_mode, crash_addr = do_trace(p, 'driller_core_simprocs', input_str)
 
     p.hook(0x8048200, memcmp)
-    p._simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
+    p.simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
     s = p.factory.tracer_state(input_content=input_str, magic_content=magic)
 
     simgr = p.factory.simgr(s, save_unsat=True, hierarchy=False, save_unconstrained=crash_mode)

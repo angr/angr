@@ -1642,7 +1642,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Fix target_addr for syscalls
         if suc_jumpkind.startswith("Ijk_Sys"):
-            target_addr = self.project._simos.syscall(new_state).addr
+            target_addr = self.project.simos.syscall(new_state).addr
 
         self._pre_handle_successor_state(job.extra_info, suc_jumpkind, target_addr)
 
@@ -2527,7 +2527,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         symbolic_initial_state = self.project.factory.entry_state(mode='symbolic')
         if fastpath_state is not None:
-            symbolic_initial_state = self.project._simos.prepare_call_state(fastpath_state,
+            symbolic_initial_state = self.project.simos.prepare_call_state(fastpath_state,
                                                                             initial_state=symbolic_initial_state)
 
         # Find number of instructions of start block
@@ -2644,8 +2644,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 if self.project.is_hooked(addr):
                     old_proc = self.project._sim_procedures[addr]
                     is_continuation = old_proc.is_continuation
-                elif self.project._simos.is_syscall_addr(addr):
-                    old_proc = self.project._simos.syscall_from_addr(addr)
+                elif self.project.simos.is_syscall_addr(addr):
+                    old_proc = self.project.simos.syscall_from_addr(addr)
                     is_continuation = False  # syscalls don't support continuation
                 else:
                     old_proc = None

@@ -346,7 +346,7 @@ class SimSuccessors(object):
 
         try:
             bypass = o.BYPASS_UNSUPPORTED_SYSCALL in state.options
-            stub = state.project._simos.syscall(state, allow_unsupported=bypass)
+            stub = state.project.simos.syscall(state, allow_unsupported=bypass)
             if stub: # can be None if simos is not a subclass of SimUserspace
                 state.ip = stub.addr # fix the IP
         except AngrUnsupportedSyscallError:
