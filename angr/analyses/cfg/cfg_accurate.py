@@ -1259,7 +1259,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         successors = self._resolve_indirect_jumps(sim_successors,
                                                   job.cfg_node,
                                                   job.func_addr,
-                                                  successors,
+                                                  all_successors,
                                                   job.exception_info,
                                                   self._block_artifacts
                                                   )
@@ -2124,10 +2124,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 legit_successors = [suc for suc in successors if suc.history.jumpkind in ('Ijk_Boring', 'Ijk_Call')]
                 if legit_successors:
                     legit_successor = legit_successors[0]
-                    if legit_successor.ip.symbolic:
-                        if not legit_successor.history.jumpkind == 'Ijk_Call':
-                            should_resolve = False
-                    else:
+                    if not legit_successor.ip.symbolic:
                         if legit_successor.history.jumpkind == 'Ijk_Call':
                             should_resolve = False
                         else:
@@ -2298,6 +2295,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 for n in nodes:
                     starts.add(n.block_addr)
 
+        if cfgnode.addr == 0x4005d7:
+            import ipdb; ipdb.set_trace()
         # Execute the slice
         successing_addresses = set()
         annotated_cfg = bc.annotated_cfg()
@@ -2351,11 +2350,13 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             old_timeout = p.state.se._solver.timeout
             p.state.se._solver.timeout = 5000
 
-            sc = self.project.surveyors.Slicecutor(annotated_cfg, start=p, max_loop_iterations=1).run()
+            sc = self.project.surveyors.Slicecutor(annotated_cfg, start=p).run()
 
             # Restore the timeout!
             p.state.se._solver.timeout = old_timeout
 
+            if cfgnode.addr == 0x4005d7:
+                import ipdb; ipdb.set_trace()
             if sc.cut or sc.deadended:
                 all_deadended_paths = sc.cut + sc.deadended
                 for p in all_deadended_paths:
@@ -2369,6 +2370,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 l.debug("Cannot determine the exit. You need some better ways to recover the exits :-(")
 
         l.debug('Resolution is done, and we have %d new successors.', len(successing_addresses))
+        if cfgnode.addr == 0x4005d7:
+            import ipdb; ipdb.set_trace()
 
         return list(successing_addresses)
 

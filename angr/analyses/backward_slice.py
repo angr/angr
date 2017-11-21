@@ -82,6 +82,8 @@ class BackwardSlice(Analysis):
         # IDs for all chosen exit statements as well as their corresponding targets
         self.chosen_exits = defaultdict(list)
 
+        if targets[0][0].addr == 0x4005d7:
+            import ipdb; ipdb.set_trace()
         if not no_construct:
             self._construct(self._targets, control_flow_slice=control_flow_slice)
 
