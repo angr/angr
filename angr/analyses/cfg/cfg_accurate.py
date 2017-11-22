@@ -2426,11 +2426,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         keep_running = True
         while not concrete_exits and path_length < 5 and keep_running:
-            import ipdb; ipdb.set_trace()
             path_length += 1
             queue = [cfg_node]
             avoid = set()
             for _ in xrange(path_length):
+                import ipdb; ipdb.set_trace()
                 new_queue = []
                 for n in queue:
                     successors = list(temp_cfg.successors(n))
@@ -2439,7 +2439,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         if jk != 'Ijk_Ret':
                             # We don't want to trace into libraries
                             predecessors = list(temp_cfg.predecessors(suc))
-                            avoid |= set([p.addr for p in predecessors if p is not n])
+                            if jk != 'Ijk_FakeRet':
+                                avoid |= set([p.addr for p in predecessors if p is not n])
                             new_queue.append(suc)
                 queue = new_queue
 
@@ -2450,11 +2451,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # Start symbolic exploration from each block
                 state = self.project.factory.blank_state(addr=n.addr,
                                                          mode='symbolic',
-                                                         add_options={
-                                                                         o.DO_RET_EMULATION,
-                                                                         o.CONSERVATIVE_READ_STRATEGY,
-                                                                     } | o.resilience
-                                                         )
+                                                         add_options={o.DO_RET_EMULATION,
+                                                                      o.CONSERVATIVE_READ_STRATEGY,
+                                                         } | o.resilience
+                )
                 # Avoid concretization of any symbolic read address that is over a certain limit
                 # TODO: test case is needed for this option
 
@@ -2465,34 +2465,21 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 for reg in state.arch.persistent_regs:
                     reg_protector = register_protector(reg, block_artifacts)
                     state.inspect.add_breakpoint('reg_write',
-                                                 BP(
-                                                     BP_AFTER,
-                                                     reg_write_offset=state.arch.registers[reg][0],
-                                                     action=reg_protector.write_persistent_register
+                                                 BP(BP_AFTER,
+                                                    reg_write_offset=state.arch.registers[reg][0],
+                                                    action=reg_protector.write_persistent_register
                                                  )
-                                                 )
+                    )
+
                 simgr = self.project.factory.simgr(state)
                 simgr.use_technique(Explorer(find=(current_block.addr), avoid=avoid))
                 simgr.run()
-                import ipdb; ipdb.set_trace()
                 if 'found' in simgr.stashes and simgr.found:
                     successors = self.project.factory.successors(simgr.one_found)
                     keep_running = False
                     concrete_exits.extend([s for s in successors.flat_successors])
                     concrete_exits.extend([s for s in successors.unsat_successors])
-               #result = self.project.surveyors.Explorer(
-               #    start=self.project.factory.path(state),
-               #    find=(current_block.addr,),
-               #    avoid=avoid,
-               #    max_repeats=10,
-               #    max_depth=path_length
-               #).run()
-               #if result.found:
-               #    if not result.found[0].errored and result.found[0].step():
-               #        # Make sure we don't throw any exception here by checking the path.errored attribute first
-               #        keep_running = False
-               #        concrete_exits.extend([s for s in result.found[0].next_run.flat_successors])
-               #        concrete_exits.extend([s for s in result.found[0].next_run.unsat_successors])
+
                 if keep_running:
                     l.debug('Step back for one more run...')
 
