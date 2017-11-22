@@ -440,7 +440,12 @@ def test_indirect_jump_resolving():
     cfg = p.analyses.CFGAccurate(enable_advanced_backward_slicing=True, keep_state=True, normalize=True)
     node = cfg.get_any_node(0x4005d7)
 
-    nose.tools.assert_equal(len(node.successors), 15)
+    nose.tools.assert_equal(len(node.successors), 8)
+
+    cfg = p.analyses.CFGAccurate(enable_symbolic_back_traversal=True, normalize=True)
+    node = cfg.get_any_node(0x4005d7)
+
+    nose.tools.assert_equal(len(node.successors), 8)
 
 
 def run_all():

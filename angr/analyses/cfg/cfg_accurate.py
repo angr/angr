@@ -22,6 +22,7 @@ from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice, SimError, SimV
 from ...sim_state import SimState
 from ...state_plugins.callstack import CallStack
 from ...state_plugins.sim_action import SimActionData
+from ...exploration_techniques import Explorer
 
 l = logging.getLogger("angr.analyses.cfg.cfg_accurate")
 
@@ -2295,8 +2296,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 for n in nodes:
                     starts.add(n.block_addr)
 
-        if cfgnode.addr == 0x4005d7:
-            import ipdb; ipdb.set_trace()
         # Execute the slice
         successing_addresses = set()
         annotated_cfg = bc.annotated_cfg()
@@ -2306,11 +2305,11 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             node = self.get_any_node(start)
             if node is None:
                 # Well, we have to live with an empty state
-                p = self.project.factory.path(self.project.factory.blank_state(addr=start))
+                state = self.project.factory.blank_state(addr=start)
             else:
-                base_state = node.input_state.copy()
-                base_state.set_mode('symbolic')
-                base_state.ip = start
+                state = node.input_state.copy()
+                state.set_mode('symbolic')
+                state.ip = start
 
                 # Clear all initial taints (register values, memory values, etc.)
                 initial_nodes = [n for n in bc.taint_graph.nodes() if bc.taint_graph.in_degree(n) == 0]
@@ -2330,33 +2329,30 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                 continue
                             if ac.action == 'read':
                                 if ac.type == 'mem':
-                                    unconstrained_value = base_state.se.Unconstrained('unconstrained',
+                                    unconstrained_value = state.se.Unconstrained('unconstrained',
                                                                                       ac.size.ast * 8)
-                                    base_state.memory.store(ac.addr,
+                                    state.memory.store(ac.addr,
                                                             unconstrained_value,
                                                             endness=self.project.arch.memory_endness)
                                 elif ac.type == 'reg':
-                                    unconstrained_value = base_state.se.Unconstrained('unconstrained',
+                                    unconstrained_value = state.se.Unconstrained('unconstrained',
                                                                                       ac.size.ast * 8)
-                                    base_state.registers.store(ac.offset,
+                                    state.registers.store(ac.offset,
                                                                unconstrained_value,
                                                                endness=self.project.arch.register_endness)
 
                 # Clear the constraints!
-                base_state.release_plugin('solver_engine')
-                p = self.project.factory.path(base_state)
+                state.release_plugin('solver_engine')
 
             # For speed concerns, we are limiting the timeout for z3 solver to 5 seconds. It will be restored afterwards
-            old_timeout = p.state.se._solver.timeout
-            p.state.se._solver.timeout = 5000
+            old_timeout = state.se._solver.timeout
+            state.se._solver.timeout = 5000
 
-            sc = self.project.surveyors.Slicecutor(annotated_cfg, start=p).run()
+            sc = self.project.surveyors.Slicecutor(annotated_cfg, start=state).run()
 
             # Restore the timeout!
-            p.state.se._solver.timeout = old_timeout
+            state.se._solver.timeout = old_timeout
 
-            if cfgnode.addr == 0x4005d7:
-                import ipdb; ipdb.set_trace()
             if sc.cut or sc.deadended:
                 all_deadended_paths = sc.cut + sc.deadended
                 for p in all_deadended_paths:
@@ -2370,8 +2366,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 l.debug("Cannot determine the exit. You need some better ways to recover the exits :-(")
 
         l.debug('Resolution is done, and we have %d new successors.', len(successing_addresses))
-        if cfgnode.addr == 0x4005d7:
-            import ipdb; ipdb.set_trace()
 
         return list(successing_addresses)
 
@@ -2436,6 +2430,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             path_length += 1
             queue = [cfg_node]
             avoid = set()
+            import ipdb; ipdb.set_trace()
             for _ in xrange(path_length):
                 new_queue = []
                 for n in queue:
@@ -2477,19 +2472,28 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                                      action=reg_protector.write_persistent_register
                                                  )
                                                  )
-                result = self.project.surveyors.Explorer(
-                    start=self.project.factory.path(state),
-                    find=(current_block.addr,),
-                    avoid=avoid,
-                    max_repeats=10,
-                    max_depth=path_length
-                ).run()
-                if result.found:
-                    if not result.found[0].errored and result.found[0].step():
-                        # Make sure we don't throw any exception here by checking the path.errored attribute first
-                        keep_running = False
-                        concrete_exits.extend([s for s in result.found[0].next_run.flat_successors])
-                        concrete_exits.extend([s for s in result.found[0].next_run.unsat_successors])
+                simgr = self.project.factory.simgr(state)
+                simgr.use_technique(Explorer(find=(current_block.addr), avoid=avoid))
+                simgr.run()
+                import ipdb; ipdb.set_trace()
+                if 'found' in simgr.stashes and simgr.found:
+                    successors = self.project.factory.successors(simgr.one_found)
+                    keep_running = False
+                    concrete_exits.extend([s for s in successors.flat_successors])
+                    concrete_exits.extend([s for s in successors.unsat_successors])
+               #result = self.project.surveyors.Explorer(
+               #    start=self.project.factory.path(state),
+               #    find=(current_block.addr,),
+               #    avoid=avoid,
+               #    max_repeats=10,
+               #    max_depth=path_length
+               #).run()
+               #if result.found:
+               #    if not result.found[0].errored and result.found[0].step():
+               #        # Make sure we don't throw any exception here by checking the path.errored attribute first
+               #        keep_running = False
+               #        concrete_exits.extend([s for s in result.found[0].next_run.flat_successors])
+               #        concrete_exits.extend([s for s in result.found[0].next_run.unsat_successors])
                 if keep_running:
                     l.debug('Step back for one more run...')
 
@@ -2498,7 +2502,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # TODO: It works for jumptables, but not for calls. We should also handle changes in sp
         new_concrete_successors = []
         for c in concrete_exits:
-            unsat_state = current_block.unsat_successors[0].copy()
+            unsat_state = current_block.all_successors[0].copy()
             unsat_state.history.jumpkind = c.history.jumpkind
             for reg in unsat_state.arch.persistent_regs + ['ip']:
                 unsat_state.registers.store(reg, c.registers.load(reg))
