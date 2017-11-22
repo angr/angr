@@ -1,16 +1,17 @@
-import angr
 import logging
 
+from ....simos import SimWindows
 from .resolver import IndirectJumpResolver
 
 l = logging.getLogger("angr.analyses.cfg.indirect_jump_resolvers.x86_pe_iat")
+
 
 class X86PeIatResolver(IndirectJumpResolver):
     def __init__(self, project):
         super(X86PeIatResolver, self).__init__(project, timeless=True)
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
-        if not isinstance(self.project._simos, angr.simos.SimWindows):
+        if not isinstance(self.project.simos, SimWindows):
             return False
         if jumpkind != "Ijk_Call":
             return False

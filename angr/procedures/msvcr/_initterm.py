@@ -10,8 +10,6 @@ l = logging.getLogger("angr.procedures.msvcr._initterm")
 ######################################
 
 class _initterm(angr.SimProcedure):
-
-    IS_FUNCTION = True
     local_vars = ['callbacks']
     callbacks = []
 

@@ -1,7 +1,6 @@
 import angr
 
 class KiUserExceptionDispatcher(angr.SimProcedure):
-    IS_FUNCTION = True
     local_vars = ('tib_ptr', 'top_record', 'cur_ptr')
 
     tib_ptr = None
@@ -28,7 +27,7 @@ class KiUserExceptionDispatcher(angr.SimProcedure):
             except angr.errors.SimSolverError:
                 raise angr.errors.SimError('Exception handler returned symbolic value %s' % self.call_ret_expr)
             if disposition == 0: # Handled!!!
-                self.project._simos._load_regs(self.state, context)
+                self.project.simos._load_regs(self.state, context)
                 # TODO: re-set the exception handler somehow?
                 #self.state.mem[self.tib_ptr].uint32_t
                 self.jump(self.state.regs._ip)

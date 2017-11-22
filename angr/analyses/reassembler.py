@@ -2358,7 +2358,7 @@ class Reassembler(Analysis):
             # Skip all SimProcedures
             if self.project.is_hooked(f.addr):
                 continue
-            elif self.project._simos.is_syscall_addr(f.addr):
+            elif self.project.simos.is_syscall_addr(f.addr):
                 continue
 
             # Check which section the start address belongs to

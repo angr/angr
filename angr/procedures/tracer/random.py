@@ -1,12 +1,9 @@
 import angr
 import claripy
 
-import itertools
-rand_count = itertools.count()
 
-class FixedRandom(angr.SimProcedure):
+class random(angr.SimProcedure):
     #pylint:disable=arguments-differ
-
     IS_SYSCALL = True
 
     def run(self, buf, count, rnd_bytes):

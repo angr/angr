@@ -106,7 +106,7 @@ class AngrObjectFactory(object):
         :return:                The blank state.
         :rtype:                 SimState
         """
-        return self._project._simos.state_blank(**kwargs)
+        return self._project.simos.state_blank(**kwargs)
 
     def entry_state(self, **kwargs):
         """
@@ -128,7 +128,7 @@ class AngrObjectFactory(object):
         :rtype:                 SimState
         """
 
-        return self._project._simos.state_entry(**kwargs)
+        return self._project.simos.state_entry(**kwargs)
 
     def full_init_state(self, **kwargs):
         """
@@ -151,7 +151,7 @@ class AngrObjectFactory(object):
         :return:                The fully initialized state.
         :rtype:                 SimState
         """
-        return self._project._simos.state_full_init(**kwargs)
+        return self._project.simos.state_full_init(**kwargs)
 
     def call_state(self, addr, *args, **kwargs):
         """
@@ -195,7 +195,7 @@ class AngrObjectFactory(object):
         set alloc_base to point to somewhere other than the stack, set grow_like_stack to False so that sequencial
         allocations happen at increasing addresses.
         """
-        return self._project._simos.state_call(addr, *args, **kwargs)
+        return self._project.simos.state_call(addr, *args, **kwargs)
 
     def tracer_state(self, input_content=None, magic_content=None, preconstrain_input=True,
                      preconstrain_flag=True, constrained_addrs=None, **kwargs):
@@ -212,11 +212,11 @@ class AngrObjectFactory(object):
         :returns : The new SimState for tracing.
         :rtype   : angr.sim_state.SimState
         """
-        return self._project._simos.state_tracer(input_content=input_content,
-                                                 magic_content=magic_content,
-                                                 preconstrain_input=preconstrain_input,
-                                                 preconstrain_flag=preconstrain_flag,
-                                                 **kwargs)
+        return self._project.simos.state_tracer(input_content=input_content,
+                                                magic_content=magic_content,
+                                                preconstrain_input=preconstrain_input,
+                                                preconstrain_flag=preconstrain_flag,
+                                                **kwargs)
 
     def simgr(self, thing=None, **kwargs):
         return self.simulation_manager(thing=thing, **kwargs)
