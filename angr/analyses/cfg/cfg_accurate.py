@@ -213,6 +213,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._max_steps = max_steps
         self._state_add_options = state_add_options if state_add_options is not None else set()
         self._state_remove_options = state_remove_options if state_remove_options is not None else set()
+        if self._advanced_backward_slicing:
+            self._state_add_options |= o.refs
 
         # more initialization
 
@@ -2269,7 +2271,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         cdg = self.project.analyses.CDG(cfg=self, fail_fast=self._fail_fast)
         ddg = self.project.analyses.DDG(cfg=self, start=current_function_addr, call_depth=0, fail_fast=self._fail_fast)
-
         bc = self.project.analyses.BackwardSlice(self,
                                                  cdg,
                                                  ddg,
@@ -2349,6 +2350,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             old_timeout = state.se._solver.timeout
             state.se._solver.timeout = 5000
 
+            if cfgnode.addr == 0x4005d7:
+                import ipdb; ipdb.set_trace()
             sc = self.project.surveyors.Slicecutor(annotated_cfg, start=state).run()
 
             # Restore the timeout!
@@ -2430,7 +2433,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             queue = [cfg_node]
             avoid = set()
             for _ in xrange(path_length):
-                import ipdb; ipdb.set_trace()
                 new_queue = []
                 for n in queue:
                     successors = list(temp_cfg.successors(n))
