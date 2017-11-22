@@ -23,6 +23,7 @@ from ...sim_state import SimState
 from ...state_plugins.callstack import CallStack
 from ...state_plugins.sim_action import SimActionData
 from ...exploration_techniques import Explorer
+from ...misc.graph import shallow_reverse
 
 l = logging.getLogger("angr.analyses.cfg.cfg_accurate")
 
@@ -2414,10 +2415,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         l.debug("Start back traversal from %s", current_block)
 
-        # Create a partial CFG first
-        temp_cfg = networkx.DiGraph(self.graph)
-        # Reverse it
-        temp_cfg.reverse(copy=False)
+        # Create a reverse partial CFG
+        temp_cfg = shallow_reverse(self.graph)
 
         path_length = 0
         concrete_exits = []
@@ -2427,10 +2426,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         keep_running = True
         while not concrete_exits and path_length < 5 and keep_running:
+            import ipdb; ipdb.set_trace()
             path_length += 1
             queue = [cfg_node]
             avoid = set()
-            import ipdb; ipdb.set_trace()
             for _ in xrange(path_length):
                 new_queue = []
                 for n in queue:
