@@ -1154,7 +1154,8 @@ class CFGBase(Analysis):
                                    function_address=n.function_address, block_id=n.block_id,
                                    instruction_addrs=[i for i in n.instruction_addrs
                                                       if n.addr <= i <= n.addr + new_size
-                                                      ]
+                                                      ],
+                                   thumb=n.thumb
                                    )
 
                 # Copy instruction addresses
