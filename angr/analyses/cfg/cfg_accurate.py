@@ -2269,7 +2269,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         stmt_id = [i for i, s in enumerate(irsb.statements)
                    if isinstance(s, pyvex.IRStmt.WrTmp) and s.tmp == next_tmp][0]
 
-        cdg = self.project.analyses.CDG(cfg=self, fail_fast=self._fail_fast)
+        cdg = self.project.analyses.CDG(cfg=self, start=current_function_addr, fail_fast=self._fail_fast)
         ddg = self.project.analyses.DDG(cfg=self, start=current_function_addr, call_depth=0, fail_fast=self._fail_fast)
         bc = self.project.analyses.BackwardSlice(self,
                                                  cdg,
@@ -2350,7 +2350,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             old_timeout = state.se._solver.timeout
             state.se._solver.timeout = 5000
 
-            if cfgnode.addr == 0x4005d7:
+            if cfgnode.addr == 0x400704:
                 import ipdb; ipdb.set_trace()
             sc = self.project.surveyors.Slicecutor(annotated_cfg, start=state).run()
 
