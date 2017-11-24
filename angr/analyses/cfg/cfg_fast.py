@@ -1505,7 +1505,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 procedure = self.project.hooked_by(addr)
                 name = procedure.display_name
             else:
-                procedure = self.project._simos.syscall_from_addr(addr)
+                procedure = self.project.simos.syscall_from_addr(addr)
                 name = procedure.display_name
 
             if addr not in self._nodes:
@@ -1882,9 +1882,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # Fix the target_addr for syscalls
             tmp_state = self.project.factory.blank_state(mode="fastpath", addr=cfg_node.addr)
             succ = self.project.factory.successors(tmp_state).flat_successors[0]
-            syscall_stub = self.project._simos.syscall(succ)
+            syscall_stub = self.project.simos.syscall(succ)
             if syscall_stub: # can be None if simos is not a subclass of SimUserspac
-                syscall_addr = self.project._simos.syscall(succ).addr
+                syscall_addr = self.project.simos.syscall(succ).addr
                 target_addr = syscall_addr
             else:
                 target_addr = self._unresolvable_target_addr

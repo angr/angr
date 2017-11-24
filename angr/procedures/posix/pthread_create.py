@@ -3,25 +3,18 @@ import pyvex
 
 ######################################
 # pthread_create
-# obviously adapted from __libc_start_main
+# simulates the new thread as an equally viable branch of symbolic execution
 ######################################
 class pthread_create(angr.SimProcedure):
     ADDS_EXITS = True
 
-    def run(self):
+    # pylint: disable=unused-argument,arguments-differ
+    def run(self, thread, attr, start_routine, arg):
+        self.call(start_routine, (arg,), 'terminate_thread')
+        self.ret(self.state.se.BVV(0, self.state.arch.bits))
 
-        # Get main pc from arguments
-        code_addr = self.arg(2)
-        func_arg = self.arg(3)
-
-        # Create the new state as well
-        new_state=self.state.copy()
-        new_state.stack_push(func_arg)
-        # This is a stupid hack, but it should cause the simulated execution to halt on returning, which is correct
-        new_state.stack_push(self.state.se.BVV(0, self.state.arch.bits))
-
-        self.successors.add_successor(new_state, code_addr, new_state.se.true, 'Ijk_Call')
-        return self.state.se.BVV(0, self.state.arch.bits)
+    def terminate_thread(self, thread, attr, start_routine, arg):
+        self.exit(0)
 
     def static_exits(self, blocks):
         # Execute those blocks with a blank state, and then dump the arguments

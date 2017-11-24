@@ -789,7 +789,7 @@ class CFGBase(Analysis):
         :rtype:             bool
         """
 
-        return self.project.is_hooked(addr) or self.project._simos.is_syscall_addr(addr)
+        return self.project.is_hooked(addr) or self.project.simos.is_syscall_addr(addr)
 
     def _fast_memory_load(self, addr):
         """
@@ -930,7 +930,7 @@ class CFGBase(Analysis):
                 procedure = self.project.hooked_by(func.addr)
             else:
                 try:
-                    procedure = self.project._simos.syscall_from_addr(func.addr, allow_unsupported=False)
+                    procedure = self.project.simos.syscall_from_addr(func.addr, allow_unsupported=False)
                 except AngrUnsupportedSyscallError:
                     procedure = None
 
@@ -1610,7 +1610,7 @@ class CFGBase(Analysis):
         if addr in blockaddr_to_function:
             f = blockaddr_to_function[addr]
         else:
-            is_syscall = self.project._simos.is_syscall_addr(addr)
+            is_syscall = self.project.simos.is_syscall_addr(addr)
 
             n = self.get_any_node(addr, is_syscall=is_syscall)
             if n is None: node = addr

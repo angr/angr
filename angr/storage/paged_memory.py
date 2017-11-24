@@ -487,7 +487,7 @@ class SimPagedMemory(object):
             pass
         elif isinstance(self._memory_backer, cle.Clemory):
             # first, find the right clemory backer
-            for addr, backer in self._memory_backer.cbackers:
+            for addr, backer in self._memory_backer.cbackers if self.byte_width == 8 else ((x, y) for x, _, y in self._memory_backer.stride_repr):
                 start_backer = new_page_addr - addr
                 if isinstance(start_backer, BV):
                     continue
@@ -508,9 +508,14 @@ class SimPagedMemory(object):
                 write_start = max(new_page_addr, addr + snip_start)
                 write_size = self._page_size - write_start%self._page_size
 
-                snip = _ffi.buffer(backer)[snip_start:snip_start+write_size]
-                mo = SimMemoryObject(claripy.BVV(snip), write_start, byte_width=self.byte_width)
-                self._apply_object_to_page(n*self._page_size, mo, page=new_page)
+                if self.byte_width == 8:
+                    snip = _ffi.buffer(backer)[snip_start:snip_start+write_size]
+                    mo = SimMemoryObject(claripy.BVV(snip), write_start, byte_width=self.byte_width)
+                    self._apply_object_to_page(n*self._page_size, mo, page=new_page)
+                else:
+                    for i, byte in enumerate(backer):
+                        mo = SimMemoryObject(claripy.BVV(byte, self.byte_width), write_start + i, byte_width=self.byte_width)
+                        self._apply_object_to_page(n*self._page_size, mo, page=new_page)
 
                 new_page.permissions = claripy.BVV(flags, 3)
                 initialized = True
@@ -520,8 +525,10 @@ class SimPagedMemory(object):
                 if new_page_addr <= i and i <= new_page_addr + self._page_size:
                     if isinstance(self._memory_backer[i], claripy.ast.Base):
                         backer = self._memory_backer[i]
-                    else:
+                    elif isinstance(self._memory_backer[i], bytes):
                         backer = claripy.BVV(self._memory_backer[i])
+                    else:
+                        backer = claripy.BVV(self._memory_backer[i], self.byte_width)
                     mo = SimMemoryObject(backer, i, byte_width=self.byte_width)
                     self._apply_object_to_page(n*self._page_size, mo, page=new_page)
                     initialized = True
@@ -530,8 +537,10 @@ class SimPagedMemory(object):
                 try:
                     if isinstance(self._memory_backer[i], claripy.ast.Base):
                         backer = self._memory_backer[i]
-                    else:
+                    elif isinstance(self._memory_backer[i], bytes):
                         backer = claripy.BVV(self._memory_backer[i])
+                    else:
+                        backer = claripy.BVV(self._memory_backer[i], self.byte_width)
                     mo = SimMemoryObject(backer, new_page_addr+i, byte_width=self.byte_width)
                     self._apply_object_to_page(n*self._page_size, mo, page=new_page)
                     initialized = True

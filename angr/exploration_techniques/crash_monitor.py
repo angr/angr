@@ -26,6 +26,7 @@ class CrashMonitor(ExplorationTechnique):
         """
 
         super(CrashMonitor, self).__init__()
+        # TODO add concolic mode to this and tracer
         self._trace = trace
         self._trim_history = trim_history
         self._crash_mode = crash_mode

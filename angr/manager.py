@@ -589,7 +589,8 @@ class SimulationManager(ana.Storable):
         :rtype:                 SimulationManager
         """
         stash = 'active' if stash is None else stash
-        n = n if n is not None else 1 if until is None else 100000
+        if until is None and n is None:
+            n = 1
         pg = self
 
         # Check for found state in first block
@@ -598,19 +599,23 @@ class SimulationManager(ana.Storable):
             self._apply_filter_hooks(state,pg.stashes,new_active)
         pg.stashes[stash] = new_active
 
-        for i in range(n):
+        i = 0
+        while n is None or i < n:
+            i += 1
             l.debug("Round %d: stepping %s", i, pg)
 
             pg = pg._one_step(stash=stash, selector_func=selector_func, successor_func=successor_func, **kwargs)
             if step_func is not None:
                 pg = step_func(pg)
 
-            if len(pg.stashes[stash]) == 0:
-                l.debug("Out of states in stash %s", stash)
-
             if until is not None and until(pg):
                 l.debug("Until function returned true")
                 break
+
+            if len(pg.stashes[stash]) == 0:
+                l.debug("Out of states in stash %s", stash)
+                break
+
 
         return pg
 

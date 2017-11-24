@@ -487,14 +487,14 @@ class SimMemory(SimStatePlugin):
         data_e = self._convert_to_ast(data_e, size_e if isinstance(size_e, (int, long)) else None)
 
         # zero extend if size is greater than len(data_e)
-        stored_size = size_e*8 if isinstance(size_e, (int, long)) else self.state.arch.bits
+        stored_size = size_e*self.state.arch.byte_width if isinstance(size_e, (int, long)) else self.state.arch.bits
         if size_e is not None and self.category == 'reg' and len(data_e) < stored_size:
             data_e = data_e.zero_extend(stored_size - len(data_e))
 
         if type(size_e) in (int, long):
             size_e = self.state.se.BVV(size_e, self.state.arch.bits)
         elif size_e is None:
-            size_e = self.state.se.BVV(data_e.size() / 8, self.state.arch.bits)
+            size_e = self.state.se.BVV(data_e.size() // self.state.arch.byte_width, self.state.arch.bits)
 
         if inspect is True:
             if self.category == 'reg':

@@ -124,6 +124,7 @@ arithmetic_operation_map = {
     'Div': '__div__',
     'Neg': 'Neg',
     'Abs': 'Abs',
+    'Mod': '__mod__',
 }
 shift_operation_map = {
     'Shl': '__lshift__',
