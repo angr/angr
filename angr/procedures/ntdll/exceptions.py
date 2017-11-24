@@ -2,6 +2,7 @@ import angr
 
 class KiUserExceptionDispatcher(angr.SimProcedure):
     local_vars = ('tib_ptr', 'top_record', 'cur_ptr')
+    IS_FUNCTION = False
 
     tib_ptr = None
     top_record = None
