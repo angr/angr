@@ -480,6 +480,16 @@ class Veritesting(Analysis):
             l.debug("... terminating Veritesting due to overbound")
             return True
 
+        try:
+            # If the address is not in the list (which could mean it is
+            # not at the top of a block), check directly in the blocks
+            # (Blocks are repeatedly created for every check, but with
+            # the IRSB cache in angr lifter it should be OK.)
+            if set(self._boundaries).intersection(set(self.project.factory.block(ip).instruction_addrs)):
+                return True
+        except (AngrError, SimError):
+            pass
+
         if (
             ip in self._loop_heads # This is the beginning of the loop
             or state.history.jumpkind == 'Ijk_Call' # We also wanna catch recursive function calls
