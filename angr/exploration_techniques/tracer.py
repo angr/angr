@@ -118,7 +118,7 @@ class Tracer(ExplorationTechnique):
                     l.debug("bb_cnt %d", current.globals['bb_cnt'])
                     # we need step to the return
                     current_addr = current.addr
-                    while current_addr != self._trace[current.globals['bb_cnt']] and current.globals['bb_cnt'] < len(self._trace):
+                    while current.globals['bb_cnt'] < len(self._trace) and current_addr != self._trace[current.globals['bb_cnt']]:
                         current.globals['bb_cnt'] += 1
                     # step 1 more for the normal step that would happen
                     current.globals['bb_cnt'] += 1
