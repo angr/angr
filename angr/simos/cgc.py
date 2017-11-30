@@ -166,7 +166,7 @@ class SimCGC(SimUserland):
         state.unicorn.concretization_threshold_registers = 25000 / csr
         state.unicorn.concretization_threshold_memory = 25000 / csr
 
-        if type(input_content) == str:
+        if type(input_content) is str:
             state.cgc.input_size = len(input_content)
 
         self._set_simproc_limits(state)

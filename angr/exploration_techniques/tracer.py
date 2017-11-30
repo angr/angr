@@ -304,7 +304,7 @@ class Tracer(ExplorationTechnique):
     @staticmethod
     def _tracer_cache_cond(state):
         if  state.history.jumpkind.startswith('Ijk_Sys'):
-            sys_procedure = state.project._simos.syscall(state)
+            sys_procedure = state.project.simos.syscall(state)
             if sys_procedure.display_name == 'receive' and state.se.eval(state.posix.files[0].pos) == 0:
                 return True
         return False
