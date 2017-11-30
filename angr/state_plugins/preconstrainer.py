@@ -73,17 +73,18 @@ class SimStatePreconstrainer(SimStatePlugin):
             return
 
         l.debug("Preconstrain input is %r", self.input_content)
+
         repair_entry_state_opts = False
         if o.TRACK_ACTION_HISTORY in self.state.options:
             repair_entry_state_opts = True
             self.state.options -= {o.TRACK_ACTION_HISTORY}
 
         stdin = self.state.posix.get_file(0)
-        if type(self.input_content) == str: # not a PoV, just raw input
+        if type(self.input_content) is str: # not a PoV, just raw input
             for b in self.input_content:
                 self._preconstrain(b, stdin.read_from(1))
 
-        elif type(self.input_content) == SimDialogue:  # a PoV, need to navigate the dialogue
+        elif type(input_content.getattr('stdin', None)) is SimDialogue: # a PoV, need to navigate the dialogue
             for write in self.input_content.writes:
                 for b in write:
                     self._preconstrain(b, stdin.read_from(1))
