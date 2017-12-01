@@ -78,6 +78,7 @@ class SimProcedure(object):
         self.ret_to = None
         self.ret_expr = None
         self.call_ret_expr = None
+        self.inhibit_autoret = None
 
     def __repr__(self):
         syscall = ' (syscall)' if self.IS_SYSCALL else ''
@@ -109,6 +110,7 @@ class SimProcedure(object):
         inst.state = state
         inst.successors = successors
         inst.ret_to = ret_to
+        inst.inhibit_autoret = False
 
         # check to see if this is a syscall and if we should override its return value
         override = None
@@ -163,7 +165,7 @@ class SimProcedure(object):
                     inst.kwargs)
             r = getattr(inst, inst.run_func)(*sim_args, **inst.kwargs)
 
-        if inst.returns and inst.is_function:
+        if inst.returns and inst.is_function and not inst.inhibit_autoret:
             inst.ret(r)
 
         return inst
@@ -191,7 +193,7 @@ class SimProcedure(object):
     local_vars = ()         # if you use self.call(), set this to a list of all the local variable
                             # names in your class. They will be restored on return.
 
-    def run(self, *args, **kwargs):
+    def run(self, *args, **kwargs): # pylint: disable=unused-argument
         """
         Implement the actual procedure here!
         """
@@ -276,6 +278,8 @@ class SimProcedure(object):
         If this is not an inline call, grab a return address from the state and jump to it.
         If this is not an inline call, set a return expression with the calling convention.
         """
+        self.inhibit_autoret = True
+
         if expr is not None:
             if o.SIMPLIFY_RETS in self.state.options:
                 l.debug("... simplifying")
@@ -322,6 +326,8 @@ class SimProcedure(object):
         :param cc:          Optional: use this calling convention for calling the new function.
                             Default is to use the current convention.
         """
+        self.inhibit_autoret = True
+
         if cc is None:
             cc = self.cc
 
@@ -354,6 +360,7 @@ class SimProcedure(object):
         """
         Add an exit representing jumping to an address.
         """
+        self.inhibit_autoret = True
         self._exit_action(self.state, addr)
         self.successors.add_successor(self.state, addr, self.state.se.true, 'Ijk_Boring')
 
@@ -361,6 +368,7 @@ class SimProcedure(object):
         """
         Add an exit representing terminating the program.
         """
+        self.inhibit_autoret = True
         self.state.options.discard(o.AST_DEPS)
         self.state.options.discard(o.AUTO_REFS)
 

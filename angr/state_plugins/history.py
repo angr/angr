@@ -1,5 +1,6 @@
 import operator
 import logging
+import itertools
 
 import claripy
 
@@ -113,6 +114,18 @@ class SimStateHistory(SimStatePlugin):
 
         self.merged_from.extend(h for h in others)
         self.merge_conditions = merge_conditions
+
+        # we must fix this in order to get
+        # correct results when using constraints_since()
+        self.parent = common_ancestor if common_ancestor is not None else self.parent
+
+        # recents_events must be the join of all recents events
+        # in order to keep constraints_since() correct
+        self.recent_events = [e.recent_events for e in itertools.chain([self], others)]
+        # hard to say what we should do with these others list of things...
+        self.recent_bbl_addrs = [e.recent_bbl_addrs for e in itertools.chain([self], others)]
+        self.recent_ins_addrs = [e.recent_ins_addrs for e in itertools.chain([self], others)]
+        self.recent_stack_actions = [e.recent_stack_actions for e in itertools.chain([self], others)]
 
         return True
 

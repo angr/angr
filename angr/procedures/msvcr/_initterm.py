@@ -10,7 +10,7 @@ l = logging.getLogger("angr.procedures.msvcr._initterm")
 ######################################
 
 class _initterm(angr.SimProcedure):
-    local_vars = ['callbacks']
+    local_vars = ('callbacks',)
     callbacks = []
 
     #pylint:disable=arguments-differ
