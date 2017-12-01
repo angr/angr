@@ -71,22 +71,26 @@ class Tracer(ExplorationTechnique):
                 simgr = simgr.drop(stash="unsat")
                 simgr = simgr.unstash(from_stash="found",to_stash="active")
 
-        if self._use_cache and self.project.loader.main_object.os == 'cgc':
-            cache_file = os.path.join("/tmp", "%(name)s-%(binhash)s.tcache")
-            cacher = Cacher(when=self._tracer_cache_cond,
-                            container=cache_file,
-                            dump_func=self._tracer_dump,
-                            load_func=self._tracer_load)
+        if self.project.loader.main_object.os == 'cgc':
+            if self._use_cache:
+                cache_file = os.path.join("/tmp", "%(name)s-%(binhash)s.tcache")
+                cacher = Cacher(when=self._tracer_cache_cond,
+                                container=cache_file,
+                                dump_func=self._tracer_dump,
+                                load_func=self._tracer_load)
 
-            simgr.use_technique(cacher)
+                simgr.use_technique(cacher)
 
-            # If we're restoring from a cache, we preconstrain. If we're not restoring from a cache,
-            # the cacher will preconstrain.
-            # If we're restoring from a cache, we can safely remove the cacher
-            # right after.
-            if os.path.exists(cacher.container):
+                # If we're restoring from a cache, we preconstrain. If we're not restoring from a cache,
+                # the cacher will preconstrain.
+                # If we're restoring from a cache, we can safely remove the cacher
+                # right after.
+                if os.path.exists(cacher.container):
+                    simgr.one_active.preconstrainer.preconstrain_state()
+                    simgr.remove_tech(cacher)
+
+            else:
                 simgr.one_active.preconstrainer.preconstrain_state()
-                simgr.remove_tech(cacher)
 
     def complete(self, simgr):
         all_paths = simgr.active + simgr.deadended
@@ -298,8 +302,8 @@ class Tracer(ExplorationTechnique):
         """
         Check if an address is inside the plt section
         """
-        plt = self.project.loader.main_object.sections_map['.plt']
-        return addr >= plt.min_addr and addr <= plt.max_addr
+        plt = self.project.loader.main_object.sections_map.get('.plt', None)
+        return False if plt is None else addr >= plt.min_addr and addr <= plt.max_addr
 
     @staticmethod
     def _tracer_cache_cond(state):
