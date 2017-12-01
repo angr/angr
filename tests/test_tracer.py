@@ -50,7 +50,7 @@ def test_cache_stall():
     t = angr.exploration_techniques.Tracer(trace=trace)
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
-    ZenPlugin.prep_tracer(s)
+    ZenPlugin.prep_tracer(simgr.one_active)
     simgr.run()
 
     crash_path = t.predecessors[-1]
@@ -70,7 +70,7 @@ def test_cache_stall():
     t = angr.exploration_techniques.Tracer(trace=trace)
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
-    ZenPlugin.prep_tracer(s)
+    ZenPlugin.prep_tracer(simgr.one_active)
     simgr.run()
 
     crash_path = t.predecessors[-1]
