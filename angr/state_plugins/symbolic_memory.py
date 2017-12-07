@@ -800,7 +800,15 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
             conditional_value = original_value
 
             for opt in segment['options']:
-                data_slice = data[((opt['idx']+segment['size'])*self.state.arch.byte_width)-1:opt['idx']*self.state.arch.byte_width]
+
+                if endness == "Iend_LE" or (endness is None and self.endness == "Iend_LE"):
+                    h = ((opt['idx']+segment['size']) * self.state.arch.byte_width)-1
+                    l = opt['idx']*self.state.arch.byte_width
+                else:
+                    h = len(data) - 1 - (opt['idx']*self.state.arch.byte_width)
+                    l = len(data) - ((opt['idx']+segment['size']) *self.state.arch.byte_width)
+
+                data_slice = data[h:l]
                 conditional_value = self.state.solver.If(self.state.solver.And(address == segment['start']-opt['idx'], condition), data_slice, conditional_value)
 
             stored_values.append(dict(value=conditional_value, addr=segment['start'], size=segment['size']))
