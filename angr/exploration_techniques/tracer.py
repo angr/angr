@@ -106,7 +106,7 @@ class Tracer(ExplorationTechnique):
                   or self.project.simos.is_syscall_addr(current.addr) \
                   or not self._address_in_binary(current.addr):
                     # If dynamic trace is in the PLT stub, update bb_cnt until it's out
-                    while self._addr_in_plt(self._trace[current.globals['bb_cnt']]):
+                    while current.globals['bb_cnt'] < len(self._trace) and self._addr_in_plt(self._trace[current.globals['bb_cnt']]):
                         current.globals['bb_cnt'] += 1
 
                 # handle hooked functions
@@ -118,7 +118,7 @@ class Tracer(ExplorationTechnique):
                     l.debug("bb_cnt %d", current.globals['bb_cnt'])
                     # we need step to the return
                     current_addr = current.addr
-                    while current_addr != self._trace[current.globals['bb_cnt']] and current.globals['bb_cnt'] < len(self._trace):
+                    while current.globals['bb_cnt'] < len(self._trace) and current_addr != self._trace[current.globals['bb_cnt']]:
                         current.globals['bb_cnt'] += 1
                     # step 1 more for the normal step that would happen
                     current.globals['bb_cnt'] += 1
