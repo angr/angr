@@ -572,9 +572,8 @@ class Disassembly(Analysis):
         self._func_cache = {}
 
         if function is not None:
-            blocks = function.graph.nodes()
             # sort them by address, put hooks before nonhooks
-            blocks.sort(key=lambda node: (node.addr, not node.is_hook))
+            blocks = sorted(function.graph.nodes(), key=lambda node: (node.addr, not node.is_hook))
             for block in blocks:
                 self.parse_block(block)
 
