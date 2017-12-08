@@ -1,74 +1,80 @@
-"""Representing the artifacts of a project."""
+import cle
 
-from .knowledge_plugins.plugin import default_plugins
+from .errors import KnowledgeBaseNoPlugin
+
+import logging
+l = logging.getLogger(name=__name__)
 
 
 class KnowledgeBase(object):
-    """Represents a "model" of knowledge about an artifact.
+    """Represents a "model" of knowledge about an object.
 
-    Contains things like a CFG, data references, etc.
+    The knowledge base should contain as absolutely little redundant data
+    as possible - effectively the most fundemental artifacts that we can
+    use to efficiently reconstruct anything the user would want to know about.
     """
-    def __init__(self, project, obj):
-        self._project = project
-        self.obj = obj
+
+    def __init__(self, object, *args, **kwargs):
+        """Initialization routine for KnowledgeBase.
+
+        :param object:  A CLE Backend instance.
+        :type object:   cle.Backend
+        """
         self._plugins = {}
-
-    @property
-    def callgraph(self):
-        return self.functions.callgraph
-
-    @property
-    def unresolved_indirect_jumps(self):
-        return self.indirect_jumps.unresolved
-
-    @property
-    def resolved_indirect_jumps(self):
-        return self.indirect_jumps.resolved
-
-    def __setstate__(self, state):
-        self._project = state['project']
-        self.obj = state['obj']
-        self._plugins = state['plugins']
+        # 8<----------------- Compatibility layer -----------------
+        if not isinstance(object, cle.Backend):
+            self._compat_init(object, *args, **kwargs)
+            object = args[0]
+        # ------------------- Compatibility layer --------------->8
+        self._object = object
 
     def __getstate__(self):
-        s = {
-            'project': self._project,
-            'obj': self.obj,
-            'plugins': self._plugins,
-        }
-        return s
+        return self._object, self._plugins
+
+    def __setstate__(self, state):
+        self._object, self._plugins = state
+        for name, plugin in self._plugins.items():
+            self.register_plugin(name, plugin)
+
+    def __getattr__(self, name):
+        raise KnowledgeBaseNoPlugin("No such plugin: %s" % name)
 
     #
-    # Plugin accessor
+    #   ...
     #
 
-    def __contains__(self, plugin_name):
-        return plugin_name in self._plugins
-
-    def __getattr__(self, v):
-        try:
-            return self.get_plugin(v)
-        except KeyError:
-            raise AttributeError(v)
-
-    #
-    # Plugins
-    #
+    @property
+    def object(self):
+        return self._object
 
     def has_plugin(self, name):
         return name in self._plugins
 
-    def get_plugin(self, name):
-        if name not in self._plugins:
-            p = default_plugins[name](self)
-            self.register_plugin(name, p)
-            return p
-        return self._plugins[name]
-
     def register_plugin(self, name, plugin):
         self._plugins[name] = plugin
+        self.__dict__[name] = plugin
         return plugin
 
     def release_plugin(self, name):
         if name in self._plugins:
             del self._plugins[name]
+            del self.__dict__[name]
+
+    #
+    #   Compatibility layer
+    #
+
+    def get_plugin(self, name):
+        return self._plugins[name]
+
+    def _compat_init(self, project, obj):
+        self._project = project
+        self.obj = obj
+
+        import knowledge_plugins
+        self.register_plugin('functions', knowledge_plugins.FunctionManager(self))
+        self.register_plugin('variables', knowledge_plugins.VariableManager(self))
+        self.register_plugin('labels', knowledge_plugins.LabelsPlugin())
+        self.register_plugin('resolved_indirect_jumps', set())
+        self.register_plugin('unresolved_indirect_jumps', set())
+        KnowledgeBase.callgraph = property(lambda self: self.functions.callgraph)
