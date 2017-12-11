@@ -14,18 +14,18 @@ class KnowledgeBase(object):
     use to efficiently reconstruct anything the user would want to know about.
     """
 
-    def __init__(self, object, *args, **kwargs):
+    def __new__(cls, *args, **kwargs):
+        if args and not isinstance(args[0], cle.Backend):
+            return super(KnowledgeBase, cls).__new__(CompatKnowledgeBase, *args, **kwargs)
+        return super(KnowledgeBase, cls).__new__(cls, *args, **kwargs)
+
+    def __init__(self, object):
         """Initialization routine for KnowledgeBase.
 
         :param object:  A CLE Backend instance.
         :type object:   cle.Backend
         """
         self._plugins = {}
-        # 8<----------------- Compatibility layer -----------------
-        if not isinstance(object, cle.Backend):
-            self._compat_init(object, *args, **kwargs)
-            object = args[0]
-        # ------------------- Compatibility layer --------------->8
         self._object = object
 
     def __getstate__(self):
@@ -47,6 +47,9 @@ class KnowledgeBase(object):
     def object(self):
         return self._object
 
+    def get_plugin(self, name):
+        return self._plugins[name]
+
     def has_plugin(self, name):
         return name in self._plugins
 
@@ -60,21 +63,23 @@ class KnowledgeBase(object):
             del self._plugins[name]
             del self.__dict__[name]
 
-    #
-    #   Compatibility layer
-    #
 
-    def get_plugin(self, name):
-        return self._plugins[name]
+class CompatKnowledgeBase(KnowledgeBase):
+    """
+    TODO: Update documentation.
+    """
 
-    def _compat_init(self, project, obj):
+    def __init__(self, project, object):
+        super(CompatKnowledgeBase, self).__init__(object)
         self._project = project
-        self.obj = obj
 
-        import knowledge_plugins
-        self.register_plugin('functions', knowledge_plugins.FunctionManager(self))
-        self.register_plugin('variables', knowledge_plugins.VariableManager(self))
-        self.register_plugin('labels', knowledge_plugins.LabelsPlugin())
-        self.register_plugin('resolved_indirect_jumps', set())
-        self.register_plugin('unresolved_indirect_jumps', set())
-        KnowledgeBase.callgraph = property(lambda self: self.functions.callgraph)
+        from knowledge_plugins import PLUGIN_PRESET
+        PLUGIN_PRESET['compat'].apply_preset(self)
+
+    @property
+    def obj(self):
+        return self._object
+
+    @property
+    def callgraph(self):
+        return self.functions.callgraph
