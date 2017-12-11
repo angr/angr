@@ -12,12 +12,29 @@ class KnowledgeBase(object):
     The knowledge base should contain as absolutely little redundant data
     as possible - effectively the most fundemental artifacts that we can
     use to efficiently reconstruct anything the user would want to know about.
+
+    Note, that the KnowledgeBase.__init__() method does not take any Project
+    instance as an argument. This is because the KB is not meant to be bound to any
+    existing project. Instead, it is meant to represent information about
+    one particular object only, and the the Project should contain a different
+    KB for every loaded object, which is to be analyzed.
+
+    :ivar _plugins:     A collection of plugins that are used by this KB.
+    :itype _plugins:    dict
+    :ivar _object:      The object about which this KB holds information.
+    :itype _object:     cle.Backend
     """
 
+    # 8<----------------- Compatibility layer -----------------
     def __new__(cls, *args, **kwargs):
+        """
+        Use the CompatKnowledgeBase class in case the `project` and `obj` 
+        arguments are provided.
+        """
         if args and not isinstance(args[0], cle.Backend):
             return super(KnowledgeBase, cls).__new__(CompatKnowledgeBase, *args, **kwargs)
         return super(KnowledgeBase, cls).__new__(cls, *args, **kwargs)
+    # ------------------- Compatibility layer --------------->8 
 
     def __init__(self, object):
         """Initialization routine for KnowledgeBase.
@@ -45,6 +62,13 @@ class KnowledgeBase(object):
 
     @property
     def object(self):
+        """Return an object about which this KB stores the information.
+
+        This was deliberately made a property, as the object is must not a
+        subject to change.
+
+        :return:
+        """
         return self._object
 
     def get_plugin(self, name):
