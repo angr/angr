@@ -107,8 +107,8 @@ class Project(object):
                                         will try to read code from the current state instead of the original memory,
                                         regardless of the current memory protections.
     :type support_selfmodifying_code:   bool
-    :param use_compat_kb:               If True, use the backwards-compatible version of KnowledgeBase.
-    :type use_compat_kb:                bool
+    :param kb_preset:                   The name of the plugins preset to be used with project KB. 
+    :type kb_preset:                    str
 
     Any additional keyword arguments passed will be passed onto ``cle.Loader``.
 
@@ -134,7 +134,7 @@ class Project(object):
                  load_options=None,
                  translation_cache=True,
                  support_selfmodifying_code=False,
-                 use_compat_kb=True,
+                 kb_preset='compat',
                  **kwargs):
 
         # Step 1: Load the binary
@@ -213,11 +213,15 @@ class Project(object):
                 [failure_engine, syscall_engine, hook_engine, unicorn_engine, engine])
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
-
-        if use_compat_kb:
-            self.kb = KnowledgeBase(self, self.loader.main_object)
+        
+        # 8<----------------- Compatibility layer -----------------
+        if kb_preset == 'compat':
+            self.kb = CompatKnowledgeBase(self, self.loader.main_object)
+            PLUGIN_PRESET['compat'].apply_preset(self.kb)
         else:
+        # ------------------- Compatibility layer --------------->8 
             self.kb = KnowledgeBase(self.loader.main_object)
+            PLUGIN_PRESET[kb_preset].apply_preset(self.kb)
 
         if self.filename is not None:
             projects[self.filename] = self
@@ -634,6 +638,7 @@ from .factory import AngrObjectFactory
 from angr.simos import SimOS, os_mapping
 from .analyses.analysis import Analyses
 from .surveyors import Surveyors
-from .knowledge_base import KnowledgeBase
+from .knowledge_base import KnowledgeBase, CompatKnowledgeBase
 from .engines import SimEngineFailure, SimEngineSyscall, SimEngineProcedure, SimEngineVEX, SimEngineUnicorn, SimEngineHook
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES
+from .knowledge_plugins import PLUGIN_PRESET
