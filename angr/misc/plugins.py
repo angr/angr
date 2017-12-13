@@ -33,7 +33,7 @@ class PluginHub(object):
             return self._plugins[name]
         elif name in self._default_plugins:
             plugin_cls = self._default_plugins[name]
-            return self.register_plugin(name, plugin_cls())
+            return self.register_plugin(name, self._init_plugin(plugin_cls))
         else:
             raise NoPlugin("No such plugin: %s", name)
 
@@ -64,6 +64,9 @@ class PluginHub(object):
     def release_default(self, name):
         if name in self._default_plugins:
             del self._default_plugins[name]
+
+    def _init_plugin(self, plugin_cls):
+        return plugin_cls()
 
 
 class PluginPreset(object):
