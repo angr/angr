@@ -71,10 +71,11 @@ class Project(object):
                                         will try to read code from the current state instead of the original memory,
                                         regardless of the current memory protections.
     :type support_selfmodifying_code:   bool
-    :param analyses_preset:             The name of the Analyses plugins preset.
-    :type analyses_preset:              str
-    :param engines_preset:              The name of the SimEngine plugins preset.
-    :type engines_preset:               str
+
+    :param analyses_preset:             The plugin preset for the analyses provider (i.e. Analyses instance).
+    :type analyses_preset:              angr.misc.PluginPreset
+    :param engines_preset:              The plugin preset for the engines provider (i.e. EngineHub instance).
+    :type engines_preset:               angr.misc.PluginPreset
 
     Any additional keyword arguments passed will be passed onto ``cle.Loader``.
 
