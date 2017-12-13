@@ -111,6 +111,9 @@ class Project(object):
     :type support_selfmodifying_code:   bool
     :param store_function:              A function that defines how the Project should be stored. Default to pickling.
     :param load_function:               A function that defines how the Project should be loaded. Default to unpickling.
+    :param analyses_preset:             The name of the Analyses plugins preset.
+    :type analyses_preset:              str
+
 
     Any additional keyword arguments passed will be passed onto ``cle.Loader``.
 
@@ -140,6 +143,7 @@ class Project(object):
                  support_selfmodifying_code=False,
                  store_function=None,
                  load_function=None,
+                 kb_preset='compat',
                  **kwargs):
 
         # Step 1: Load the binary
@@ -216,7 +220,8 @@ class Project(object):
                 engine,
                 procedure_engine,
                 [failure_engine, syscall_engine, hook_engine, unicorn_engine, engine])
-        self.analyses = Analyses(self)
+
+        self.analyses = Analyses(self, plugin_preset=analyses_preset)
         self.surveyors = Surveyors(self)
         self.kb = KnowledgeBase(self, self.loader.main_object)
         self.storage = defaultdict(list)

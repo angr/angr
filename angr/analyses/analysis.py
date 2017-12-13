@@ -4,8 +4,9 @@ from collections import defaultdict
 import progressbar
 import logging
 
+from ..misc import PluginHub
+from ..misc.ux import deprecated
 from ..errors import AngrAnalysisError
-from . import registered_analyses
 
 l = logging.getLogger("angr.analysis")
 
@@ -50,73 +51,81 @@ class AnalysisLogEntry(object):
             return '<AnalysisLogEntry %s with %s: %s>' % (msg_str, self.exc_type.__name__, self.exc_value)
 
 
-class Analyses(object):
+class Analyses(PluginHub):
     """
     This class contains functions for all the registered and runnable analyses,
     """
-    def __init__(self, p):
+    def __init__(self, p, plugin_preset='default'):
         """
         Creates an Analyses object
 
         :ivar p:                A project
         :type p:                angr.Project
         """
+        super(Analyses, self).__init__()
         self.project = p
-        self._registered_analyses = {}
-        self.reload_analyses()
 
+        from . import ALL_PRESETS
+        ALL_PRESETS[plugin_preset].apply_preset(self)
+
+    @deprecated
     def reload_analyses(self):
-        for analysis_name, analysis in registered_analyses.iteritems():
-            self._registered_analyses[analysis_name] = self._specialize_analysis(analysis, analysis_name)
+        return
 
-    def _specialize_analysis(self, analysis, name):
-        def make_analysis(*args, **kwargs): # pylint: disable=unused-argument
-            fail_fast = kwargs.pop('fail_fast', False)
-            kb = kwargs.pop('kb', self.project.kb)
-            progress_callback = kwargs.pop('progress_callback', None)
-            show_progressbar = kwargs.pop('show_progressbar', False)
+    def get_plugin(self, name):
+        analysis_cls = super(Analyses, self).get_plugin(name)
+        return AnalysisFactory(self.project, analysis_cls, name)
 
-            oself = analysis.__new__(analysis)
-            oself.named_errors = {}
-            oself.errors = []
-            oself.log = []
+    def _init_plugin(self, plugin_cls):
+        return plugin_cls
 
-            oself._fail_fast = fail_fast
-            oself._name = name
-            oself.project = self.project
-            oself.kb = kb
-            oself._progress_callback = progress_callback
-
-            if oself._progress_callback is not None:
-                if not hasattr(oself._progress_callback, '__call__'):
-                    raise AngrAnalysisError('The "progress_callback" parameter must be a None or a callable.')
-
-            oself._show_progressbar = show_progressbar
-
-            oself.__init__(*args, **kwargs)
-            return oself
-
-        cdoc = analysis.__doc__ if analysis.__doc__ else ''
-        idoc = analysis.__init__.__doc__ if analysis.__init__.__doc__ else ''
-        make_analysis.__doc__ = cdoc + '\n' + idoc
-        return make_analysis
+    def __getattribute__(self, name):
+        plugins = super(Analyses, self).__getattribute__('_plugins')
+        if name in plugins:
+            return AnalysisFactory(self.project, plugins[name], name)
+        return super(Analyses, self).__getattribute__(name)
 
     def __getstate__(self):
-        return self.project
+        s = super(Analyses, self).__getstate__()
+        s['project'] = self.project
+        return s
 
     def __setstate__(self, s):
-        self.__init__(s)
+        super(Analyses, self).__setstate__(s)
+        self.project = s['project']
 
-    def __getattr__(self, k):
-        r = super(Analyses, self).__getattribute__('_registered_analyses')
-        if k == '_registered_analyses':
-            return r
-        if k in r:
-            return r[k]
-        return super(Analyses, self).__getattribute__(k)
 
-    def __dir__(self):
-        return dir(Analyses) + self._registered_analyses.keys()
+class AnalysisFactory(object):
+
+    def __init__(self, project, analysis_cls, name):
+        self._project = project
+        self._analysis_cls = analysis_cls
+        self._name = name
+
+    def __call__(self, *args, **kwargs):
+        fail_fast = kwargs.pop('fail_fast', False)
+        kb = kwargs.pop('kb', self._project.kb)
+        progress_callback = kwargs.pop('progress_callback', None)
+        show_progressbar = kwargs.pop('show_progressbar', False)
+
+        oself = object.__new__(self._analysis_cls)
+        oself.named_errors = {}
+        oself.errors = []
+        oself.log = []
+
+        oself._fail_fast = fail_fast
+        oself._name = self._name
+        oself.project = self._project
+        oself.kb = kb
+        oself._progress_callback = progress_callback
+
+        if oself._progress_callback is not None:
+            if not hasattr(oself._progress_callback, '__call__'):
+                raise AngrAnalysisError('The "progress_callback" parameter must be a None or a callable.')
+
+        oself._show_progressbar = show_progressbar
+        oself.__init__(*args, **kwargs)
+        return oself
 
 
 class Analysis(object):
