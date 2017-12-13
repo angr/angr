@@ -375,3 +375,8 @@ SimSegfaultError = SimSegfaultException
 
 class SimZeroDivisionException(SimException, SimOperationError):
     pass
+
+
+class NoPlugin(AngrError):
+    pass
+
