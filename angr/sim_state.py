@@ -10,7 +10,7 @@ import claripy
 import ana
 from archinfo import arch_from_id
 from .misc.ux import deprecated
-from .misc.plugins import PluginHub
+from .misc.plugins import PluginHub, PluginPreset
 
 def arch_overrideable(f):
     @functools.wraps(f)
@@ -47,7 +47,7 @@ class SimState(PluginHub, ana.Storable): # pylint: disable=R0904
     """
 
     def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
-                 add_options=None, remove_options=None, special_memory_filler=None, os_name=None, plugin_preset='default'):
+                 add_options=None, remove_options=None, special_memory_filler=None, os_name=None):
         super(SimState, self).__init__()
         self.project = project
         self.arch = arch if arch is not None else project.arch.copy() if project is not None else None
@@ -71,10 +71,10 @@ class SimState(PluginHub, ana.Storable): # pylint: disable=R0904
         self.mode = mode
 
         # plugins
-        if plugin_preset is not None:
-            from .state_plugins import ALL_PRESETS
-            ALL_PRESETS[plugin_preset].apply_preset(self)
-
+        # 8<----------------- Compatibility layer -----------------
+        from .state_plugins import ALL_PRESETS
+        ALL_PRESETS['default'].apply_preset(self)
+        # ------------------- Compatibility layer --------------->8
         if plugins is not None:
             for n,p in plugins.iteritems():
                 self.register_plugin(n, p)
@@ -813,4 +813,5 @@ from .state_plugins.history import SimStateHistory
 from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError, NoPlugin
 from .state_plugins.inspect import BP_AFTER, BP_BEFORE
 from .state_plugins.sim_action import SimActionConstraint
+from .state_plugins import ALL_PRESETS
 from . import sim_options as o

@@ -55,7 +55,7 @@ class Analyses(PluginHub):
     """
     This class contains functions for all the registered and runnable analyses,
     """
-    def __init__(self, p, plugin_preset='default'):
+    def __init__(self, p):
         """
         Creates an Analyses object
 
@@ -64,9 +64,6 @@ class Analyses(PluginHub):
         """
         super(Analyses, self).__init__()
         self.project = p
-
-        from . import ALL_PRESETS
-        ALL_PRESETS[plugin_preset].apply_preset(self)
 
     @deprecated
     def reload_analyses(self):

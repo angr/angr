@@ -24,15 +24,24 @@ class AngrObjectFactory(object):
     """
     This factory provides access to important analysis elements.
     """
-    def __init__(self, project, default_engine, procedure_engine, engines):
+    def __init__(self, project, engines):
         # currently the default engine MUST be a vex engine... this assumption is hardcoded
         # but this can totally be changed with some interface generalization
         self._project = project
+        self._engines = engines
         self._default_cc = DEFAULT_CC[project.arch.name]
 
-        self.default_engine = default_engine
-        self.procedure_engine = procedure_engine
-        self.engines = engines
+    @property
+    def engines(self):
+        return self._engines
+
+    @property
+    def default_engine(self):
+        return self._engines.default_engine
+
+    @property
+    def procedure_engine(self):
+        return self._engines.procedure_engine
 
     def snippet(self, addr, jumpkind=None, **block_opts):
         if self._project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
