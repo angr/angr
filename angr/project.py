@@ -17,42 +17,6 @@ l = logging.getLogger("angr.project")
 # All the builtins right now use SimEngineVEX.  This may not hold for long.
 
 
-def global_default(): return {'any': SimEngineVEX}
-default_engines = defaultdict(global_default)
-
-
-def register_default_engine(loader_backend, engine, arch='any'):
-    """
-    Register the default execution engine to be used with a given CLE backend.
-    Usually this is the SimEngineVEX, but if you're operating on something that isn't
-    going to be lifted to VEX, you'll need to make sure the desired engine is registered here.
-
-    :param loader_backend: The loader backend (a type)
-    :param type engine: The engine to use for the loader backend (a type)
-    :param arch: The architecture to associate with this engine. Optional.
-    :return:
-    """
-    if not isinstance(loader_backend, type):
-        raise TypeError("loader_backend must be a type")
-    if not isinstance(engine, type):
-        raise TypeError("engine must be a type")
-    default_engines[loader_backend][arch] = engine
-
-
-def get_default_engine(loader_backend, arch='any'):
-    """
-    Get some sort of sane default for a given loader and/or arch.
-    Can be set with register_default_engine()
-    :param loader_backend:
-    :param arch:
-    :return:
-    """
-    matches = default_engines[loader_backend]
-    for k,v in matches.items():
-        if k == arch or k == 'any':
-            return v
-    return None
-
 projects = weakref.WeakValueDictionary()
 
 
@@ -109,6 +73,8 @@ class Project(object):
     :type support_selfmodifying_code:   bool
     :param analyses_preset:             The name of the Analyses plugins preset.
     :type analyses_preset:              str
+    :param engines_preset:              The name of the SimEngine plugins preset.
+    :type engines_preset:               str
 
     Any additional keyword arguments passed will be passed onto ``cle.Loader``.
 
@@ -134,7 +100,8 @@ class Project(object):
                  load_options=None,
                  translation_cache=True,
                  support_selfmodifying_code=False,
-                 kb_preset='compat',
+                 analyses_preset=None,
+                 engines_preset=None,
                  **kwargs):
 
         # Step 1: Load the binary
@@ -191,28 +158,18 @@ class Project(object):
                 translation_cache = False
                 l.warning("Disabling IRSB translation cache because support for self-modifying code is enabled.")
 
-        # Look up the default engine.
-        engine_cls = get_default_engine(type(self.loader.main_object))
-        if not engine_cls:
-            raise AngrError("No engine associated with loader %s" % str(type(self.loader.main_object)))
-        engine = engine_cls(
-                stop_points=self._sim_procedures,
-                use_cache=translation_cache,
-                support_selfmodifying_code=support_selfmodifying_code)
-        procedure_engine = SimEngineProcedure()
-        hook_engine = SimEngineHook(self)
-        failure_engine = SimEngineFailure(self)
-        syscall_engine = SimEngineSyscall(self)
-        unicorn_engine = SimEngineUnicorn(self._sim_procedures)
-
         self.entry = self.loader.main_object.entry
-        self.factory = AngrObjectFactory(
-                self,
-                engine,
-                procedure_engine,
-                [failure_engine, syscall_engine, hook_engine, unicorn_engine, engine])
 
-        self.analyses = Analyses(self, plugin_preset=analyses_preset)
+        engines = EngineHub()
+        engines_preset = engines_preset or ENGINE_PRESETS['default']
+        engines_preset.apply_preset(engines, self, stop_points=self._sim_procedures,
+                                    use_cache=translation_cache, support_selfmodifying_code=support_selfmodifying_code)
+        self.factory = AngrObjectFactory(self, engines)
+
+        self.analyses = Analyses(self)
+        analyses_preset = analyses_preset or ANALYSES_PRESETS['default']
+        analyses_preset.apply_preset(self.analyses)
+
         self.surveyors = Surveyors(self)
         self.kb = KnowledgeBase(self, self.loader.main_object)
 
@@ -606,6 +563,8 @@ from .factory import AngrObjectFactory
 from angr.simos import SimOS, os_mapping
 from .analyses.analysis import Analyses
 from .surveyors import Surveyors
-from .knowledge_base import KnowledgeBase
-from .engines import SimEngineFailure, SimEngineSyscall, SimEngineProcedure, SimEngineVEX, SimEngineUnicorn, SimEngineHook
+from .engines import default_engines, register_default_engine, get_default_engine
+from .engines import EngineHub, ALL_PRESETS as ENGINE_PRESETS
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES
+from .analyses import ALL_PRESETS as ANALYSES_PRESETS
+from .knowledge_base import KnowledgeBase
