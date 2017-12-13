@@ -10,6 +10,7 @@ import claripy
 import ana
 from archinfo import arch_from_id
 from .misc.ux import deprecated
+from .misc.plugins import PluginHub
 
 def arch_overrideable(f):
     @functools.wraps(f)
@@ -26,7 +27,7 @@ from .state_plugins import default_plugins
 # This is a counter for the state-merging symbolic variables
 merge_counter = itertools.count()
 
-class SimState(ana.Storable): # pylint: disable=R0904
+class SimState(PluginHub, ana.Storable): # pylint: disable=R0904
     """
     The SimState represents the state of a program, including its memory, registers, and so forth.
 
@@ -46,7 +47,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
     """
 
     def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None, options=None,
-                 add_options=None, remove_options=None, special_memory_filler=None, os_name=None):
+                 add_options=None, remove_options=None, special_memory_filler=None, os_name=None, plugin_preset='default'):
+        super(SimState, self).__init__()
         self.project = project
         self.arch = arch if arch is not None else project.arch.copy() if project is not None else None
 
@@ -69,7 +71,10 @@ class SimState(ana.Storable): # pylint: disable=R0904
         self.mode = mode
 
         # plugins
-        self.plugins = { }
+        if plugin_preset is not None:
+            from .state_plugins import ALL_PRESETS
+            ALL_PRESETS[plugin_preset].apply_preset(self)
+
         if plugins is not None:
             for n,p in plugins.iteritems():
                 self.register_plugin(n, p)
@@ -115,7 +120,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
-        s['plugins'] = { k:v for k,v in s['plugins'].iteritems() if k not in ('inspector', 'regs', 'mem') }
+        s = { k:v for k,v in s.iteritems() if k not in ('inspector', 'regs', 'mem')}
+        s['_plugins'] = { k:v for k,v in s['_plugins'].iteritems() if k not in ('inspector', 'regs', 'mem') }
         return s
 
     def _ana_setstate(self, s):
@@ -142,6 +148,26 @@ class SimState(ana.Storable): # pylint: disable=R0904
     #
     # Easier access to some properties
     #
+
+    @property
+    def plugins(self):
+        # TODO: This shouldn't be access directly.
+        return self._plugins
+
+    @property
+    def se(self):
+        # TODO: Fix multiple names for the SimSolverEngine plugin.
+        return self.get_plugin('solver_engine')
+
+    @property
+    def solver(self):
+        # TODO: Fix multiple names for the SimSolverEngine plugin.
+        return self.get_plugin('solver_engine')
+
+    @property
+    def inspect(self):
+        # TODO: Fix multiple names for the SimInspector plugin.
+        return self.get_plugin('inspector')
 
     @property
     def ip(self):
@@ -195,84 +221,8 @@ class SimState(ana.Storable): # pylint: disable=R0904
     def __getattr__(self, v):
         try:
             return self.get_plugin(v)
-        except KeyError:
+        except NoPlugin:
             raise AttributeError(v)
-
-    @property
-    def memory(self):
-        return self.get_plugin('memory')
-
-    @property
-    def registers(self):
-        return self.get_plugin('registers')
-
-    @property
-    def se(self):
-        return self.get_plugin('solver_engine')
-
-    @property
-    def solver(self):
-        return self.get_plugin('solver_engine')
-
-    @property
-    def inspect(self):
-        return self.get_plugin('inspector')
-
-    @property
-    def log(self):
-        return self.get_plugin('log')
-
-    @property
-    def scratch(self):
-        return self.get_plugin('scratch')
-
-    @property
-    def history(self):
-        return self.get_plugin('history')
-
-    @property
-    def posix(self):
-        return self.get_plugin('posix')
-
-    @property
-    def libc(self):
-        return self.get_plugin('libc')
-
-    @property
-    def cgc(self):
-        return self.get_plugin('cgc')
-
-    @property
-    def regs(self):
-        return self.get_plugin('regs')
-
-    @property
-    def mem(self):
-        return self.get_plugin('mem')
-
-    @property
-    def gdb(self):
-        return self.get_plugin('gdb')
-
-    @property
-    def globals(self):
-        return self.get_plugin('globals')
-
-    @property
-    def uc_manager(self):
-        return self.get_plugin('uc_manager')
-
-    @property
-    def unicorn(self):
-        return self.get_plugin('unicorn')
-
-    @property
-    def preconstrainer(self):
-        return self.get_plugin('preconstrainer')
-    
-    @property
-    def callstack(self):
-        return self.get_plugin('callstack')
 
     def _inspect(self, *args, **kwargs):
         if self.has_plugin('inspector'):
@@ -289,28 +239,13 @@ class SimState(ana.Storable): # pylint: disable=R0904
     # Plugins
     #
 
-    def has_plugin(self, name):
-        return name in self.plugins
-
-    def get_plugin(self, name):
-        if name not in self.plugins:
-            p = default_plugins[name]()
-            self.register_plugin(name, p)
-            return p
-        return self.plugins[name]
-
     def register_plugin(self, name, plugin):
         #l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
         plugin.set_state(self._get_weakref() if not isinstance(plugin, SimAbstractMemory) else self)
         if plugin.STRONGREF_STATE:
             plugin.set_strongref_state(self)
-        self.plugins[name] = plugin
         plugin.init_state()
-        return plugin
-
-    def release_plugin(self, name):
-        if name in self.plugins:
-            del self.plugins[name]
+        return super(SimState, self).register_plugin(name, plugin)
 
     #
     # Constraint pass-throughs
@@ -875,7 +810,7 @@ from .state_plugins.symbolic_memory import SimSymbolicMemory
 from .state_plugins.fast_memory import SimFastMemory
 from .state_plugins.abstract_memory import SimAbstractMemory
 from .state_plugins.history import SimStateHistory
-from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError
+from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError, NoPlugin
 from .state_plugins.inspect import BP_AFTER, BP_BEFORE
 from .state_plugins.sim_action import SimActionConstraint
 from . import sim_options as o
