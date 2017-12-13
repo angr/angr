@@ -107,6 +107,8 @@ class Project(object):
                                         will try to read code from the current state instead of the original memory,
                                         regardless of the current memory protections.
     :type support_selfmodifying_code:   bool
+    :param analyses_preset:             The name of the Analyses plugins preset.
+    :type analyses_preset:              str
 
     Any additional keyword arguments passed will be passed onto ``cle.Loader``.
 
@@ -132,6 +134,7 @@ class Project(object):
                  load_options=None,
                  translation_cache=True,
                  support_selfmodifying_code=False,
+                 kb_preset='compat',
                  **kwargs):
 
         # Step 1: Load the binary
@@ -208,7 +211,8 @@ class Project(object):
                 engine,
                 procedure_engine,
                 [failure_engine, syscall_engine, hook_engine, unicorn_engine, engine])
-        self.analyses = Analyses(self)
+
+        self.analyses = Analyses(self, plugin_preset=analyses_preset)
         self.surveyors = Surveyors(self)
         self.kb = KnowledgeBase(self, self.loader.main_object)
 
