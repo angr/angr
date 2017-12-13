@@ -75,10 +75,10 @@ class Project(object):
     :type support_selfmodifying_code:   bool
     :param store_function:              A function that defines how the Project should be stored. Default to pickling.
     :param load_function:               A function that defines how the Project should be loaded. Default to unpickling.
-    :param analyses_preset:             The name of the Analyses plugins preset.
-    :type analyses_preset:              str
-    :param engines_preset:              The name of the SimEngine plugins preset.
-    :type engines_preset:               str
+    :param analyses_preset:             The plugin preset for the analyses provider (i.e. Analyses instance).
+    :type analyses_preset:              angr.misc.PluginPreset
+    :param engines_preset:              The plugin preset for the engines provider (i.e. EngineHub instance).
+    :type engines_preset:               angr.misc.PluginPreset
 
     Any additional keyword arguments passed will be passed onto ``cle.Loader``.
 
