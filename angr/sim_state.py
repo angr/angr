@@ -153,7 +153,7 @@ class SimState(PluginHub, ana.Storable): # pylint: disable=R0904
     @property
     def plugins(self):
         # TODO: This shouldn't be access directly.
-        return self._plugins
+        return self._active_plugins
 
     @property
     def se(self):

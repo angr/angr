@@ -8,18 +8,23 @@ class PluginHub(object):
 
     def __init__(self):
         super(PluginHub, self).__init__()
-        self._plugins = {}
         self._default_plugins = {}
+        self._active_plugins = {}
         self._active_preset = None
 
     def __getstate__(self):
-        return {'_plugins': self._plugins,
-                '_default_plugins': self._default_plugins}
+        return {'_default_plugins': self._default_plugins,
+                '_active_plugins': self._active_plugins,
+                '_active_preset': self._active_preset}
 
     def __setstate__(self, state):
-        self._plugins = {}
-        for name, plugin in state['_plugins'].items():
-            self.register_plugin(name, plugin)
+        self._active_preset = None
+        if state['_active_preset']:
+            self.use_preset(state['active_preset'])
+        self._active_plugins = {}
+        for name, plugin in state['_active_plugins'].items():
+            if not self.has_plugin(name):
+                self.register_plugin(name, plugin)
         self._default_plugins = state['_default_plugins']
 
     def __getattr__(self, name):
@@ -51,8 +56,8 @@ class PluginHub(object):
     #
 
     def get_plugin(self, name):
-        if name in self._plugins:
-            return self._plugins[name]
+        if name in self._active_plugins:
+            return self._active_plugins[name]
         elif name in self._default_plugins:
             plugin_cls = self._default_plugins[name]
             return self.register_plugin(name, self._init_plugin(plugin_cls))
@@ -60,17 +65,17 @@ class PluginHub(object):
             raise NoPlugin("No such plugin: %s", name)
 
     def has_plugin(self, name):
-        return name in self._plugins
+        return name in self._active_plugins
 
     def register_plugin(self, name, plugin):
         if self.has_plugin(name):
             self.release_plugin(name)
-        self._plugins[name] = plugin
+        self._active_plugins[name] = plugin
         self.__dict__[name] = plugin
         return plugin
 
     def release_plugin(self, name):
-        del self._plugins[name]
+        del self._active_plugins[name]
         del self.__dict__[name]
 
     #
