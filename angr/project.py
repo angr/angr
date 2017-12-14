@@ -163,12 +163,13 @@ class Project(object):
 
         engines = EngineHub()
         engines_preset = engines_preset or DefaultEnginesPreset(self, translation_cache)
-        engines_preset.apply_preset(engines)
+        engines.use_preset(engines_preset)
         self.factory = AngrObjectFactory(self, engines)
 
-        self.analyses = Analyses(self)
+        analyses = Analyses(self)
         analyses_preset = analyses_preset or DefaultAnalysesPreset()
-        analyses_preset.apply_preset(self.analyses)
+        analyses.use_preset(analyses_preset)
+        self.analyses = analyses
 
         self.surveyors = Surveyors(self)
         self.kb = KnowledgeBase(self, self.loader.main_object)

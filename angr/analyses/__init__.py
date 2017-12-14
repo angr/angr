@@ -33,7 +33,7 @@ from ..misc import PluginPreset
 
 class DefaultPluginsPreset(PluginPreset):
 
-    def apply_preset(self, analyses):
+    def register_plugins(self, analyses):
         # CFG analyses
         analyses.register_default('CFG', CFG)
         analyses.register_default('CFGFast', CFGFast)
