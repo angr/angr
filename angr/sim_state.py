@@ -120,7 +120,7 @@ class SimState(PluginHub, ana.Storable): # pylint: disable=R0904
     def _ana_getstate(self):
         s = dict(ana.Storable._ana_getstate(self))
         s = { k:v for k,v in s.iteritems() if k not in ('inspector', 'regs', 'mem')}
-        s['_plugins'] = { k:v for k,v in s['_plugins'].iteritems() if k not in ('inspector', 'regs', 'mem') }
+        s['_active_plugins'] = { k:v for k,v in s['_active_plugins'].iteritems() if k not in ('inspector', 'regs', 'mem') }
         return s
 
     def _ana_setstate(self, s):
@@ -240,11 +240,19 @@ class SimState(PluginHub, ana.Storable): # pylint: disable=R0904
 
     def register_plugin(self, name, plugin):
         #l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
+        self._set_plugin_state(plugin)
+        return super(SimState, self).register_plugin(name, plugin)
+
+    def _init_plugin(self, plugin_cls):
+        plugin = plugin_cls()
+        self._set_plugin_state(plugin)
+        return plugin
+
+    def _set_plugin_state(self, plugin):
         plugin.set_state(self._get_weakref() if not isinstance(plugin, SimAbstractMemory) else self)
         if plugin.STRONGREF_STATE:
             plugin.set_strongref_state(self)
         plugin.init_state()
-        return super(SimState, self).register_plugin(name, plugin)
 
     #
     # Constraint pass-throughs
