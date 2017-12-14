@@ -29,28 +29,22 @@ from ..misc.plugins import PluginPreset
 
 class DefaultPluginPreset(PluginPreset):
 
-    @classmethod
-    def apply_preset(cls, hub, *args, **kwargs):
-        hub.register_default('callstack', CallStack)
-        hub.register_default('cgc', SimStateCGC)
-        hub.register_default('gdb', GDB)
-        hub.register_default('globals', SimStateGlobals)
-        hub.register_default('history', SimStateHistory)
-        hub.register_default('inspector', SimInspector)
-        hub.register_default('libc', SimStateLibc)
-        hub.register_default('log', SimStateLog)
-        hub.register_default('posix', SimStateSystem)
-        hub.register_default('preconstrainer', SimStatePreconstrainer)
-        hub.register_default('scratch', SimStateScratch)
-        hub.register_default('solver_engine', SimSolver)
-        hub.register_default('memory', SimSymbolicMemory)
-        hub.register_default('registers', SimSymbolicMemory)
-        hub.register_default('uc_manager', SimUCManager)
-        hub.register_default('unicorn', Unicorn)
-        hub.register_default('regs', SimRegNameView)
-        hub.register_default('mem', SimMemView)
-
-
-ALL_PRESETS = {
-    'default': DefaultPluginPreset
-}
+    def apply_preset(self, state):
+        state.register_default('callstack', CallStack)
+        state.register_default('cgc', SimStateCGC)
+        state.register_default('gdb', GDB)
+        state.register_default('globals', SimStateGlobals)
+        state.register_default('history', SimStateHistory)
+        state.register_default('inspector', SimInspector)
+        state.register_default('libc', SimStateLibc)
+        state.register_default('log', SimStateLog)
+        state.register_default('posix', SimStateSystem)
+        state.register_default('preconstrainer', SimStatePreconstrainer)
+        state.register_default('scratch', SimStateScratch)
+        state.register_default('solver_engine', SimSolver)
+        state.register_default('memory', SimSymbolicMemory)
+        state.register_default('registers', SimSymbolicMemory)
+        state.register_default('uc_manager', SimUCManager)
+        state.register_default('unicorn', Unicorn)
+        state.register_default('regs', SimRegNameView)
+        state.register_default('mem', SimMemView)

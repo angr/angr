@@ -33,8 +33,7 @@ from ..misc import PluginPreset
 
 class DefaultPluginsPreset(PluginPreset):
 
-    @classmethod
-    def apply_preset(cls, analyses, *args, **kwargs):
+    def apply_preset(self, analyses):
         # CFG analyses
         analyses.register_default('CFG', CFG)
         analyses.register_default('CFGFast', CFGFast)
@@ -65,8 +64,3 @@ class DefaultPluginsPreset(PluginPreset):
         analyses.register_default('Veritesting', Veritesting)
         analyses.register_default('VFG', VFG)
         analyses.register_default('VSA_DDG', VSA_DDG)
-
-
-ALL_PRESETS = {
-    'default': DefaultPluginsPreset,
-}

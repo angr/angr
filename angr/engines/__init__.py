@@ -54,27 +54,28 @@ def get_default_engine(loader_backend, arch='any'):
 
 class DefaultPluginPreset(PluginPreset):
 
-    @classmethod
-    def apply_preset(cls, engines, *args, **kwargs):
+    def __init__(self, project, use_cache):
+        self._project = project
+        self._use_cache = use_cache
+
+    def apply_preset(self, engines):
         """
 
         :param engines:
         :param project:
-        :param stop_points:
         :param use_cache:
-        :param support_selfmodifying_code:
         :return:
         """
-        try:
-            project = args[0]
-        except IndexError:
-            raise AngrError("This preset expects Project as the first argument")
+        # Shorthands.
+        project = self._project
+        use_cache = self._use_cache
 
         # Look up the default engine.
-        stop_points = kwargs.get('stop_points')
-        use_cache = kwargs.get('use_cache')
-        support_selfmodifying_code = kwargs.get('support_selfmodifying_code')
-        default_engine = cls._init_default_engine(project, stop_points, use_cache, support_selfmodifying_code)
+        engine_cls = get_default_engine(type(project.loader.main_object))
+        if engine_cls is None:
+            raise AngrError("No engine associated with loader %s" % str(type(project.loader.main_object)))
+        default_engine = engine_cls(stop_points=project._sim_procedures, use_cache=use_cache,
+                                    support_selfmodifying_code=project._support_selfmodifying_code)
 
         # Register the engines in the given EngineHub.
         engines.register_plugin('default', default_engine)
@@ -82,29 +83,8 @@ class DefaultPluginPreset(PluginPreset):
         engines.register_plugin('failure', SimEngineFailure(project))
         engines.register_plugin('syscall', SimEngineSyscall(project))
         engines.register_plugin('hook', SimEngineHook(project))
-        engines.register_plugin('unicorn', SimEngineUnicorn(stop_points))
+        engines.register_plugin('unicorn', SimEngineUnicorn(project._sim_procedures))
 
         # Set processing order.
         del engines.processing_order[:]
         engines.processing_order.extend(('failure', 'syscall', 'hook', 'unicorn', 'default'))
-
-    @classmethod
-    def _init_default_engine(cls, project, stop_points, use_cache, support_selfmodifying_code):
-        """
-
-        :param project:
-        :param stop_points:
-        :param use_cache:
-        :param support_selfmodifying_code:
-        :return:
-        """
-        engine_cls = get_default_engine(type(project.loader.main_object))
-        if not engine_cls:
-            raise AngrError("No engine associated with loader %s" % str(type(project.loader.main_object)))
-        return engine_cls(stop_points=stop_points, use_cache=use_cache,
-                          support_selfmodifying_code=support_selfmodifying_code)
-
-
-ALL_PRESETS = {
-    'default': DefaultPluginPreset,
-}

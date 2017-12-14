@@ -71,10 +71,8 @@ class PluginHub(object):
 
 class PluginPreset(object):
 
-    @classmethod
-    def apply_preset(cls, hub, *args, **kwargs):
+    def apply_preset(self, hub):
         raise NotImplementedError
 
-    @classmethod
-    def release_preset(cls, hub):
-        raise NotImplementedError
+    def release_preset(self, hub):
+        pass
