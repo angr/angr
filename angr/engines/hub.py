@@ -9,7 +9,7 @@ class EngineHub(PluginHub):
         self.processing_order = []
 
     def __iter__(self):
-        return (self._plugins[name] for name in self.processing_order)
+        return (self.get_plugin(name) for name in self.processing_order)
 
     def __getstate__(self):
         s = super(EngineHub, self).__getstate__()
