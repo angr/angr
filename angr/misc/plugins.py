@@ -17,15 +17,18 @@ class PluginHub(object):
                 '_active_plugins': self._active_plugins,
                 '_active_preset': self._active_preset}
 
-    def __setstate__(self, state):
-        self._active_preset = None
-        if state['_active_preset']:
-            self.use_preset(state['active_preset'])
+    def __setstate__(self, s):
+        self._default_plugins = {}
         self._active_plugins = {}
-        for name, plugin in state['_active_plugins'].items():
-            if not self.has_plugin(name):
-                self.register_plugin(name, plugin)
-        self._default_plugins = state['_default_plugins']
+        self._active_preset = s.get('_active_preset')
+
+        for name, plugin_cls in s.get('_default_plugins', {}).items():
+            if name not in self._default_plugins:
+                self.register_default(name, plugin_cls)
+
+        for name, plugin_cls in s.get('_active_plugins', {}).items():
+            if name not in self._active_plugins:
+                self.register_plugin(name, plugin_cls)
 
     def __getattr__(self, name):
         return self.get_plugin(name)
