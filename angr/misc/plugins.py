@@ -10,6 +10,7 @@ class PluginHub(object):
         super(PluginHub, self).__init__()
         self._plugins = {}
         self._default_plugins = {}
+        self._active_preset = None
 
     def __getstate__(self):
         return {'_plugins': self._plugins,
@@ -23,6 +24,27 @@ class PluginHub(object):
 
     def __getattr__(self, name):
         return self.get_plugin(name)
+
+    #
+    #   ...
+    #
+
+    @property
+    def preset(self):
+        return self._active_preset
+
+    def has_preset(self):
+        return self._active_preset is not None
+
+    def use_preset(self, preset):
+        if self._active_preset:
+            self._active_preset.release_plugins()
+        preset.register_plugins(self)
+        self._active_preset = preset
+
+    def discard_preset(self):
+        self._active_preset.release_plugins()
+        self._active_preset = None
 
     #
     #   ...
@@ -71,8 +93,8 @@ class PluginHub(object):
 
 class PluginPreset(object):
 
-    def apply_preset(self, hub):
+    def register_plugins(self, hub):
         raise NotImplementedError
 
-    def release_preset(self, hub):
+    def release_plugins(self, hub):
         pass

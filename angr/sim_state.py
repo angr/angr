@@ -72,7 +72,7 @@ class SimState(PluginHub, ana.Storable): # pylint: disable=R0904
 
         # plugins
         # 8<----------------- Compatibility layer -----------------
-        DefaultPluginPreset().apply_preset(self)
+        self.use_preset(DefaultPluginPreset())
         # ------------------- Compatibility layer --------------->8
         if plugins is not None:
             for n,p in plugins.iteritems():

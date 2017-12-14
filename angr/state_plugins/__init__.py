@@ -29,7 +29,7 @@ from ..misc.plugins import PluginPreset
 
 class DefaultPluginPreset(PluginPreset):
 
-    def apply_preset(self, state):
+    def register_plugins(self, state):
         state.register_default('callstack', CallStack)
         state.register_default('cgc', SimStateCGC)
         state.register_default('gdb', GDB)

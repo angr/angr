@@ -58,7 +58,7 @@ class DefaultPluginPreset(PluginPreset):
         self._project = project
         self._use_cache = use_cache
 
-    def apply_preset(self, engines):
+    def register_plugins(self, engines):
         """
 
         :param engines:
