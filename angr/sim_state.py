@@ -74,8 +74,7 @@ class SimState(PluginHub, ana.Storable): # pylint: disable=R0904
 
         # plugins
         # 8<----------------- Compatibility layer -----------------
-        from .state_plugins import ALL_PRESETS
-        ALL_PRESETS['default'].apply_preset(self)
+        DefaultPluginPreset().apply_preset(self)
         # ------------------- Compatibility layer --------------->8
         if plugins is not None:
             for n,p in plugins.iteritems():
@@ -801,5 +800,5 @@ from .state_plugins.abstract_memory import SimAbstractMemory
 from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError, NoPlugin
 from .state_plugins.inspect import BP_AFTER, BP_BEFORE
 from .state_plugins.sim_action import SimActionConstraint
-from .state_plugins import ALL_PRESETS
+from .state_plugins import DefaultPluginPreset
 from . import sim_options as o

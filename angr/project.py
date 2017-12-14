@@ -162,13 +162,12 @@ class Project(object):
         self.entry = self.loader.main_object.entry
 
         engines = EngineHub()
-        engines_preset = engines_preset or ENGINE_PRESETS['default']
-        engines_preset.apply_preset(engines, self, stop_points=self._sim_procedures,
-                                    use_cache=translation_cache, support_selfmodifying_code=support_selfmodifying_code)
+        engines_preset = engines_preset or DefaultEnginesPreset(self, translation_cache)
+        engines_preset.apply_preset(engines)
         self.factory = AngrObjectFactory(self, engines)
 
         self.analyses = Analyses(self)
-        analyses_preset = analyses_preset or ANALYSES_PRESETS['default']
+        analyses_preset = analyses_preset or DefaultAnalysesPreset()
         analyses_preset.apply_preset(self.analyses)
 
         self.surveyors = Surveyors(self)
@@ -564,8 +563,9 @@ from .factory import AngrObjectFactory
 from angr.simos import SimOS, os_mapping
 from .analyses.analysis import Analyses
 from .surveyors import Surveyors
-from .engines import default_engines, register_default_engine, get_default_engine
-from .engines import EngineHub, ALL_PRESETS as ENGINE_PRESETS
-from .procedures import SIM_PROCEDURES, SIM_LIBRARIES
-from .analyses import ALL_PRESETS as ANALYSES_PRESETS
 from .knowledge_base import KnowledgeBase
+from .engines import default_engines, register_default_engine, get_default_engine
+from .engines import EngineHub
+from .procedures import SIM_PROCEDURES, SIM_LIBRARIES
+from .analyses import DefaultPluginsPreset as DefaultAnalysesPreset
+from .engines import DefaultPluginPreset as DefaultEnginesPreset
