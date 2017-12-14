@@ -69,18 +69,8 @@ class Analyses(PluginHub):
     def reload_analyses(self):
         return
 
-    def get_plugin(self, name):
-        analysis_cls = super(Analyses, self).get_plugin(name)
-        return AnalysisFactory(self.project, analysis_cls, name)
-
     def _init_plugin(self, plugin_cls):
-        return plugin_cls
-
-    def __getattribute__(self, name):
-        plugins = super(Analyses, self).__getattribute__('_plugins')
-        if name in plugins:
-            return AnalysisFactory(self.project, plugins[name], name)
-        return super(Analyses, self).__getattribute__(name)
+        return AnalysisFactory(self.project, plugin_cls)
 
     def __getstate__(self):
         s = super(Analyses, self).__getstate__()
@@ -94,10 +84,9 @@ class Analyses(PluginHub):
 
 class AnalysisFactory(object):
 
-    def __init__(self, project, analysis_cls, name):
+    def __init__(self, project, analysis_cls):
         self._project = project
         self._analysis_cls = analysis_cls
-        self._name = name
 
     def __call__(self, *args, **kwargs):
         fail_fast = kwargs.pop('fail_fast', False)
@@ -111,7 +100,7 @@ class AnalysisFactory(object):
         oself.log = []
 
         oself._fail_fast = fail_fast
-        oself._name = self._name
+        oself._name = self._analysis_cls.__name__
         oself.project = self._project
         oself.kb = kb
         oself._progress_callback = progress_callback
