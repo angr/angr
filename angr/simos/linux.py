@@ -254,6 +254,8 @@ class SimLinux(SimUserland):
                                                    constrained_addrs=constrained_addrs,
                                                    **kwargs)
 
+        state.preconstrainer.preconstrain_state()
+
         # Increase size of libc limits
         state.libc.buf_symbolic_bytes = 1024
         state.libc.max_str_len = 1024

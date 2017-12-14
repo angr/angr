@@ -162,6 +162,8 @@ class SimCGC(SimUserland):
                                                  constrained_addrs=constrained_addrs,
                                                  **kwargs)
 
+        state.cgc.flag_bytes = [claripy.BVS("cgc-flag-byte-%d" % i, 8) for i in xrange(0x1000)]
+
         csr = state.unicorn.cooldown_symbolic_registers
         state.unicorn.concretization_threshold_registers = 25000 / csr
         state.unicorn.concretization_threshold_memory = 25000 / csr
