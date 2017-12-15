@@ -226,6 +226,12 @@ class Instruction(DisassemblyPiece):
             i -= 1
 
         self.opcode = Opcode(self)
+
+        # This is a hack to fix a capstone bug.
+        if 'ARM' in self.project.arch.name and self.insn.mnemonic[:3] in arm_shift_ops:
+            shift = [', '] + self.operands.pop(-1)
+            self.operands[-1].extend(shift)
+
         self.operands.reverse()
 
         if len(self.operands) != len(self.insn.operands):
