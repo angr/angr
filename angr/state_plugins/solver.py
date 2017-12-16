@@ -222,6 +222,38 @@ class SimSolver(SimStatePlugin):
             if len(k) >= len(keys) and all(x == y for x, y in zip(keys, k)):
                 yield k, v
 
+    def register_variable(self, v, key, eternal=True):
+        """
+        Register a value with the variable tracking system
+
+        :param v:       The BVS to register
+        :param key:     A tuple to register the variable under
+        :parma eternal: Whether this is an eternal variable, default True. If False, an incrementing counter will be
+                        appended to the key.
+        """
+        if type(key) is not tuple:
+            raise TypeError("Variable tracking key must be a tuple")
+        if eternal:
+            self.eternal_tracked_variables[key] = v
+        else:
+            self.temporal_tracked_variables = dict(self.temporal_tracked_variables)
+            ctrkey = key + (None,)
+            ctrval = self.temporal_tracked_variables.get(ctrkey, 0) + 1
+            self.temporal_tracked_variables[ctrkey] = ctrval
+            tempkey = key + (ctrval,)
+            self.temporal_tracked_variables[tempkey] = v
+
+    def describe_variables(self, v):
+        """
+        Given an AST, iterate over all the keys of all the BVS leaves in the tree which are registered.
+        """
+        reverse_mapping = {iter(var.variables).next(): k for k, var in self.eternal_tracked_variables.iteritems()}
+        reverse_mapping.update({iter(var.variables).next(): k for k, var in self.temporal_tracked_variables.iteritems() if k[-1] is not None})
+
+        for var in v.variables:
+            if var in reverse_mapping:
+                yield reverse_mapping[var]
+
     @property
     def _solver(self):
         if self._stored_solver is not None:
@@ -300,22 +332,13 @@ class SimSolver(SimStatePlugin):
         # should this be locked for multithreading?
         if key is not None and eternal and key in self.eternal_tracked_variables:
             r = self.eternal_tracked_variables[key]
+            # pylint: disable=too-many-boolean-expressions
             if size != r.length or min != r.args[1] or max != r.args[2] or stride != r.args[3] or uninitialized != r.args[4] or bool(explicit_name) ^ (r.args[0] == name):
                 l.warning("Variable %s being retrieved with differnt settings than it was tracked with", name)
         else:
             r = claripy.BVS(name, size, min=min, max=max, stride=stride, uninitialized=uninitialized, explicit_name=explicit_name, **kwargs)
             if key is not None:
-                if type(key) is not tuple:
-                    raise TypeError("Variable tracking key must be a tuple")
-                if eternal:
-                    self.eternal_tracked_variables[key] = r
-                else:
-                    self.temporal_tracked_variables = dict(self.temporal_tracked_variables)
-                    ctrkey = key + (None,)
-                    ctrval = self.temporal_tracked_variables.get(ctrkey, 0) + 1
-                    self.temporal_tracked_variables[ctrkey] = ctrval
-                    tempkey = key + (ctrval,)
-                    self.temporal_tracked_variables[tempkey] = r
+                self.register_variable(r, key, eternal)
 
         if inspect:
             self.state._inspect('symbolic_variable', BP_AFTER, symbolic_name=next(iter(r.variables)), symbolic_size=size, symbolic_expr=r)
