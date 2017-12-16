@@ -29,7 +29,7 @@ def amd64g_dirtyhelper_RDTSC(state):
     if o.USE_SYSTEM_TIMES in state.options:
         val = state.solver.BVV(int(time.clock() * 1000000) + 12345678, 64)
     else:
-        val = state.solver.BVS('RDTSC', 64)
+        val = state.solver.BVS('RDTSC', 64, key=('hardware', 'rdtsc'))
     return val, []
 
 x86g_dirtyhelper_RDTSC = amd64g_dirtyhelper_RDTSC
@@ -136,7 +136,7 @@ def CORRECT_amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _):
     return None, [ ]
 
 def amd64g_dirtyhelper_IN(state, portno, sz): #pylint:disable=unused-argument
-    return state.se.Unconstrained('IN', 64), [ ]
+    return state.se.Unconstrained('IN', 64, key=('hardware', 'in')), [ ]
 
 def amd64g_dirtyhelper_OUT(state, portno, data, sz): #pylint:disable=unused-argument
     return None, [ ]
@@ -228,7 +228,7 @@ def CORRECT_x86g_dirtyhelper_CPUID_sse2(state, _):
     return None, [ ]
 
 def x86g_dirtyhelper_IN(state, portno, sz): #pylint:disable=unused-argument
-    return state.se.Unconstrained('IN', 32), [ ]
+    return state.se.Unconstrained('IN', 32, key=('hardware', 'in')), [ ]
 
 def x86g_dirtyhelper_OUT(state, portno, data, sz): #pylint:disable=unused-argument
     return None, [ ]

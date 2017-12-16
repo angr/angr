@@ -125,9 +125,12 @@ class SimOS(object):
 
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
-                state.registers.store(reg, claripy.BVS(initial_prefix + "_" + reg,
-                                                       state.arch.bits,
-                                                       explicit_name=True))
+                state.registers.store(reg, state.solver.BVS(
+                    initial_prefix + "_" + reg,
+                    state.arch.bits,
+                    explicit_name=True,
+                    key=('reg', reg),
+                    eternal=True))
 
         for reg, val, is_addr, mem_region in state.arch.default_register_values:
 
@@ -220,7 +223,7 @@ class SimOS(object):
         # Preconstrain
         state.preconstrainer.preconstrain_state()
 
-        state.cgc.flag_bytes = [claripy.BVS("cgc-flag-byte-%d" % i, 8) for i in xrange(0x1000)]
+        state.cgc.flag_bytes = [state.solver.BVS("cgc-flag-byte-%d" % i, 8, key=('flag', i), eternal=True) for i in xrange(0x1000)]
 
         return state
 

@@ -35,10 +35,10 @@ class readdir(angr.SimProcedure):
     def _build_amd64(self):
         self.struct = Dirent(self.state.se.BVV(0, 64), # d_ino
                              self.state.se.BVV(0, 64), # d_off
-                             self.state.se.BVS('d_reclen', 16), # d_reclen
-                             self.state.se.BVS('d_type', 8), # d_type
-                             self.state.se.BVS('d_name', 255*8)) # d_name
-        self.condition = self.state.se.BoolS('readdir_cond')
+                             self.state.se.BVS('d_reclen', 16, key=('api', 'readdir', 'd_reclen')), # d_reclen
+                             self.state.se.BVS('d_type', 8, key=('api', 'readdir', 'd_type')), # d_type
+                             self.state.se.BVS('d_name', 255*8, key=('api', 'readdir', 'd_name'))) # d_name
+        self.condition = self.state.se.BoolS('readdir_cond', key) # TODO: variable key
 
     def _store_amd64(self, ptr):
         stores = lambda offset, val: self.state.memory.store(ptr + offset, val, endness='Iend_BE')
