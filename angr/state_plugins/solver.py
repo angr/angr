@@ -176,7 +176,10 @@ def concrete_path_list(f):
 import claripy
 class SimSolver(SimStatePlugin):
     """
-    Symbolic solver.
+    This is the plugin you'll use to interact with symbolic variables, creating them and evaluating them.
+    It should be available on a state as ``state.solver``.
+
+    Any top-level variable of the claripy module can be accessed as a property of this object.
     """
     def __init__(self, solver=None, all_variables=None, temporal_tracked_variables=None, eternal_tracked_variables=None): #pylint:disable=redefined-outer-name
         l.debug("Creating SimSolverClaripy.")

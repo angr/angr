@@ -36,7 +36,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
     :ivar mem:          A convenient view of the state's memory, a :class:`angr.state_plugins.view.SimMemView`
     :ivar registers:    The state's register file as a flat memory region
     :ivar memory:       The state's memory as a flat memory region
-    :ivar se:           The solver engine for this state
+    :ivar solver:       The symbolic solver and variable manager for this state
     :ivar inspect:      The breakpoint manager, a :class:`angr.state_plugins.inspect.SimInspector`
     :ivar log:          Information about the state's history
     :ivar scratch:      Information about the current execution step
