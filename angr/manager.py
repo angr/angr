@@ -893,7 +893,7 @@ class SimulationManager(ana.Storable):
     # High-level functionality
     #
 
-    def explore(self, stash=None, n=None, find=None, avoid=None, find_stash='found', avoid_stash='avoid', cfg=None, num_find=1, step_func=None):
+    def explore(self, stash=None, n=None, find=None, avoid=None, find_stash='found', avoid_stash='avoid', cfg=None, num_find=1, step_func=None, **kwargs):
         """
         Tick stash "stash" forward (up to "n" times or until "num_find" states are found), looking for condition "find",
         avoiding condition "avoid". Stores found states into "find_stash' and avoided states into "avoid_stash".
@@ -918,12 +918,13 @@ class SimulationManager(ana.Storable):
         self.use_technique(tech)
         out = self.run(stash=stash,
                        step_func=step_func,
-                       n=n)
+                       n=n,
+                       **kwargs)
         out.remove_tech(tech)
         self.remove_tech(tech)
         return out
 
-    def run(self, stash=None, n=None, step_func=None):
+    def run(self, stash=None, n=None, step_func=None, **kwargs):
         """
         Run until the SimulationManager has reached a completed state, according to
         the current exploration techniques.
@@ -942,7 +943,7 @@ class SimulationManager(ana.Storable):
             l.warn("No completion state defined for SimulationManager; stepping until all states deadend")
 
         until_func = lambda pg: self.completion_mode(h(pg) for h in self._hooks_complete)
-        return self.step(n=n, step_func=step_func, until=until_func, stash=stash)
+        return self.step(n=n, step_func=step_func, until=until_func, stash=stash, **kwargs)
 
 
 class ErrorRecord(object):
