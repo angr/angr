@@ -175,7 +175,7 @@ class Tracer(ExplorationTechnique):
             # drop the missed stash before stepping, since driller needs missed paths later.
             simgr.drop(stash='missed')
 
-            simgr.step(size=bbl_max_bytes)
+            simgr._one_step(size=bbl_max_bytes)
 
             # if our input was preconstrained we have to keep on the lookout for unsat paths.
             if current.preconstrainer._preconstrain_input:

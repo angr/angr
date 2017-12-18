@@ -98,7 +98,7 @@ class Explorer(ExplorationTechnique):
 
     def step(self, simgr, stash, **kwargs):
         base_extra_stop_points = set(kwargs.get("extra_stop_points") or {})
-        return simgr.step(stash=stash, extra_stop_points=base_extra_stop_points | self._extra_stop_points, **kwargs)
+        return simgr._one_step(stash=stash, extra_stop_points=base_extra_stop_points | self._extra_stop_points, **kwargs)
 
     def filter(self, state):
         if sim_options.UNICORN in state.options and self._warn_unicorn:

@@ -33,12 +33,12 @@ class ExplorationTechnique(object):
 
     def step(self, simgr, stash, **kwargs):
         """
-        Step this stash of this manager forward. Should call ``simgr.step(stash, **kwargs)`` in order to do the actual
-        processing.
+        Step this stash of this manager forward. Should call ``simgr._one_step(stash, **kwargs)`` in order to do the
+        actual processing.
 
         Return the stepped manager.
         """
-        return simgr.step(stash=stash, **kwargs)
+        return simgr._one_step(stash=stash, **kwargs)
 
     def filter(self, state):
         """
