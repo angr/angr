@@ -120,4 +120,5 @@ from .veritesting import Veritesting
 from .oppologist import Oppologist
 from .director import Director, ExecuteAddressGoal, CallFunctionGoal
 from .spiller import Spiller
+from .manual_mergepoint import ManualMergepoint
 from ..errors import AngrError, AngrExplorationTechniqueError
