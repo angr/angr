@@ -798,13 +798,17 @@ class SimulationManager(ana.Storable):
         Use an exploration technique with this SimulationManager.
         Techniques can be found in :mod:`angr.exploration_techniques`.
 
-        :param tech:       An ExplorationTechnique object that contains code to modify this SimulationManager's behavior
+        :param tech:    An ExplorationTechnique object that contains code to modify this SimulationManager's behavior
+        :returns:       The same technique instance that was passed in. This allows for writing the
+                        ExplorationTechnique construtor call inside the call to ``use_technique`` and still
+                        maintaining a reference to the technique.
         """
         # this might be the best worst code I've ever written in my life
         tech.project = self._project
         self.remove_tech(tech)
         tech.setup(self)
         self._apply_hooks(tech)
+        return tech
 
     def _apply_hooks(self, tech):
         self._hooks_all.append(tech)
