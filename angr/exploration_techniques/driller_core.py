@@ -41,7 +41,7 @@ class DrillerCore(ExplorationTechnique):
         return not simgr.active or simgr.one_active.globals['bb_cnt'] >= len(self.trace)
 
     def step(self, simgr, stash, **kwargs):
-        simgr._one_step(**kwargs)
+        simgr._one_step(stash, **kwargs)
 
         # Mimic AFL's indexing scheme.
         if 'missed' in simgr.stashes and simgr.missed:

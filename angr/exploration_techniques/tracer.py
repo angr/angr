@@ -79,6 +79,9 @@ class Tracer(ExplorationTechnique):
         return False
 
     def step(self, simgr, stash, **kwargs):
+        if stash != 'active':
+            raise Exception("TODO: tracer doesn't work with stashes other than active")
+
         if len(simgr.active) == 1:
             current = simgr.active[0]
 
@@ -175,7 +178,7 @@ class Tracer(ExplorationTechnique):
             # drop the missed stash before stepping, since driller needs missed paths later.
             simgr.drop(stash='missed')
 
-            simgr._one_step(size=bbl_max_bytes)
+            simgr._one_step(stash, size=bbl_max_bytes)
 
             # if our input was preconstrained we have to keep on the lookout for unsat paths.
             if current.preconstrainer._preconstrain_input:

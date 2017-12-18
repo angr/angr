@@ -65,14 +65,14 @@ class CrashMonitor(ExplorationTechnique):
             if self._trim_history and not self._crash_mode:
                 self.last_state.history.trim()
 
-            simgr._one_step(**kwargs)
+            simgr._one_step(stash, **kwargs)
 
             if self._crash_type == EXEC_STACK:
                 return simgr
 
             # check to see if we reached a deadend
             if self.last_state.globals['bb_cnt'] >= len(self._trace) and self._crash_mode:
-                simgr._one_step()
+                simgr._one_step(stash)
                 self._crash_type = QEMU_CRASH
                 return simgr
 
