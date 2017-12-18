@@ -679,7 +679,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             base_state=base_state)
 
         # necessary warnings
-        if self.project.loader._auto_load_libs is True and end is None and len(self.project.loader.all_objects) > 3:
+        if self.project.loader._auto_load_libs is True and end is None and len(self.project.loader.all_objects) > 3 \
+                and regions is None:
             l.warning('"auto_load_libs" is enabled. With libraries loaded in project, CFGFast will cover libraries, '
                       'which may take significantly more time than expected. You may reload the binary with '
                       '"auto_load_libs" disabled, or specify "regions" to limit the scope of CFG recovery.'
