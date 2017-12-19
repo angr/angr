@@ -497,6 +497,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
         merge_conditions = kwargs.pop('merge_conditions', None)
         common_ancestor = kwargs.pop('common_ancestor', None)
         plugin_whitelist = kwargs.pop('plugin_whitelist', None)
+        common_ancestor_history = kwargs.pop('common_ancestor_history', None)
 
         if len(kwargs) != 0:
             raise ValueError("invalid arguments: %s" % kwargs.keys())
@@ -547,15 +548,21 @@ class SimState(ana.Storable): # pylint: disable=R0904
                 for t,tp in zip(others, their_plugins)
             ]
 
+            plugin_common_ancestor = (
+                common_ancestor.plugins[p] if
+                (common_ancestor is not None and p in common_ancestor.plugins) else
+                None
+            )
+            if plugin_common_ancestor is None and \
+                    plugin_class is SimStateHistory and \
+                    common_ancestor_history is not None:
+                plugin_common_ancestor = common_ancestor_history
+
             plugin_state_merged = our_filled_plugin.merge(
-                their_filled_plugins, merge_conditions, common_ancestor=(
-                    common_ancestor.plugins[p] if
-                    (common_ancestor is not None and p in common_ancestor.plugins) else
-                    None
-                )
+                their_filled_plugins, merge_conditions, common_ancestor=plugin_common_ancestor,
             )
             if plugin_state_merged:
-                l.debug('Merging occured in %s', p)
+                l.debug('Merging occurred in %s', p)
                 merging_occurred = True
 
         merged.add_constraints(merged.se.Or(*merge_conditions))
@@ -863,6 +870,7 @@ class SimState(ana.Storable): # pylint: disable=R0904
 from .state_plugins.symbolic_memory import SimSymbolicMemory
 from .state_plugins.fast_memory import SimFastMemory
 from .state_plugins.abstract_memory import SimAbstractMemory
+from .state_plugins.history import SimStateHistory
 from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError
 from .state_plugins.inspect import BP_AFTER, BP_BEFORE
 from .state_plugins.sim_action import SimActionConstraint
