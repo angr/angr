@@ -736,6 +736,7 @@ class SimulationManager(ana.Storable):
             o = optimal[0]
             m, _, _ = o.merge(*optimal[1:],
                               merge_conditions=constraints,
+                              # history.strongref_state requires state option EFFICIENT_STATE_MERGING
                               common_ancestor=common_history.strongref_state,
                               common_ancestor_history=common_history
                               )
