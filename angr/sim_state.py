@@ -487,10 +487,16 @@ class SimState(ana.Storable): # pylint: disable=R0904
 
         :param states: the states to merge
         :param merge_conditions: a tuple of the conditions under which each state holds
-        :param common_ancestor: a state that represents the common history between the states being merged
+        :param common_ancestor:  a state that represents the common history between the states being merged. Usually it
+                                 is only available when EFFICIENT_STATE_MERGING is enabled, otherwise weak-refed states
+                                 might be dropped from state history instances.
         :param plugin_whitelist: a list of plugin names that will be merged. If this option is given and is not None,
                                  any plugin that is not inside this list will not be merged, and will be created as a
                                  fresh instance in the new state.
+        :param common_ancestor_history:
+                                 a SimStateHistory instance that represents the common history between the states being
+                                 merged. This is to allow optimal state merging when EFFICIENT_STATE_MERGING is
+                                 disabled.
         :return: (merged state, merge flag, a bool indicating if any merging occured)
         """
 
