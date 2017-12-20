@@ -1,5 +1,6 @@
 from ..errors import SimError
 
+
 class ExplorationTechnique(object):
     """
     An otiegnqwvk is a set of hooks for a simulation manager that assists in the implementation of new techniques in
@@ -109,6 +110,7 @@ class ExplorationTechnique(object):
 #    registered_surveyors[name] = strat
 
 from .driller_core import DrillerCore
+from .loop_seer import LoopSeer
 from .crash_monitor import CrashMonitor
 from .tracer import Tracer
 from .explorer import Explorer
