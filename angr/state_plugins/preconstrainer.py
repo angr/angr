@@ -48,7 +48,7 @@ class SimStatePreconstrainer(SimStatePlugin):
                                    preconstrain_input=self._preconstrain_input,
                                    preconstrain_flag=self._preconstrain_flag,
                                    constrained_addrs=self._constrained_addrs)
-                                   
+
         c.variable_map = dict(self.variable_map)
         c.preconstraints = list(self.preconstraints)
         c.address_concretization = list(self.address_concretization)
@@ -84,7 +84,7 @@ class SimStatePreconstrainer(SimStatePlugin):
             for b in self.input_content:
                 self._preconstrain(b, stdin.read_from(1))
 
-        elif type(input_content.getattr('stdin', None)) is SimDialogue: # a PoV, need to navigate the dialogue
+        elif type(self.input_content.getattr('stdin', None)) is SimDialogue: # a PoV, need to navigate the dialogue
             for write in self.input_content.writes:
                 for b in write:
                     self._preconstrain(b, stdin.read_from(1))
