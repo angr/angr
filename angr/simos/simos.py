@@ -1,4 +1,3 @@
-
 import logging
 
 import claripy
@@ -16,8 +15,9 @@ from ..state_plugins import SimStatePreconstrainer
 from ..calling_conventions import DEFAULT_CC
 from ..procedures import SIM_PROCEDURES as P
 from .. import sim_options as o
-from ..storage.file import SimFile, SimDialogue
+from ..storage.file import SimFile
 from ..misc import IRange
+
 
 _l = logging.getLogger("angr.simos.simos")
 
