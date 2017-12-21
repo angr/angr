@@ -1,3 +1,5 @@
+import itertools
+
 import angr
 import claripy
 

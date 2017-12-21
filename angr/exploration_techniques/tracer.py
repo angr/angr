@@ -1,19 +1,19 @@
-import claripy
-
 import os
 import pickle
 import hashlib
 import logging
 
+import claripy
+
 from . import ExplorationTechnique, Cacher
-
-from .. import BP_BEFORE
-
+from .. import SIM_LIBRARIES, BP_BEFORE
 from ..calling_conventions import SYSCALL_CC
 from ..errors import AngrTracerError, SimMemoryError, SimEngineError
 from ..storage.file import SimFile
 
+
 l = logging.getLogger("angr.exploration_techniques.tracer")
+
 
 class Tracer(ExplorationTechnique):
     """
