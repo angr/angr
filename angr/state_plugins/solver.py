@@ -314,9 +314,9 @@ class SimSolver(SimStatePlugin):
 
         :param name:            The name of the symbol.
         :param size:            The size (in bits) of the bit-vector.
-        :param min:             The minimum value of the symbol.
-        :param max:             The maximum value of the symbol.
-        :param stride:          The stride of the symbol.
+        :param min:             The minimum value of the symbol. Note that this **only** work when using VSA.
+        :param max:             The maximum value of the symbol. Note that this **only** work when using VSA.
+        :param stride:          The stride of the symbol. Note that this **only** work when using VSA.
         :param uninitialized:   Whether this value should be counted as an "uninitialized" value in the course of an
                                 analysis.
         :param explicit_name:   Set to True to prevent an identifier from appended to the name to ensure uniqueness.
