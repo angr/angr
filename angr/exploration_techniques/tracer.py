@@ -358,7 +358,10 @@ class Tracer(ExplorationTechnique):
 
     @staticmethod
     def _tracer_dump(container, simgr, stash):
-        s = simgr.one_active
+        if stash != 'active':
+            raise Exception("TODO: tracer doesn't work with stashes other than active")
+
+        s = simgr.stashes[stash][0]
         project = s.project
         s.project = None
         s.history.trim()
