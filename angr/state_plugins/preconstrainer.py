@@ -4,7 +4,9 @@ from .plugin import SimStatePlugin
 from .. import sim_options as o
 from ..storage.file import SimDialogue
 
+
 l = logging.getLogger("angr.state_plugins.preconstrainer")
+
 
 class SimStatePreconstrainer(SimStatePlugin):
     """
@@ -81,7 +83,7 @@ class SimStatePreconstrainer(SimStatePlugin):
             for b in self.input_content:
                 self._preconstrain(b, stdin.read_from(1))
 
-        elif type(self.input_content) == angr.storage.file.SimDialogue:  # a PoV, need to navigate the dialogue
+        elif type(self.input_content) == SimDialogue:  # a PoV, need to navigate the dialogue
             for write in self.input_content.writes:
                 for b in write:
                     self._preconstrain(b, stdin.read_from(1))
@@ -170,5 +172,6 @@ class SimStatePreconstrainer(SimStatePlugin):
                         self.state.add_constraints(self.variable_map[var])
                     else:
                         l.warning("var %s not found in self.variable_map", var)
+
 
 SimStatePlugin.register_default('preconstrainer', SimStatePreconstrainer)

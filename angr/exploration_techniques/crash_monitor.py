@@ -1,14 +1,17 @@
-import claripy
 import logging
 
-from . import ExplorationTechnique
+import claripy
 
+from . import ExplorationTechnique
 from .. import BP_AFTER, BP_BEFORE
+
 
 l = logging.getLogger("angr.exploration_techniques.crash_monitor")
 
+
 EXEC_STACK = 'EXEC_STACK'
 QEMU_CRASH = 'SEG_FAULT'
+
 
 class CrashMonitor(ExplorationTechnique):
     """
