@@ -1,74 +1,109 @@
-"""Representing the artifacts of a project."""
+import cle
 
-from .knowledge_plugins.plugin import default_plugins
+from .errors import KnowledgeBaseNoPlugin
+
+import logging
+l = logging.getLogger(name=__name__)
 
 
 class KnowledgeBase(object):
-    """Represents a "model" of knowledge about an artifact.
+    """Represents a "model" of knowledge about an object.
 
-    Contains things like a CFG, data references, etc.
+    The knowledge base should contain as absolutely little redundant data
+    as possible - effectively the most fundemental artifacts that we can
+    use to efficiently reconstruct anything the user would want to know about.
+
+    Note, that the KnowledgeBase.__init__() method does not take any Project
+    instance as an argument. This is because the KB is not meant to be bound to any
+    existing project. Instead, it is meant to represent information about
+    one particular object only, and the the Project should contain a different
+    KB for every loaded object, which is to be analyzed.
+
+    :ivar _plugins:     A collection of plugins that are used by this KB.
+    :itype _plugins:    dict
+    :ivar _object:      The object about which this KB holds information.
+    :itype _object:     cle.Backend
     """
-    def __init__(self, project, obj):
-        self._project = project
-        self.obj = obj
+
+    # 8<----------------- Compatibility layer -----------------
+    def __new__(cls, *args, **kwargs):
+        """
+        Use the CompatKnowledgeBase class in case the `project` and `obj` 
+        arguments are provided.
+        """
+        if args and not isinstance(args[0], cle.Backend):
+            return super(KnowledgeBase, cls).__new__(CompatKnowledgeBase, *args, **kwargs)
+        return super(KnowledgeBase, cls).__new__(cls, *args, **kwargs)
+    # ------------------- Compatibility layer --------------->8 
+
+    def __init__(self, object):
+        """Initialization routine for KnowledgeBase.
+
+        :param object:  A CLE Backend instance.
+        :type object:   cle.Backend
+        """
         self._plugins = {}
-
-    @property
-    def callgraph(self):
-        return self.functions.callgraph
-
-    @property
-    def unresolved_indirect_jumps(self):
-        return self.indirect_jumps.unresolved
-
-    @property
-    def resolved_indirect_jumps(self):
-        return self.indirect_jumps.resolved
-
-    def __setstate__(self, state):
-        self._project = state['project']
-        self.obj = state['obj']
-        self._plugins = state['plugins']
+        self._object = object
 
     def __getstate__(self):
-        s = {
-            'project': self._project,
-            'obj': self.obj,
-            'plugins': self._plugins,
-        }
-        return s
+        return self._object, self._plugins
+
+    def __setstate__(self, state):
+        self._object, self._plugins = state
+        for name, plugin in self._plugins.items():
+            self.register_plugin(name, plugin)
+
+    def __getattr__(self, name):
+        raise KnowledgeBaseNoPlugin("No such plugin: %s" % name)
 
     #
-    # Plugin accessor
+    #   ...
     #
 
-    def __contains__(self, plugin_name):
-        return plugin_name in self._plugins
+    @property
+    def object(self):
+        """Return an object about which this KB stores the information.
 
-    def __getattr__(self, v):
-        try:
-            return self.get_plugin(v)
-        except KeyError:
-            raise AttributeError(v)
+        This was deliberately made a property, as the object is must not a
+        subject to change.
 
-    #
-    # Plugins
-    #
+        :return:
+        """
+        return self._object
+
+    def get_plugin(self, name):
+        return self._plugins[name]
 
     def has_plugin(self, name):
         return name in self._plugins
 
-    def get_plugin(self, name):
-        if name not in self._plugins:
-            p = default_plugins[name](self)
-            self.register_plugin(name, p)
-            return p
-        return self._plugins[name]
-
     def register_plugin(self, name, plugin):
         self._plugins[name] = plugin
+        self.__dict__[name] = plugin
         return plugin
 
     def release_plugin(self, name):
         if name in self._plugins:
             del self._plugins[name]
+            del self.__dict__[name]
+
+
+class CompatKnowledgeBase(KnowledgeBase):
+    """
+    TODO: Update documentation.
+    """
+
+    def __init__(self, project, object):
+        super(CompatKnowledgeBase, self).__init__(object)
+        self._project = project
+
+        from knowledge_plugins import PLUGIN_PRESET
+        PLUGIN_PRESET['compat'].apply_preset(self)
+
+    @property
+    def obj(self):
+        return self._object
+
+    @property
+    def callgraph(self):
+        return self.functions.callgraph

@@ -107,6 +107,8 @@ class Project(object):
                                         will try to read code from the current state instead of the original memory,
                                         regardless of the current memory protections.
     :type support_selfmodifying_code:   bool
+    :param kb_preset:                   The name of the plugins preset to be used with project KB. 
+    :type kb_preset:                    str
 
     Any additional keyword arguments passed will be passed onto ``cle.Loader``.
 
@@ -132,6 +134,7 @@ class Project(object):
                  load_options=None,
                  translation_cache=True,
                  support_selfmodifying_code=False,
+                 kb_preset='compat',
                  **kwargs):
 
         # Step 1: Load the binary
@@ -210,7 +213,15 @@ class Project(object):
                 [failure_engine, syscall_engine, hook_engine, unicorn_engine, engine])
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
-        self.kb = KnowledgeBase(self, self.loader.main_object)
+        
+        # 8<----------------- Compatibility layer -----------------
+        if kb_preset == 'compat':
+            self.kb = CompatKnowledgeBase(self, self.loader.main_object)
+            PLUGIN_PRESET['compat'].apply_preset(self.kb)
+        else:
+        # ------------------- Compatibility layer --------------->8 
+            self.kb = KnowledgeBase(self.loader.main_object)
+            PLUGIN_PRESET[kb_preset].apply_preset(self.kb)
 
         if self.filename is not None:
             projects[self.filename] = self
@@ -229,6 +240,10 @@ class Project(object):
 
         # Step 6: Run OS-specific configuration
         self.simos.configure_project()
+
+        # Step 7: Make labels if symbols are available.
+        if self.kb.has_plugin('labels'):
+            self._make_labels()
 
     def _register_object(self, obj):
         """
@@ -333,6 +348,27 @@ class Project(object):
             f in self._exclude_sim_procedures_list or \
             f in self._ignore_functions or \
             (self._exclude_sim_procedures_func is not None and self._exclude_sim_procedures_func(f))
+
+    def _make_labels(self):
+        """
+        Make labels wherever symbols are available.
+        """
+        def compose_name(obj):
+            return os.path.split(obj.binary)[1] if obj.binary else "object"
+
+        labels = self.kb.labels
+        labels.default_namespace = compose_name(self.loader.main_object)
+
+        for obj in self.loader.all_objects:
+            namespace = labels.get_namespace(compose_name(obj), create=True)
+
+            for k, v in obj.symbols_by_addr.iteritems():
+                if v.name and not v.is_import:
+                    namespace.set_label(v.rebased_addr, v.name, dup_mode='suffix')
+
+            if hasattr(obj, 'plt'):
+                for k, v in obj.plt.iteritems():
+                    namespace.set_label(v, k, dup_mode='suffix')
 
     #
     # Public methods
@@ -602,6 +638,7 @@ from .factory import AngrObjectFactory
 from angr.simos import SimOS, os_mapping
 from .analyses.analysis import Analyses
 from .surveyors import Surveyors
-from .knowledge_base import KnowledgeBase
+from .knowledge_base import KnowledgeBase, CompatKnowledgeBase
 from .engines import SimEngineFailure, SimEngineSyscall, SimEngineProcedure, SimEngineVEX, SimEngineUnicorn, SimEngineHook
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES
+from .knowledge_plugins import PLUGIN_PRESET

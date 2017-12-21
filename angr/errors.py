@@ -375,3 +375,46 @@ SimSegfaultError = SimSegfaultException
 
 class SimZeroDivisionException(SimException, SimOperationError):
     pass
+
+
+#
+#   Knowledge Base errors
+#
+
+class KnowledgeBaseNoPlugin(AngrError):
+    pass
+
+
+class EmptyBlock(ValueError):
+
+    def __init__(self, addr):
+        self.addr = addr
+
+    def __str__(self):
+        return "Do not know how to handle an empty block @ %#x" \
+               % self.addr
+
+
+class InconsistentSizes(ValueError):
+
+    def __init__(self, addr, size, p_size):
+        self.addr = addr
+        self.size = size
+        self.p_size = p_size
+
+    def __str__(self):
+        return "Marked basic block at %#x has inconsistent _sizes (%d vs %d)" \
+               % (self.addr, self.size, self.p_size)
+
+
+class InconsistentEndpoints(ValueError):
+
+    def __init__(self, p_addr, p_size, addr, size):
+        self.p_addr = p_addr
+        self.p_size = p_size
+        self.addr = addr
+        self.size = size
+
+    def __str__(self):
+        return "Marked basic block has inconsistent endpoints - (%#x, %d) vs (%#x, %d)" \
+               % (self.p_addr, self.p_size, self.addr, self.size)
