@@ -22,7 +22,6 @@ from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice, SimError, SimV
 from ...sim_state import SimState
 from ...state_plugins.callstack import CallStack
 from ...state_plugins.sim_action import SimActionData
-from ...exploration_techniques import Explorer
 from ...misc.graph import shallow_reverse
 
 l = logging.getLogger("angr.analyses.cfg.cfg_accurate")
@@ -2350,8 +2349,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             old_timeout = state.se._solver.timeout
             state.se._solver.timeout = 5000
 
-            if cfgnode.addr == 0x400704:
-                import ipdb; ipdb.set_trace()
             sc = self.project.surveyors.Slicecutor(annotated_cfg, start=state).run()
 
             # Restore the timeout!
@@ -2474,8 +2471,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     )
 
                 simgr = self.project.factory.simgr(state)
-                simgr.use_technique(Explorer(find=(current_block.addr), avoid=avoid))
-                simgr.run()
+                simgr.explore(find=(current_block.addr), avoid=avoid)
                 if 'found' in simgr.stashes and simgr.found:
                     successors = self.project.factory.successors(simgr.one_found)
                     keep_running = False
