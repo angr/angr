@@ -5,6 +5,8 @@ import re
 import tempfile
 import os
 
+from pycparser.c_ast import EllipsisParam
+
 import claripy
 
 import logging
@@ -788,7 +790,16 @@ ALL_TYPES = {
     'size_t': SimTypeLength(False),
     'ssize_t': SimTypeLength(True),
     'ssize': SimTypeLength(False),
+    'socklen_t': SimTypeLength(False),
     'uintptr_t': SimTypeLong(False),
+
+    'wchar_t': SimTypeNum(16, signed=True),
+    'mode_t': SimTypeNum(32, signed=False),
+    'off_t': SimTypeLong(False),
+    'off64_t': SimTypeLongLong(False),
+    'uid_t': SimTypeLong(False),
+    'gid_t': SimTypeLong(False),
+    'dev_t': SimTypeLong(False),
 
     'string': SimTypeString(),
     'wstring': SimTypeWString(),
@@ -923,7 +934,8 @@ def _decl_to_type(decl, extra_types=None):
     if extra_types is None: extra_types = {}
 
     if isinstance(decl, pycparser.c_ast.FuncDecl):
-        argtyps = () if decl.args is None else [_decl_to_type(x.type, extra_types) for x in decl.args.params]
+        argtyps = () if decl.args is None else [_decl_to_type(x.type, extra_types)
+                                                for x in decl.args.params if not isinstance(x, EllipsisParam)]
         return SimTypeFunction(argtyps, _decl_to_type(decl.type, extra_types))
 
     elif isinstance(decl, pycparser.c_ast.TypeDecl):
