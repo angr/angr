@@ -2,13 +2,14 @@
 import logging
 
 from bintrees import AVLTree
+import cffi
 
 import cle
 
 from ..analysis import Analysis
 from .. import register_analysis
 
-l = logging.getLogger('angr.analyses.cfg.cfb')
+_l = logging.getLogger('angr.analyses.cfg.cfb')
 
 
 class CFBlanketView(object):
@@ -39,20 +40,26 @@ class CFBlanketView(object):
 # An address can be mapped to one of the following types of object
 # - Block
 # - MemoryData
-# - Unmapped region
+# - Unknown
 #
 
 
-class Unmapped(object):
-    def __init__(self, addr, size):
+class Unknown(object):
+    def __init__(self, addr, size, bytes_=None, object_=None, segment=None, section=None):
         self.addr = addr
         self.size = size
 
+        # Optional
+        self.bytes = bytes_
+        self.object = object_
+        self.segment = segment
+        self.section = section
+
         if size == 0:
-            raise Exception("You cannot create an unmapped region of size 0.")
+            raise Exception("You cannot create an unknown region of size 0.")
 
     def __repr__(self):
-        s = "<Unmapped %#x-%#x>" % (self.addr, self.addr + self.size)
+        s = "<Unknown %#x-%#x>" % (self.addr, self.addr + self.size)
         return s
 
 
@@ -63,10 +70,12 @@ class CFBlanket(Analysis):
     def __init__(self, cfg=None):
         self._blanket = AVLTree()
 
+        self._ffi = cffi.FFI()
+
         if cfg is not None:
             self._from_cfg(cfg)
         else:
-            l.debug("CFG is not specified. Initialize CFBlanket from the knowledge base.")
+            _l.debug("CFG is not specified. Initialize CFBlanket from the knowledge base.")
             for func in self.kb.functions.values():
                 self.add_function(func)
 
@@ -172,11 +181,9 @@ class CFBlanket(Analysis):
         for func in cfg.kb.functions.values():
             self.add_function(func)
 
-        # TODO: Scan through the entire memory space and find gaps
+        self._mark_unknowns()
 
-        self._mark_unmapped()
-
-    def _mark_unmapped(self):
+    def _mark_unknowns(self):
         """
         Mark all unmapped regions.
 
@@ -188,34 +195,34 @@ class CFBlanket(Analysis):
                 # sections?
                 if obj.sections:
                     for section in obj.sections:
-                        if not section.memsize:
+                        if not section.memsize or not section.vaddr:
                             continue
                         min_addr, max_addr = section.min_addr, section.max_addr
-                        self._mark_unmapped_core(min_addr, max_addr)
+                        self._mark_unknowns_core(min_addr, max_addr, obj=obj, section=section)
                 elif obj.segments:
                     for segment in obj.segments:
                         if not segment.memsize:
                             continue
                         min_addr, max_addr = segment.min_addr, segment.max_addr
-                        self._mark_unmapped_core(min_addr, max_addr)
+                        self._mark_unknowns_core(min_addr, max_addr, obj=obj, segment=segment)
                 else:
                     # is it empty?
-                    l.warning("Empty ELF object %s.", repr(obj))
+                    _l.warning("Empty ELF object %s.", repr(obj))
             elif isinstance(obj, cle.PE):
                 if obj.sections:
                     for section in obj.sections:
                         if not section.memsize:
                             continue
                         min_addr, max_addr = section.min_addr, section.max_addr
-                        self._mark_unmapped_core(min_addr, max_addr)
+                        self._mark_unknowns_core(min_addr, max_addr, obj=obj, section=section)
                 else:
                     # is it empty?
-                    l.warning("Empty PE object %s.", repr(obj))
+                    _l.warning("Empty PE object %s.", repr(obj))
             else:
                 min_addr, max_addr = obj.min_addr, obj.max_addr
-                self._mark_unmapped_core(min_addr, max_addr)
+                self._mark_unknowns_core(min_addr, max_addr, obj=obj)
 
-    def _mark_unmapped_core(self, min_addr, max_addr):
+    def _mark_unknowns_core(self, min_addr, max_addr, obj=None, segment=None, section=None):
 
         try:
             addr, item = self.floor_item(min_addr)
@@ -230,7 +237,21 @@ class CFBlanket(Analysis):
             except KeyError:
                 next_addr = max_addr
 
-            self.add_obj(min_addr, Unmapped(min_addr, next_addr - min_addr))
+            size = next_addr - min_addr
+            if obj is None or isinstance(obj, cle.ExternObject):
+                bytes_ = None
+            else:
+                try:
+                    _l.debug("Loading bytes from object %s, section %s, segmeng %s, addresss %#x.",
+                             obj, section, segment, min_addr)
+                    bytes_ptr, _ = self.project.loader.memory.read_bytes_c(min_addr)
+                    bytes_ = self._ffi.unpack(self._ffi.cast('char*', bytes_ptr), size) # type: str
+                except KeyError:
+                    # The address does not exist
+                    bytes_ = None
+            self.add_obj(min_addr,
+                         Unknown(min_addr, size, bytes_=bytes_, object_=obj, segment=segment, section=section)
+                         )
 
         addr = min_addr
         while addr < max_addr:
@@ -252,7 +273,21 @@ class CFBlanket(Analysis):
                     next_addr = max_addr
                 if next_addr > end_addr:
                     # there is a gap
-                    self.add_obj(end_addr, Unmapped(end_addr, next_addr - end_addr))
+                    size = next_addr - end_addr
+                    if obj is None or isinstance(obj, cle.ExternObject):
+                        bytes_ = None
+                    else:
+                        try:
+                            _l.debug("Loading bytes from object %s, section %s, segmeng %s, addresss %#x.",
+                                     obj, section, segment, next_addr)
+                            bytes_ptr, _ = self.project.loader.memory.read_bytes_c(next_addr)
+                            bytes_ = self._ffi.unpack(self._ffi.cast('char*', bytes_ptr), size)  # type: str
+                        except KeyError:
+                            # The address does not exist
+                            bytes_ = None
+                    self.add_obj(end_addr,
+                                 Unknown(end_addr, size, bytes_=bytes_, object_=obj, segment=segment, section=section)
+                                 )
                 addr = next_addr
             else:
                 addr = max_addr
