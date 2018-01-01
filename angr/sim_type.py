@@ -5,6 +5,8 @@ import re
 import tempfile
 import os
 
+from pycparser.c_ast import EllipsisParam
+
 import claripy
 
 import logging
@@ -14,6 +16,7 @@ try:
     import pycparser
 except ImportError:
     pycparser = None
+
 
 class SimType(object):
     """
@@ -83,6 +86,9 @@ class SimType(object):
         cp._arch = arch
         return cp
 
+    def _init_str(self):
+        return "NotImplemented(%s)" % (self.__class__.__name__)
+
 
 class SimTypeBottom(SimType):
     """
@@ -91,6 +97,9 @@ class SimTypeBottom(SimType):
 
     def __repr__(self):
         return 'BOT'
+
+    def _init_str(self):
+        return "%s()" % self.__class__.__name__
 
 
 class SimTypeTop(SimType):
@@ -239,6 +248,13 @@ class SimTypeInt(SimTypeReg):
             n -= 1 << (self.size)
         return n
 
+    def _init_str(self):
+        return "%s(signed=%s, label=%s)" % (
+            self.__class__.__name__,
+            self.signed,
+            '"%s"' % self.label if self.label is not None else "None",
+        )
+
 
 class SimTypeShort(SimTypeInt):
     _base_name = 'short'
@@ -290,6 +306,12 @@ class SimTypeChar(SimTypeReg):
             return chr(out)
         return out
 
+    def _init_str(self):
+        return "%s(label=%s)" % (
+            self.__class__.__name__,
+            '"%s"' if self.label is not None else "None",
+        )
+
 
 class SimTypeBool(SimTypeChar):
     def __repr__(self):
@@ -303,6 +325,9 @@ class SimTypeBool(SimTypeChar):
         if concrete:
             return ver != '\0'
         return ver != 0
+
+    def _init_str(self):
+        return "%s()" % (self.__class__.__name__)
 
 
 class SimTypeFd(SimTypeReg):
@@ -322,6 +347,7 @@ class SimTypeFd(SimTypeReg):
 
     def __repr__(self):
         return 'fd_t'
+
 
 class SimTypePointer(SimTypeReg):
     """
@@ -359,6 +385,14 @@ class SimTypePointer(SimTypeReg):
         out._arch = arch
         return out
 
+    def _init_str(self):
+        return "%s(%s, label=%s, offset=%d)" % (
+            self.__class__.__name__,
+            self.pts_to._init_str(),
+            '"%s"' % self.label if self.label is not None else "None",
+            self.offset
+        )
+
 
 class SimTypeFixedSizeArray(SimType):
     """
@@ -393,6 +427,13 @@ class SimTypeFixedSizeArray(SimType):
         out = SimTypeFixedSizeArray(self.elem_type.with_arch(arch), self.length)
         out._arch = arch
         return out
+
+    def _init_str(self):
+        return "%s(%s, %d)" % (
+            self.__class__.__name__,
+            self.elem_type._init_str(),
+            self.length,
+        )
 
 
 class SimTypeArray(SimType):
@@ -520,6 +561,7 @@ class SimTypeWString(SimTypeArray):
     def _with_arch(self, arch):
         return self
 
+
 class SimTypeFunction(SimType):
     """
     SimTypeFunction is a type that specifies an actual function (i.e. not a pointer) with certain types of arguments and
@@ -550,6 +592,14 @@ class SimTypeFunction(SimType):
         out = SimTypeFunction([a.with_arch(arch) for a in self.args], self.returnty.with_arch(arch), self.label)
         out._arch = arch
         return out
+
+    def _init_str(self):
+        return "%s([%s], %s, label=%s)" % (
+            self.__class__.__name__,
+            ", ".join([ arg._init_str() for arg in self.args ]),
+            self.returnty._init_str(),
+            self.label
+        )
 
 
 class SimTypeLength(SimTypeLong):
@@ -606,6 +656,12 @@ class SimTypeFloat(SimTypeReg):
     def __repr__(self):
         return 'float'
 
+    def _init_str(self):
+        return "%s(size=%d)" % (
+            self.__class__.__name__,
+            self.size
+        )
+
 
 class SimTypeDouble(SimTypeFloat):
     """
@@ -619,6 +675,9 @@ class SimTypeDouble(SimTypeFloat):
     def __repr__(self):
         return 'double'
 
+    def _init_str(self):
+        return "%s()" % self.__class__.__name__
+
 
 class SimStruct(SimType):
     _fields = ('name', 'fields')
@@ -629,6 +688,7 @@ class SimStruct(SimType):
             raise ValueError("you think I've implemented padding, how cute")
 
         self._name = '<anon>' if name is None else name
+        self._pack = pack
         self.fields = fields
 
         self._arch_memo = {}
@@ -684,6 +744,14 @@ class SimStruct(SimType):
         ty = self.fields[k]
         return view._deeper(ty=ty, addr=view._addr + offset)
 
+    def _init_str(self):
+        return "%s([%s], name=\"%s\", pack=%s)" % (
+            self.__class__.__name__,
+            ", ".join([ f._init_str() for f in self.fields ]),
+            self._name,
+            self._pack,
+        )
+
 
 class SimStructValue(object):
     """
@@ -709,6 +777,7 @@ class SimStructValue(object):
             return self._values[self._struct.fields[k]]
         return self._values[k]
 
+
 class SimUnion(SimType):
     """
     why
@@ -731,6 +800,7 @@ class SimUnion(SimType):
         out = SimUnion({name: ty.with_arch(arch) for name, ty in self.members.iteritems()}, self.label)
         out._arch = arch
         return out
+
 
 BASIC_TYPES = {
     'char': SimTypeChar(),
@@ -767,6 +837,7 @@ BASIC_TYPES = {
     'void': SimTypeBottom(),
 }
 
+
 ALL_TYPES = {
     'int8_t': SimTypeNum(8, True),
     'uint8_t': SimTypeNum(8, False),
@@ -788,13 +859,23 @@ ALL_TYPES = {
     'size_t': SimTypeLength(False),
     'ssize_t': SimTypeLength(True),
     'ssize': SimTypeLength(False),
+    'socklen_t': SimTypeLength(False),
     'uintptr_t': SimTypeLong(False),
+
+    'wchar_t': SimTypeNum(16, signed=True),
+    'mode_t': SimTypeNum(32, signed=False),
+    'off_t': SimTypeLong(False),
+    'off64_t': SimTypeLongLong(False),
+    'uid_t': SimTypeLong(False),
+    'gid_t': SimTypeLong(False),
+    'dev_t': SimTypeLong(False),
 
     'string': SimTypeString(),
     'wstring': SimTypeWString(),
 }
 
 ALL_TYPES.update(BASIC_TYPES)
+
 
 # this is a hack, pending https://github.com/eliben/pycparser/issues/187
 def make_preamble():
@@ -823,6 +904,7 @@ def make_preamble():
 
     return '\n'.join(out) + '\n'
 
+
 def define_struct(defn):
     """
     Register a struct definition globally
@@ -833,6 +915,7 @@ def define_struct(defn):
     ALL_TYPES[struct.name] = struct
     return struct
 
+
 def register_types(mapping):
     """
     Pass in a mapping from name to SimType and they will be registered to the global type store
@@ -840,6 +923,7 @@ def register_types(mapping):
     >>> register_types(parse_types("typedef int x; typedef float y;"))
     """
     ALL_TYPES.update(mapping)
+
 
 def do_preprocess(defn):
     """
@@ -919,11 +1003,13 @@ def parse_type(defn, preprocess=True):
     decl = node.ext[-1].type
     return _decl_to_type(decl)
 
+
 def _decl_to_type(decl, extra_types=None):
     if extra_types is None: extra_types = {}
 
     if isinstance(decl, pycparser.c_ast.FuncDecl):
-        argtyps = () if decl.args is None else [_decl_to_type(x.type, extra_types) for x in decl.args.params]
+        argtyps = () if decl.args is None else [_decl_to_type(x.type, extra_types)
+                                                for x in decl.args.params if not isinstance(x, EllipsisParam)]
         return SimTypeFunction(argtyps, _decl_to_type(decl.type, extra_types))
 
     elif isinstance(decl, pycparser.c_ast.TypeDecl):
@@ -971,6 +1057,7 @@ def _decl_to_type(decl, extra_types=None):
 
     raise ValueError("Unknown type!")
 
+
 def _parse_const(c):
     if type(c) is pycparser.c_ast.Constant:
         return int(c.value)
@@ -986,6 +1073,7 @@ def _parse_const(c):
         raise ValueError('Binary op %s' % c.op)
     else:
         raise ValueError(c)
+
 
 try:
     define_struct("""
