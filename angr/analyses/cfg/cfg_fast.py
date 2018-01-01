@@ -2341,11 +2341,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if pointers_count:
             return "pointer-array", pointer_size * pointers_count
 
-        block = self._fast_memory_load(data_addr)
+        block, block_size = self._fast_memory_load(data_addr)
 
         # Is it an unicode string?
         # TODO: Support unicode string longer than the max length
-        if block[1] == 0 and block[3] == 0 and chr(block[0]) in self.PRINTABLES:
+        if block_size >= 4 and block[1] == 0 and block[3] == 0 and chr(block[0]) in self.PRINTABLES:
             max_unicode_string_len = 1024
             unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
             if (len(unicode_str) and  # pylint:disable=len-as-condition
@@ -2355,7 +2355,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return "unicode", (len(unicode_str) + 1) * 2
 
         # Is it a null-terminated printable string?
-        max_string_len = min(max_size, 4096)
+        max_string_len = min([ block_size, max_size, 4096 ])
         s = self._ffi.string(self._ffi.cast("char*", block), max_string_len)
         if len(s):  # pylint:disable=len-as-condition
             if all([ c in self.PRINTABLES for c in s ]):
