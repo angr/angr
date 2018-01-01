@@ -32,6 +32,8 @@ class SimPrototypes(object):
 
         self.add_proto(func_name, func_decl)
 
+        return func_name, func_decl
+
     def add_proto(self, func_name, func_decl):
         """
         Add a parsed function prototype.
