@@ -2218,24 +2218,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if data_type == 'pointer-array':
                     # make sure all pointers are identified
                     pointer_size = self.project.arch.bits / 8
-                    buf = self._fast_memory_load(data_addr)
-
-                    # TODO: this part of code is duplicated in _guess_data_type()
-                    # TODO: remove the duplication
-                    if self.project.arch.memory_endness == 'Iend_LE':
-                        fmt = "<"
-                    else:
-                        fmt = ">"
-                    if pointer_size == 8:
-                        fmt += "Q"
-                    elif pointer_size == 4:
-                        fmt += "I"
-                    else:
-                        raise AngrCFGError("Pointer size of %d is not supported" % pointer_size)
 
                     for j in xrange(0, data_size, pointer_size):
-                        ptr_str = self._ffi.unpack(self._ffi.cast('char*', buf + j), pointer_size)
-                        ptr = struct.unpack(fmt, ptr_str)[0]  # type:int
+                        ptr = self._fast_memory_load_pointer(data_addr + j)
 
                         # is this pointer coming from the current binary?
                         obj = self.project.loader.find_object_containing(ptr)
@@ -2296,32 +2281,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # IRSB is owned by plt!
                 return "GOT PLT Entry", pointer_size
 
-        # try to decode it as a pointer array
-        buf = self._fast_memory_load(data_addr)
-        if buf is None:
-            # The data address does not exist in static regions
-            return None, None
-
-        if self.project.arch.memory_endness == 'Iend_LE':
-            fmt = "<"
-        else:
-            fmt = ">"
-        if pointer_size == 8:
-            fmt += "Q"
-        elif pointer_size == 4:
-            fmt += "I"
-        else:
-            raise AngrCFGError("Pointer size of %d is not supported" % pointer_size)
-
         pointers_count = 0
 
         max_pointer_array_size = min(512 * pointer_size, max_size)
         for i in xrange(0, max_pointer_array_size, pointer_size):
-            ptr_str = self._ffi.unpack(self._ffi.cast('char*', buf + i), pointer_size)
-            if len(ptr_str) != pointer_size:
-                break
-
-            ptr = struct.unpack(fmt, ptr_str)[0]  # type:int
+            ptr = self._fast_memory_load_pointer(data_addr + i)
 
             if ptr is not None:
                 #if self._seg_list.is_occupied(ptr) and self._seg_list.occupied_by_sort(ptr) == 'code':
@@ -2341,11 +2305,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if pointers_count:
             return "pointer-array", pointer_size * pointers_count
 
-        block = self._fast_memory_load(data_addr)
+        block, block_size = self._fast_memory_load(data_addr)
 
         # Is it an unicode string?
         # TODO: Support unicode string longer than the max length
-        if block[1] == 0 and block[3] == 0 and chr(block[0]) in self.PRINTABLES:
+        if block_size >= 4 and block[1] == 0 and block[3] == 0 and chr(block[0]) in self.PRINTABLES:
             max_unicode_string_len = 1024
             unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
             if (len(unicode_str) and  # pylint:disable=len-as-condition
@@ -2355,7 +2319,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return "unicode", (len(unicode_str) + 1) * 2
 
         # Is it a null-terminated printable string?
-        max_string_len = min(max_size, 4096)
+        max_string_len = min([ block_size, max_size, 4096 ])
         s = self._ffi.string(self._ffi.cast("char*", block), max_string_len)
         if len(s):  # pylint:disable=len-as-condition
             if all([ c in self.PRINTABLES for c in s ]):
