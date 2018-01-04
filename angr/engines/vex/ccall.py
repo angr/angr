@@ -793,9 +793,77 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
     else:
         return state.se.LShR(rdata_all, data[platform]['CondBitOffsets']['G_CC_SHIFT_C']) & 1, []
 
+def generic_rotate_with_carry(state, left, arg, rot_amt, carry_bit_in, sz):
+    # returns cf, of, result
+    # make sure sz is not symbolic
+    if sz.symbolic:
+        raise SimError('Hit a symbolic "sz" in an x86 rotate with carry instruction. Panic.')
+
+    # convert sz to concrete value
+    sz = state.se.eval_one(sz)
+    bits = sz * 8
+    bits_in = len(arg)
+
+    # construct bitvec to use for rotation amount - 9/17/33/65 bits
+    if bits > len(rot_amt):
+        raise SimError("Got a rotate instruction for data larger than the provided word size. Panic.")
+
+    if bits == len(rot_amt):
+        sized_amt = (rot_amt & (bits_in - 1)).zero_extend(1)
+    else:
+        sized_amt = (rot_amt & (bits_in - 1))[bits:0]
+
+    assert len(sized_amt) == bits + 1
+
+    # construct bitvec to use for rotating value - 9/17/33/65 bits
+    sized_arg_in = arg[bits-1:0]
+    rotatable_in = carry_bit_in.concat(sized_arg_in)
+
+    # compute and extract
+    op = state.solver.RotateLeft if left else state.solver.RotateRight
+    rotatable_out = op(rotatable_in, sized_amt)
+    sized_arg_out = rotatable_out[bits-1:0]
+    carry_bit_out = rotatable_out[bits]
+    arg_out = sized_arg_out.zero_extend(bits_in - bits)
+
+    if left:
+        overflow_bit_out = carry_bit_out ^ sized_arg_out[bits-1]
+    else:
+        overflow_bit_out = sized_arg_out[bits-1] ^ sized_arg_out[bits-2]
+
+    # construct final answer
+    return carry_bit_out, overflow_bit_out, arg_out
+
 ###########################
 ### AMD64-specific ones ###
 ###########################
+
+def amd64g_calculate_RCL(state, arg, rot_amt, eflags_in, sz):
+    carry_bit_in = eflags_in[data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C']]
+    carry_bit_out, overflow_bit_out, arg_out = generic_rotate_with_carry(state, True, arg, rot_amt, carry_bit_in, sz)
+
+    cf = carry_bit_out.zero_extend(63)
+    of = overflow_bit_out.zero_extend(63)
+    eflags_out = eflags_in
+    eflags_out &= ~(data['AMD64']['CondBitMasks']['G_CC_MASK_C'] | data['AMD64']['CondBitMasks']['G_CC_MASK_O'])
+    eflags_out |= (cf << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C']) | \
+                  (of << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_O'])
+
+    return eflags_out.concat(arg_out), []
+
+def amd64g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
+    carry_bit_in = eflags_in[data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C']]
+    carry_bit_out, overflow_bit_out, arg_out = generic_rotate_with_carry(state, False, arg, rot_amt, carry_bit_in, sz)
+
+    cf = carry_bit_out.zero_extend(63)
+    of = overflow_bit_out.zero_extend(63)
+    eflags_out = eflags_in
+    eflags_out &= ~(data['AMD64']['CondBitMasks']['G_CC_MASK_C'] | data['AMD64']['CondBitMasks']['G_CC_MASK_O'])
+    eflags_out |= (cf << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C']) | \
+                  (of << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_O'])
+
+    return eflags_out.concat(arg_out), []
+
 def amd64g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
     if USE_SIMPLIFIED_CCALLS in state.options:
         try:
@@ -815,34 +883,10 @@ def amd64g_calculate_rflags_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep):
 ### X86-specific ones ###
 ###########################
 
-def x86g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
-    # make sure sz is not symbolic
-    if sz.symbolic:
-        raise SimError('Hit a symbolic "sz" in x86g_calculate_RCR. Panic.')
-
-    # convert sz to concrete value
-    sz = state.se.eval_one(sz)
-    bits = sz * 8
-
-    # construct bitvec to use for rotation amount - 9/17/33 bits
-    if bits == 32:
-        sized_amt = (rot_amt & 0x1f).zero_extend(1)
-    else:
-        sized_amt = (rot_amt & 0x1f)[bits:0]
-
-    # construct bitvec to use for rotating value - 9/17/33 bits
+def x86g_calculate_RCL(state, arg, rot_amt, eflags_in, sz):
     carry_bit_in = eflags_in[data['X86']['CondBitOffsets']['G_CC_SHIFT_C']]
-    sized_arg_in = arg[bits-1:0]
-    rotatable_in = carry_bit_in.concat(sized_arg_in)
+    carry_bit_out, overflow_bit_out, arg_out = generic_rotate_with_carry(state, True, arg, rot_amt, carry_bit_in, sz)
 
-    # compute and extract
-    rotatable_out = state.se.RotateRight(rotatable_in, sized_amt)
-    sized_arg_out = rotatable_out[bits-1:0]
-    carry_bit_out = rotatable_out[bits]
-    arg_out = sized_arg_out.zero_extend(32 - bits)
-    overflow_bit_out = arg_out[bits-2] ^ arg_out[bits-1]
-
-    # construct final answer
     cf = carry_bit_out.zero_extend(31)
     of = overflow_bit_out.zero_extend(31)
     eflags_out = eflags_in
@@ -852,34 +896,10 @@ def x86g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
 
     return eflags_out.concat(arg_out), []
 
-def x86g_calculate_RCL(state, arg, rot_amt, eflags_in, sz):
-    # make sure sz is not symbolic
-    if sz.symbolic:
-        raise SimError('Hit a symbolic "sz" in x86g_calculate_RCR. Panic.')
-
-    # convert sz to concrete value
-    sz = state.se.eval_one(sz)
-    bits = sz * 8
-
-    # construct bitvec to use for rotation amount - 9/17/33 bits
-    if bits == 32:
-        sized_amt = (rot_amt & 0x1f).zero_extend(1)
-    else:
-        sized_amt = (rot_amt & 0x1f)[bits:0]
-
-    # construct bitvec to use for rotating value - 9/17/33 bits
+def x86g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
     carry_bit_in = eflags_in[data['X86']['CondBitOffsets']['G_CC_SHIFT_C']]
-    sized_arg_in = arg[bits-1:0]
-    rotatable_in = carry_bit_in.concat(sized_arg_in)
+    carry_bit_out, overflow_bit_out, arg_out = generic_rotate_with_carry(state, False, arg, rot_amt, carry_bit_in, sz)
 
-    # compute and extract
-    rotatable_out = state.se.RotateLeft(rotatable_in, sized_amt)
-    sized_arg_out = rotatable_out[bits-1:0]
-    carry_bit_out = rotatable_out[bits]
-    arg_out = sized_arg_out.zero_extend(32 - bits)
-    overflow_bit_out = carry_bit_out ^ arg_out[bits-1]
-
-    # construct final answer
     cf = carry_bit_out.zero_extend(31)
     of = overflow_bit_out.zero_extend(31)
     eflags_out = eflags_in
