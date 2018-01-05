@@ -839,30 +839,38 @@ def generic_rotate_with_carry(state, left, arg, rot_amt, carry_bit_in, sz):
 ###########################
 
 def amd64g_calculate_RCL(state, arg, rot_amt, eflags_in, sz):
+    want_flags = state.solver.is_true(state.solver.SLT(sz, 0))
+    if want_flags: sz = -sz
     carry_bit_in = eflags_in[data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C']]
     carry_bit_out, overflow_bit_out, arg_out = generic_rotate_with_carry(state, True, arg, rot_amt, carry_bit_in, sz)
 
-    cf = carry_bit_out.zero_extend(63)
-    of = overflow_bit_out.zero_extend(63)
-    eflags_out = eflags_in
-    eflags_out &= ~(data['AMD64']['CondBitMasks']['G_CC_MASK_C'] | data['AMD64']['CondBitMasks']['G_CC_MASK_O'])
-    eflags_out |= (cf << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C']) | \
-                  (of << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_O'])
-
-    return eflags_out.concat(arg_out), []
+    if want_flags:
+        cf = carry_bit_out.zero_extend(63)
+        of = overflow_bit_out.zero_extend(63)
+        eflags_out = eflags_in
+        eflags_out &= ~(data['AMD64']['CondBitMasks']['G_CC_MASK_C'] | data['AMD64']['CondBitMasks']['G_CC_MASK_O'])
+        eflags_out |= (cf << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C']) | \
+                      (of << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_O'])
+        return eflags_out, []
+    else:
+        return arg_out, []
 
 def amd64g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
+    want_flags = state.solver.is_true(state.solver.SLT(sz, 0))
+    if want_flags: sz = -sz
     carry_bit_in = eflags_in[data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C']]
     carry_bit_out, overflow_bit_out, arg_out = generic_rotate_with_carry(state, False, arg, rot_amt, carry_bit_in, sz)
 
-    cf = carry_bit_out.zero_extend(63)
-    of = overflow_bit_out.zero_extend(63)
-    eflags_out = eflags_in
-    eflags_out &= ~(data['AMD64']['CondBitMasks']['G_CC_MASK_C'] | data['AMD64']['CondBitMasks']['G_CC_MASK_O'])
-    eflags_out |= (cf << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C']) | \
-                  (of << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_O'])
-
-    return eflags_out.concat(arg_out), []
+    if want_flags:
+        cf = carry_bit_out.zero_extend(63)
+        of = overflow_bit_out.zero_extend(63)
+        eflags_out = eflags_in
+        eflags_out &= ~(data['AMD64']['CondBitMasks']['G_CC_MASK_C'] | data['AMD64']['CondBitMasks']['G_CC_MASK_O'])
+        eflags_out |= (cf << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C']) | \
+                      (of << data['AMD64']['CondBitOffsets']['G_CC_SHIFT_O'])
+        return eflags_out, []
+    else:
+        return arg_out, []
 
 def amd64g_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep):
     if USE_SIMPLIFIED_CCALLS in state.options:
