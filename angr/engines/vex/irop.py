@@ -1,4 +1,3 @@
-#!/usr/bin/python env
 """
 This module contains symbolic implementations of VEX operations.
 """
