@@ -1571,6 +1571,8 @@ def arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     if concrete_op == ARM64G_CC_OP_COPY:
         flag = state.se.LShR(cc_dep1, ARM64G_CC_SHIFT_V) & 1
     elif concrete_op == ARM64G_CC_OP_ADD32:
+        cc_dep1 = cc_dep1[31:0]
+        cc_dep2 = cc_dep2[31:0]
         res = cc_dep1 + cc_dep2
         v = ((res ^ cc_dep1) & (res ^ cc_dep2))
         flag = state.se.LShR(v, 31).zero_extend(32)
@@ -1579,6 +1581,8 @@ def arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
         v = ((res ^ cc_dep1) & (res ^ cc_dep2))
         flag = state.se.LShR(v, 63)
     elif concrete_op == ARM64G_CC_OP_SUB32:
+        cc_dep1 = cc_dep1[31:0]
+        cc_dep2 = cc_dep2[31:0]
         res = cc_dep1 - cc_dep2
         v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
         flag = state.se.LShR(v, 31).zero_extend(32)
@@ -1587,6 +1591,8 @@ def arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
         v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
         flag = state.se.LShR(v, 63)
     elif concrete_op == ARM64G_CC_OP_ADC32:
+        cc_dep1 = cc_dep1[31:0]
+        cc_dep2 = cc_dep2[31:0]
         res = cc_dep1 + cc_dep2 + cc_dep3
         v = ((res ^ cc_dep1) & (res ^ cc_dep2))
         flag = state.se.LShR(v, 31).zero_extend(32)
@@ -1595,13 +1601,15 @@ def arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
         v = ((res ^ cc_dep1) & (res ^ cc_dep2))
         flag = state.se.LShR(v, 63)
     elif concrete_op == ARM64G_CC_OP_SBC32:
+        cc_dep1 = cc_dep1[31:0]
+        cc_dep2 = cc_dep2[31:0]
         res = cc_dep1 - cc_dep2 - (cc_dep3^1)
         v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
         flag = state.se.LShR(v, 31).zero_extend(32)
     elif concrete_op == ARM64G_CC_OP_SBC64:
         res = cc_dep1 - cc_dep2 - (cc_dep3^1)
         v = ((cc_dep1 ^ cc_dep2) & (cc_dep1 ^ res))
-        flag = state.se.LShR(v, 63).zero_extend(32)
+        flag = state.se.LShR(v, 63)
     elif concrete_op in (ARM64G_CC_OP_LOGIC32, ARM64G_CC_OP_LOGIC64):
         flag = state.se.BVV(0, 64)
 
