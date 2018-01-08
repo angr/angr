@@ -18,7 +18,7 @@ class Loop(object):
         self.has_calls = any(map(lambda loop: loop.has_calls, subloops))
 
         if not self.has_calls:
-            for _, _, data in self.graph.edges_iter(data=True):
+            for _, _, data in self.graph.edges(data=True):
                 if 'type' in data and data['type'] == 'fake_return':
                     # this is a function call.
                     self.has_calls = True
@@ -43,7 +43,7 @@ class LoopFinder(Analysis):
         for function in functions:
 
             if self.project.is_hooked(function.addr) or \
-                    self.project._simos.is_syscall_addr(function.addr):
+                    self.project.simos.is_syscall_addr(function.addr):
                 # skip SimProcedures and syscalls
                 continue
 
@@ -69,7 +69,7 @@ class LoopFinder(Analysis):
         :return:        A list of Loop objects, some of which may be inside others,
                         but all need to be documented.
         """
-        loop_body_nodes = subg.nodes()[:]
+        loop_body_nodes = list(subg.nodes())[:]
         entry_edges = []
         break_edges = []
         continue_edges = []
@@ -161,7 +161,7 @@ class LoopFinder(Analysis):
         outall = []
         for subg in networkx.strongly_connected_component_subgraphs(graph):
             if len(subg.nodes()) == 1:
-                if len(subg.successors(subg.nodes()[0])) == 0:
+                if len(list(subg.successors(list(subg.nodes())[0]))) == 0:
                     continue
             thisloop, allloops = self._parse_loop_graph(subg, graph)
             if thisloop is not None:

@@ -1,7 +1,7 @@
 import itertools
 import logging
 import sys
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 import claripy
 import networkx
@@ -258,7 +258,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # exits here to increase our code coverage. Of course the real retn from
         # that call always precedes those "fake" retns.
         # Tuple --> (Initial state, call_stack)
-        self._pending_jobs = { }
+        self._pending_jobs = OrderedDict()
 
         # Counting how many times a basic block is traced into
         self._traced_addrs = defaultdict(lambda: defaultdict(int))
@@ -332,6 +332,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         Forces graph to become acyclic, removes all loop back edges and edges between overlapped loop headers and their
         successors.
         """
+        # loop detection
+        # only detect loops after potential graph normalization
+        if not self._loop_back_edges:
+            l.debug("Detecting loops...")
+            self._detect_loops()
+
         l.debug("Removing cycles...")
         l.debug("There are %d loop back edges.", len(self._loop_back_edges))
         l.debug("And there are %d overlapping loop headers.", len(self._overlapped_loop_headers))
@@ -385,7 +391,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 dst_blocknode = back_edge[1]  # type: angr.knowledge.codenode.BlockNode
 
                 for src in self.get_all_nodes(src_blocknode.addr):
-                    for dst in graph.successors_iter(src):
+                    for dst in graph.successors(src):
                         if dst.addr != dst_blocknode.addr:
                             continue
 
@@ -459,7 +465,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 loop_backedges.append(loop_backedge)
 
             # Create a common end node for all nodes whose out_degree is 0
-            end_nodes = [n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0]
+            end_nodes = [n for n in graph_copy.nodes() if graph_copy.out_degree(n) == 0]
             new_end_node = "end_node"
 
             if not end_nodes:
@@ -470,7 +476,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     graph_copy.remove_edge(first_cycle[0], first_cycle[0])
                 else:
                     graph_copy.remove_edge(first_cycle[0], first_cycle[1])
-                end_nodes = [n for n in graph_copy.nodes_iter() if graph_copy.out_degree(n) == 0]
+                end_nodes = [n for n in graph_copy.nodes() if graph_copy.out_degree(n) == 0]
 
             for en in end_nodes:
                 graph_copy.add_edge(en, new_end_node)
@@ -560,7 +566,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         :return: None
         """
-        fakeret_edges = [ (src, dst) for src, dst, data in self.graph.edges_iter(data=True)
+        fakeret_edges = [ (src, dst) for src, dst, data in self.graph.edges(data=True)
                          if data['jumpkind'] == 'Ijk_FakeRet' ]
         self.graph.remove_edges_from(fakeret_edges)
 
@@ -603,7 +609,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         while queue:
             node = queue.pop()
-            for _, dst, data in self.graph.out_edges_iter([node], data=True):
+            for _, dst, data in self.graph.out_edges([node], data=True):
                 if dst not in graph and dst.addr in addr_set:
                     graph.add_edge(node, dst, **data)
                     queue.append(dst)
@@ -660,7 +666,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         new_nw = (dst, call_depth)
                         stack.append(new_nw)
 
-        subgraph = networkx.subgraph(self.graph, subgraph_nodes)
+       #subgraph = networkx.subgraph(self.graph, subgraph_nodes)
+        subgraph = self.graph.subgraph(subgraph_nodes).copy()
 
         # Make it a CFG instance
         subcfg = self.copy()
@@ -945,8 +952,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: A CFGJob instance or None
         """
 
-        pending_job_key = self._pending_jobs.keys()[0]
-        pending_job = self._pending_jobs.pop(pending_job_key)  # type: PendingJob
+        pending_job_key, pending_job = self._pending_jobs.popitem()
         pending_job_state = pending_job.state
         pending_job_call_stack = pending_job.call_stack
         pending_job_src_block_id = pending_job.src_block_id
@@ -1033,10 +1039,6 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._remove_non_return_edges()
 
         CFGBase._post_analysis(self)
-
-        # loop detection
-        # only detect loops after potential graph normalization
-        self._detect_loops()
 
     # Job handling
 
@@ -1147,20 +1149,26 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # See if this job cancels another FakeRet
         # This should be done regardless of whether this job should be skipped or not, otherwise edges will go missing
         # in the CFG or function transiton graphs.
-        if job.jumpkind == 'Ijk_Ret' and block_id in self._pending_jobs:
+        if job.jumpkind == 'Ijk_FakeRet' or \
+                (job.jumpkind == 'Ijk_Ret' and block_id in self._pending_jobs):
             # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
             # in the graph.
 
-            pending_job = self._pending_jobs.pop(block_id)  # type: PendingJob
-            self._deregister_analysis_job(pending_job.caller_func_addr, pending_job)
-            self._graph_add_edge(pending_job.src_block_id, block_id,
+            if block_id in self._pending_jobs:
+                the_job = self._pending_jobs.pop(block_id)  # type: PendingJob
+                self._deregister_analysis_job(the_job.caller_func_addr, the_job)
+            else:
+                the_job = job
+
+            self._graph_add_edge(the_job.src_block_id, block_id,
                                  jumpkind='Ijk_FakeRet',
-                                 stmt_idx=pending_job.src_exit_stmt_idx,
+                                 stmt_idx=the_job.src_exit_stmt_idx,
                                  ins_addr=src_ins_addr
                                  )
-            self._update_function_transition_graph(pending_job.src_block_id, block_id,
+            self._update_function_transition_graph(the_job.src_block_id, block_id,
                                                    jumpkind='Ijk_FakeRet',
-                                                   ins_addr=src_ins_addr, stmt_idx=pending_job.src_exit_stmt_idx,
+                                                   ins_addr=src_ins_addr,
+                                                   stmt_idx=the_job.src_exit_stmt_idx,
                                                    confirmed=True
                                                    )
 
@@ -1262,7 +1270,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # if base graph is used, add successors implied from the graph
         if self._base_graph:
             basegraph_successor_addrs = set()
-            for src_, dst_ in self._base_graph.edges_iter():
+            for src_, dst_ in self._base_graph.edges():
                 if src_.addr == addr:
                     basegraph_successor_addrs.add(dst_.addr)
             successor_addrs = set([s.se.eval(s.ip) for s in successors])
@@ -1624,7 +1632,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # see if this edge is in the base graph
         if self._base_graph is not None:
             # TODO: make it more efficient. the current implementation is half-assed and extremely slow
-            for src_, dst_ in self._base_graph.edges_iter():
+            for src_, dst_ in self._base_graph.edges():
                 if src_.addr == addr and dst_.addr == target_addr:
                     break
             else:
@@ -1634,7 +1642,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Fix target_addr for syscalls
         if suc_jumpkind.startswith("Ijk_Sys"):
-            target_addr = self.project._simos.syscall(new_state).addr
+            target_addr = self.project.simos.syscall(new_state).addr
 
         self._pre_handle_successor_state(job.extra_info, suc_jumpkind, target_addr)
 
@@ -2260,10 +2268,15 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         stmt_id = [i for i, s in enumerate(irsb.statements)
                    if isinstance(s, pyvex.IRStmt.WrTmp) and s.tmp == next_tmp][0]
 
-        cdg = self.project.analyses.CDG(cfg=self)
-        ddg = self.project.analyses.DDG(cfg=self, start=current_function_addr, call_depth=0)
+        cdg = self.project.analyses.CDG(cfg=self, fail_fast=self._fail_fast)
+        ddg = self.project.analyses.DDG(cfg=self, start=current_function_addr, call_depth=0, fail_fast=self._fail_fast)
 
-        bc = self.project.analyses.BackwardSlice(self, cdg, ddg, targets=[(cfgnode, stmt_id)], same_function=True)
+        bc = self.project.analyses.BackwardSlice(self,
+                                                 cdg,
+                                                 ddg,
+                                                 targets=[(cfgnode, stmt_id)],
+                                                 same_function=True,
+                                                 fail_fast=self._fail_fast)
         taint_graph = bc.taint_graph
         # Find the correct taint
         next_nodes = [cl for cl in taint_graph.nodes() if cl.block_addr == sim_successors.addr]
@@ -2423,12 +2436,12 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             for _ in xrange(path_length):
                 new_queue = []
                 for n in queue:
-                    successors = temp_cfg.successors(n)
+                    successors = list(temp_cfg.successors(n))
                     for suc in successors:
                         jk = temp_cfg.get_edge_data(n, suc)['jumpkind']
                         if jk != 'Ijk_Ret':
                             # We don't want to trace into libraries
-                            predecessors = temp_cfg.predecessors(suc)
+                            predecessors = list(temp_cfg.predecessors(suc))
                             avoid |= set([p.addr for p in predecessors if p is not n])
                             new_queue.append(suc)
                 queue = new_queue
@@ -2514,7 +2527,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         symbolic_initial_state = self.project.factory.entry_state(mode='symbolic')
         if fastpath_state is not None:
-            symbolic_initial_state = self.project._simos.prepare_call_state(fastpath_state,
+            symbolic_initial_state = self.project.simos.prepare_call_state(fastpath_state,
                                                                             initial_state=symbolic_initial_state)
 
         # Find number of instructions of start block
@@ -2619,7 +2632,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # respect the basic block size from base graph
         block_size = None
         if self._base_graph is not None:
-            for n in self._base_graph.nodes_iter():
+            for n in self._base_graph.nodes():
                 if n.addr == addr:
                     block_size = n.size
                     break
@@ -2631,8 +2644,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 if self.project.is_hooked(addr):
                     old_proc = self.project._sim_procedures[addr]
                     is_continuation = old_proc.is_continuation
-                elif self.project._simos.is_syscall_addr(addr):
-                    old_proc = self.project._simos.syscall_from_addr(addr)
+                elif self.project.simos.is_syscall_addr(addr):
+                    old_proc = self.project.simos.syscall_from_addr(addr)
                     is_continuation = False  # syscalls don't support continuation
                 else:
                     old_proc = None
@@ -2917,6 +2930,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                block_id=block_id,
                                depth=depth,
                                creation_failure_info=exception_info,
+                               thumb=(isinstance(self.project.arch, ArchARM) and sim_successors.addr & 1),
                                )
 
         else:
@@ -2932,6 +2946,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                depth=depth,
                                irsb=sim_successors.artifacts['irsb'],
                                creation_failure_info=exception_info,
+                               thumb=(isinstance(self.project.arch, ArchARM) and sim_successors.addr & 1),
                                )
 
         return cfg_node
@@ -2946,7 +2961,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: None
         """
 
-        loop_finder = self.project.analyses.LoopFinder(kb=self.kb, normalize=False)
+        loop_finder = self.project.analyses.LoopFinder(kb=self.kb, normalize=False, fail_fast=self._fail_fast)
 
         if loop_callback is not None:
             graph_copy = networkx.DiGraph(self._graph)
@@ -3227,7 +3242,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         nodes = self.get_all_nodes(function_address)
         for n in nodes:
-            predecessors = self.get_predecessors(n)
+            predecessors = list(self.get_predecessors(n))
             all_predecessors.extend(predecessors)
 
         return all_predecessors

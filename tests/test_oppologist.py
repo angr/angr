@@ -46,7 +46,14 @@ def test_cromu_70():
     pg.explore()
     assert pg.one_deadended.history.block_count > 1500
 
+def run_all():
+    functions = globals()
+    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
+    for f in sorted(all_functions.keys()):
+        if hasattr(all_functions[f], '__call__'):
+            print f
+            all_functions[f]()
+
 
 if __name__ == '__main__':
-    import sys
-    globals()['test_' + sys.argv[1]]()
+    run_all()

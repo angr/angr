@@ -1,33 +1,44 @@
 
+import logging
+
+l = logging.getLogger('angr.analyses.disassembly_utils')
+
 import capstone as cs
+
+INS_GROUP_INFO = {
+    'X86': {
+        cs.x86.X86_GRP_CALL: 'call',
+        cs.x86.X86_GRP_JUMP: 'branch',
+        cs.x86.X86_GRP_RET: 'return',
+    },
+    'AMD64': {
+        cs.x86.X86_GRP_CALL: 'call',
+        cs.x86.X86_GRP_JUMP: 'branch',
+        cs.x86.X86_GRP_RET: 'return',
+    },
+}
+
+try:
+    INS_GROUP_INFO['MIPS32'] = {
+        cs.mips.MIPS_GRP_CALL: 'call',
+        cs.mips.MIPS_GRP_JUMP: 'branch',
+        cs.mips.MIPS_GRP_RET: 'return',
+    }
+except AttributeError:
+    # The installed capstone is too old - it does not support cs.mips.MIPS_GRP_*
+    l.warning('Your verison of capstone does not support MIPS instruction groups.')
+
+
+INS_INFO = {
+    'MIPS32': {
+        cs.mips.MIPS_INS_JAL: 'call',
+        cs.mips.MIPS_INS_BAL: 'branch',
+    }
+}
+
 
 def decode_instruction(arch, instr):
     # this is clearly architecture specific
-
-    INS_GROUP_INFO = {
-        'X86': {
-            cs.x86.X86_GRP_CALL: 'call',
-            cs.x86.X86_GRP_JUMP: 'branch',
-            cs.x86.X86_GRP_RET: 'return',
-        },
-        'AMD64': {
-            cs.x86.X86_GRP_CALL: 'call',
-            cs.x86.X86_GRP_JUMP: 'branch',
-            cs.x86.X86_GRP_RET: 'return',
-        },
-        'MIPS32': {
-            cs.mips.MIPS_GRP_CALL: 'call',
-            cs.mips.MIPS_GRP_JUMP: 'branch',
-            cs.mips.MIPS_GRP_RET: 'return',
-        }
-    }
-
-    INS_INFO = {
-        'MIPS32': {
-            cs.mips.MIPS_INS_JAL: 'call',
-            cs.mips.MIPS_INS_BAL: 'branch',
-        }
-    }
 
     arch_name = arch.name
 

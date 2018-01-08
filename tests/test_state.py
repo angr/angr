@@ -1,11 +1,17 @@
 import logging
-import claripy
 import pickle
 import nose
-import ana
 import gc
+import os
 
+import ana
+import claripy
+import angr
 from angr import SimState
+
+
+binaries_base = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries')
+
 
 def test_state():
     s = SimState(arch='AMD64')
@@ -131,6 +137,77 @@ def test_state_merge_static():
     expected = claripy.backends.vsa.convert(a.se.SI(bits=32, stride=10, lower_bound=50, upper_bound=70))
     nose.tools.assert_true(actual.identical(expected))
 
+
+def test_state_merge_3way():
+
+    a = SimState(arch='AMD64', mode='symbolic')
+    b = a.copy()
+    c = a.copy()
+    conds = [ a.se.BoolS('cond_0'), a.se.BoolS('cond_1') ]
+    a.add_constraints(conds[0])
+    b.add_constraints(a.se.Not(conds[0]), conds[1])
+    c.add_constraints(a.se.Not(conds[0]), a.se.Not(conds[1]))
+
+    a.memory.store(0x400000, a.se.BVV(8, 32))
+    b.memory.store(0x400000, b.se.BVV(9, 32))
+    c.memory.store(0x400000, c.se.BVV(10, 32))
+
+    m, _, _ = a.merge(b)
+    m, _, _ = m.merge(c)
+
+    assert m.satisfiable(extra_constraints=(m.memory.load(0x400000, 4) == 8,))
+    assert m.satisfiable(extra_constraints=(m.memory.load(0x400000, 4) == 9,))
+    assert m.satisfiable(extra_constraints=(m.memory.load(0x400000, 4) == 10,))
+
+
+def test_state_merge_optimal_nostrongrefstate():
+
+    # We do not specify the state option EFFICIENT_STATE_MERGING, and as a result, state histories do not store strong
+    # references to states. This will result in less efficient state merging since SimStateHistory will be the only
+    # state plugin that knows the common ancestor of all instances to merge. But it should still succeed.
+
+    binary_path = os.path.join(binaries_base, "tests", "x86_64", "state_merge_0")
+    p = angr.Project(binary_path, auto_load_libs=False)
+    sm = p.factory.simulation_manager()
+
+    sm.explore(find=0x400616, num_find=3)
+
+    var_addr = 0x601044
+
+    sm.merge(stash='found')
+    s = sm.one_found
+    culprit = s.mem[var_addr].dword.resolved
+
+    for i in xrange(8, 11):
+        assert i, s.solver.satisfiable(extra_constraints=(culprit == i,))
+
+    assert not s.solver.satisfiable(extra_constraints=(culprit == 12, ))
+
+
+def test_state_merge_optimal():
+
+    # Unlike the above test case, EFFICIENT_STATE_MERGING is enabled here
+
+    binary_path = os.path.join(binaries_base, "tests", "x86_64", "state_merge_0")
+    p = angr.Project(binary_path, auto_load_libs=False)
+    state = p.factory.blank_state(add_options={angr.sim_options.EFFICIENT_STATE_MERGING})
+    sm = p.factory.simulation_manager(state)
+
+    sm.explore(find=0x400616, num_find=3)
+
+    var_addr = 0x601044
+
+    sm.merge(stash='found')
+    s = sm.one_found
+    culprit = s.mem[var_addr].dword.resolved
+
+    for i in xrange(8, 11):
+        assert i, s.solver.satisfiable(extra_constraints=(culprit == i,))
+
+    assert not s.solver.satisfiable(extra_constraints=(culprit == 12, ))
+
+
+
 def setup():
     ana.set_dl(ana.DirDataLayer('/tmp/picklez'))
 def teardown():
@@ -186,6 +263,9 @@ def test_global_condition():
 if __name__ == '__main__':
     test_state()
     test_state_merge()
+    test_state_merge_3way()
+    test_state_merge_optimal()
+    test_state_merge_optimal_nostrongrefstate()
     test_state_merge_static()
     test_state_pickle()
     test_global_condition()

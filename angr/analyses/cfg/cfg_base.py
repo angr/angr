@@ -10,6 +10,7 @@ import pyvex
 from claripy.utils.orderedset import OrderedSet
 from cle import ELF, PE, Blob, TLSObject, ExternObject, KernelObject
 
+from ...misc.ux import deprecated
 from ... import SIM_PROCEDURES
 from ...errors import AngrCFGError, SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError,\
     AngrUnsupportedSyscallError, SimError
@@ -188,7 +189,7 @@ class CFGBase(Analysis):
 
         raise NotImplementedError("I'm too lazy to implement it right now")
 
-    # TODO: Mark as deprecated
+    @deprecated(replacement='nodes()')
     def get_bbl_dict(self):
         return self._nodes
 
@@ -211,11 +212,11 @@ class CFGBase(Analysis):
         if not excluding_fakeret and jumpkind is None:
             # fast path
             if cfgnode in self._graph:
-                return self._graph.predecessors(cfgnode)
+                return list(self._graph.predecessors(cfgnode))
             return [ ]
 
         predecessors = []
-        for pred, _, data in self._graph.in_edges_iter([cfgnode], data=True):
+        for pred, _, data in self._graph.in_edges([cfgnode], data=True):
             jk = data['jumpkind']
             if jumpkind is not None:
                 if jk == jumpkind:
@@ -247,11 +248,11 @@ class CFGBase(Analysis):
         if not excluding_fakeret and jumpkind is None:
             # fast path
             if basic_block in self._graph:
-                return self._graph.successors(basic_block)
+                return list(self._graph.successors(basic_block))
             return [ ]
 
         successors = []
-        for _, suc, data in self._graph.out_edges_iter([basic_block], data=True):
+        for _, suc, data in self._graph.out_edges([basic_block], data=True):
             jk = data['jumpkind']
             if jumpkind is not None:
                 if jumpkind == jk:
@@ -265,7 +266,7 @@ class CFGBase(Analysis):
 
     def get_successors_and_jumpkind(self, basic_block, excluding_fakeret=True):
         successors = []
-        for _, suc, data in self._graph.out_edges_iter([basic_block], data=True):
+        for _, suc, data in self._graph.out_edges([basic_block], data=True):
             if not excluding_fakeret or data['jumpkind'] != 'Ijk_FakeRet':
                 successors.append((suc, data['jumpkind']))
         return successors
@@ -279,10 +280,10 @@ class CFGBase(Analysis):
         :rtype: list
         """
 
-        return networkx.dfs_predecessors(self._graph, cfgnode)
+        return list(networkx.dfs_predecessors(self._graph, cfgnode))
 
     def get_all_successors(self, basic_block):
-        return networkx.dfs_successors(self._graph, basic_block)
+        return list(networkx.dfs_successors(self._graph, basic_block))
 
     def get_node(self, block_id):
         """
@@ -295,9 +296,6 @@ class CFGBase(Analysis):
         if block_id in self._nodes:
             return self._nodes[block_id]
         return None
-
-    def nodes(self):
-        return self._graph.nodes()
 
     def get_any_node(self, addr, is_syscall=None, anyaddr=False):
         """
@@ -335,7 +333,7 @@ class CFGBase(Analysis):
         #              'speed the node lookup.')
         #    self._node_lookup_index_warned = True
 
-        for n in self.graph.nodes_iter():
+        for n in self.graph.nodes():
             cond = n.looping_times == 0
             if anyaddr and n.size is not None:
                 cond = cond and (addr >= n.addr and addr < n.addr + n.size)
@@ -377,7 +375,7 @@ class CFGBase(Analysis):
         """
         results = [ ]
 
-        for cfg_node in self._graph.nodes_iter():
+        for cfg_node in self._graph.nodes():
             if cfg_node.addr == addr or (anyaddr and cfg_node.addr <= addr < (cfg_node.addr + cfg_node.size)):
                 if is_syscall and cfg_node.is_syscall:
                     results.append(cfg_node)
@@ -388,7 +386,7 @@ class CFGBase(Analysis):
 
         return results
 
-    def nodes_iter(self):
+    def nodes(self):
         """
         An iterator of all nodes in the graph.
 
@@ -396,7 +394,18 @@ class CFGBase(Analysis):
         :rtype: iterator
         """
 
-        return self._graph.nodes_iter()
+        return self._graph.nodes()
+
+    @deprecated(replacement='nodes')
+    def nodes_iter(self):
+        """
+        (Decrepated) An iterator of all nodes in the graph. Will be removed in the future.
+
+        :return: The iterator.
+        :rtype: iterator
+        """
+
+        return self.nodes()
 
     def get_all_irsbs(self, addr):  # pylint:disable=unused-argument
         """
@@ -533,8 +542,7 @@ class CFGBase(Analysis):
 
         successors_filtered = filter(lambda suc: get_ins_addr(suc) in can_produce_exits or
                                         get_exit_stmt_idx(suc) == 'default',
-                            successors
-                            )
+                                     successors)
 
         return successors_filtered
 
@@ -559,12 +567,19 @@ class CFGBase(Analysis):
             except SimError:
                 all_bytes = None
 
+        size = end - start + 1
+
         if all_bytes is None:
             # load from the binary
-            all_bytes = self._fast_memory_load_bytes(start, end - start + 1)
+            all_bytes = self._fast_memory_load_bytes(start, size)
 
         if all_bytes is None:
             return True
+
+        if len(all_bytes) < size:
+            l.warning("_is_region_extremely_sparse: The given region %#x-%#x is not a continuous memory region in the "
+                      "memory space. Only the first %d bytes (%#x-%#x) are processed.", start, end, len(all_bytes),
+                      start, start + len(all_bytes) - 1)
 
         the_byte_value = None
         for b in all_bytes:
@@ -781,7 +796,7 @@ class CFGBase(Analysis):
         :rtype:             bool
         """
 
-        return self.project.is_hooked(addr) or self.project._simos.is_syscall_addr(addr)
+        return self.project.is_hooked(addr) or self.project.simos.is_syscall_addr(addr)
 
     def _fast_memory_load(self, addr):
         """
@@ -789,13 +804,14 @@ class CFGBase(Analysis):
         memory by the loader.
 
         :param int addr: Address to read from.
-        :return: The data, or None if the address does not exist.
-        :rtype: cffi.CData
+        :return: A tuple of the data (cffi.CData) and the max size in the current continuous block, or (None, None) if
+                 the address does not exist.
+        :rtype: tuple
         """
 
         try:
-            buff, _ = self.project.loader.memory.read_bytes_c(addr)
-            return buff
+            buff, size = self.project.loader.memory.read_bytes_c(addr)
+            return buff, size
 
         except KeyError:
             return None
@@ -821,9 +837,14 @@ class CFGBase(Analysis):
         :rtype:          str or None
         """
 
-        buf = self._fast_memory_load(addr)
+        buf, size = self._fast_memory_load(addr)
         if buf is None:
             return None
+        if size == 0:
+            return None
+
+        # Make sure it does not go over-bound
+        length = min(length, size)
 
         char_str = self._ffi.unpack(self._ffi.cast('char*', buf), length) # type: str
         return char_str
@@ -838,7 +859,7 @@ class CFGBase(Analysis):
         """
 
         pointer_size = self.project.arch.bits / 8
-        buf = self._fast_memory_load(addr)
+        buf, size = self._fast_memory_load(addr)
         if buf is None:
             return None
 
@@ -846,10 +867,19 @@ class CFGBase(Analysis):
             fmt = "<"
         else:
             fmt = ">"
+
         if pointer_size == 8:
-            fmt += "Q"
+            if size >= 8:
+                fmt += "Q"
+            else:
+                # Insufficient bytes left in the current block for making an 8-byte pointer
+                return None
         elif pointer_size == 4:
-            fmt += "I"
+            if size >= 4:
+                fmt += "I"
+            else:
+                # Insufficient bytes left in the current block for making a 4-byte pointer.
+                return None
         else:
             raise AngrCFGError("Pointer size of %d is not supported" % pointer_size)
 
@@ -922,7 +952,7 @@ class CFGBase(Analysis):
                 procedure = self.project.hooked_by(func.addr)
             else:
                 try:
-                    procedure = self.project._simos.syscall_from_addr(func.addr, allow_unsupported=False)
+                    procedure = self.project.simos.syscall_from_addr(func.addr, allow_unsupported=False)
                 except AngrUnsupportedSyscallError:
                     procedure = None
 
@@ -1146,7 +1176,8 @@ class CFGBase(Analysis):
                                    function_address=n.function_address, block_id=n.block_id,
                                    instruction_addrs=[i for i in n.instruction_addrs
                                                       if n.addr <= i <= n.addr + new_size
-                                                      ]
+                                                      ],
+                                   thumb=n.thumb
                                    )
 
                 # Copy instruction addresses
@@ -1160,8 +1191,8 @@ class CFGBase(Analysis):
                     smallest_nodes[key] = new_node
 
             # Modify the CFG
-            original_predecessors = list(graph.in_edges_iter([n], data=True))
-            original_successors = list(graph.out_edges_iter([n], data=True))
+            original_predecessors = list(graph.in_edges([n], data=True))
+            original_successors = list(graph.out_edges([n], data=True))
 
             if smallest_node not in graph:
                 continue
@@ -1193,7 +1224,7 @@ class CFGBase(Analysis):
                 # in, otherwise there will be an edge from A to A`, while A should totally be got rid of in the new
                 # graph.
                 if p not in other_nodes:
-                    graph.add_edge(p, new_node, data)
+                    graph.add_edge(p, new_node, **data)
 
             # We should find the correct successor
             new_successors = [i for i in [smallest_node] + other_nodes
@@ -1338,7 +1369,7 @@ class CFGBase(Analysis):
         function_nodes = set()
 
         # Find nodes for beginnings of all functions
-        for _, dst, data in self.graph.edges_iter(data=True):
+        for _, dst, data in self.graph.edges(data=True):
             jumpkind = data.get('jumpkind', "")
             if jumpkind == 'Ijk_Call' or jumpkind.startswith('Ijk_Sys'):
                 function_nodes.add(dst)
@@ -1354,7 +1385,7 @@ class CFGBase(Analysis):
                                                                blockaddr_to_function
                                                                )
 
-        for n in self.graph.nodes_iter():
+        for n in self.graph.nodes():
             if n.addr in tmp_functions or n.addr in removed_functions:
                 function_nodes.add(n)
 
@@ -1602,7 +1633,7 @@ class CFGBase(Analysis):
         if addr in blockaddr_to_function:
             f = blockaddr_to_function[addr]
         else:
-            is_syscall = self.project._simos.is_syscall_addr(addr)
+            is_syscall = self.project.simos.is_syscall_addr(addr)
 
             n = self.get_any_node(addr, is_syscall=is_syscall)
             if n is None: node = addr

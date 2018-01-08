@@ -1,9 +1,12 @@
+import logging
+
 from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
 from .callable import Callable
 
-import logging
+
 l = logging.getLogger("angr.factory")
+
 
 _deprecation_cache = set()
 def deprecate(name, replacement):
@@ -15,6 +18,7 @@ def deprecate(name, replacement):
             return func(*args, **kwargs)
         return inner
     return wrapper
+
 
 class AngrObjectFactory(object):
     """
@@ -81,13 +85,12 @@ class AngrObjectFactory(object):
         if r is None or not r.processed:
             raise AngrExitError("All engines failed to execute!")
 
-        # Peek and fix the IP for syscalls
-        if r.successors and r.successors[0].history.jumpkind.startswith('Ijk_Sys'):
-            self._fix_syscall_ip(r.successors[0])
         # fix up the descriptions... TODO do something better than this
         description = str(r)
         l.info("Ticked state: %s", description)
         for succ in r.all_successors:
+            succ.history.recent_description = description
+        for succ in r.flat_successors:
             succ.history.recent_description = description
 
         return r
@@ -107,7 +110,7 @@ class AngrObjectFactory(object):
         :return:                The blank state.
         :rtype:                 SimState
         """
-        return self._project._simos.state_blank(**kwargs)
+        return self._project.simos.state_blank(**kwargs)
 
     def entry_state(self, **kwargs):
         """
@@ -129,7 +132,7 @@ class AngrObjectFactory(object):
         :rtype:                 SimState
         """
 
-        return self._project._simos.state_entry(**kwargs)
+        return self._project.simos.state_entry(**kwargs)
 
     def full_init_state(self, **kwargs):
         """
@@ -152,7 +155,7 @@ class AngrObjectFactory(object):
         :return:                The fully initialized state.
         :rtype:                 SimState
         """
-        return self._project._simos.state_full_init(**kwargs)
+        return self._project.simos.state_full_init(**kwargs)
 
     def call_state(self, addr, *args, **kwargs):
         """
@@ -196,7 +199,28 @@ class AngrObjectFactory(object):
         set alloc_base to point to somewhere other than the stack, set grow_like_stack to False so that sequencial
         allocations happen at increasing addresses.
         """
-        return self._project._simos.state_call(addr, *args, **kwargs)
+        return self._project.simos.state_call(addr, *args, **kwargs)
+
+    def tracer_state(self, input_content=None, magic_content=None, preconstrain_input=True,
+                     preconstrain_flag=True, constrained_addrs=None, **kwargs):
+        """
+        Returns a new SimState object correctly configured for tracing.
+
+        :param input_content     : Concrete input to feed to binary.
+        :param magic_content     : CGC magic flag page.
+        :param preconstrain_input: Should the path be preconstrained to the provided input?
+        :param preconstrain_flag : Should the path have the CGC flag page preconstrained?
+        :param constrained_addrs : Addresses which have had constraints applied to them and should not be removed.
+        :param kwargs            : Any additional keyword arguments that will be passed to the SimState constructor.
+
+        :returns : The new SimState for tracing.
+        :rtype   : angr.sim_state.SimState
+        """
+        return self._project.simos.state_tracer(input_content=input_content,
+                                                magic_content=magic_content,
+                                                preconstrain_input=preconstrain_input,
+                                                preconstrain_flag=preconstrain_flag,
+                                                **kwargs)
 
     def simgr(self, thing=None, **kwargs):
         return self.simulation_manager(thing=thing, **kwargs)
@@ -322,23 +346,6 @@ class AngrObjectFactory(object):
     # Private methods
     #
 
-    def _fix_syscall_ip(self, state):
-        """
-        Resolve syscall information from the state, get the IP address of the syscall SimProcedure, and set the IP of
-        the state accordingly. Don't do anything if the resolution fails.
-
-        :param SimState state: the program state.
-        :return: None
-        """
-
-        try:
-            bypass = o.BYPASS_UNSUPPORTED_SYSCALL in state.options
-            stub = self._project._simos.syscall(state, allow_unsupported=bypass)
-            if stub: # can be None if simos is not a subclass of SimUserspace
-                state.ip = stub.addr # fix the IP
-        except AngrUnsupportedSyscallError:
-            pass # the syscall is not supported. don't do anything
-
     @deprecate('sim_run()', 'successors()')
     def sim_run(self, *args, **kwargs):
         return self.successors(*args, **kwargs)
@@ -362,8 +369,8 @@ class AngrObjectFactory(object):
             return state
         return self.entry_state(**kwargs)
 
-from .errors import AngrExitError, AngrError, AngrUnsupportedSyscallError
+
+from .errors import AngrExitError, AngrError
 from .manager import SimulationManager
 from .codenode import HookNode
 from .block import Block
-from . import sim_options as o

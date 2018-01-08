@@ -7,16 +7,16 @@ class SimMemoryObject(object):
     a specific object in SimSymbolicMemory. It is only used inside
     SimSymbolicMemory class.
     """
-    def __init__(self, object, base, length=None): #pylint:disable=redefined-builtin
+    def __init__(self, object, base, length=None, byte_width=8): #pylint:disable=redefined-builtin
         if not isinstance(object, claripy.ast.Base):
             raise SimMemoryError('memory can only store claripy Expression')
-
+        self._byte_width = byte_width
         self._base = base
         self._object = object
-        self._length = object.size()/8 if length is None else length
+        self._length = object.size()//self._byte_width if length is None else length
 
     def size(self):
-        return self._length * 8
+        return self._length * self._byte_width
 
     def __len__(self):
         return self.size()
@@ -45,8 +45,8 @@ class SimMemoryObject(object):
             return self.object
 
         obj_size = self.size()
-        left = obj_size - (addr-self.base)*8 - 1
-        right = left - length*8 + 1
+        left = obj_size - (addr-self.base)*self._byte_width - 1
+        right = left - length*self._byte_width + 1
         return self.object[left:right]
 
     def __eq__(self, other):

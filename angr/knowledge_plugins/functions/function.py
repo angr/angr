@@ -66,8 +66,8 @@ class Function(object):
             if project.is_hooked(addr):
                 hooker = project.hooked_by(addr)
                 name = hooker.display_name
-            elif project._simos.is_syscall_addr(addr):
-                syscall_inst = project._simos.syscall_from_addr(addr)
+            elif project.simos.is_syscall_addr(addr):
+                syscall_inst = project.simos.syscall_from_addr(addr)
                 name = syscall_inst.display_name
 
         # try to get the name from the symbols
@@ -200,7 +200,7 @@ class Function(object):
 
     @property
     def nodes(self):
-        return self.transition_graph.nodes_iter()
+        return self.transition_graph.nodes()
 
     def get_node(self, addr):
         return self._addr_to_block_node.get(addr, None)
@@ -351,7 +351,7 @@ class Function(object):
             if node is None:
                 # the node does not exist. maybe it's not a block node.
                 continue
-            missing = set(x.addr for x in self.graph.successors(node)) - analyzed
+            missing = set(x.addr for x in list(self.graph.successors(node))) - analyzed
             for succ_addr in missing:
                 l.info("Forcing jump to missing successor: %#x", succ_addr)
                 if succ_addr not in analyzed:
@@ -702,7 +702,7 @@ class Function(object):
         :return: None
         """
 
-        for src, dst, data in self.transition_graph.edges_iter(data=True):
+        for src, dst, data in self.transition_graph.edges(data=True):
             if 'type' in data and data['type'] == 'call':
                 func_addr = dst.addr
                 if func_addr in self._function_manager:
@@ -759,7 +759,7 @@ class Function(object):
             g.add_node(self.startpoint)
         for block in self._local_blocks.itervalues():
             g.add_node(block)
-        for src, dst, data in self.transition_graph.edges_iter(data=True):
+        for src, dst, data in self.transition_graph.edges(data=True):
             if 'type' in data:
                 if data['type']  == 'transition' and ('outside' not in data or data['outside'] is False):
                     g.add_edge(src, dst, attr_dict=data)
@@ -792,10 +792,11 @@ class Function(object):
                 blocks.append(b)
                 block_addr_to_insns[b.addr] = sorted(common_insns)
 
-        subgraph = networkx.subgraph(self.graph, blocks)
+       #subgraph = networkx.subgraph(self.graph, blocks)
+        subgraph = self.graph.subgraph(blocks).copy()
         g = networkx.DiGraph()
 
-        for n in subgraph.nodes_iter():
+        for n in subgraph.nodes():
             insns = block_addr_to_insns[n.addr]
 
             in_edges = subgraph.in_edges(n)
@@ -953,8 +954,8 @@ class Function(object):
                     end_addresses[new_end_addr].append(new_node)
 
                 # Modify the CFG
-                original_predecessors = list(graph.in_edges_iter([n], data=True))
-                original_successors = list(graph.out_edges_iter([n], data=True))
+                original_predecessors = list(graph.in_edges([n], data=True))
+                original_successors = list(graph.out_edges([n], data=True))
 
                 for _, d, data in original_successors:
                     if d not in graph[smallest_node]:

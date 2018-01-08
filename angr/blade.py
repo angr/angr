@@ -84,14 +84,14 @@ class Blade(object):
 
         s = ""
 
-        block_addrs = list(set([ a for a, _ in self.slice.nodes_iter() ]))
+        block_addrs = list(set([ a for a, _ in self.slice.nodes() ]))
 
         for block_addr in block_addrs:
             block_str = "IRSB %#x\n" % block_addr
 
             block = self.project.factory.block(block_addr, backup_state=self._base_state).vex
 
-            included_stmts = set([ stmt for _, stmt in self.slice.nodes_iter() if _ == block_addr ])
+            included_stmts = set([ stmt for _, stmt in self.slice.nodes() if _ == block_addr ])
 
             for i, stmt in enumerate(block.statements):
                 if arch is not None:

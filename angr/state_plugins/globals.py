@@ -51,6 +51,9 @@ class SimStateGlobals(SimStatePlugin):
     def get(self, k, alt=None):
         return self._backer.get(k, alt)
 
+    def pop(self, k, alt=None):
+        return self._backer.pop(k, alt)
+
     def copy(self):
         return SimStateGlobals(dict(self._backer))
 

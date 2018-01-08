@@ -160,7 +160,8 @@ class SimSuccessors(object):
         state.options.discard(o.AST_DEPS)
         state.options.discard(o.AUTO_REFS)
 
-    def _manage_callstack(self, state):
+    @staticmethod
+    def _manage_callstack(state):
         # condition for call = Ijk_Call
         # condition for ret = stack pointer drops below call point
         if state.history.jumpkind == 'Ijk_Call':
@@ -254,14 +255,16 @@ class SimSuccessors(object):
                         split_state = state.copy()
                         split_state.add_constraints(symbolic_syscall_num == n)
                         split_state.inspect.downsize()
+                        self._fix_syscall_ip(split_state)
 
                         self.flat_successors.append(split_state)
                 else:
                     # We cannot resolve the syscall number
                     # However, we still put it to the flat_successors list, and angr.SimOS.handle_syscall will pick it
                     # up, and create a "unknown syscall" stub for it.
+                    self._fix_syscall_ip(state)
                     self.flat_successors.append(state)
-            except UnsupportedSyscallError:
+            except AngrUnsupportedSyscallError:
                 self.unsat_successors.append(state)
 
         else:
@@ -321,7 +324,7 @@ class SimSuccessors(object):
         possible = state.se.eval_upto(syscall_num, maximum + 1)
 
         if len(possible) == 0:
-            raise UnsupportedSyscallError("Unsatisfiable state attempting to do a syscall")
+            raise AngrUnsupportedSyscallError("Unsatisfiable state attempting to do a syscall")
 
         if len(possible) > maximum:
             l.warning("Too many possible syscalls. Concretizing to 1.")
@@ -330,6 +333,24 @@ class SimSuccessors(object):
         l.debug("Possible syscall values: %s", possible)
 
         return syscall_num, possible
+
+    @staticmethod
+    def _fix_syscall_ip(state):
+        """
+        Resolve syscall information from the state, get the IP address of the syscall SimProcedure, and set the IP of
+        the state accordingly. Don't do anything if the resolution fails.
+
+        :param SimState state: the program state.
+        :return: None
+        """
+
+        try:
+            bypass = o.BYPASS_UNSUPPORTED_SYSCALL in state.options
+            stub = state.project.simos.syscall(state, allow_unsupported=bypass)
+            if stub: # can be None if simos is not a subclass of SimUserspace
+                state.ip = stub.addr # fix the IP
+        except AngrUnsupportedSyscallError:
+            pass # the syscall is not supported. don't do anything
 
     def _finalize(self):
         """
@@ -349,7 +370,7 @@ class SimSuccessors(object):
 
 
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
-from ..errors import SimSolverModeError, UnsupportedSyscallError, SimValueError
+from ..errors import SimSolverModeError, AngrUnsupportedSyscallError, SimValueError
 from ..calling_conventions import SYSCALL_CC
 from ..state_plugins.sim_action_object import _raw_ast
 from ..state_plugins.callstack import CallStack

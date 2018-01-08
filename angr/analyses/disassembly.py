@@ -146,6 +146,7 @@ class Instruction(DisassemblyPiece):
         cur_operand = None
         i = len(insn_pieces) - 1
         cs_op_num = -1
+        nested_mem = False
 
         # iterate over operands in reverse order
         while i >= 0:
@@ -158,7 +159,7 @@ class Instruction(DisassemblyPiece):
                 cur_operand = []
                 self.operands.append(cur_operand)
 
-            # check if this is a number or an identifier
+            # Check if this is a number or an identifier.
             ordc = ord(c[0])
             # pylint:disable=too-many-boolean-expressions
             if (ordc >= 0x30 and ordc <= 0x39) or \
@@ -196,17 +197,27 @@ class Instruction(DisassemblyPiece):
                     # XXX STILL A HACK
                     cur_operand.append(c if c[-1] == ':' else c + ' ')
 
-            elif c == ',':
+            elif c == ',' and not nested_mem:
                 cs_op_num -= 1
                 cur_operand = None
+
             elif c == ':': # XXX this is a hack! fix this later
                 insn_pieces[i-1] += ':'
+
             else:
+                # Check if we are inside braces or parentheses. Do not forget
+                # that we are iterating in reverse order!
+                if c == ']' or c == ')':
+                    nested_mem = True
+
+                elif (c == '[' or c == '('):
+                    nested_mem = False
+
                 if cur_operand is None:
                     cur_operand = [c]
                     self.operands.append(cur_operand)
                 else:
-                    cur_operand.append(c)
+                    cur_operand.append(c if c[0] != ',' else c + ' ')
 
             i -= 1
 
@@ -561,9 +572,8 @@ class Disassembly(Analysis):
         self._func_cache = {}
 
         if function is not None:
-            blocks = function.graph.nodes()
             # sort them by address, put hooks before nonhooks
-            blocks.sort(key=lambda node: (node.addr, not node.is_hook))
+            blocks = sorted(function.graph.nodes(), key=lambda node: (node.addr, not node.is_hook))
             for block in blocks:
                 self.parse_block(block)
 

@@ -14,7 +14,6 @@ class __libc_start_main(angr.SimProcedure):
 
     ADDS_EXITS = True
     NO_RET = True
-    IS_FUNCTION = True
     local_vars = ('main', 'argc', 'argv', 'init', 'fini')
 
     def _initialize_b_loc_table(self):

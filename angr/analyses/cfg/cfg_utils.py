@@ -44,7 +44,7 @@ class CFGUtils(object):
 
         in_degree_to_nodes = defaultdict(set)
 
-        for node in graph.nodes_iter():
+        for node in graph.nodes():
             in_degree = graph.in_degree(node)
             in_degree_to_nodes[in_degree].add(node)
             if in_degree > 1:
@@ -138,7 +138,7 @@ class CFGUtils(object):
         sccs = [ scc for scc in networkx.strongly_connected_components(graph) if len(scc) > 1 ]
 
         # collapse all strongly connected components
-        for src, dst in graph.edges_iter():
+        for src, dst in graph.edges():
             scc_index = CFGUtils._components_index_node(sccs, src)
             if scc_index is not None:
                 src = SCCPlaceholder(scc_index)
@@ -205,7 +205,7 @@ class CFGUtils(object):
             # randomly pick one
             loop_head = next(iter(scc))
 
-        subgraph = graph.subgraph(scc)  # type: networkx.DiGraph
+        subgraph = graph.subgraph(scc).copy()  # type: networkx.DiGraph
         for src, _ in subgraph.in_edges(loop_head):
             subgraph.remove_edge(src, loop_head)
 

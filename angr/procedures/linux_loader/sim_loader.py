@@ -6,7 +6,6 @@ l = logging.getLogger('angr.procedures.linux_loader.sim_loader')
 
 class LinuxLoader(angr.SimProcedure):
     NO_RET = True
-    IS_FUNCTION = True
 
     # pylint: disable=unused-argument,arguments-differ,attribute-defined-outside-init
     local_vars = ('initializers',)
@@ -16,7 +15,7 @@ class LinuxLoader(angr.SimProcedure):
 
     def run_initializer(self):
         if len(self.initializers) == 0:
-            self.project._simos.set_entry_register_values(self.state)
+            self.project.simos.set_entry_register_values(self.state)
             self.jump(self.project.entry)
         else:
             addr = self.initializers[0]

@@ -112,7 +112,7 @@ class SimulationManager(ana.Storable):
         self._hooks_complete = []
         self._hooks_all = []
         for hook in hooks:
-            s._apply_hooks(hook)
+            self._apply_hooks(hook)
 
     #
     # Util functions
@@ -589,7 +589,8 @@ class SimulationManager(ana.Storable):
         :rtype:                 SimulationManager
         """
         stash = 'active' if stash is None else stash
-        n = n if n is not None else 1 if until is None else 100000
+        if until is None and n is None:
+            n = 1
         pg = self
 
         # Check for found state in first block
@@ -598,20 +599,23 @@ class SimulationManager(ana.Storable):
             self._apply_filter_hooks(state,pg.stashes,new_active)
         pg.stashes[stash] = new_active
 
-        for i in range(n):
+        i = 0
+        while n is None or i < n:
+            i += 1
             l.debug("Round %d: stepping %s", i, pg)
 
             pg = pg._one_step(stash=stash, selector_func=selector_func, successor_func=successor_func, **kwargs)
             if step_func is not None:
                 pg = step_func(pg)
 
+            if until is not None and until(pg):
+                l.debug("Until function returned true")
+                break
+
             if len(pg.stashes[stash]) == 0:
                 l.debug("Out of states in stash %s", stash)
                 break
 
-            if until is not None and until(pg):
-                l.debug("Until function returned true")
-                break
 
         return pg
 
@@ -732,7 +736,9 @@ class SimulationManager(ana.Storable):
             o = optimal[0]
             m, _, _ = o.merge(*optimal[1:],
                               merge_conditions=constraints,
-                              common_ancestor=common_history.strongref_state
+                              # history.strongref_state requires state option EFFICIENT_STATE_MERGING
+                              common_ancestor=common_history.strongref_state,
+                              common_ancestor_history=common_history
                               )
 
         else:
@@ -794,13 +800,17 @@ class SimulationManager(ana.Storable):
         Use an exploration technique with this SimulationManager.
         Techniques can be found in :mod:`angr.exploration_techniques`.
 
-        :param tech:       An ExplorationTechnique object that contains code to modify this SimulationManager's behavior
+        :param tech:    An ExplorationTechnique object that contains code to modify this SimulationManager's behavior
+        :returns:       The same technique instance that was passed in. This allows for writing the
+                        ExplorationTechnique construtor call inside the call to ``use_technique`` and still
+                        maintaining a reference to the technique.
         """
         # this might be the best worst code I've ever written in my life
         tech.project = self._project
         self.remove_tech(tech)
         tech.setup(self)
         self._apply_hooks(tech)
+        return tech
 
     def _apply_hooks(self, tech):
         self._hooks_all.append(tech)
@@ -889,7 +899,7 @@ class SimulationManager(ana.Storable):
     # High-level functionality
     #
 
-    def explore(self, stash=None, n=None, find=None, avoid=None, find_stash='found', avoid_stash='avoid', cfg=None, num_find=1, step_func=None):
+    def explore(self, stash=None, n=None, find=None, avoid=None, find_stash='found', avoid_stash='avoid', cfg=None, num_find=1, step_func=None, **kwargs):
         """
         Tick stash "stash" forward (up to "n" times or until "num_find" states are found), looking for condition "find",
         avoiding condition "avoid". Stores found states into "find_stash' and avoided states into "avoid_stash".
@@ -914,12 +924,13 @@ class SimulationManager(ana.Storable):
         self.use_technique(tech)
         out = self.run(stash=stash,
                        step_func=step_func,
-                       n=n)
+                       n=n,
+                       **kwargs)
         out.remove_tech(tech)
         self.remove_tech(tech)
         return out
 
-    def run(self, stash=None, n=None, step_func=None):
+    def run(self, stash=None, n=None, step_func=None, **kwargs):
         """
         Run until the SimulationManager has reached a completed state, according to
         the current exploration techniques.
@@ -938,7 +949,7 @@ class SimulationManager(ana.Storable):
             l.warn("No completion state defined for SimulationManager; stepping until all states deadend")
 
         until_func = lambda pg: self.completion_mode(h(pg) for h in self._hooks_complete)
-        return self.step(n=n, step_func=step_func, until=until_func, stash=stash)
+        return self.step(n=n, step_func=step_func, until=until_func, stash=stash, **kwargs)
 
 
 class ErrorRecord(object):

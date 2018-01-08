@@ -1,5 +1,6 @@
 import operator
 import logging
+import itertools
 
 import claripy
 
@@ -113,6 +114,26 @@ class SimStateHistory(SimStatePlugin):
 
         self.merged_from.extend(h for h in others)
         self.merge_conditions = merge_conditions
+
+        # we must fix this in order to get
+        # correct results when using constraints_since()
+        self.parent = common_ancestor if common_ancestor is not None else self.parent
+
+        self.recent_events = [e.recent_events for e in itertools.chain([self], others)
+                              if not isinstance(e, SimActionConstraint)
+                              ]
+
+        # rebuild recent constraints
+        recent_constraints = [ h.constraints_since(common_ancestor) for h in itertools.chain([self], others) ]
+        combined_constraint = self.state.solver.Or(
+            *[ self.state.solver.simplify(self.state.solver.And(*history_constraints)) for history_constraints in recent_constraints ]
+        )
+        self.recent_events.append(SimActionConstraint(self.state, combined_constraint))
+
+        # hard to say what we should do with these others list of things...
+        #self.recent_bbl_addrs = [e.recent_bbl_addrs for e in itertools.chain([self], others)]
+        #self.recent_ins_addrs = [e.recent_ins_addrs for e in itertools.chain([self], others)]
+        #self.recent_stack_actions = [e.recent_stack_actions for e in itertools.chain([self], others)]
 
         return True
 

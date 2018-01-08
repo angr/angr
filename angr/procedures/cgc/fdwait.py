@@ -18,7 +18,7 @@ class fdwait(angr.SimProcedure):
             if angr.options.CGC_NON_BLOCKING_FDS in self.state.options:
                 sym_bit = self.state.se.BVV(1, 1)
             else:
-                sym_bit = self.state.se.Unconstrained('fdwait_read_%d_%d'%(run_count,fd), 1)
+                sym_bit = self.state.se.Unconstrained('fdwait_read_%d_%d'%(run_count,fd), 1, key=('syscall', 'fdwait', fd, 'read_ready'))
             fd = self.state.se.BVV(fd, self.state.arch.bits)
             sym_newbit = self.state.se.If(self.state.se.ULT(fd, nfds), sym_bit, 0)
             total_ready += sym_newbit.zero_extend(self.state.arch.bits - 1)
@@ -30,7 +30,7 @@ class fdwait(angr.SimProcedure):
             if angr.options.CGC_NON_BLOCKING_FDS in self.state.options:
                 sym_bit = self.state.se.BVV(1, 1)
             else:
-                sym_bit = self.state.se.Unconstrained('fdwait_write_%d_%d' % (run_count, fd), 1)
+                sym_bit = self.state.se.Unconstrained('fdwait_write_%d_%d' % (run_count, fd), 1, key=('syscall', 'fdwait', fd, 'write_ready'))
 
             fd = self.state.se.BVV(fd, self.state.arch.bits)
             sym_newbit = self.state.se.If(self.state.se.ULT(fd, nfds), sym_bit, 0)

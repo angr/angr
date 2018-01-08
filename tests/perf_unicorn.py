@@ -13,28 +13,28 @@ def perf_unicorn_0():
 
     s_unicorn = p.factory.entry_state(add_options=so.unicorn | {so.STRICT_PAGE_ACCESS}, remove_options={so.LAZY_SOLVES}) # unicorn
 
-    pg_unicorn = p.factory.path_group(s_unicorn)
+    sm_unicorn = p.factory.simgr(s_unicorn)
 
     start = time.time()
-    pg_unicorn.run()
+    sm_unicorn.run()
     elapsed = time.time() - start
 
     print "Elapsed %f sec" % elapsed
-    print pg_unicorn.one_deadended
+    print sm_unicorn.one_deadended
 
 def perf_unicorn_1():
     p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'x86_64', 'perf_unicorn_1'))
 
     s_unicorn = p.factory.entry_state(add_options=so.unicorn | {so.STRICT_PAGE_ACCESS}, remove_options={so.LAZY_SOLVES}) # unicorn
 
-    pg_unicorn = p.factory.path_group(s_unicorn)
+    sm_unicorn = p.factory.simgr(s_unicorn)
 
     start = time.time()
-    pg_unicorn.run()
+    sm_unicorn.run()
     elapsed = time.time() - start
 
     print "Elapsed %f sec" % elapsed
-    print pg_unicorn.one_deadended
+    print sm_unicorn.one_deadended
 
 if __name__ == "__main__":
 

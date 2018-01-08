@@ -3,7 +3,6 @@ import logging
 
 import networkx
 
-from .pathprioritizer import PathPrioritizer
 from .errors import AngrAnnotatedCFGError, AngrExitError
 from .analyses.cfg.cfg_node import CFGNode
 
@@ -39,9 +38,6 @@ class AnnotatedCFG(object):
         if cfg is not None:
             self._cfg = cfg
 
-            #if target_irsb_addr is not None:
-            #    self._path_prioritizer = PathPrioritizer(self._cfg, self._target)
-
         if self._cfg is not None:
             for run in self._cfg.nodes():
                 self._addr_to_run[self.get_addr(run)] = run
@@ -59,10 +55,10 @@ class AnnotatedCFG(object):
 
         Those nodes are connected by edges indicating the execution flow.
 
-        :param digraph: A networkx.DiGraph object
+        :param networkx.DiGraph digraph: A networkx.DiGraph object
         """
 
-        for n1 in digraph.nodes_iter():
+        for n1 in digraph.nodes():
             addr1, stmt_idx1 = n1
             self.add_statements_to_whitelist(addr1, (stmt_idx1,))
 
