@@ -840,11 +840,14 @@ class Instruction(object):
                             self.project.arch.name in ['PPC32', 'ARMEL']:
                             pass
                         else:
+                            sub_prefix = "$"
+                            if self.project.arch.name in ['MIPS32']:
+                                sub_prefix = ""
                             # mark the size of the variable
                             if op.is_dataref:
                                 op.label.var_size = op.size
                             if self.binary.syntax == 'at&t':
-                                all_operands[i] = "$" + all_operands[i]
+                                all_operands[i] = sub_prefix + all_operands[i]
                             else:
                                 all_operands[i] = 'OFFSET FLAT:' + all_operands[i]
 
@@ -1670,10 +1673,10 @@ class Data(object):
 
             if not self.size:
                 # Fixed size architectures in capstone don't have .size
-                if self.binary.project.arch.name in ['PPC32', 'ARMEL']:
+                if self.binary.project.arch.name in ['PPC32', 'ARMEL', 'MIPS32']:
                     self.size = 32
                 else:
-                    raise RuntimeError("Size is undefined for {}".format(self.memory_data))
+                    raise RuntimeError("Size is undefined for {} {}".format(self.binary.project.arch.name, self.memory_data))
 
             # Symbolize the content
             if self.sort == 'pointer-array':
@@ -2051,6 +2054,7 @@ class Reassembler(Analysis):
                 # 34 _2 _1 __ is immediate
                 # __ 5_ __ __ is target register
                 # __ __ __ e3 is mov
+                # See https://alisdair.mcdiarmid.org/arm-immediate-value-encoding/
 
                 if insn_size - i >= 4:
                     buff, _ = self.project.loader.memory.read_bytes_c(addr)
@@ -2576,7 +2580,12 @@ class Reassembler(Analysis):
                                None
                                )
 
-                if section is not None and section.name not in ('.note.gnu.build-id', ):  # ignore certain section names
+                bad_section_names = [".note.gnu.build-id"] # ignore certain section names
+
+                if self.project.arch == "ARMEL":
+                    bad_section_names.append(".ARM.exidx")
+
+                if section is not None and section.name not in bad_section_names: 
                     data = Data(self, memory_data, section=section)
                     self.data.append(data)
                 elif memory_data.sort == 'segment-boundary':
@@ -2608,7 +2617,7 @@ class Reassembler(Analysis):
                     self.data.append(data)
 
         # remove all data that belong to GCC-specific sections
-        section_names_to_ignore = {'.init', '.fini', '.fini_array', '.jcr', '.dynamic', '.got', '.got.plt',
+        section_names_to_ignore = {'.init', '.fini', '.fini_array', '.jcr', '.dynamic', '.got.plt',
                                    '.eh_frame_hdr', '.eh_frame', '.rel.dyn', '.rel.plt', '.rela.dyn', '.rela.plt',
                                    '.dynstr', '.dynsym', '.interp', '.note.ABI-tag', '.note.gnu.build-id', '.gnu.hash',
                                    '.gnu.version', '.gnu.version_r', '.ctors', '.dtors',
