@@ -551,7 +551,7 @@ class DDG(Analysis):
         Pretty printing.
         """
         # TODO: make it prettier
-        for src, dst, data in self.graph.edges_iter(data=True):
+        for src, dst, data in self.graph.edges(data=True):
             print "%s <-- %s, %s" % (src, dst, data)
 
     def dbg_repr(self):
@@ -678,7 +678,7 @@ class DDG(Analysis):
         # Initialize the worklist
         if self._start is None:
             # initial nodes are those nodes in CFG that has no in-degrees
-            for n in self._cfg.graph.nodes_iter():
+            for n in self._cfg.graph.nodes():
                 if self._cfg.graph.in_degree(n) == 0:
                     # Put it into the worklist
                     job = DDGJob(n, 0)
@@ -710,7 +710,7 @@ class DDG(Analysis):
                 live_defs = LiveDefinitions()
                 live_defs_per_node[node] = live_defs
 
-            successing_nodes = self._cfg.graph.successors(node)
+            successing_nodes = list(self._cfg.graph.successors(node))
 
             # try to assign every final state to a successor and vice versa
             match_suc = defaultdict(bool)
@@ -1373,7 +1373,7 @@ class DDG(Analysis):
 
         graph = networkx.MultiDiGraph(data_graph)
 
-        all_nodes = [ n for n in graph.nodes_iter() if isinstance(n.variable, SimTemporaryVariable) ]
+        all_nodes = [ n for n in graph.nodes() if isinstance(n.variable, SimTemporaryVariable) ]
 
         for tmp_node in all_nodes:
             # remove each tmp node by linking their successors and predecessors directly
@@ -1470,7 +1470,7 @@ class DDG(Analysis):
             for block in func.blocks:
                 block_addr_to_func[block.addr] = func
 
-        for src, dst, data in self.graph.edges_iter(data=True):
+        for src, dst, data in self.graph.edges(data=True):
             src_target_func = None
             if src.block_addr in block_addr_to_func:
                 src_target_func = block_addr_to_func[src.block_addr]
@@ -1530,7 +1530,7 @@ class DDG(Analysis):
 
         defs = []
 
-        for n in graph.nodes_iter():  # type: ProgramVariable
+        for n in graph.nodes():  # type: ProgramVariable
             if n.variable == variable:
                 if location is None:
                     defs.append(n)

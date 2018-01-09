@@ -2,13 +2,14 @@ import logging
 from collections import defaultdict
 
 import networkx
-from . import Analysis, register_analysis
 
 from .. import SIM_PROCEDURES
 from .. import options as o
 from ..knowledge_base import KnowledgeBase
 from ..errors import AngrError, AngrCFGError
 from ..manager import SimulationManager
+from ..misc.graph import shallow_reverse
+from . import Analysis, register_analysis
 
 l = logging.getLogger("angr.analyses.veritesting")
 
@@ -479,6 +480,16 @@ class Veritesting(Analysis):
             l.debug("... terminating Veritesting due to overbound")
             return True
 
+        try:
+            # If the address is not in the list (which could mean it is
+            # not at the top of a block), check directly in the blocks
+            # (Blocks are repeatedly created for every check, but with
+            # the IRSB cache in angr lifter it should be OK.)
+            if set(self._boundaries).intersection(set(self.project.factory.block(ip).instruction_addrs)):
+                return True
+        except (AngrError, SimError):
+            pass
+
         if (
             ip in self._loop_heads # This is the beginning of the loop
             or state.history.jumpkind == 'Ijk_Call' # We also wanna catch recursive function calls
@@ -577,18 +588,18 @@ class Veritesting(Analysis):
         """
 
         graph = networkx.DiGraph(cfg.graph)
-        reversed_cyclic_graph = networkx.reverse(graph_with_loops, copy=False)
+        reversed_cyclic_graph = shallow_reverse(graph_with_loops)
 
         # Remove all "FakeRet" edges
         fakeret_edges = [
-            (src, dst) for src, dst, data in graph.edges_iter(data=True)
+            (src, dst) for src, dst, data in graph.edges(data=True)
             if data['jumpkind'] in ('Ijk_FakeRet', 'Ijk_Exit')
         ]
         graph.remove_edges_from(fakeret_edges)
 
         # Remove all "FakeRet" edges from cyclic_graph as well
         fakeret_edges = [
-            (src, dst) for src, dst, data in reversed_cyclic_graph.edges_iter(data=True)
+            (src, dst) for src, dst, data in reversed_cyclic_graph.edges(data=True)
             if data['jumpkind'] in ('Ijk_FakeRet', 'Ijk_Exit')
         ]
         reversed_cyclic_graph.remove_edges_from(fakeret_edges)

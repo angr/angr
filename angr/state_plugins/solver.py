@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import sys
 import functools
 import time
@@ -176,13 +174,18 @@ def concrete_path_list(f):
 import claripy
 class SimSolver(SimStatePlugin):
     """
-    Symbolic solver.
+    This is the plugin you'll use to interact with symbolic variables, creating them and evaluating them.
+    It should be available on a state as ``state.solver``.
+
+    Any top-level variable of the claripy module can be accessed as a property of this object.
     """
-    def __init__(self, solver=None, all_variables=None): #pylint:disable=redefined-outer-name
+    def __init__(self, solver=None, all_variables=None, temporal_tracked_variables=None, eternal_tracked_variables=None): #pylint:disable=redefined-outer-name
         l.debug("Creating SimSolverClaripy.")
         SimStatePlugin.__init__(self)
         self._stored_solver = solver
-        self.all_variables = [ ] if all_variables is None else all_variables
+        self.all_variables = [] if all_variables is None else all_variables
+        self.temporal_tracked_variables = {} if temporal_tracked_variables is None else temporal_tracked_variables
+        self.eternal_tracked_variables = {} if eternal_tracked_variables is None else eternal_tracked_variables
 
     def reload_solver(self):
         """
@@ -192,6 +195,65 @@ class SimSolver(SimStatePlugin):
         constraints = self._solver.constraints
         self._stored_solver = None
         self._solver.add(constraints)
+
+    def get_variables(self, *keys):
+        """
+        Iterate over all variables for which their tracking key is a prefix of the values provided.
+
+        Elements are a tuple, the first element is the full tracking key, the second is the symbol.
+
+        >>> list(s.solver.get_variables('mem'))
+        [(('mem', 0x1000), <BV64 mem_1000_4_64>), (('mem', 0x1008), <BV64 mem_1008_5_64>)]
+
+        >>> list(s.solver.get_variables('file'))
+        [(('file', 1, 0), <BV8 file_1_0_6_8>), (('file', 1, 1), <BV8 file_1_1_7_8>), (('file', 2, 0), <BV8 file_2_0_8_8>)]
+
+        >>> list(s.solver.get_variables('file', 2))
+        [(('file', 2, 0), <BV8 file_2_0_8_8>)]
+
+        >>> list(s.solver.get_variables())
+        [(('mem', 0x1000), <BV64 mem_1000_4_64>), (('mem', 0x1008), <BV64 mem_1008_5_64>), (('file', 1, 0), <BV8 file_1_0_6_8>), (('file', 1, 1), <BV8 file_1_1_7_8>), (('file', 2, 0), <BV8 file_2_0_8_8>)]
+        """
+        for k, v in self.eternal_tracked_variables.iteritems():
+            if len(k) >= len(keys) and all(x == y for x, y in zip(keys, k)):
+                yield k, v
+        for k, v in self.temporal_tracked_variables.iteritems():
+            if k[-1] is None:
+                continue
+            if len(k) >= len(keys) and all(x == y for x, y in zip(keys, k)):
+                yield k, v
+
+    def register_variable(self, v, key, eternal=True):
+        """
+        Register a value with the variable tracking system
+
+        :param v:       The BVS to register
+        :param key:     A tuple to register the variable under
+        :parma eternal: Whether this is an eternal variable, default True. If False, an incrementing counter will be
+                        appended to the key.
+        """
+        if type(key) is not tuple:
+            raise TypeError("Variable tracking key must be a tuple")
+        if eternal:
+            self.eternal_tracked_variables[key] = v
+        else:
+            self.temporal_tracked_variables = dict(self.temporal_tracked_variables)
+            ctrkey = key + (None,)
+            ctrval = self.temporal_tracked_variables.get(ctrkey, 0) + 1
+            self.temporal_tracked_variables[ctrkey] = ctrval
+            tempkey = key + (ctrval,)
+            self.temporal_tracked_variables[tempkey] = v
+
+    def describe_variables(self, v):
+        """
+        Given an AST, iterate over all the keys of all the BVS leaves in the tree which are registered.
+        """
+        reverse_mapping = {iter(var.variables).next(): k for k, var in self.eternal_tracked_variables.iteritems()}
+        reverse_mapping.update({iter(var.variables).next(): k for k, var in self.temporal_tracked_variables.iteritems() if k[-1] is not None})
+
+        for var in v.variables:
+            if var in reverse_mapping:
+                yield reverse_mapping[var]
 
     @property
     def _solver(self):
@@ -220,7 +282,7 @@ class SimSolver(SimStatePlugin):
     #
     # Get unconstrained stuff
     #
-    def Unconstrained(self, name, bits, uninitialized=True, inspect=True, events=True, **kwargs):
+    def Unconstrained(self, name, bits, uninitialized=True, inspect=True, events=True, key=None, eternal=False, **kwargs):
         if o.SYMBOLIC_INITIAL_VALUES in self.state.options:
             # Return a symbolic value
             if o.ABSTRACT_MEMORY in self.state.options:
@@ -229,35 +291,56 @@ class SimSolver(SimStatePlugin):
             else:
                 l.debug("Creating new unconstrained BV named %s", name)
                 if o.UNDER_CONSTRAINED_SYMEXEC in self.state.options:
-                    r = self.BVS(name, bits, uninitialized=uninitialized, inspect=inspect, events=events, **kwargs)
+                    r = self.BVS(name, bits, uninitialized=uninitialized, key=key, eternal=eternal, inspect=inspect, events=events, **kwargs)
                 else:
-                    r = self.BVS(name, bits, uninitialized=uninitialized, inspect=inspect, events=events, **kwargs)
+                    r = self.BVS(name, bits, uninitialized=uninitialized, key=key, eternal=eternal, inspect=inspect, events=events, **kwargs)
 
             return r
         else:
             # Return a default value, aka. 0
             return claripy.BVV(0, bits)
 
-    def BVS(self, name, size, min=None, max=None, stride=None, uninitialized=False, explicit_name=None, inspect=True, events=True, **kwargs): #pylint:disable=redefined-builtin
+    def BVS(self, name, size,
+            min=None, max=None, stride=None,
+            uninitialized=False,
+            explicit_name=None, key=None, eternal=False,
+            inspect=True, events=True,
+            **kwargs): #pylint:disable=redefined-builtin
         """
         Creates a bit-vector symbol (i.e., a variable). Other keyword parameters are passed directly on to the
         constructor of claripy.ast.BV.
 
         :param name:            The name of the symbol.
         :param size:            The size (in bits) of the bit-vector.
-        :param min:             The minimum value of the symbol.
-        :param max:             The maximum value of the symbol.
-        :param stride:          The stride of the symbol.
+        :param min:             The minimum value of the symbol. Note that this **only** work when using VSA.
+        :param max:             The maximum value of the symbol. Note that this **only** work when using VSA.
+        :param stride:          The stride of the symbol. Note that this **only** work when using VSA.
         :param uninitialized:   Whether this value should be counted as an "uninitialized" value in the course of an
                                 analysis.
-        :param explicit_name:   If False, an identifier is appended to the name to ensure uniqueness.
+        :param explicit_name:   Set to True to prevent an identifier from appended to the name to ensure uniqueness.
+        :param key:             Set this to a tuple of increasingly specific identifiers (for example,
+                                ``('mem', 0xffbeff00)`` or ``('file', 4, 0x20)`` to cause it to be tracked, i.e.
+                                accessable through ``solver.get_variables``.
+        :param eternal:         Set to True in conjunction with setting a key to cause all states with the same
+                                ancestry to retrieve the same symbol when trying to create the value. If False, a
+                                counter will be appended to the key.
+        :param inspect:         Set to False to avoid firing SimInspect breakpoints
+        :param events:          Set to False to avoid generating a SimEvent for the occasion
 
         :return:                A BV object representing this symbol.
         """
 
+        # should this be locked for multithreading?
+        if key is not None and eternal and key in self.eternal_tracked_variables:
+            r = self.eternal_tracked_variables[key]
+            # pylint: disable=too-many-boolean-expressions
+            if size != r.length or min != r.args[1] or max != r.args[2] or stride != r.args[3] or uninitialized != r.args[4] or bool(explicit_name) ^ (r.args[0] == name):
+                l.warning("Variable %s being retrieved with differnt settings than it was tracked with", name)
+        else:
+            r = claripy.BVS(name, size, min=min, max=max, stride=stride, uninitialized=uninitialized, explicit_name=explicit_name, **kwargs)
+            if key is not None:
+                self.register_variable(r, key, eternal)
 
-
-        r = claripy.BVS(name, size, min=min, max=max, stride=stride, uninitialized=uninitialized, explicit_name=explicit_name, **kwargs)
         if inspect:
             self.state._inspect('symbolic_variable', BP_AFTER, symbolic_name=next(iter(r.variables)), symbolic_size=size, symbolic_expr=r)
         if events:
@@ -290,7 +373,7 @@ class SimSolver(SimStatePlugin):
     #
 
     def copy(self):
-        return SimSolver(solver=self._solver.branch(), all_variables=self.all_variables)
+        return SimSolver(solver=self._solver.branch(), all_variables=self.all_variables, temporal_tracked_variables=self.temporal_tracked_variables, eternal_tracked_variables=self.eternal_tracked_variables)
 
     @error_converter
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=W0613

@@ -1,4 +1,3 @@
-#!/usr/bin/python env
 """
 This module contains symbolic implementations of VEX operations.
 """
@@ -81,18 +80,32 @@ unclassified = set()
 unsupported = set()
 explicit_attrs = {
     'Iop_64x4toV256': {
-        '_generic_name': '64x4',
-        '_to_size': 256,
+        'generic_name': '64x4',
+        'to_size': 256,
     },
     'Iop_Yl2xF64': {
-        '_generic_name': 'Yl2x',
-        '_to_size': 64,
+        'generic_name': 'Yl2x',
+        'to_size': 64,
     },
     'Iop_Yl2xp1F64': {
-        '_generic_name': 'Yl2xp1',
-        '_to_size': 64,
+        'generic_name': 'Yl2xp1',
+        'to_size': 64,
     },
 }
+
+for _vec_lanewidth in (8, 16, 32, 64):
+    for _vec_width in (64, 128):
+        _vec_count = _vec_width // _vec_lanewidth
+        if _vec_count <= 1:
+            continue
+
+        # the regex thinks the I is an integral descriptor
+        explicit_attrs['Iop_InterleaveHI%dx%d' % (_vec_lanewidth, _vec_count)] = {
+                'generic_name': 'InterleaveHI',
+                'to_size': _vec_width,
+                'vector_size': _vec_lanewidth,
+                'vector_count': _vec_count,
+        }
 
 
 def make_operations():
@@ -124,6 +137,7 @@ arithmetic_operation_map = {
     'Div': '__div__',
     'Neg': 'Neg',
     'Abs': 'Abs',
+    'Mod': '__mod__',
 }
 shift_operation_map = {
     'Shl': '__lshift__',
@@ -193,7 +207,7 @@ class SimIROp(object):
         #pylint:disable=no-member
         self._output_type = pyvex.get_op_retty(name)
         #pylint:enable=no-member
-        self._output_size_bits = size_bits(self._output_type)
+        self._output_size_bits = pyvex.const.get_type_size(self._output_type)
         l.debug("... VEX says the output size should be %s", self._output_size_bits)
 
         size_check = self._to_size is None or (self._to_size*2 if self._generic_name == 'DivMod' else self._to_size) == self._output_size_bits
@@ -533,9 +547,17 @@ class SimIROp(object):
     def _op_generic_InterleaveLO(self, args):
         s = self._vector_size
         c = self._vector_count
-        dst_vector = [ args[0][(i+1)*s-1:i*s] for i in xrange(c/2) ]
-        src_vector = [ args[1][(i+1)*s-1:i*s] for i in xrange(c/2) ]
-        return claripy.Concat(*itertools.chain.from_iterable(reversed(zip(dst_vector, src_vector))))
+        left_vector = [ args[0][(i+1)*s-1:i*s] for i in xrange(c/2) ]
+        right_vector = [ args[1][(i+1)*s-1:i*s] for i in xrange(c/2) ]
+        return claripy.Concat(*itertools.chain.from_iterable(reversed(zip(left_vector, right_vector))))
+
+    @supports_vector
+    def _op_generic_InterleaveHI(self, args):
+        s = self._vector_size
+        c = self._vector_count
+        left_vector = [ args[0][(i+1)*s-1:i*s] for i in xrange(c/2, c) ]
+        right_vector = [ args[1][(i+1)*s-1:i*s] for i in xrange(c/2, c) ]
+        return claripy.Concat(*itertools.chain.from_iterable(reversed(zip(left_vector, right_vector))))
 
     def generic_compare(self, args, comparison):
         if self._vector_size is not None:
@@ -938,7 +960,6 @@ def translate_inner(state, irop, s_args):
         else:
             raise
 
-from . import size_bits
 from ...errors import UnsupportedIROpError, SimOperationError, SimValueError, SimZeroDivisionException
 from ... import sim_options as options
 

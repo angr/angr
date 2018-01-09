@@ -28,6 +28,8 @@ class Veritesting(ExplorationTechnique):
                     'active': simgr.active,
                     'unconstrained': simgr.stashes.get('unconstrained', []),
                     'unsat': simgr.stashes.get('unsat', []),
+                    'pruned': simgr.stashes.get('pruned', []),
+                    #'errored': simgr.stashes.get('errored', []),
                     }
 
         return None

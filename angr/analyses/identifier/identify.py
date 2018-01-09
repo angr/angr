@@ -87,7 +87,7 @@ class Identifier(Analysis):
 
             # skip if no predecessors
             try:
-                if require_predecessors and len(self._cfg.functions.callgraph.predecessors(f.addr)) == 0:
+                if require_predecessors and len(list(self._cfg.functions.callgraph.predecessors(f.addr))) == 0:
                     continue
             except NetworkXError:
                 if require_predecessors:
@@ -226,7 +226,7 @@ class Identifier(Analysis):
         l.debug("num args %d", len(func_info.stack_args))
 
         try:
-            calls_other_funcs = len(self._cfg.functions.callgraph.successors(function.addr)) > 0
+            calls_other_funcs = len(list(self._cfg.functions.callgraph.successors(function.addr))) > 0
         except NetworkXError:
             calls_other_funcs = False
 
@@ -369,9 +369,9 @@ class Identifier(Analysis):
         # we need to step back as far as possible
         start = calling_func.get_node(callsite)
         addr_trace = []
-        while len(calling_func.transition_graph.predecessors(start)) == 1:
+        while len(list(calling_func.transition_graph.predecessors(start))) == 1:
             # stop at a call, could continue farther if no stack addr passed etc
-            prev_block = calling_func.transition_graph.predecessors(start)[0]
+            prev_block = list(calling_func.transition_graph.predecessors(start))[0]
             addr_trace = [start.addr] + addr_trace
             start = prev_block
 

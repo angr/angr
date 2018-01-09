@@ -2327,7 +2327,7 @@ class Reassembler(Analysis):
         function = self.cfg.functions[func_addr]
         # traverse the graph and make sure there is only one call edge
         calling_targets = [ ]
-        for _, dst, data in function.transition_graph.edges_iter(data=True):
+        for _, dst, data in function.transition_graph.edges(data=True):
             if 'type' in data and data['type'] == 'call':
                 calling_targets.append(dst.addr)
 
@@ -2525,7 +2525,7 @@ class Reassembler(Analysis):
 
         # collect address of all instructions
         l.debug('Collecting instruction addresses...')
-        for cfg_node in self.cfg.nodes_iter():
+        for cfg_node in self.cfg.nodes():
             self.all_insn_addrs |= set(cfg_node.instruction_addrs)
 
         # Functions
@@ -2535,7 +2535,7 @@ class Reassembler(Analysis):
             # Skip all SimProcedures
             if self.project.is_hooked(f.addr):
                 continue
-            elif self.project._simos.is_syscall_addr(f.addr):
+            elif self.project.simos.is_syscall_addr(f.addr):
                 continue
 
             # Check which section the start address belongs to
@@ -2926,7 +2926,7 @@ class Reassembler(Analysis):
             ddg = self.project.analyses.DDG(kb=tmp_kb, cfg=cfg)
 
             mem_var_node = None
-            for node in ddg.simplified_data_graph.nodes_iter():
+            for node in ddg.simplified_data_graph.nodes():
                 if isinstance(node.variable, SimMemoryVariable) and node.location.ins_addr == candidate.insn_addr:
                     # found it!
                     mem_var_node = node
@@ -2951,7 +2951,7 @@ class Reassembler(Analysis):
                 next_tmp = candidate_irsb.irsb.next.tmp
 
             if next_tmp is not None:
-                next_tmp_node = next((node for node in subgraph.nodes_iter()
+                next_tmp_node = next((node for node in subgraph.nodes()
                                       if isinstance(node.variable, SimTemporaryVariable) and
                                          node.variable.tmp_id == next_tmp),
                                      None

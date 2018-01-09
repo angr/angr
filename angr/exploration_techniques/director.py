@@ -412,7 +412,7 @@ class Director(ExplorationTechnique):
 
         if pg.active:
             # step all active states forward
-            pg.step()
+            pg._one_step(stash)
 
         if not pg.active:
             self._load_fallback_states(pg)

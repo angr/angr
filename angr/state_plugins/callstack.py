@@ -64,8 +64,9 @@ class CallStack(SimStatePlugin):
             self.stack_ptr = 2**(state.arch.bits) - 1
 
     def merge(self, others, merge_conditions, common_ancestor=None):
-        l.warning("Merging not implemented for callstacks!")
-        return
+        for o in others:
+            if o != self:
+                l.error("Trying to merge states with disparate callstacks!")
 
     def widen(self, others):
         l.warning("Widening not implemented for callstacks")

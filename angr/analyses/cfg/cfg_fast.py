@@ -619,6 +619,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  base_state=None,
                  exclude_sparse_regions=True,
                  skip_specific_regions=True,
+                 heuristic_plt_resolving=None,
                  start=None,  # deprecated
                  end=None,  # deprecated
                  **extra_arch_options
@@ -678,7 +679,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             base_state=base_state)
 
         # necessary warnings
-        if self.project.loader._auto_load_libs is True and end is None and len(self.project.loader.all_objects) > 3:
+        if self.project.loader._auto_load_libs is True and end is None and len(self.project.loader.all_objects) > 3 \
+                and regions is None:
             l.warning('"auto_load_libs" is enabled. With libraries loaded in project, CFGFast will cover libraries, '
                       'which may take significantly more time than expected. You may reload the binary with '
                       '"auto_load_libs" disabled, or specify "regions" to limit the scope of CFG recovery.'
@@ -728,6 +730,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._use_function_prologues = function_prologues
         self._resolve_indirect_jumps = resolve_indirect_jumps
         self._force_complete_scan = force_complete_scan
+
+        if heuristic_plt_resolving is None:
+            # If unspecified, we only enable heuristic PLT resolving when there is at least one binary loaded with the
+            # ELF backend
+            self._heuristic_plt_resolving = len(self.project.loader.all_elf_objects) > 0
+        else:
+            self._heuristic_plt_resolving = heuristic_plt_resolving
 
         self._start_at_entry = start_at_entry
         self._extra_function_starts = function_starts
@@ -1497,7 +1506,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 procedure = self.project.hooked_by(addr)
                 name = procedure.display_name
             else:
-                procedure = self.project._simos.syscall_from_addr(addr)
+                procedure = self.project.simos.syscall_from_addr(addr)
                 name = procedure.display_name
 
             if addr not in self._nodes:
@@ -1533,7 +1542,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if procedure.ADDS_EXITS:
             # Get two blocks ahead
-            grandparent_nodes = self.graph.predecessors(previous_src_node)
+            grandparent_nodes = list(self.graph.predecessors(previous_src_node))
             if not grandparent_nodes:
                 l.warning("%s is supposed to yield new exits, but it fails to do so.", name)
                 return [ ]
@@ -1765,7 +1774,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 else:
                     resolved_as_plt = False
 
-                    if irsb:
+                    if irsb and self._heuristic_plt_resolving:
                         # Test it on the initial state. Does it jump to a valid location?
                         # It will be resolved only if this is a .plt entry
                         resolved_as_plt = self._resolve_plt(addr, irsb, ij)
@@ -1874,9 +1883,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # Fix the target_addr for syscalls
             tmp_state = self.project.factory.blank_state(mode="fastpath", addr=cfg_node.addr)
             succ = self.project.factory.successors(tmp_state).flat_successors[0]
-            syscall_stub = self.project._simos.syscall(succ)
+            syscall_stub = self.project.simos.syscall(succ)
             if syscall_stub: # can be None if simos is not a subclass of SimUserspac
-                syscall_addr = self.project._simos.syscall(succ).addr
+                syscall_addr = self.project.simos.syscall(succ).addr
                 target_addr = syscall_addr
             else:
                 target_addr = self._unresolvable_target_addr
@@ -2209,24 +2218,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if data_type == 'pointer-array':
                     # make sure all pointers are identified
                     pointer_size = self.project.arch.bits / 8
-                    buf = self._fast_memory_load(data_addr)
-
-                    # TODO: this part of code is duplicated in _guess_data_type()
-                    # TODO: remove the duplication
-                    if self.project.arch.memory_endness == 'Iend_LE':
-                        fmt = "<"
-                    else:
-                        fmt = ">"
-                    if pointer_size == 8:
-                        fmt += "Q"
-                    elif pointer_size == 4:
-                        fmt += "I"
-                    else:
-                        raise AngrCFGError("Pointer size of %d is not supported" % pointer_size)
 
                     for j in xrange(0, data_size, pointer_size):
-                        ptr_str = self._ffi.unpack(self._ffi.cast('char*', buf + j), pointer_size)
-                        ptr = struct.unpack(fmt, ptr_str)[0]  # type:int
+                        ptr = self._fast_memory_load_pointer(data_addr + j)
 
                         # is this pointer coming from the current binary?
                         obj = self.project.loader.find_object_containing(ptr)
@@ -2287,32 +2281,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # IRSB is owned by plt!
                 return "GOT PLT Entry", pointer_size
 
-        # try to decode it as a pointer array
-        buf = self._fast_memory_load(data_addr)
-        if buf is None:
-            # The data address does not exist in static regions
-            return None, None
-
-        if self.project.arch.memory_endness == 'Iend_LE':
-            fmt = "<"
-        else:
-            fmt = ">"
-        if pointer_size == 8:
-            fmt += "Q"
-        elif pointer_size == 4:
-            fmt += "I"
-        else:
-            raise AngrCFGError("Pointer size of %d is not supported" % pointer_size)
-
         pointers_count = 0
 
         max_pointer_array_size = min(512 * pointer_size, max_size)
         for i in xrange(0, max_pointer_array_size, pointer_size):
-            ptr_str = self._ffi.unpack(self._ffi.cast('char*', buf + i), pointer_size)
-            if len(ptr_str) != pointer_size:
-                break
-
-            ptr = struct.unpack(fmt, ptr_str)[0]  # type:int
+            ptr = self._fast_memory_load_pointer(data_addr + i)
 
             if ptr is not None:
                 #if self._seg_list.is_occupied(ptr) and self._seg_list.occupied_by_sort(ptr) == 'code':
@@ -2332,11 +2305,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if pointers_count:
             return "pointer-array", pointer_size * pointers_count
 
-        block = self._fast_memory_load(data_addr)
+        block, block_size = self._fast_memory_load(data_addr)
 
         # Is it an unicode string?
         # TODO: Support unicode string longer than the max length
-        if block[1] == 0 and block[3] == 0 and chr(block[0]) in self.PRINTABLES:
+        if block_size >= 4 and block[1] == 0 and block[3] == 0 and chr(block[0]) in self.PRINTABLES:
             max_unicode_string_len = 1024
             unicode_str = self._ffi.string(self._ffi.cast("wchar_t*", block), max_unicode_string_len)
             if (len(unicode_str) and  # pylint:disable=len-as-condition
@@ -2346,7 +2319,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return "unicode", (len(unicode_str) + 1) * 2
 
         # Is it a null-terminated printable string?
-        max_string_len = min(max_size, 4096)
+        max_string_len = min([ block_size, max_size, 4096 ])
         s = self._ffi.string(self._ffi.cast("char*", block), max_string_len)
         if len(s):  # pylint:disable=len-as-condition
             if all([ c in self.PRINTABLES for c in s ]):
@@ -2772,7 +2745,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if successor_node and successor_node.function_address == node.addr:
                     # if there is absolutely no predecessors to successor_node, we'd like to add it as a new function
                     # so that it will not be left behind
-                    if not self.graph.predecessors(successor_node):
+                    if not list(self.graph.predecessors(successor_node)):
                         self._function_add_node(successor_node_addr, successor_node_addr)
 
         #if node.addr in self.kb.functions.callgraph:
@@ -3371,7 +3344,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     nodecode = True
 
                 if (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode') and \
-                        self.project.arch.name in ('ARMHF', 'ARMEL'):
+                        self.project.arch.name in ('ARMHF', 'ARMEL') and \
+                        self._arch_options.switch_mode_on_nodecode:
                     # maybe the current mode is wrong?
                     nodecode = False
                     if addr % 2 == 0:

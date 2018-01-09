@@ -222,6 +222,8 @@ class FunctionManager(KnowledgeBasePlugin, collections.Mapping):
     def __delitem__(self, k):
         if isinstance(k, (int, long)):
             del self._function_map[k]
+            if k in self.callgraph:
+                self.callgraph.remove_node(k)
         else:
             raise ValueError("FunctionManager.__delitem__ only accepts int as key")
 

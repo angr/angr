@@ -2,12 +2,16 @@ import logging
 import os
 import types
 import weakref
-from collections import defaultdict
 import StringIO
+import pickle
+import string
+from collections import defaultdict
 
 import archinfo
 import cle
 from cle.address_translator import AT
+
+from .misc.ux import once, deprecated
 
 l = logging.getLogger("angr.project")
 
@@ -105,6 +109,8 @@ class Project(object):
                                         will try to read code from the current state instead of the original memory,
                                         regardless of the current memory protections.
     :type support_selfmodifying_code:   bool
+    :param store_function:              A function that defines how the Project should be stored. Default to pickling.
+    :param load_function:               A function that defines how the Project should be loaded. Default to unpickling.
 
     Any additional keyword arguments passed will be passed onto ``cle.Loader``.
 
@@ -118,6 +124,8 @@ class Project(object):
     :type loader:       cle.Loader
     :ivar surveyors:    The available surveyors.
     :type surveyors:    angr.surveyors.surveyor.Surveyors
+    :ivar storage:      Dictionary of things that should be loaded/stored with the Project.
+    :type storage:      defaultdict(list)
     """
 
     def __init__(self, thing,
@@ -130,6 +138,8 @@ class Project(object):
                  load_options=None,
                  translation_cache=True,
                  support_selfmodifying_code=False,
+                 store_function=None,
+                 load_function=None,
                  **kwargs):
 
         # Step 1: Load the binary
@@ -209,15 +219,18 @@ class Project(object):
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
         self.kb = KnowledgeBase(self, self.loader.main_object)
+        self.storage = defaultdict(list)
+        self.store_function = store_function or self._store
+        self.load_function = load_function or self._load
 
         if self.filename is not None:
             projects[self.filename] = self
 
         # Step 4: determine the guest OS
         if isinstance(simos, type) and issubclass(simos, SimOS):
-            self._simos = simos(self) #pylint:disable=invalid-name
+            self.simos = simos(self) #pylint:disable=invalid-name
         elif simos is None:
-            self._simos = os_mapping[self.loader.main_object.os](self)
+            self.simos = os_mapping[self.loader.main_object.os](self)
         else:
             raise ValueError("Invalid OS specification or non-matching architecture.")
 
@@ -226,7 +239,7 @@ class Project(object):
             self._register_object(obj)
 
         # Step 6: Run OS-specific configuration
-        self._simos.configure_project()
+        self.simos.configure_project()
 
     def _register_object(self, obj):
         """
@@ -466,7 +479,7 @@ class Project(object):
             basic_addr = symbol_name
             symbol_name = None
 
-        hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=basic_addr)
+        hook_addr, _ = self.simos.prepare_function_symbol(symbol_name, basic_addr=basic_addr)
 
         self.hook(hook_addr, obj, kwargs=kwargs, replace=replace)
         return hook_addr
@@ -490,7 +503,7 @@ class Project(object):
         if sym is None:
             l.warning("Could not find symbol %s", symbol_name)
             return False
-        hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
+        hook_addr, _ = self.simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
         return self.is_hooked(hook_addr)
 
     def unhook_symbol(self, symbol_name):
@@ -507,7 +520,7 @@ class Project(object):
             l.warning("Not unhooking extern symbol %s", symbol_name)
             return False
 
-        hook_addr, _ = self._simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
+        hook_addr, _ = self.simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
         self.unhook(hook_addr)
 
     #
@@ -572,26 +585,81 @@ class Project(object):
     def __getstate__(self):
         try:
             analyses, surveyors = self.analyses, self.surveyors
+            store_func, load_func = self.store_function, self.load_function
             self.analyses, self.surveyors = None, None
+            self.store_function, self.load_function = None, None
             return dict(self.__dict__)
         finally:
             self.analyses, self.surveyors = analyses, surveyors
+            self.store_function, self.load_function = store_func, load_func
 
     def __setstate__(self, s):
         self.__dict__.update(s)
         self.analyses = Analyses(self)
         self.surveyors = Surveyors(self)
 
+    def _store(self, container):
+        # If container is a filename.
+        if isinstance(container, str):
+            with open(container, 'wb') as f:
+                try:
+                    pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
+                except RuntimeError as e: # maximum recursion depth can be reached here
+                    l.error("Unable to store Project, '%s' during pickling", e.message)
+
+        # If container is an open file.
+        elif isinstance(container, file):
+            try:
+                pickle.dump(self, container, pickle.HIGHEST_PROTOCOL)
+            except RuntimeError as e: # maximum recursion depth can be reached here
+                l.error("Unable to store Project, '%s' during pickling", e.message)
+
+        # If container is just a variable.
+        else:
+            try:
+                container = pickle.dumps(self, pickle.HIGHEST_PROTOCOL)
+            except RuntimeError as e: # maximum recursion depth can be reached here
+                l.error("Unable to store Project, '%s' during pickling", e.message)
+
+    @staticmethod
+    def _load(container):
+        if isinstance(container, str):
+            # If container is a filename.
+            if all(c in string.printable for c in container) and os.path.exists(container):
+                with open(container, 'rb') as f:
+                    return pickle.load(f)
+
+            # If container is a pickle string.
+            else:
+                return pickle.loads(container)
+
+        # If container is an open file
+        elif isinstance(container, file):
+            return pickle.load(container)
+
+        # What else could it be?
+        else:
+            l.error("Cannot unpickle container of type %s", type(container))
+            return None
+
     def __repr__(self):
         return '<Project %s>' % (self.filename if self.filename is not None else 'loaded from stream')
+
+    #
+    # Compatibility
+    #
+
+    @property
+    @deprecated(replacement='simos')
+    def _simos(self):
+        return self.simos
 
 
 from .errors import AngrError
 from .factory import AngrObjectFactory
-from .simos import SimOS, os_mapping
+from angr.simos import SimOS, os_mapping
 from .analyses.analysis import Analyses
 from .surveyors import Surveyors
 from .knowledge_base import KnowledgeBase
 from .engines import SimEngineFailure, SimEngineSyscall, SimEngineProcedure, SimEngineVEX, SimEngineUnicorn, SimEngineHook
-from .misc.ux import once
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES

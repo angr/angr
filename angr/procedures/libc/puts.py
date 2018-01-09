@@ -21,4 +21,4 @@ class puts(angr.SimProcedure):
         self.state.posix.write(1, self.state.se.BVV(0x0a, 8), 1)
 
         # TODO: return values
-        return self.state.se.Unconstrained('puts', self.state.arch.bits)
+        return self.state.se.Unconstrained('puts', self.state.arch.bits, key=('api', 'puts'))

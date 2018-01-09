@@ -114,10 +114,10 @@ class MemoryRegion(object):
                                                                   stmt_id,
                                                                   self.id,
                                                                   region_offset=request.addr,
-                                                                  size=len(request.data) / 8)
+                                                                  size=len(request.data) // self.state.arch.byte_width)
             return self.memory._store(request)
         else:
-            if self._alocs[aloc_id].update(request.addr, len(request.data) / 8):
+            if self._alocs[aloc_id].update(request.addr, len(request.data) // self.state.arch.byte_width):
                 return self.memory._store(request)
             else:
                 #return self.memory._store_with_merge(request)
@@ -442,7 +442,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
         val = None
 
         if len(address_wrappers) > 1 and AVOID_MULTIVALUED_READS in self.state.options:
-            val = self.state.se.Unconstrained('unconstrained_read', size * 8)
+            val = self.state.se.Unconstrained('unconstrained_read', size * self.state.arch.byte_width)
             return address_wrappers, val, [True]
 
         for aw in address_wrappers:

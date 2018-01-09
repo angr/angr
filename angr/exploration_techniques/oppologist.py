@@ -61,12 +61,7 @@ class Oppologist(ExplorationTechnique):
         return {stash: paths for stash, paths in all_results.iteritems()}
 
     def _delayed_oppology(self, state, e, **kwargs):
-        try:
-            ss = self.project.factory.successors(state, num_inst=e.executed_instruction_count, throw=True, **kwargs)
-        except Exception: #pylint:disable=broad-except
-            ss = self.project.factory.successors(state, num_inst=e.executed_instruction_count, **kwargs)
-            return {'errored': ss.all_successors}
-
+        ss = self.project.factory.successors(state, num_inst=e.executed_instruction_count, **kwargs)
         need_oppologizing = [ s for s in ss.flat_successors if s.addr == e.ins_addr ]
 
         results = [{'active': [ s for s in ss.flat_successors if s.addr != e.ins_addr ],
@@ -80,7 +75,7 @@ class Oppologist(ExplorationTechnique):
     def step_state(self, state, **kwargs):
         try:
             kwargs.pop('throw', None)
-            ss = self.project.factory.successors(state, throw=True, **kwargs)
+            ss = self.project.factory.successors(state, **kwargs)
 
             return {'active': ss.flat_successors,
                     'unconstrained': ss.unconstrained_successors,

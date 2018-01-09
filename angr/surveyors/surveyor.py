@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import multiprocessing
 #import concurrent.futures
 import logging

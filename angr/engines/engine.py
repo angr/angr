@@ -48,16 +48,16 @@ class SimEngine(object):
 
         successors = SimSuccessors(addr, old_state)
 
-        new_state._inspect('engine_process', when=BP_BEFORE, sim_engine=self, sim_successors=successors)
+        new_state._inspect('engine_process', when=BP_BEFORE, sim_engine=self, sim_successors=successors, address=addr)
         successors = new_state._inspect_getattr('sim_successors', successors)
         try:
             self._process(new_state, successors, *args, **kwargs)
         except SimException:
             if o.EXCEPTION_HANDLING not in old_state.options:
                 raise
-            old_state.project._simos.handle_exception(successors, self, *sys.exc_info())
+            old_state.project.simos.handle_exception(successors, self, *sys.exc_info())
 
-        new_state._inspect('engine_process', when=BP_AFTER, sim_successors=successors)
+        new_state._inspect('engine_process', when=BP_AFTER, sim_successors=successors, address=addr)
         successors = new_state._inspect_getattr('sim_successors', successors)
 
         # downsizing

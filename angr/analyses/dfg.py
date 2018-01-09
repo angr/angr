@@ -157,7 +157,7 @@ class DFG(Analysis):
                         else:
                             dfg.add_edge(e, stmt_node)
 
-            for vtx in dfg.nodes():
+            for vtx in list(dfg.nodes()):
                 if dfg.degree(vtx) == 0:
                     dfg.remove_node(vtx)
 

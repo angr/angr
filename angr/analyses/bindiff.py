@@ -305,11 +305,11 @@ class NormalizedFunction(object):
                     continue
 
                 # merge if it ends with a single call, and the successor has only one predecessor and succ is after
-                successors = self.graph.successors(node)
+                successors = list(self.graph.successors(node))
                 if bl.vex.jumpkind == "Ijk_Call" and len(successors) == 1 and \
-                        len(self.graph.predecessors(successors[0])) == 1 and successors[0].addr > node.addr:
+                        len(list(self.graph.predecessors(successors[0]))) == 1 and successors[0].addr > node.addr:
                     # add edges to the successors of its successor, and delete the original successors
-                    succ = self.graph.successors(node)[0]
+                    succ = list(self.graph.successors(node))[0]
                     for s in self.graph.successors(succ):
                         self.graph.add_edge(node, s)
                     self.graph.remove_node(succ)
@@ -609,7 +609,7 @@ class FunctionDiff(object):
         reverse_graph.add_node("start")
         found_exits = False
         for n in function.graph.nodes():
-            if len(function.graph.successors(n)) == 0:
+            if len(list(function.graph.successors(n))) == 0:
                 reverse_graph.add_edge("start", n)
                 found_exits = True
 
@@ -665,10 +665,10 @@ class FunctionDiff(object):
             l.debug("FunctionDiff: Processing (%#x, %#x)", block_a.addr, block_b.addr)
 
             # we could find new matches in the successors or predecessors of functions
-            block_a_succ = self._function_a.graph.successors(block_a)
-            block_b_succ = self._function_b.graph.successors(block_b)
-            block_a_pred = self._function_a.graph.predecessors(block_a)
-            block_b_pred = self._function_b.graph.predecessors(block_b)
+            block_a_succ = list(self._function_a.graph.successors(block_a))
+            block_b_succ = list(self._function_b.graph.successors(block_b))
+            block_a_pred = list(self._function_a.graph.predecessors(block_a))
+            block_b_pred = list(self._function_b.graph.predecessors(block_b))
 
             # propagate the difference in blocks as delta
             delta = tuple((i-j) for i, j in zip(self.attributes_b[block_b], self.attributes_a[block_a]))
@@ -993,7 +993,7 @@ class BinDiff(Analysis):
                 number_of_basic_blocks = 0
                 number_of_edges = 0
             if function_addr in all_funcs:
-                number_of_subfunction_calls = len(cfg.kb.callgraph.successors(function_addr))
+                number_of_subfunction_calls = len(list(cfg.kb.callgraph.successors(function_addr)))
             else:
                 number_of_subfunction_calls = 0
             attributes[function_addr] = (number_of_basic_blocks, number_of_edges, number_of_subfunction_calls)
