@@ -16,6 +16,9 @@ from ..knowledge_base import KnowledgeBase
 from ..sim_variable import SimMemoryVariable, SimTemporaryVariable
 
 l = logging.getLogger("angr.analyses.reassembler")
+l.setLevel("DEBUG")
+
+import pdb
 
 #
 # Exceptions
@@ -115,6 +118,15 @@ def fill_reg_map():
             reg_offset = getattr(capstone.ppc, attr)
             CAPSTONE_REG_MAP['PPC32'][reg_offset] = reg_name.lower()
 
+    for attr in dir(capstone.arm):
+        if attr.startswith('ARM_REG_'):
+            reg_name = attr[8:]
+            reg_offset = getattr(capstone.arm, attr)
+            CAPSTONE_REG_MAP['ARMEL'][reg_offset] = reg_name.lower()
+
+# Initialize reg_map on startup
+fill_reg_map()
+
 def split_operands(s):
 
     operands = [ ]
@@ -143,8 +155,20 @@ def is_hex(s):
     except ValueError:
         return False
 
-fill_reg_map()
 
+def ignore_function(proc):
+    # Examine calls from function, if any are blacklisted, return true to keep this entire function
+    # from being included in disassembly
+
+    bad_fns = ["deregister_tm_clones", "__gmon_start__"]
+
+    for b in sorted(proc.blocks, key=lambda x:x.addr):  # type: BasicBlock
+        s = b.assembly(comments=False, symbolized=True)
+        for bad in bad_fns:
+            if bad in s:
+                return True
+
+    return False
 
 class Label(object):
     g_label_ctr = count()
@@ -359,11 +383,27 @@ class SymbolManager(object):
             symbol = symbols_by_addr[addr]
             symbol_name = symbol.name
 
+            # No idea what's up with this, but in ARMEL all my data pointers are labeled this? TODO
+            if self.project.arch.name == "ARMEL" and symbol_name == "$d":
+
+                # Label the nearby pointer to our data, but also label that data
+                label = DataLabel(self.binary, addr)
+                self.addr_to_label[addr].append(label)
+
+
+                # TODO: some huristics here to decide if it's actually a pointer or not(?) or is it just okay to overlabel
+                points_to = self.binary.fast_memory_load(addr, 4, int)
+                label2 = DataLabel(self.binary, points_to)
+                self.addr_to_label[points_to].append(label2)
+
+                return label
+
             # Different architectures use different prefixes
             if '@' in symbol_name:
                 symbol_name = symbol_name[ : symbol_name.index('@') ]
             if '%' in symbol_name:
                 symbol_name = symbol_name[ : symbol_name.index('%') ]
+            # TODO: Add arm?
 
             # check the type...
             if symbol.type == cle.Symbol.TYPE_FUNCTION:
@@ -394,6 +434,11 @@ class SymbolManager(object):
                 function_name = self.cfg.functions[addr].name
 
                 # special function name for entry point
+
+#TODO: When we reassemble, gcc will add in _start from libc, so maybe we should do something different here
+# such as extracting pointer to main (2nd to last argument to _libc_start_main), and relabling that function to main
+# But if we aren't using libc then we can't do this
+
                 if addr == self.project.entry:
                     function_name = "_start"
 
@@ -423,6 +468,7 @@ class SymbolManager(object):
 
 class Operand(object):
     def __init__(self, binary, insn_addr, insn_size, capstone_operand, operand_str, mnemonic, syntax=None):
+
         """
         Constructor.
 
@@ -449,7 +495,7 @@ class Operand(object):
         if hasattr(capstone_operand, 'size'):
             self.size = capstone_operand.size
         else:
-            if self.binary.project.arch.name in ['PPC32', 'ARMEL', 'MIPS32']:
+            if self.binary.project.arch.name in ['PPC32', 'ARMEL', 'MIPS32']: #Is there ARMEL64? If so, is it just called ARMEL too?
                 self.size = 32
             elif self.binary.project.arch.name in ['PPC64']:
                 self.size = 64
@@ -527,7 +573,10 @@ class Operand(object):
                                               self.scale
                                               )
                 elif self.base:  # not self.index
-                    s = "%s(%s)" % (disp, base)
+                    if self.project.arch.name != "ARMEL" or base != "%r15":
+                        s = "%s(%s)" % (disp, base)
+                    else:
+                        s = "=%s" % (disp) # For ARMEL pc-relative LDR is LDR r3, r4 and not LDR r3, r4(r15)
                 else:
                     s = disp
 
@@ -609,12 +658,12 @@ class Operand(object):
     #
 
     def _initialize(self, capstone_operand):
-
-        arch_name = self.project.arch.name
-        self.type = CAPSTONE_OP_TYPE_MAP[arch_name][capstone_operand.type]
+        self.type = CAPSTONE_OP_TYPE_MAP[self.project.arch.name][capstone_operand.type]
 
         if self.binary.project.arch.name == 'PPC32':
+            l.warning("Disabling log_relocations for PPC32. Not sure what that really means...")
             self.binary.log_relocations = False # Not currently supported, not sure if it needs to be
+
         if self.type == OP_TYPE_IMM:
             # Check if this is a reference to code
             imm = capstone_operand.imm
@@ -639,14 +688,16 @@ class Operand(object):
                     l.info("Assuming {} on arch {} is an absolute reference\tcoderef={}, dataref={}".format(self.mnemonic,
                         self.binary.project.arch.name, self.is_coderef, self.is_dataref))
 
-                self.binary.register_instruction_reference(self.insn_addr, imm, sort, self.insn_size)
+                #l.debug("Found {} {:x} (at 0x{:x}): {} to {}".format(self.mnemonic, imm, self.insn_addr, sort, self.label))
+                self.binary.register_instruction_reference(self.insn_addr, imm, sort, self.insn_size, self.binary.project.arch.name)
 
         elif self.type == OP_TYPE_MEM:
 
-            self.base = capstone_operand.mem.base
+            self.base = capstone_operand.mem.base   # If the instruction is ADD R11, SP, #4 and we're processing #4, this will be SP
             self.disp = capstone_operand.mem.disp
+            imm = capstone_operand.imm ### I added this
 
-            if self.binary.project.arch.name in ['PPC32', 'PPC64', 'MIPS32']: # fixed index/scale architecture capstone objects won't have these set
+            if self.binary.project.arch.name in ['PPC32', 'PPC64', 'MIPS32']: # fixed index/scale architecture capstone objects won't have these set(?)
                 self.index = 0
                 self.scale = 1
             else:
@@ -657,14 +708,26 @@ class Operand(object):
                 # rip-relative addressing
                 self.disp += self.insn_addr + self.insn_size
 
+            #ARMEL can use PC relative addressing (at least for LDR)
+            if self.binary.project.arch.name == 'ARMEL' and CAPSTONE_REG_MAP['ARMEL'][self.base] == "r15": # r15 is IP for ARMEL
+                self.disp += self.insn_addr + self.insn_size + 4 # TODO, only do the +4 if it's a B/BL/... ?
+
+                # http://www.keil.com/support/man/docs/armasm/armasm_dom1359731173886.htm
+                #For B, BL, CBNZ, and CBZ instructions, the value of the PC is the address of the current instruction plus 4 bytes.
+                #For all other instructions that use labels, the value of the PC is the address of the current instruction plus 4 bytes,
+                #with bit[1] of the result cleared to 0 to make it word-aligned.
+
             self.disp_is_coderef, self.disp_is_dataref, baseaddr = \
                 self._imm_to_ptr(self.disp, self.type, self.mnemonic)
+
+            #l.debug("Found {} {:x} (at 0x{:x})\tCode={}\tData={}".format(self.mnemonic, self.disp, self.insn_addr, self.disp_is_coderef, self.disp_is_dataref))
 
             if self.disp_is_coderef or self.disp_is_dataref:
                 self.disp_label = self.binary.symbol_manager.new_label(addr=baseaddr)
                 self.disp_label_offset = self.disp - baseaddr
 
-                self.binary.register_instruction_reference(self.insn_addr, self.disp, 'absolute', self.insn_size)
+                #l.info("Found mem reference to {}: 0x{:x}: {:x}".format(self.disp, self.insn_addr, imm))
+                self.binary.register_instruction_reference(self.insn_addr, self.disp, 'absolute', self.insn_size, self.binary.project.arch.name)
 
     def _imm_to_ptr(self, imm, operand_type, mnemonic):  # pylint:disable=no-self-use,unused-argument
         """
@@ -679,6 +742,7 @@ class Operand(object):
 
         is_coderef, is_dataref = False, False
         baseaddr = None
+
 
         if not is_coderef and not is_dataref:
             if self.binary.main_executable_regions_contain(imm):
@@ -741,6 +805,7 @@ class Instruction(object):
         self.labels = [ ]
 
         if self.addr is not None:
+            #l.debug("Initialize operand {:x}\t{} {}".format(addr, capstone_instr.mnemonic, capstone_instr.op_str))
             self._initialize(capstone_instr.operands)
 
     #
@@ -962,6 +1027,7 @@ class BasicBlock(object):
         # Fill in instructions
         for instr in capstone_obj.insns:
             instruction = Instruction(self.binary, instr.address, instr.size, None, instr)
+            #l.debug("Initialized oprand {:x}\t{} {}".format(instr.address, instr.mnemonic, instr.op_str))
 
             self.instructions.append(instruction)
 
@@ -970,7 +1036,9 @@ class BasicBlock(object):
         if self.project.arch.name in ['PPC32']:
             self._find_extra_pointers()
 
-    def _find_extra_pointers(self):
+
+    def _find_extra_pointers(self): 
+        # I guess I wrote this, but I have no memory of it. Might be completely broken -AF
         """
         If we're moving an immediate into the high bits of a register, check if the low bits are set in the next instruction
         and if so, compute the full-width value and check if it's a pointer.
@@ -1011,7 +1079,7 @@ class BasicBlock(object):
                 nxt_op_imm.is_coderef, nxt_op_imm.is_dataref, baseaddr = nxt_op_imm._imm_to_ptr(full_addr, nxt_op_imm.type, nxt_op_imm.mnemonic)
 
                 # If so, set the label offset's to be ha and l. TODO - may need logic for swapping order if that ever occurs
-                if nxt_op_imm.is_dataref or nxt_op_imm.is_dataref:
+                if nxt_op_imm.is_dataref or nxt_op_imm.is_coderef: # TODO: is is_coderef gonna break things?
                     cur_op_imm.label = cur_op_imm.binary.symbol_manager.new_label(addr=baseaddr)
                     cur_op_imm.label_offset = "ha"
                     nxt_op_imm.label = nxt_op_imm.binary.symbol_manager.new_label(addr=baseaddr)
@@ -1916,6 +1984,9 @@ class Reassembler(Analysis):
         :rtype: int
         """
 
+        if self.project.arch.name in ["ARMEL"]: # Also MIPS or PPC
+            return 4
+
         return self._section_alignments.get(section_name, 16)
 
     def main_executable_regions_contain(self, addr):
@@ -1997,9 +2068,23 @@ class Reassembler(Analysis):
             return closest_region
         return False, None
 
-    def register_instruction_reference(self, insn_addr, ref_addr, sort, insn_size):
+    def register_instruction_reference(self, insn_addr, ref_addr, sort, insn_size, arch=None):
+        # Function called when we see an IP-modifying instruction
+
+        # This function is confusing. I think its logic is to:
+        #   1) If it's a jump or a call just increment addr so we do something with Relocation()
+        #   2) If it's an absolute reference:
+        #       3) For each possible sequence of bytes:
+        #           4) try to extract the target address
+
 
         if not self.log_relocations:
+            return
+
+        # For arm, it's an SP relative offset from PC and we don't have to find it, just trust insn_addr
+        if arch == "ARMEL":
+            r = Relocation(insn_addr, insn_addr, sort)
+            self._relocations.append(r)
             return
 
         addr = insn_addr
@@ -2042,30 +2127,7 @@ class Reassembler(Analysis):
                 # Doesnt' seem to matter for now, may need to implement later
                 #      bl funcname_10000750
                 #      48 00 04 49
-
-                # ARM32
-                #A0 2C 08 E3                 MOV             R2, #0x8CA0
-                #dst
-
-                # TODO, check architecture before doing insane ARM stuff
-                # Arm immediates are weird
-                # MOV R5, #0x1234
-                # 34 52 01 e3
-                # 34 _2 _1 __ is immediate
-                # __ 5_ __ __ is target register
-                # __ __ __ e3 is mov
-                # See https://alisdair.mcdiarmid.org/arm-immediate-value-encoding/
-
-                if insn_size - i >= 4:
-                    buff, _ = self.project.loader.memory.read_bytes_c(addr)
-                    data = self._ffi.unpack(self._ffi.cast('char*', buff), 4)
-                    ptr = ((ord(data[2])&0x0f)<<12)+((ord(data[1])&0x0f)<<8)+ord(data[0])
-                    if (ptr) == ref_addr:
-                        addr += i
-                        break
             else:
-                #import pdb
-                #pdb.set_trace()
                 l.warning('Cannot find the absolute address inside instruction at %#x. Use the default address.',
                           insn_addr)
 
@@ -2245,7 +2307,8 @@ class Reassembler(Analysis):
 
         addr_and_assembly = [ ]
         for proc in self.procedures:
-            addr_and_assembly.extend(proc.assembly(comments=comments, symbolized=symbolized))
+            if not ignore_function(proc):
+                addr_and_assembly.extend(proc.assembly(comments=comments, symbolized=symbolized))
         # sort it by the address - must be a stable sort!
         addr_and_assembly = sorted(addr_and_assembly, key=lambda x: x[0])
         all_assembly_lines.extend(line for _, line in addr_and_assembly)
@@ -2440,6 +2503,7 @@ class Reassembler(Analysis):
 
         # TODO: temporary solution - we should get rid of the func that calls register_tm_clones but it's unnamed
         # we can leave it there if we leave register_tm_clones as well
+        # This can probably be solved with the ignore_function blacklist now (TODO)
         if self.project.arch.name in ['PPC32']:
             glibc_functions_blacklist.remove('register_tm_clones')
 
@@ -2582,7 +2646,7 @@ class Reassembler(Analysis):
 
                 bad_section_names = [".note.gnu.build-id"] # ignore certain section names
 
-                if self.project.arch == "ARMEL":
+                if self.project.arch.name == "ARMEL":
                     bad_section_names.append(".ARM.exidx")
 
                 if section is not None and section.name not in bad_section_names: 
@@ -2963,7 +3027,7 @@ class Reassembler(Analysis):
         return False
 
     def fast_memory_load(self, addr, size, data_type, endness='Iend_LE'):
-
+        #l.debug("Load {} bytes of memory at 0x{:x}: ".format(size, addr)),
         try:
             buff, _ = self.project.loader.memory.read_bytes_c(addr)
         except KeyError:
@@ -2986,6 +3050,8 @@ class Reassembler(Analysis):
                     raise BinaryError("Pointer size of %d is not supported" % size)
 
                 return struct.unpack(fmt, data)[0]
+            else:
+                raise NotImplementedError("Only endness = Iend_LE is supported for now")
 
         else:
             return data
