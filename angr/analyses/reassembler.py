@@ -4,7 +4,7 @@ import string
 import struct
 from collections import defaultdict
 from itertools import count
-
+import string
 import capstone
 import cffi
 import cle
@@ -371,6 +371,35 @@ class SymbolManager(object):
         if addr in self.addr_to_label:
             return self.addr_to_label[addr][0]
 
+
+        # If armel and we have a pointer to a string pointer, make some bold assumptions
+        # TODO: handle this better
+        if self.project.arch.name == "ARMEL":
+            # Label the nearby pointer to our data, but also label that data
+            label = DataLabel(self.binary, addr)
+
+            # Do an extra dereference
+            string_addr = self.binary.fast_memory_load(addr, 4, int)
+            this_string = self.binary.fast_memory_load(string_addr, 15, "char")
+
+            if this_string and this_string[0] in string.printable:
+
+            # Label the existing pointer as junk so we can use the label in the LDR and then string itself
+            # and not have it defined twice
+                junk_label = DataLabel(self.binary, addr, name=label.name+"_junk")
+                self.addr_to_label[addr].append(junk_label)
+
+                if this_string and "\x00" in this_string:
+                    this_string = this_string[:this_string.index("\x00")]
+
+                label = Label.new_label(self.binary, name=label.name, original_addr=string_addr)
+                self.addr_to_label[string_addr].append(label)
+
+                #l.debug("Identified pc-relative reference to 0x{:x} which points to 0x{:x} => {}. Labeled as '{}'".format(
+                #    addr, string_addr, this_string, label))
+                return label
+
+
         # Check if the address points to a function by checking the plt of main binary
         reverse_plt = self.project.loader.main_object.reverse_plt
         symbols_by_addr = self.project.loader.main_object.symbols_by_addr
@@ -383,19 +412,14 @@ class SymbolManager(object):
             symbol = symbols_by_addr[addr]
             symbol_name = symbol.name
 
-            # No idea what's up with this, but in ARMEL all my data pointers are labeled this? TODO
+            # These $d labels are never referenced by code we execute(?), but they are referenced
+            # in a few places so we need them to be defined correctly
             if self.project.arch.name == "ARMEL" and symbol_name == "$d":
+                string_addr = self.binary.fast_memory_load(addr, 4, int)
+                this_string = self.binary.fast_memory_load(string_addr, 15, "char")
 
-                # Label the nearby pointer to our data, but also label that data
                 label = DataLabel(self.binary, addr)
                 self.addr_to_label[addr].append(label)
-
-
-                # TODO: some huristics here to decide if it's actually a pointer or not(?) or is it just okay to overlabel
-                points_to = self.binary.fast_memory_load(addr, 4, int)
-                label2 = DataLabel(self.binary, points_to)
-                self.addr_to_label[points_to].append(label2)
-
                 return label
 
             # Different architectures use different prefixes
@@ -403,7 +427,6 @@ class SymbolManager(object):
                 symbol_name = symbol_name[ : symbol_name.index('@') ]
             if '%' in symbol_name:
                 symbol_name = symbol_name[ : symbol_name.index('%') ]
-            # TODO: Add arm?
 
             # check the type...
             if symbol.type == cle.Symbol.TYPE_FUNCTION:
@@ -742,7 +765,6 @@ class Operand(object):
 
         is_coderef, is_dataref = False, False
         baseaddr = None
-
 
         if not is_coderef and not is_dataref:
             if self.binary.main_executable_regions_contain(imm):
