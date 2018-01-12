@@ -285,11 +285,14 @@ class SimOS(object):
     def syscall(self, state, allow_unsupported=True):
         return None
 
+    def syscall_abi(self, state):
+        return None
+
     def is_syscall_addr(self, addr):
         return False
 
     def syscall_from_addr(self, addr, allow_unsupported=True):
         return None
 
-    def syscall_from_number(self, number, allow_unsupported=True):
+    def syscall_from_number(self, number, allow_unsupported=True, abi=None):
         return None

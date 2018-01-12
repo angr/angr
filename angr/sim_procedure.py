@@ -48,6 +48,7 @@ class SimProcedure(object):
         self.display_name = type(self).__name__ if display_name is None else display_name
         self.library_name = library_name
         self.syscall_number = None
+        self.abi = None
         self.symbolic_return = symbolic_return
 
         # types

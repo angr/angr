@@ -271,7 +271,7 @@ class SimulationManager(ana.Storable):
                 self._hierarchy.simplify()
         except (AngrError, SimError, claripy.ClaripyError) as e:
             self.errored.append(ErrorRecord(a, e, sys.exc_info()[2]))
-        except (TypeError, ValueError, ArithmeticError, MemoryError) as e:
+        except (KeyError, IndexError, TypeError, ValueError, ArithmeticError, MemoryError) as e:
             if resilience is False or not self._resilience:
                 raise
             self.errored.append(ErrorRecord(a, e, sys.exc_info()[2]))
