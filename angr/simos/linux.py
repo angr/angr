@@ -1,4 +1,3 @@
-
 import logging
 
 import claripy
@@ -10,6 +9,7 @@ from .. import sim_options as o
 from ..tablespecs import StringTableSpec
 from ..procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
 from ..state_plugins import SimStateSystem
+from ..errors import AngrSyscallError
 from .userland import SimUserland
 
 _l = logging.getLogger('angr.simos.linux')
@@ -21,7 +21,11 @@ class SimLinux(SimUserland):
     """
 
     def __init__(self, project, **kwargs):
-        super(SimLinux, self).__init__(project, syscall_library=L['linux'], name="Linux", **kwargs)
+        super(SimLinux, self).__init__(project,
+                syscall_library=L['linux'],
+                syscall_addr_alignment=project.arch.instruction_alignment,
+                name="Linux",
+                **kwargs)
 
         self._loader_addr = None
         self._loader_lock_addr = None
@@ -107,7 +111,40 @@ class SimLinux(SimUserland):
                         self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](**kwargs))
                         self.project.loader.memory.write_addr_at(gotaddr, randaddr)
 
-        super(SimLinux, self).configure_project()
+        # maybe move this into archinfo?
+        if self.arch.name == 'X86':
+            syscall_abis = ['i386']
+        elif self.arch.name == 'AMD64':
+            syscall_abis = ['i386', 'amd64']
+        elif self.arch.name.startswith('ARM'):
+            syscall_abis = ['arm']
+            if self.arch.name == 'ARMHF':
+                syscall_abis.append('armhf')
+        elif self.arch.name == 'AARCH64':
+            syscall_abis = ['aarch64']
+        # https://www.linux-mips.org/wiki/WhatsWrongWithO32N32N64
+        elif self.arch.name == 'MIPS32':
+            syscall_abis = ['mips-o32']
+        elif self.arch.name == 'MIPS64':
+            syscall_abis = ['mips-n32', 'mips-n64']
+        elif self.arch.name == 'PPC32':
+            syscall_abis = ['ppc']
+        elif self.arch.name == 'PPC64':
+            syscall_abis = ['ppc64']
+        else:
+            syscall_abis = [] # ?
+
+        super(SimLinux, self).configure_project(syscall_abis)
+
+    def syscall_abi(self, state):
+        if state.arch.name != 'AMD64':
+            return None
+        if state.history.jumpkind == 'Ijk_Sys_int128':
+            return 'i386'
+        elif state.history.jumpkind == 'Ijk_Sys_syscall':
+            return 'amd64'
+        else:
+            raise AngrSyscallError("Unknown syscall jumpkind %s" % state.history.jumpkind)
 
     # pylint: disable=arguments-differ
     def state_blank(self, fs=None, concrete_fs=False, chroot=None, **kwargs):

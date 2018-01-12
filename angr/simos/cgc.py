@@ -19,7 +19,14 @@ class SimCGC(SimUserland):
     """
 
     def __init__(self, project, **kwargs):
-        super(SimCGC, self).__init__(project, syscall_library=L['cgcabi'], name="CGC", **kwargs)
+        super(SimCGC, self).__init__(project,
+                syscall_library=L['cgcabi'],
+                syscall_alignment=1,
+                name="CGC",
+                **kwargs)
+
+    def configure_project(self):
+        super(SimCGC, self).configure_project(['cgcabi'])
 
     # pylint: disable=arguments-differ
     def state_blank(self, fs=None, **kwargs):
