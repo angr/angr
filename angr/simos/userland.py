@@ -111,6 +111,8 @@ class SimUserland(SimOS):
         for abi in self.syscall_abis:
             baseno, minno, maxno = self.syscall_abis[abi]
             if baseno <= number <= baseno + maxno - minno:
+                number += minno
+                number -= baseno
                 break
         else:
             abi = None
