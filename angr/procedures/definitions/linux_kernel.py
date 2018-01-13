@@ -7,6 +7,7 @@ lib.add_all_from_dict(P['linux_kernel'])
 lib.add_alias('exit', 'exit_group')
 
 # python parse_syscalls_from_gdb.py >> linux_kernel.py
+
 lib.add_number_mapping_from_dict("aarch64", {
     0: "io_setup",
     1: "io_destroy",
@@ -4476,4 +4477,3 @@ lib.add_number_mapping_from_dict("sparc64", {
     327: "perf_event_open",
     328: "recvmmsg",
 })
-

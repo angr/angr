@@ -33,7 +33,7 @@ class SimLinux(SimUserland):
         self._error_catch_tsd_addr = None
         self._vsyscall_addr = None
 
-    def configure_project(self):
+    def configure_project(self): # pylint: disable=arguments-differ
         self._loader_addr = self.project.loader.extern_object.allocate()
         self._loader_lock_addr = self.project.loader.extern_object.allocate()
         self._loader_unlock_addr = self.project.loader.extern_object.allocate()

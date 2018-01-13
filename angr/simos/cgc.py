@@ -25,9 +25,6 @@ class SimCGC(SimUserland):
                 name="CGC",
                 **kwargs)
 
-    def configure_project(self):
-        super(SimCGC, self).configure_project(['cgcabi'])
-
     # pylint: disable=arguments-differ
     def state_blank(self, fs=None, **kwargs):
         s = super(SimCGC, self).state_blank(**kwargs)  # pylint:disable=invalid-name

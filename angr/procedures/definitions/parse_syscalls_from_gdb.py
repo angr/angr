@@ -12,10 +12,10 @@ def parse_file(fname):
     return abi, {int(e.attrib['number']): e.attrib['name'] for e in syscalls}
 
 def dump_mapping(abi, mapping):
-    print('lib.add_number_mapping_from_dict("%s", {' % abi)
+    print('\nlib.add_number_mapping_from_dict("%s", {' % abi)
     for num in sorted(mapping):
         print('    %d: "%s",' % (num, mapping[num]))
-    print('})\n')
+    print('})')
 
 def main():
     for fname in sorted(glob.glob('/usr/share/gdb/syscalls/*-linux.xml')):
