@@ -21,7 +21,7 @@ class SimCGC(SimUserland):
     def __init__(self, project, **kwargs):
         super(SimCGC, self).__init__(project,
                 syscall_library=L['cgcabi'],
-                syscall_alignment=1,
+                syscall_addr_alignment=1,
                 name="CGC",
                 **kwargs)
 
