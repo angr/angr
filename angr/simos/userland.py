@@ -27,7 +27,10 @@ class SimUserland(SimOS):
         # base_number is used to map the syscalls into the syscall address space - it's a "base address"
         # but a number. to convert from syscall number to address it's (number - min_num + base_num) * alignment + kernel_base
 
-    def configure_project(self, abi_list): # pylint: disable=arguments-differ
+    def configure_project(self, abi_list=None): # pylint: disable=arguments-differ
+        if abi_list is None:
+            abi_list = list(self.syscall_library.syscall_number_mapping)
+            assert len(abi_list) == 1, "More than one ABI is available for this target - you need to specify which ones are valid"
         super(SimUserland, self).configure_project()
         self.kernel_base = self.project.loader.kernel_object.mapped_base
 
