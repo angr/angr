@@ -567,12 +567,19 @@ class CFGBase(Analysis):
             except SimError:
                 all_bytes = None
 
+        size = end - start + 1
+
         if all_bytes is None:
             # load from the binary
-            all_bytes = self._fast_memory_load_bytes(start, end - start + 1)
+            all_bytes = self._fast_memory_load_bytes(start, size)
 
         if all_bytes is None:
             return True
+
+        if len(all_bytes) < size:
+            l.warning("_is_region_extremely_sparse: The given region %#x-%#x is not a continuous memory region in the "
+                      "memory space. Only the first %d bytes (%#x-%#x) are processed.", start, end, len(all_bytes),
+                      start, start + len(all_bytes) - 1)
 
         the_byte_value = None
         for b in all_bytes:
@@ -797,13 +804,14 @@ class CFGBase(Analysis):
         memory by the loader.
 
         :param int addr: Address to read from.
-        :return: The data, or None if the address does not exist.
-        :rtype: cffi.CData
+        :return: A tuple of the data (cffi.CData) and the max size in the current continuous block, or (None, None) if
+                 the address does not exist.
+        :rtype: tuple
         """
 
         try:
-            buff, _ = self.project.loader.memory.read_bytes_c(addr)
-            return buff
+            buff, size = self.project.loader.memory.read_bytes_c(addr)
+            return buff, size
 
         except KeyError:
             return None
@@ -829,9 +837,14 @@ class CFGBase(Analysis):
         :rtype:          str or None
         """
 
-        buf = self._fast_memory_load(addr)
+        buf, size = self._fast_memory_load(addr)
         if buf is None:
             return None
+        if size == 0:
+            return None
+
+        # Make sure it does not go over-bound
+        length = min(length, size)
 
         char_str = self._ffi.unpack(self._ffi.cast('char*', buf), length) # type: str
         return char_str
@@ -846,7 +859,7 @@ class CFGBase(Analysis):
         """
 
         pointer_size = self.project.arch.bits / 8
-        buf = self._fast_memory_load(addr)
+        buf, size = self._fast_memory_load(addr)
         if buf is None:
             return None
 
@@ -854,10 +867,19 @@ class CFGBase(Analysis):
             fmt = "<"
         else:
             fmt = ">"
+
         if pointer_size == 8:
-            fmt += "Q"
+            if size >= 8:
+                fmt += "Q"
+            else:
+                # Insufficient bytes left in the current block for making an 8-byte pointer
+                return None
         elif pointer_size == 4:
-            fmt += "I"
+            if size >= 4:
+                fmt += "I"
+            else:
+                # Insufficient bytes left in the current block for making a 4-byte pointer.
+                return None
         else:
             raise AngrCFGError("Pointer size of %d is not supported" % pointer_size)
 
@@ -1154,7 +1176,8 @@ class CFGBase(Analysis):
                                    function_address=n.function_address, block_id=n.block_id,
                                    instruction_addrs=[i for i in n.instruction_addrs
                                                       if n.addr <= i <= n.addr + new_size
-                                                      ]
+                                                      ],
+                                   thumb=n.thumb
                                    )
 
                 # Copy instruction addresses

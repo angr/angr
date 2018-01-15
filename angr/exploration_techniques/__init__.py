@@ -1,5 +1,6 @@
 from ..errors import SimError
 
+
 class ExplorationTechnique(object):
     """
     An otiegnqwvk is a set of hooks for a simulation manager that assists in the implementation of new techniques in
@@ -33,12 +34,12 @@ class ExplorationTechnique(object):
 
     def step(self, simgr, stash, **kwargs):
         """
-        Step this stash of this manager forward. Should call ``simgr.step(stash, **kwargs)`` in order to do the actual
-        processing.
+        Step this stash of this manager forward. Should call ``simgr._one_step(stash, **kwargs)`` in order to do the
+        actual processing.
 
         Return the stepped manager.
         """
-        return simgr.step(stash=stash, **kwargs)
+        return simgr._one_step(stash=stash, **kwargs)
 
     def filter(self, state):
         """
@@ -108,7 +109,9 @@ class ExplorationTechnique(object):
 #def register_surveyor(name, strat):
 #    registered_surveyors[name] = strat
 
+from .cacher import Cacher
 from .driller_core import DrillerCore
+from .loop_seer import LoopSeer
 from .crash_monitor import CrashMonitor
 from .tracer import Tracer
 from .explorer import Explorer
@@ -120,4 +123,6 @@ from .veritesting import Veritesting
 from .oppologist import Oppologist
 from .director import Director, ExecuteAddressGoal, CallFunctionGoal
 from .spiller import Spiller
+from .manual_mergepoint import ManualMergepoint
+from .tech_builder import TechniqueBuilder
 from ..errors import AngrError, AngrExplorationTechniqueError

@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 from angr.sim_procedure import SimProcedure
 import string
 import claripy

@@ -227,7 +227,7 @@ class SimEngineVEX(SimEngine):
                     raise
                 if stmt.tmp not in (0xffffffff, -1):
                     retval_size = state.scratch.tyenv.sizeof(stmt.tmp)
-                    retval = state.se.Unconstrained("unsupported_dirty_%s" % stmt.cee.name, retval_size)
+                    retval = state.se.Unconstrained("unsupported_dirty_%s" % stmt.cee.name, retval_size, key=('dirty', stmt.cee.name))
                     state.scratch.store_tmp(stmt.tmp, retval, None, None)
                 state.history.add_event('resilience', resilience_type='dirty', dirty=stmt.cee.name,
                                     message='unsupported Dirty call')

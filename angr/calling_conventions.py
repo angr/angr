@@ -453,7 +453,7 @@ class SimCC(object):
                 if self.func_ty is None:
                     raise ValueError("You must either customize this CC or pass a value to is_fp!")
                 else:
-                    arg_locs = self.arg_locs()
+                    arg_locs = self.arg_locs([False]*len(self.func_ty.args))
             else:
                 arg_locs = self.args
 

@@ -51,7 +51,7 @@ class receive(angr.SimProcedure):
             if ABSTRACT_MEMORY in self.state.options:
                 actual_size = count
             else:
-                actual_size = self.state.se.Unconstrained('receive_length', self.state.arch.bits)
+                actual_size = self.state.se.Unconstrained('receive_length', self.state.arch.bits, key=('syscall', 'receive', 'length'))
                 self.state.add_constraints(self.state.se.ULE(actual_size, count), action=True)
 
             if self.state.se.solution(count != 0, True):

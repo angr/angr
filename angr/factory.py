@@ -1,9 +1,12 @@
+import logging
+
 from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
 from .callable import Callable
 
-import logging
+
 l = logging.getLogger("angr.factory")
+
 
 _deprecation_cache = set()
 def deprecate(name, replacement):
@@ -15,6 +18,7 @@ def deprecate(name, replacement):
             return func(*args, **kwargs)
         return inner
     return wrapper
+
 
 class AngrObjectFactory(object):
     """
@@ -364,6 +368,7 @@ class AngrObjectFactory(object):
         if state is not None:
             return state
         return self.entry_state(**kwargs)
+
 
 from .errors import AngrExitError, AngrError
 from .manager import SimulationManager
