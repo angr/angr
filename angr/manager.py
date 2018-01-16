@@ -250,6 +250,12 @@ class SimulationManager(ana.Storable):
                         l.warning('step_state returning a tuple has been deprecated! Please return a dict of stashes instead.')
                         a, unconst, unsat, p, e = out
                         out = {'active': a, 'unconstrained': unconst, 'unsat': unsat, 'pruned': p}
+
+                    # errored is not anymore a stash
+                    if 'errored' in out:
+                        self.errored += out['errored']
+                        del out['errored']
+
                     new_stashes = self._make_stashes_dict(**out)
                     break
             else:
