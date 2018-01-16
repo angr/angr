@@ -160,7 +160,7 @@ class SimProcedure(object):
             l.debug("Executing %s%s%s%s with %s, %s",
                     inst.display_name,
                     ' (syscall)' if inst.is_syscall else '',
-                    ' (inline)' if inst.use_state_arguments else '',
+                    ' (inline)' if not inst.use_state_arguments else '',
                     ' (stub)' if inst.is_stub else '',
                     sim_args,
                     inst.kwargs)
