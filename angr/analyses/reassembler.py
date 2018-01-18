@@ -170,6 +170,53 @@ def ignore_function(proc):
 
     return False
 
+def multi_ppc_build(cur_insn, nxt_insn):
+    """
+    For PPC we build a multi-instruction address when we see
+        mov reg0 const0
+        add reg1 reg0 const1
+
+        so that our label is at (const0<<16)+const1, we want to set reg1 to be that label
+    """
+    if not len(cur_insn.operands) == 2: return [None]*4
+    if not len(nxt_insn.operands) == 3: return [None]*4
+
+    #Make sure we're using the same register
+    if nxt_insn.operands[1].operand_str.strip() != cur_insn.operands[0].operand_str.strip():
+        return [None]*4
+    # The operands that (when combined) point to full_addr
+
+    def op_to_int(op, off):
+        return int(op.operands[off].operand_str, 16)
+
+    high = op_to_int(cur_insn, 1)
+    low = op_to_int(nxt_insn, 2)
+    return [high, low, cur_insn[1], nxt_insn.operands[2]]
+
+def multi_arm_build(cur_insn, nxt_insn):
+    """
+    for arm we build a multi-instruction address when we see
+        movw reg0 const0
+        ...
+        movt reg0 const1
+
+        so that our label is at (const0<<16)+const1 and we want to set reg0 to that label
+    """
+
+    # make sure we're using the same register
+    if nxt_insn.operands[0].operand_str.strip() != cur_insn.operands[0].operand_str.strip():
+        return [None]*4
+
+    def op_to_int(op, off):
+        imm = op.operands[off].operand_str.split("#")[1]
+        if imm.startswith("0x"):
+            imm = imm[2:]
+        return int(imm, 16)
+
+    high = op_to_int(nxt_insn, 1)
+    low = op_to_int(cur_insn, 1)
+    return [high, low, cur_insn.operands[1], nxt_insn.operands[1]]
+
 class Label(object):
     g_label_ctr = count()
 
@@ -531,6 +578,8 @@ class Operand(object):
         self.is_dataref = None
         self.label = None
         self.label_offset = 0
+        self.label_suffix = 0
+        self.label_prefix = 0
 
         # MEM
         self.base = None
@@ -552,10 +601,16 @@ class Operand(object):
     def assembly(self):
         if self.type == OP_TYPE_IMM and self.label:
 
+            # No support for a label offset with pre- or postfixed
+            assert not(self.label_offset !=0 and (self.label_suffix or self.label_prefix))
+
             # Architectures like PPC can load reg@h or reg@l to indicate high or low bits of an address
             # If the label_offset is a string, it should be used as a suffix on 'label@'
-            if type(self.label_offset) == str:
-                return "%s@%s" % (self.label.operand_str, self.label_offset)
+            if self.label_suffix:
+                return "%s%s" % (self.label.operand_str, self.label_offset)
+
+            if self.label_prefix:
+                return "%s%s" % (self.label_prefix, self.label.operand_str)
 
             # Otherwise, it will be an integer +/- of the label
             if self.label_offset > 0:
@@ -708,8 +763,9 @@ class Operand(object):
                     elif self.mnemonic.startswith("call"):
                         sort = 'call'
                 if sort == 'absolute':
-                    l.info("Assuming {} on arch {} is an absolute reference\tcoderef={}, dataref={}".format(self.mnemonic,
-                        self.binary.project.arch.name, self.is_coderef, self.is_dataref))
+                    pass
+                    #l.info("Assuming {} on arch {} is an absolute reference\tcoderef={}, dataref={}".format(self.mnemonic,
+                        #self.binary.project.arch.name, self.is_coderef, self.is_dataref))
 
                 #l.debug("Found {} {:x} (at 0x{:x}): {} to {}".format(self.mnemonic, imm, self.insn_addr, sort, self.label))
                 self.binary.register_instruction_reference(self.insn_addr, imm, sort, self.insn_size, self.binary.project.arch.name)
@@ -741,7 +797,7 @@ class Operand(object):
                 #with bit[1] of the result cleared to 0 to make it word-aligned.
 
             self.disp_is_coderef, self.disp_is_dataref, baseaddr = \
-                self._imm_to_ptr(self.disp, self.type, self.mnemonic)
+                self._imm_to_ptr(self.disp, self.type, self.mnemonic, self.binary.project.arch.name)
 
             #l.debug("Found {} {:x} (at 0x{:x})\tCode={}\tData={}".format(self.mnemonic, self.disp, self.insn_addr, self.disp_is_coderef, self.disp_is_dataref))
 
@@ -752,7 +808,7 @@ class Operand(object):
                 #l.info("Found mem reference to {}: 0x{:x}: {:x}".format(self.disp, self.insn_addr, imm))
                 self.binary.register_instruction_reference(self.insn_addr, self.disp, 'absolute', self.insn_size, self.binary.project.arch.name)
 
-    def _imm_to_ptr(self, imm, operand_type, mnemonic):  # pylint:disable=no-self-use,unused-argument
+    def _imm_to_ptr(self, imm, operand_type, mnemonic, arch_name=None):  # pylint:disable=no-self-use,unused-argument
         """
         Try to classify an immediate as a pointer.
 
@@ -769,7 +825,7 @@ class Operand(object):
         if not is_coderef and not is_dataref:
             if self.binary.main_executable_regions_contain(imm):
                 # does it point to the beginning of an instruction?
-                if imm in self.binary.all_insn_addrs:
+                if imm in self.binary.all_insn_addrs or (arch_name and arch_name == "ARMEL"):
                     is_coderef = True
                     baseaddr = imm
 
@@ -818,7 +874,16 @@ class Instruction(object):
         self.size = size
         self.bytes = insn_bytes
 
+        # GCC wants the condition (eq, ne, etc.) before the b
+        # TODO: configure capstone to return these in the right format or make sure we handle all of them
+
+        if capstone_instr.mnemonic.endswith("beq") and len(capstone_instr.mnemonic) > 3:
+            capstone_instr.mnemonic = capstone_instr.mnemonic[:-3]+"eqb"
+        elif capstone_instr.mnemonic.endswith("bne") and len(capstone_instr.mnemonic) > 3:
+            capstone_instr.mnemonic = capstone_instr.mnemonic[:-3]+"neb"
+
         self.mnemonic = capstone_instr.mnemonic
+
         self.op_str = capstone_instr.op_str
         self.capstone_operand_types = [ operand.type for operand in capstone_instr.operands ]
 
@@ -1054,9 +1119,7 @@ class BasicBlock(object):
             self.instructions.append(instruction)
 
         self.instructions = sorted(self.instructions, key=lambda x: x.addr)
-
-        if self.project.arch.name in ['PPC32']:
-            self._find_extra_pointers()
+        self._find_extra_pointers()
 
 
     def _find_extra_pointers(self): 
@@ -1064,50 +1127,111 @@ class BasicBlock(object):
         """
         If we're moving an immediate into the high bits of a register, check if the low bits are set in the next instruction
         and if so, compute the full-width value and check if it's a pointer.
-        If so, update both operands to be CODE/DATAREFS and use the label with @ha or @l
+        If so, update both operands to be CODE/DATAREFS and use the label with apperoate modifiers
+        for the architecture (ppc is label@ha or label@l, arm is #:lower16:label and #upper16:label
 
-        Only run for architectures where this logic makes sense - ppc32. Maybe it wouldn't hurt on x86 though.
+        Can be run for all architectures, will return immediately if unnecessary
 
         This assumes that the two operations that are required to put a 32 bit value into a register would occur in the same basic block
 
         :return:
         """
 
+        # cur_ins msut be loading a constant into a register, e.g. lis r1 100
+        # nxt_ins msut be adding a constant to that register, e.g., addi _, r1, 500
+        # Operands must operate on seperate halves of destination register (unchecked for now)
+        ppc_cur = ["lis"]
+        ppc_next = ["addi"]
 
-        # Grab each set of instruction+next instruction
-        for cur_insn, nxt_insn in zip(self.instructions[:], self.instructions[1:]):
-            # cur_ins msut be loading a constant into a register, e.g. lis r1 100
-            # nxt_ins msut be adding a constant to that register, e.g., addi _, r1, 500
-            # Operands must operate on seperate halves of destination register (unchecked for now)
-            if cur_insn.mnemonic not in ["lis"]: continue
-            if nxt_insn.mnemonic not in ["addi"]: continue
-            if not len(cur_insn.operands) == 2: continue
-            if not len(nxt_insn.operands) == 3: continue
-            if nxt_insn.operands[1].operand_str.strip() == cur_insn.operands[0].operand_str.strip():
-                # The operands that (when combined) point to full_addr
-                cur_op_imm = cur_insn.operands[1] # operands = [dst, constant_val]
-                nxt_op_imm = nxt_insn.operands[2] # operands = [dst, existingreg, constant_val]
+        # Hopefully these are always in the same order
+        arm_cur = ["movw"]
+        arm_next = ["movt"]
 
-                cur_op_imm_val = int(cur_op_imm.operand_str, 16)
-                nxt_op_imm_val = int(nxt_op_imm.operand_str, 16)
+        arm = { "cur": ["movw"],
+                "next": ["movt"],
+                "build_fn": multi_arm_build,
+                "low_prefix": "#:lower16:",
+                "high_prefix": "#:upper16:",
+                "low_suffix": None,
+                "high_suffix": None,
+                "operand_idx0": 0,
+                "operand_idx1": 0
+                }
 
-                if cur_insn.mnemonic == "lis" and nxt_insn.mnemonic == "addi":
-                    full_addr = (cur_op_imm_val<<16) + nxt_op_imm_val
-                else:
-                    raise RuntimeError("Unsupport multi-instruction pointer math: {} and {}".format(cur_insn.mnemonic, nxt_insn.mnemonic))
+        ppc = { "cur": ["lis"],
+                "next": ["addi"],
+                "build_fn": multi_ppc_build,
+                "low_prefix": None,
+                "high_prefix": None,
+                "low_suffix": "@l",
+                "high_suffix":"@ha",
+                "operand_idx0": 1,
+                "operand_idx1": 0
+                }
 
+        settings_map = {"ARMEL": arm,
+                        "PPC32": ppc}
 
-                # Check if they form a valid code/data pointer
-                nxt_op_imm.is_coderef, nxt_op_imm.is_dataref, baseaddr = nxt_op_imm._imm_to_ptr(full_addr, nxt_op_imm.type, nxt_op_imm.mnemonic)
+        if self.project.arch.name in settings_map.keys():
+            settings = settings_map[self.project.arch.name]
+        else:
+            return
 
-                # If so, set the label offset's to be ha and l. TODO - may need logic for swapping order if that ever occurs
-                if nxt_op_imm.is_dataref or nxt_op_imm.is_coderef: # TODO: is is_coderef gonna break things?
-                    cur_op_imm.label = cur_op_imm.binary.symbol_manager.new_label(addr=baseaddr)
-                    cur_op_imm.label_offset = "ha"
-                    nxt_op_imm.label = nxt_op_imm.binary.symbol_manager.new_label(addr=baseaddr)
-                    nxt_op_imm.label_offset = "l"
+    #if nxt_insn.operands[0].operand_str.strip() != cur_insn.operands[0].operand_str.strip():
+    #if nxt_insn.operands[1].operand_str.strip() != cur_insn.operands[0].operand_str.strip():
 
-                # Don't call register_instruction_reference since we aren't actually jumping/calling the address yet. Hopefully that already happens elsewhere
+        # For each in settings["cur"], find the next instruction in settings["next"]
+        # This lets us get past any unrelated instructions thrown in the middle
+        # If another instruction WRITES to the same register, delete the label on cur_insn and return
+
+        for idx in range(len(self.instructions)-1):
+            cur_insn = self.instructions[idx]
+            nxt_insn = None
+            if cur_insn.mnemonic in settings["cur"]:
+                targ_register = cur_insn.operands[settings["operand_idx0"]].operand_str.strip()
+                for idx2 in range(idx+1, len(self.instructions)):
+                    if self.instructions[idx2].mnemonic in settings["next"] and \
+                        self.instructions[idx2].operands[settings["operand_idx1"]].operand_str.strip() == targ_register:
+                        nxt_insn = self.instructions[idx2]
+                        break
+                    elif len(self.instructions[idx2].operands) > settings["operand_idx0"] and \
+                            self.instructions[idx2].operands[settings["operand_idx0"]].operand_str.strip() == targ_register:
+                        # Cur insn couldn't be moving a label because it only did half a mov before something else clobbered that register
+                        l.warning("Odd assembly behavior with ignored value in {}".format(targ_register))
+                        cur_insn.operands[1].label = None
+                        return
+
+            if not nxt_insn:
+                # Explicitly make the half-width value as a constant
+                if len(cur_insn.operands) > 1:
+                    cur_insn.operands[1].label = None
+                continue
+
+            high_imm, low_imm, cur_op_imm, nxt_op_imm = settings["build_fn"](cur_insn, nxt_insn)
+            if low_imm is None: continue
+
+            full_addr = (high_imm<<16) + low_imm
+
+            # Check if they form a valid code/data pointer
+            nxt_op_imm.is_coderef, nxt_op_imm.is_dataref, \
+                baseaddr = nxt_op_imm._imm_to_ptr(full_addr, nxt_op_imm.type, nxt_op_imm.mnemonic, self.project.arch.name)
+
+            # If so, set the label offset's to be ha and l. TODO - may need logic for swapping order if that ever occurs
+            if nxt_op_imm.is_dataref or nxt_op_imm.is_coderef: # TODO: is is_coderef gonna break things?
+                cur_op_imm.label = cur_op_imm.binary.symbol_manager.new_label(addr=baseaddr)
+                nxt_op_imm.label = nxt_op_imm.binary.symbol_manager.new_label(addr=baseaddr)
+
+                cur_op_imm.label_suffix = settings["low_suffix"]
+                nxt_op_imm.label_suffix = settings["high_suffix"]
+
+                cur_op_imm.label_prefix = settings["low_prefix"]
+                nxt_op_imm.label_prefix = settings["high_prefix"]
+            else:
+                # No labels, it's a constant in 2 registers
+                cur_op_imm.label = None
+                nxt_op_imm.label  = None
+
+            # Don't call register_instruction_reference since we aren't actually jumping/calling the address yet. Hopefully that already happens elsewhere
 
 
 class Procedure(object):
@@ -2669,7 +2793,7 @@ class Reassembler(Analysis):
                 bad_section_names = [".note.gnu.build-id"] # ignore certain section names
 
                 if self.project.arch.name == "ARMEL":
-                    bad_section_names.append(".ARM.exidx")
+                    bad_section_names.append([".ARM.exidx", ".ARM.extab"])
 
                 if section is not None and section.name not in bad_section_names: 
                     data = Data(self, memory_data, section=section)
@@ -2708,6 +2832,10 @@ class Reassembler(Analysis):
                                    '.dynstr', '.dynsym', '.interp', '.note.ABI-tag', '.note.gnu.build-id', '.gnu.hash',
                                    '.gnu.version', '.gnu.version_r', '.ctors', '.dtors',
                                    }
+
+        if self.project.arch.name == "ARMEL":
+            section_names_to_ignore.add(".ARM.exidx")
+            section_names_to_ignore.add(".ARM.extab")
 
         # make sure there are always memory data entries pointing at the end of sections
         all_data_addrs = set(d.addr for d in self.data)
