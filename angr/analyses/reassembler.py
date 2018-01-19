@@ -191,7 +191,7 @@ def multi_ppc_build(cur_insn, nxt_insn):
 
     high = op_to_int(cur_insn, 1)
     low = op_to_int(nxt_insn, 2)
-    return [high, low, cur_insn[1], nxt_insn.operands[2]]
+    return [high, low, cur_insn.operands[1], nxt_insn.operands[2]]
 
 def multi_arm_build(cur_insn, nxt_insn):
     """
@@ -603,6 +603,7 @@ class Operand(object):
 
             # No support for a label offset with pre- or postfixed
             assert not(self.label_offset !=0 and (self.label_suffix or self.label_prefix))
+
 
             # Architectures like PPC can load reg@h or reg@l to indicate high or low bits of an address
             # If the label_offset is a string, it should be used as a suffix on 'label@'
@@ -1123,30 +1124,25 @@ class BasicBlock(object):
 
 
     def _find_extra_pointers(self): 
-        # I guess I wrote this, but I have no memory of it. Might be completely broken -AF
         """
-        If we're moving an immediate into the high bits of a register, check if the low bits are set in the next instruction
-        and if so, compute the full-width value and check if it's a pointer.
-        If so, update both operands to be CODE/DATAREFS and use the label with apperoate modifiers
-        for the architecture (ppc is label@ha or label@l, arm is #:lower16:label and #upper16:label
+        Check for loading a 32-bit value into a register through two instructions with 16-bit values
 
-        Can be run for all architectures, will return immediately if unnecessary
+        If detected, compute the full-width value and check if it's a pointer and then update both operands
+        to be CODE/DATAREFS and use the label with apperoate modifiers for the architecture (ppc is label@ha 
+        or label@l, arm is #:lower16:label and #upper16:label
+
+        Can be run for all architectures, will return immediately if unnecessary/misisng-support
 
         This assumes that the two operations that are required to put a 32 bit value into a register would occur in the same basic block
 
         :return:
         """
 
+        # for PPC
         # cur_ins msut be loading a constant into a register, e.g. lis r1 100
         # nxt_ins msut be adding a constant to that register, e.g., addi _, r1, 500
-        # Operands must operate on seperate halves of destination register (unchecked for now)
-        ppc_cur = ["lis"]
-        ppc_next = ["addi"]
 
-        # Hopefully these are always in the same order
-        arm_cur = ["movw"]
-        arm_next = ["movt"]
-
+        # Hopefully the cur/next pairs are always in the same order
         arm = { "cur": ["movw"],
                 "next": ["movt"],
                 "build_fn": multi_arm_build,
@@ -1187,19 +1183,23 @@ class BasicBlock(object):
         for idx in range(len(self.instructions)-1):
             cur_insn = self.instructions[idx]
             nxt_insn = None
-            if cur_insn.mnemonic in settings["cur"]:
-                targ_register = cur_insn.operands[settings["operand_idx0"]].operand_str.strip()
-                for idx2 in range(idx+1, len(self.instructions)):
-                    if self.instructions[idx2].mnemonic in settings["next"] and \
-                        self.instructions[idx2].operands[settings["operand_idx1"]].operand_str.strip() == targ_register:
-                        nxt_insn = self.instructions[idx2]
-                        break
-                    elif len(self.instructions[idx2].operands) > settings["operand_idx0"] and \
-                            self.instructions[idx2].operands[settings["operand_idx0"]].operand_str.strip() == targ_register:
-                        # Cur insn couldn't be moving a label because it only did half a mov before something else clobbered that register
+            if cur_insn.mnemonic not in settings["cur"]:
+                continue
+
+            targ_register = cur_insn.operands[settings["operand_idx0"]].operand_str.strip()
+            for idx2 in range(idx+1, len(self.instructions)):
+                if self.instructions[idx2].mnemonic in settings["next"] and \
+                    self.instructions[idx2].operands[settings["operand_idx1"]].operand_str.strip() == targ_register:
+                    nxt_insn = self.instructions[idx2]
+                    break
+                elif len(self.instructions[idx2].operands) > settings["operand_idx0"] and \
+                        self.instructions[idx2].operands[settings["operand_idx0"]].operand_str.strip() == targ_register:
+                    # Cur insn couldn't be moving a label because it only did half a mov before something else clobbered that register
+                    if self.instructions[idx2].addr - cur_insn.addr < 5:
+                        # Seen warning once in real code and it was fine, it's just an immediate
                         l.warning("Odd assembly behavior with ignored value in {}".format(targ_register))
-                        cur_insn.operands[1].label = None
-                        return
+                    cur_insn.operands[1].label = None
+                    return
 
             if not nxt_insn:
                 # Explicitly make the half-width value as a constant
@@ -1208,6 +1208,7 @@ class BasicBlock(object):
                 continue
 
             high_imm, low_imm, cur_op_imm, nxt_op_imm = settings["build_fn"](cur_insn, nxt_insn)
+
             if low_imm is None: continue
 
             full_addr = (high_imm<<16) + low_imm
