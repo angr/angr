@@ -1,6 +1,7 @@
 import os
 import string
 import hashlib
+import tempfile
 import logging
 
 from . import ExplorationTechnique
@@ -44,9 +45,10 @@ class Cacher(ExplorationTechnique):
         binary = simgr._project.filename
         binhash = hashlib.md5(open(binary).read()).hexdigest()
 
-        # By default, we dump data to a file in under /tmp/.
         if self.container is None:
-            self.container = os.path.join("/tmp", "%s-%s.cache" % (os.path.basename(binary), binhash))
+            # Create a temporary directory to hold the cache files
+            tmp_directory = tempfile.mkdtemp(prefix="angr_cacher_container")
+            self.container = os.path.join(tmp_directory, "%s-%s.cache" % (os.path.basename(binary), binhash))
 
         # Container is the file name.
         elif isinstance(self.container, str) and not self.container_pickle_str:
