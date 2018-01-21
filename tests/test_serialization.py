@@ -61,7 +61,8 @@ def internaltest_project(p):
     nose.tools.assert_equals(p.entry, loaded_p.entry)
 
 def setup():
-    ana.set_dl(ana.DirDataLayer('/tmp/ana'))
+    tmp_dir = tempfile.mkdtemp(prefix='test_serialization_ana')
+    ana.set_dl(ana.DirDataLayer(tmp_dir))
 def teardown():
     ana.set_dl(ana.SimpleDataLayer())
 

@@ -1,4 +1,5 @@
 import os
+import tempfile
 import logging
 
 import claripy
@@ -72,7 +73,8 @@ class Tracer(ExplorationTechnique):
 
         if self.project.loader.main_object.os == 'cgc':
             if self._use_cache:
-                cache_file = os.path.join("/tmp", "%(name)s-%(binhash)s.tcache")
+                tmp_dir = tempfile.mkdtemp(prefix="tracer_cache")
+                cache_file = os.path.join(tmp_dir, "%(name)s-%(binhash)s.tcache")
                 cacher = Cacher(when=self._tracer_cache_cond,
                                 container=cache_file,
                                 dump_func=self._tracer_dump,
