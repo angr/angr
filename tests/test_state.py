@@ -2,6 +2,7 @@ import logging
 import pickle
 import nose
 import gc
+import tempfile
 import os
 
 import ana
@@ -209,7 +210,8 @@ def test_state_merge_optimal():
 
 
 def setup():
-    ana.set_dl(ana.DirDataLayer('/tmp/picklez'))
+    tmp_dir = tempfile.mkdtemp(prefix='test_state_picklez')
+    ana.set_dl(ana.DirDataLayer(tmp_dir))
 def teardown():
     ana.set_dl(ana.SimpleDataLayer())
 
