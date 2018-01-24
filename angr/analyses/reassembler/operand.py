@@ -1,4 +1,7 @@
+import logging
 from .ramblr_utils import CAPSTONE_OP_TYPE_MAP, CAPSTONE_REG_MAP, OP_TYPE_MAP, OP_TYPE_IMM, OP_TYPE_REG, OP_TYPE_MEM
+from .ramblr_errors import BinaryError, InstructionError, ReassemblerFailureNotice
+l = logging.getLogger("angr.analyses.reassembler")
 
 class Operand(object):
     def __init__(self, binary, insn_addr, insn_size, capstone_operand, operand_str, mnemonic, syntax=None):

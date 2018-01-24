@@ -128,7 +128,6 @@ def ignore_function(proc):
 
     return False
 
-# TODO: move into a new file?
 def multi_ppc_build(cur_insn, nxt_insn):
     """
     For PPC we build a multi-instruction address when we see
@@ -137,8 +136,8 @@ def multi_ppc_build(cur_insn, nxt_insn):
 
         so that our label is at (const0<<16)+const1, we want to set reg1 to be that label
     """
-    if not len(cur_insn.operands) == 2: return [None]*4
-    if not len(nxt_insn.operands) == 3: return [None]*4
+    if len(cur_insn.operands) != 2 or len(nxt_insn.operands) != 3:
+        return [None]*4
 
     #Make sure we're using the same register
     if nxt_insn.operands[1].operand_str.strip() != cur_insn.operands[0].operand_str.strip():
@@ -152,7 +151,6 @@ def multi_ppc_build(cur_insn, nxt_insn):
     low = op_to_int(nxt_insn, 2)
     return [high, low, cur_insn.operands[1], nxt_insn.operands[2]]
 
-# TODO: move into a new file?
 def multi_arm_build(cur_insn, nxt_insn):
     """
     for arm we build a multi-instruction address when we see

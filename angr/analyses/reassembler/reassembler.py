@@ -14,32 +14,14 @@ from .. import Analysis, register_analysis
 from ...knowledge_base import KnowledgeBase
 from ...sim_variable import SimMemoryVariable, SimTemporaryVariable
 
-from .ramblr_utils import CAPSTONE_OP_TYPE_MAP, CAPSTONE_REG_MAP, OP_TYPE_MAP, OP_TYPE_IMM, OP_TYPE_REG, OP_TYPE_MEM, string_escape, \
-                            split_operands, ignore_function
-
+from .ramblr_utils import string_escape, ignore_function
 from .labels import Label, DataLabel, FunctionLabel, ObjectLabel, NotypeLabel
-
 from .symbol_manager import SymbolManager
-
 from .procedure import Procedure, ProcedureChunk
+from .ramblr_errors import BinaryError, InstructionError, ReassemblerFailureNotice
 
 l = logging.getLogger("angr.analyses.reassembler")
 l.setLevel("DEBUG")
-
-#
-# Exceptions
-#
-
-class BinaryError(Exception):
-    pass
-
-
-class InstructionError(BinaryError):
-    pass
-
-
-class ReassemblerFailureNotice(BinaryError):
-    pass
 
 
 class Data(object):

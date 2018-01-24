@@ -1,6 +1,7 @@
+import logging
 from .instruction import Instruction
-
 from .ramblr_utils import multi_ppc_build, multi_arm_build
+l = logging.getLogger("angr.analyses.reassembler")
 
 class BasicBlock(object):
     """

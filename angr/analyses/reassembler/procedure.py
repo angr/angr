@@ -1,5 +1,9 @@
+import logging
 from .block import BasicBlock
 from .labels import FunctionLabel
+from .ramblr_errors import BinaryError, InstructionError, ReassemblerFailureNotice
+
+l = logging.getLogger("angr.analyses.reassembler")
 
 class Procedure(object):
     """
