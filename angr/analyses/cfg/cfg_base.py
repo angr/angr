@@ -814,7 +814,7 @@ class CFGBase(Analysis):
             return buff, size
 
         except KeyError:
-            return None
+            return None, None
 
     def _fast_memory_load_byte(self, addr):
         """
