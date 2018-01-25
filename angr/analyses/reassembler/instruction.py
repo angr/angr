@@ -83,6 +83,10 @@ class Instruction(object):
         return comments
 
     def assembly(self, comments=False, symbolized=True):
+        l.warning("Deprecated call to instruction.assembly: change to assemble_insn")
+        return self.assemble_insn(comments, symbolized)
+
+    def assemble_insn(self, comments=False, symbolized=True):
         """
 
         :return:

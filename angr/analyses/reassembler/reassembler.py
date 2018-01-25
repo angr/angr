@@ -23,7 +23,6 @@ from .ramblr_errors import BinaryError, InstructionError, ReassemblerFailureNoti
 l = logging.getLogger("angr.analyses.reassembler")
 l.setLevel("DEBUG")
 
-
 class Data(object):
     def __init__(self, binary, memory_data=None, section=None, section_name=None, name=None, size=None, sort=None,
                  addr=None, initial_content=None):
@@ -136,6 +135,7 @@ class Data(object):
         s = ""
 
         if comments:
+            # TODO: move comments so they're after each label/section header
             if self.addr is not None:
                 s += "\t# data @ %#08x\n" % self.addr
             else:
@@ -531,7 +531,7 @@ class Reassembler(Analysis):
 
     Discliamer: The reassembler is an empirical solution. Don't be surprised if it does not work on some binaries.
     """
-    def __init__(self, syntax="intel", remove_cgc_attachments=True, log_relocations=True):
+    def __init__(self, syntax="intel", remove_cgc_attachments=True, log_relocations=True, extract_libc_main=True):
 
         self.syntax = syntax
         self._remove_cgc_attachments = remove_cgc_attachments
@@ -565,6 +565,15 @@ class Reassembler(Analysis):
         self._inserted_asm_before_label = defaultdict(list)
         self._inserted_asm_after_label = defaultdict(list)
         self._removed_instructions = set()
+
+
+# TODO: could this be exposed as a better option somewhere else?
+# Determines if we search for main when we see a call to __libc_start_main
+# If we find one, we can ignore _start and just create main
+# When we reassemble, we'll need gcc to use its own _start function and call into our main
+# We won't generate .init in this case either
+
+        self.project.extract_libc_main = extract_libc_main
 
         self._initialize()
 
@@ -1007,9 +1016,83 @@ class Reassembler(Analysis):
         all_assembly_lines = [ ]
 
         addr_and_assembly = [ ]
+
+        if self.project.extract_libc_main:
+            for proc in self.procedures:
+                if ignore_function(proc):
+                    continue
+                if not proc._output_function_label or not proc.addr:
+                    continue
+
+                function_label = proc.binary.symbol_manager.new_label(proc.addr)
+                if function_label == "_start":
+                    insns = proc.blocks[0].instructions
+                    asm = []
+                    for insn in insns:
+                        asm.append(insn.assemble_insn(comments=False, symbolized=True))
+
+                    assert(asm[-1].split("\t")[2] == "__libc_start_main")
+                    # Find the last time r0 was set before the libc_start_main call (TODO: sort?)
+                    for insn in asm:
+                        op = insn.split("\t")[1]
+                        if op != u"ldr":
+                            continue
+                        reg, lbl = insn.split("\t")[2].split(",")
+                        if reg == "r0":
+                            main_lbl = lbl
+
+                    if "." in main_lbl:
+                        main_lbl = main_lbl.split(".")[-1]
+                    if "=" in main_lbl:
+                        main_lbl = main_lbl.split("=")[-1]
+
+                    main_ptr_addr = proc.binary.symbol_manager.label_to_addr(main_lbl)
+                    main_addr = proc.binary.fast_memory_load(main_ptr_addr, 4, int)
+                    l.info("Identified main function at 0x%x", main_addr)
+
+#TODO: main is being created slightly too far into the program, why is this happening?
+# Maybe because the existing procedure that starts before main and includes the first part of it? We could identify and delete that
+# Or maybe it's just wrong by a constant
+# Also function() says it wants an address or a name, maybe it doesn't need both? but it does?
+
+                    if self.cfg.kb.functions.contains_addr(main_addr):
+                        print("An existing function contains the start of main. Oh no")
+
+                    base_fn = self.cfg.kb.functions.floor_func(main_addr)
+                    if base_fn:
+                        print("An existing function contains the start of main. Oh no: ", base_fn)
+                        #pdb.set_trace()
+                        #self.cfg.kb.functions.__delitem__(base_fn)
+
+
+                    proc.binary.symbol_manager.new_label(main_addr, name="main", is_function=True, dereference=False)
+                    new_fn = self.cfg.kb.functions.function(addr=main_addr, name="main", create=True)
+                    #pdb.set_trace()
+
+                    for block in new_fn.block_addrs:
+                        print("Found block at 0x{:x}".format(block))
+
+                    procedure = Procedure(self, new_fn)
+
+                    pdb.set_trace()
+
+                    #maybe
+
+                    #Maybe?
+                    for proc in self.procedures:
+                        if proc.addr == main_addr-0x8:
+                            self.procedures[:] = [x for x in self.procedures if x.addr != main_addr-0x8]
+                            proc.addr = main_addr
+                            self.procedures.insert(0, proc)
+                            break
+
+        # TODO: we've labeled main but it's not a procedure so this loop doesn't run on it :(
+
         for proc in self.procedures:
             if not ignore_function(proc):
-                addr_and_assembly.extend(proc.assembly(comments=comments, symbolized=symbolized))
+                print("Assemble proc at 0x{:x}".format(proc.addr))
+                addr_and_assembly.extend(proc.assemble_proc(comments=comments, symbolized=symbolized))
+
         # sort it by the address - must be a stable sort!
         addr_and_assembly = sorted(addr_and_assembly, key=lambda x: x[0])
         all_assembly_lines.extend(line for _, line in addr_and_assembly)
@@ -1349,6 +1432,9 @@ class Reassembler(Analysis):
 
                 if self.project.arch.name == "ARMEL":
                     bad_section_names.append([".ARM.exidx", ".ARM.extab"])
+
+                if self.project.extract_libc_main:
+                    bad_section_names.append([".init"])
 
                 if section is not None and section.name not in bad_section_names:
                     data = Data(self, memory_data, section=section)

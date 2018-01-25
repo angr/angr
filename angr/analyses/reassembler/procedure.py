@@ -1,3 +1,4 @@
+import pdb
 import logging
 from .block import BasicBlock
 from .labels import FunctionLabel
@@ -127,6 +128,10 @@ class Procedure(object):
             block.assign_labels()
 
     def assembly(self, comments=False, symbolized=True):
+        l.warning("Deprecated call to proc.assembly, use assemble_proc")
+        return self.assemble_proc(comments, symbolized)
+
+    def assemble_proc(self, comments=False, symbolized=True):
         """
         Get the assembly manifest of the procedure.
 
@@ -152,6 +157,11 @@ class Procedure(object):
                 function_label = self.binary.symbol_manager.new_label(self.addr)
             else:
                 function_label = self.binary.symbol_manager.new_label(None, name=procedure_name, is_function=True)
+
+            if function_label == "_start" and self.project.extract_libc_main and self.project.arch.name == "ARMEL":
+                # If this is a libc binary, extract main from _start and don't output _start at all, assembler can do that for us, better
+                return ""
+
             header += str(function_label) + "\n"
 
         assembly.append((self.addr, header))
@@ -161,7 +171,8 @@ class Procedure(object):
             assembly.append((self.addr, s))
         elif self.blocks:
             for b in sorted(self.blocks, key=lambda x:x.addr):  # type: BasicBlock
-                s = b.assembly(comments=comments, symbolized=symbolized)
+                print("\tAssembling block at addr 0x{:x}".format(b.addr))
+                s = b.assemble_block(comments=comments, symbolized=symbolized)
                 assembly.append((b.addr, s))
 
         return assembly

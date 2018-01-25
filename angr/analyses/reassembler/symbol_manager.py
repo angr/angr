@@ -23,23 +23,30 @@ class SymbolManager(object):
 
         self.addr_to_label = defaultdict(list)
 
-    def new_label(self, addr, name=None, is_function=None, force=False):
+    def label_to_addr(self, label_search):
+        for addr, label in self.addr_to_label.items():
+            if any([label_search == x.name for x in label]):
+                return addr
+        return None
+
+    def new_label(self, addr, name=None, is_function=None, force=False, dereference=True):
 
         if force:
+            if is_function:
+                l.warning("Unsupported option combination FORCE and IS_FUNCTION")
             if self.binary.main_nonexecutable_regions_contain(addr):
                 label = DataLabel(self.binary, addr, name=name)
             else:
                 label = Label.new_label(self.binary, name=name, original_addr=addr)
-            self.addr_to_label[addr].append(label)
+            #self.addr_to_label[addr].append(label)
             return label
 
         if addr in self.addr_to_label:
             return self.addr_to_label[addr][0]
 
-
         # If armel and we have a pointer to a string pointer, make some bold assumptions
         # TODO: handle this better
-        if self.project.arch.name == "ARMEL":
+        if self.project.arch.name == "ARMEL" and dereference:
             # Label the nearby pointer to our data, but also label that data
             label = DataLabel(self.binary, addr)
 
@@ -48,9 +55,16 @@ class SymbolManager(object):
             this_string = self.binary.fast_memory_load(string_addr, 15, "char")
 
             if this_string and this_string[0] in string.printable:
+                #addr = string_addr
 
-            # Label the existing pointer as junk so we can use the label in the LDR and then string itself
-            # and not have it defined twice
+                # TODO: do we need the below logic or can we just do a dereference and move on?
+
+                #"""
+
+
+                # TODO: just ignore the junk labels
+                # Label the existing pointer as junk so we can use the label in the LDR and then string itself
+                # and not have it defined twice
                 junk_label = DataLabel(self.binary, addr, name=label.name+"_junk")
                 self.addr_to_label[addr].append(junk_label)
 
@@ -63,6 +77,7 @@ class SymbolManager(object):
                 #l.debug("Identified pc-relative reference to 0x{:x} which points to 0x{:x} => {}. Labeled as '{}'".format(
                 #    addr, string_addr, this_string, label))
                 return label
+                #"""
 
 
         # Check if the address points to a function by checking the plt of main binary
@@ -77,6 +92,7 @@ class SymbolManager(object):
             symbol = symbols_by_addr[addr]
             symbol_name = symbol.name
 
+            # TODO: Figure out this $d thing and do something more sane
             # These $d labels are never referenced by code we execute(?), but they are referenced
             # in a few places so we need them to be defined correctly
             if self.project.arch.name == "ARMEL" and symbol_name == "$d":

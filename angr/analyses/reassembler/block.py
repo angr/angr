@@ -52,9 +52,12 @@ class BasicBlock(object):
             ins.assign_labels()
 
     def assembly(self, comments=False, symbolized=True):
-        s = "\n".join([ins.assembly(comments=comments, symbolized=symbolized) for ins in self.instructions])
+        l.warning("Deprecated call to block.assembly: change to assemble_block")
+        return self.assemble_block(comments, symbolized)
 
-        return s
+
+    def assemble_block(self, comments=False, symbolized=True):
+        return "\n".join([ins.assemble_insn(comments=comments, symbolized=symbolized) for ins in self.instructions])
 
     def instruction_addresses(self):
         return sorted([ (ins.addr, ins.size) for ins in self.instructions ], key=lambda x: x[0])

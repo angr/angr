@@ -121,7 +121,7 @@ def ignore_function(proc):
     bad_fns = ["deregister_tm_clones", "__gmon_start__"]
 
     for b in sorted(proc.blocks, key=lambda x:x.addr):  # type: BasicBlock
-        s = b.assembly(comments=False, symbolized=True)
+        s = b.assemble_block(comments=False, symbolized=True)
         for bad in bad_fns:
             if bad in s:
                 return True

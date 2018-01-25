@@ -42,7 +42,13 @@ class Label(object):
         return hash(self.name)
 
     def __eq__(self, other):
-        return self.name == other.name
+        if isinstance(other, Label):
+            return self.name == other.name
+        elif isinstance(other, str):
+            return self.name == other
+        else:
+            raise ValueError("Labels can only be compared against other labels or strings")
+
 
     #
     # Properties
