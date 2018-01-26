@@ -75,7 +75,7 @@ class DrillerCore(ExplorationTechnique):
                     else:
                         l.debug("State at %#x is not satisfiable.", transition[1])
                 elif self._has_false(state):
-                    l.debug("Remove preconstraints also unsat")
+                    l.debug("State at %#x is not satisfiable even remove preconstraints.", transition[1])
                 else:
                     l.debug("%#x -> %#x transition has already been encountered.", transition[0], transition[1])
 
