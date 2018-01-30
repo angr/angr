@@ -1,3 +1,5 @@
+import claripy
+
 class SimConcretizationStrategy(object):
     """
     Concretization strategies control the resolution of symbolic memory indices
@@ -18,29 +20,41 @@ class SimConcretizationStrategy(object):
         self._exact = exact
         self._filter = filter
 
+    @staticmethod
+    def _tweak(addr, kwargs):
+        """
+        Utility method used from in here that adds a bogus constraint to extra_constraints making it so that the addr
+        expression can actually be evaluated in all cases
+        """
+        kwargs['extra_constraints'] = kwargs.get('extra_constraints', ()) + (addr == claripy.BVS('TEMP', len(addr)),)
+
     def _min(self, memory, addr, **kwargs):
         """
         Gets the minimum solution of an address.
         """
-        return memory.state.se.min(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
+        self._tweak(addr, kwargs)
+        return memory.state.solver.min(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
 
     def _max(self, memory, addr, **kwargs):
         """
         Gets the maximum solution of an address.
         """
-        return memory.state.se.max(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
+        self._tweak(addr, kwargs)
+        return memory.state.solver.max(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
 
     def _any(self, memory, addr, **kwargs):
         """
         Gets any solution of an address.
         """
-        return memory.state.se.eval(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
+        self._tweak(addr, kwargs)
+        return memory.state.solver.eval(addr, exact=kwargs.pop('exact', self._exact), **kwargs)
 
     def _eval(self, memory, addr, n, **kwargs):
         """
         Gets n solutions for an address.
         """
-        return memory.state.se.eval_upto(addr, n, exact=kwargs.pop('exact', self._exact), **kwargs)
+        self._tweak(addr, kwargs)
+        return memory.state.solver.eval_upto(addr, n, exact=kwargs.pop('exact', self._exact), **kwargs)
 
     def _range(self, memory, addr, **kwargs):
         """
