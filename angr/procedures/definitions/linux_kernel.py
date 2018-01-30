@@ -1415,7 +1415,7 @@ lib.add_number_mapping_from_dict("i386", {
     87: "swapon",
     88: "reboot",
     89: "readdir",
-    90: "mmap",
+    90: "old_mmap",
     91: "munmap",
     92: "truncate",
     93: "ftruncate",

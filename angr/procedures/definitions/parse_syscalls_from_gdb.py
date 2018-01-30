@@ -24,6 +24,8 @@ def main():
             for key in list(mapping):
                 if mapping[key].startswith('ARM_'):
                     mapping.pop(key)
+        elif abi == 'i386':
+            mapping[90] = 'old_mmap' # name the old mmap differently
 
         dump_mapping(abi, mapping)
         if abi == 'arm':
