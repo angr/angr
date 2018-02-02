@@ -74,3 +74,11 @@ lib.add_number_mapping_from_dict('MIPS64', {
     5012: 'brk',
     5058: 'exit',
 })
+
+lib.add_number_mapping_from_dict('ARMEL', {
+    1:  'exit',
+    3:  'read',
+    4:  'write',
+    5:  'open',
+    6:  'close',
+})

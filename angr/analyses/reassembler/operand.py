@@ -1,5 +1,5 @@
 import logging
-from .ramblr_utils import CAPSTONE_OP_TYPE_MAP, CAPSTONE_REG_MAP, OP_TYPE_MAP, OP_TYPE_IMM, OP_TYPE_REG, OP_TYPE_MEM
+from .ramblr_utils import CAPSTONE_OP_TYPE_MAP, CAPSTONE_REG_MAP, OP_TYPE_MAP, OP_TYPE_IMM, OP_TYPE_REG, OP_TYPE_MEM, OP_TYPE_OTHER
 from .ramblr_errors import BinaryError, InstructionError, ReassemblerFailureNotice
 l = logging.getLogger("angr.analyses.reassembler")
 
@@ -204,7 +204,11 @@ class Operand(object):
     #
 
     def _initialize(self, capstone_operand):
-        self.type = CAPSTONE_OP_TYPE_MAP[self.project.arch.name][capstone_operand.type]
+        try:
+            self.type = CAPSTONE_OP_TYPE_MAP[self.project.arch.name][capstone_operand.type]
+        except KeyError:
+            l.error("Unsupported operand type: %s %s", self.project.arch.name, capstone_operand.type)
+            raise
 
         if self.binary.project.arch.name == 'PPC32':
             l.warning("Disabling log_relocations for PPC32. Not sure what that really means...")
@@ -275,6 +279,11 @@ class Operand(object):
 
                 #l.info("Found mem reference to {}: 0x{:x}: {:x}".format(self.disp, self.insn_addr, imm))
                 self.binary.register_instruction_reference(self.insn_addr, self.disp, 'absolute', self.insn_size, self.binary.project.arch.name)
+
+        elif self.type == OP_TYPE_OTHER:
+            # TODO: Add support for other types of armel operands
+            l.warning("Ignoring operand of type OP_TYPE_OTHER: %s", capstone_operand.type)
+
 
     def _imm_to_ptr(self, imm, operand_type, mnemonic, arch_name=None):  # pylint:disable=no-self-use,unused-argument
         """

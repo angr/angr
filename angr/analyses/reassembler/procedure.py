@@ -171,7 +171,6 @@ class Procedure(object):
             assembly.append((self.addr, s))
         elif self.blocks:
             for b in sorted(self.blocks, key=lambda x:x.addr):  # type: BasicBlock
-                print("\tAssembling block at addr 0x{:x}".format(b.addr))
                 s = b.assemble_block(comments=comments, symbolized=symbolized)
                 assembly.append((b.addr, s))
 

@@ -13,6 +13,7 @@ from .. import Analysis, register_analysis
 
 from ...knowledge_base import KnowledgeBase
 from ...sim_variable import SimMemoryVariable, SimTemporaryVariable
+from ..cfg  import CFGArchOptions
 
 from .ramblr_utils import string_escape, ignore_function
 from .labels import Label, DataLabel, FunctionLabel, ObjectLabel, NotypeLabel
@@ -1034,12 +1035,22 @@ class Reassembler(Analysis):
                     assert(asm[-1].split("\t")[2] == "__libc_start_main")
                     # Find the last time r0 was set before the libc_start_main call (TODO: sort?)
                     for insn in asm:
+                        if len(insn.split("\t")) < 2:
+                            continue
+
                         op = insn.split("\t")[1]
                         if op != u"ldr":
                             continue
+
+                        if len(insn.split("\t")[2].split(",")) != 2:
+                            continue # For ops like ldr     r1, [sp], #4
+
                         reg, lbl = insn.split("\t")[2].split(",")
                         if reg == "r0":
                             main_lbl = lbl
+
+                    if not main_lbl:
+                        continue
 
                     if "." in main_lbl:
                         main_lbl = main_lbl.split(".")[-1]
@@ -1048,49 +1059,20 @@ class Reassembler(Analysis):
 
                     main_ptr_addr = proc.binary.symbol_manager.label_to_addr(main_lbl)
                     main_addr = proc.binary.fast_memory_load(main_ptr_addr, 4, int)
-                    l.info("Identified main function at 0x%x", main_addr)
+                    if main_addr:
+                        l.info("Identified main function at 0x%x", main_addr)
 
-#TODO: main is being created slightly too far into the program, why is this happening?
-# Maybe because the existing procedure that starts before main and includes the first part of it? We could identify and delete that
-# Or maybe it's just wrong by a constant
-# Also function() says it wants an address or a name, maybe it doesn't need both? but it does?
-
-                    if self.cfg.kb.functions.contains_addr(main_addr):
-                        print("An existing function contains the start of main. Oh no")
-
-                    base_fn = self.cfg.kb.functions.floor_func(main_addr)
-                    if base_fn:
-                        print("An existing function contains the start of main. Oh no: ", base_fn)
-                        #pdb.set_trace()
-                        #self.cfg.kb.functions.__delitem__(base_fn)
-
-
+# TODO: label main function correctly for libc-based binaries and then remove _start (the assembler can generate that for us)
+# The below code is failing when we incorrectly identify and create a procedure that the main function starts in the middle of
+                    """
                     proc.binary.symbol_manager.new_label(main_addr, name="main", is_function=True, dereference=False)
                     new_fn = self.cfg.kb.functions.function(addr=main_addr, name="main", create=True)
-                    #pdb.set_trace()
-
-                    for block in new_fn.block_addrs:
-                        print("Found block at 0x{:x}".format(block))
-
-                    procedure = Procedure(self, new_fn)
-
-                    pdb.set_trace()
-
-                    #maybe
-
-                    #Maybe?
-                    for proc in self.procedures:
-                        if proc.addr == main_addr-0x8:
-                            self.procedures[:] = [x for x in self.procedures if x.addr != main_addr-0x8]
-                            proc.addr = main_addr
-                            self.procedures.insert(0, proc)
-                            break
-
-        # TODO: we've labeled main but it's not a procedure so this loop doesn't run on it :(
+                    main_procedure = Procedure(self, new_fn, main_addr, 0x30, "main")
+                    self.procedures.append(main_procedure)
+                    """
 
         for proc in self.procedures:
             if not ignore_function(proc):
-                print("Assemble proc at 0x{:x}".format(proc.addr))
                 addr_and_assembly.extend(proc.assemble_proc(comments=comments, symbolized=symbolized))
 
         # sort it by the address - must be a stable sort!
@@ -1342,12 +1324,19 @@ class Reassembler(Analysis):
             self._section_alignments[section.name] = alignment
 
         l.debug('Generating CFG...')
+
+        arch_options = None
+
+        if self.project.arch in ['ARMEL']:
+            arch_options = CFGArchOptions(self.project.arch, ret_jumpkind_heuristics=True)
+
         cfg = self.project.analyses.CFG(normalize=True, resolve_indirect_jumps=True, collect_data_references=True,
                                         data_type_guessing_handlers=[
                                             self._sequence_handler,
                                             self._cgc_extended_application_handler,
                                             self._unknown_data_size_handler,
                                         ],
+                                        arch_options=arch_options
                                         )
 
         self.cfg = cfg

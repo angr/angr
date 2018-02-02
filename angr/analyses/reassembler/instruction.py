@@ -26,18 +26,6 @@ class Instruction(object):
         self.size = size
         self.bytes = insn_bytes
 
-        # GCC wants the condition (eq, ne, etc.) before the b
-        # TODO: configure capstone to return these in the right format or make sure we handle all of them
-
-        good_gccs = ["rsbne", "rsbeq", "rsblt", "beq", "bne", "blt"]
-        rewrites = {"beq": "eqb", "bne": "neb", "blt": "ltb", "heq": "eqh", "hne":"neh", "hlt":"lth"}
-        if capstone_instr.mnemonic.strip() not in good_gccs:
-            for k in rewrites.keys():
-                if capstone_instr.mnemonic.endswith(k):
-                    old = capstone_instr.mnemonic
-                    capstone_instr.mnemonic = capstone_instr.mnemonic[:-(len(k))]+rewrites[k]
-                    print "Transformed for GCC: {} -> {}".format(old, capstone_instr.mnemonic) #TODO: debug only
-
         self.mnemonic = capstone_instr.mnemonic
 
         self.op_str = capstone_instr.op_str

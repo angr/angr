@@ -7,11 +7,13 @@ import capstone
 OP_TYPE_REG = 1
 OP_TYPE_IMM = 2
 OP_TYPE_MEM = 3
+OP_TYPE_OTHER = 4
 
 OP_TYPE_MAP = {
     OP_TYPE_REG: 'REG',
     OP_TYPE_IMM: 'IMM',
     OP_TYPE_MEM: 'MEM',
+    OP_TYPE_OTHER: 'OTHER',
 }
 
 CAPSTONE_OP_TYPE_MAP = {
@@ -44,6 +46,9 @@ CAPSTONE_OP_TYPE_MAP = {
         capstone.arm.ARM_OP_REG: OP_TYPE_REG,
         capstone.arm.ARM_OP_IMM: OP_TYPE_IMM,
         capstone.arm.ARM_OP_MEM: OP_TYPE_MEM,
+        capstone.arm.ARM_OP_SYSREG: OP_TYPE_OTHER,
+        capstone.arm.ARM_OP_SETEND: OP_TYPE_OTHER,
+        capstone.arm.ARM_OP_PIMM: OP_TYPE_OTHER,
     },
 }
 
