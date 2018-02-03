@@ -36,7 +36,8 @@ class SimEngineVEX(SimEngine):
             default_opt_level=1,
             support_selfmodifying_code=None,
             single_step=False,
-            default_strict_block_end=False):
+            default_strict_block_end=False,
+            **kwargs):
 
         super(SimEngineVEX, self).__init__(project)
 
