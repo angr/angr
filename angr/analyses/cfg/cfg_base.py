@@ -1322,6 +1322,10 @@ class CFGBase(Analysis):
         :return: None
         """
 
+        # This function requires Capstone engine support
+        if not self.project.arch.capstone_support:
+            return
+
         for func_addr in self.kb.functions.keys():
             function = self.kb.functions[func_addr]
             if function.is_simprocedure or function.is_syscall:
