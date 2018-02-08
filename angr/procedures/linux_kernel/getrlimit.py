@@ -17,7 +17,7 @@ class getrlimit(angr.SimProcedure):
         if self.state.se.eval(resource) == 3:  # RLIMIT_STACK
             l.debug('running getrlimit(RLIMIT_STACK)')
             self.state.memory.store(rlim, 8388608, 8) # rlim_cur
-            self.state.memory.store(rlim+8, self.state.se.Unconstrained("rlim_max", 8*8), key=('api', 'rlimit', 'stack'))
+            self.state.memory.store(rlim+8, self.state.se.Unconstrained("rlim_max", 8*8, key=('api', 'rlimit', 'stack')))
             return 0
         else:
             l.debug('running getrlimit(other)')
