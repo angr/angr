@@ -3,9 +3,10 @@ from collections import defaultdict
 
 import networkx
 
-l = logging.getLogger("angr.analyses.cdg")
+from ..misc.graph import compute_dominance_frontier
+from . import Analysis, register_analysis
 
-from. import Analysis, register_analysis
+_l = logging.getLogger("angr.analyses.cdg")
 
 
 class TemporaryNode(object):
@@ -146,7 +147,7 @@ class CDG(Analysis):
         self._graph = networkx.DiGraph()
 
         # Construct the reversed dominance frontier mapping
-        rdf = self._df_construct(self._post_dom)
+        rdf = compute_dominance_frontier(self._normalized_cfg, self._post_dom)
 
         for y in self._cfg.graph.nodes():
             if y not in rdf:
@@ -181,47 +182,6 @@ class CDG(Analysis):
         loop_back_edges = self._cfg.get_loop_back_edges()
         for b1, b2 in loop_back_edges:
             self._graph.add_edge(b1, b2)
-
-    #
-    # Dominance frontier related
-    #
-
-    def _df_construct(self, postdom):
-        """
-        Construct a dominance frontier based on the given post-dominator tree.
-
-        This implementation is based on figure 2 of paper An Efficient Method of Computing Static Single Assignment
-        Form by Ron Cytron, etc.
-
-        :param postdom: The post-dominator tree
-        :returns:        A dict of dominance frontier
-        """
-
-        DF = { }
-
-        # Perform a post-order search on the post-dom tree
-        for x in networkx.dfs_postorder_nodes(postdom):
-            DF[x] = set()
-
-            # local set
-            for y in self._normalized_cfg.successors(x):
-                if x not in postdom.predecessors(y):
-                    DF[x].add(y)
-
-            # up set
-            if x is None:
-                continue
-
-            for z in postdom.successors(x):
-                if z is x:
-                    continue
-                if z not in DF:
-                    continue
-                for y in DF[z]:
-                    if x not in list(postdom.predecessors(y)):
-                        DF[x].add(y)
-
-        return DF
 
     #
     # Post-dominator tree related
@@ -315,7 +275,7 @@ class CDG(Analysis):
                 if b2 in self._post_dom:
                     self._post_dom.add_edge(b1, b2)
                 else:
-                    l.debug("%s is not in post dominator dict.", b2)
+                    _l.debug("%s is not in post dominator dict.", b2)
 
     def _pd_normalize_graph(self):
         # We want to reverse the CFG, and label each node according to its
@@ -369,7 +329,7 @@ class CDG(Analysis):
         graph.add_edge(container_nodes[n], ContainerNode(TemporaryNode("end_node")))
 
         all_nodes_count = len(traversed_nodes) + 2 # A start node and an end node
-        l.debug("There should be %d nodes in all", all_nodes_count)
+        _l.debug("There should be %d nodes in all", all_nodes_count)
         counter = 0
         vertices = [ ContainerNode("placeholder") ]
         scanned_nodes = set()
@@ -402,7 +362,7 @@ class CDG(Analysis):
             if counter >= all_nodes_count:
                 break
 
-            l.debug("%d nodes are left out during the DFS. They must formed a cycle themselves.", all_nodes_count - counter)
+            _l.debug("%d nodes are left out during the DFS. They must formed a cycle themselves.", all_nodes_count - counter)
             # Find those nodes
             leftovers = [ s for s in traversed_nodes if s not in scanned_nodes ]
             graph.add_edge(start_node, leftovers[0])
@@ -433,5 +393,6 @@ class CDG(Analysis):
             if self._semi[self._label[self._ancestor[v.index].index].index].index < self._semi[self._label[v.index].index].index:
                 self._label[v.index] = self._label[self._ancestor[v.index].index]
             self._ancestor[v.index] = self._ancestor[self._ancestor[v.index].index]
+
 
 register_analysis(CDG, 'CDG')
