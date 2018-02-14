@@ -212,6 +212,10 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._state_add_options = state_add_options if state_add_options is not None else set()
         self._state_remove_options = state_remove_options if state_remove_options is not None else set()
 
+        # add the track_memory_option if the enable function hint flag is set
+        if self._enable_function_hints and o.TRACK_MEMORY_ACTIONS not in self._state_add_options:
+            self._state_add_options.add(o.TRACK_MEMORY_ACTIONS)
+
         # more initialization
 
         self._symbolic_function_initial_state = {}
