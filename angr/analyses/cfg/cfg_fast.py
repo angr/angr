@@ -2078,7 +2078,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # For Soot, we return to the next statement, which is not necessarily the next block (as Shimple does
                 # not break blocks at calls)
                 assert isinstance(ins_addr, SootAddressDescriptor)
-                return_site = SootAddressDescriptor(ins_addr.method, ins_addr.block_idx, ins_addr.stmt_idx + 1)
+                soot_block = irsb
+                return_block_idx = ins_addr.block_idx
+                if stmt_idx + 1 >= soot_block.label + len(soot_block.statements):
+                    # tick the block ID
+                    return_block_idx += 1
+                return_site = SootAddressDescriptor(ins_addr.method, return_block_idx, stmt_idx + 1)
 
         if new_function_addr is not None:
             r = self._function_add_call_edge(new_function_addr, cfg_node, return_site, current_function_addr,

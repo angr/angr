@@ -1858,6 +1858,8 @@ class CFGBase(Analysis):
             if addr != fn.addr and addr in functions and functions[addr].is_plt:
                 plt_stubs.add(fn.addr)
 
+        return plt_stubs
+
     @staticmethod
     def _is_noop_block(vex_block):
         """

@@ -1,3 +1,6 @@
+
+import logging
+
 import networkx
 
 from claripy.utils.orderedset import OrderedSet
@@ -25,6 +28,8 @@ class GraphVisitor(object):
         self._sorted_nodes = OrderedSet()
         self._node_to_index = { }
         self._reached_fixedpoint = set()
+
+        self._l = logging.getLogger(self.__class__.__name__)
 
     #
     # Interfaces
@@ -162,7 +167,12 @@ class GraphVisitor(object):
             self._sorted_nodes.add(succ)
 
         # reorder it
-        self._sorted_nodes = OrderedSet(sorted(self._sorted_nodes, key=lambda n: self._node_to_index[n]))
+        try:
+            self._sorted_nodes = OrderedSet(sorted(self._sorted_nodes, key=lambda n: self._node_to_index[n]))
+        except KeyError:
+            # FIXME: Temporary bandaid
+            self._l.error("At least one node is not found in _node_to_index dict. Use -1 for their keys instead.")
+            self._sorted_nodes = OrderedSet(sorted(self._sorted_nodes, key=lambda n: self._node_to_index.get(n, -1)))
 
     def reached_fixedpoint(self, node):
         """
@@ -285,6 +295,34 @@ class SingleNodeGraphVisitor(GraphVisitor):
             return nodes
         else:
             return [ self.node ]
+
+class LoopVisitor(GraphVisitor):
+    def __init__(self, loop):
+
+        super(LoopVisitor, self).__init__()
+
+        self.loop = loop
+
+        self.reset()
+
+    def startpoints(self):
+
+        return [ self.loop.entry ]
+
+    def successors(self, node):
+        return self.loop.graph.successors(node)
+
+    def predecessors(self, node):
+        return self.loop.graph.predecessors(node)
+
+    def sort_nodes(self, nodes=None):
+
+        sorted_nodes = CFGUtils.quasi_topological_sort_nodes(self.loop.graph)
+
+        if nodes is not None:
+            sorted_nodes = [ n for n in sorted_nodes if n in set(nodes) ]
+
+        return sorted_nodes
 
 
 #

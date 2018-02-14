@@ -1,4 +1,8 @@
 import logging
+
+from .misc import repr_addr
+
+
 l = logging.getLogger("angr.codenode")
 
 
@@ -62,13 +66,33 @@ class BlockNode(CodeNode):
         self.bytestr = bytestr
 
     def __repr__(self):
-        return '<BlockNode at %#x (size %d)>' % (self.addr, self.size)
+        return '<BlockNode at %s (size %d)>' % (repr_addr(self.addr), self.size)
 
     def __getstate__(self):
         return (self.addr, self.size, self.bytestr, self.thumb)
 
     def __setstate__(self, dat):
         self.__init__(*dat[:-1], thumb=dat[-1])
+
+
+class SootBlockNode(BlockNode):
+
+    __slots__ = ['stmts']
+
+    def __init__(self, addr, size, stmts, **kwargs):
+        super(SootBlockNode, self).__init__(addr, size, **kwargs)
+        self.stmts = stmts
+
+        assert (stmts is None and size == 0) or (size == len(stmts))
+
+    def __repr__(self):
+        return '<SootBlockNode at %s (%d statements)>' % (repr_addr(self.addr), self.size)
+
+    def __getstate__(self):
+        return self.addr, self.size, self.stmts
+
+    def __setstate__(self, data):
+        self.__init__(*data)
 
 
 class HookNode(CodeNode):
@@ -81,7 +105,7 @@ class HookNode(CodeNode):
         self.sim_procedure = sim_procedure
 
     def __repr__(self):
-        return '<HookNode %r at %#x (size %s)>' % (self.sim_procedure, self.addr, self.size)
+        return '<HookNode %r at %s (size %s)>' % (self.sim_procedure, repr_addr(self.addr), self.size)
 
     def __hash__(self):
         return hash((self.addr, self.size, self.sim_procedure))

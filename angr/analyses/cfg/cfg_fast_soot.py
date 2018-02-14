@@ -1,13 +1,14 @@
 
 import logging
 
-from pysoot.sootir.soot_statement import IfStmt, InvokeStmt
+from pysoot.sootir.soot_statement import IfStmt, InvokeStmt, GotoStmt, AssignStmt
 from pysoot.sootir.soot_expr import SootInterfaceInvokeExpr, SootSpecialInvokeExpr, SootStaticInvokeExpr, \
-    SootVirtualInvokeExpr
+    SootVirtualInvokeExpr, SootInvokeExpr, SootDynamicInvokeExpr
 from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
 
 from .. import register_analysis
 from ...errors import AngrCFGError, SimMemoryError, SimEngineError
+from ...codenode import HookNode, SootBlockNode
 from .cfg_fast import CFGFast, CFGJob
 from .cfg_node import CFGNode
 
@@ -31,12 +32,13 @@ class CFGFastSoot(CFGFast):
 
         self._pre_analysis_common()
 
-        entry_func = self.project.entry
+        entry = self.project.entry  # type:SootAddressDescriptor
+        entry_func = entry.method
 
         obj = self.project.loader.main_object
 
         if entry_func is not None:
-            method_inst = obj.get_method(entry_func.name, cls_name=entry_func.class_name)[0]
+            method_inst = next(obj.get_method(entry_func.name, cls_name=entry_func.class_name))
         else:
             l.warning('The entry method is unknown. Try to find a main method.')
             method_inst = next(obj.main_methods, None)
@@ -57,8 +59,8 @@ class CFGFastSoot(CFGFast):
         # project.entry is a method
         # we should get the first block
         if method_inst.blocks:
-            block_label = method_inst.blocks[0].label
-            self._insert_job(CFGJob(SootAddressDescriptor(entry_func, block_label, 0), entry_func, 'Ijk_Boring'))
+            block_idx = method_inst.blocks[0].idx
+            self._insert_job(CFGJob(SootAddressDescriptor(entry_func, block_idx, 0), entry_func, 'Ijk_Boring'))
 
         # add all other methods as well
         """
@@ -73,6 +75,10 @@ class CFGFastSoot(CFGFast):
     def _pre_job_handling(self, job):
         pass
 
+    def normalize(self):
+        # The Shimple CFG is already normalized.
+        pass
+
     def _generate_cfgnode(self, addr, current_function_addr):
         try:
 
@@ -82,7 +88,10 @@ class CFGFastSoot(CFGFast):
             else:
                 soot_block = self.project.factory.block(addr).soot
 
-                cfg_node = CFGNode(addr, 0, self, function_address=current_function_addr, block_id=addr,
+                soot_block_size = self._soot_block_size(soot_block, addr.stmt_idx)
+
+                cfg_node = CFGNode(addr, soot_block_size, self,
+                                   function_address=current_function_addr, block_id=addr,
                                    soot_block=soot_block
                                    )
             return addr, current_function_addr, cfg_node, soot_block
@@ -103,46 +112,93 @@ class CFGFastSoot(CFGFast):
         # soot method
         method = next(self.project.loader.main_object.get_method(function_id))
 
-        block_id = block.label
+        block_id = block.idx
 
         if addr.stmt_idx is None:
             addr = SootAddressDescriptor(addr.method, block_id, 0)
 
         successors = [ ]
 
-        next_stmt_id = block_id + len(block.statements)
+        has_default_exit = True
+
+        next_stmt_id = block.label + len(block.statements)
         last_stmt_id = method.blocks[-1].label + len(method.blocks[-1].statements) - 1
 
-        if next_stmt_id < last_stmt_id:
-            # there is a default exit going to the next block
-            successors.append(('default', addr,
-                               SootAddressDescriptor(function_id, block_id, next_stmt_id), 'Ijk_Boring'))
+        if next_stmt_id >= last_stmt_id:
+            # there should not be a default exit going to the next block
+            has_default_exit = False
 
         # scan through block statements, looking for those that generate new exits
-        for stmt in block.statements:
+        for stmt in block.statements[addr.stmt_idx - block.label : ]:
             if isinstance(stmt, IfStmt):
-                succ = (stmt.label, addr, SootAddressDescriptor(function_id, stmt.target), 'Ijk_Boring')
+                succ = (stmt.label, addr,
+                        SootAddressDescriptor(function_id, method.block_by_label[stmt.target].idx, stmt.target),
+                        'Ijk_Boring'
+                        )
                 successors.append(succ)
+
             elif isinstance(stmt, InvokeStmt):
                 invoke_expr = stmt.invoke_expr
 
-                method_class = invoke_expr.class_name
-                method_name = invoke_expr.method_name
-                method_params = invoke_expr.method_params
-                method_desc = SootMethodDescriptor(method_class, method_name, method_params)
+                succ = self._soot_create_invoke_successor(stmt, addr, invoke_expr)
+                if succ is not None:
+                    successors.append(succ)
+                    has_default_exit = False
+                    break
 
-                if isinstance(invoke_expr, SootInterfaceInvokeExpr):
-                    successors.append((stmt.label, addr, SootAddressDescriptor(method_desc, None, None), 'Ijk_Call'))
-                elif isinstance(invoke_expr, SootStaticInvokeExpr):
-                    successors.append((stmt.label, addr, SootAddressDescriptor(method_desc, None, None), 'Ijk_Call'))
-                elif isinstance(invoke_expr, SootVirtualInvokeExpr):
-                    successors.append((stmt.label, addr, SootAddressDescriptor(method_desc, None, None), 'Ijk_Call'))
-                elif isinstance(invoke_expr, SootSpecialInvokeExpr):
-                    successors.append((stmt.label, addr, SootAddressDescriptor(method_desc, None, None), 'Ijk_Call'))
-                else:
-                    raise Exception("WTF")
+            elif isinstance(stmt, GotoStmt):
+                target = stmt.target
+                succ = (stmt.label, addr, SootAddressDescriptor(function_id, method.block_by_label[target].idx, target),
+                        'Ijk_Boring')
+                successors.append(succ)
+
+                # blocks ending with a GoTo should not have a default exit
+                has_default_exit = False
+                break
+
+            elif isinstance(stmt, AssignStmt):
+
+                expr = stmt.right_op
+
+                if isinstance(expr, SootInvokeExpr):
+                    succ = self._soot_create_invoke_successor(stmt, addr, expr)
+                    if succ is not None:
+                        successors.append(succ)
+                        has_default_exit = False
+                        break
+
+
+        if has_default_exit:
+            successors.append(('default', addr,
+                               SootAddressDescriptor(function_id, method.block_by_label[next_stmt_id].idx, next_stmt_id),
+                               'Ijk_Boring'
+                               )
+                              )
 
         return successors
+
+    def _soot_create_invoke_successor(self, stmt, addr, invoke_expr):
+
+        method_class = invoke_expr.class_name
+        method_name = invoke_expr.method_name
+        method_params = invoke_expr.method_params
+        method_desc = SootMethodDescriptor(method_class, method_name, method_params)
+
+        if isinstance(invoke_expr, SootInterfaceInvokeExpr):
+            successor = (stmt.label, addr, SootAddressDescriptor(method_desc, 0, 0), 'Ijk_Call')
+        elif isinstance(invoke_expr, SootStaticInvokeExpr):
+            successor = (stmt.label, addr, SootAddressDescriptor(method_desc, 0, 0), 'Ijk_Call')
+        elif isinstance(invoke_expr, SootVirtualInvokeExpr):
+            successor = (stmt.label, addr, SootAddressDescriptor(method_desc, 0, 0), 'Ijk_Call')
+        elif isinstance(invoke_expr, SootSpecialInvokeExpr):
+            successor = (stmt.label, addr, SootAddressDescriptor(method_desc, 0, 0), 'Ijk_Call')
+        elif isinstance(invoke_expr, SootDynamicInvokeExpr):
+            # TODO:
+            successor = None
+        else:
+            raise Exception("WTF")
+
+        return successor
 
     def _create_entries_filter_target(self, target):
         """
@@ -162,6 +218,57 @@ class CFGFastSoot(CFGFast):
     def _get_plt_stubs(self, functions):
 
         return set()
+
+    def _to_snippet(self, cfg_node=None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None):
+
+        assert thumb is False
+
+        if cfg_node is not None:
+            addr = cfg_node.addr
+            stmts_count = cfg_node.size
+        else:
+            addr = addr
+            stmts_count = size
+
+        if addr is None:
+            raise ValueError('_to_snippet(): Either cfg_node or addr must be provided.')
+
+        if self.project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
+            hooker = self.project._sim_procedures[addr]
+            size = hooker.kwargs.get('length', 0)
+            return HookNode(addr, size, type(hooker))
+
+        if cfg_node is not None:
+            soot_block = cfg_node.soot_block
+        else:
+            soot_block = self.project.factory.block(addr).soot
+
+        if soot_block is not None:
+            stmts = soot_block.statements
+            if stmts_count is None:
+                stmts_count = self._soot_block_size(soot_block, addr.stmt_idx)
+            stmts = stmts[addr.stmt_idx - soot_block.label : addr.stmt_idx - soot_block.label + stmts_count]
+        else:
+            stmts = None
+            stmts_count = 0
+
+        return SootBlockNode(addr, stmts_count, stmts)
+
+    def _soot_block_size(self, soot_block, start_stmt_idx):
+
+        if soot_block is None:
+            return 0
+
+        stmts_count = 0
+
+        for stmt in soot_block.statements[start_stmt_idx - soot_block.label : ]:
+            stmts_count += 1
+            if isinstance(stmt, (InvokeStmt, GotoStmt)):
+                break
+            if isinstance(stmt, AssignStmt) and isinstance(stmt.right_op, SootInvokeExpr):
+                break
+
+        return stmts_count
 
 
 register_analysis(CFGFastSoot, 'CFGFastSoot')
