@@ -1194,7 +1194,7 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # We store the function hints first. Function hints will be checked at the end of the analysis to avoid
         # any duplication with existing jumping targets
         if self._enable_function_hints:
-            if sim_successors.sort == 'IRSB':
+            if sim_successors.sort == 'IRSB' and sim_successors.all_successors:
                 function_hints = self._search_for_function_hints(sim_successors.all_successors[0])
                 for f in function_hints:
                     self._pending_function_hints.add(f)
@@ -1642,7 +1642,8 @@ class CFGAccurate(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # Fix target_addr for syscalls
         if suc_jumpkind.startswith("Ijk_Sys"):
-            target_addr = self.project.simos.syscall(new_state).addr
+            if self.project.simos.syscall(new_state):
+                target_addr = self.project.simos.syscall(new_state).addr
 
         self._pre_handle_successor_state(job.extra_info, suc_jumpkind, target_addr)
 
