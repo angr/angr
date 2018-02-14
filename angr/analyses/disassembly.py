@@ -290,13 +290,48 @@ class SootExpression(DisassemblyPiece):
         return [self.expr]
 
 
-class SootTargetExpression(SootExpression):
+class SootExpressionTarget(SootExpression):
     def __init__(self, target_stmt_idx):
-        super(SootTargetExpression, self).__init__(target_stmt_idx)
+        super(SootExpressionTarget, self).__init__(target_stmt_idx)
         self.target_stmt_idx = target_stmt_idx
 
     def _render(self, formatting=None):
         return [ "Goto %d" % self.target_stmt_idx ]
+
+
+class SootExpressionStaticFieldRef(SootExpression):
+    def __init__(self, field):
+        field_str = ".".join(field)
+        super(SootExpressionStaticFieldRef, self).__init__(field_str)
+        self.field = field
+        self.field_str = field_str
+
+    def _render(self, formatting=None):
+        return [ self.field_str ]
+
+
+class SootExpressionInvoke(SootExpression):
+
+    Virtual = "virtual"
+    Static = "static"
+
+    def __init__(self, invoke_type, expr):
+
+        super(SootExpressionInvoke, self).__init__(str(expr))
+
+        self.invoke_type = invoke_type
+        self.base = str(expr.base) if self.invoke_type == self.Virtual else ""
+        self.method_name = expr.method_name
+        self.arg_str = expr.list_to_arg_str(expr.args)
+
+    def _render(self, formatting=None):
+
+        return [ "%s%s(%s) [%s]" % (self.base + "." if self.base else "",
+                                    self.method_name,
+                                    self.arg_str,
+                                    self.invoke_type
+                                    )
+                 ]
 
 
 class SootStatement(DisassemblyPiece):
@@ -320,8 +355,18 @@ class SootStatement(DisassemblyPiece):
         if hasattr(self, func):
             getattr(self, func)()
         else:
-            print func
+            # print func
             self.components += ["NotImplemented"]
+
+    def _expr(self, expr):
+
+        func = "_handle_%s" % expr.__class__.__name__
+
+        if hasattr(self, func):
+            return getattr(self, func)(expr)
+        else:
+            # print func
+            return SootExpression(str(expr))
 
     def _render(self, formatting=None):
         return [ " ".join([ component if type(component) is str
@@ -340,19 +385,19 @@ class SootStatement(DisassemblyPiece):
         self.components += [
             SootExpression(str(self.raw_stmt.left_op)),
             "=",
-            SootExpression(str(self.raw_stmt.right_op)),
+            self._expr(self.raw_stmt.right_op),
         ]
 
     def _parse_InvokeStmt(self):
 
         self.components += [
-            SootExpression(str(self.raw_stmt.invoke_expr)),
+            self._expr(self.raw_stmt.invoke_expr),
         ]
 
     def _parse_GotoStmt(self):
 
         self.components += [
-            SootTargetExpression(self.raw_stmt.target),
+            SootExpressionTarget(self.raw_stmt.target),
         ]
 
     def _parse_IfStmt(self):
@@ -361,7 +406,7 @@ class SootStatement(DisassemblyPiece):
             "if (",
             SootExpression(str(self.raw_stmt.condition)),
             ")",
-            SootTargetExpression(self.raw_stmt.target),
+            SootExpressionTarget(self.raw_stmt.target),
         ]
 
     def _parse_ReturnVoidStmt(self):
@@ -377,6 +422,22 @@ class SootStatement(DisassemblyPiece):
             "<-",
             SootExpression(str(self.raw_stmt.right_op)),
         ]
+
+    #
+    # Expression handlers
+    #
+
+    def _handle_SootStaticFieldRef(self, expr):
+
+        return SootExpressionStaticFieldRef(expr.field[::-1])
+
+    def _handle_SootVirtualInvokeExpr(self, expr):
+
+        return SootExpressionInvoke(SootExpressionInvoke.Virtual, expr)
+
+    def _handle_SootStaticInvokeExpr(self, expr):
+
+        return SootExpressionInvoke(SootExpressionInvoke.Static, expr)
 
 
 class Opcode(DisassemblyPiece):
