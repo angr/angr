@@ -5,7 +5,7 @@ from collections import defaultdict
 from . import Analysis
 
 from .disassembly_utils import decode_instruction
-from ..block import CapstoneInsn
+from ..block import CapstoneInsn, SootBlockNode
 
 l = logging.getLogger(name=__name__)
 
@@ -278,6 +278,103 @@ class Instruction(DisassemblyPiece):
 
     def _render(self, formatting=None):
         return ['%s %s' % (self.opcode.render(formatting)[0], ', '.join(o.render(formatting)[0] for o in self.operands))]
+
+
+class SootExpression(DisassemblyPiece):
+    def __init__(self, expr):
+        self.expr = expr
+
+    def _render(self, formatting=None):
+        return [self.expr]
+
+
+class SootTargetExpression(SootExpression):
+    def __init__(self, target_stmt_idx):
+        super(SootTargetExpression, self).__init__(target_stmt_idx)
+        self.target_stmt_idx = target_stmt_idx
+
+    def _render(self, formatting=None):
+        return [ "Goto %d" % self.target_stmt_idx ]
+
+
+class SootStatement(DisassemblyPiece):
+    def __init__(self, block_addr, raw_stmt):
+        self.addr = block_addr.copy()
+        self.addr.stmt_idx = raw_stmt.label
+        self.raw_stmt = raw_stmt
+
+        self.components = [ ]
+
+        self._parse()
+
+    @property
+    def stmt_idx(self):
+        return self.addr.stmt_idx
+
+    def _parse(self):
+
+        func = "_parse_%s" % self.raw_stmt.__class__.__name__
+
+        if hasattr(self, func):
+            getattr(self, func)()
+        else:
+            print func
+            self.components += ["NotImplemented"]
+
+    def _render(self, formatting=None):
+        return [ " ".join([ component if type(component) is str
+                            else component.render(formatting=formatting)[0]
+                            for component in self.components
+                            ]
+                          )
+                 ]
+
+    #
+    # Statement parsers
+    #
+
+    def _parse_AssignStmt(self):
+
+        self.components += [
+            SootExpression(str(self.raw_stmt.left_op)),
+            "=",
+            SootExpression(str(self.raw_stmt.right_op)),
+        ]
+
+    def _parse_InvokeStmt(self):
+
+        self.components += [
+            SootExpression(str(self.raw_stmt.invoke_expr)),
+        ]
+
+    def _parse_GotoStmt(self):
+
+        self.components += [
+            SootTargetExpression(self.raw_stmt.target),
+        ]
+
+    def _parse_IfStmt(self):
+
+        self.components += [
+            "if (",
+            SootExpression(str(self.raw_stmt.condition)),
+            ")",
+            SootTargetExpression(self.raw_stmt.target),
+        ]
+
+    def _parse_ReturnVoidStmt(self):
+
+        self.components += [
+            "return",
+        ]
+
+    def _parse_IdentityStmt(self):
+
+        self.components += [
+            SootExpression(str(self.raw_stmt.left_op)),
+            "<-",
+            SootExpression(str(self.raw_stmt.right_op)),
+        ]
 
 
 class Opcode(DisassemblyPiece):
@@ -620,7 +717,7 @@ class Disassembly(Analysis):
             self.raw_result.append(hook)
             self.raw_result_map['hooks'][block.addr] = hook
 
-        else:
+        elif self.project.arch.capstone_support:
             if block.thumb:
                 aligned_block_addr = (block.addr >> 1) << 1
                 cs = self.project.arch.capstone_thumb
@@ -645,6 +742,14 @@ class Disassembly(Analysis):
                 self.raw_result.append(instruction)
                 self.raw_result_map['instructions'][instruction.addr] = instruction
                 self.block_to_insn_addrs[block.addr].append(cs_insn.address)
+        elif type(block) is SootBlockNode:
+            for raw_stmt in block.stmts:
+                stmt = SootStatement(block.addr, raw_stmt)
+                self.raw_result.append(stmt)
+                self.raw_result_map['instructions'][stmt.addr] = stmt
+                self.block_to_insn_addrs[block.addr].append(stmt.addr)
+        else:
+            raise TypeError("")
 
     def render(self, formatting=None):
         if formatting is None: formatting = {}

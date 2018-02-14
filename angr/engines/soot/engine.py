@@ -27,7 +27,7 @@ class SimEngineSoot(SimEngine):
     def lift(self, addr=None, the_binary=None, **kwargs):
         assert isinstance(addr, SootAddressDescriptor)
 
-        method, label = addr.method, addr.stmt_idx
+        method, stmt_idx = addr.method, addr.stmt_idx
 
         try:
             methods = the_binary.get_method(method)
@@ -35,10 +35,24 @@ class SimEngineSoot(SimEngine):
         except CLEError as ex:
             raise SimTranslationError("CLE error: " + ex.message)
 
-        if label is None:
+        if stmt_idx is None:
             return method.blocks[0] if method.blocks else None
         else:
-            return method.block_by_label.get(label, None)
+            #try:
+            #    _, block = method.block_by_label.floor_item(stmt_idx)
+            #except KeyError:
+            #    return None
+            #return block
+            # TODO: Re-enable the above code once bintrees are used
+
+            block = method.block_by_label.get(stmt_idx, None)
+            if block is not None:
+                return block
+            # Slow path
+            for block in method.blocks:
+                if block.label <= stmt_idx < block.label + len(block.statements):
+                    return block
+            return None
 
     def _check(self, state, *args, **kwargs):
         return state.regs._ip_binary is not None and isinstance(state._ip, SootAddressDescriptor)

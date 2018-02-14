@@ -10,6 +10,7 @@ from itanium_demangler import parse
 import claripy
 from ...errors import SimEngineError, SimMemoryError
 from ...procedures import SIM_LIBRARIES
+from ...misc import repr_addr
 
 l = logging.getLogger(name=__name__)
 
@@ -434,7 +435,7 @@ class Function:
             return False
 
     def __str__(self):
-        s = 'Function %s [%#x]\n' % (self.name, self.addr)
+        s = 'Function %s [%s]\n' % (self.name, repr_addr(self.addr))
         s += '  Syscall: %s\n' % self.is_syscall
         s += '  SP difference: %d\n' % self.sp_delta
         s += '  Has return: %s\n' % self.has_return
@@ -442,14 +443,14 @@ class Function:
         s += '  Arguments: reg: %s, stack: %s\n' % \
             (self._argument_registers,
              self._argument_stack_variables)
-        s += '  Blocks: [%s]\n' % ", ".join(['%#x' % i for i in self.block_addrs])
+        s += '  Blocks: [%s]\n' % ", ".join([ repr_addr(block_addr) for block_addr in self.block_addrs])
         s += "  Calling convention: %s" % self.calling_convention
         return s
 
     def __repr__(self):
         if self.is_syscall:
-            return '<Syscall function %s (%#x)>' % (self.name, self.addr)
-        return '<Function %s (%#x)>' % (self.name, self.addr)
+            return '<Syscall function %s (%s)>' % (self.name, repr_addr(self.addr))
+        return '<Function %s (%s)>' % (self.name, repr_addr(self.addr))
 
     @property
     def endpoints(self):
@@ -1099,7 +1100,7 @@ class Function:
         if self.calling_convention is not None:
             self.calling_convention.args = None
             self.calling_convention.func_ty = proto
-            
+
     def _addr_to_funcloc(self, addr):
 
         # FIXME

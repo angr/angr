@@ -242,8 +242,16 @@ class SootBlock(object):
         return self._soot_engine.lift(self.addr, the_binary=self._the_binary)
 
     @property
+    def size(self):
+        stmts = None if self.soot is None else self.soot.statements
+        stmts_len = len(stmts) if stmts else 0
+        return stmts_len
+
+    @property
     def codenode(self):
-        return BlockNode(self.addr, 0)
+        stmts = None if self.soot is None else self.soot.statements
+        stmts_len = len(stmts) if stmts else 0
+        return SootBlockNode(self.addr, stmts_len, stmts=stmts)
 
 
 class CapstoneBlock(object):
@@ -287,4 +295,4 @@ class CapstoneInsn(object):
         return '<CapstoneInsn "%s" for %#x>' % (self.mnemonic, self.address)
 
 
-from .codenode import BlockNode
+from .codenode import BlockNode, SootBlockNode
