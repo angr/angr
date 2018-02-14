@@ -17,7 +17,8 @@ class JavaSimProcedure(angr.SimProcedure):
     def _setup_args(self, inst, state, arguments):
         ie = state.scratch.invoke_expr
         all_args = list()
-        all_args.append(ie.base)
+        if hasattr(ie, "base"):
+            all_args.append(ie.base)
         all_args += ie.args
         sim_args = [ ]
         for arg in all_args:

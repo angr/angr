@@ -10,5 +10,5 @@ class Exit(JavaSimProcedure):
         ("java.lang.System", "exit(int)"),
     )
 
-    def run(self, this, exit_code):
+    def run(self, exit_code):
         self.exit(exit_code)
