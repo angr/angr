@@ -3301,109 +3301,109 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # we should update the function address.
                     current_function_addr = cfg_node.function_address
 
+                return addr, current_function_addr, cfg_node, irsb
+
+            is_arm_arch = True if self.project.arch.name in ('ARMHF', 'ARMEL') else False
+
+            if is_arm_arch:
+                real_addr = addr & (~1)
             else:
+                real_addr = addr
 
-                is_arm_arch = True if self.project.arch.name in ('ARMHF', 'ARMEL') else False
-
-                if is_arm_arch:
-                    real_addr = addr & (~1)
-                else:
-                    real_addr = addr
-
-                # if possible, check the distance between `addr` and the end of this section
-                distance = None
-                obj = self.project.loader.find_object_containing(addr)
-                if obj:
-                    # is there a section?
-                    has_executable_section = len([ sec for sec in obj.sections if sec.is_executable ]) > 0  # pylint:disable=len-as-condition
-                    section = self._addr_belongs_to_section(addr)
-                    if has_executable_section and section is None:
-                        # the basic block should not exist here...
+            # if possible, check the distance between `addr` and the end of this section
+            distance = None
+            obj = self.project.loader.find_object_containing(addr)
+            if obj:
+                # is there a section?
+                has_executable_section = len([ sec for sec in obj.sections if sec.is_executable ]) > 0  # pylint:disable=len-as-condition
+                section = self._addr_belongs_to_section(addr)
+                if has_executable_section and section is None:
+                    # the basic block should not exist here...
+                    return None, None, None, None
+                if section is not None:
+                    if not section.is_executable:
+                        # the section is not executable...
                         return None, None, None, None
-                    if section is not None:
-                        if not section.is_executable:
-                            # the section is not executable...
-                            return None, None, None, None
-                        distance = section.vaddr + section.memsize - real_addr
-                        distance = min(distance, VEX_IRSB_MAX_SIZE)
-                    # TODO: handle segment information as well
+                    distance = section.vaddr + section.memsize - real_addr
+                    distance = min(distance, VEX_IRSB_MAX_SIZE)
+                # TODO: handle segment information as well
 
-                # also check the distance between `addr` and the closest function.
-                # we don't want to have a basic block that spans across function boundaries
-                next_func = self.functions.ceiling_func(addr)
-                if next_func is not None:
-                    distance_to_func = (next_func.addr & (~1) if is_arm_arch else next_func.addr) - real_addr
-                    if distance_to_func != 0:
-                        if distance is None:
-                            distance = distance_to_func
-                        else:
-                            distance = min(distance, distance_to_func)
+            # also check the distance between `addr` and the closest function.
+            # we don't want to have a basic block that spans across function boundaries
+            next_func = self.functions.ceiling_func(addr)
+            if next_func is not None:
+                distance_to_func = (next_func.addr & (~1) if is_arm_arch else next_func.addr) - real_addr
+                if distance_to_func != 0:
+                    if distance is None:
+                        distance = distance_to_func
+                    else:
+                        distance = min(distance, distance_to_func)
 
-                # Let's try to create the pyvex IRSB directly, since it's much faster
+            # Let's try to create the pyvex IRSB directly, since it's much faster
+            nodecode = False
+            irsb = None
+            irsb_string = None
+            try:
+                lifted_block = self._lift(addr, size=distance)
+                irsb = lifted_block.vex
+                irsb_string = lifted_block.bytes[:irsb.size]
+            except SimTranslationError:
+                nodecode = True
+
+            if (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode') and \
+                    is_arm_arch and \
+                    self._arch_options.switch_mode_on_nodecode:
+                # maybe the current mode is wrong?
                 nodecode = False
-                irsb = None
-                irsb_string = None
+                if addr % 2 == 0:
+                    addr_0 = addr + 1
+                else:
+                    addr_0 = addr - 1
+
+                if addr_0 in self._nodes:
+                    # it has been analyzed before
+                    cfg_node = self._nodes[addr_0]
+                    irsb = cfg_node.irsb
+                    return addr_0, cfg_node.function_address, cfg_node, irsb
+
                 try:
-                    lifted_block = self._lift(addr, size=distance)
+                    lifted_block = self._lift(addr_0, size=distance)
                     irsb = lifted_block.vex
                     irsb_string = lifted_block.bytes[:irsb.size]
                 except SimTranslationError:
                     nodecode = True
 
-                if (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode') and \
-                        is_arm_arch and \
-                        self._arch_options.switch_mode_on_nodecode:
-                    # maybe the current mode is wrong?
-                    nodecode = False
-                    if addr % 2 == 0:
-                        addr_0 = addr + 1
-                    else:
-                        addr_0 = addr - 1
+                if not (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode'):
+                    # it is decodeable
+                    if current_function_addr == addr:
+                        current_function_addr = addr_0
+                    addr = addr_0
 
-                    if addr_0 in self._nodes:
-                        # it has been analyzed before
-                        cfg_node = self._nodes[addr_0]
-                        irsb = cfg_node.irsb
-                        return addr_0, cfg_node.function_address, cfg_node, irsb
+            if nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode':
+                # decoding error
+                # we still occupy that location since it cannot be decoded anyways
+                if irsb is None:
+                    irsb_size = 1
+                else:
+                    irsb_size = irsb.size if irsb.size > 0 else 1
+                self._seg_list.occupy(addr, irsb_size, 'nodecode')
+                return None, None, None, None
 
-                    try:
-                        lifted_block = self._lift(addr_0, size=distance)
-                        irsb = lifted_block.vex
-                        irsb_string = lifted_block.bytes[:irsb.size]
-                    except SimTranslationError:
-                        nodecode = True
+            is_thumb = False
+            # Occupy the block in segment list
+            if irsb.size > 0:
+                if is_arm_arch and addr % 2 == 1:
+                    # thumb mode
+                    is_thumb=True
+                self._seg_list.occupy(real_addr, irsb.size, "code")
 
-                    if not (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode'):
-                        # it is decodeable
-                        if current_function_addr == addr:
-                            current_function_addr = addr_0
-                        addr = addr_0
+            # Create a CFG node, and add it to the graph
+            cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, block_id=addr,
+                               irsb=irsb, thumb=is_thumb, byte_string=irsb_string,
+                               )
 
-                if nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode':
-                    # decoding error
-                    # we still occupy that location since it cannot be decoded anyways
-                    if irsb is None:
-                        irsb_size = 1
-                    else:
-                        irsb_size = irsb.size if irsb.size > 0 else 1
-                    self._seg_list.occupy(addr, irsb_size, 'nodecode')
-                    return None, None, None, None
-
-                is_thumb = False
-                # Occupy the block in segment list
-                if irsb.size > 0:
-                    if is_arm_arch and addr % 2 == 1:
-                        # thumb mode
-                        is_thumb=True
-                    self._seg_list.occupy(real_addr, irsb.size, "code")
-
-                # Create a CFG node, and add it to the graph
-                cfg_node = CFGNode(addr, irsb.size, self, function_address=current_function_addr, block_id=addr,
-                                   irsb=irsb, thumb=is_thumb, byte_string=irsb_string,
-                                   )
-
-                self._nodes[addr] = cfg_node
-                self._nodes_by_addr[addr].append(cfg_node)
+            self._nodes[addr] = cfg_node
+            self._nodes_by_addr[addr].append(cfg_node)
 
             return addr, current_function_addr, cfg_node, irsb
 
