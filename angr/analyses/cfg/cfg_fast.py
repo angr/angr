@@ -2378,6 +2378,31 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return jobs
 
+    def _pop_pending_job(self):
+        """
+        Scan through the pending job list and pop the first pending job which must return from the source function
+        (callee function).
+
+        :return:  The popped pending job, or None if we are not sure which job to take.
+        """
+
+        job_index = None
+        for i, job in enumerate(self._pending_jobs):
+            src_func_addr = job.returning_source
+            if src_func_addr is None or src_func_addr not in self.kb.functions:
+                continue
+            function = self.kb.functions[src_func_addr]
+            if function.returning is True:
+                job_index = i
+                break
+
+        if job_index is not None:
+            the_job = self._pending_jobs[job_index]
+            del self._pending_jobs[job_index]
+            return the_job
+
+        return None
+
     # Data reference processing
 
     def _collect_data_references(self, irsb, irsb_addr):

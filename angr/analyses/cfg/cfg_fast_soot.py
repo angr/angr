@@ -23,6 +23,8 @@ class CFGFastSoot(CFGFast):
 
         super(CFGFastSoot, self).__init__(**kwargs)
 
+        self._total_methods = None
+
     def _initialize_regions(self, exclude_sparse_regions, skip_specific_regions, force_segment, base_state,
                            initial_regions=None):
         # Don't do anything
@@ -62,22 +64,38 @@ class CFGFastSoot(CFGFast):
             block_idx = method_inst.blocks[0].idx
             self._insert_job(CFGJob(SootAddressDescriptor(entry_func, block_idx, 0), entry_func, 'Ijk_Boring'))
 
+        total_methods = 0
+
         # add all other methods as well
-        """
-        for cls in self.project.loader.main_bin.classes.values():
+        for cls in self.project.loader.main_object.classes.values():
             for method in cls.methods:
+                total_methods += 1
                 if method.blocks:
-                    func = cls.name + "." + method.name
-                    block_label = method.blocks[0].label
-                    self._insert_entry(CFGJob((func, block_label), func, 'Ijk_Boring'))
-        """
+                    method_des = SootMethodDescriptor(cls.name, method.name, method.params)
+                    block_idx = method.blocks[0].label
+                    self._insert_job(CFGJob(SootAddressDescriptor(method_des, block_idx, 0), method_des, 'Ijk_Boring'))
+
+        self._total_methods = total_methods
 
     def _pre_job_handling(self, job):
-        pass
+
+        if self._show_progressbar or self._progress_callback:
+            if self._total_methods:
+                percentage = len(self.functions) * 100.0 / self._total_methods
+                self._update_progress(percentage)
 
     def normalize(self):
         # The Shimple CFG is already normalized.
         pass
+
+    def _pop_pending_job(self):
+
+        # We are assuming all functions must return
+        # TODO: Keep a map of library functions that do not return.
+
+        if self._pending_jobs:
+            return self._pending_jobs.pop(0)
+        return None
 
     def _generate_cfgnode(self, addr, current_function_addr):
         try:
