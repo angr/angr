@@ -91,7 +91,7 @@ def test_graph_0():
 
 def test_dominance_frontiers():
 
-    from angr.misc.graph import compute_dominance_frontier
+    from angr.utils.graph import compute_dominance_frontier
 
     # This graph comes from Fig.1 of paper An Efficient Method of Computing Static Single Assignment Form by Ron Cytron,
     # etc.

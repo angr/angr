@@ -3,7 +3,7 @@ from collections import defaultdict
 
 import networkx
 
-from ..misc.graph import compute_dominance_frontier, PostDominators, TemporaryNode
+from ..utils.graph import compute_dominance_frontier, PostDominators, TemporaryNode
 from . import Analysis, register_analysis
 
 _l = logging.getLogger("angr.analyses.cdg")
@@ -146,7 +146,7 @@ class CDG(Analysis):
 
     def _pd_construct(self):
 
-        pdoms = PostDominators(self._acyclic_cfg.graph, self._entry, successors_func=self._pd_graph_successors)
+        pdoms = PostDominators(self._acyclic_cfg, self._entry, successors_func=self._pd_graph_successors)
 
         self._post_dom = pdoms.post_dom
 
@@ -161,7 +161,7 @@ class CDG(Analysis):
 
         if type(node) is TemporaryNode:
             # This is for testing
-            successors = graph.successors(node)
+            successors = graph.graph.successors(node)
         else:
             # Real CFGNode!
             successors = graph.get_successors(node)

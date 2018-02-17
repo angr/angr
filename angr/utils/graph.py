@@ -125,7 +125,7 @@ class PostDominators(object):
 
     def __init__(self, graph, entry_node, successors_func=None):
 
-        self._l = logging.getLogger("misc.graph.post_dominators")
+        self._l = logging.getLogger("utils.graph.post_dominators")
         self._graph_successors_func = successors_func
 
         # Temporary variables

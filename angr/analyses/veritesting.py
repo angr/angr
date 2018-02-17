@@ -8,7 +8,7 @@ from .. import options as o
 from ..knowledge_base import KnowledgeBase
 from ..errors import AngrError, AngrCFGError
 from ..manager import SimulationManager
-from ..misc.graph import shallow_reverse
+from ..utils.graph import shallow_reverse
 from . import Analysis, register_analysis
 
 l = logging.getLogger("angr.analyses.veritesting")
