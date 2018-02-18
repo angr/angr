@@ -96,11 +96,6 @@ def test_dominance_frontiers():
     # This graph comes from Fig.1 of paper An Efficient Method of Computing Static Single Assignment Form by Ron Cytron,
     # etc.
 
-    # Create a project with a random binary - it will not be used anyways
-    p = angr.Project(test_location + "/x86_64/datadep_test",
-                     load_options={'auto_load_libs': False},
-                     use_sim_procedures=True)
-
     # Create our mock control flow graph
     g = networkx.DiGraph()
     g.add_edge('Entry', 1)

@@ -1,5 +1,4 @@
 import logging
-from collections import defaultdict
 
 import networkx
 
@@ -119,14 +118,14 @@ class CDG(Analysis):
         Pre-process the acyclic CFG.
         - Change all FakeRet edges to normal edges when necessary (e.g. the normal/expected return edge does not exist)
         """
-        for src, dst, data in self._acyclic_cfg.graph.edges(data=True):
+        for _, dst, data in self._acyclic_cfg.graph.edges(data=True):
             if 'jumpkind' in data and data['jumpkind'] == 'Ijk_FakeRet':
                 all_edges_to_dst = self._acyclic_cfg.graph.in_edges([ dst ], data=True)
                 if not any((s, d) for s, d, da in all_edges_to_dst if da['jumpkind'] != 'Ijk_FakeRet' ):
                     # All in edges are FakeRets
                     # Change them to a normal edge
-                    for _, _, data in all_edges_to_dst:
-                        data['jumpkind'] = 'Ijk_Boring'
+                    for _, _, data_ in all_edges_to_dst:
+                        data_['jumpkind'] = 'Ijk_Boring'
 
     def _post_process(self):
         """
@@ -157,7 +156,8 @@ class CDG(Analysis):
         for src, dst in pdoms.prepared_graph.edges():
             self._normalized_cfg.add_edge(src.obj, dst.obj)
 
-    def _pd_graph_successors(self, graph, node):
+    @staticmethod
+    def _pd_graph_successors(graph, node):
 
         if type(node) is TemporaryNode:
             # This is for testing
