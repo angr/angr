@@ -517,7 +517,8 @@ class Project(object):
             l.warning("Could not find symbol %s", symbol_name)
             return False
         if sym.owner_obj is self.loader._extern_object:
-            l.warning("Not unhooking extern symbol %s", symbol_name)
+            l.warning("Refusing to unhook external symbol %s, replace it with another hook if you want to change it",
+                      symbol_name)
             return False
 
         hook_addr, _ = self.simos.prepare_function_symbol(symbol_name, basic_addr=sym.rebased_addr)
