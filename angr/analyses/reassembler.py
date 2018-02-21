@@ -2552,7 +2552,7 @@ class Reassembler(Analysis):
 
     @staticmethod
     def _is_pointer(cfg, ptr):
-        if cfg._addr_belongs_to_section(ptr) is not None or cfg._addr_belongs_to_segment(ptr) is not None or \
+        if cfg.project.loader.find_section_containing(ptr) is not None or cfg._addr_belongs_to_segment(ptr) is not None or \
                 (cfg._extra_memory_regions and
                      next(((a < ptr < b) for (a, b) in cfg._extra_memory_regions), None)
                  ):
@@ -2722,7 +2722,7 @@ class Reassembler(Analysis):
         for candidate in candidates:
 
             # if the candidate is in .bss, we don't care about it
-            sec = self.cfg._addr_belongs_to_section(candidate.address)
+            sec = self.cfg.project.loader.find_section_containing(candidate.address)
             if sec.name in ('.bss', '.got.plt'):
                 continue
 

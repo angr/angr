@@ -688,27 +688,6 @@ class CFGBase(Analysis):
                 return True
         return False
 
-    def _addr_belongs_to_section(self, addr):
-        """
-        Return the section object that the address belongs to.
-
-        :param int addr: The address to test
-        :return: The section that the address belongs to, or None if the address does not belong to any section, or if
-                section information is not available.
-        :rtype: cle.Section
-        """
-
-        obj = self.project.loader.find_object_containing(addr)
-
-        if obj is None:
-            return None
-
-        if isinstance(obj, (ExternObject, KernelObject, TLSObject)):
-            # the address is from a special CLE section
-            return None
-
-        return obj.find_section_containing(addr)
-
     def _addrs_belong_to_same_section(self, addr_a, addr_b):
         """
         Test if two addresses belong to the same section.

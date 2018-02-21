@@ -2139,7 +2139,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # TODO: the logic needs more testing
 
                 obj = self.project.loader.find_object_containing(data_addr)
-                sec = self._addr_belongs_to_section(data_addr)
+                sec = self.project.loader.find_section_containing(data_addr)
                 next_sec_addr = None
                 if sec is not None:
                     last_addr = sec.vaddr + sec.memsize
@@ -2292,7 +2292,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 #    # it's a code reference
                 #    # TODO: Further check if it's the beginning of an instruction
                 #    pass
-                if self._addr_belongs_to_section(ptr) is not None or self._addr_belongs_to_segment(ptr) is not None or \
+                if self.project.loader.find_section_containing(ptr) is not None or \
+                        self._addr_belongs_to_segment(ptr) is not None or \
                         (self._extra_memory_regions and
                          next(((a < ptr < b) for (a, b) in self._extra_memory_regions), None)
                          ):
@@ -3316,7 +3317,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if obj:
                 # is there a section?
                 has_executable_section = len([ sec for sec in obj.sections if sec.is_executable ]) > 0  # pylint:disable=len-as-condition
-                section = self._addr_belongs_to_section(addr)
+                section = self.project.loader.find_section_containing(addr)
                 if has_executable_section and section is None:
                     # the basic block should not exist here...
                     return None, None, None, None
