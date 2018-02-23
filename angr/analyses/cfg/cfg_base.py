@@ -1540,7 +1540,7 @@ class CFGBase(Analysis):
             # sanity check: startpoint of the function should be greater than its endpoint
             if startpoint_addr >= endpoint_addr:
                 continue
-            if max_unresolved_jump_addr >= endpoint_addr:
+            if max_unresolved_jump_addr <= startpoint_addr or max_unresolved_jump_addr >= endpoint_addr:
                 continue
 
             # scan forward from the endpoint to include any function tail jumps
@@ -1609,7 +1609,6 @@ class CFGBase(Analysis):
 
             for f_addr in functions_to_merge:
                 functions_to_remove[f_addr] = func_addr
-                continue
 
         # merge all functions
         for to_remove, merge_with in functions_to_remove.iteritems():
