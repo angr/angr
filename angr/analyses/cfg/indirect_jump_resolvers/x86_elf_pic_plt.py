@@ -51,7 +51,7 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
         if not isinstance(self.project.arch, archinfo.ArchX86):
             return False
 
-        section = cfg._addr_belongs_to_section(addr)
+        section = self.project.loader.find_section_containing(addr)
         if section.name != '.plt':
             return False
 

@@ -186,8 +186,8 @@ class JumpTableResolver(IndirectJumpResolver):
 
                 # Both the min jump target and the max jump target should be within a mapped memory region
                 # i.e., we shouldn't be jumping to the stack or somewhere unmapped
-                if not cfg._addr_belongs_to_segment(min_jump_target) or \
-                        not cfg._addr_belongs_to_segment(max_jump_target):
+                if not project.loader.find_segment_containing(min_jump_target) or \
+                        not project.loader.find_segment_containing(max_jump_target):
                     l.debug("Jump table %#x might have jump targets outside mapped memory regions. "
                             "Continue to resolve it from the next data source.", addr)
                     continue

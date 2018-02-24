@@ -688,27 +688,6 @@ class CFGBase(Analysis):
                 return True
         return False
 
-    def _addr_belongs_to_section(self, addr):
-        """
-        Return the section object that the address belongs to.
-
-        :param int addr: The address to test
-        :return: The section that the address belongs to, or None if the address does not belong to any section, or if
-                section information is not available.
-        :rtype: cle.Section
-        """
-
-        obj = self.project.loader.find_object_containing(addr)
-
-        if obj is None:
-            return None
-
-        if isinstance(obj, (ExternObject, KernelObject, TLSObject)):
-            # the address is from a special CLE section
-            return None
-
-        return obj.find_section_containing(addr)
-
     def _addrs_belong_to_same_section(self, addr_a, addr_b):
         """
         Test if two addresses belong to the same section.
@@ -738,54 +717,6 @@ class CFGBase(Analysis):
             return False
 
         return src_section.contains_addr(addr_b)
-
-    def _addr_next_section(self, addr):
-        """
-        Return the next section object after the given address.
-
-        :param int addr: The address to test
-        :return: The next section that goes after the given address, or None if there is no section after the address,
-                 or if section information is not available.
-        :rtype: cle.Section
-        """
-
-        obj = self.project.loader.find_object_containing(addr)
-
-        if obj is None:
-            return None
-
-        if isinstance(obj, (ExternObject, KernelObject, TLSObject)):
-            # the address is from a special CLE section
-            return None
-
-        for section in obj.sections:
-            start = section.vaddr
-
-            if addr < start:
-                return section
-
-        return None
-
-    def _addr_belongs_to_segment(self, addr):
-        """
-        Return the section object that the address belongs to.
-
-        :param int addr: The address to test
-        :return: The section that the address belongs to, or None if the address does not belong to any section, or if
-                section information is not available.
-        :rtype: cle.Segment
-        """
-
-        obj = self.project.loader.find_object_containing(addr)
-
-        if obj is None:
-            return None
-
-        if isinstance(obj, (ExternObject, KernelObject, TLSObject)):
-            # the address is from a section allocated by angr.
-            return None
-
-        return obj.find_segment_containing(addr)
 
     def _addr_hooked_or_syscall(self, addr):
         """
