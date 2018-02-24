@@ -15,19 +15,19 @@ class DFS(ExplorationTechnique):
         self._random.seed(10)
         self.deferred_stash = deferred_stash
 
-    def setup(self, pg):
-        if self.deferred_stash not in pg.stashes:
-            pg.stashes[self.deferred_stash] = []
+    def setup(self, simgr):
+        if self.deferred_stash not in simgr.stashes:
+            simgr.stashes[self.deferred_stash] = []
 
-    def step(self, pg, stash, **kwargs):
-        pg = pg._one_step(stash=stash, **kwargs)
-        if len(pg.stashes[stash]) > 1:
-            self._random.shuffle(pg.stashes[stash])
-            pg.split(from_stash=stash, to_stash=self.deferred_stash, limit=1)
+    def step(self, simgr, stash, **kwargs):
+        simgr = simgr._one_step(stash=stash, **kwargs)
+        if len(simgr.stashes[stash]) > 1:
+            self._random.shuffle(simgr.stashes[stash])
+            simgr.split(from_stash=stash, to_stash=self.deferred_stash, limit=1)
 
-        if len(pg.stashes[stash]) == 0:
-            if len(pg.stashes[self.deferred_stash]) == 0:
-                return pg
-            pg.stashes[stash].append(pg.stashes[self.deferred_stash].pop())
+        if len(simgr.stashes[stash]) == 0:
+            if len(simgr.stashes[self.deferred_stash]) == 0:
+                return simgr
+            simgr.stashes[stash].append(simgr.stashes[self.deferred_stash].pop())
 
-        return pg
+        return simgr
