@@ -66,7 +66,7 @@ def perform_one(binary_path):
         (data_src_1, cl1), [ (src, dst) for src, dst, _ in in_edges ]
     )
     nose.tools.assert_in(
-        (memaddr_src, cl1, {'data': 1, 'type': 'tmp', 'subtype': ('mem_addr', )}), in_edges
+        (memaddr_src, cl1, {'data': 14, 'type': 'tmp', 'subtype': ('mem_addr', )}), in_edges
     )
 
 def test_ddg_0():
