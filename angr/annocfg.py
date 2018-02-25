@@ -236,7 +236,7 @@ class AnnotatedCFG(object):
 
         return self.should_take_exit(path.addr_trace[-2], path.addr_trace[-1])
 
-    def filter_path(self, path):
+    def filter_state(self, path):
         """
         Used for debugging.
 
