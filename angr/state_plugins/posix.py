@@ -472,11 +472,10 @@ class SimStateSystem(SimStatePlugin):
 
     def get_file(self, fd):
         """
-
         :param fd:  A file descriptor.
         :return: the file for the corresponding fd or None
-        If the fd does not exist, a new fd is created with a warning
-        If concrete_fs is set then accessing a non_existing fd will return None
+            If the fd does not exist, a new fd is created with a warning
+            If concrete_fs is set then accessing a non_existing fd will return None
         """
         fd = self.state.make_concrete_int(fd)
         if fd not in self.files:

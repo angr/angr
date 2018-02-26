@@ -18,14 +18,14 @@ class LoopSeer(ExplorationTechnique):
 
     def __init__(self, cfg=None, functions=None, loops=None, bound=None, bound_reached=None, discard_stash='spinning'):
         """
-        :param cfg          : Normalized CFG is required.
-        :param functions    : Function(s) containing the loop(s) to be analyzed.
-        :param loops        : Loop(s) to be analyzed.
-        :param bound        : Limit the number of iteration a loop may be executed.
-        :param bound_reached: If provided, should be a function that takes a SimulationManager and returns
-                              a SimulationManager. Will be called when loop execution reach the given bound.
-                              Default to moving states that exceed the loop limit to a discard stash.
-        :param discard_stash: Name of the stash containing states exceeding the loop limit.
+        :param cfg:             Normalized CFG is required.
+        :param functions:       Function(s) containing the loop(s) to be analyzed.
+        :param loops:           Loop(s) to be analyzed.
+        :param bound:           Limit the number of iteration a loop may be executed.
+        :param bound_reached:   If provided, should be a function that takes a SimulationManager and returns
+                                a SimulationManager. Will be called when loop execution reach the given bound.
+                                Default to moving states that exceed the loop limit to a discard stash.
+        :param discard_stash:   Name of the stash containing states exceeding the loop limit.
         """
 
         super(LoopSeer, self).__init__()

@@ -20,13 +20,13 @@ class Cacher(ExplorationTechnique):
         """
         :param dump_cache: Whether to dump data to cache.
         :param load_cache: Whether to load data from cache.
-        :param container : Data container.
-        :param when      : If provided, should be a function that takes a SimulationManager and returns
+        :param container:  Data container.
+        :param when:       If provided, should be a function that takes a SimulationManager and returns
                            a Boolean, or the address of the state to be cached.
-        :param lookup    : A function that returns True if cache hit and False otherwise.
-        :param dump_func : If provided, should be a function that defines how Cacher should cache the
+        :param lookup:     A function that returns True if cache hit and False otherwise.
+        :param dump_func:  If provided, should be a function that defines how Cacher should cache the
                            SimulationManager. Default to caching the active stash.
-        :param load_func : If provided, should be a function that defines how Cacher should uncache the
+        :param load_func:  If provided, should be a function that defines how Cacher should uncache the
                            SimulationManager. Default to uncaching the stash to be stepped.
         """
 

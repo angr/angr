@@ -27,12 +27,12 @@ class Tracer(ExplorationTechnique):
 
     def __init__(self, trace=None, resiliency=True, use_cache=True, dump_syscall=False, keep_predecessors=1):
         """
-        :param trace            : The basic block trace.
-        :param resiliency       : Should we continue to step forward even if qemu and angr disagree?
-        :param use_cache        : True if we want to use caching system.
-        :param dump_syscall     : True if we want to dump the syscall information.
-        :param keep_predecessors: Number of states before the final state we should preserve.
-                                  Default 1, must be greater than 0.
+        :param trace:               The basic block trace.
+        :param resiliency:          Should we continue to step forward even if qemu and angr disagree?
+        :param use_cache:           True if we want to use caching system.
+        :param dump_syscall:        True if we want to dump the syscall information.
+        :param keep_predecessors:   Number of states before the final state we should preserve.
+                                    Default 1, must be greater than 0.
         """
 
         super(Tracer, self).__init__()
@@ -291,8 +291,8 @@ class Tracer(ExplorationTechnique):
     def _address_in_binary(self, addr):
         """
         Determine if address @addr is in the binary being traced.
-        :param addr: the address to test
 
+        :param addr: the address to test
         :return: True if the address is in between the binary's min and max addresses.
         """
 

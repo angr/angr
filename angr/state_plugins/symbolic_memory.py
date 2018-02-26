@@ -982,6 +982,7 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     def get_unconstrained_bytes(self, name, bits, source=None, key=None, inspect=True, events=True, **kwargs):
         """
         Get some consecutive unconstrained bytes.
+
         :param name: Name of the unconstrained variable
         :param bits: Size of the unconstrained variable
         :param source: Where those bytes are read from. Currently it is only used in under-constrained symbolic

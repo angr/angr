@@ -368,6 +368,7 @@ class Director(ExplorationTechnique):
     graph, we go back to control flow graph recovery and "peek" more blocks forward.
 
     When stepping a simulation manager, all states are categorized into three different categories:
+
     - Might reach the destination within the peek depth. Those states are prioritized.
     - Will not reach the destination within the peek depth. Those states are de-prioritized. However, there is a little
       chance for those states to be explored as well in order to prevent over-fitting.
