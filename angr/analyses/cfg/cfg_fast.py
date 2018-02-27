@@ -525,6 +525,115 @@ class MemoryDataReference(object):
         self.ref_ins_addr = ref_ins_addr
 
 
+class PendingJobs(object):
+    """
+    A collection of pending jobs during CFG recovery.
+    """
+    def __init__(self, functions, deregister_job_callback):
+        self._jobs = defaultdict(list)  # A mapping between function addresses and lists of pending jobs
+        self._functions = functions
+        self._deregister_job_callback = deregister_job_callback
+
+        self._returning_functions = set()
+        self._job_count = 0
+
+    def __len__(self):
+        return self._job_count
+
+    def __bool__(self):
+        return self._job_count > 0
+    __nonzero__ = __bool__
+
+    def _pop_job(self, func_addr):
+
+        jobs = self._jobs[func_addr]
+        j = jobs.pop(0)
+        if not jobs:
+            del self._jobs[func_addr]
+        self._job_count -= 1
+        return j
+
+    def add_job(self, job):
+        func_addr = job.returning_source
+        self._jobs[func_addr].append(job)
+        self._job_count += 1
+
+    def pop_job(self, returning=True):
+        """
+        Pop a job from the pending jobs list.
+
+        When returning == True, we prioritize the jobs whose functions are known to be returning (function.returning is
+        True). As an optimization, we are sorting the pending jobs list according to job.function.returning.
+
+        :param bool returning: Only pop a pending job if the corresponding function returns.
+        :return: A pending job if we can find one, or None if we cannot find any that satisfies the requirement.
+        """
+
+        if not self:
+            return None
+
+        if not returning:
+            return self._pop_job(self._jobs.keys()[0])
+
+        # Prioritize returning functions
+        for func_addr in self._returning_functions:
+            if func_addr not in self._jobs:
+                continue
+            return self._pop_job(func_addr)
+
+        return self._pop_job(self._jobs.keys()[0])
+
+    def cleanup(self):
+        """
+        Remove those pending exits if:
+        a) they are the return exits of non-returning SimProcedures
+        b) they are the return exits of non-returning syscalls
+        b) they are the return exits of non-returning functions
+
+        :return: None
+        """
+
+        pending_exits_to_remove = defaultdict(list)
+
+        for func_addr, jobs in self._jobs.items():
+            for i, pe in enumerate(jobs):
+
+                if pe.returning_source is None:
+                    # The original call failed. This pending exit must be followed.
+                    continue
+
+                func = self._functions.function(func_addr)
+                if func is None:
+                    # Why does it happen?
+                    l.warning("An expected function at %s is not found. Please report it to Fish.",
+                              hex(pe.returning_source) if pe.returning_source is not None else 'None')
+                    continue
+
+                if func.returning is False:
+                    # Oops, it's not returning
+                    # Remove this pending exit
+                    pending_exits_to_remove[func_addr].append(i)
+
+        for func_addr, indices in pending_exits_to_remove.items():
+            jobs = self._jobs[func_addr]
+            for index in reversed(indices):
+                job = jobs[index]
+                self._deregister_job_callback(job.func_addr, job)
+                del jobs[index]
+            if not jobs:
+                del self._jobs[func_addr]
+
+    def add_returning_function(self, func_addr):
+        """
+        Mark a function as returning.
+
+        :param int func_addr: Address of the function that returns.
+        :return:              None
+        """
+
+        self._returning_functions.add(func_addr)
+
+
 class CFGJob(object):
     """
     Defines a job to work on during the CFG recovery
@@ -1110,7 +1219,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     def _pre_analysis(self):
         # Initialize variables used during analysis
-        self._pending_jobs = [ ]
+        self._pending_jobs = PendingJobs(self.functions, self._deregister_analysis_job)
         self._traced_addresses = set()
         self._function_returns = defaultdict(list)
 
@@ -1246,19 +1355,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if self._pending_jobs:
             # look for a job that comes from a function that must return
             # if we can find one, just use it
-            job_index = None
-            for i, job in enumerate(self._pending_jobs):
-                src_func_addr = job.returning_source
-                if src_func_addr is None or src_func_addr not in self.kb.functions:
-                    continue
-                function = self.kb.functions[src_func_addr]
-                if function.returning is True:
-                    job_index = i
-                    break
-
-            if job_index is not None:
-                self._insert_job(self._pending_jobs[job_index])
-                del self._pending_jobs[job_index]
+            job = self._pop_pending_job(returning=True)
+            if job is not None:
+                self._insert_job(job)
                 return
 
         # did we finish analyzing any function?
@@ -1275,8 +1374,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._changed_functions = set()
 
         if self._pending_jobs:
-            self._insert_job(self._pending_jobs[0])
-            del self._pending_jobs[0]
+            job = self._pop_pending_job(returning=False)
+            if job is not None:
+                self._insert_job(job)
             return
 
         if self._use_function_prologues and self._remaining_function_prologue_addrs:
@@ -1913,7 +2013,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             ce = CFGJob(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
                         src_stmt_idx=stmt_idx, src_ins_addr=ins_addr, returning_source=new_function_addr,
                         syscall=is_syscall)
-            self._pending_jobs.append(ce)
+            self._pending_jobs.add_job(ce)
             # register this job to this function
             self._register_analysis_job(current_function_addr, ce)
 
@@ -2809,40 +2909,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                     del self._function_returns[not_returning_function.addr]
 
+    def _pop_pending_job(self, returning=True):
+        return self._pending_jobs.pop_job(returning=returning)
+
     def _clean_pending_exits(self):
-        """
-        Remove those pending exits if:
-        a) they are the return exits of non-returning SimProcedures
-        b) they are the return exits of non-returning syscalls
-        b) they are the return exits of non-returning functions
+        self._pending_jobs.cleanup()
 
-        :return: None
-        """
-
-        pending_exits_to_remove = []
-
-        for i, pe in enumerate(self._pending_jobs):
-
-            if pe.returning_source is None:
-                # The original call failed. This pending exit must be followed.
-                continue
-
-            func = self.kb.functions.function(pe.returning_source)
-            if func is None:
-                # Why does it happen?
-                l.warning("An expected function at %s is not found. Please report it to Fish.",
-                          hex(pe.returning_source) if pe.returning_source is not None else 'None')
-                continue
-
-            if func.returning is False:
-                # Oops, it's not returning
-                # Remove this pending exit
-                pending_exits_to_remove.append(i)
-
-        for index in reversed(pending_exits_to_remove):
-            job = self._pending_jobs[index]
-            self._deregister_analysis_job(job.func_addr, job)
-            del self._pending_jobs[index]
+    def _add_returning_function(self, func_addr):
+        self._pending_jobs.add_returning_function(func_addr)
 
     #
     # Graph utils
