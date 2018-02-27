@@ -2,27 +2,53 @@ import angr
 import nose
 
 
-def test_immutability():
+def test_hookset():
 
-    class Foo(angr.misc.ImmutabilityMixin):
+    class Foo(object):
+        def run(self):
+            return self.blah()
 
-        def __init__(self, immutable=False):
-            super(Foo, self).__init__(immutable=immutable)
-            self.bar = 0
+        def blah(self):
+            return ['foo']
 
-        @angr.misc.ImmutabilityMixin.immutable
-        def foo(self):
-            self.bar += 1
+        def install_hooks(self, tech):
+            angr.misc.HookSet.install_hooks(self, blah=tech.blah)
 
-    mutable = Foo(immutable=False)
-    mutable.foo()
-    nose.tools.assert_equal(mutable.bar, 0)
+        def remove_hooks(self, tech):
+            angr.misc.HookSet.remove_hooks(self, blah=tech.blah)
 
-    immutable = Foo(immutable=True)
-    mutated = immutable.foo()
-    nose.tools.assert_equal(immutable.bar, 0)
-    nose.tools.assert_equal(mutated.bar, 1)
+    class Bar(object):
+        def blah(self, foo):
+            return ['bar'] + foo.blah()
+
+    class Baz(object):
+        def blah(self, foo):
+            return ['baz'] + foo.blah()
+
+    class Coward(object):
+        def blah(self, foo):
+            return ['coward']
+
+    foo = Foo()
+    nose.tools.assert_equal(foo.run(), ['foo'])
+
+    bar = Bar()
+    baz = Baz()
+    foo.install_hooks(bar)
+    foo.install_hooks(baz)
+    nose.tools.assert_equal(foo.run(), ['baz', 'bar', 'foo'])
+
+    foo.remove_hooks(bar)
+    foo.remove_hooks(baz)
+    nose.tools.assert_equal(foo.run(), ['foo'])
+
+    coward = Coward()
+    foo.install_hooks(coward)
+    nose.tools.assert_equal(foo.run(), ['coward'])
+
+    foo.remove_hooks(coward)
+    nose.tools.assert_equal(foo.run(), ['foo'])
 
 
 if __name__ == '__main__':
-    test_immutability()
+    test_hookset()
