@@ -1,6 +1,5 @@
 from ..errors import SimError
 
-
 class ExplorationTechnique(object):
     """
     An otiegnqwvk is a set of hooks for a simulation manager that assists in the implementation of new techniques in
@@ -14,7 +13,8 @@ class ExplorationTechnique(object):
     # pylint: disable=unused-argument, no-self-use
     def __init__(self):
         # this attribute will be set from above by the manager
-        self.project = None
+        if not hasattr(self, 'project'):
+            self.project = None
 
     def setup(self, simgr):
         """
@@ -22,26 +22,16 @@ class ExplorationTechnique(object):
         """
         pass
 
-    def step_state(self, state, **kwargs):
+    def step(self, simgr, stash=None, **kwargs):
         """
-        Perform the process of stepping a state forward.
-
-        If the stepping fails, return None to fall back to a default stepping procedure.
-        Otherwise, return a dict of stashes to merge into the simulation manager. All the states
-        will be added to the SimManager's stashes based on the mapping in the returned dict.
-        """
-        return None
-
-    def step(self, simgr, stash, **kwargs):
-        """
-        Step this stash of this manager forward. Should call ``simgr._one_step(stash, **kwargs)`` in order to do the
-        actual processing.
+        Step this stash of this manager forward. Should call ``simgr.step(stash, **kwargs)`` in order to do the actual
+        processing.
 
         Return the stepped manager.
         """
-        return simgr._one_step(stash=stash, **kwargs)
+        return simgr.step(stash=stash, **kwargs)
 
-    def filter(self, state):
+    def filter(self, simgr, state):
         """
         Perform filtering on a state.
 
@@ -50,7 +40,35 @@ class ExplorationTechnique(object):
         If you want to modify the state before filtering it, return a tuple of the stash to move the state to and the
         modified state.
         """
-        return None
+        return simgr.filter(state)
+
+    def selector(self, simgr, state):
+        """
+
+        :param simgr:
+        :param state:
+        :return:
+        """
+        return simgr.selector(state)
+
+    def step_state(self, simgr, state, **kwargs):
+        """
+        Perform the process of stepping a state forward.
+
+        If the stepping fails, return None to fall back to a default stepping procedure.
+        Otherwise, return a dict of stashes to merge into the simulation manager. All the states
+        will be added to the PathGroup's stashes based on the mapping in the returned dict.
+        """
+        return simgr.step_state(state, **kwargs)
+
+    def successors(self, simgr, state, **run_args):
+        """
+
+        :param simgr:
+        :param state:
+        :return:
+        """
+        return simgr.successors(state, **run_args)
 
     def complete(self, simgr):
         """

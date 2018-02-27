@@ -344,10 +344,9 @@ class Veritesting(Analysis):
                 manager = self._join_merge_points(manager, merge_points)
         if any(len(manager.stashes[stash_name]) for stash_name in self.all_stashes):
             # Remove all stashes other than errored or deadended
-            manager.stashes = {
-                name: stash for name, stash in manager.stashes.items()
-                if name in self.all_stashes
-            }
+            for stash in list(manager.stashes):
+                if stash not in self.all_stashes:
+                    manager.drop(stash=stash)
 
             for stash in manager.stashes:
                 manager.apply(self._unfuck, stash=stash)

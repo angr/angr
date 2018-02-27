@@ -95,11 +95,11 @@ class Explorer(ExplorationTechnique):
         if not self.find_stash in simgr.stashes: simgr.stashes[self.find_stash] = []
         if not self.avoid_stash in simgr.stashes: simgr.stashes[self.avoid_stash] = []
 
-    def step(self, simgr, stash, **kwargs):
+    def step(self, simgr, stash=None, **kwargs):
         base_extra_stop_points = set(kwargs.get("extra_stop_points") or {})
-        return simgr._one_step(stash=stash, extra_stop_points=base_extra_stop_points | self._extra_stop_points, **kwargs)
+        return simgr.step(stash=stash, extra_stop_points=base_extra_stop_points | self._extra_stop_points, **kwargs)
 
-    def filter(self, state):
+    def filter(self, simgr, state):
         if sim_options.UNICORN in state.options and self._warn_unicorn:
             self._warn_unicorn = False # show warning only once
             l.warning("Using unicorn with find or avoid conditions that are a lambda (not a number, set, tuple or list).")

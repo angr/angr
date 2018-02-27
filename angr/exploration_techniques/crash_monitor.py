@@ -46,7 +46,6 @@ class CrashMonitor(ExplorationTechnique):
     def complete(self, simgr):
         # if we spot a crashed path in crash mode return the goods
         if self._crash_type is not None:
-            stashes = {k: list(v) for k, v in simgr.stashes.items()}
             if self._crash_type == QEMU_CRASH:
                 l.info("crash occured in basic block %x", self._trace[-1])
 
@@ -54,8 +53,8 @@ class CrashMonitor(ExplorationTechnique):
                 self._crash_state = self._crash_windup()
                 l.debug("tracing done!")
 
-            stashes['crashed'] = [self._crash_state]
-            simgr.stashes = simgr._make_stashes_dict(**stashes)
+            # stashes['crashed'] = [self._crash_state]
+            simgr.populate('crashed', [self._crash_state])
             return True
 
         return False
@@ -68,14 +67,14 @@ class CrashMonitor(ExplorationTechnique):
             if self._trim_history and not self._crash_mode:
                 self.last_state.history.trim()
 
-            simgr._one_step(stash, **kwargs)
+            simgr = simgr.step(stash=stash, **kwargs)
 
             if self._crash_type == EXEC_STACK:
                 return simgr
 
             # check to see if we reached a deadend
             if self.last_state.globals['bb_cnt'] >= len(self._trace) and self._crash_mode:
-                simgr._one_step(stash)
+                simgr.step(stash=stash)
                 self._crash_type = QEMU_CRASH
                 return simgr
 

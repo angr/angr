@@ -91,7 +91,7 @@ class LoopSeer(ExplorationTechnique):
                 entry = loop.entry_edges[0][0]
                 self.loops[entry.addr] = loop
 
-    def step(self, simgr, stash, **kwargs):
+    def step(self, simgr, stash=None, **kwargs):
         kwargs['successor_func'] = self.normalized_step
 
         simgr.step(stash=stash, **kwargs)

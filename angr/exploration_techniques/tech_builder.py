@@ -22,12 +22,15 @@ class TechniqueBuilder(ExplorationTechnique):
     exploration technique.
     """
 
-    def __init__(self, setup=None, step_state=None, step=None, filter=None, complete=None):
+    def __init__(self, setup=None, step_state=None, step=None, successors=None,
+                 filter=None, selector=None, complete=None):
         super(TechniqueBuilder, self).__init__()
         self.setup = _its_a_func(setup) or super(TechniqueBuilder, self).setup
         self.step_state = _its_a_func(step_state) or super(TechniqueBuilder, self).step_state
         self.step = _its_a_func(step) or super(TechniqueBuilder, self).step
         self.filter = _its_a_func(filter) or super(TechniqueBuilder, self).filter
+        self.successors = _its_a_func(successors) or super(TechniqueBuilder, self).successors
+        self.selector = _its_a_func(selector) or super(TechniqueBuilder, self).selector
         self.complete = _its_a_func(complete) or super(TechniqueBuilder, self).complete
 
 
