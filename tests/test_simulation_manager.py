@@ -73,8 +73,8 @@ def run_fauxware(arch, threads):
     pg_a = p.factory.simgr(immutable=True)
     pg_b = pg_a.step(until=lambda lpg: len(lpg.active) > 1, step_func=lambda lpg: lpg.prune().drop(stash='pruned'))
     pg_c = pg_b.step(selector_func=lambda p: p is pg_b.active[0], step_func=lambda lpg: lpg.prune().drop(stash='pruned'))
-    nose.tools.assert_is(pg_b.active[1], pg_c.active[0])
-    nose.tools.assert_is_not(pg_b.active[0], pg_c.active[1])
+    nose.tools.assert_is(pg_b.active[1], pg_c.active[1])
+    nose.tools.assert_is_not(pg_b.active[0], pg_c.active[0])
 
     total_active = len(pg_c.active)
 
