@@ -1057,17 +1057,6 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
 
         return merged_val
 
-    def concrete_parts(self):
-        """
-        Return a dict containing the concrete values in memory.
-        """
-        d = { }
-        for k,v in self.mem.iteritems():
-            if not self.state.se.symbolic(v):
-                d[k] = self.state.se.simplify(v)
-
-        return d
-
     def dbg_print(self, indent=0):
         """
         Print out debugging information.
