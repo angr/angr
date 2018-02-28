@@ -203,7 +203,7 @@ class Surveyor(object):
 
     def post_tick(self):
         """
-        Provided for analyses to use for pre-tick actions.
+        Provided for analyses to use for post-tick actions.
         """
         pass
 
@@ -416,7 +416,7 @@ class Surveyor(object):
     ### Path termination.
     ###
 
-    def filter_path(self, state):  # pylint: disable=W0613,R0201
+    def filter_state(self, state):  # pylint: disable=W0613,R0201
         """
         Returns True if the given path should be kept in the analysis, False
         otherwise.
@@ -427,7 +427,7 @@ class Surveyor(object):
         """
         Given a list of paths, returns filters them and returns the rest.
         """
-        return [state for state in states if self.filter_path(state)]
+        return [state for state in states if self.filter_state(state)]
 
     #def filter(self):
     #   """
@@ -436,7 +436,7 @@ class Surveyor(object):
     #   old_active = self.active[ :: ]
 
     #   l.debug("before filter: %d paths", len(self.active))
-    #   self.active = self.filter_paths(self.active)
+    #   self.active = self.filter_states(self.active)
     #   l.debug("after filter: %d paths", len(self.active))
 
     #   for a in old_active:

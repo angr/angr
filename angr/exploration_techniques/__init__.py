@@ -28,7 +28,7 @@ class ExplorationTechnique(object):
 
         If the stepping fails, return None to fall back to a default stepping procedure.
         Otherwise, return a dict of stashes to merge into the simulation manager. All the states
-        will be added to the PathGroup's stashes based on the mapping in the returned dict.
+        will be added to the SimManager's stashes based on the mapping in the returned dict.
         """
         return None
 
