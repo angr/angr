@@ -30,7 +30,7 @@ class HappyGraph(object):
 
         self._merge_points = [ ]
 
-    def filter_path(self, path): # pylint: disable=W0613,R0201,
+    def filter_state(self, path): # pylint: disable=W0613,R0201,
         return True
 
     def should_take_exit(self, src, dst): # pylint: disable=W0613,R0201,
@@ -87,15 +87,15 @@ class Slicecutor(Surveyor):
         self._merge_countdowns = { }
         self.merge_countdown = merge_countdown
 
-    def filter_path(self, path):
-        l.debug("Checking path %s for filtering...", path)
-        if not self._annotated_cfg.filter_path(path):
-            l.debug("... %s is cut by AnnoCFG explicitly.", path)
-            self.cut.append(self.suspend_path(path))
+    def filter_state(self, state):
+        l.debug("Checking path %s for filtering...", state)
+        if not self._annotated_cfg.filter_state(state):
+            l.debug("... %s is cut by AnnoCFG explicitly.", state)
+            self.cut.append(self.suspend_path(state))
             return False
 
         l.debug("... checking loop iteration limit")
-        if self._max_loop_iterations is not None and path.detect_loops() > self._max_loop_iterations:
+        if self._max_loop_iterations is not None and state.detect_loops() > self._max_loop_iterations:
             l.debug("... limit reached")
             return False
 

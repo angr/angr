@@ -208,45 +208,45 @@ class Explorer(Surveyor):
                 l.debug("Not trimming %s, because it can still get to the target.", p)
                 return False
 
-    def filter_path(self, p):
-        if self._is_lost(p):
-            l.debug("Cutting path %s because it's lost.", p)
-            self.lost.append(p)
+    def filter_state(self, state):
+        if self._is_lost(state):
+            l.debug("Cutting state %s because it's lost.", state)
+            self.lost.append(state)
             return False
 
-        if p.history.depth < self._min_depth:
-            l.debug("path %s has less than the minimum depth", p)
+        if state.history.depth < self._min_depth:
+            l.debug("State %s has less than the minimum depth", state)
             return True
 
-        if not self._project.is_hooked(p.addr):
+        if not self._project.is_hooked(state.addr):
             try:
-                imark_set = set(self._project.factory.block(p.addr).instruction_addrs)
+                imark_set = set(self._project.factory.block(state.addr).instruction_addrs)
             except (SimMemoryError, SimEngineError):
-                l.debug("Cutting path because there is no code at address 0x%x", p.addr)
-                self.errored.append(p)
+                l.debug("Cutting state because there is no code at address 0x%x", state.addr)
+                self.errored.append(state)
                 return False
         else:
-            imark_set = { p.addr }
+            imark_set = {state.addr}
 
         for addr in imark_set:
             self._instruction_counter[addr] += 1
 
-        if self._match(self._avoid, p, imark_set):
-            l.debug("Avoiding path %s.", p)
-            self.avoided.append(p)
+        if self._match(self._avoid, state, imark_set):
+            l.debug("Avoiding state %s.", state)
+            self.avoided.append(state)
             return False
-        elif self._match(self._find, p, imark_set):
-            if not p.satisfiable():
-                l.debug("Discarding 'found' path %s because it is unsat", p)
-                self.deadended.append(p)
+        elif self._match(self._find, state, imark_set):
+            if not state.satisfiable():
+                l.debug("Discarding 'found' state %s because it is unsat", state)
+                self.deadended.append(state)
                 return False
 
-            l.debug("Marking path %s as found.", p)
-            self.found.append(p)
+            l.debug("Marking state %s as found.", state)
+            self.found.append(state)
             return False
-        elif self._restricted(self._restrict, p, imark_set):
-            l.debug("Path %s is not on the restricted addresses!", p)
-            self.deviating.append(p)
+        elif self._restricted(self._restrict, state, imark_set):
+            l.debug("State %s is not on the restricted addresses!", state)
+            self.deviating.append(state)
             return False
         # TODO: something about this
         #elif p.detect_loops(self._max_repeats) >= self._max_repeats:
@@ -254,15 +254,15 @@ class Explorer(Surveyor):
         #    l.debug("Path %s appears to be looping!", p)
         #    self.looping.append(p)
         #    return False
-        elif self._max_depth is not None and p.history.depth > self._max_depth:
-            l.debug('Path %s exceeds the maximum depth(%d) allowed.', p, self._max_depth)
+        elif self._max_depth is not None and state.history.depth > self._max_depth:
+            l.debug('State %s exceeds the maximum depth(%d) allowed.', state, self._max_depth)
             return False
         else:
-            l.debug("Letting path %s continue", p)
+            l.debug("Letting state %s continue", state)
             return True
 
     def __repr__(self):
-        return "<Explorer with paths: %s, %d found, %d avoided, %d deviating, %d looping, %d lost>" % (
+        return "<Explorer with states: %s, %d found, %d avoided, %d deviating, %d looping, %d lost>" % (
         Surveyor.__repr__(self), len(self.found), len(self.avoided), len(self.deviating), len(self.looping),
         len(self.lost))
 
