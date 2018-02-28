@@ -203,7 +203,7 @@ class Surveyor(object):
 
     def post_tick(self):
         """
-        Provided for analyses to use for pre-tick actions.
+        Provided for analyses to use for post-tick actions.
         """
         pass
 
