@@ -288,9 +288,8 @@ class VariableManager(KnowledgeBasePlugin):
     """
     Manage variables.
     """
-    def __init__(self, kb):
-        super(VariableManager, self).__init__()
-        self._kb = kb
+    def __init__(self, kb=None):
+        super(VariableManager, self).__init__(kb)
         self.global_manager = VariableManagerInternal(self)
         self.function_managers = { }
 
@@ -347,6 +346,3 @@ class VariableManager(KnowledgeBasePlugin):
 
     def copy(self):
         raise NotImplementedError
-
-
-KnowledgeBasePlugin.register_default('variables', VariableManager)
