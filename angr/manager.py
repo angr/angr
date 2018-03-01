@@ -238,25 +238,26 @@ class SimulationManager(ana.Storable):
         try:
             # if we have a hook, use it. If we succeed at using the hook, we will break out of this loop
             # otherwise we execute the else-clause, which does the normal step procedure
-            for hook in self._hooks_step_state:
+            for tech_hook in self._hooks_step_state:
                 # FIXME hack to handle some hooks not expecting strong_reference
-                argspec = inspect.getargspec(hook)
+                argspec = inspect.getargspec(tech_hook)
                 if argspec.keywords is None and "strong_reference" not in argspec.args:
                     del kwargs["strong_reference"]
 
-                out = hook(state, **kwargs)
-                if out is not None:
-                    if isinstance(out, tuple):
+                # The technique hook should return a dictionary (stash: [states]) to be merged
+                tech_states_dict = tech_hook(state, **kwargs)
+                if tech_states_dict is not None:
+                    if isinstance(tech_states_dict, tuple):
                         l.warning('step_state returning a tuple has been deprecated! Please return a dict of stashes instead.')
-                        state, unconst, unsat, p, e = out
-                        out = {'active': state, 'unconstrained': unconst, 'unsat': unsat, 'pruned': p}
+                        state, unconst, unsat, p, e = tech_states_dict
+                        tech_states_dict = {'active': state, 'unconstrained': unconst, 'unsat': unsat, 'pruned': p}
 
-                    # errored is not anymore a stash
-                    if 'errored' in out:
-                        self.errored += out['errored']
-                        del out['errored']
+                    # errored is not a stash anymore
+                    if 'errored' in tech_states_dict:
+                        self.errored += tech_states_dict['errored']
+                        del tech_states_dict['errored']
 
-                    new_stashes = self._make_stashes_dict(**out)
+                    new_stashes = self._make_stashes_dict(**tech_states_dict)
                     break
             else:
                 if successor_func is not None:
