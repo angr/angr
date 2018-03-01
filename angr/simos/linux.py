@@ -84,7 +84,7 @@ class SimLinux(SimUserland):
 
         # Only set up ifunc resolution if we are using the ELF backend on AMD64
         if isinstance(self.project.loader.main_object, MetaELF):
-            if isinstance(self.project.arch, ArchAMD64):
+            if isinstance(self.project.arch, (ArchAMD64, ArchX86)):
                 for binary in self.project.loader.all_objects:
                     if not isinstance(binary, MetaELF):
                         continue
