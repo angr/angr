@@ -221,7 +221,7 @@ class SimulationManager(ana.Storable):
         Internal function to step a single state forward.
 
         :param state:           The state.
-        :param successor_func:  A function to run on the state instead of doing a.step().
+        :param successor_func:  A function to run on the state instead of doing state.step().
         :param resilience:      Quash all errors (and put the offending state in the errored stash).
 
         :returns:               A dict mapping stash names to state lists
