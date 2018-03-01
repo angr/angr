@@ -581,7 +581,7 @@ class PendingJobs(object):
                 continue
             return self._pop_job(func_addr)
 
-        return self._pop_job(self._jobs.keys()[0])
+        return None
 
     def cleanup(self):
         """
@@ -602,7 +602,7 @@ class PendingJobs(object):
                     # The original call failed. This pending exit must be followed.
                     continue
 
-                func = self._functions.function(func_addr)
+                func = self._functions.function(pe.returning_source)
                 if func is None:
                     # Why does it happen?
                     l.warning("An expected function at %s is not found. Please report it to Fish.",
@@ -612,7 +612,7 @@ class PendingJobs(object):
                 if func.returning is False:
                     # Oops, it's not returning
                     # Remove this pending exit
-                    pending_exits_to_remove[func_addr].append(i)
+                    pending_exits_to_remove[pe.returning_source].append(i)
 
         for func_addr, indices in pending_exits_to_remove.items():
             jobs = self._jobs[func_addr]
@@ -620,6 +620,7 @@ class PendingJobs(object):
                 job = jobs[index]
                 self._deregister_job_callback(job.func_addr, job)
                 del jobs[index]
+                self._job_count -= 1
             if not jobs:
                 del self._jobs[func_addr]
 
@@ -1218,6 +1219,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         return job.addr
 
     def _pre_analysis(self):
+
+        # Call _initialize_cfg() before self.functions is used.
+        self._initialize_cfg()
+
         # Initialize variables used during analysis
         self._pending_jobs = PendingJobs(self.functions, self._deregister_analysis_job)
         self._traced_addresses = set()
@@ -1229,8 +1234,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # necessary calling edges in our call map during the post-processing
         # phase.
         self._function_exits = defaultdict(set)
-
-        self._initialize_cfg()
 
         # Create an initial state. Store it to self so we can use it globally.
         self._initial_state = self.project.factory.blank_state(mode="fastpath")
@@ -1353,6 +1356,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _job_queue_empty(self):
 
         if self._pending_jobs:
+            # fastpath
             # look for a job that comes from a function that must return
             # if we can find one, just use it
             job = self._pop_pending_job(returning=True)
@@ -1367,17 +1371,21 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # analyze function features, most importantly, whether each function returns or not
         self._analyze_all_function_features()
 
-        if self._pending_jobs:
-            self._clean_pending_exits()
-
         # Clear _changed_functions set
         self._changed_functions = set()
 
         if self._pending_jobs:
+            job = self._pop_pending_job(returning=True)
+            if job is not None:
+                self._insert_job(job)
+                return
+
+            self._clean_pending_exits()
+
             job = self._pop_pending_job(returning=False)
             if job is not None:
                 self._insert_job(job)
-            return
+                return
 
         if self._use_function_prologues and self._remaining_function_prologue_addrs:
             while self._remaining_function_prologue_addrs:
