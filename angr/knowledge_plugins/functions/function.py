@@ -117,7 +117,7 @@ class Function(object):
         elif self.is_syscall:
             hooker = project.simos.syscall_from_addr(addr)
         if hooker and hasattr(hooker, 'NO_RET'):
-            self.returning = hooker.NO_RET
+            self.returning = not hooker.NO_RET
 
         self.prepared_registers = set()
         self.prepared_stack_variables = set()
