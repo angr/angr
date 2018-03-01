@@ -30,7 +30,7 @@ from .errors import *
 #from .service import *
 from .blade import Blade
 from .simos import SimOS
-from .manager import SimulationManager
+from .sim_manager import SimulationManager
 from .analyses import Analysis, register_analysis
 from . import analyses
 from . import knowledge_plugins

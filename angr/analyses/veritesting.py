@@ -7,7 +7,7 @@ from .. import SIM_PROCEDURES
 from .. import options as o
 from ..knowledge_base import KnowledgeBase
 from ..errors import AngrError, AngrCFGError
-from ..manager import SimulationManager
+from ..sim_manager import SimulationManager
 from ..utils.graph import shallow_reverse
 from . import Analysis
 
