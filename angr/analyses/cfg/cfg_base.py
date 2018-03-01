@@ -873,6 +873,7 @@ class CFGBase(Analysis):
             if func.has_return:
                 changes['functions_return'].append(func)
                 func.returning = True
+                self._add_returning_function(func.addr)
                 continue
 
             # This function does not have endpoints. It's either because it does not return, or we haven't analyzed all
@@ -893,6 +894,7 @@ class CFGBase(Analysis):
                     changes['functions_do_not_return'].append(func)
                 else:
                     func.returning = True
+                    self._add_returning_function(func.addr)
                     changes['functions_return'].append(func)
                 continue
 
@@ -906,6 +908,7 @@ class CFGBase(Analysis):
                 # the error will be corrected during post-processing. In fact at this moment we cannot say anything
                 # about whether this function returns or not. We always assume it returns.
                 func.returning = True
+                self._add_returning_function(func.addr)
                 changes['functions_return'].append(func)
                 continue
 
@@ -953,6 +956,7 @@ class CFGBase(Analysis):
                 target_func = self.kb.functions[goout_target.addr]
                 if target_func.returning is True:
                     func.returning = True
+                    self._add_returning_function(func.addr)
                     changes['functions_return'].append(func)
                     bail_out = True
                 elif target_func.returning is None:
@@ -1245,6 +1249,9 @@ class CFGBase(Analysis):
     #
     # Function identification and such
     #
+
+    def _add_returning_function(self, func_addr):
+        pass
 
     def remove_function_alignments(self):
         """
