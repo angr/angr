@@ -87,15 +87,6 @@ class Function(object):
             if hooker is not None:
                 binary_name = hooker.library_name
 
-        # set returning
-        hooker = None
-        if self.is_simprocedure:
-            hooker = project.hooked_by(addr)
-        elif self.is_syscall:
-            hooker = project.simos.syscall_from_addr(addr)
-        if hooker and hasattr(hooker, 'NO_RET'):
-            self.returning = hooker.NO_RET
-
         if binary_name is None and self.binary is not None:
             binary_name = os.path.basename(self.binary.binary)
 
@@ -118,6 +109,15 @@ class Function(object):
 
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
+
+        # Determine returning status for SimProcedures and Syscalls
+        hooker = None
+        if self.is_simprocedure:
+            hooker = project.hooked_by(addr)
+        elif self.is_syscall:
+            hooker = project.simos.syscall_from_addr(addr)
+        if hooker and hasattr(hooker, 'NO_RET'):
+            self.returning = hooker.NO_RET
 
         self.prepared_registers = set()
         self.prepared_stack_variables = set()
