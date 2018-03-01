@@ -705,7 +705,7 @@ class SimulationManager(ana.Storable):
         stash = 'active' if stash is None else stash
         return self.move(stash, self.DROP, filter_func=filter_func)
 
-    def unstash(self, filter_func=None, to_stash=None, from_stash=None):
+    def unstash(self, filter_func=None, from_stash=None, to_stash=None):
         """
         Unstash some states. This is an alias for move(), with defaults for the stashes.
 
